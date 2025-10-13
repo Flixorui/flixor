@@ -2,10 +2,8 @@ version: '3.9'
 
 services:
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: plex-backend
+    image: flixorui/flixor_backend:latest
+    container_name: flixor-backend
     environment:
       - NODE_ENV=production
       - PORT=3001
@@ -26,10 +24,8 @@ services:
     restart: unless-stopped
 
   frontend:
-    build:
-      context: ./web_frontend
-      dockerfile: docker/frontend.Dockerfile
-    container_name: plex-frontend
+    image: flixorui/flixor_web:latest
+    container_name: flixor-web
     depends_on:
       - backend
     ports:
