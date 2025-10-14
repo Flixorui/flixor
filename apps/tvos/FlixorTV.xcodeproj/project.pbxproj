@@ -1,0 +1,451 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0679A76C481F15A9BF35F024 /* FlixorTVApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8027AFA9FD3E569E95633108 /* FlixorTVApp.swift */; };
+		166900FDEA45E53E3F084304 /* TVSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C54BA4F810D1021F4D3F6B5D /* TVSettingsView.swift */; };
+		48C257F2BB22944EBA58BDC1 /* FlixorKit in Frameworks */ = {isa = PBXBuildFile; productRef = 053E11F404F57C6E7904947B /* FlixorKit */; };
+		48E547380669970236CE69C3 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C0092F3794E12E5F2884741E /* Assets.xcassets */; };
+		4B1DF129332C935C8FB472B3 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D18BCB551C52B6EF378D089 /* AppState.swift */; };
+		5DC80F90B2AC958400600CB4 /* TVBillboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B34545FBF16E94C672651FBD /* TVBillboardView.swift */; };
+		7322C892CD5A6930B58C307D /* TVCarouselRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A7E3CFE272780A78553EA7A /* TVCarouselRow.swift */; };
+		746BB5FF893361C86CA89E82 /* FlixorTV.xcodeproj in Resources */ = {isa = PBXBuildFile; fileRef = A409FFB5441617D6FD5F3F05 /* FlixorTV.xcodeproj */; };
+		7486665C9ADAC92EA84E04C0 /* TopNavBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3616010CF268C0F1FAB2DA89 /* TopNavBar.swift */; };
+		8E44EC6D1A85EE59AFA2FB5D /* TVAuthLinkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1363F127165B6A9AC55441C /* TVAuthLinkView.swift */; };
+		9BAB0C88EAA3E53BFF894AF1 /* TVHomeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D982341DFFB7A5B14F7E7E8 /* TVHomeViewModel.swift */; };
+		9CC843FD21FC20E2A688504A /* MainTVView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A560351FB7F36D1273F8DFA3 /* MainTVView.swift */; };
+		BFA33B59F8D7A6C53862C042 /* Nuke in Frameworks */ = {isa = PBXBuildFile; productRef = 2FECB614CC4C90F60DFC86ED /* Nuke */; };
+		C196CA26AB88809CD97F25B1 /* TVHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4374B38CC057026BF7C73418 /* TVHomeView.swift */; };
+		C898CFC0A58E2042F32B5DF6 /* TVCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA640CCCC115D09CBAF9F0B3 /* TVCards.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		3616010CF268C0F1FAB2DA89 /* TopNavBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TopNavBar.swift; sourceTree = "<group>"; };
+		4374B38CC057026BF7C73418 /* TVHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVHomeView.swift; sourceTree = "<group>"; };
+		5D982341DFFB7A5B14F7E7E8 /* TVHomeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVHomeViewModel.swift; sourceTree = "<group>"; };
+		6A7E3CFE272780A78553EA7A /* TVCarouselRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVCarouselRow.swift; sourceTree = "<group>"; };
+		6D6DB6CA3ABEE2740792235F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		8027AFA9FD3E569E95633108 /* FlixorTVApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlixorTVApp.swift; sourceTree = "<group>"; };
+		9D18BCB551C52B6EF378D089 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		A409FFB5441617D6FD5F3F05 /* FlixorTV.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = FlixorTV.xcodeproj; sourceTree = "<group>"; };
+		A4B42D166FB2D68A1B927884 /* FlixorTV.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = FlixorTV.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A560351FB7F36D1273F8DFA3 /* MainTVView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTVView.swift; sourceTree = "<group>"; };
+		B34545FBF16E94C672651FBD /* TVBillboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVBillboardView.swift; sourceTree = "<group>"; };
+		C0092F3794E12E5F2884741E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		C1363F127165B6A9AC55441C /* TVAuthLinkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVAuthLinkView.swift; sourceTree = "<group>"; };
+		C54BA4F810D1021F4D3F6B5D /* TVSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVSettingsView.swift; sourceTree = "<group>"; };
+		CA640CCCC115D09CBAF9F0B3 /* TVCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVCards.swift; sourceTree = "<group>"; };
+		D3B483312332111548480C95 /* FlixorKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = FlixorKit; path = ../../shared/FlixorKit; sourceTree = SOURCE_ROOT; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		60833E86CE82BE16AB911373 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				48C257F2BB22944EBA58BDC1 /* FlixorKit in Frameworks */,
+				BFA33B59F8D7A6C53862C042 /* Nuke in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		2E80A1657223959690B4D45B /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A4B42D166FB2D68A1B927884 /* FlixorTV.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		3D9FC1E51286B7B3697BE715 /* Home */ = {
+			isa = PBXGroup;
+			children = (
+				4374B38CC057026BF7C73418 /* TVHomeView.swift */,
+				5D982341DFFB7A5B14F7E7E8 /* TVHomeViewModel.swift */,
+				6064B880701151CB9EC397B4 /* Components */,
+			);
+			path = Home;
+			sourceTree = "<group>";
+		};
+		4A6C3FDAE7A35DBF8E50211B /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				C54BA4F810D1021F4D3F6B5D /* TVSettingsView.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		4DE18658CB336B32CB53030A /* App */ = {
+			isa = PBXGroup;
+			children = (
+				9D18BCB551C52B6EF378D089 /* AppState.swift */,
+				8027AFA9FD3E569E95633108 /* FlixorTVApp.swift */,
+				A560351FB7F36D1273F8DFA3 /* MainTVView.swift */,
+				3616010CF268C0F1FAB2DA89 /* TopNavBar.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		6064B880701151CB9EC397B4 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				B34545FBF16E94C672651FBD /* TVBillboardView.swift */,
+				CA640CCCC115D09CBAF9F0B3 /* TVCards.swift */,
+				6A7E3CFE272780A78553EA7A /* TVCarouselRow.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		6F3094E809818D91315D926B = {
+			isa = PBXGroup;
+			children = (
+				86D9C76A8E562862682EE298 /* FlixorTV */,
+				E77B3E5AF37C0BDE8BC0197D /* Packages */,
+				2E80A1657223959690B4D45B /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		86D9C76A8E562862682EE298 /* FlixorTV */ = {
+			isa = PBXGroup;
+			children = (
+				C0092F3794E12E5F2884741E /* Assets.xcassets */,
+				A409FFB5441617D6FD5F3F05 /* FlixorTV.xcodeproj */,
+				6D6DB6CA3ABEE2740792235F /* Info.plist */,
+				4DE18658CB336B32CB53030A /* App */,
+				A51518E1F7DB644AD3CC6409 /* Views */,
+			);
+			path = FlixorTV;
+			sourceTree = "<group>";
+		};
+		94B9710C9CBB41B76C3D11ED /* Auth */ = {
+			isa = PBXGroup;
+			children = (
+				C1363F127165B6A9AC55441C /* TVAuthLinkView.swift */,
+			);
+			path = Auth;
+			sourceTree = "<group>";
+		};
+		A51518E1F7DB644AD3CC6409 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				94B9710C9CBB41B76C3D11ED /* Auth */,
+				3D9FC1E51286B7B3697BE715 /* Home */,
+				4A6C3FDAE7A35DBF8E50211B /* Settings */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		E77B3E5AF37C0BDE8BC0197D /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				D3B483312332111548480C95 /* FlixorKit */,
+			);
+			name = Packages;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		49B7259D0F85176EFF29FFD2 /* FlixorTV */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 46E02433F87706735E09E50E /* Build configuration list for PBXNativeTarget "FlixorTV" */;
+			buildPhases = (
+				3CD6D78989E1327B802CB082 /* Sources */,
+				D6A4BD0CE51BC106239765D0 /* Resources */,
+				60833E86CE82BE16AB911373 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = FlixorTV;
+			packageProductDependencies = (
+				053E11F404F57C6E7904947B /* FlixorKit */,
+				2FECB614CC4C90F60DFC86ED /* Nuke */,
+			);
+			productName = FlixorTV;
+			productReference = A4B42D166FB2D68A1B927884 /* FlixorTV.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		EB18984BE7390DB16DABD9FF /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+			};
+			buildConfigurationList = 7E6C6E76DDF3D21BD7130353 /* Build configuration list for PBXProject "FlixorTV" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 6F3094E809818D91315D926B;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				67CD5D3DFB6269F1DE53537F /* XCRemoteSwiftPackageReference "Nuke" */,
+				3D891FE5C2F3875CF39B6A30 /* XCLocalSwiftPackageReference "../../shared/FlixorKit" */,
+			);
+			preferredProjectObjectVersion = 77;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				49B7259D0F85176EFF29FFD2 /* FlixorTV */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		D6A4BD0CE51BC106239765D0 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				48E547380669970236CE69C3 /* Assets.xcassets in Resources */,
+				746BB5FF893361C86CA89E82 /* FlixorTV.xcodeproj in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		3CD6D78989E1327B802CB082 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4B1DF129332C935C8FB472B3 /* AppState.swift in Sources */,
+				0679A76C481F15A9BF35F024 /* FlixorTVApp.swift in Sources */,
+				9CC843FD21FC20E2A688504A /* MainTVView.swift in Sources */,
+				8E44EC6D1A85EE59AFA2FB5D /* TVAuthLinkView.swift in Sources */,
+				5DC80F90B2AC958400600CB4 /* TVBillboardView.swift in Sources */,
+				C898CFC0A58E2042F32B5DF6 /* TVCards.swift in Sources */,
+				7322C892CD5A6930B58C307D /* TVCarouselRow.swift in Sources */,
+				C196CA26AB88809CD97F25B1 /* TVHomeView.swift in Sources */,
+				9BAB0C88EAA3E53BFF894AF1 /* TVHomeViewModel.swift in Sources */,
+				166900FDEA45E53E3F084304 /* TVSettingsView.swift in Sources */,
+				7486665C9ADAC92EA84E04C0 /* TopNavBar.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		3B4F1C4BB21245186016499E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = LaunchImage;
+				INFOPLIST_FILE = FlixorTV/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.flixor.tv;
+				SDKROOT = appletvos;
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = 3;
+				TVOS_DEPLOYMENT_TARGET = 16.0;
+			};
+			name = Release;
+		};
+		DBF3EBE04E44AD4A6224C69A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = appletvos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		F4F4D4DEDDFFBC90E33856CB /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = LaunchImage;
+				CODE_SIGNING_ALLOWED = NO;
+				INFOPLIST_FILE = FlixorTV/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.flixor.tv;
+				SDKROOT = appletvos;
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = 3;
+				TVOS_DEPLOYMENT_TARGET = 16.0;
+			};
+			name = Debug;
+		};
+		FA81F4227A769642078E3193 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = appletvos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		46E02433F87706735E09E50E /* Build configuration list for PBXNativeTarget "FlixorTV" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F4F4D4DEDDFFBC90E33856CB /* Debug */,
+				3B4F1C4BB21245186016499E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		7E6C6E76DDF3D21BD7130353 /* Build configuration list for PBXProject "FlixorTV" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				FA81F4227A769642078E3193 /* Debug */,
+				DBF3EBE04E44AD4A6224C69A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		3D891FE5C2F3875CF39B6A30 /* XCLocalSwiftPackageReference "../../shared/FlixorKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../../shared/FlixorKit;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		67CD5D3DFB6269F1DE53537F /* XCRemoteSwiftPackageReference "Nuke" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/kean/Nuke.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 12.6.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		053E11F404F57C6E7904947B /* FlixorKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = FlixorKit;
+		};
+		2FECB614CC4C90F60DFC86ED /* Nuke */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 67CD5D3DFB6269F1DE53537F /* XCRemoteSwiftPackageReference "Nuke" */;
+			productName = Nuke;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = EB18984BE7390DB16DABD9FF /* Project object */;
+}

@@ -1,0 +1,7 @@
+{
+  "images" : [
+    { "idiom" : "tv", "scale" : "1x", "size" : "400x240" }
+  ],
+  "info" : { "version" : 1, "author" : "xcode" }
+}
+
