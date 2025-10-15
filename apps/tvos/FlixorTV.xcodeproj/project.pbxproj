@@ -3,12 +3,13 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 63;
 	objects = {
 
 /* Begin PBXBuildFile section */
 		0679A76C481F15A9BF35F024 /* FlixorTVApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8027AFA9FD3E569E95633108 /* FlixorTVApp.swift */; };
 		166900FDEA45E53E3F084304 /* TVSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C54BA4F810D1021F4D3F6B5D /* TVSettingsView.swift */; };
+		380772CD32E04768C780512E /* DesignTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D507523162726478CEECCED /* DesignTokens.swift */; };
 		48C257F2BB22944EBA58BDC1 /* FlixorKit in Frameworks */ = {isa = PBXBuildFile; productRef = 053E11F404F57C6E7904947B /* FlixorKit */; };
 		48E547380669970236CE69C3 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C0092F3794E12E5F2884741E /* Assets.xcassets */; };
 		4B1DF129332C935C8FB472B3 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D18BCB551C52B6EF378D089 /* AppState.swift */; };
@@ -19,9 +20,9 @@
 		8E44EC6D1A85EE59AFA2FB5D /* TVAuthLinkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1363F127165B6A9AC55441C /* TVAuthLinkView.swift */; };
 		9BAB0C88EAA3E53BFF894AF1 /* TVHomeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D982341DFFB7A5B14F7E7E8 /* TVHomeViewModel.swift */; };
 		9CC843FD21FC20E2A688504A /* MainTVView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A560351FB7F36D1273F8DFA3 /* MainTVView.swift */; };
-		BFA33B59F8D7A6C53862C042 /* Nuke in Frameworks */ = {isa = PBXBuildFile; productRef = 2FECB614CC4C90F60DFC86ED /* Nuke */; };
 		C196CA26AB88809CD97F25B1 /* TVHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4374B38CC057026BF7C73418 /* TVHomeView.swift */; };
 		C898CFC0A58E2042F32B5DF6 /* TVCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA640CCCC115D09CBAF9F0B3 /* TVCards.swift */; };
+		C8C170392E9F24490069DAD7 /* Nuke in Frameworks */ = {isa = PBXBuildFile; productRef = C8C170382E9F24490069DAD7 /* Nuke */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -31,9 +32,10 @@
 		6A7E3CFE272780A78553EA7A /* TVCarouselRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVCarouselRow.swift; sourceTree = "<group>"; };
 		6D6DB6CA3ABEE2740792235F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		8027AFA9FD3E569E95633108 /* FlixorTVApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlixorTVApp.swift; sourceTree = "<group>"; };
+		8D507523162726478CEECCED /* DesignTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignTokens.swift; sourceTree = "<group>"; };
 		9D18BCB551C52B6EF378D089 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		A409FFB5441617D6FD5F3F05 /* FlixorTV.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = FlixorTV.xcodeproj; sourceTree = "<group>"; };
-		A4B42D166FB2D68A1B927884 /* FlixorTV.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = FlixorTV.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A4B42D166FB2D68A1B927884 /* FlixorTV.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FlixorTV.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A560351FB7F36D1273F8DFA3 /* MainTVView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTVView.swift; sourceTree = "<group>"; };
 		B34545FBF16E94C672651FBD /* TVBillboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVBillboardView.swift; sourceTree = "<group>"; };
 		C0092F3794E12E5F2884741E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -49,7 +51,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				48C257F2BB22944EBA58BDC1 /* FlixorKit in Frameworks */,
-				BFA33B59F8D7A6C53862C042 /* Nuke in Frameworks */,
+				C8C170392E9F24490069DAD7 /* Nuke in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -112,6 +114,14 @@
 			);
 			sourceTree = "<group>";
 		};
+		85C3A10F3B32F5AFB1E035D7 /* Theme */ = {
+			isa = PBXGroup;
+			children = (
+				8D507523162726478CEECCED /* DesignTokens.swift */,
+			);
+			path = Theme;
+			sourceTree = "<group>";
+		};
 		86D9C76A8E562862682EE298 /* FlixorTV */ = {
 			isa = PBXGroup;
 			children = (
@@ -119,6 +129,7 @@
 				A409FFB5441617D6FD5F3F05 /* FlixorTV.xcodeproj */,
 				6D6DB6CA3ABEE2740792235F /* Info.plist */,
 				4DE18658CB336B32CB53030A /* App */,
+				85C3A10F3B32F5AFB1E035D7 /* Theme */,
 				A51518E1F7DB644AD3CC6409 /* Views */,
 			);
 			path = FlixorTV;
@@ -168,7 +179,7 @@
 			name = FlixorTV;
 			packageProductDependencies = (
 				053E11F404F57C6E7904947B /* FlixorKit */,
-				2FECB614CC4C90F60DFC86ED /* Nuke */,
+				C8C170382E9F24490069DAD7 /* Nuke */,
 			);
 			productName = FlixorTV;
 			productReference = A4B42D166FB2D68A1B927884 /* FlixorTV.app */;
@@ -194,10 +205,9 @@
 			mainGroup = 6F3094E809818D91315D926B;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				67CD5D3DFB6269F1DE53537F /* XCRemoteSwiftPackageReference "Nuke" */,
 				3D891FE5C2F3875CF39B6A30 /* XCLocalSwiftPackageReference "../../shared/FlixorKit" */,
+				C8C170372E9F24490069DAD7 /* XCRemoteSwiftPackageReference "Nuke" */,
 			);
-			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -224,6 +234,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				4B1DF129332C935C8FB472B3 /* AppState.swift in Sources */,
+				380772CD32E04768C780512E /* DesignTokens.swift in Sources */,
 				0679A76C481F15A9BF35F024 /* FlixorTVApp.swift in Sources */,
 				9CC843FD21FC20E2A688504A /* MainTVView.swift in Sources */,
 				8E44EC6D1A85EE59AFA2FB5D /* TVAuthLinkView.swift in Sources */,
@@ -245,12 +256,17 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = LaunchImage;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = GGZ5B2R5VP;
 				INFOPLIST_FILE = FlixorTV/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.flixor.tv;
+				PRODUCT_BUNDLE_IDENTIFIER = xyz.flixor.tv;
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = appletvos;
 				SWIFT_VERSION = 5.9;
 				TARGETED_DEVICE_FAMILY = 3;
@@ -318,13 +334,17 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = LaunchImage;
-				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = GGZ5B2R5VP;
 				INFOPLIST_FILE = FlixorTV/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.flixor.tv;
+				PRODUCT_BUNDLE_IDENTIFIER = xyz.flixor.tv;
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = appletvos;
 				SWIFT_VERSION = 5.9;
 				TARGETED_DEVICE_FAMILY = 3;
@@ -425,12 +445,12 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		67CD5D3DFB6269F1DE53537F /* XCRemoteSwiftPackageReference "Nuke" */ = {
+		C8C170372E9F24490069DAD7 /* XCRemoteSwiftPackageReference "Nuke" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/kean/Nuke.git";
+			repositoryURL = "https://github.com/kean/Nuke";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 12.6.0;
+				minimumVersion = 12.8.0;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
@@ -440,9 +460,9 @@
 			isa = XCSwiftPackageProductDependency;
 			productName = FlixorKit;
 		};
-		2FECB614CC4C90F60DFC86ED /* Nuke */ = {
+		C8C170382E9F24490069DAD7 /* Nuke */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 67CD5D3DFB6269F1DE53537F /* XCRemoteSwiftPackageReference "Nuke" */;
+			package = C8C170372E9F24490069DAD7 /* XCRemoteSwiftPackageReference "Nuke" */;
 			productName = Nuke;
 		};
 /* End XCSwiftPackageProductDependency section */
