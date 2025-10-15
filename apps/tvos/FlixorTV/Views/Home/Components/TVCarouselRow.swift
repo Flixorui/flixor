@@ -15,7 +15,6 @@ struct TVCarouselRow: View {
     @FocusState private var focusedID: String?
     @State private var expandedID: String?
     @State private var scrollProxy: ScrollViewProxy?
-    @State private var lastHandledFocusId: String?
 
     private var posterSize: CGSize { .init(width: UX.posterWidth, height: UX.posterHeight) }
     private var landscapeSize: CGSize { .init(width: UX.landscapeWidth, height: UX.landscapeHeight) }
@@ -46,7 +45,7 @@ struct TVCarouselRow: View {
                                         showBadges: true,
                                         outlined: true,
                                         heightOverride: itemHeight,
-                                        overrideURL: ImageService.shared.artURL(for: item, width: 960, height: 540)
+                                        overrideURL: ImageService.shared.continueWatchingURL(for: item, width: 960, height: 540)
                                     )
                                 } else if kind == .poster {
                                     TVPosterCard(item: item, isFocused: focusedID == item.id)
@@ -70,14 +69,24 @@ struct TVCarouselRow: View {
                 .onAppear { scrollProxy = proxy }
                 .onChange(of: focusedID) { newValue in
                     guard kind == .poster else { return }
+
+                    // Handle focus loss - collapse expansion
                     guard let id = newValue else {
                         withAnimation(.easeOut(duration: 0.2)) { expandedID = nil }
                         return
                     }
-                    if lastHandledFocusId == id { return }
-                    lastHandledFocusId = id
-                    if let sp = scrollProxy { withAnimation(nil) { sp.scrollTo(id, anchor: .leading) } }
-                    withAnimation(.easeOut(duration: 0.25)) { expandedID = id }
+
+                    // Scroll to focused item
+                    if let sp = scrollProxy {
+                        withAnimation(.easeOut(duration: 0.25)) {
+                            sp.scrollTo(id, anchor: .leading)
+                        }
+                    }
+
+                    // Always expand the focused item
+                    withAnimation(.easeOut(duration: 0.25)) {
+                        expandedID = id
+                    }
 
                     // Prefetch next items (±2) to keep scroll smooth
                     if let idx = items.firstIndex(where: { $0.id == id }) {

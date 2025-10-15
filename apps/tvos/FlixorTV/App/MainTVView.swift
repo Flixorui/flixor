@@ -2,7 +2,7 @@ import SwiftUI
 import FlixorKit
 
 struct MainTVView: View {
-    enum Tab: String, CaseIterable { case home = "Home", shows = "Shows", movies = "Movies", myNetflix = "My Netflix", search = "Search" }
+    enum Tab: String, CaseIterable { case home = "Home", shows = "Shows", movies = "Movies", myNetflix = "My List", search = "Search" }
     @State private var selected: Tab = .home
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var session: SessionManager
@@ -27,7 +27,7 @@ struct MainTVView: View {
                             case .home: TVHomeView()
                             case .shows: PlaceholderView(title: "Shows")
                             case .movies: PlaceholderView(title: "Movies")
-                            case .myNetflix: PlaceholderView(title: "My Netflix")
+                            case .myNetflix: PlaceholderView(title: "My List")
                             case .search: PlaceholderView(title: "Search")
                             }
                         }

@@ -36,9 +36,33 @@ struct TVBillboardView: View {
 
             // Text + actions
             VStack(alignment: .leading, spacing: 14) {
-                Text(item.title)
-                    .font(.system(size: 56, weight: .bold))
-                    .lineLimit(2)
+                // Display clear logo if available, otherwise fallback to text title
+                if let logoURL = item.logo, let url = URL(string: logoURL) {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(maxWidth: 500, maxHeight: 140, alignment: .leading)
+                                .shadow(color: .black.opacity(0.8), radius: 12, x: 0, y: 4)
+                        case .failure, .empty:
+                            // Fallback to text if logo fails to load
+                            Text(item.title)
+                                .font(.system(size: 56, weight: .bold))
+                                .lineLimit(2)
+                        @unknown default:
+                            Text(item.title)
+                                .font(.system(size: 56, weight: .bold))
+                                .lineLimit(2)
+                        }
+                    }
+                } else {
+                    // No logo available, use text title
+                    Text(item.title)
+                        .font(.system(size: 56, weight: .bold))
+                        .lineLimit(2)
+                }
 
                 MetaLine(item: item)
                     .font(.system(size: 22, weight: .medium))

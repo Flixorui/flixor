@@ -16,6 +16,7 @@
 		5DC80F90B2AC958400600CB4 /* TVBillboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B34545FBF16E94C672651FBD /* TVBillboardView.swift */; };
 		7322C892CD5A6930B58C307D /* TVCarouselRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A7E3CFE272780A78553EA7A /* TVCarouselRow.swift */; };
 		746BB5FF893361C86CA89E82 /* FlixorTV.xcodeproj in Resources */ = {isa = PBXBuildFile; fileRef = A409FFB5441617D6FD5F3F05 /* FlixorTV.xcodeproj */; };
+		E089E4E7EB1F43D781D42DD2 /* UltraBlurGradientBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56116A558CCA485F8D0934B0 /* UltraBlurGradientBackground.swift */; };
 		7486665C9ADAC92EA84E04C0 /* TopNavBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3616010CF268C0F1FAB2DA89 /* TopNavBar.swift */; };
 		8E44EC6D1A85EE59AFA2FB5D /* TVAuthLinkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1363F127165B6A9AC55441C /* TVAuthLinkView.swift */; };
 		9BAB0C88EAA3E53BFF894AF1 /* TVHomeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D982341DFFB7A5B14F7E7E8 /* TVHomeViewModel.swift */; };
@@ -39,6 +40,7 @@
 		A560351FB7F36D1273F8DFA3 /* MainTVView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTVView.swift; sourceTree = "<group>"; };
 		B34545FBF16E94C672651FBD /* TVBillboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVBillboardView.swift; sourceTree = "<group>"; };
 		C0092F3794E12E5F2884741E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		56116A558CCA485F8D0934B0 /* UltraBlurGradientBackground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UltraBlurGradientBackground.swift; sourceTree = "<group>"; };
 		C1363F127165B6A9AC55441C /* TVAuthLinkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVAuthLinkView.swift; sourceTree = "<group>"; };
 		C54BA4F810D1021F4D3F6B5D /* TVSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVSettingsView.swift; sourceTree = "<group>"; };
 		CA640CCCC115D09CBAF9F0B3 /* TVCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVCards.swift; sourceTree = "<group>"; };
@@ -101,6 +103,7 @@
 				B34545FBF16E94C672651FBD /* TVBillboardView.swift */,
 				CA640CCCC115D09CBAF9F0B3 /* TVCards.swift */,
 				6A7E3CFE272780A78553EA7A /* TVCarouselRow.swift */,
+				56116A558CCA485F8D0934B0 /* UltraBlurGradientBackground.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -241,6 +244,7 @@
 				5DC80F90B2AC958400600CB4 /* TVBillboardView.swift in Sources */,
 				C898CFC0A58E2042F32B5DF6 /* TVCards.swift in Sources */,
 				7322C892CD5A6930B58C307D /* TVCarouselRow.swift in Sources */,
+				E089E4E7EB1F43D781D42DD2 /* UltraBlurGradientBackground.swift in Sources */,
 				C196CA26AB88809CD97F25B1 /* TVHomeView.swift in Sources */,
 				9BAB0C88EAA3E53BFF894AF1 /* TVHomeViewModel.swift in Sources */,
 				166900FDEA45E53E3F084304 /* TVSettingsView.swift in Sources */,
