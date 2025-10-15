@@ -13,6 +13,10 @@ struct FlixorTVApp: App {
                 .environmentObject(apiClient)
                 .environmentObject(session)
                 .environmentObject(appState)
+                .task {
+                    // Restore session on app launch
+                    await session.restoreSession()
+                }
         }
     }
 }

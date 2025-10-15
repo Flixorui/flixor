@@ -2,10 +2,12 @@ import SwiftUI
 import FlixorKit
 
 struct MainTVView: View {
-    enum Tab: String, CaseIterable { case home = "Home", shows = "Shows", movies = "Movies", myNetflix = "My Netflix", search = "Search", settings = "Settings" }
+    enum Tab: String, CaseIterable { case home = "Home", shows = "Shows", movies = "Movies", myNetflix = "My Netflix", search = "Search" }
     @State private var selected: Tab = .home
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var session: SessionManager
+    @State private var showSettings = false
+    @State private var jumpToContentToggle = false
 
     var body: some View {
         ZStack {
@@ -18,8 +20,8 @@ struct MainTVView: View {
                     // Show settings by default when not signed in
                     TVSettingsView()
                 case .authenticated:
-                    VStack(spacing: 24) {
-                        SimpleTopBar(selected: $selected)
+                    ZStack(alignment: .top) {
+                        // Content behind nav bar
                         Group {
                             switch selected {
                             case .home: TVHomeView()
@@ -27,8 +29,18 @@ struct MainTVView: View {
                             case .movies: PlaceholderView(title: "Movies")
                             case .myNetflix: PlaceholderView(title: "My Netflix")
                             case .search: PlaceholderView(title: "Search")
-                            case .settings: TVSettingsView()
                             }
+                        }
+
+                        // Floating transparent nav bar
+                        VStack(spacing: 0) {
+                            SimpleTopBar(
+                                selected: $selected,
+                                onProfileTapped: { showSettings = true },
+                                onSearchTapped: { selected = .search },
+                                onMoveDown: { jumpToContentToggle.toggle() }
+                            )
+                            Spacer()
                         }
                     }
                 }
@@ -36,10 +48,13 @@ struct MainTVView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.black)
-        .onAppear {
-            // Establish initial phase
-            appState.phase = session.isAuthenticated ? .authenticated : .unauthenticated
-            if appState.phase == .authenticated { selected = .home }
+        // Settings presented from the profile button per UI spec
+        .sheet(isPresented: $showSettings) {
+            TVSettingsView()
+        }
+        .task {
+            // Establish initial phase after session restore
+            await updatePhaseFromSession()
         }
         .fullScreenCover(isPresented: Binding(
             get: { appState.phase == .linking },
@@ -52,18 +67,41 @@ struct MainTVView: View {
             .environmentObject(appState)
         }
         .onChange(of: session.isAuthenticated) { authed in
-            appState.phase = authed ? .authenticated : .unauthenticated
-            if authed { selected = .home }
+            Task { await updatePhaseFromSession() }
+        }
+    }
+
+    private func updatePhaseFromSession() async {
+        appState.phase = session.isAuthenticated ? .authenticated : .unauthenticated
+        if session.isAuthenticated {
+            selected = .home
+            // Ensure a current Plex server is selected
+            await ensurePlexServerSelected()
+        }
+    }
+
+    private func ensurePlexServerSelected() async {
+        do {
+            let servers = try await APIClient.shared.getPlexServers()
+            if let first = servers.first(where: { $0.owned == true }) ?? servers.first {
+                print("📡 [MainTVView] Setting current server: \(first.name)")
+                _ = try? await APIClient.shared.setCurrentPlexServer(serverId: first.id)
+            }
+        } catch {
+            print("⚠️ [MainTVView] Failed to set server: \(error)")
         }
     }
 }
 
 struct SimpleTopBar: View {
     @Binding var selected: MainTVView.Tab
+    var onProfileTapped: () -> Void
+    var onSearchTapped: () -> Void
+    var onMoveDown: () -> Void
 
     var body: some View {
-        TopNavBar(selected: $selected)
-            .padding(.top, 24)
+        TopNavBar(selected: $selected, onProfileTapped: onProfileTapped, onSearchTapped: onSearchTapped, onMoveDown: onMoveDown)
+            .padding(.top, -50)
     }
 }
 
