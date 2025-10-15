@@ -74,16 +74,76 @@ private struct LayoutModifier: ViewModifier {
 struct TVPosterCard: View {
     let item: MediaItem
     let isFocused: Bool
+
+    // For episodes, use series poster (grandparentThumb)
+    private var posterURL: URL? {
+        if item.type == "episode", let grandparentThumb = item.grandparentThumb {
+            return ImageService.shared.plexImageURL(path: grandparentThumb, width: 360, height: 540)
+        }
+        return ImageService.shared.thumbURL(for: item, width: 360, height: 540)
+    }
+
     var body: some View {
         ZStack(alignment: .bottomLeading) {
-            TVImage(url: ImageService.shared.thumbURL(for: item, width: 360, height: 540), corner: UX.posterRadius, aspect: 2/3)
-            if isFocused {
-                LinearGradient(colors: [Color.black.opacity(0.6), .clear], startPoint: .bottom, endPoint: .top)
+            TVImage(url: posterURL, corner: UX.posterRadius, aspect: 2/3)
+
+            // For episodes: show series logo + episode title
+            if item.type == "episode" {
+                LinearGradient(colors: [Color.black.opacity(0.7), .clear], startPoint: .bottom, endPoint: .top)
                     .clipShape(RoundedRectangle(cornerRadius: UX.posterRadius, style: .continuous))
-                Text(item.title)
-                    .font(.system(size: 22, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .padding(12)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    // Series logo or series title
+                    if let logoURL = item.logo, let url = URL(string: logoURL) {
+                        AsyncImage(url: url) { phase in
+                            switch phase {
+                            case .success(let image):
+                                image
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(maxWidth: 160, maxHeight: 50, alignment: .leading)
+                                    .shadow(color: .black.opacity(0.7), radius: 6, x: 0, y: 2)
+                            case .failure, .empty:
+                                // Fallback to series title
+                                if let seriesTitle = item.grandparentTitle {
+                                    Text(seriesTitle)
+                                        .font(.system(size: 18, weight: .semibold))
+                                        .lineLimit(1)
+                                }
+                            @unknown default:
+                                if let seriesTitle = item.grandparentTitle {
+                                    Text(seriesTitle)
+                                        .font(.system(size: 18, weight: .semibold))
+                                        .lineLimit(1)
+                                }
+                            }
+                        }
+                    } else if let seriesTitle = item.grandparentTitle {
+                        // No logo, show series title
+                        Text(seriesTitle)
+                            .font(.system(size: 18, weight: .semibold))
+                            .lineLimit(1)
+                    }
+
+                    // Episode title
+                    Text(item.title)
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.9))
+                        .lineLimit(2)
+                }
+                .foregroundStyle(.white)
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                // For non-episodes: show title on focus only
+                if isFocused {
+                    LinearGradient(colors: [Color.black.opacity(0.6), .clear], startPoint: .bottom, endPoint: .top)
+                        .clipShape(RoundedRectangle(cornerRadius: UX.posterRadius, style: .continuous))
+                    Text(item.title)
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(12)
+                }
             }
 
             // Progress overlay for Continue Watching items
@@ -101,6 +161,14 @@ struct TVPosterCard: View {
                 }
             }
         }
+        .overlay(
+            Group {
+                if isFocused {
+                    RoundedRectangle(cornerRadius: UX.posterRadius, style: .continuous)
+                        .stroke(Color.white.opacity(0.85), lineWidth: 3)
+                }
+            }
+        )
         // scale/shadow handled by row wrapper for consistent neighbor treatment
     }
 }
@@ -128,17 +196,90 @@ struct TVLandscapeCard: View {
                 .clipShape(RoundedRectangle(cornerRadius: UX.landscapeRadius, style: .continuous))
 
             VStack(alignment: .leading, spacing: 6) {
-                Text(item.title)
-                    .font(.system(size: 28, weight: .semibold))
-                    .lineLimit(1)
-                if showBadges {
-                    HStack(spacing: 6) {
-                        Text("HD").font(.system(size: 14, weight: .semibold))
-                            .padding(.horizontal, 8).padding(.vertical, 4)
-                            .background(Color.white.opacity(0.18)).clipShape(Capsule())
-                        Text("5.1").font(.system(size: 14, weight: .semibold))
-                            .padding(.horizontal, 8).padding(.vertical, 4)
-                            .background(Color.white.opacity(0.18)).clipShape(Capsule())
+                // For episodes: show series logo, then episode title and info
+                if item.type == "episode" {
+                    // Series logo or series title
+                    if let logoURL = item.logo, let url = URL(string: logoURL) {
+                        AsyncImage(url: url) { phase in
+                            switch phase {
+                            case .success(let image):
+                                image
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(maxWidth: 280, maxHeight: 80, alignment: .leading)
+                                    .shadow(color: .black.opacity(0.7), radius: 8, x: 0, y: 2)
+                            case .failure, .empty:
+                                // Fallback to series title
+                                if let seriesTitle = item.grandparentTitle {
+                                    Text(seriesTitle)
+                                        .font(.system(size: 28, weight: .semibold))
+                                        .lineLimit(1)
+                                }
+                            @unknown default:
+                                if let seriesTitle = item.grandparentTitle {
+                                    Text(seriesTitle)
+                                        .font(.system(size: 28, weight: .semibold))
+                                        .lineLimit(1)
+                                }
+                            }
+                        }
+                    } else if let seriesTitle = item.grandparentTitle {
+                        // No logo, show series title
+                        Text(seriesTitle)
+                            .font(.system(size: 28, weight: .semibold))
+                            .lineLimit(1)
+                    }
+
+                    // Episode season and number
+                    if let season = item.parentIndex, let episode = item.index {
+                        Text("S\(season) • E\(episode)")
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.9))
+                    }
+
+                    // Episode title
+                    Text(item.title)
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.85))
+                        .lineLimit(2)
+                } else {
+                    // For non-episodes: display clear logo if available, otherwise fallback to text title
+                    if let logoURL = item.logo, let url = URL(string: logoURL) {
+                        AsyncImage(url: url) { phase in
+                            switch phase {
+                            case .success(let image):
+                                image
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(maxWidth: 280, maxHeight: 80, alignment: .leading)
+                                    .shadow(color: .black.opacity(0.7), radius: 8, x: 0, y: 2)
+                            case .failure, .empty:
+                                // Fallback to text if logo fails to load
+                                Text(item.title)
+                                    .font(.system(size: 28, weight: .semibold))
+                                    .lineLimit(1)
+                            @unknown default:
+                                Text(item.title)
+                                    .font(.system(size: 28, weight: .semibold))
+                                    .lineLimit(1)
+                            }
+                        }
+                    } else {
+                        // No logo available, use text title
+                        Text(item.title)
+                            .font(.system(size: 28, weight: .semibold))
+                            .lineLimit(1)
+                    }
+
+                    if showBadges {
+                        HStack(spacing: 6) {
+                            Text("HD").font(.system(size: 14, weight: .semibold))
+                                .padding(.horizontal, 8).padding(.vertical, 4)
+                                .background(Color.white.opacity(0.18)).clipShape(Capsule())
+                            Text("5.1").font(.system(size: 14, weight: .semibold))
+                                .padding(.horizontal, 8).padding(.vertical, 4)
+                                .background(Color.white.opacity(0.18)).clipShape(Capsule())
+                        }
                     }
                 }
 
@@ -169,15 +310,15 @@ struct TVLandscapeCard: View {
             .foregroundStyle(.white)
             .padding(18)
             .shadow(color: .black.opacity(0.6), radius: 12, y: 4)
-            .overlay(
-                Group {
-                    if outlined {
-                        RoundedRectangle(cornerRadius: UX.landscapeRadius, style: .continuous)
-                            .stroke(Color.white.opacity(0.85), lineWidth: 2)
-                    }
-                }
-            )
         }
+        .overlay(
+            Group {
+                if outlined {
+                    RoundedRectangle(cornerRadius: UX.landscapeRadius, style: .continuous)
+                        .stroke(Color.white.opacity(0.85), lineWidth: 3)
+                }
+            }
+        )
     }
 }
 

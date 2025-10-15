@@ -10,10 +10,16 @@ struct TVHomeView: View {
 
     @State private var focusedRowId: String?
     @State private var forceDefaultFocusRowId: String?
+    @State private var currentGradientColors: UltraBlurColors?
 
     var body: some View {
-        ScrollViewReader { vProxy in
-        ScrollView(.vertical, showsIndicators: false) {
+        ZStack {
+            // UltraBlur gradient background (always show, use default row colors as fallback)
+            UltraBlurGradientBackground(colors: currentGradientColors ?? TVHomeViewModel.defaultRowColors)
+                .animation(.easeInOut(duration: 0.8), value: currentGradientColors?.topLeft ?? "default")
+
+            ScrollViewReader { vProxy in
+            ScrollView(.vertical, showsIndicators: false) {
             LazyVStack(spacing: 40) {
 
                 // Billboard
@@ -21,6 +27,14 @@ struct TVHomeView: View {
                     TVBillboardView(item: first, focusNS: contentFocusNS, defaultFocus: focusedSection == nil)
                         .padding(.top, UX.billboardTopPadding)
                         .id("billboard")
+                        .focusSection()
+                        .onAppear {
+                            // When billboard appears, ensure we're showing billboard colors
+                            print("🎯 [TVHome] Billboard appeared")
+                            if focusedRowId != nil {
+                                focusedRowId = nil
+                            }
+                        }
                 } else if vm.isLoading {
                     placeholderBillboard
                         .padding(.top, UX.billboardTopPadding)
@@ -112,15 +126,17 @@ struct TVHomeView: View {
                     .id("row-on-deck")
                 }
 
-                // Any remaining sections not already displayed
+                // Any remaining sections (Genre, Trakt, etc.) not already displayed
                 ForEach(vm.additionalSections.filter { !["plex-watchlist","tmdb-popular-movies","tmdb-trending"].contains($0.id) }) { section in
                     TVCarouselRow(
                         title: section.title,
                         items: section.items,
-                        kind: .landscape,
+                        kind: .poster,
                         focusNS: contentFocusNS,
+                        defaultFocus: forceDefaultFocusRowId == section.id,
                         sectionId: section.id
                     )
+                    .padding(.top, focusedRowId == section.id ? UX.rowSnapTopPadding : 0) // snap padding
                     .id("row-\(section.id)")
                 }
 
@@ -150,10 +166,18 @@ struct TVHomeView: View {
         }
         // no permanent inset; content can scroll under the transparent tab bar
         .onPreferenceChange(RowFocusKey.self) { newId in
-            guard let rid = newId, rid != focusedRowId else { return }
-            focusedRowId = rid
-            withAnimation(.easeInOut(duration: 0.24)) {
-                vProxy.scrollTo("row-\(rid)", anchor: .top)
+            // Update focused row ID (nil when billboard is focused, sectionId when row is focused)
+            let previousId = focusedRowId
+            if previousId != newId {
+                focusedRowId = newId
+                print("🎯 [TVHome] Focus changed from \(previousId ?? "billboard") to \(newId ?? "billboard")")
+            }
+
+            // Scroll to row if focused
+            if let rid = newId, rid != previousId {
+                withAnimation(.easeInOut(duration: 0.24)) {
+                    vProxy.scrollTo("row-\(rid)", anchor: .top)
+                }
             }
         }
         // Bridge: if the nav bar sent a down command, move focus to the first row and snap
@@ -167,11 +191,52 @@ struct TVHomeView: View {
             }
         }
         }
+        }
         .background(Color.black)
         .focusScope(contentFocusNS)
-        .task { await vm.load() }
+        .task {
+            await vm.load()
+            // Wait a moment for billboard items to populate, then fetch colors
+            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+            if let first = vm.billboardItems.first {
+                print("🎨 [TVHome] Initial billboard load - fetching colors")
+                await vm.fetchUltraBlurColors(for: first)
+            } else {
+                print("⚠️ [TVHome] No billboard items found for color fetch")
+            }
+        }
         .onChange(of: session.isAuthenticated) { authed in
             if authed { Task { await vm.load() } }
+        }
+        .onChange(of: vm.billboardItems.first?.id) { newId in
+            if let first = vm.billboardItems.first {
+                print("🎨 [TVHome] Billboard item changed (id: \(newId ?? "nil")) - fetching colors")
+                Task { await vm.fetchUltraBlurColors(for: first) }
+            }
+        }
+        .onChange(of: focusedRowId) { rowId in
+            // When a row is focused, use default row colors
+            // When no row is focused (billboard visible), use billboard colors
+            if rowId != nil {
+                let rowColors = TVHomeViewModel.defaultRowColors
+                print("🎨 [TVHome] Switching to row colors (focused: \(rowId!))")
+                print("   → Setting colors: TL=\(rowColors.topLeft) TR=\(rowColors.topRight)")
+                currentGradientColors = rowColors
+            } else if let billboardColors = vm.billboardUltraBlurColors {
+                print("🎨 [TVHome] Switching to billboard colors")
+                print("   → Setting colors: TL=\(billboardColors.topLeft) TR=\(billboardColors.topRight)")
+                currentGradientColors = billboardColors
+            }
+            print("   → Current gradient: \(currentGradientColors?.topLeft ?? "nil")")
+        }
+        .onChange(of: vm.billboardUltraBlurColors) { billboardColors in
+            // Update gradient to billboard colors only if no row is focused
+            if focusedRowId == nil, let colors = billboardColors {
+                print("🎨 [TVHome] Billboard colors loaded, applying (no row focused)")
+                currentGradientColors = colors
+            } else {
+                print("🎨 [TVHome] Billboard colors loaded but row is focused, skipping")
+            }
         }
     }
 
