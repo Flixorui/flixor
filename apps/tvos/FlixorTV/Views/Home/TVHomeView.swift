@@ -10,6 +10,7 @@ struct TVHomeView: View {
 
     @State private var focusedRowId: String?
     @State private var forceDefaultFocusRowId: String?
+    @State private var showingDetails: MediaItem?
     @State private var currentGradientColors: UltraBlurColors?
 
     var body: some View {
@@ -50,7 +51,8 @@ struct TVHomeView: View {
                         kind: .poster,
                         focusNS: contentFocusNS,
                         defaultFocus: forceDefaultFocusRowId == myList.id,
-                        sectionId: myList.id
+                        sectionId: myList.id,
+                        onSelect: { showingDetails = $0 }
                     )
                     .padding(.top, focusedRowId == myList.id ? UX.rowSnapTopPadding : 0) // snap padding
                     .id("row-\(myList.id)")
@@ -64,7 +66,8 @@ struct TVHomeView: View {
                         kind: .poster,
                         focusNS: contentFocusNS,
                         defaultFocus: forceDefaultFocusRowId == "continue-watching",
-                        sectionId: "continue-watching"
+                        sectionId: "continue-watching",
+                        onSelect: { showingDetails = $0 }
                     )
                     .padding(.top, focusedRowId == "continue-watching" ? UX.rowSnapTopPadding : 0) // snap padding
                     .id("row-continue-watching")
@@ -78,7 +81,8 @@ struct TVHomeView: View {
                         kind: .poster,
                         focusNS: contentFocusNS,
                         defaultFocus: forceDefaultFocusRowId == "recently-added",
-                        sectionId: "recently-added"
+                        sectionId: "recently-added",
+                        onSelect: { showingDetails = $0 }
                     )
                     .padding(.top, focusedRowId == "recently-added" ? UX.rowSnapTopPadding : 0) // snap padding
                     .id("row-recently-added")
@@ -92,7 +96,8 @@ struct TVHomeView: View {
                         kind: .poster,
                         focusNS: contentFocusNS,
                         defaultFocus: forceDefaultFocusRowId == popular.id,
-                        sectionId: popular.id
+                        sectionId: popular.id,
+                        onSelect: { showingDetails = $0 }
                     )
                     .padding(.top, focusedRowId == popular.id ? UX.rowSnapTopPadding : 0) // snap padding
                     .id("row-\(popular.id)")
@@ -106,7 +111,8 @@ struct TVHomeView: View {
                         kind: .poster,
                         focusNS: contentFocusNS,
                         defaultFocus: forceDefaultFocusRowId == trending.id,
-                        sectionId: trending.id
+                        sectionId: trending.id,
+                        onSelect: { showingDetails = $0 }
                     )
                     .padding(.top, focusedRowId == trending.id ? UX.rowSnapTopPadding : 0) // snap padding
                     .id("row-\(trending.id)")
@@ -120,7 +126,8 @@ struct TVHomeView: View {
                         kind: .poster,
                         focusNS: contentFocusNS,
                         defaultFocus: forceDefaultFocusRowId == "on-deck",
-                        sectionId: "on-deck"
+                        sectionId: "on-deck",
+                        onSelect: { showingDetails = $0 }
                     )
                     .padding(.top, focusedRowId == "on-deck" ? UX.rowSnapTopPadding : 0) // snap padding
                     .id("row-on-deck")
@@ -134,7 +141,8 @@ struct TVHomeView: View {
                         kind: .poster,
                         focusNS: contentFocusNS,
                         defaultFocus: forceDefaultFocusRowId == section.id,
-                        sectionId: section.id
+                        sectionId: section.id,
+                        onSelect: { showingDetails = $0 }
                     )
                     .padding(.top, focusedRowId == section.id ? UX.rowSnapTopPadding : 0) // snap padding
                     .id("row-\(section.id)")
@@ -194,6 +202,9 @@ struct TVHomeView: View {
         }
         .background(Color.black)
         .focusScope(contentFocusNS)
+        .fullScreenCover(item: $showingDetails) { item in
+            TVDetailsView(item: item)
+        }
         .task {
             await vm.load()
             // Wait a moment for billboard items to populate, then fetch colors

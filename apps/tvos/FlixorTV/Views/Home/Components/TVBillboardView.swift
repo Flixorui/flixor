@@ -79,7 +79,23 @@ struct TVBillboardView: View {
                 HStack(spacing: 16) {
                     CTAButton(title: item.viewOffset != nil ? "Resume" : "Play", systemName: "play.fill", style: .primary)
                         .applyDefaultBillboardFocus(ns: focusNS, enabled: defaultFocus)
-                    CTAButton(title: "More Info", systemName: "info.circle", style: .secondary)
+
+                    NavigationLink(value: item) {
+                        HStack(spacing: 10) {
+                            Image(systemName: "info.circle")
+                            Text("More Info")
+                        }
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(Color.white)
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 10)
+                        .background(
+                            Capsule()
+                                .fill(Color.white.opacity(0.18))
+                        )
+                    }
+                    .buttonStyle(.plain)
+
                     CTAButton(title: "My List", systemName: "plus", style: .secondary)
                 }
                 .focusSection()

@@ -11,6 +11,7 @@ struct TVCarouselRow: View {
     var focusNS: Namespace.ID? = nil
     var defaultFocus: Bool = false
     var sectionId: String = ""
+    var onSelect: ((MediaItem) -> Void)? = nil
 
     @FocusState private var focusedID: String?
     @State private var expandedID: String?
@@ -38,29 +39,38 @@ struct TVCarouselRow: View {
                             let neighborScale: CGFloat = (hasExpanded && !isExpanded) ? UX.neighborScale : 1.0
                             let neighborOpacity: Double = (hasExpanded && !isExpanded) ? UX.dimNeighborOpacity : 1.0
 
-                            Group {
-                                if kind == .poster && isExpanded {
-                                    TVLandscapeCard(
-                                        item: item,
-                                        showBadges: true,
-                                        outlined: true,
-                                        heightOverride: itemHeight,
-                                        overrideURL: ImageService.shared.continueWatchingURL(for: item, width: 960, height: 540)
-                                    )
-                                } else if kind == .poster {
+                            // Stable focusable wrapper - never changes identity
+                            ZStack {
+                                if kind == .poster {
                                     TVPosterCard(item: item, isFocused: focusedID == item.id)
+                                        .opacity(isExpanded ? 0 : 1)
+                                        .animation(.easeOut(duration: 0.15), value: isExpanded)
+
+                                    if isExpanded {
+                                        TVLandscapeCard(
+                                            item: item,
+                                            showBadges: true,
+                                            outlined: true,
+                                            heightOverride: itemHeight,
+                                            overrideURL: ImageService.shared.continueWatchingURL(for: item, width: 960, height: 540)
+                                        )
+                                        .transition(.opacity)
+                                    }
                                 } else {
                                     TVLandscapeCard(item: item, showBadges: false, isFocused: focusedID == item.id)
                                 }
                             }
                             .frame(width: itemWidth, height: itemHeight, alignment: .bottom)
+                            .animation(.easeOut(duration: 0.18), value: itemWidth)
                             .id(item.id)
                             .focusable(true)
                             .focused($focusedID, equals: item.id)
+                            .onTapGesture { onSelect?(item) }
                             .modifier(DefaultFocusModifier(ns: focusNS, enabled: defaultFocus && item.id == items.first?.id))
                             .scaleEffect(neighborScale, anchor: .bottom)
                             .opacity(neighborOpacity)
-                            .animation(.easeOut(duration: 0.25), value: expandedID)
+                            .animation(.easeOut(duration: 0.18), value: neighborScale)
+                            .animation(.easeOut(duration: 0.18), value: neighborOpacity)
                         }
                     }
                     .padding(.horizontal, UX.gridH)
@@ -76,15 +86,13 @@ struct TVCarouselRow: View {
                         return
                     }
 
-                    // Scroll to focused item
+                    // Scroll to focused item (instant, no animation) - anchor to leading edge
                     if let sp = scrollProxy {
-                        withAnimation(.easeOut(duration: 0.25)) {
-                            sp.scrollTo(id, anchor: .leading)
-                        }
+                        sp.scrollTo(id, anchor: .leading)
                     }
 
-                    // Always expand the focused item
-                    withAnimation(.easeOut(duration: 0.25)) {
+                    // Expand the focused item (using stable ZStack overlay approach)
+                    withAnimation(.easeOut(duration: 0.18)) {
                         expandedID = id
                     }
 
