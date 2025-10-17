@@ -10,6 +10,7 @@ struct TVCarouselRow: View {
     let kind: TVRowCardKind
     var focusNS: Namespace.ID? = nil
     var defaultFocus: Bool = false
+    var preferredFocusItemId: String? = nil
     var sectionId: String = ""
     var onSelect: ((MediaItem) -> Void)? = nil
 
@@ -66,7 +67,10 @@ struct TVCarouselRow: View {
                             .focusable(true)
                             .focused($focusedID, equals: item.id)
                             .onTapGesture { onSelect?(item) }
-                            .modifier(DefaultFocusModifier(ns: focusNS, enabled: defaultFocus && item.id == items.first?.id))
+                            .modifier(DefaultFocusModifier(
+                                ns: focusNS,
+                                enabled: defaultFocus && item.id == (preferredFocusItemId ?? items.first?.id)
+                            ))
                             .scaleEffect(neighborScale, anchor: .bottom)
                             .opacity(neighborOpacity)
                             .animation(.easeOut(duration: 0.18), value: neighborScale)
@@ -86,9 +90,10 @@ struct TVCarouselRow: View {
                         return
                     }
 
-                    // Scroll to focused item (instant, no animation) - anchor to leading edge
+                    // Scroll to focused item - use center for first item to avoid hiding under padding
                     if let sp = scrollProxy {
-                        sp.scrollTo(id, anchor: .leading)
+                        let isFirstItem = id == items.first?.id
+                        sp.scrollTo(id, anchor: isFirstItem ? .center : .leading)
                     }
 
                     // Expand the focused item (using stable ZStack overlay approach)
@@ -115,6 +120,23 @@ struct TVCarouselRow: View {
             .focusSection()
             // Publish row focus state upwards (used for vertical snap)
             .preference(key: RowFocusKey.self, value: focusedID != nil ? sectionId : nil)
+            // Publish focused item ID upwards (used for remembering scroll position)
+            .preference(key: RowItemFocusKey.self, value: RowItemFocusValue(rowId: focusedID != nil ? sectionId : nil, itemId: focusedID))
+            .onChange(of: defaultFocus) { newValue in
+                // When this row becomes the default focus target, FORCE focus to preferred item
+                if newValue {
+                    let targetItemId = preferredFocusItemId ?? items.first?.id
+                    if let targetId = targetItemId {
+                        // Reset focus immediately, even if tvOS already set it to another item
+                        DispatchQueue.main.async {
+                            if focusedID != targetId {
+                                focusedID = targetId
+                                print("🎯 [TVCarousel] Programmatically corrected focus from \(focusedID ?? "nil") to: \(targetId) in row: \(sectionId)")
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -125,6 +147,20 @@ struct RowFocusKey: PreferenceKey {
     static func reduce(value: inout String?, nextValue: () -> String?) {
         let next = nextValue()
         if let next { value = next }
+    }
+}
+
+// Preference to propagate which specific item is focused in which row
+struct RowItemFocusValue: Equatable {
+    let rowId: String?
+    let itemId: String?
+}
+
+struct RowItemFocusKey: PreferenceKey {
+    static var defaultValue = RowItemFocusValue(rowId: nil, itemId: nil)
+    static func reduce(value: inout RowItemFocusValue, nextValue: () -> RowItemFocusValue) {
+        let next = nextValue()
+        if next.rowId != nil { value = next }
     }
 }
 

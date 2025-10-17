@@ -6,12 +6,14 @@ struct TVHomeView: View {
     @Namespace private var contentFocusNS
     @EnvironmentObject private var session: SessionManager
     @FocusState private var focusedSection: String?
-    var jumpToFirstRow: Bool = false
 
     @State private var focusedRowId: String?
-    @State private var forceDefaultFocusRowId: String?
+    @State private var rowsVisitedBefore: Set<String> = []
+    @State private var rowLastFocusedItem: [String: String] = [:]
+    @State private var nextRowToReceiveFocus: String?
     @State private var showingDetails: MediaItem?
     @State private var currentGradientColors: UltraBlurColors?
+    @State private var isBillboardFocused: Bool = false
 
     var body: some View {
         ZStack {
@@ -28,7 +30,6 @@ struct TVHomeView: View {
                     TVBillboardView(item: first, focusNS: contentFocusNS, defaultFocus: focusedSection == nil)
                         .padding(.top, UX.billboardTopPadding)
                         .id("billboard")
-                        .focusSection()
                         .onAppear {
                             // When billboard appears, ensure we're showing billboard colors
                             print("🎯 [TVHome] Billboard appeared")
@@ -50,7 +51,8 @@ struct TVHomeView: View {
                         items: myList.items,
                         kind: .poster,
                         focusNS: contentFocusNS,
-                        defaultFocus: forceDefaultFocusRowId == myList.id,
+                        defaultFocus: focusedRowId == myList.id || nextRowToReceiveFocus == myList.id,
+                        preferredFocusItemId: rowLastFocusedItem[myList.id],
                         sectionId: myList.id,
                         onSelect: { showingDetails = $0 }
                     )
@@ -65,7 +67,8 @@ struct TVHomeView: View {
                         items: vm.continueWatching,
                         kind: .poster,
                         focusNS: contentFocusNS,
-                        defaultFocus: forceDefaultFocusRowId == "continue-watching",
+                        defaultFocus: focusedRowId == "continue-watching" || nextRowToReceiveFocus == "continue-watching",
+                        preferredFocusItemId: rowLastFocusedItem["continue-watching"],
                         sectionId: "continue-watching",
                         onSelect: { showingDetails = $0 }
                     )
@@ -80,7 +83,8 @@ struct TVHomeView: View {
                         items: vm.recentlyAdded,
                         kind: .poster,
                         focusNS: contentFocusNS,
-                        defaultFocus: forceDefaultFocusRowId == "recently-added",
+                        defaultFocus: focusedRowId == "recently-added" || nextRowToReceiveFocus == "recently-added",
+                        preferredFocusItemId: rowLastFocusedItem["recently-added"],
                         sectionId: "recently-added",
                         onSelect: { showingDetails = $0 }
                     )
@@ -95,7 +99,8 @@ struct TVHomeView: View {
                         items: popular.items,
                         kind: .poster,
                         focusNS: contentFocusNS,
-                        defaultFocus: forceDefaultFocusRowId == popular.id,
+                        defaultFocus: focusedRowId == popular.id || nextRowToReceiveFocus == popular.id,
+                        preferredFocusItemId: rowLastFocusedItem[popular.id],
                         sectionId: popular.id,
                         onSelect: { showingDetails = $0 }
                     )
@@ -110,7 +115,8 @@ struct TVHomeView: View {
                         items: trending.items,
                         kind: .poster,
                         focusNS: contentFocusNS,
-                        defaultFocus: forceDefaultFocusRowId == trending.id,
+                        defaultFocus: focusedRowId == trending.id || nextRowToReceiveFocus == trending.id,
+                        preferredFocusItemId: rowLastFocusedItem[trending.id],
                         sectionId: trending.id,
                         onSelect: { showingDetails = $0 }
                     )
@@ -125,7 +131,8 @@ struct TVHomeView: View {
                         items: vm.onDeck,
                         kind: .poster,
                         focusNS: contentFocusNS,
-                        defaultFocus: forceDefaultFocusRowId == "on-deck",
+                        defaultFocus: focusedRowId == "on-deck" || nextRowToReceiveFocus == "on-deck",
+                        preferredFocusItemId: rowLastFocusedItem["on-deck"],
                         sectionId: "on-deck",
                         onSelect: { showingDetails = $0 }
                     )
@@ -140,7 +147,8 @@ struct TVHomeView: View {
                         items: section.items,
                         kind: .poster,
                         focusNS: contentFocusNS,
-                        defaultFocus: forceDefaultFocusRowId == section.id,
+                        defaultFocus: focusedRowId == section.id || nextRowToReceiveFocus == section.id,
+                        preferredFocusItemId: rowLastFocusedItem[section.id],
                         sectionId: section.id,
                         onSelect: { showingDetails = $0 }
                     )
@@ -177,8 +185,16 @@ struct TVHomeView: View {
             // Update focused row ID (nil when billboard is focused, sectionId when row is focused)
             let previousId = focusedRowId
             if previousId != newId {
+                // Set next row to receive focus BEFORE updating focusedRowId
+                nextRowToReceiveFocus = newId
+
                 focusedRowId = newId
                 print("🎯 [TVHome] Focus changed from \(previousId ?? "billboard") to \(newId ?? "billboard")")
+
+                // Clear nextRowToReceiveFocus after a short delay (after focus settles)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    nextRowToReceiveFocus = nil
+                }
             }
 
             // Scroll to row if focused
@@ -188,14 +204,20 @@ struct TVHomeView: View {
                 }
             }
         }
-        // Bridge: if the nav bar sent a down command, move focus to the first row and snap
-        .onChange(of: jumpToFirstRow) { _ in
-            if let firstId = firstRowId() {
-                withAnimation(.easeInOut(duration: 0.24)) { vProxy.scrollTo("row-\(firstId)", anchor: .top) }
-                forceDefaultFocusRowId = firstId
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                    forceDefaultFocusRowId = nil
+        .onPreferenceChange(BillboardFocusKey.self) { hasFocus in
+            isBillboardFocused = hasFocus
+            // Keep billboard at top when it has focus
+            if hasFocus {
+                withAnimation(.easeInOut(duration: 0.24)) {
+                    vProxy.scrollTo("billboard", anchor: .top)
                 }
+            }
+        }
+        .onPreferenceChange(RowItemFocusKey.self) { value in
+            // Track which item is focused in which row
+            if let rowId = value.rowId, let itemId = value.itemId {
+                rowLastFocusedItem[rowId] = itemId
+                print("🎯 [TVHome] Row \(rowId) focused item: \(itemId)")
             }
         }
         }
@@ -256,18 +278,6 @@ struct TVHomeView: View {
             .fill(Color.white.opacity(0.06))
             .frame(height: 820)
             .padding(.horizontal, 40)
-    }
-}
-
-private extension TVHomeView {
-    func firstRowId() -> String? {
-        if let myList = vm.additionalSections.first(where: { $0.id == "plex-watchlist" }), !myList.items.isEmpty { return myList.id }
-        if !vm.continueWatching.isEmpty { return "continue-watching" }
-        if !vm.recentlyAdded.isEmpty { return "recently-added" }
-        if let popular = vm.additionalSections.first(where: { $0.id == "tmdb-popular-movies" }), !popular.items.isEmpty { return popular.id }
-        if let trending = vm.additionalSections.first(where: { $0.id == "tmdb-trending" }), !trending.items.isEmpty { return trending.id }
-        if !vm.onDeck.isEmpty { return "on-deck" }
-        return vm.additionalSections.first?.id
     }
 }
 

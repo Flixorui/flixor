@@ -8,6 +8,11 @@ struct TVBillboardView: View {
 
     @State private var showingDetails: MediaItem?
 
+    // Hero focus state
+    enum HeroButton: Hashable { case play, moreInfo, myList }
+    @FocusState private var focusedButton: HeroButton?
+    @State private var isHeroFocused: Bool = false
+
     var body: some View {
         ZStack(alignment: .bottomLeading) {
             // Backdrop
@@ -79,14 +84,20 @@ struct TVBillboardView: View {
                 }
 
                 HStack(spacing: 16) {
-                    CTAButton(title: item.viewOffset != nil ? "Resume" : "Play", systemName: "play.fill", style: .primary)
-                        .applyDefaultBillboardFocus(ns: focusNS, enabled: defaultFocus)
+                    CTAButton(title: item.viewOffset != nil ? "Resume" : "Play", systemName: "play.fill", style: .secondary, isDefaultFocusTarget: true, focusNS: focusNS)
+                        .focused($focusedButton, equals: .play)
+                        .applyDefaultBillboardFocus(ns: focusNS, enabled: true)
 
                     CTAButton(title: "More Info", systemName: "info.circle", style: .secondary)
+                        .focused($focusedButton, equals: .moreInfo)
                         .onTapGesture { showingDetails = item }
 
                     CTAButton(title: "My List", systemName: "plus", style: .secondary)
+                        .focused($focusedButton, equals: .myList)
                 }
+                .offset(y: isHeroFocused ? 0 : 50)
+                .opacity(isHeroFocused ? 1.0 : 0.0)
+                .animation(.easeInOut(duration: 0.3).delay(isHeroFocused ? 0.1 : 0), value: isHeroFocused)
                 .focusSection()
                 .padding(.top, 8)
             }
@@ -95,11 +106,29 @@ struct TVBillboardView: View {
             .padding(.top, 28)
             .padding(.bottom, 20)
         }
+        .overlay(
+            RoundedRectangle(cornerRadius: UX.billboardRadius, style: .continuous)
+                .stroke(Color.white.opacity(isHeroFocused ? 0.35 : 0.0), lineWidth: 3)
+        )
+        .animation(.easeInOut(duration: 0.3), value: isHeroFocused)
         .padding(.horizontal, UX.billboardSide)
         .frame(height: 820)
+        .focusSection()
         .fullScreenCover(item: $showingDetails) { item in
             TVDetailsView(item: item)
         }
+        .onChange(of: focusedButton) { newValue in
+            isHeroFocused = (newValue != nil)
+        }
+        .preference(key: BillboardFocusKey.self, value: focusedButton != nil)
+    }
+}
+
+// Preference key to report billboard focus state
+struct BillboardFocusKey: PreferenceKey {
+    static var defaultValue: Bool = false
+    static func reduce(value: inout Bool, nextValue: () -> Bool) {
+        value = value || nextValue()
     }
 }
 
@@ -141,8 +170,37 @@ private struct CTAButton: View {
     let title: String
     let systemName: String
     let style: Style
+    var isDefaultFocusTarget: Bool = false
+    var focusNS: Namespace.ID? = nil
 
     @State private var focused = false
+
+    // Computed property for background color
+    private var backgroundColor: Color {
+        if focused {
+            return Color.white  // Full white when focused
+        } else if style == .primary {
+            return Color.white.opacity(0.55)  // 55% white when primary but not focused
+        } else {
+            return Color.white.opacity(focused ? 0.18 : 0.10)  // 10-18% white for secondary
+        }
+    }
+
+    // Computed property for text color
+    private var textColor: Color {
+        if focused {
+            return Color.black  // Black when focused (any button)
+        } else if style == .primary {
+            return Color.black  // Black for primary when not focused
+        } else {
+            return Color.white.opacity(0.85)  // Dimmed white for secondary when not focused
+        }
+    }
+
+    // Show stroke only when focused
+    private var strokeOpacity: Double {
+        focused ? 0.4 : 0.0
+    }
 
     var body: some View {
         HStack(spacing: 10) {
@@ -150,19 +208,28 @@ private struct CTAButton: View {
             Text(title)
         }
         .font(.system(size: 22, weight: .semibold))
-        .foregroundStyle(style == .primary ? Color.black : Color.white)
+        .foregroundStyle(textColor)
         .padding(.horizontal, 18)
         .padding(.vertical, 10)
-        .background(
-            Capsule()
-                .fill(style == .primary ? Color.white : Color.white.opacity(focused ? 0.18 : 0.10))
-        )
-        .overlay(
-            Capsule().stroke(Color.white.opacity(style == .secondary && focused ? 0.35 : 0.0), lineWidth: 1)
-        )
+        .background(Capsule().fill(backgroundColor))
+        .overlay(Capsule().stroke(Color.white.opacity(strokeOpacity), lineWidth: 2))
         .focusable(true) { focused in self.focused = focused }
+        .modifier(PreferredDefaultFocusModifier(enabled: isDefaultFocusTarget, ns: focusNS))
         .scaleEffect(focused ? UX.focusScale : 1.0)
+        .shadow(color: .black.opacity(focused ? 0.35 : 0.0), radius: 12, y: 4)
         .animation(.easeOut(duration: 0.18), value: focused)
+    }
+}
+
+private struct PreferredDefaultFocusModifier: ViewModifier {
+    let enabled: Bool
+    let ns: Namespace.ID?
+    func body(content: Content) -> some View {
+        if let ns, enabled {
+            content.prefersDefaultFocus(true, in: ns)
+        } else {
+            content
+        }
     }
 }
 

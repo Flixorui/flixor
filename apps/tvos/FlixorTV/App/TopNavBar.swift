@@ -4,7 +4,6 @@ struct TopNavBar: View {
     @Binding var selected: MainTVView.Tab
     var onProfileTapped: () -> Void
     var onSearchTapped: () -> Void
-    var onMoveDown: () -> Void = {}
 
     @FocusState private var focusedTab: MainTVView.Tab?
     @State private var profileFocused = false
@@ -24,7 +23,7 @@ struct TopNavBar: View {
                     onSearchTapped()
                 }
             }
-            .padding(.leading, 50)
+            .padding(.leading, 0)
 
             Spacer(minLength: 40)
 
@@ -48,15 +47,15 @@ struct TopNavBar: View {
             Text("F")
                 .font(.system(size: 32, weight: .black))
                 .foregroundStyle(Color.red)
-                .padding(.trailing, 50)
+                .padding(.trailing, 0)
         }
         .frame(height: 92)
         .background(.clear)
+        .focusSection()
         .onAppear { focusedTab = selected }
         .onChange(of: focusedTab) { newTab in
             if let newTab = newTab { selected = newTab }
         }
-        .onMoveCommand { dir in if dir == .down { onMoveDown() } }
     }
 }
 
@@ -66,15 +65,32 @@ private struct NavPill: View {
     let isFocused: Bool
 
     var body: some View {
+        let backgroundColor: Color = {
+            if isSelected && isFocused {
+                return Color.white  // Selected + Focused: White 100%
+            } else if isSelected || isFocused {
+                return Color.white.opacity(0.18)  // Selected OR Focused: White 18%
+            } else {
+                return Color.clear  // Default: No background
+            }
+        }()
+
+        let textColor: Color = {
+            if isSelected && isFocused {
+                return Color.black  // Selected + Focused: Black text
+            } else if isFocused {
+                return Color.white.opacity(0.95)  // Focused only: Bright white
+            } else {
+                return Color.white.opacity(0.78)  // Default: Dimmed white
+            }
+        }()
+
         Text(title)
             .font(.system(size: 28, weight: .semibold))
-            .foregroundStyle(isSelected ? Color.black : Color.white.opacity(isFocused ? 0.95 : 0.78))
+            .foregroundStyle(textColor)
             .padding(.horizontal, 22)
             .padding(.vertical, 12)
-            .background(
-                Capsule(style: .circular)
-                    .fill(isSelected ? Color.white : (isFocused ? Color.white.opacity(0.18) : Color.clear))
-            )
+            .background(Capsule(style: .circular).fill(backgroundColor))
             .overlay(
                 Capsule(style: .circular)
                     .stroke(Color.white.opacity(isFocused && !isSelected ? 0.35 : 0.0), lineWidth: 1)
