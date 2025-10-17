@@ -22,13 +22,18 @@ struct MainTVView: View {
                 case .authenticated:
                     ZStack(alignment: .top) {
                         // Content behind nav bar
-                        Group {
-                            switch selected {
-                            case .home: TVHomeView()
-                            case .shows: PlaceholderView(title: "Shows")
-                            case .movies: PlaceholderView(title: "Movies")
-                            case .myNetflix: PlaceholderView(title: "My List")
-                            case .search: PlaceholderView(title: "Search")
+                        NavigationStack {
+                            Group {
+                                switch selected {
+                                case .home: TVHomeView()
+                                case .shows: PlaceholderView(title: "Shows")
+                                case .movies: PlaceholderView(title: "Movies")
+                                case .myNetflix: PlaceholderView(title: "My List")
+                                case .search: PlaceholderView(title: "Search")
+                                }
+                            }
+                            .navigationDestination(for: MediaItem.self) { item in
+                                TVDetailsView(item: item)
                             }
                         }
 
