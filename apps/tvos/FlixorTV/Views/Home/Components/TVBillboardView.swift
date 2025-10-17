@@ -6,6 +6,8 @@ struct TVBillboardView: View {
     var focusNS: Namespace.ID? = nil
     var defaultFocus: Bool = false
 
+    @State private var showingDetails: MediaItem?
+
     var body: some View {
         ZStack(alignment: .bottomLeading) {
             // Backdrop
@@ -80,21 +82,8 @@ struct TVBillboardView: View {
                     CTAButton(title: item.viewOffset != nil ? "Resume" : "Play", systemName: "play.fill", style: .primary)
                         .applyDefaultBillboardFocus(ns: focusNS, enabled: defaultFocus)
 
-                    NavigationLink(value: item) {
-                        HStack(spacing: 10) {
-                            Image(systemName: "info.circle")
-                            Text("More Info")
-                        }
-                        .font(.system(size: 22, weight: .semibold))
-                        .foregroundStyle(Color.white)
-                        .padding(.horizontal, 18)
-                        .padding(.vertical, 10)
-                        .background(
-                            Capsule()
-                                .fill(Color.white.opacity(0.18))
-                        )
-                    }
-                    .buttonStyle(.plain)
+                    CTAButton(title: "More Info", systemName: "info.circle", style: .secondary)
+                        .onTapGesture { showingDetails = item }
 
                     CTAButton(title: "My List", systemName: "plus", style: .secondary)
                 }
@@ -108,6 +97,9 @@ struct TVBillboardView: View {
         }
         .padding(.horizontal, UX.billboardSide)
         .frame(height: 820)
+        .fullScreenCover(item: $showingDetails) { item in
+            TVDetailsView(item: item)
+        }
     }
 }
 
