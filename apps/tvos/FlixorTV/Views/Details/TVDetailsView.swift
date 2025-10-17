@@ -129,6 +129,7 @@ struct TVDetailsView: View {
                             HStack(spacing: 16) { actionButtons }
                             VStack(alignment: .leading, spacing: 12) { actionButtons }
                         }
+                        .focusSection()
                     }
                     .foregroundStyle(.white)
                     .padding(.horizontal, 28)
@@ -269,7 +270,7 @@ struct TVDetailsView: View {
     }
 
     @ViewBuilder private var actionButtons: some View {
-        DetailsCTA(title: vm.playableId != nil ? "Play" : "Play", systemName: "play.fill", primary: true)
+        DetailsCTA(title: vm.playableId != nil ? "Play" : "Play", systemName: "play.fill", primary: true, isDefaultFocusTarget: true, focusNS: heroFocusNS)
             .prefersDefaultFocus(forceHeroFocus, in: heroFocusNS)
         DetailsCTA(title: "My List", systemName: "plus")
     }
@@ -331,7 +332,36 @@ private struct DetailsCTA: View {
     let title: String
     let systemName: String
     var primary: Bool = false
+    var isDefaultFocusTarget: Bool = false
+    var focusNS: Namespace.ID? = nil
     @State private var focused: Bool = false
+
+    // Computed property for background color
+    private var backgroundColor: Color {
+        if focused {
+            return Color.white  // Full white when focused
+        } else if primary {
+            return Color.white.opacity(0.55)  // 55% white when primary but not focused
+        } else {
+            return Color.white.opacity(focused ? 0.18 : 0.10)  // 10-18% white for secondary
+        }
+    }
+
+    // Computed property for text color
+    private var textColor: Color {
+        if focused {
+            return Color.black  // Black when focused (any button)
+        } else if primary {
+            return Color.black  // Black for primary when not focused
+        } else {
+            return Color.white.opacity(0.85)  // Dimmed white for secondary when not focused
+        }
+    }
+
+    // Show stroke only when focused
+    private var strokeOpacity: Double {
+        focused ? 0.4 : 0.0
+    }
 
     var body: some View {
         HStack(spacing: 10) {
@@ -339,13 +369,27 @@ private struct DetailsCTA: View {
             Text(title)
         }
         .font(.system(size: 22, weight: .semibold))
-        .foregroundStyle(primary ? Color.black : Color.white)
+        .foregroundStyle(textColor)
         .padding(.horizontal, 18)
         .padding(.vertical, 10)
-        .background(Capsule().fill(primary ? Color.white : Color.white.opacity(focused ? 0.18 : 0.10)))
-        .overlay(Capsule().stroke(Color.white.opacity(!primary && focused ? 0.35 : 0.0), lineWidth: 1))
+        .background(Capsule().fill(backgroundColor))
+        .overlay(Capsule().stroke(Color.white.opacity(strokeOpacity), lineWidth: 2))
         .focusable(true) { f in focused = f }
+        .modifier(PreferredDefaultDetailsFocusModifier(enabled: isDefaultFocusTarget, ns: focusNS))
         .scaleEffect(focused ? 1.06 : 1.0)
+        .shadow(color: .black.opacity(focused ? 0.35 : 0.0), radius: 12, y: 4)
         .animation(.easeOut(duration: 0.18), value: focused)
+    }
+}
+
+private struct PreferredDefaultDetailsFocusModifier: ViewModifier {
+    let enabled: Bool
+    let ns: Namespace.ID?
+    func body(content: Content) -> some View {
+        if let ns, enabled {
+            content.prefersDefaultFocus(true, in: ns)
+        } else {
+            content
+        }
     }
 }

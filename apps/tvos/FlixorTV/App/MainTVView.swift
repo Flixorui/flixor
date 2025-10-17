@@ -7,7 +7,6 @@ struct MainTVView: View {
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var session: SessionManager
     @State private var showSettings = false
-    @State private var jumpToContentToggle = false
 
     var body: some View {
         ZStack {
@@ -20,9 +19,10 @@ struct MainTVView: View {
                     // Show settings by default when not signed in
                     TVSettingsView()
                 case .authenticated:
-                    ZStack(alignment: .top) {
-                        // Content behind nav bar
-                        NavigationStack {
+                    // Move NavigationStack to outer level to share focus scope
+                    NavigationStack {
+                        ZStack(alignment: .top) {
+                            // Content behind nav bar
                             Group {
                                 switch selected {
                                 case .home: TVHomeView()
@@ -32,20 +32,19 @@ struct MainTVView: View {
                                 case .search: PlaceholderView(title: "Search")
                                 }
                             }
-                            .navigationDestination(for: MediaItem.self) { item in
-                                TVDetailsView(item: item)
+
+                            // Floating transparent nav bar (now inside NavigationStack)
+                            VStack(spacing: 0) {
+                                SimpleTopBar(
+                                    selected: $selected,
+                                    onProfileTapped: { showSettings = true },
+                                    onSearchTapped: { selected = .search }
+                                )
+                                Spacer()
                             }
                         }
-
-                        // Floating transparent nav bar
-                        VStack(spacing: 0) {
-                            SimpleTopBar(
-                                selected: $selected,
-                                onProfileTapped: { showSettings = true },
-                                onSearchTapped: { selected = .search },
-                                onMoveDown: { jumpToContentToggle.toggle() }
-                            )
-                            Spacer()
+                        .navigationDestination(for: MediaItem.self) { item in
+                            TVDetailsView(item: item)
                         }
                     }
                 }
@@ -102,10 +101,9 @@ struct SimpleTopBar: View {
     @Binding var selected: MainTVView.Tab
     var onProfileTapped: () -> Void
     var onSearchTapped: () -> Void
-    var onMoveDown: () -> Void
 
     var body: some View {
-        TopNavBar(selected: $selected, onProfileTapped: onProfileTapped, onSearchTapped: onSearchTapped, onMoveDown: onMoveDown)
+        TopNavBar(selected: $selected, onProfileTapped: onProfileTapped, onSearchTapped: onSearchTapped)
             .padding(.top, -50)
     }
 }
