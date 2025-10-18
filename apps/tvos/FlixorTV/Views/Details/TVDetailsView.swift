@@ -12,6 +12,15 @@ struct TVDetailsView: View {
     @State private var tabsHaveFocus = false
     @State private var contentAreaHasFocus = false
     @State private var heroFocusId: UUID = UUID()
+
+    // Collapse state
+    @State private var isCollapsed: Bool = false
+    @State private var requestExpand: Bool = false
+
+    // Hero button focus
+    enum HeroButton: Hashable { case play, trailer, add }
+    @FocusState private var focusedHeroButton: HeroButton?
+
     // Focus namespaces per section
     @Namespace private var nsTabs
     @Namespace private var nsSuggested
@@ -67,10 +76,11 @@ struct TVDetailsView: View {
                 ]),
                 startPoint: .leading, endPoint: .trailing
             )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .ignoresSafeArea(edges: .all)
 
-            // Layer 3: Conditional frosted glass blur when in tabs/content area
-            if (tabsHaveFocus || contentAreaHasFocus), let colors = vm.ultraBlurColors {
+            // Layer 3: Conditional frosted glass blur (only when collapsed)
+            if isCollapsed, let colors = vm.ultraBlurColors {
                 ZStack {
                     // Frosted glass material effect
                     Rectangle()
@@ -80,16 +90,12 @@ struct TVDetailsView: View {
                     UltraBlurGradientBackground(colors: colors, opacity: 0.6)
                 }
                 .ignoresSafeArea(edges: .all)
+                .transition(.opacity)
             }
 
-            // Layer 4: Content
-            ScrollViewReader { proxy in
-            ScrollView(.vertical, showsIndicators: false) {
+            // Layer 4: Content - VStack with collapsing hero
             VStack(spacing: 0) {
-                // Absolute top marker for scroll anchoring
-                Color.clear.frame(height: 1).id("scroll-top")
-
-                // HERO (edge-to-edge, starts from absolute top)
+                // HERO - Collapsible section
                 ZStack(alignment: .topLeading) {
 
                     // Content Overlay: Fixed-width column on left
@@ -101,121 +107,139 @@ struct TVDetailsView: View {
                                     switch phase {
                                     case .success(let image):
                                         image.resizable().aspectRatio(contentMode: .fit)
-                                            .frame(maxWidth: 320, maxHeight: 100, alignment: .leading)
+                                            .frame(
+                                                maxWidth: isCollapsed ? 80 : 320,
+                                                maxHeight: isCollapsed ? 40 : 100,
+                                                alignment: .leading
+                                            )
                                             .shadow(color: .black.opacity(0.6), radius: 8, y: 4)
                                     case .empty, .failure:
                                         // Fallback to title if logo fails to load
                                         Text(vm.title.isEmpty ? item.title : vm.title)
-                                            .font(.system(size: 48, weight: .bold))
+                                            .font(.system(size: isCollapsed ? 20 : 48, weight: .bold))
                                             .foregroundStyle(.white)
                                             .lineLimit(2)
                                     @unknown default:
                                         // Fallback to title
                                         Text(vm.title.isEmpty ? item.title : vm.title)
-                                            .font(.system(size: 48, weight: .bold))
+                                            .font(.system(size: isCollapsed ? 20 : 48, weight: .bold))
                                             .foregroundStyle(.white)
                                             .lineLimit(2)
                                     }
                                 }
-                                .padding(.bottom, 12)
+                                .padding(.bottom, isCollapsed ? 0 : 12)
                             } else {
                                 // No logo available, show title
                                 Text(vm.title.isEmpty ? item.title : vm.title)
-                                    .font(.system(size: 48, weight: .bold))
+                                    .font(.system(size: isCollapsed ? 20 : 48, weight: .bold))
                                     .foregroundStyle(.white)
                                     .lineLimit(2)
-                                    .padding(.bottom, 16)
+                                    .padding(.bottom, isCollapsed ? 0 : 16)
                             }
 
                             // Meta badges (TV-14, HD, 5.1, CC style) and meta text combined
-                            HStack(spacing: 8) {
-                                // Technical badges
-                                if !vm.badges.isEmpty {
-                                    ForEach(vm.badges, id: \.self) { badge in
-                                        Text(badge)
-                                            .font(.system(size: 14, weight: .medium))
-                                            .foregroundStyle(.white.opacity(0.9))
-                                            .padding(.horizontal, 8)
-                                            .padding(.vertical, 4)
-                                            .overlay(
-                                                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                                    .stroke(Color.white.opacity(0.4), lineWidth: 1)
-                                            )
+                            if !isCollapsed {
+                                HStack(spacing: 8) {
+                                    // Technical badges
+                                    if !vm.badges.isEmpty {
+                                        ForEach(vm.badges, id: \.self) { badge in
+                                            Text(badge)
+                                                .font(.system(size: 14, weight: .medium))
+                                                .foregroundStyle(.white.opacity(0.9))
+                                                .padding(.horizontal, 8)
+                                                .padding(.vertical, 4)
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                                        .stroke(Color.white.opacity(0.4), lineWidth: 1)
+                                                )
+                                        }
                                     }
                                 }
-                            }
-                            .padding(.bottom, 12)
-                            
-                            // Rating badges (IMDB, Rotten Tomatoes)
-                            if let ratings = vm.externalRatings {
-                                TVRatingsStrip(ratings: ratings)
-                                    .padding(.bottom, 8)
-                            }
+                                .padding(.bottom, 12)
+                                .opacity(isCollapsed ? 0 : 1)
 
+                                // Rating badges (IMDB, Rotten Tomatoes)
+                                if let ratings = vm.externalRatings {
+                                    TVRatingsStrip(ratings: ratings)
+                                        .padding(.bottom, 8)
+                                        .opacity(isCollapsed ? 0 : 1)
+                                }
 
-                            // Meta text line (year, runtime, rating)
-                            if !metaItems.isEmpty {
-                                Text(metaItems.joined(separator: " • "))
-                                    .font(.system(size: 20, weight: .medium))
-                                    .foregroundStyle(.white.opacity(0.75))
-                                    .padding(.bottom, 20)
+                                // Meta text line (year, runtime, rating)
+                                if !metaItems.isEmpty {
+                                    Text(metaItems.joined(separator: " • "))
+                                        .font(.system(size: 20, weight: .medium))
+                                        .foregroundStyle(.white.opacity(0.75))
+                                        .padding(.bottom, 20)
+                                        .opacity(isCollapsed ? 0 : 1)
+                                }
+
+                                // Overview
+                                if !vm.overview.isEmpty {
+                                    Text(vm.overview)
+                                        .font(.system(size: 20, weight: .regular))
+                                        .foregroundStyle(.white.opacity(0.85))
+                                        .lineLimit(4)
+                                        .lineSpacing(4)
+                                        .padding(.bottom, 24)
+                                        .opacity(isCollapsed ? 0 : 1)
+                                }
+
+                                // Action Buttons
+                                HStack(spacing: 16) { heroActionButtons }
+                                    .focusSection()
+                                    .opacity(isCollapsed ? 0 : 1)
                             }
-
-                            // Overview
-                            if !vm.overview.isEmpty {
-                                Text(vm.overview)
-                                    .font(.system(size: 20, weight: .regular))
-                                    .foregroundStyle(.white.opacity(0.85))
-                                    .lineLimit(4)
-                                    .lineSpacing(4)
-                                    .padding(.bottom, 24)
-                            }
-
-                            // Action Buttons
-                            HStack(spacing: 16) { heroActionButtons }
-                                .focusSection()
                         }
                         .onPreferenceChange(HeroActionButtonFocusIdKey.self) { newId in
                             if let newId = newId {
                                 heroFocusId = newId
                             }
                         }
-                        .frame(width: 550)
-                        .padding(.leading, 80)
-                        .padding(.top, UX.billboardTopPadding + 100)
-                        .padding(.bottom, 100)
+                        .frame(width: isCollapsed ? 200 : 550)
+                        .padding(.leading, isCollapsed ? 60 : 80)
+                        .padding(.top, isCollapsed ? 40 : (UX.billboardTopPadding + 100))
+                        .padding(.bottom, isCollapsed ? 0 : 100)
 
                         Spacer()
                     }
                 }
                 .frame(maxWidth: .infinity)
-                .frame(height: 900 + UX.billboardTopPadding)
-                .offset(y: -UX.billboardTopPadding)
+                .frame(height: isCollapsed ? 120 : (900 + UX.billboardTopPadding))
+                .clipped()
                 .id("hero")
                 .focusSection()
+                .animation(.spring(response: 0.5, dampingFraction: 0.75), value: isCollapsed)
 
-                // TABS & CONTENT (no background - backdrop extends behind)
-                VStack(spacing: 24) {
-                    VStack(spacing: 0) {
-                        // TABS
-                        VStack(spacing: 0) {
-                            TVDetailsTabsBar(tabs: tabs, active: $activeTab, reportFocus: $tabsHaveFocus)
-                        }
-                        .id("tabs")
-                        .focusSection()
+                // TAB BAR - Fixed position below hero
+                TVDetailsTabsBar(tabs: tabs, active: $activeTab, reportFocus: $tabsHaveFocus, requestExpand: $requestExpand)
+                    .frame(height: 60)
+                    .padding(.horizontal, 80)
+                    .id("tabs")
+                    .focusSection()
 
-                        // CONTENT
+                // CONTENT - Scrollable area
+                ScrollViewReader { proxy in
+                    ScrollView(.vertical, showsIndicators: false) {
                         VStack(spacing: 28) {
                             switch activeTab {
                             case .suggested:
                                 Color.clear.frame(height: 1).id("content-suggested")
                                 SuggestedSection(vm: vm, focusNS: nsSuggested)
                                     .focusScope(nsSuggested)
+                                    .transition(.asymmetric(
+                                        insertion: .opacity.combined(with: .move(edge: .trailing)),
+                                        removal: .opacity.combined(with: .move(edge: .leading))
+                                    ))
                             case .details:
                                 Color.clear.frame(height: 1).id("content-details")
                                 TVDetailsInfoGrid(vm: vm, focusNS: nsDetails)
                                     .focusScope(nsDetails)
                                     .preference(key: ContentAreaFocusKey.self, value: true)
+                                    .transition(.asymmetric(
+                                        insertion: .opacity.combined(with: .move(edge: .trailing)),
+                                        removal: .opacity.combined(with: .move(edge: .leading))
+                                    ))
                             case .episodes:
                                 VStack(alignment: .leading, spacing: 24) {
                                     Color.clear.frame(height: 1).id("content-episodes")
@@ -223,40 +247,33 @@ struct TVDetailsView: View {
                                 }
                                 .focusScope(nsEpisodes)
                                 .preference(key: ContentAreaFocusKey.self, value: true)
+                                .transition(.asymmetric(
+                                    insertion: .opacity.combined(with: .move(edge: .trailing)),
+                                    removal: .opacity.combined(with: .move(edge: .leading))
+                                ))
                             case .extras:
                                 Color.clear.frame(height: 1).id("content-extras")
                                 ExtrasSection(vm: vm, focusNS: nsExtras)
                                     .focusScope(nsExtras)
+                                    .transition(.asymmetric(
+                                        insertion: .opacity.combined(with: .move(edge: .trailing)),
+                                        removal: .opacity.combined(with: .move(edge: .leading))
+                                    ))
                             }
                         }
                         .padding(.bottom, 80)
+                        .frame(minHeight: 800)
                         .onPreferenceChange(ContentAreaFocusKey.self) { hasFocus in
                             contentAreaHasFocus = hasFocus
                         }
                     }
-                }  // End VStack(spacing: 24) for tabs & content
-            }
-        }
-        .onAppear { scrollProxy = proxy }
-        .onChange(of: heroFocusId) { newId in
-            print("🎯 [TVDetails] Hero button focus changed (\(newId)) - scrolling to top")
-            DispatchQueue.main.async {
-                withAnimation(.easeOut(duration: 0.3)) {
-                    scrollProxy?.scrollTo("scroll-top")
+                    .disabled(!isCollapsed)
+                    .onAppear { scrollProxy = proxy }
                 }
-            }
-        }
-        .onChange(of: tabsHaveFocus) { hasFocus in
-            print("🎯 [TVDetails] tabsHaveFocus changed to: \(hasFocus), ultraBlurColors: \(vm.ultraBlurColors != nil ? "present" : "nil")")
-            if hasFocus {
-                print("🎯 [TVDetails] Tabs gained focus - scrolling to tabs")
-                withAnimation(.easeOut(duration: 0.24)) {
-                    scrollProxy?.scrollTo("tabs", anchor: .top)
-                }
-            }
-        }
-        }
-        }
+            }  // End main VStack
+        }  // End ZStack
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .ignoresSafeArea(edges: .all)
         .task {
             await vm.load(for: item)
             // Default tab depending on mediaKind
@@ -270,6 +287,62 @@ struct TVDetailsView: View {
                 print("🎨 [TVDetails] UltraBlur colors updated: TL=\(colors.topLeft) TR=\(colors.topRight) BL=\(colors.bottomLeft) BR=\(colors.bottomRight)")
             } else {
                 print("🎨 [TVDetails] UltraBlur colors cleared")
+            }
+        }
+        .onChange(of: tabsHaveFocus) { hasFocus in
+            if hasFocus && !isCollapsed && focusedHeroButton == nil {
+                print("🎯 [TVDetails] Tabs gained focus - collapsing hero")
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) {
+                    isCollapsed = true
+                }
+            }
+        }
+        .onChange(of: focusedHeroButton) { button in
+            if button != nil && isCollapsed {
+                // If hero button gains focus while collapsed, expand automatically
+                print("🎯 [TVDetails] Hero button focused while collapsed - expanding")
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) {
+                    isCollapsed = false
+                }
+            }
+        }
+        .onChange(of: requestExpand) { shouldExpand in
+            if shouldExpand && isCollapsed {
+                print("🎯 [TVDetails] Expand requested - expanding hero")
+                // Cancel any ongoing animations by immediately setting state
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) {
+                    isCollapsed = false
+                }
+                // Auto-focus first hero button after expansion animation
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    focusedHeroButton = .play
+                }
+                // Reset scroll position
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    scrollProxy?.scrollTo("content-\(activeTab.rawValue.lowercased())", anchor: .top)
+                }
+                // Reset request flag
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                    requestExpand = false
+                }
+            } else if shouldExpand && !isCollapsed {
+                // Already expanded, just reset flag
+                requestExpand = false
+            }
+        }
+        .onChange(of: isCollapsed) { collapsed in
+            print("🎯 [TVDetails] Hero collapse state changed: \(collapsed ? "COLLAPSED" : "EXPANDED")")
+        }
+        .onChange(of: activeTab) { newTab in
+            if isCollapsed {
+                // Animate tab content transitions when collapsed
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    // Animation context for transition
+                }
+                // Reset scroll position for new tab
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    scrollProxy?.scrollTo("content-\(newTab.rawValue.lowercased())", anchor: .top)
+                }
             }
         }
     }
@@ -293,8 +366,11 @@ struct TVDetailsView: View {
 
     @ViewBuilder private var heroActionButtons: some View {
         HeroPlayButton(isDefaultFocusTarget: true, focusNS: heroFocusNS)
+            .focused($focusedHeroButton, equals: .play)
         HeroTrailerButton(focusNS: heroFocusNS)
+            .focused($focusedHeroButton, equals: .trailer)
         HeroAddButton(focusNS: heroFocusNS)
+            .focused($focusedHeroButton, equals: .add)
     }
 }
 
