@@ -4,6 +4,7 @@ struct TVDetailsTabsBar: View {
     let tabs: [DetailsTab]
     @Binding var active: DetailsTab
     @Binding var reportFocus: Bool
+    @Binding var requestExpand: Bool
     @FocusState private var focused: DetailsTab?
     @State private var previousFocused: DetailsTab? = nil
 
@@ -40,6 +41,12 @@ struct TVDetailsTabsBar: View {
             }
 
             previousFocused = newTab
+        }
+        .onMoveCommand { direction in
+            if direction == .up && focused != nil {
+                print("🎯 [TVDetailsTabsBar] UP pressed - requesting hero expand")
+                requestExpand = true
+            }
         }
     }
 
