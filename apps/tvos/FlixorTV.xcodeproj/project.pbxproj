@@ -32,6 +32,11 @@
 		1A1C1D1E1F20000700010001 /* TVDetailsInfoGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1C1D1E1F20000700010000 /* TVDetailsInfoGrid.swift */; };
 		1A1C1D1E1F20000900010001 /* TVSeasonsStrip.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1C1D1E1F20000900010000 /* TVSeasonsStrip.swift */; };
 		1A1C1D1E1F20000B00010001 /* TVEpisodesRail.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1C1D1E1F20000B00010000 /* TVEpisodesRail.swift */; };
+		2B2C2D2E2F30000100010001 /* TVLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B2C2D2E2F30000100010000 /* TVLibraryView.swift */; };
+		2B2C2D2E2F30000300010001 /* TVLibraryViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B2C2D2E2F30000300010000 /* TVLibraryViewModel.swift */; };
+		2B2C2D2E2F30000500010001 /* TVLibraryFilterBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B2C2D2E2F30000500010000 /* TVLibraryFilterBar.swift */; };
+		3C3D3E3F3F40000100010001 /* Skeletons.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C3D3E3F3F40000100010000 /* Skeletons.swift */; };
+		4D4E4F4F4F50000100010001 /* Shimmer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D4E4F4F4F50000100010000 /* Shimmer.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -61,6 +66,11 @@
 		1A1C1D1E1F20000700010000 /* TVDetailsInfoGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVDetailsInfoGrid.swift; sourceTree = "<group>"; };
 		1A1C1D1E1F20000900010000 /* TVSeasonsStrip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVSeasonsStrip.swift; sourceTree = "<group>"; };
 		1A1C1D1E1F20000B00010000 /* TVEpisodesRail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVEpisodesRail.swift; sourceTree = "<group>"; };
+		2B2C2D2E2F30000100010000 /* TVLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVLibraryView.swift; sourceTree = "<group>"; };
+		2B2C2D2E2F30000300010000 /* TVLibraryViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVLibraryViewModel.swift; sourceTree = "<group>"; };
+		2B2C2D2E2F30000500010000 /* TVLibraryFilterBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVLibraryFilterBar.swift; sourceTree = "<group>"; };
+		3C3D3E3F3F40000100010000 /* Skeletons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Skeletons.swift; sourceTree = "<group>"; };
+		4D4E4F4F4F50000100010000 /* Shimmer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shimmer.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -120,6 +130,8 @@
 				CA640CCCC115D09CBAF9F0B3 /* TVCards.swift */,
 				6A7E3CFE272780A78553EA7A /* TVCarouselRow.swift */,
 				56116A558CCA485F8D0934B0 /* UltraBlurGradientBackground.swift */,
+				3C3D3E3F3F40000100010000 /* Skeletons.swift */,
+				4D4E4F4F4F50000100010000 /* Shimmer.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -169,6 +181,7 @@
 				3D9FC1E51286B7B3697BE715 /* Home */,
 				4A6C3FDAE7A35DBF8E50211B /* Settings */,
 				B0E6D5C36D284196C65BF361 /* Details */,
+				2B2C2D2E2F30000000010000 /* Library */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -193,6 +206,24 @@
 				1A1C1D1E1F20000700010000 /* TVDetailsInfoGrid.swift */,
 				1A1C1D1E1F20000900010000 /* TVSeasonsStrip.swift */,
 				1A1C1D1E1F20000B00010000 /* TVEpisodesRail.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		2B2C2D2E2F30000000010000 /* Library */ = {
+			isa = PBXGroup;
+			children = (
+				2B2C2D2E2F30000100010000 /* TVLibraryView.swift */,
+				2B2C2D2E2F30000300010000 /* TVLibraryViewModel.swift */,
+				2B2C2D2E2F30000000020000 /* Components */,
+			);
+			path = Library;
+			sourceTree = "<group>";
+		};
+		2B2C2D2E2F30000000020000 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				2B2C2D2E2F30000500010000 /* TVLibraryFilterBar.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -299,6 +330,11 @@
 				1A1C1D1E1F20000700010001 /* TVDetailsInfoGrid.swift in Sources */,
 				1A1C1D1E1F20000900010001 /* TVSeasonsStrip.swift in Sources */,
 				1A1C1D1E1F20000B00010001 /* TVEpisodesRail.swift in Sources */,
+				2B2C2D2E2F30000100010001 /* TVLibraryView.swift in Sources */,
+				2B2C2D2E2F30000300010001 /* TVLibraryViewModel.swift in Sources */,
+				2B2C2D2E2F30000500010001 /* TVLibraryFilterBar.swift in Sources */,
+				3C3D3E3F3F40000100010001 /* Skeletons.swift in Sources */,
+				4D4E4F4F4F50000100010001 /* Shimmer.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
