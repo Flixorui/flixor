@@ -10,6 +10,7 @@ struct TVDetailsView: View {
     @Namespace private var heroFocusNS
     @State private var scrollProxy: ScrollViewProxy?
     @State private var tabsHaveFocus = false
+    @State private var contentAreaHasFocus = false
     @State private var heroFocusId: UUID = UUID()
     // Focus namespaces per section
     @Namespace private var nsTabs
@@ -41,141 +42,199 @@ struct TVDetailsView: View {
 
     var body: some View {
         ZStack {
-            // Background
-            Color.black.ignoresSafeArea()
-
-            // UltraBlur gradient background
-            if let colors = vm.ultraBlurColors {
-                UltraBlurGradientBackground(colors: colors, opacity: 0.85)
-            } else {
-                Color.clear.onAppear {
-                    print("🎨 [TVDetails] UltraBlur colors not available yet")
+            // Layer 1: Full-page backdrop image (edge-to-edge, corner-to-corner)
+            AsyncImage(url: vm.backdropURL) { phase in
+                switch phase {
+                case .success(let image):
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                case .empty, .failure:
+                    Color.black.opacity(0.3)
+                @unknown default:
+                    Color.black.opacity(0.3)
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .ignoresSafeArea(edges: .all)
 
+            // Layer 2: Full-screen gradient overlay for text readability
+            LinearGradient(
+                gradient: Gradient(stops: [
+                    .init(color: Color.black.opacity(0.7), location: 0.0),
+                    .init(color: Color.black.opacity(0.3), location: 0.35),
+                    .init(color: .clear, location: 0.6)
+                ]),
+                startPoint: .leading, endPoint: .trailing
+            )
+            .ignoresSafeArea(edges: .all)
+
+            // Layer 3: Conditional frosted glass blur when in tabs/content area
+            if (tabsHaveFocus || contentAreaHasFocus), let colors = vm.ultraBlurColors {
+                ZStack {
+                    // Frosted glass material effect
+                    Rectangle()
+                        .fill(.ultraThinMaterial)
+
+                    // Color overlay from extracted backdrop colors
+                    UltraBlurGradientBackground(colors: colors, opacity: 0.6)
+                }
+                .ignoresSafeArea(edges: .all)
+            }
+
+            // Layer 4: Content
             ScrollViewReader { proxy in
             ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: 0) {
                 // Absolute top marker for scroll anchoring
                 Color.clear.frame(height: 1).id("scroll-top")
 
-                VStack(spacing: 24) {
-                // Top spacer below transparent nav bar
-                Color.clear.frame(height: UX.billboardTopPadding)
+                // HERO (edge-to-edge, starts from absolute top)
+                ZStack(alignment: .topLeading) {
 
-                // HERO
-                ZStack(alignment: .bottomLeading) {
-                    TVImage(url: vm.backdropURL, corner: UX.billboardRadius, height: 800)
-                        .overlay(
-                            LinearGradient(
-                                gradient: Gradient(stops: [
-                                    .init(color: Color.black.opacity(0.65), location: 0.0),
-                                    .init(color: Color.black.opacity(0.18), location: 0.55),
-                                    .init(color: .clear, location: 1.0)
-                                ]),
-                                startPoint: .bottom, endPoint: .top
-                            )
-                            .clipShape(RoundedRectangle(cornerRadius: UX.billboardRadius, style: .continuous))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: UX.billboardRadius, style: .continuous)
-                                .stroke(Color.white.opacity(0.06), lineWidth: 1)
-                        )
-                        .shadow(color: .black.opacity(0.35), radius: 18, y: 8)
+                    // Content Overlay: Fixed-width column on left
+                    HStack(spacing: 0) {
+                        VStack(alignment: .leading, spacing: 0) {
+                            // Logo (if available), otherwise show title
+                            if let logo = vm.logoURL {
+                                AsyncImage(url: logo) { phase in
+                                    switch phase {
+                                    case .success(let image):
+                                        image.resizable().aspectRatio(contentMode: .fit)
+                                            .frame(maxWidth: 320, maxHeight: 100, alignment: .leading)
+                                            .shadow(color: .black.opacity(0.6), radius: 8, y: 4)
+                                    case .empty, .failure:
+                                        // Fallback to title if logo fails to load
+                                        Text(vm.title.isEmpty ? item.title : vm.title)
+                                            .font(.system(size: 48, weight: .bold))
+                                            .foregroundStyle(.white)
+                                            .lineLimit(2)
+                                    @unknown default:
+                                        // Fallback to title
+                                        Text(vm.title.isEmpty ? item.title : vm.title)
+                                            .font(.system(size: 48, weight: .bold))
+                                            .foregroundStyle(.white)
+                                            .lineLimit(2)
+                                    }
+                                }
+                                .padding(.bottom, 12)
+                            } else {
+                                // No logo available, show title
+                                Text(vm.title.isEmpty ? item.title : vm.title)
+                                    .font(.system(size: 48, weight: .bold))
+                                    .foregroundStyle(.white)
+                                    .lineLimit(2)
+                                    .padding(.bottom, 16)
+                            }
 
-                    VStack(alignment: .leading, spacing: 14) {
-                        // Clear logo preferred
-                        if let logo = vm.logoURL {
-                            AsyncImage(url: logo) { phase in
-                                switch phase {
-                                case .success(let image):
-                                    image.resizable().aspectRatio(contentMode: .fit)
-                                        .frame(maxWidth: 520, maxHeight: 150, alignment: .leading)
-                                        .shadow(color: .black.opacity(0.8), radius: 12, y: 4)
-                                case .empty, .failure:
-                                    Text(vm.title.isEmpty ? item.title : vm.title)
-                                        .font(.system(size: 56, weight: .bold))
-                                @unknown default:
-                                    Text(vm.title.isEmpty ? item.title : vm.title)
-                                        .font(.system(size: 56, weight: .bold))
+                            // Meta badges (TV-14, HD, 5.1, CC style) and meta text combined
+                            HStack(spacing: 8) {
+                                // Technical badges
+                                if !vm.badges.isEmpty {
+                                    ForEach(vm.badges, id: \.self) { badge in
+                                        Text(badge)
+                                            .font(.system(size: 14, weight: .medium))
+                                            .foregroundStyle(.white.opacity(0.9))
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 4)
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                                    .stroke(Color.white.opacity(0.4), lineWidth: 1)
+                                            )
+                                    }
                                 }
                             }
-                        } else {
-                            Text(vm.title.isEmpty ? item.title : vm.title)
-                                .font(.system(size: 56, weight: .bold))
-                        }
+                            .padding(.bottom, 12)
+                            
+                            // Rating badges (IMDB, Rotten Tomatoes)
+                            if let ratings = vm.externalRatings {
+                                TVRatingsStrip(ratings: ratings)
+                                    .padding(.bottom, 8)
+                            }
 
-                        // Meta line + pills + ratings
-                        if !(metaItems.isEmpty && (vm.badges.isEmpty) && vm.externalRatings == nil) {
-                            ViewThatFits {
-                                HStack(spacing: 10) { metaRow }
-                                VStack(alignment: .leading, spacing: 10) { metaRow }
+
+                            // Meta text line (year, runtime, rating)
+                            if !metaItems.isEmpty {
+                                Text(metaItems.joined(separator: " • "))
+                                    .font(.system(size: 20, weight: .medium))
+                                    .foregroundStyle(.white.opacity(0.75))
+                                    .padding(.bottom, 20)
+                            }
+
+                            // Overview
+                            if !vm.overview.isEmpty {
+                                Text(vm.overview)
+                                    .font(.system(size: 20, weight: .regular))
+                                    .foregroundStyle(.white.opacity(0.85))
+                                    .lineLimit(4)
+                                    .lineSpacing(4)
+                                    .padding(.bottom, 24)
+                            }
+
+                            // Action Buttons
+                            HStack(spacing: 16) { heroActionButtons }
+                                .focusSection()
+                        }
+                        .onPreferenceChange(HeroActionButtonFocusIdKey.self) { newId in
+                            if let newId = newId {
+                                heroFocusId = newId
                             }
                         }
+                        .frame(width: 550)
+                        .padding(.leading, 80)
+                        .padding(.top, UX.billboardTopPadding + 100)
+                        .padding(.bottom, 100)
 
-                        // Overview
-                        if !vm.overview.isEmpty {
-                            Text(vm.overview)
-                                .foregroundStyle(.white.opacity(0.85))
-                                .lineLimit(3)
-                                .frame(maxWidth: 1000, alignment: .leading)
-                        }
-
-                        // Actions
-                        ViewThatFits {
-                            HStack(spacing: 16) { actionButtons }
-                            VStack(alignment: .leading, spacing: 12) { actionButtons }
-                        }
-                        .focusSection()
+                        Spacer()
                     }
-                    .onPreferenceChange(HeroActionButtonFocusIdKey.self) { newId in
-                        if let newId = newId {
-                            heroFocusId = newId
-                        }
-                    }
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 28)
-                    .padding(.top, 28)
-                    .padding(.bottom, 20)
                 }
-                .padding(.horizontal, UX.billboardSide)
-                .frame(height: 820)
+                .frame(maxWidth: .infinity)
+                .frame(height: 900 + UX.billboardTopPadding)
+                .offset(y: -UX.billboardTopPadding)
                 .id("hero")
                 .focusSection()
 
-                // TABS
-                VStack(spacing: 0) {
-                    TVDetailsTabsBar(tabs: tabs, active: $activeTab, focusNS: nsTabs, reportFocus: $tabsHaveFocus)
-                }
-                .id("tabs")
-                .focusSection()
-
-                // CONTENT
-                VStack(spacing: 28) {
-                    switch activeTab {
-                    case .suggested:
-                        Color.clear.frame(height: 1).id("content-suggested")
-                        SuggestedSection(vm: vm, focusNS: nsSuggested)
-                            .focusScope(nsSuggested)
-                    case .details:
-                        Color.clear.frame(height: 1).id("content-details")
-                        TVDetailsInfoGrid(vm: vm, focusNS: nsDetails)
-                            .focusScope(nsDetails)
-                    case .episodes:
-                        VStack(alignment: .leading, spacing: 16) {
-                            Color.clear.frame(height: 1).id("content-episodes")
-                            TVSeasonsStrip(vm: vm, focusNS: nsEpisodes)
-                            TVEpisodesRail(vm: vm, focusNS: nsEpisodes)
+                // TABS & CONTENT (no background - backdrop extends behind)
+                VStack(spacing: 24) {
+                    VStack(spacing: 0) {
+                        // TABS
+                        VStack(spacing: 0) {
+                            TVDetailsTabsBar(tabs: tabs, active: $activeTab, reportFocus: $tabsHaveFocus)
                         }
-                        .focusScope(nsEpisodes)
-                    case .extras:
-                        Color.clear.frame(height: 1).id("content-extras")
-                        ExtrasSection(vm: vm, focusNS: nsExtras)
-                            .focusScope(nsExtras)
+                        .id("tabs")
+                        .focusSection()
+
+                        // CONTENT
+                        VStack(spacing: 28) {
+                            switch activeTab {
+                            case .suggested:
+                                Color.clear.frame(height: 1).id("content-suggested")
+                                SuggestedSection(vm: vm, focusNS: nsSuggested)
+                                    .focusScope(nsSuggested)
+                            case .details:
+                                Color.clear.frame(height: 1).id("content-details")
+                                TVDetailsInfoGrid(vm: vm, focusNS: nsDetails)
+                                    .focusScope(nsDetails)
+                                    .preference(key: ContentAreaFocusKey.self, value: true)
+                            case .episodes:
+                                VStack(alignment: .leading, spacing: 24) {
+                                    Color.clear.frame(height: 1).id("content-episodes")
+                                    TVEpisodesRail(vm: vm, focusNS: nsEpisodes)
+                                }
+                                .focusScope(nsEpisodes)
+                                .preference(key: ContentAreaFocusKey.self, value: true)
+                            case .extras:
+                                Color.clear.frame(height: 1).id("content-extras")
+                                ExtrasSection(vm: vm, focusNS: nsExtras)
+                                    .focusScope(nsExtras)
+                            }
+                        }
+                        .padding(.bottom, 80)
+                        .onPreferenceChange(ContentAreaFocusKey.self) { hasFocus in
+                            contentAreaHasFocus = hasFocus
+                        }
                     }
-                }
-                .padding(.bottom, 80)
-                }
+                }  // End VStack(spacing: 24) for tabs & content
             }
         }
         .onAppear { scrollProxy = proxy }
@@ -188,6 +247,7 @@ struct TVDetailsView: View {
             }
         }
         .onChange(of: tabsHaveFocus) { hasFocus in
+            print("🎯 [TVDetails] tabsHaveFocus changed to: \(hasFocus), ultraBlurColors: \(vm.ultraBlurColors != nil ? "present" : "nil")")
             if hasFocus {
                 print("🎯 [TVDetails] Tabs gained focus - scrolling to tabs")
                 withAnimation(.easeOut(duration: 0.24)) {
@@ -197,7 +257,6 @@ struct TVDetailsView: View {
         }
         }
         }
-        .background(Color.black)
         .task {
             await vm.load(for: item)
             // Default tab depending on mediaKind
@@ -230,6 +289,12 @@ struct TVDetailsView: View {
     @ViewBuilder private var actionButtons: some View {
         DetailsCTA(title: vm.playableId != nil ? "Play" : "Play", systemName: "play.fill", primary: false, isDefaultFocusTarget: true, focusNS: heroFocusNS)
         DetailsCTA(title: "My List", systemName: "plus")
+    }
+
+    @ViewBuilder private var heroActionButtons: some View {
+        HeroPlayButton(isDefaultFocusTarget: true, focusNS: heroFocusNS)
+        HeroTrailerButton(focusNS: heroFocusNS)
+        HeroAddButton(focusNS: heroFocusNS)
     }
 }
 
@@ -287,6 +352,7 @@ private struct SuggestedSection: View {
                 rowLastFocusedItem[rowId] = itemId
             }
         }
+        .preference(key: ContentAreaFocusKey.self, value: focusedRowId != nil)
         .fullScreenCover(item: $selected) { item in TVDetailsView(item: item) }
     }
 }
@@ -295,12 +361,14 @@ private struct SuggestedSection: View {
 // InfoSection replaced by TVDetailsInfoGrid component
 
 // MARK: - Episodes
-// Episodes section now split into TVSeasonsStrip + TVEpisodesRail components
+// Episodes section handled by redesigned TVEpisodesRail (with integrated season sidebar)
 
 // MARK: - Extras placeholder
 private struct ExtrasSection: View {
     @ObservedObject var vm: TVDetailsViewModel
     var focusNS: Namespace.ID
+    @State private var hasFocus = false
+
     var body: some View {
         if vm.extras.isEmpty {
             Text("No extras available").foregroundStyle(.white.opacity(0.8)).padding(.horizontal, 48)
@@ -310,11 +378,14 @@ private struct ExtrasSection: View {
                     ForEach(Array(vm.extras.enumerated()), id: \.element.id) { index, ex in
                         TVImage(url: ex.image, corner: 16, aspect: 16/9)
                             .frame(width: 960 * 0.6, height: 540 * 0.6)
-                            .focusable(true)
+                            .focusable(true) { focused in
+                                if focused { hasFocus = true }
+                            }
                             .prefersDefaultFocus(index == 0, in: focusNS)
                     }
                 }.padding(.horizontal, 48)
             }
+            .preference(key: ContentAreaFocusKey.self, value: hasFocus)
         }
     }
 }
@@ -395,10 +466,134 @@ private struct PreferredDefaultDetailsFocusModifier: ViewModifier {
     }
 }
 
+// MARK: - Hero Action Buttons
+
+// Primary PLAY button - solid white background, black text
+private struct HeroPlayButton: View {
+    var isDefaultFocusTarget: Bool = false
+    var focusNS: Namespace.ID? = nil
+    @State private var focused: Bool = false
+    @State private var focusId: UUID? = nil
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "play.fill")
+                .font(.system(size: 20, weight: .bold))
+            Text("PLAY")
+                .font(.system(size: 24, weight: .semibold))
+        }
+        .foregroundStyle(focused ? Color.white : Color.black)
+        .padding(.horizontal, 32)
+        .padding(.vertical, 16)
+        .frame(width: 180, height: 56)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(focused ? Color.black : Color.white)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(Color.white.opacity(focused ? 0.6 : 0.0), lineWidth: 3)
+        )
+        .scaleEffect(focused ? 1.08 : 1.0)
+        .shadow(color: .black.opacity(focused ? 0.4 : 0.2), radius: focused ? 16 : 8, y: focused ? 8 : 4)
+        .focusable(true) { f in
+            focused = f
+            if f {
+                focusId = UUID()
+            } else {
+                focusId = nil
+            }
+        }
+        .preference(key: HeroActionButtonFocusIdKey.self, value: focusId)
+        .modifier(PreferredDefaultDetailsFocusModifier(enabled: isDefaultFocusTarget, ns: focusNS))
+        .animation(.easeOut(duration: 0.18), value: focused)
+    }
+}
+
+// Secondary TRAILER button - dark gray background, white text
+private struct HeroTrailerButton: View {
+    var focusNS: Namespace.ID? = nil
+    @State private var focused: Bool = false
+    @State private var focusId: UUID? = nil
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text("TRAILER")
+                .font(.system(size: 24, weight: .semibold))
+        }
+        .foregroundStyle(.white.opacity(focused ? 1.0 : 0.9))
+        .padding(.horizontal, 32)
+        .padding(.vertical, 16)
+        .frame(width: 200, height: 56)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.white.opacity(focused ? 0.35 : 0.25))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(Color.white.opacity(focused ? 0.5 : 0.2), lineWidth: focused ? 2 : 1)
+        )
+        .scaleEffect(focused ? 1.08 : 1.0)
+        .shadow(color: .black.opacity(focused ? 0.4 : 0.0), radius: focused ? 16 : 0, y: focused ? 8 : 0)
+        .focusable(true) { f in
+            focused = f
+            if f {
+                focusId = UUID()
+            } else {
+                focusId = nil
+            }
+        }
+        .preference(key: HeroActionButtonFocusIdKey.self, value: focusId)
+        .animation(.easeOut(duration: 0.18), value: focused)
+    }
+}
+
+// Circular ADD button - dark background, plus icon only
+private struct HeroAddButton: View {
+    var focusNS: Namespace.ID? = nil
+    @State private var focused: Bool = false
+    @State private var focusId: UUID? = nil
+
+    var body: some View {
+        Image(systemName: "plus")
+            .font(.system(size: 28, weight: .semibold))
+            .foregroundStyle(.white.opacity(focused ? 1.0 : 0.9))
+            .frame(width: 56, height: 56)
+            .background(
+                Circle()
+                    .fill(Color.white.opacity(focused ? 0.35 : 0.25))
+            )
+            .overlay(
+                Circle()
+                    .stroke(Color.white.opacity(focused ? 0.5 : 0.2), lineWidth: focused ? 2 : 1)
+            )
+            .scaleEffect(focused ? 1.12 : 1.0)
+            .shadow(color: .black.opacity(focused ? 0.4 : 0.0), radius: focused ? 16 : 0, y: focused ? 8 : 0)
+            .focusable(true) { f in
+                focused = f
+                if f {
+                    focusId = UUID()
+                } else {
+                    focusId = nil
+                }
+            }
+            .preference(key: HeroActionButtonFocusIdKey.self, value: focusId)
+            .animation(.easeOut(duration: 0.18), value: focused)
+    }
+}
+
 // Preference key for hero action button focus (carries UUID to detect any focus change)
 struct HeroActionButtonFocusIdKey: PreferenceKey {
     static var defaultValue: UUID? = nil
     static func reduce(value: inout UUID?, nextValue: () -> UUID?) {
         value = nextValue() ?? value
+    }
+}
+
+// Preference key for tracking content area focus
+struct ContentAreaFocusKey: PreferenceKey {
+    static var defaultValue: Bool = false
+    static func reduce(value: inout Bool, nextValue: () -> Bool) {
+        value = value || nextValue()
     }
 }
