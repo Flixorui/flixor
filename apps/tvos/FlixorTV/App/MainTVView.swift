@@ -26,8 +26,8 @@ struct MainTVView: View {
                             Group {
                                 switch selected {
                                 case .home: TVHomeView()
-                                case .shows: PlaceholderView(title: "Shows")
-                                case .movies: PlaceholderView(title: "Movies")
+                                case .shows: TVLibraryView(preferredKind: .show)
+                                case .movies: TVLibraryView(preferredKind: .movie)
                                 case .myNetflix: PlaceholderView(title: "My List")
                                 case .search: PlaceholderView(title: "Search")
                                 }
