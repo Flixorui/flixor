@@ -4,7 +4,6 @@ import FlixorKit
 struct TVDetailsInfoGrid: View {
     @ObservedObject var vm: TVDetailsViewModel
     var focusNS: Namespace.ID
-    var defaultFocus: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 40) {
@@ -21,15 +20,12 @@ struct TVDetailsInfoGrid: View {
                     HStack(spacing: 12) {
                         if let y = vm.year, !y.isEmpty {
                             TVMetaPill(text: y, isFocusable: true)
-                                .prefersDefaultFocus(defaultFocus, in: focusNS)
                         }
                         if let rt = formattedRuntime(vm.runtime) {
                             TVMetaPill(text: rt, isFocusable: true)
-                                .prefersDefaultFocus(defaultFocus && (vm.year == nil || vm.year?.isEmpty == true), in: focusNS)
                         }
                         if let cr = vm.rating, !cr.isEmpty {
                             TVMetaPill(text: cr, isFocusable: true)
-                                .prefersDefaultFocus(defaultFocus && (vm.year == nil || vm.year?.isEmpty == true) && formattedRuntime(vm.runtime) == nil, in: focusNS)
                         }
                     }
                 }
@@ -128,7 +124,6 @@ struct TVDetailsInfoGrid: View {
                                 }
                                 .frame(width: 200)
                                 .focusable(true)
-                                .prefersDefaultFocus(defaultFocus && vm.year == nil && formattedRuntime(vm.runtime) == nil && (vm.rating == nil || vm.rating?.isEmpty == true) && p.id == vm.cast.first?.id, in: focusNS)
                             }
                         }
                         .padding(.horizontal, 48)

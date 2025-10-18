@@ -8,13 +8,10 @@ struct TVRatingsStrip: View {
             if let imdbScore = ratings.imdb?.score {
                 RatingsPill {
                     HStack(spacing: 6) {
-                        Text("IMDb")
-                            .font(.system(size: 12, weight: .black))
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.yellow)
-                            .foregroundStyle(.black)
-                            .clipShape(RoundedRectangle(cornerRadius: 4))
+                        Image("imdb")
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(height: 16)
                         Text(String(format: "%.1f", imdbScore))
                             .font(.system(size: 14, weight: .semibold))
                         if let votes = ratings.imdb?.votes, votes > 0 {
@@ -28,22 +25,24 @@ struct TVRatingsStrip: View {
             if let critic = ratings.rottenTomatoes?.critic {
                 RatingsPill {
                     HStack(spacing: 6) {
-                        Image(systemName: "leaf.fill")
-                            .foregroundStyle(scoreColor(critic))
-                        Text("\(critic)% Critics")
+                        Image(tomatoIconName(score: critic))
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 16, height: 16)
+                        Text("\(critic)%")
                             .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(scoreColor(critic))
                     }
                 }
             }
             if let audience = ratings.rottenTomatoes?.audience {
                 RatingsPill {
                     HStack(spacing: 6) {
-                        Image(systemName: "person.3.fill")
-                            .foregroundStyle(scoreColor(audience))
-                        Text("\(audience)% Audience")
+                        Image(popcornIconName(score: audience))
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 16, height: 16)
+                        Text("\(audience)%")
                             .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(scoreColor(audience))
                     }
                 }
             }
@@ -59,10 +58,12 @@ struct TVRatingsStrip: View {
         }
     }
 
-    private func scoreColor(_ s: Int) -> Color {
-        if s >= 85 { return Color(red: 0.42, green: 0.87, blue: 0.44) }
-        if s >= 60 { return Color(red: 0.97, green: 0.82, blue: 0.35) }
-        return Color(red: 0.94, green: 0.32, blue: 0.28)
+    private func tomatoIconName(score: Int) -> String {
+        return score >= 60 ? "tomato-fresh" : "tomato-rotten"
+    }
+
+    private func popcornIconName(score: Int) -> String {
+        return score >= 60 ? "popcorn-full" : "popcorn-fallen"
     }
 }
 
