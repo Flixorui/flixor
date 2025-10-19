@@ -104,7 +104,7 @@ final class TVLibraryViewModel: ObservableObject {
     @Published var activeSection: LibrarySectionSummary? {
         didSet {
             guard activeSection?.id != oldValue?.id else { return }
-            Task { await reloadCurrentSection() }
+            Task { await reloadCurrentSection(clearFilters: true) }
         }
     }
 
@@ -137,6 +137,7 @@ final class TVLibraryViewModel: ObservableObject {
     @Published var isLoadingCollections: Bool = false
     @Published var hasMore: Bool = false
     @Published var errorMessage: String?
+    @Published private(set) var currentUltraBlurColors: UltraBlurColors?
 
     // MARK: - Private
 
@@ -175,14 +176,24 @@ final class TVLibraryViewModel: ObservableObject {
     }
 
     func updateGenre(_ option: FilterOption?) {
-        guard selectedGenre?.id != option?.id else { return }
+        print("🎯 [Library] updateGenre called with: \(option?.label ?? "nil")")
+        guard selectedGenre?.id != option?.id else {
+            print("⚠️ [Library] Genre unchanged, skipping update")
+            return
+        }
         selectedGenre = option
+        print("✅ [Library] Genre updated to: \(option?.label ?? "nil")")
         Task { await reloadCurrentSection() }
     }
 
     func updateYear(_ option: FilterOption?) {
-        guard selectedYear?.id != option?.id else { return }
+        print("🎯 [Library] updateYear called with: \(option?.label ?? "nil")")
+        guard selectedYear?.id != option?.id else {
+            print("⚠️ [Library] Year unchanged, skipping update")
+            return
+        }
         selectedYear = option
+        print("✅ [Library] Year updated to: \(option?.label ?? "nil")")
         Task { await reloadCurrentSection() }
     }
 
@@ -209,6 +220,8 @@ final class TVLibraryViewModel: ObservableObject {
     func retry() async {
         errorMessage = nil
         sectionsLoaded = false
+        selectedGenre = nil
+        selectedYear = nil
         await loadIfNeeded()
     }
 
@@ -237,7 +250,7 @@ final class TVLibraryViewModel: ObservableObject {
         }
     }
 
-    private func reloadCurrentSection() async {
+    private func reloadCurrentSection(clearFilters: Bool = false) async {
         guard let section = activeSection else { return }
         isLoading = true
         items = []
@@ -245,7 +258,11 @@ final class TVLibraryViewModel: ObservableObject {
         offsets[section.id] = 0
         totals[section.id] = nil
         clearCollectionCacheIfNeeded(for: section)
-        await fetchFacets(for: section)
+
+        if clearFilters {
+            await fetchFacets(for: section)
+        }
+
         await fetchItems(reset: true)
         if contentTab == .collections {
             await loadCollectionsIfNeeded()
@@ -336,11 +353,18 @@ final class TVLibraryViewModel: ObservableObject {
             URLQueryItem(name: "limit", value: "\(pageSize)"),
             URLQueryItem(name: "sort", value: sort.apiParameter)
         ]
+
+        print("🔍 [Library] Building query with filters:")
+        print("   - selectedGenre: \(selectedGenre?.label ?? "nil") (value: \(selectedGenre?.value ?? "nil"))")
+        print("   - selectedYear: \(selectedYear?.label ?? "nil") (value: \(selectedYear?.value ?? "nil"))")
+
         if let genre = selectedGenre?.value {
             queryItems.append(URLQueryItem(name: "genre", value: genre))
+            print("   ✅ Added genre filter: \(genre)")
         }
         if let year = selectedYear?.value {
             queryItems.append(URLQueryItem(name: "year", value: year))
+            print("   ✅ Added year filter: \(year)")
         }
 
         do {
@@ -490,5 +514,23 @@ final class TVLibraryViewModel: ObservableObject {
     private func clearCollectionCacheIfNeeded(for section: LibrarySectionSummary) {
         guard contentTab == .collections else { return }
         collections = collectionsCache[section.id] ?? []
+    }
+
+    // MARK: - UltraBlur Colors
+
+    func fetchUltraBlurColors(for item: MediaItem) async {
+        guard let artURL = item.art ?? item.thumb else {
+            print("⚠️ [Library] No art URL for UltraBlur colors")
+            return
+        }
+
+        do {
+            print("🎨 [Library] Fetching UltraBlur colors for: \(item.title) (url: \(artURL))")
+            let colors = try await api.getUltraBlurColors(imageUrl: artURL)
+            print("✅ [Library] UltraBlur colors fetched: TL=\(colors.topLeft) TR=\(colors.topRight)")
+            currentUltraBlurColors = colors
+        } catch {
+            print("❌ [Library] Failed to fetch UltraBlur colors: \(error)")
+        }
     }
 }
