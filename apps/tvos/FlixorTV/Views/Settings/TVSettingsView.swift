@@ -9,6 +9,7 @@ struct TVSettingsView: View {
     @State private var baseURL: String = ""
     @State private var showingCode = false
     @State private var error: String?
+    @State private var showTestPlayer = false
 
     var body: some View {
         ScrollView {
@@ -19,11 +20,15 @@ struct TVSettingsView: View {
 
                 backendSection
                 authSection
+                debugSection
             }
             .padding(40)
         }
         .background(Color.black)
         .onAppear { baseURL = api.baseURL.absoluteString }
+        .fullScreenCover(isPresented: $showTestPlayer) {
+            MPVTestPlayerView()
+        }
     }
 
     private var backendSection: some View {
@@ -76,6 +81,32 @@ struct TVSettingsView: View {
             }
         }
     }
+
+    private var debugSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Developer & Testing")
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(.white)
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Test MPV video rendering pipeline with public test videos")
+                    .font(.callout)
+                    .foregroundStyle(.white.opacity(0.7))
+
+                Button {
+                    showTestPlayer = true
+                } label: {
+                    HStack {
+                        Image(systemName: "play.rectangle.fill")
+                        Text("MPV Test Player")
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.purple)
+            }
+        }
+    }
+
     // MARK: - backend status
     @State private var statusOK: Bool = false
     @State private var testing = false

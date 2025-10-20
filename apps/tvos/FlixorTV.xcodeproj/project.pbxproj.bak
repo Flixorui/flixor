@@ -7,7 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0623AD2362D36C403ED550FA /* MPVOpenGLBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C1221AE0346FD829FE16110 /* MPVOpenGLBridge.swift */; };
 		0679A76C481F15A9BF35F024 /* FlixorTVApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8027AFA9FD3E569E95633108 /* FlixorTVApp.swift */; };
+		0F74981E386436BBF624C9E1 /* MPVOpenGLBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 139125B14A7BC53128A0E4BD /* MPVOpenGLBridge.swift */; };
 		166900FDEA45E53E3F084304 /* TVSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C54BA4F810D1021F4D3F6B5D /* TVSettingsView.swift */; };
 		1A1C1D1E1F20000100010001 /* TVDetailsTabsBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1C1D1E1F20000100010000 /* TVDetailsTabsBar.swift */; };
 		1A1C1D1E1F20000300010001 /* TVMetaPill.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1C1D1E1F20000300010000 /* TVMetaPill.swift */; };
@@ -29,7 +31,6 @@
 		5DC80F90B2AC958400600CB4 /* TVBillboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B34545FBF16E94C672651FBD /* TVBillboardView.swift */; };
 		5E5F5F5F5F60000100010001 /* MPVTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E5F5F5F5F60000100010000 /* MPVTypes.swift */; };
 		610D36FD610140EABA745E8A /* MPVMetalLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D1CD3BA87CA4603967F2F07 /* MPVMetalLayer.swift */; };
-		63FD78EB6988525C3C134EAC /* MPVTestPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29324CC04B2B74CBACE6D9E5 /* MPVTestPlayerView.swift */; };
 		6F6F6F6F6F70000100010001 /* MPVPlayerController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F6F6F6F6F70000100010000 /* MPVPlayerController.swift */; };
 		7322C892CD5A6930B58C307D /* TVCarouselRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A7E3CFE272780A78553EA7A /* TVCarouselRow.swift */; };
 		746BB5FF893361C86CA89E82 /* FlixorTV.xcodeproj in Resources */ = {isa = PBXBuildFile; fileRef = A409FFB5441617D6FD5F3F05 /* FlixorTV.xcodeproj */; };
@@ -63,18 +64,16 @@
 		C898CFC0A58E2042F32B5DF6 /* TVCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA640CCCC115D09CBAF9F0B3 /* TVCards.swift */; };
 		C8C170392E9F24490069DAD7 /* Nuke in Frameworks */ = {isa = PBXBuildFile; productRef = C8C170382E9F24490069DAD7 /* Nuke */; };
 		E089E4E7EB1F43D781D42DD2 /* UltraBlurGradientBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56116A558CCA485F8D0934B0 /* UltraBlurGradientBackground.swift */; };
-		E5C6E58087C8E18C8B79FDF0 /* MPVOpenGLBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CB2934A10406D735FBC903A /* MPVOpenGLBridge.swift */; };
-		9B9B9B9B9B9C000100010001 /* MPVMetalShaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = 8A8A8A8A8A8B000100010000 /* MPVMetalShaders.metal */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		139125B14A7BC53128A0E4BD /* MPVOpenGLBridge.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MPVOpenGLBridge.swift; path = FlixorTV/Services/Player/MPVOpenGLBridge.swift; sourceTree = "<group>"; };
 		1A1C1D1E1F20000100010000 /* TVDetailsTabsBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVDetailsTabsBar.swift; sourceTree = "<group>"; };
 		1A1C1D1E1F20000300010000 /* TVMetaPill.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVMetaPill.swift; sourceTree = "<group>"; };
 		1A1C1D1E1F20000500010000 /* TVRatingsStrip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVRatingsStrip.swift; sourceTree = "<group>"; };
 		1A1C1D1E1F20000700010000 /* TVDetailsInfoGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVDetailsInfoGrid.swift; sourceTree = "<group>"; };
 		1A1C1D1E1F20000900010000 /* TVSeasonsStrip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVSeasonsStrip.swift; sourceTree = "<group>"; };
 		1A1C1D1E1F20000B00010000 /* TVEpisodesRail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVEpisodesRail.swift; sourceTree = "<group>"; };
-		29324CC04B2B74CBACE6D9E5 /* MPVTestPlayerView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MPVTestPlayerView.swift; sourceTree = "<group>"; };
 		2B2C2D2E2F30000100010000 /* TVLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVLibraryView.swift; sourceTree = "<group>"; };
 		2B2C2D2E2F30000300010000 /* TVLibraryViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVLibraryViewModel.swift; sourceTree = "<group>"; };
 		2B2C2D2E2F30000500010000 /* TVLibraryFilterBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVLibraryFilterBar.swift; sourceTree = "<group>"; };
@@ -87,12 +86,12 @@
 		5D982341DFFB7A5B14F7E7E8 /* TVHomeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVHomeViewModel.swift; sourceTree = "<group>"; };
 		5E5F5F5F5F60000100010000 /* MPVTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MPVTypes.swift; sourceTree = "<group>"; };
 		6A7E3CFE272780A78553EA7A /* TVCarouselRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVCarouselRow.swift; sourceTree = "<group>"; };
+		6C1221AE0346FD829FE16110 /* MPVOpenGLBridge.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MPVOpenGLBridge.swift; sourceTree = "<group>"; };
 		6D6DB6CA3ABEE2740792235F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		6F6F6F6F6F70000100010000 /* MPVPlayerController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MPVPlayerController.swift; sourceTree = "<group>"; };
 		7E7F7F7F7F80000100010000 /* FlixorTV-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "FlixorTV-Bridging-Header.h"; sourceTree = "<group>"; };
 		8027AFA9FD3E569E95633108 /* FlixorTVApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlixorTVApp.swift; sourceTree = "<group>"; };
 		8D507523162726478CEECCED /* DesignTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignTokens.swift; sourceTree = "<group>"; };
-		9CB2934A10406D735FBC903A /* MPVOpenGLBridge.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MPVOpenGLBridge.swift; sourceTree = "<group>"; };
 		9D18BCB551C52B6EF378D089 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		A13E40EFDCF43AA806E198BC /* TVDetailsViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TVDetailsViewModel.swift; sourceTree = "<group>"; };
 		A409FFB5441617D6FD5F3F05 /* FlixorTV.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = FlixorTV.xcodeproj; sourceTree = "<group>"; };
@@ -124,7 +123,6 @@
 		C1363F127165B6A9AC55441C /* TVAuthLinkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVAuthLinkView.swift; sourceTree = "<group>"; };
 		C54BA4F810D1021F4D3F6B5D /* TVSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVSettingsView.swift; sourceTree = "<group>"; };
 		CA640CCCC115D09CBAF9F0B3 /* TVCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVCards.swift; sourceTree = "<group>"; };
-		8A8A8A8A8A8B000100010000 /* MPVMetalShaders.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = MPVMetalShaders.metal; sourceTree = "<group>"; };
 		D3B483312332111548480C95 /* FlixorKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = FlixorKit; path = ../../shared/FlixorKit; sourceTree = SOURCE_ROOT; };
 		D44541942A6D42C98F0EFB23 /* MPVMetalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MPVMetalView.swift; sourceTree = "<group>"; };
 		F4F2C8722FA2BA6702E97881 /* TVDetailsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TVDetailsView.swift; sourceTree = "<group>"; };
@@ -301,8 +299,8 @@
 				6F6F6F6F6F70000100010000 /* MPVPlayerController.swift */,
 				3D1CD3BA87CA4603967F2F07 /* MPVMetalLayer.swift */,
 				D44541942A6D42C98F0EFB23 /* MPVMetalView.swift */,
-				9CB2934A10406D735FBC903A /* MPVOpenGLBridge.swift */,
-				8A8A8A8A8A8B000100010000 /* MPVMetalShaders.metal */,
+				139125B14A7BC53128A0E4BD /* MPVOpenGLBridge.swift */,
+				6C1221AE0346FD829FE16110 /* MPVOpenGLBridge.swift */,
 			);
 			path = Player;
 			sourceTree = "<group>";
@@ -315,7 +313,6 @@
 				4A6C3FDAE7A35DBF8E50211B /* Settings */,
 				B0E6D5C36D284196C65BF361 /* Details */,
 				2B2C2D2E2F30000000010000 /* Library */,
-				CC43B687C576D4A5E6993B54 /* Player */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -356,15 +353,8 @@
 				F4F2C8722FA2BA6702E97881 /* TVDetailsView.swift */,
 				1A1C1D1E1F20000D00010000 /* Components */,
 			);
+			name = Details;
 			path = Details;
-			sourceTree = "<group>";
-		};
-		CC43B687C576D4A5E6993B54 /* Player */ = {
-			isa = PBXGroup;
-			children = (
-				29324CC04B2B74CBACE6D9E5 /* MPVTestPlayerView.swift */,
-			);
-			path = Player;
 			sourceTree = "<group>";
 		};
 		E77B3E5AF37C0BDE8BC0197D /* Packages */ = {
@@ -478,9 +468,8 @@
 				6F6F6F6F6F70000100010001 /* MPVPlayerController.swift in Sources */,
 				610D36FD610140EABA745E8A /* MPVMetalLayer.swift in Sources */,
 				289FBF812BA741EBAB1175E7 /* MPVMetalView.swift in Sources */,
-				E5C6E58087C8E18C8B79FDF0 /* MPVOpenGLBridge.swift in Sources */,
-				9B9B9B9B9B9C000100010001 /* MPVMetalShaders.metal in Sources */,
-				63FD78EB6988525C3C134EAC /* MPVTestPlayerView.swift in Sources */,
+				0F74981E386436BBF624C9E1 /* MPVOpenGLBridge.swift in Sources */,
+				0623AD2362D36C403ED550FA /* MPVOpenGLBridge.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -506,6 +495,12 @@
 					"-lz",
 					"-lbz2",
 					"-liconv",
+					"$(PROJECT_DIR)/deps/lib/Libmpv.xcframework/tvos-arm64_x86_64-simulator/libmpv.a",
+					"$(PROJECT_DIR)/deps/lib/MoltenVK.xcframework/tvos-arm64_x86_64-simulator/libMoltenVK.a",
+					"$(PROJECT_DIR)/deps/lib/Libplacebo.xcframework/tvos-arm64_x86_64-simulator/libplacebo.a",
+					"$(PROJECT_DIR)/deps/lib/Libshaderc_combined.xcframework/tvos-arm64_x86_64-simulator/libshaderc_combined.a",
+					"$(PROJECT_DIR)/deps/lib/Libluajit-5.1.xcframework/tvos-arm64_x86_64-simulator/libluajit-5.1.a",
+					"$(PROJECT_DIR)/deps/lib/Libbluray.xcframework/tvos-arm64_x86_64-simulator/libbluray.a",
 					"-framework",
 					VideoToolbox,
 					"-framework",
@@ -514,13 +509,6 @@
 					CoreVideo,
 					"-framework",
 					AudioToolbox,
-					"$(inherited)",
-					"$(PROJECT_DIR)/deps/lib/Libmpv.xcframework/tvos-arm64$(TV_SIMULATOR_SUFFIX)/libmpv.a",
-					"$(PROJECT_DIR)/deps/lib/MoltenVK.xcframework/tvos-arm64$(TV_MOLTENVK_SUFFIX)/libMoltenVK.a",
-					"$(PROJECT_DIR)/deps/lib/Libplacebo.xcframework/tvos-arm64$(TV_SIMULATOR_SUFFIX)/libplacebo.a",
-					"$(PROJECT_DIR)/deps/lib/Libshaderc_combined.xcframework/tvos-arm64$(TV_SIMULATOR_SUFFIX)/libshaderc_combined.a",
-					"$(PROJECT_DIR)/deps/lib/Libluajit-5.1.xcframework/tvos-arm64$(TV_SIMULATOR_SUFFIX)/libluajit-5.1.a",
-					"$(PROJECT_DIR)/deps/lib/Libbluray.xcframework/tvos-arm64$(TV_SIMULATOR_SUFFIX)/libbluray.a",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = xyz.flixor.tv;
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -529,10 +517,6 @@
 				SWIFT_VERSION = 5.9;
 				TARGETED_DEVICE_FAMILY = 3;
 				TVOS_DEPLOYMENT_TARGET = 16.0;
-				"TV_MOLTENVK_SUFFIX[sdk=appletvos*]" = _arm64e;
-				"TV_MOLTENVK_SUFFIX[sdk=appletvsimulator*]" = "_x86_64-simulator";
-				"TV_SIMULATOR_SUFFIX[sdk=appletvos*]" = "";
-				"TV_SIMULATOR_SUFFIX[sdk=appletvsimulator*]" = "_x86_64-simulator";
 			};
 			name = Release;
 		};
@@ -610,6 +594,12 @@
 					"-lz",
 					"-lbz2",
 					"-liconv",
+					"$(PROJECT_DIR)/deps/lib/Libmpv.xcframework/tvos-arm64_x86_64-simulator/libmpv.a",
+					"$(PROJECT_DIR)/deps/lib/MoltenVK.xcframework/tvos-arm64_x86_64-simulator/libMoltenVK.a",
+					"$(PROJECT_DIR)/deps/lib/Libplacebo.xcframework/tvos-arm64_x86_64-simulator/libplacebo.a",
+					"$(PROJECT_DIR)/deps/lib/Libshaderc_combined.xcframework/tvos-arm64_x86_64-simulator/libshaderc_combined.a",
+					"$(PROJECT_DIR)/deps/lib/Libluajit-5.1.xcframework/tvos-arm64_x86_64-simulator/libluajit-5.1.a",
+					"$(PROJECT_DIR)/deps/lib/Libbluray.xcframework/tvos-arm64_x86_64-simulator/libbluray.a",
 					"-framework",
 					VideoToolbox,
 					"-framework",
@@ -618,13 +608,6 @@
 					CoreVideo,
 					"-framework",
 					AudioToolbox,
-					"$(inherited)",
-					"$(PROJECT_DIR)/deps/lib/Libmpv.xcframework/tvos-arm64$(TV_SIMULATOR_SUFFIX)/libmpv.a",
-					"$(PROJECT_DIR)/deps/lib/MoltenVK.xcframework/tvos-arm64$(TV_MOLTENVK_SUFFIX)/libMoltenVK.a",
-					"$(PROJECT_DIR)/deps/lib/Libplacebo.xcframework/tvos-arm64$(TV_SIMULATOR_SUFFIX)/libplacebo.a",
-					"$(PROJECT_DIR)/deps/lib/Libshaderc_combined.xcframework/tvos-arm64$(TV_SIMULATOR_SUFFIX)/libshaderc_combined.a",
-					"$(PROJECT_DIR)/deps/lib/Libluajit-5.1.xcframework/tvos-arm64$(TV_SIMULATOR_SUFFIX)/libluajit-5.1.a",
-					"$(PROJECT_DIR)/deps/lib/Libbluray.xcframework/tvos-arm64$(TV_SIMULATOR_SUFFIX)/libbluray.a",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = xyz.flixor.tv;
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -633,10 +616,6 @@
 				SWIFT_VERSION = 5.9;
 				TARGETED_DEVICE_FAMILY = 3;
 				TVOS_DEPLOYMENT_TARGET = 16.0;
-				"TV_MOLTENVK_SUFFIX[sdk=appletvos*]" = _arm64e;
-				"TV_MOLTENVK_SUFFIX[sdk=appletvsimulator*]" = "_x86_64-simulator";
-				"TV_SIMULATOR_SUFFIX[sdk=appletvos*]" = "";
-				"TV_SIMULATOR_SUFFIX[sdk=appletvsimulator*]" = "_x86_64-simulator";
 			};
 			name = Debug;
 		};
