@@ -21,6 +21,10 @@ struct TVDetailsView: View {
     enum HeroButton: Hashable { case play, trailer, add }
     @FocusState private var focusedHeroButton: HeroButton?
 
+    // Player state
+    @State private var showPlayer = false
+    @State private var playbackURL: String?
+
     // Focus namespaces per section
     @Namespace private var nsTabs
     @Namespace private var nsSuggested
@@ -274,6 +278,11 @@ struct TVDetailsView: View {
         }  // End ZStack
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .ignoresSafeArea(edges: .all)
+        .fullScreenCover(isPresented: $showPlayer) {
+            if let url = playbackURL {
+                PlayerView(playbackURL: url)
+            }
+        }
         .task {
             await vm.load(for: item)
             // Default tab depending on mediaKind
@@ -365,12 +374,39 @@ struct TVDetailsView: View {
     }
 
     @ViewBuilder private var heroActionButtons: some View {
-        HeroPlayButton(isDefaultFocusTarget: true, focusNS: heroFocusNS)
+        HeroPlayButton(isDefaultFocusTarget: true, focusNS: heroFocusNS, action: playContent)
             .focused($focusedHeroButton, equals: .play)
         HeroTrailerButton(focusNS: heroFocusNS)
             .focused($focusedHeroButton, equals: .trailer)
         HeroAddButton(focusNS: heroFocusNS)
             .focused($focusedHeroButton, equals: .add)
+    }
+
+    // MARK: - Playback
+
+    private func playContent() {
+        print("🎬 [TVDetails] Play button tapped")
+
+        // Build playback URL from Plex ratingKey
+        guard let ratingKey = vm.plexRatingKey else {
+            print("❌ [TVDetails] No playable content available")
+            return
+        }
+
+        // Get Plex server info from APIClient
+        let api = APIClient.shared
+        let baseURL = api.baseURL.absoluteString.replacingOccurrences(of: "/api", with: "")
+
+        // TODO: Get actual Plex token from session
+        // For now, this will need to be wired up with proper auth
+        guard let plexURL = URL(string: "\(baseURL)/plex/library/metadata/\(ratingKey)") else {
+            print("❌ [TVDetails] Failed to construct Plex URL")
+            return
+        }
+
+        print("✅ [TVDetails] Playing: \(plexURL.absoluteString)")
+        playbackURL = plexURL.absoluteString
+        showPlayer = true
     }
 }
 
@@ -548,33 +584,36 @@ private struct PreferredDefaultDetailsFocusModifier: ViewModifier {
 private struct HeroPlayButton: View {
     var isDefaultFocusTarget: Bool = false
     var focusNS: Namespace.ID? = nil
-    @State private var focused: Bool = false
+    var action: (() -> Void)? = nil
+    @FocusState private var isFocused: Bool
     @State private var focusId: UUID? = nil
 
     var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "play.fill")
-                .font(.system(size: 20, weight: .bold))
-            Text("PLAY")
-                .font(.system(size: 24, weight: .semibold))
+        Button(action: {
+            print("🎬 [HeroPlayButton] Button tapped!")
+            action?()
+        }) {
+            HStack(spacing: 10) {
+                Image(systemName: "play.fill")
+                    .font(.system(size: 20, weight: .bold))
+                Text("PLAY")
+                    .font(.system(size: 24, weight: .semibold))
+            }
+            .foregroundStyle(isFocused ? Color.white : Color.black)
+            .padding(.horizontal, 32)
+            .padding(.vertical, 16)
+            .frame(width: 180, height: 56)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(isFocused ? Color.black : Color.white)
+            )
         }
-        .foregroundStyle(focused ? Color.white : Color.black)
-        .padding(.horizontal, 32)
-        .padding(.vertical, 16)
-        .frame(width: 180, height: 56)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(focused ? Color.black : Color.white)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(Color.white.opacity(focused ? 0.6 : 0.0), lineWidth: 3)
-        )
-        .scaleEffect(focused ? 1.08 : 1.0)
-        .shadow(color: .black.opacity(focused ? 0.4 : 0.2), radius: focused ? 16 : 8, y: focused ? 8 : 4)
-        .focusable(true) { f in
-            focused = f
-            if f {
+        .buttonStyle(.card)
+        .scaleEffect(isFocused ? 1.08 : 1.0)
+        .shadow(color: .black.opacity(isFocused ? 0.4 : 0.2), radius: isFocused ? 16 : 8, y: isFocused ? 8 : 4)
+        .focused($isFocused)
+        .onChange(of: isFocused) { focused in
+            if focused {
                 focusId = UUID()
             } else {
                 focusId = nil
@@ -582,7 +621,7 @@ private struct HeroPlayButton: View {
         }
         .preference(key: HeroActionButtonFocusIdKey.self, value: focusId)
         .modifier(PreferredDefaultDetailsFocusModifier(enabled: isDefaultFocusTarget, ns: focusNS))
-        .animation(.easeOut(duration: 0.18), value: focused)
+        .animation(.easeOut(duration: 0.18), value: isFocused)
     }
 }
 

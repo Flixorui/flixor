@@ -12,7 +12,7 @@ import Metal
 import GLKit
 
 @MainActor
-class MPVPlayerController: ObservableObject {
+class MPVPlayerController: ObservableObject, PlayerController {
     // MARK: - Properties
 
     private var mpvHandle: OpaquePointer?
@@ -31,7 +31,7 @@ class MPVPlayerController: ObservableObject {
 
     // MARK: - Published State
 
-    @Published private(set) var state: MPVState = .uninitialized
+    @Published private(set) var state: PlayerState = .uninitialized
     @Published private(set) var currentTime: TimeInterval = 0
     @Published private(set) var duration: TimeInterval = 0
     @Published private(set) var isPaused: Bool = true
@@ -74,7 +74,7 @@ class MPVPlayerController: ObservableObject {
         mpvHandle = mpv_create()
         guard mpvHandle != nil else {
             print("❌ [MPV] Failed to create instance")
-            state = .error(MPVError.initializationFailed)
+            state = .error(MPVError.initializationFailed as Error)
             return
         }
 
@@ -92,7 +92,7 @@ class MPVPlayerController: ObservableObject {
             print("❌ [MPV] Failed to initialize: \(result)")
             mpv_terminate_destroy(mpvHandle)
             mpvHandle = nil
-            state = .error(MPVError.initializationFailed)
+            state = .error(MPVError.initializationFailed as Error)
             return
         }
 

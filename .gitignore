@@ -18,3 +18,4 @@ backend/cache/images/plex/
 build
 *.dylib
 *.sqlite*
+deps/

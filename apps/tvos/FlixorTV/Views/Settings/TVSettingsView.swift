@@ -27,7 +27,7 @@ struct TVSettingsView: View {
         .background(Color.black)
         .onAppear { baseURL = api.baseURL.absoluteString }
         .fullScreenCover(isPresented: $showTestPlayer) {
-            MPVTestPlayerView()
+            UniversalPlayerView()
         }
     }
 

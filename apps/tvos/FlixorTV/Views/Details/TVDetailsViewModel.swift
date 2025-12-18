@@ -332,7 +332,8 @@ class TVDetailsViewModel: ObservableObject {
                     }
                     addBadge("Plex")
                     playableId = "plex:\(rk)" // Set playableId with prefix
-                    print("✅ [TVDetails] Plex metadata loaded, playableId set to: \(playableId ?? "nil")")
+                    plexRatingKey = rk // Set plexRatingKey for playback
+                    print("✅ [TVDetails] Plex metadata loaded, playableId set to: \(playableId ?? "nil"), plexRatingKey set to: \(rk)")
                     await fetchExternalRatings(ratingKey: rk)
 
                     // If we have a TMDB GUID, fetch TMDB enhancements (logo, recommendations)

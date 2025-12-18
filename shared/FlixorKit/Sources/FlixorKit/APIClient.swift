@@ -197,6 +197,9 @@ public extension APIClient {
         let encodedId = serverId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? serverId
         return try await get("/api/plex/servers/\(encodedId)/connections")
     }
+    func getPlexAuthServers() async throws -> [PlexAuthServer] {
+        return try await get("/api/auth/servers")
+    }
     func getPlexLibraries() async throws -> [PlexLibrary] { try await get("/api/plex/libraries") }
     func getPlexContinueList() async throws -> [MediaItemFull] { try await get("/api/plex/continue") }
     func getPlexOnDeckList() async throws -> [MediaItemFull] { try await get("/api/plex/ondeck") }
