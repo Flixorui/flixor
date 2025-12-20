@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -7,56 +7,62 @@ import GlobalTopAppBar from './src/components/GlobalTopAppBar';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { useTopBarStore } from './src/components/TopBarStore';
-import Onboarding from './src/screens/Onboarding';
-import Login from './src/screens/Login';
 import Home from './src/screens/Home';
 import Library from './src/screens/Library';
 import Details from './src/screens/Details';
 import Player from './src/screens/Player';
 import Search from './src/screens/Search';
 import NewHot from './src/screens/NewHot';
-import { MobileApi } from './src/api/client';
 import My from './src/screens/My';
 import * as Haptics from 'expo-haptics';
 import { Platform } from 'react-native';
 
+// New standalone imports
+import { FlixorProvider, useFlixor } from './src/core';
+import PlexLogin from './src/screens/PlexLogin';
+import ServerSelect from './src/screens/ServerSelect';
 
 // Note: expo-image uses disk cache by default (cachePolicy="disk" or "memory-disk")
 // Cache limits are managed by the OS and expo-image internally
 
 type RootStackParamList = {
-  Onboarding: undefined;
-  Login: undefined;
-  Home: undefined;
+  PlexLogin: undefined;
+  ServerSelect: undefined;
+  Main: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator();
 const HomeStack = createNativeStackNavigator();
 
-export default function App() {
-  const [api, setApi] = useState<MobileApi | null>(null);
-  const [init, setInit] = useState(true);
+function AppContent() {
+  const { flixor, isLoading, error, isAuthenticated, isConnected, refresh } = useFlixor();
 
   const handleLogout = async () => {
-    if (api) {
-      await api.logout();
+    if (flixor) {
+      await flixor.logout();
+      refresh();
     }
-    setApi(null);
   };
 
-  useEffect(() => {
-    (async () => {
-      const loaded = await MobileApi.load();
-      setApi(loaded);
-      setInit(false);
-    })();
-  }, []);
-
-  if (init) {
+  // Show loading screen during initialization
+  if (isLoading) {
     return (
       <View style={{ flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator color="#fff" />
+        <ActivityIndicator color="#fff" size="large" />
+        <Text style={{ color: '#666', marginTop: 16 }}>Loading...</Text>
+      </View>
+    );
+  }
+
+  // Show error if initialization failed
+  if (error) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        <Text style={{ color: '#e50914', fontSize: 18, fontWeight: '600', marginBottom: 8 }}>
+          Initialization Error
+        </Text>
+        <Text style={{ color: '#999', textAlign: 'center' }}>{error.message}</Text>
       </View>
     );
   }
@@ -65,13 +71,31 @@ export default function App() {
     const topBarVisible = useTopBarStore(s => s.visible);
 
     return (
-      <View style={{ flex:1 }}>
+      <View style={{ flex: 1 }}>
         <HomeStack.Navigator screenOptions={{ headerShown: false }}>
-          <HomeStack.Screen name="HomeScreen">{() => <Home api={api!} onLogout={handleLogout} />}</HomeStack.Screen>
-          <HomeStack.Screen name="Details" component={Details} options={{ presentation: 'transparentModal', animation: 'fade', gestureEnabled: false }} />
-          <HomeStack.Screen name="Player" component={Player} options={{ presentation: 'fullScreenModal', animation: 'fade' }} />
-          <HomeStack.Screen name="Library" component={Library} options={{ presentation: 'card', animation: 'fade' }} />
-          <HomeStack.Screen name="Search" component={Search} options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+          <HomeStack.Screen name="HomeScreen">
+            {() => <Home onLogout={handleLogout} />}
+          </HomeStack.Screen>
+          <HomeStack.Screen
+            name="Details"
+            component={Details}
+            options={{ presentation: 'transparentModal', animation: 'fade', gestureEnabled: false }}
+          />
+          <HomeStack.Screen
+            name="Player"
+            component={Player}
+            options={{ presentation: 'fullScreenModal', animation: 'fade' }}
+          />
+          <HomeStack.Screen
+            name="Library"
+            component={Library}
+            options={{ presentation: 'card', animation: 'fade' }}
+          />
+          <HomeStack.Screen
+            name="Search"
+            component={Search}
+            options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+          />
         </HomeStack.Navigator>
         {topBarVisible && <GlobalTopAppBar />}
       </View>
@@ -90,15 +114,17 @@ export default function App() {
           tabBarInactiveTintColor: '#bdbdbd',
           tabBarStyle: tabBarVisible ? {
             position: 'absolute', left: 0, right: 0, bottom: 0,
-            backgroundColor:  Platform.OS === 'ios' ? 'transparent' : 'rgba(0,0,0,0.9)',
+            backgroundColor: Platform.OS === 'ios' ? 'transparent' : 'rgba(0,0,0,0.9)',
             borderRadius: 0,
             borderTopWidth: 0, height: 68, paddingBottom: 10, paddingTop: 10,
             overflow: 'hidden', zIndex: 100,
           } : { display: 'none' },
           tabBarBackground: () => (
-            Platform.OS === 'ios' ? <BlurView intensity={90} tint="dark" style={{ flex: 1 }} /> : <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.9)' }} />
+            Platform.OS === 'ios'
+              ? <BlurView intensity={90} tint="dark" style={{ flex: 1 }} />
+              : <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.9)' }} />
           ),
-          tabBarIcon: ({ color, size, focused }) => {
+          tabBarIcon: ({ color, focused }) => {
             const name = route.name === 'HomeTab' ? (focused ? 'home' : 'home-outline')
               : route.name === 'NewHotTab' ? (focused ? 'play-circle' : 'play-circle-outline')
               : (focused ? 'person' : 'person-outline');
@@ -114,13 +140,15 @@ export default function App() {
         <Tab.Screen name="HomeTab" options={{ title: 'Home' }} component={HomeStackNavigator} />
         <Tab.Screen name="NewHotTab" options={{ title: 'New & Hot' }}>
           {() => (
-            <View style={{ flex:1 }}>
+            <View style={{ flex: 1 }}>
               <NewHot />
               <GlobalTopAppBar />
             </View>
           )}
         </Tab.Screen>
-        <Tab.Screen name="MyTab" options={{ title: 'My Netflix' }}>{() => api ? <My api={api} onLogout={handleLogout} /> : <View style={{ flex:1, backgroundColor:'#000' }} />}</Tab.Screen>
+        <Tab.Screen name="MyTab" options={{ title: 'My Netflix' }}>
+          {() => <My onLogout={handleLogout} />}
+        </Tab.Screen>
       </Tab.Navigator>
     );
   };
@@ -128,18 +156,29 @@ export default function App() {
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {!api ? (
-          <Stack.Screen name="Onboarding">
-            {() => <Onboarding onConnected={(a) => setApi(a)} />}
+        {!isAuthenticated ? (
+          // Not logged in - show Plex login
+          <Stack.Screen name="PlexLogin">
+            {() => <PlexLogin onAuthenticated={refresh} />}
           </Stack.Screen>
-        ) : !api.token ? (
-          <Stack.Screen name="Login">
-            {() => <Login api={api} onAuthed={(a) => setApi(new MobileApi(a.baseUrl, a.token))} />}
+        ) : !isConnected ? (
+          // Logged in but no server selected - show server selection
+          <Stack.Screen name="ServerSelect">
+            {() => <ServerSelect onConnected={refresh} />}
           </Stack.Screen>
         ) : (
-          <Stack.Screen name="Home" component={Tabs} />
+          // Fully authenticated and connected - show main app
+          <Stack.Screen name="Main" component={Tabs} />
         )}
       </Stack.Navigator>
     </NavigationContainer>
+  );
+}
+
+export default function App() {
+  return (
+    <FlixorProvider>
+      <AppContent />
+    </FlixorProvider>
   );
 }

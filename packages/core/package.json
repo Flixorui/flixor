@@ -1,0 +1,40 @@
+{
+  "name": "@flixor/core",
+  "version": "1.0.0",
+  "description": "Shared core library for Flixor apps - Plex, TMDB, and Trakt services",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts --clean",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "typescript": "^5.3.0",
+    "vitest": "^2.0.0"
+  },
+  "peerDependencies": {},
+  "keywords": [
+    "plex",
+    "tmdb",
+    "trakt",
+    "media",
+    "streaming"
+  ],
+  "license": "MIT"
+}
