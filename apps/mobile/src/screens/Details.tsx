@@ -1,8 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, ActivityIndicator, ScrollView, Pressable, Animated, PanResponder, Dimensions, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { MobileApi } from '../api/client';
-import { fetchPlexMetadata, fetchPlexEpisodes, fetchPlexSeasons, fetchPlexSeasonEpisodes, fetchTmdbRecommendations, fetchTmdbRecommendationsMapped, fetchTmdbSimilarMapped, fetchTmdbTvSeasonsList, fetchTmdbSeasonEpisodes, mapTmdbToPlex, RowItem } from '../api/data';
 import Row from '../components/Row';
 import { Ionicons } from '@expo/vector-icons';
 import Feather from '@expo/vector-icons/Feather';
@@ -11,17 +9,43 @@ import { BlurView } from 'expo-blur';
 import BadgePill from '../components/BadgePill';
 import { useNavigation } from '@react-navigation/native';
 import { TopBarStore } from '../components/TopBarStore';
+import { useFlixor } from '../core/FlixorContext';
+import {
+  fetchPlexMetadata,
+  fetchPlexSeasons,
+  fetchPlexSeasonEpisodes,
+  fetchTmdbDetails,
+  fetchTmdbLogo,
+  fetchTmdbCredits,
+  fetchTmdbSeasonsList,
+  fetchTmdbSeasonEpisodes,
+  fetchTmdbRecommendations,
+  fetchTmdbSimilar,
+  mapTmdbToPlex,
+  getPlexImageUrl,
+  getTmdbImageUrl,
+  getTmdbProfileUrl,
+  extractTmdbIdFromGuids,
+  RowItem,
+} from '../core/DetailsData';
 
 let ExpoImage: any = null;
 try { ExpoImage = require('expo-image').Image; } catch {}
 
+type DetailsParams = {
+  type: 'plex' | 'tmdb';
+  ratingKey?: string;
+  mediaType?: 'movie' | 'tv';
+  id?: string;
+};
+
 type RouteParams = {
-  route?: { params?: { type: 'plex'|'tmdb'; ratingKey?: string; mediaType?: 'movie'|'tv'; id?: string } };
+  route?: { params?: DetailsParams };
 };
 
 export default function Details({ route }: RouteParams) {
-  const params = route?.params || {};
-  const [api, setApi] = useState<MobileApi | null>(null);
+  const params: Partial<DetailsParams> = route?.params || {};
+  const { isLoading: flixorLoading, isConnected } = useFlixor();
   const [loading, setLoading] = useState(true);
   const [meta, setMeta] = useState<any>(null);
   const [episodes, setEpisodes] = useState<any[]>([]);
@@ -100,164 +124,124 @@ export default function Details({ route }: RouteParams) {
   }, []);
 
   useEffect(() => {
+    if (flixorLoading || !isConnected) return;
+
     (async () => {
-      console.log('[Details] useEffect starting, loading API...');
-      const a = await MobileApi.load();
-      console.log('[Details] API loaded:', !!a, 'has token:', !!a?.token);
-      setApi(a);
-      if (a && params.type === 'plex' && params.ratingKey) {
+      console.log('[Details] useEffect starting...');
+
+      // Handle Plex type (direct ratingKey)
+      if (params.type === 'plex' && params.ratingKey) {
         try {
-          const m = await fetchPlexMetadata(a, params.ratingKey);
+          const m = await fetchPlexMetadata(params.ratingKey);
+          if (!m) {
+            setLoading(false);
+            return;
+          }
           const next: any = { ...m };
           setMatchedPlex(true);
           setMappedRk(String(params.ratingKey));
+
           // Try to fetch TMDB logo
-          try {
-            const guids: string[] = Array.isArray(m?.Guid) ? m.Guid.map((g:any)=> String(g.id||'')) : [];
-            const tmdbGuid = guids.find(g=> g.includes('tmdb://') || g.includes('themoviedb://'));
-            if (tmdbGuid && a) {
-              const tid = tmdbGuid.split('://')[1];
-              const mediaType = (m?.type === 'movie') ? 'movie' : 'tv';
-              const imgs = await a.get(`/api/tmdb/${mediaType}/${encodeURIComponent(tid)}/images?language=en,null`);
-              const logos = (imgs?.logos || []) as any[];
-              const logo = logos.find(l=> l.iso_639_1 === 'en') || logos[0];
-              if (logo?.file_path) next.logoUrl = `https://image.tmdb.org/t/p/w500${logo.file_path}`;
-            }
-          } catch {}
+          const tmdbId = extractTmdbIdFromGuids(m?.Guid || []);
+          if (tmdbId) {
+            const mediaType = m?.type === 'movie' ? 'movie' : 'tv';
+            const logo = await fetchTmdbLogo(mediaType, Number(tmdbId));
+            if (logo) next.logoUrl = logo;
+          }
+
           setMeta(next);
           setTab(next?.type === 'show' ? 'episodes' : 'suggested');
+
           if (next?.type === 'show') {
-            const seas = await fetchPlexSeasons(a, params.ratingKey);
+            const seas = await fetchPlexSeasons(params.ratingKey);
             setSeasons(seas);
             setSeasonSource('plex');
             if (seas[0]?.ratingKey) {
               setSeasonKey(String(seas[0].ratingKey));
-              setEpisodes(await fetchPlexSeasonEpisodes(a, String(seas[0].ratingKey)));
+              setEpisodes(await fetchPlexSeasonEpisodes(String(seas[0].ratingKey)));
             }
           }
-          if (m?.type === 'show') {
-            // episodes loaded via season
-          }
-        } catch {}
+        } catch (e) {
+          console.log('[Details] Plex metadata error:', e);
+        }
       }
-      // TMDB path with Plex mapping fallback
-      if (a && params.type === 'tmdb' && params.id && params.mediaType) {
+
+      // Handle TMDB type with Plex mapping fallback
+      if (params.type === 'tmdb' && params.id && params.mediaType) {
         try {
-          // Try robust TMDB → Plex mapping (guid + title/year fallback)
-          let detForMap: any = null;
-          try { detForMap = await a.get(`/api/tmdb/${params.mediaType}/${encodeURIComponent(params.id)}?append_to_response=external_ids`); } catch {}
-          const mapped = await mapTmdbToPlex(a, params.mediaType, String(params.id), detForMap?.title || detForMap?.name, (detForMap?.release_date || detForMap?.first_air_date || '').slice(0,4));
-          
+          // Get TMDB details first
+          const det = await fetchTmdbDetails(params.mediaType, Number(params.id));
+
+          // Try to map TMDB to Plex
+          const title = det?.title || det?.name;
+          const year = (det?.release_date || det?.first_air_date || '').slice(0, 4);
+          const mapped = await mapTmdbToPlex(params.mediaType, String(params.id), title, year);
+
           if (mapped?.ratingKey) {
-            // Use full Plex metadata so UI/features work (play, badges)
-            const m = await fetchPlexMetadata(a, String(mapped.ratingKey));
+            // Found in Plex - use Plex metadata
+            const m = await fetchPlexMetadata(String(mapped.ratingKey));
             const next: any = { ...m };
             setMatchedPlex(true);
             setMappedRk(String(mapped.ratingKey));
-            // Optional TMDB logo
-            try {
-              const guids: string[] = Array.isArray(m?.Guid) ? m.Guid.map((g:any)=> String(g.id||'')) : [];
-              const tmdbGuid = guids.find(g=> g.includes('tmdb://') || g.includes('themoviedb://'));
-              if (tmdbGuid && a) {
-                const tid = tmdbGuid.split('://')[1];
-                const mediaType = (m?.type === 'movie') ? 'movie' : 'tv';
-                const imgs = await a.get(`/api/tmdb/${mediaType}/${encodeURIComponent(tid)}/images?language=en,null`);
-                const logos = (imgs?.logos || []) as any[];
-                const logo = logos.find(l=> l.iso_639_1 === 'en') || logos[0];
-                if (logo?.file_path) next.logoUrl = `https://image.tmdb.org/t/p/w500${logo.file_path}`;
-              }
-            } catch {}
+
+            // Get TMDB logo
+            const tmdbId = extractTmdbIdFromGuids(m?.Guid || []) || params.id;
+            if (tmdbId) {
+              const mediaType = m?.type === 'movie' ? 'movie' : 'tv';
+              const logo = await fetchTmdbLogo(mediaType, Number(tmdbId));
+              if (logo) next.logoUrl = logo;
+            }
+
             setMeta(next);
             setTab(next?.type === 'show' ? 'episodes' : 'suggested');
+
             if (next?.type === 'show') {
-              const seas = await fetchPlexSeasons(a, String(mapped.ratingKey));
+              const seas = await fetchPlexSeasons(String(mapped.ratingKey));
               setSeasons(seas);
               setSeasonSource('plex');
               if (seas[0]?.ratingKey) {
                 setSeasonKey(String(seas[0].ratingKey));
-                setEpisodes(await fetchPlexSeasonEpisodes(a, String(seas[0].ratingKey)));
+                setEpisodes(await fetchPlexSeasonEpisodes(String(seas[0].ratingKey)));
               }
             }
           } else {
-            // Fallback: show TMDB details minimal UI
-            const det = detForMap || await a.get(`/api/tmdb/${params.mediaType}/${encodeURIComponent(params.id)}?append_to_response=external_ids`);
-            const back = det?.backdrop_path ? `https://image.tmdb.org/t/p/w1280${det.backdrop_path}` : (det?.poster_path ? `https://image.tmdb.org/t/p/w780${det.poster_path}` : undefined);
-            const genres = Array.isArray(det?.genres) ? det.genres.map((g:any)=> ({ tag: g.name })) : [];
+            // Not in Plex - show TMDB details
+            const back = det?.backdrop_path
+              ? getTmdbImageUrl(det.backdrop_path, 'w1280')
+              : det?.poster_path
+                ? getTmdbImageUrl(det.poster_path, 'w780')
+                : undefined;
+            const genres = Array.isArray(det?.genres)
+              ? det.genres.map((g: any) => ({ tag: g.name }))
+              : [];
+
             setMeta({
               title: det?.title || det?.name || 'Title',
               summary: det?.overview,
-              year: (det?.release_date || det?.first_air_date || '').slice(0,4),
+              year: year,
               type: params.mediaType === 'movie' ? 'movie' : 'show',
               backdropUrl: back,
               Genre: genres,
             });
-            setNoLocalSource(true); // Mark as TMDB-only content
+            setNoLocalSource(true);
             setMatchedPlex(false);
             setMappedRk(null);
-            // Attempt secondary Plex mapping for TV via search if show-level GUID was not found
+
+            // Fetch TMDB credits
+            const credits = await fetchTmdbCredits(params.mediaType, Number(params.id));
+            setTmdbCast(credits.cast.map((c: any) => ({ name: c.name, profile_path: c.profile_path })));
+            setTmdbCrew(credits.crew.map((c: any) => ({ name: c.name, job: c.job })));
+
+            // For TV shows, populate seasons + episodes
             if (params.mediaType === 'tv') {
-              try {
-                const titleName: string = det?.name || '';
-                const yearStr: string = (det?.first_air_date || '').slice(0,4);
-                if (titleName) {
-                  const q = encodeURIComponent(titleName);
-                  const search = await a.get(`/api/plex/search?query=${q}&type=2`);
-                  const list: any[] = (search?.MediaContainer?.Metadata || search?.Metadata || []);
-                  // Prefer items whose GUID matches TMDB id
-                  const tmdbIdStr = String(params.id);
-                  let hit = list.find((m:any)=> (Array.isArray(m.Guid) ? m.Guid : []).some((g:any)=> String(g.id||'').includes(`tmdb://${tmdbIdStr}`) || String(g.id||'').includes(`themoviedb://${tmdbIdStr}`)));
-                  // Else fallback to year match and best title similarity
-                  if (!hit && yearStr) {
-                    const candidates = list.filter((m:any)=> String(m.type)==='show' && String(m.year||'')===yearStr);
-                    hit = candidates[0] || list.find((m:any)=> String(m.type)==='show');
-                  }
-                  if (hit?.ratingKey) {
-                    // Upgrade to Plex metadata + seasons/episodes
-                    const m = await fetchPlexMetadata(a, String(hit.ratingKey));
-                    const next: any = { ...m };
-                    try {
-                      const guids: string[] = Array.isArray(m?.Guid) ? m.Guid.map((g:any)=> String(g.id||'')) : [];
-                      const tguid = guids.find(g=> g.includes('tmdb://') || g.includes('themoviedb://'));
-                      if (tguid) {
-                        const tid = tguid.split('://')[1];
-                        const imgs = await a.get(`/api/tmdb/tv/${encodeURIComponent(tid)}/images?language=en,null`);
-                        const logos = (imgs?.logos || []) as any[];
-                        const logo = logos.find(l=> l.iso_639_1 === 'en') || logos[0];
-                        if (logo?.file_path) next.logoUrl = `https://image.tmdb.org/t/p/w500${logo.file_path}`;
-                      }
-                    } catch {}
-                    setMeta(next);
-                    setTab('episodes');
-                    try {
-                      const seas = await fetchPlexSeasons(a, String(hit.ratingKey));
-                      setSeasons(seas);
-                      if (seas[0]?.ratingKey) {
-                        setSeasonKey(String(seas[0].ratingKey));
-                        setEpisodes(await fetchPlexSeasonEpisodes(a, String(seas[0].ratingKey)));
-                      }
-                    } catch {}
-                  }
-                }
-              } catch {}
-            }
-            // Fetch TMDB credits for cast/crew
-            try {
-              const cr = await a.get(`/api/tmdb/${params.mediaType}/${encodeURIComponent(params.id)}/credits`);
-              setTmdbCast((cr?.cast||[]).slice(0,16).map((c:any)=> ({ name: c.name, profile_path: c.profile_path })));
-              setTmdbCrew((cr?.crew||[]).slice(0,16).map((c:any)=> ({ name: c.name, job: c.job })));
-            } catch {}
-            // For TV shows, populate seasons + episodes (best effort)
-            if (params.mediaType === 'tv') {
-              try {
-                const ss = await fetchTmdbTvSeasonsList(a, String(params.id));
-                if (ss.length) {
-                  setSeasons(ss.map(s=> ({ key: s.key, title: s.title })) as any);
-                  setSeasonKey(ss[0].key);
-                  const eps = await fetchTmdbSeasonEpisodes(a, String(params.id), Number(ss[0].key));
-                  setEpisodes(eps);
-                  setSeasonSource('tmdb');
-                }
-              } catch {}
+              const ss = await fetchTmdbSeasonsList(Number(params.id));
+              if (ss.length) {
+                setSeasons(ss.map((s) => ({ key: s.key, title: s.title })) as any);
+                setSeasonKey(ss[0].key);
+                const eps = await fetchTmdbSeasonEpisodes(Number(params.id), Number(ss[0].key));
+                setEpisodes(eps);
+                setSeasonSource('tmdb');
+              }
             }
             setTab('suggested');
           }
@@ -267,9 +251,9 @@ export default function Details({ route }: RouteParams) {
     })();
   }, []);
 
-  console.log('[Details] Render - loading:', loading, 'api:', !!api, 'meta:', !!meta);
+  console.log('[Details] Render - loading:', loading, 'isConnected:', isConnected, 'meta:', !!meta);
 
-  if (loading || !api) {
+  if (flixorLoading || !isConnected || loading) {
     return (
       <View style={{ flex:1, backgroundColor:'#0b0b0b', alignItems:'center', justifyContent:'center' }}>
         <ActivityIndicator color="#fff" />
@@ -287,11 +271,10 @@ export default function Details({ route }: RouteParams) {
 
   console.log('[Details] Rendering full UI for:', meta?.title);
 
-  const authHeaders = api.token ? { Authorization: `Bearer ${api.token}` } : undefined;
   const backdrop = () => {
     if (meta?.backdropUrl) return String(meta.backdropUrl);
     const path = meta?.art || meta?.thumb;
-    return path ? `${api.baseUrl}/api/image/plex?path=${encodeURIComponent(String(path))}&w=1080&f=webp` : undefined;
+    return path ? getPlexImageUrl(path, 1080) : undefined;
   };
   const title = meta?.title || meta?.grandparentTitle || 'Title';
   const contentRating = meta?.contentRating || 'PG';
@@ -324,7 +307,7 @@ export default function Details({ route }: RouteParams) {
         {/* Shadow under the sheet so any reveal looks natural, not a black jump */}
         <View style={{ position:'absolute', top:0, left:0, right:0, height:16, backgroundColor:'transparent', shadowColor:'#000', shadowOpacity:0.35, shadowRadius:14, shadowOffset:{ width:0, height:6 }, zIndex:1 }} />
         <View style={{ flex:1, backgroundColor:'#0d0d0f', borderTopLeftRadius: 20, borderTopRightRadius: 20, overflow: 'hidden' }}>
-      <ScrollView ref={ref => (scrollRef.current = ref)}
+      <ScrollView ref={ref => { scrollRef.current = ref; }}
         scrollEventThrottle={16}
         onScroll={(e:any) => { scrollYRef.current = e.nativeEvent.contentOffset.y; }}
         scrollEnabled={!closing}
@@ -340,7 +323,7 @@ export default function Details({ route }: RouteParams) {
         }}>
           <View style={{ width:'100%', aspectRatio: 16/9, backgroundColor:'#111' }}>
             {backdrop() && ExpoImage ? (
-              <ExpoImage source={{ uri: backdrop(), headers: authHeaders }} style={{ width:'100%', height:'100%' }} contentFit="cover" />
+              <ExpoImage source={{ uri: backdrop() }} style={{ width:'100%', height:'100%' }} contentFit="cover" />
             ) : null}
             {/* Top-right actions over image */}
             <View style={{ position:'absolute', right: 12, top: 12, flexDirection:'row' }}>
@@ -422,21 +405,26 @@ export default function Details({ route }: RouteParams) {
             <>
               <SeasonSelector seasons={seasons} seasonKey={seasonKey} onChange={async (key)=> {
                 setSeasonKey(key);
-                if (seasonSource === 'plex') {
-                  setEpisodes(await fetchPlexSeasonEpisodes(api, key));
-                } else if (seasonSource === 'tmdb') {
-                  const tvId = route?.params?.id ? String(route?.params?.id) : undefined;
-                  if (tvId) setEpisodes(await fetchTmdbSeasonEpisodes(api, tvId, Number(key)));
+                setEpisodesLoading(true);
+                try {
+                  if (seasonSource === 'plex') {
+                    setEpisodes(await fetchPlexSeasonEpisodes(key));
+                  } else if (seasonSource === 'tmdb') {
+                    const tvId = route?.params?.id ? String(route?.params?.id) : undefined;
+                    if (tvId) setEpisodes(await fetchTmdbSeasonEpisodes(Number(tvId), Number(key)));
+                  }
+                } finally {
+                  setEpisodesLoading(false);
                 }
               }} />
-              <EpisodeList season={seasonKey} episodes={episodes} api={api} tmdbMode={seasonSource==='tmdb'} tmdbId={route?.params?.id ? String(route?.params?.id) : undefined} />
+              <EpisodeList season={seasonKey} episodes={episodes} tmdbMode={seasonSource==='tmdb'} tmdbId={route?.params?.id ? String(route?.params?.id) : undefined} loading={episodesLoading} />
             </>
           ) : null}
           {tab === 'suggested' ? (
-            <SuggestedRows api={api} meta={meta} routeParams={route?.params} />
+            <SuggestedRows meta={meta} routeParams={route?.params} />
           ) : null}
           {tab === 'details' ? (
-            <DetailsTab meta={meta} api={api} tmdbCast={tmdbCast} tmdbCrew={tmdbCrew} />
+            <DetailsTab meta={meta} tmdbCast={tmdbCast} tmdbCrew={tmdbCrew} />
           ) : null}
         </View>
       </ScrollView>
@@ -476,18 +464,25 @@ function ActionIcon({ icon, label }: { icon: any; label: string }) {
   );
 }
 
-function EpisodeList({ season, episodes, api, tmdbMode, tmdbId }: { season: string; episodes: any[]; api: MobileApi; tmdbMode?: boolean; tmdbId?: string }) {
-  const authHeaders = api.token ? { Authorization: `Bearer ${api.token}` } : undefined;
+function EpisodeList({ season, episodes, tmdbMode, tmdbId, loading }: { season: string | null; episodes: any[]; tmdbMode?: boolean; tmdbId?: string; loading?: boolean }) {
   const nav: any = useNavigation();
-  
+
+  if (loading) {
+    return (
+      <View style={{ marginTop: 12, alignItems: 'center', paddingVertical: 20 }}>
+        <ActivityIndicator color="#fff" />
+      </View>
+    );
+  }
+
   return (
     <View style={{ marginTop: 12 }}>
       <Text style={{ color:'#fff', fontSize:18, fontWeight:'800', marginHorizontal:16, marginBottom:8 }}>Season {season}</Text>
       {episodes.map((ep:any, idx:number) => {
         const path = tmdbMode ? undefined : (ep.thumb || ep.art);
         const img = tmdbMode
-          ? (ep.still_path ? `https://image.tmdb.org/t/p/w780${ep.still_path}` : undefined)
-          : (path ? `${api.baseUrl}/api/image/plex?path=${encodeURIComponent(String(path))}&w=640&f=webp` : undefined);
+          ? (ep.still_path ? getTmdbImageUrl(ep.still_path, 'w780') : undefined)
+          : (path ? getPlexImageUrl(path, 640) : undefined);
         // Compute progress (Plex episodes only)
         let progress: number | undefined = undefined;
         if (!tmdbMode) {
@@ -511,7 +506,7 @@ function EpisodeList({ season, episodes, api, tmdbMode, tmdbId }: { season: stri
           >
             <View style={{ width:140, height:78, borderRadius:10, overflow:'hidden', backgroundColor:'#222' }}>
               {img && ExpoImage ? (
-                <ExpoImage source={{ uri: img, headers: authHeaders }} style={{ width:'100%', height:'100%' }} contentFit="cover" />
+                <ExpoImage source={{ uri: img }} style={{ width:'100%', height:'100%' }} contentFit="cover" />
               ) : null}
               {typeof progress === 'number' && progress > 0 ? (
                 <View style={{ position:'absolute', left:0, right:0, bottom:0, height:4, backgroundColor:'#ffffff33' }}>
@@ -551,7 +546,7 @@ function Tabs({ tab, setTab, showEpisodes }: { tab: 'episodes'|'suggested'|'deta
   );
 }
 
-function SuggestedRows({ api, meta, routeParams }: { api: MobileApi; meta: any; routeParams?: any }) {
+function SuggestedRows({ meta, routeParams }: { meta: any; routeParams?: any }) {
   const [recs, setRecs] = React.useState<RowItem[]>([]);
   const [similar, setSimilar] = React.useState<RowItem[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -575,8 +570,8 @@ function SuggestedRows({ api, meta, routeParams }: { api: MobileApi; meta: any; 
       try {
         if (!tmdbId) return setLoading(false);
         const [r, s] = await Promise.all([
-          fetchTmdbRecommendationsMapped(api, mediaType, tmdbId),
-          fetchTmdbSimilarMapped(api, mediaType, tmdbId)
+          fetchTmdbRecommendations(mediaType, Number(tmdbId)),
+          fetchTmdbSimilar(mediaType, Number(tmdbId))
         ]);
         setRecs(r);
         setSimilar(s);
@@ -586,7 +581,6 @@ function SuggestedRows({ api, meta, routeParams }: { api: MobileApi; meta: any; 
     })();
   }, [tmdbId, mediaType]);
 
-  const authHeaders = api.token ? { Authorization: `Bearer ${api.token}` } : undefined;
   const getUri = (it: RowItem) => it.image;
   const getTitle = (it: RowItem) => it.title;
   const nav: any = useNavigation();
@@ -607,14 +601,14 @@ function SuggestedRows({ api, meta, routeParams }: { api: MobileApi; meta: any; 
     <View style={{ marginLeft: 12 }}>
       {recs.length > 0 && (
         <Row title="Recommended" items={recs}
-          getImageUri={getUri} getTitle={getTitle} authHeaders={authHeaders}
+          getImageUri={getUri} getTitle={getTitle}
           onItemPress={onPress}
           onTitlePress={() => recs[0] && onPress(recs[0])}
         />
       )}
       {similar.length > 0 && (
         <Row title="More Like This" items={similar}
-          getImageUri={getUri} getTitle={getTitle} authHeaders={authHeaders}
+          getImageUri={getUri} getTitle={getTitle}
           onItemPress={onPress}
           onTitlePress={() => similar[0] && onPress(similar[0])}
         />
@@ -684,23 +678,22 @@ function RatingsRow({ meta }: { meta: any }) {
   );
 }
 
-function CastScroller({ meta, api, tmdbCast }: { meta:any; api: MobileApi; tmdbCast?: Array<{ name: string; profile_path?: string }> }) {
+function CastScroller({ meta, tmdbCast }: { meta:any; tmdbCast?: Array<{ name: string; profile_path?: string }> }) {
   const roles: any[] = Array.isArray(meta?.Role) ? meta.Role.slice(0, 16) : [];
   const useTmdb = !roles.length && Array.isArray(tmdbCast) && tmdbCast.length > 0;
   if (!roles.length && !useTmdb) return null;
-  const headers = api.token ? { Authorization: `Bearer ${api.token}` } : undefined;
   return (
     <View style={{ marginTop:8 }}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal:12 }}>
         {(useTmdb ? tmdbCast! : roles).map((r:any, idx:number) => {
           const src = useTmdb
-            ? (r.profile_path ? `https://image.tmdb.org/t/p/w185${r.profile_path}` : undefined)
-            : (r.thumb ? `${api.baseUrl}/api/image/plex?path=${encodeURIComponent(String(r.thumb))}&w=200&h=200&f=webp` : undefined);
+            ? (r.profile_path ? getTmdbProfileUrl(r.profile_path) : undefined)
+            : (r.thumb ? getPlexImageUrl(r.thumb, 200) : undefined);
           const name = useTmdb ? r.name : (r.tag || r.title);
           return (
             <View key={idx} style={{ width:96, marginHorizontal:4, alignItems:'center' }}>
               <View style={{ width:72, height:72, borderRadius:36, overflow:'hidden', backgroundColor:'#1a1a1a' }}>
-                {src && ExpoImage ? <ExpoImage source={{ uri: src, headers }} style={{ width:'100%', height:'100%' }} contentFit="cover" /> : null}
+                {src && ExpoImage ? <ExpoImage source={{ uri: src }} style={{ width:'100%', height:'100%' }} contentFit="cover" /> : null}
               </View>
               <Text style={{ color:'#eee', marginTop:6 }} numberOfLines={1}>{name}</Text>
             </View>
@@ -780,7 +773,7 @@ function Collections({ meta }: { meta:any }) {
   );
 }
 
-function DetailsTab({ meta, api, tmdbCast, tmdbCrew }: { meta:any; api: MobileApi; tmdbCast?: Array<{ name: string; profile_path?: string }>; tmdbCrew?: Array<{ name: string; job?: string }> }) {
+function DetailsTab({ meta, tmdbCast, tmdbCrew }: { meta:any; tmdbCast?: Array<{ name: string; profile_path?: string }>; tmdbCrew?: Array<{ name: string; job?: string }> }) {
   const guids: string[] = Array.isArray(meta?.Guid) ? meta.Guid.map((g:any)=> String(g.id||'')) : [];
   const imdbId = guids.find(x=> x.startsWith('imdb://'))?.split('://')[1];
   const tmdbId = guids.find(x=> x.includes('tmdb://') || x.includes('themoviedb://'))?.split('://')[1];
@@ -791,7 +784,7 @@ function DetailsTab({ meta, api, tmdbCast, tmdbCrew }: { meta:any; api: MobileAp
       <RatingsRow meta={meta} />
 
       <SectionHeader title="Cast" />
-      <CastScroller meta={meta} api={api} tmdbCast={tmdbCast} />
+      <CastScroller meta={meta} tmdbCast={tmdbCast} />
 
       <SectionHeader title="Crew" />
       <CrewList meta={meta} tmdbCrew={tmdbCrew} />

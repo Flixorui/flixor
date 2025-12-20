@@ -1,31 +1,25 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, ScrollView, Pressable, ActivityIndicator, StyleSheet, Animated } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image as ExpoImage } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
-import { MobileApi } from '../api/client';
 import { TopBarStore, useTopBarStore } from '../components/TopBarStore';
 import * as Haptics from 'expo-haptics';
+import { useFlixor } from '../core/FlixorContext';
+import {
+  getUpcomingMovies,
+  getTrendingAll,
+  getTop10Shows,
+  getTop10Movies,
+  ContentItem,
+} from '../core/NewHotData';
 
 type TabType = 'coming-soon' | 'everyones-watching' | 'top10-shows' | 'top10-movies';
 
-type ContentItem = {
-  id: string;
-  title: string;
-  image?: string;
-  backdropImage?: string;
-  subtitle?: string;
-  description?: string;
-  releaseDate?: string;
-  badge?: string;
-  rank?: number;
-};
-
 export default function NewHot() {
   const nav: any = useNavigation();
-  const [api, setApi] = useState<MobileApi | null>(null);
+  const { isConnected } = useFlixor();
   const [activeTab, setActiveTab] = useState<TabType>('coming-soon');
   const [loading, setLoading] = useState(false);
   const [content, setContent] = useState<ContentItem[]>([]);
@@ -37,17 +31,8 @@ export default function NewHot() {
   React.useLayoutEffect(() => {
     if (isFocused) {
       TopBarStore.setScrollY(y);
-
-      // Prefetch all tab content in background
-      if (api) {
-        console.log('[NewHot] Prefetching tab content');
-        api.prefetch('/api/tmdb/movie/upcoming?region=US');
-        api.prefetch('/api/tmdb/trending/all/week');
-        api.prefetch('/api/tmdb/trending/tv/week');
-        api.prefetch('/api/tmdb/trending/movie/week');
-      }
     }
-  }, [isFocused, y, api]);
+  }, [isFocused, y]);
 
   useEffect(() => {
     if (!isFocused) return;
@@ -94,102 +79,37 @@ export default function NewHot() {
   }, [isFocused, nav, activeTab]);
 
   useEffect(() => {
-    (async () => {
-      const a = await MobileApi.load();
-      setApi(a);
-    })();
-  }, []);
-
-  useEffect(() => {
-    if (api) {
+    if (isConnected) {
       loadContent();
     }
-  }, [api, activeTab]);
+  }, [isConnected, activeTab]);
 
   const loadContent = async () => {
-    if (!api) return;
+    if (!isConnected) return;
 
     setLoading(true);
     try {
+      let items: ContentItem[] = [];
       switch (activeTab) {
         case 'coming-soon':
-          await loadComingSoon();
+          items = await getUpcomingMovies();
           break;
         case 'everyones-watching':
-          await loadEveryonesWatching();
+          items = await getTrendingAll();
           break;
         case 'top10-shows':
-          await loadTop10Shows();
+          items = await getTop10Shows();
           break;
         case 'top10-movies':
-          await loadTop10Movies();
+          items = await getTop10Movies();
           break;
       }
+      setContent(items);
     } catch (error) {
       console.error('[NewHot] Failed to load content:', error);
     } finally {
       setLoading(false);
     }
-  };
-
-  const loadComingSoon = async () => {
-    if (!api) return;
-    const res = await api.get('/api/tmdb/movie/upcoming?region=US');
-    const items = (res?.results || []).slice(0, 20).map((item: any) => ({
-      id: `tmdb:movie:${item.id}`,
-      title: item.title,
-      image: item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : undefined,
-      backdropImage: item.backdrop_path ? `https://image.tmdb.org/t/p/w780${item.backdrop_path}` : undefined,
-      description: item.overview,
-      releaseDate: item.release_date ? new Date(item.release_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : undefined,
-      badge: 'Coming Soon',
-    }));
-    setContent(items);
-  };
-
-  const loadEveryonesWatching = async () => {
-    if (!api) return;
-    const res = await api.get('/api/tmdb/trending/all/week');
-    const items = (res?.results || []).slice(0, 20).map((item: any) => ({
-      id: item.media_type === 'movie' ? `tmdb:movie:${item.id}` : `tmdb:tv:${item.id}`,
-      title: item.title || item.name,
-      image: item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : undefined,
-      backdropImage: item.backdrop_path ? `https://image.tmdb.org/t/p/w780${item.backdrop_path}` : undefined,
-      description: item.overview,
-      subtitle: (item.release_date || item.first_air_date)?.split('-')[0],
-      badge: item.vote_average ? `⭐ ${item.vote_average.toFixed(1)}` : undefined,
-    }));
-    setContent(items);
-  };
-
-  const loadTop10Shows = async () => {
-    if (!api) return;
-    const res = await api.get('/api/tmdb/trending/tv/week');
-    const items = (res?.results || []).slice(0, 10).map((item: any, index: number) => ({
-      id: `tmdb:tv:${item.id}`,
-      title: item.name,
-      image: item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : undefined,
-      backdropImage: item.backdrop_path ? `https://image.tmdb.org/t/p/w780${item.backdrop_path}` : undefined,
-      description: item.overview,
-      subtitle: item.first_air_date?.split('-')[0],
-      rank: index + 1,
-    }));
-    setContent(items);
-  };
-
-  const loadTop10Movies = async () => {
-    if (!api) return;
-    const res = await api.get('/api/tmdb/trending/movie/week');
-    const items = (res?.results || []).slice(0, 10).map((item: any, index: number) => ({
-      id: `tmdb:movie:${item.id}`,
-      title: item.title,
-      image: item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : undefined,
-      backdropImage: item.backdrop_path ? `https://image.tmdb.org/t/p/w780${item.backdrop_path}` : undefined,
-      description: item.overview,
-      subtitle: item.release_date?.split('-')[0],
-      rank: index + 1,
-    }));
-    setContent(items);
   };
 
   const handleItemPress = (id: string) => {

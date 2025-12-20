@@ -4,40 +4,28 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image as ExpoImage } from 'expo-image';
-import { MobileApi } from '../api/client';
 import Row from '../components/Row';
 import { useNavigation } from '@react-navigation/native';
-import { RowItem } from '../api/data';
 import { TopBarStore } from '../components/TopBarStore';
-
-type SearchResult = {
-  id: string;
-  title: string;
-  type: 'movie' | 'show';
-  image?: string;
-  year?: string;
-  source: 'plex' | 'tmdb';
-  genreIds?: number[];
-};
+import { useFlixor } from '../core/FlixorContext';
+import {
+  searchPlex,
+  searchTmdb,
+  getTrendingForSearch,
+  discoverByGenre,
+  SearchResult,
+  RowItem,
+  GENRE_MAP,
+} from '../core/SearchData';
 
 type GenreRow = {
   title: string;
   items: SearchResult[];
 };
 
-// TMDB Genre mapping
-const GENRE_MAP: { [key: number]: string } = {
-  28: 'Action', 12: 'Adventure', 16: 'Animation', 35: 'Comedy', 80: 'Crime',
-  99: 'Documentary', 18: 'Drama', 10751: 'Family', 14: 'Fantasy', 36: 'History',
-  27: 'Horror', 10402: 'Music', 9648: 'Mystery', 10749: 'Romance', 878: 'Sci-Fi',
-  10770: 'TV Movie', 53: 'Thriller', 10752: 'War', 37: 'Western',
-  10759: 'Action & Adventure', 10762: 'Kids', 10763: 'News', 10764: 'Reality',
-  10765: 'Sci-Fi & Fantasy', 10766: 'Soap', 10767: 'Talk', 10768: 'War & Politics'
-};
-
 export default function Search() {
   const nav: any = useNavigation();
-  const [api, setApi] = useState<MobileApi | null>(null);
+  const { isConnected } = useFlixor();
   const [query, setQuery] = useState('');
   const [plexResults, setPlexResults] = useState<SearchResult[]>([]);
   const [tmdbMovies, setTmdbMovies] = useState<SearchResult[]>([]);
@@ -46,7 +34,7 @@ export default function Search() {
   const [genreRows, setGenreRows] = useState<GenreRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchMode, setSearchMode] = useState<'idle' | 'results'>('idle');
-  const searchTimeout = useRef<NodeJS.Timeout>();
+  const searchTimeout = useRef<ReturnType<typeof setTimeout>>();
   const inputRef = useRef<TextInput>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
@@ -54,52 +42,17 @@ export default function Search() {
     // Hide TopBar when Search is opened
     TopBarStore.setVisible(false);
 
-    (async () => {
-      const a = await MobileApi.load();
-      setApi(a);
-
-      // Prefetch popular search queries
-      if (a) {
-        console.log('[Search] Prefetching popular content');
-        a.prefetch('/api/tmdb/trending/movie/week');
-        a.prefetch('/api/tmdb/trending/tv/week');
-        a.prefetch('/api/tmdb/discover/movie?sort_by=popularity.desc&page=1');
-      }
-
-      // Load recommended/trending for empty state as vertical list
-      if (a) {
+    // Load recommended/trending for empty state
+    if (isConnected) {
+      (async () => {
         try {
-          // Fetch both movies and shows for initial recommendations
-          const [moviesRes, showsRes] = await Promise.all([
-            a.get('/api/tmdb/trending/movie/week'),
-            a.get('/api/tmdb/trending/tv/week'),
-          ]);
-
-          const movies = (moviesRes?.results || []).slice(0, 6).map((item: any) => ({
-            id: `tmdb:movie:${item.id}`,
-            title: item.title,
-            image: item.backdrop_path ? `https://image.tmdb.org/t/p/w780${item.backdrop_path}` : undefined,
-            year: item.release_date?.slice(0, 4),
-          }));
-
-          const shows = (showsRes?.results || []).slice(0, 6).map((item: any) => ({
-            id: `tmdb:tv:${item.id}`,
-            title: item.name,
-            image: item.backdrop_path ? `https://image.tmdb.org/t/p/w780${item.backdrop_path}` : undefined,
-            year: item.first_air_date?.slice(0, 4),
-          }));
-
-          // Interleave movies and shows for variety
-          const combined: RowItem[] = [];
-          for (let i = 0; i < Math.max(movies.length, shows.length); i++) {
-            if (shows[i]) combined.push(shows[i]);
-            if (movies[i]) combined.push(movies[i]);
-          }
-
+          const combined = await getTrendingForSearch();
           setTrending(combined);
-        } catch {}
-      }
-    })();
+        } catch (e) {
+          console.log('[Search] Failed to load trending:', e);
+        }
+      })();
+    }
 
     // Fade in animation
     Animated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true }).start();
@@ -111,114 +64,45 @@ export default function Search() {
     return () => {
       TopBarStore.setVisible(true);
     };
-  }, []);
+  }, [isConnected]);
 
   const performSearch = useCallback(async (q: string) => {
-    if (!api || !q.trim()) return;
-    
+    if (!isConnected || !q.trim()) return;
+
     setLoading(true);
     setSearchMode('results');
-    
+
     try {
-      const plexRes: SearchResult[] = [];
-      const tmdbMovieRes: SearchResult[] = [];
-      const tmdbShowRes: SearchResult[] = [];
-
-      // Search Plex
-      try {
-        const res = await api.get(`/api/plex/search?query=${encodeURIComponent(q)}`);
-        const items = Array.isArray(res) ? res : (res?.MediaContainer?.Metadata || []);
-        items.slice(0, 20).forEach((item: any) => {
-          const thumb = item.thumb || item.parentThumb || item.grandparentThumb;
-          plexRes.push({
-            id: `plex:${item.ratingKey}`,
-            title: item.title || item.grandparentTitle || 'Untitled',
-            type: item.type === 'movie' ? 'movie' : 'show',
-            image: thumb ? `${api.baseUrl}/api/image/plex?path=${encodeURIComponent(thumb)}&w=300&f=webp` : undefined,
-            year: item.year ? String(item.year) : undefined,
-            source: 'plex',
-          });
-        });
-      } catch (e) {
-        console.log('[Search] Plex search failed:', e);
-      }
-
-      // Search TMDB
-      const allGenreIds = new Set<number>();
-      try {
-        const res = await api.get(`/api/tmdb/search/multi?query=${encodeURIComponent(q)}&page=1`);
-        const items = res?.results || [];
-        items.slice(0, 20).forEach((item: any) => {
-          if (item.media_type === 'movie') {
-            tmdbMovieRes.push({
-              id: `tmdb:movie:${item.id}`,
-              title: item.title,
-              type: 'movie',
-              image: item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : undefined,
-              year: item.release_date?.slice(0, 4),
-              source: 'tmdb',
-              genreIds: item.genre_ids || [],
-            });
-            (item.genre_ids || []).forEach((gid: number) => allGenreIds.add(gid));
-          } else if (item.media_type === 'tv') {
-            tmdbShowRes.push({
-              id: `tmdb:tv:${item.id}`,
-              title: item.name,
-              type: 'show',
-              image: item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : undefined,
-              year: item.first_air_date?.slice(0, 4),
-              source: 'tmdb',
-              genreIds: item.genre_ids || [],
-            });
-            (item.genre_ids || []).forEach((gid: number) => allGenreIds.add(gid));
-          }
-        });
-      } catch (e) {
-        console.log('[Search] TMDB search failed:', e);
-      }
+      // Search Plex and TMDB in parallel
+      const [plexRes, tmdbRes] = await Promise.all([
+        searchPlex(q),
+        searchTmdb(q),
+      ]);
 
       setPlexResults(plexRes);
-      setTmdbMovies(tmdbMovieRes);
-      setTmdbShows(tmdbShowRes);
+      setTmdbMovies(tmdbRes.movies);
+      setTmdbShows(tmdbRes.shows);
+
+      // Collect genre IDs from TMDB results
+      const allGenreIds = new Set<number>();
+      [...tmdbRes.movies, ...tmdbRes.shows].forEach((item) => {
+        (item.genreIds || []).forEach((gid: number) => allGenreIds.add(gid));
+      });
 
       // Fetch genre-based recommendations
       const genreRowsData: GenreRow[] = [];
-      const topGenres = Array.from(allGenreIds).slice(0, 3); // Top 3 genres from search results
+      const topGenres = Array.from(allGenreIds).slice(0, 3);
 
       for (const genreId of topGenres) {
         const genreName = GENRE_MAP[genreId];
         if (!genreName) continue;
 
         try {
-          // Fetch movies for this genre
-          const movieRes = await api.get(`/api/tmdb/discover/movie?with_genres=${genreId}&sort_by=popularity.desc&page=1`);
-          const movies = (movieRes?.results || []).slice(0, 10).map((item: any) => ({
-            id: `tmdb:movie:${item.id}`,
-            title: item.title,
-            type: 'movie' as const,
-            image: item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : undefined,
-            year: item.release_date?.slice(0, 4),
-            source: 'tmdb' as const,
-          }));
-
-          // Fetch TV shows for this genre
-          const tvRes = await api.get(`/api/tmdb/discover/tv?with_genres=${genreId}&sort_by=popularity.desc&page=1`);
-          const shows = (tvRes?.results || []).slice(0, 10).map((item: any) => ({
-            id: `tmdb:tv:${item.id}`,
-            title: item.name,
-            type: 'show' as const,
-            image: item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : undefined,
-            year: item.first_air_date?.slice(0, 4),
-            source: 'tmdb' as const,
-          }));
-
-          // Combine movies and shows
-          const combined = [...movies, ...shows].slice(0, 15);
-
-          if (combined.length > 0) {
+          const items = await discoverByGenre(genreId);
+          if (items.length > 0) {
             genreRowsData.push({
               title: genreName,
-              items: combined,
+              items,
             });
           }
         } catch (e) {
@@ -230,7 +114,7 @@ export default function Search() {
     } finally {
       setLoading(false);
     }
-  }, [api]);
+  }, [isConnected]);
 
   const handleQueryChange = (text: string) => {
     setQuery(text);
@@ -259,7 +143,7 @@ export default function Search() {
     }
   };
 
-  const authHeaders = api?.token ? { Authorization: `Bearer ${api.token}` } : undefined;
+  // Auth headers no longer needed - image URLs include token
 
   return (
     <View style={{ flex: 1, backgroundColor: '#0a0a0a' }}>
@@ -370,7 +254,7 @@ export default function Search() {
                             <Pressable key={i} onPress={() => handleResultPress(result)} style={styles.topResultCard}>
                               <View style={styles.topResultImage}>
                                 {result.image ? (
-                                  <ExpoImage source={{ uri: result.image, headers: authHeaders }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+                                  <ExpoImage source={{ uri: result.image }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
                                 ) : (
                                   <View style={{ width: '100%', height: '100%', backgroundColor: '#1a1a1a' }} />
                                 )}
@@ -387,8 +271,7 @@ export default function Search() {
                             items={plexResults.slice(4).map(r => ({ id: r.id, title: r.title, image: r.image }))}
                             getImageUri={(it) => it.image}
                             getTitle={(it) => it.title}
-                            authHeaders={authHeaders}
-                            onItemPress={handleResultPress}
+                                                        onItemPress={handleResultPress}
                           />
                         </View>
                       ) : null}
@@ -403,8 +286,7 @@ export default function Search() {
                         items={tmdbMovies.slice(0, 10).map(r => ({ id: r.id, title: r.title, image: r.image }))}
                         getImageUri={(it) => it.image}
                         getTitle={(it) => it.title}
-                        authHeaders={authHeaders}
-                        onItemPress={handleResultPress}
+                                                onItemPress={handleResultPress}
                       />
                     </View>
                   ) : null}
@@ -415,8 +297,7 @@ export default function Search() {
                       items={tmdbShows.slice(0, 10).map(r => ({ id: r.id, title: r.title, image: r.image }))}
                       getImageUri={(it) => it.image}
                       getTitle={(it) => it.title}
-                      authHeaders={authHeaders}
-                      onItemPress={handleResultPress}
+                                            onItemPress={handleResultPress}
                     />
                   ) : null}
 
@@ -428,8 +309,7 @@ export default function Search() {
                       items={genreRow.items.map(r => ({ id: r.id, title: r.title, image: r.image }))}
                       getImageUri={(it) => it.image}
                       getTitle={(it) => it.title}
-                      authHeaders={authHeaders}
-                      onItemPress={handleResultPress}
+                                            onItemPress={handleResultPress}
                     />
                   ))}
 

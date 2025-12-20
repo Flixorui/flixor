@@ -1,31 +1,51 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, Pressable, ActivityIndicator, Linking, ScrollView, Animated, TextInput, StyleSheet, Alert } from 'react-native';
+import { View, Text, Pressable, ActivityIndicator, Linking, ScrollView, Animated, StyleSheet, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
-import { MobileApi, saveTraktTokens, getTraktTokens } from '../api/client';
+import { useFlixor } from '../core/FlixorContext';
+import {
+  getTraktProfile,
+  startTraktDeviceAuth,
+  pollTraktToken,
+  saveTraktTokens,
+  signOutTrakt,
+  getPlexUser,
+  getAppVersion,
+  getConnectedServerInfo,
+  getPlexServers,
+  selectPlexServer,
+  getServerConnections,
+  selectServerEndpoint,
+  getAppSettings,
+  setAppSettings,
+  type PlexServerInfo,
+  type PlexConnectionInfo,
+} from '../core/SettingsData';
 import { TopBarStore, useTopBarStore } from '../components/TopBarStore';
 
 let WebBrowser: any = null;
 try { WebBrowser = require('expo-web-browser'); } catch {}
 
-export default function My({ api, onLogout }: { api: MobileApi; onLogout: () => Promise<void> }) {
+interface MyProps {
+  onLogout: () => Promise<void>;
+}
+
+export default function My({ onLogout }: MyProps) {
+  const { isLoading: flixorLoading, isConnected } = useFlixor();
   const nav: any = useNavigation();
   const isFocused = useIsFocused();
   const [loading, setLoading] = useState(true);
   const [traktProfile, setTraktProfile] = useState<any | null>(null);
+  const [plexUser, setPlexUser] = useState<any | null>(null);
   const [deviceCode, setDeviceCode] = useState<any | null>(null);
-  const [servers, setServers] = useState<any[]>([]);
-  const [selectedServer, setSelectedServer] = useState<any>(null);
+  const [servers, setServers] = useState<PlexServerInfo[]>([]);
   const [showServerEndpoints, setShowServerEndpoints] = useState<string | null>(null);
-  const [endpoints, setEndpoints] = useState<any[]>([]);
+  const [endpoints, setEndpoints] = useState<PlexConnectionInfo[]>([]);
 
   // Settings state
-  const [plexUrl, setPlexUrl] = useState('');
-  const [plexToken, setPlexToken] = useState('');
-  const [tmdbKey, setTmdbKey] = useState('');
-  const [plexAccountToken, setPlexAccountToken] = useState('');
   const [watchlistProvider, setWatchlistProvider] = useState<'trakt' | 'plex'>('trakt');
+  const [serverInfo, setServerInfo] = useState<{ name: string; url: string } | null>(null);
 
   const pollRef = useRef<any>(null);
   const y = useRef(new Animated.Value(0)).current;
@@ -55,57 +75,68 @@ export default function My({ api, onLogout }: { api: MobileApi; onLogout: () => 
   }, [isFocused, nav]);
 
   useEffect(() => {
+    if (flixorLoading || !isConnected) return;
+
     (async () => {
-      // Load current settings from API
       await loadCurrentSettings();
-      await refreshProfile();
+      await refreshTraktProfile();
+      await loadPlexUser();
       await loadServers();
+      loadServerInfo();
+      setLoading(false);
     })();
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, []);
+  }, [flixorLoading, isConnected]);
 
-  async function loadCurrentSettings() {
-    try {
-      // Get current backend/server settings
-      const settings = await api.get('/api/settings');
-
-      console.log('[My] Loaded settings:', settings);
-      console.log('[My] API baseUrl:', api.baseUrl);
-      console.log('[My] API token:', api.token);
-
-      // Set the values from backend settings OR from API client
-      setPlexUrl(settings?.plexUrl || api.baseUrl || '');
-      // The token used by MobileApi is stored separately - show it if available
-      setPlexToken(settings?.plexToken || api.token || '');
-      setTmdbKey(settings?.tmdbKey || '');
-      setPlexAccountToken(settings?.plexAccountToken || '');
-      setWatchlistProvider(settings?.watchlistProvider || 'trakt');
-    } catch (e) {
-      // Fallback to showing API client values
-      setPlexUrl(api.baseUrl || '');
-      setPlexToken(api.token || '');
-      console.log('[My] Failed to load settings:', e);
-    }
+  function loadCurrentSettings() {
+    const settings = getAppSettings();
+    setWatchlistProvider(settings.watchlistProvider);
   }
 
   async function saveSettings() {
     try {
-      await api.post('/api/settings', {
-        plexUrl,
-        plexToken,
-        tmdbKey,
-        plexAccountToken,
-        watchlistProvider,
-      });
+      setAppSettings({ watchlistProvider });
       Alert.alert('Success', 'Settings saved');
     } catch (e: any) {
       Alert.alert('Error', e?.message || 'Failed to save settings');
     }
   }
 
-  async function signOutTrakt() {
+  async function refreshTraktProfile() {
     try {
-      await api.post('/api/trakt/signout');
+      const p = await getTraktProfile();
+      setTraktProfile(p);
+    } catch (e: any) {
+      setTraktProfile(null);
+    }
+  }
+
+  async function loadPlexUser() {
+    try {
+      const user = await getPlexUser();
+      setPlexUser(user);
+    } catch (e) {
+      console.log('[My] Failed to load Plex user:', e);
+    }
+  }
+
+  function loadServerInfo() {
+    const info = getConnectedServerInfo();
+    setServerInfo(info);
+  }
+
+  async function loadServers() {
+    try {
+      const res = await getPlexServers();
+      setServers(res || []);
+    } catch (e) {
+      console.error('[My] Failed to load servers:', e);
+    }
+  }
+
+  async function handleSignOutTrakt() {
+    try {
+      await signOutTrakt();
       setTraktProfile(null);
       Alert.alert('Success', 'Signed out from Trakt');
     } catch (e: any) {
@@ -113,28 +144,13 @@ export default function My({ api, onLogout }: { api: MobileApi; onLogout: () => 
     }
   }
 
-  async function refreshProfile() {
-    setLoading(true);
-    try {
-      const p = await api.traktProfile();
-      setTraktProfile(p);
-    } catch (e: any) {
-      setTraktProfile(null);
-    } finally { setLoading(false); }
-  }
-
-  async function loadServers() {
-    try {
-      const res = await api.get('/api/plex/servers');
-      setServers(res || []);
-    } catch (e) {
-      console.error('[My] Failed to load servers:', e);
-    }
-  }
-
   async function startTraktAuth() {
     try {
-      const dc = await api.traktDeviceCode();
+      const dc = await startTraktDeviceAuth();
+      if (!dc) {
+        Alert.alert('Error', 'Failed to start Trakt auth');
+        return;
+      }
       setDeviceCode(dc);
 
       try {
@@ -145,12 +161,12 @@ export default function My({ api, onLogout }: { api: MobileApi; onLogout: () => 
       if (pollRef.current) clearInterval(pollRef.current);
       pollRef.current = setInterval(async () => {
         try {
-          const res = await api.traktPollToken(dc.device_code);
-          if (res && (res.ok || res.access_token)) {
-            await saveTraktTokens(res.tokens || res);
+          const res = await pollTraktToken(dc.device_code);
+          if (res && res.access_token) {
+            await saveTraktTokens(res);
             clearInterval(pollRef.current);
             setDeviceCode(null);
-            await refreshProfile();
+            await refreshTraktProfile();
           }
         } catch (err: any) {
           const msg = String(err?.message || '');
@@ -170,21 +186,21 @@ export default function My({ api, onLogout }: { api: MobileApi; onLogout: () => 
     }
   }
 
-  async function selectServer(server: any) {
+  async function handleSelectServer(server: PlexServerInfo) {
     try {
-      await api.post('/api/plex/servers/current', { serverId: server.id });
-      setSelectedServer(server);
+      await selectPlexServer(server);
       Alert.alert('Success', `Connected to ${server.name}`);
       await loadServers();
+      loadServerInfo();
     } catch (e: any) {
-      Alert.alert('Error', 'Failed to set server');
+      Alert.alert('Error', e?.message || 'Failed to set server');
     }
   }
 
   async function loadEndpoints(serverId: string) {
     try {
-      const res = await api.get(`/api/plex/servers/${serverId}/connections`);
-      setEndpoints(res?.connections || []);
+      const res = await getServerConnections(serverId);
+      setEndpoints(res || []);
       setShowServerEndpoints(serverId);
     } catch (e: any) {
       console.error('[My] Failed to load endpoints:', e);
@@ -192,12 +208,13 @@ export default function My({ api, onLogout }: { api: MobileApi; onLogout: () => 
     }
   }
 
-  async function selectEndpoint(serverId: string, uri: string) {
+  async function handleSelectEndpoint(serverId: string, uri: string) {
     try {
-      await api.post(`/api/plex/servers/${serverId}/endpoint`, { uri, test: true });
+      await selectServerEndpoint(serverId, uri);
       Alert.alert('Success', 'Endpoint updated');
       setShowServerEndpoints(null);
       await loadServers();
+      loadServerInfo();
     } catch (e: any) {
       Alert.alert('Error', e?.message || 'Endpoint unreachable');
     }
@@ -238,7 +255,7 @@ export default function My({ api, onLogout }: { api: MobileApi; onLogout: () => 
     </Pressable>
   );
 
-  if (loading) {
+  if (flixorLoading || loading) {
     return (
       <View style={{ flex: 1, backgroundColor: '#0a0a0a', alignItems: 'center', justifyContent: 'center' }}>
         <ActivityIndicator color="#fff" />
@@ -262,6 +279,26 @@ export default function My({ api, onLogout }: { api: MobileApi; onLogout: () => 
           { nativeEvent: { contentOffset: { y } } }
         ], { useNativeDriver: false })}
       >
+        {/* Plex Account Section */}
+        <Card title="Plex Account">
+          {plexUser ? (
+            <View>
+              <View style={styles.row}>
+                <Ionicons name="checkmark-circle" size={20} color="#4ade80" />
+                <Text style={styles.connectedText}>Connected</Text>
+              </View>
+              <Text style={styles.username}>{plexUser?.username || plexUser?.title || 'Plex User'}</Text>
+              {serverInfo && (
+                <Text style={styles.hint}>Server: {serverInfo.name} ({serverInfo.url})</Text>
+              )}
+            </View>
+          ) : (
+            <View>
+              <Text style={styles.description}>Not connected to Plex</Text>
+            </View>
+          )}
+        </Card>
+
         {/* Trakt Account Section */}
         <Card title="Trakt Account">
           {traktProfile ? (
@@ -272,7 +309,7 @@ export default function My({ api, onLogout }: { api: MobileApi; onLogout: () => 
               </View>
               <Text style={styles.username}>@{traktProfile?.username || traktProfile?.ids?.slug}</Text>
               <Text style={styles.hint}>Personalized rows are enabled on Home</Text>
-              <Button onPress={signOutTrakt} title="Sign Out" variant="secondary" />
+              <Button onPress={handleSignOutTrakt} title="Sign Out" variant="secondary" />
             </View>
           ) : (
             <View>
@@ -296,39 +333,6 @@ export default function My({ api, onLogout }: { api: MobileApi; onLogout: () => 
 
         {/* App Settings Section */}
         <Card title="App Settings">
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Backend URL</Text>
-            <TextInput
-              value={plexUrl}
-              onChangeText={setPlexUrl}
-              placeholder="https://192.168.1.1:32400"
-              placeholderTextColor="#666"
-              style={styles.input}
-            />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Plex Token</Text>
-            <TextInput
-              value={plexToken}
-              onChangeText={setPlexToken}
-              placeholder="Your Plex token"
-              placeholderTextColor="#666"
-              style={styles.input}
-            />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>TMDB API Key</Text>
-            <TextInput
-              value={tmdbKey}
-              onChangeText={setTmdbKey}
-              placeholder="Using default key"
-              placeholderTextColor="#666"
-              style={styles.input}
-            />
-          </View>
-
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Watchlist Provider</Text>
             <View style={styles.pickerContainer}>
@@ -363,7 +367,7 @@ export default function My({ api, onLogout }: { api: MobileApi; onLogout: () => 
 
           {servers.length > 0 && (
             <View style={{ marginTop: 16 }}>
-              {servers.map((server: any, idx: number) => (
+              {servers.map((server, idx) => (
                 <View key={idx} style={styles.serverItem}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.serverName}>{server.name}</Text>
@@ -376,7 +380,7 @@ export default function My({ api, onLogout }: { api: MobileApi; onLogout: () => 
                   </View>
                   <View style={{ flexDirection: 'row', gap: 8 }}>
                     {!server.isActive && (
-                      <Pressable onPress={() => selectServer(server)} style={styles.smallButton}>
+                      <Pressable onPress={() => handleSelectServer(server)} style={styles.smallButton}>
                         <Text style={styles.smallButtonText}>Use</Text>
                       </Pressable>
                     )}
@@ -393,7 +397,7 @@ export default function My({ api, onLogout }: { api: MobileApi; onLogout: () => 
         {/* About Section */}
         <Card title="About">
           <Text style={styles.description}>
-            Version 1.0.0
+            Version {getAppVersion()}
           </Text>
           <Text style={styles.hint}>
             Mobile Plex client with Netflix-style UI
@@ -403,7 +407,7 @@ export default function My({ api, onLogout }: { api: MobileApi; onLogout: () => 
         {/* Logout Section */}
         <Card title="Account">
           <Text style={styles.description}>
-            Sign out of your account and return to the onboarding screen.
+            Sign out of your account and return to the login screen.
           </Text>
           <Button onPress={handleLogout} title="Logout" variant="secondary" />
         </Card>
@@ -420,7 +424,7 @@ export default function My({ api, onLogout }: { api: MobileApi; onLogout: () => 
               </Pressable>
             </View>
             <ScrollView style={styles.modalScroll}>
-              {endpoints.map((endpoint: any, idx: number) => (
+              {endpoints.map((endpoint, idx) => (
                 <View key={idx} style={styles.endpointItem}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.endpointUri}>{endpoint.uri}</Text>
@@ -432,7 +436,7 @@ export default function My({ api, onLogout }: { api: MobileApi; onLogout: () => 
                     )}
                   </View>
                   <Pressable
-                    onPress={() => selectEndpoint(showServerEndpoints, endpoint.uri)}
+                    onPress={() => handleSelectEndpoint(showServerEndpoints, endpoint.uri)}
                     style={styles.smallButton}
                   >
                     <Text style={styles.smallButtonText}>Use</Text>
@@ -617,16 +621,6 @@ const styles = StyleSheet.create({
     color: '#bbb',
     fontSize: 13,
     marginBottom: 6,
-  },
-  input: {
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    color: '#fff',
-    fontSize: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
   pickerContainer: {
     flexDirection: 'row',

@@ -7,33 +7,39 @@ import { useNavigation, StackActions } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { LinearGradient } from 'expo-linear-gradient';
-import { MobileApi } from '../api/client';
+import { useFlixor } from '../core/FlixorContext';
+import {
+  fetchPlayerMetadata,
+  fetchMarkers,
+  fetchNextEpisode,
+  getTranscodeStreamUrl,
+  startTranscodeSession,
+  updatePlaybackTimeline,
+  stopTranscodeSession,
+  getPlayerImageUrl,
+  NextEpisodeInfo,
+} from '../core/PlayerData';
 import { Replay10Icon, Forward10Icon } from '../components/icons/SkipIcons';
 import { TopBarStore } from '../components/TopBarStore';
 
+type PlayerParams = {
+  type: 'plex' | 'tmdb';
+  ratingKey?: string;
+  id?: string;
+};
+
 type RouteParams = {
   route?: {
-    params?: {
-      type: 'plex' | 'tmdb';
-      ratingKey?: string;
-      id?: string;
-    };
+    params?: PlayerParams;
   };
 };
 
-type NextEpisode = {
-  ratingKey: string;
-  title: string;
-  thumb?: string;
-  episodeLabel?: string;
-};
-
 export default function Player({ route }: RouteParams) {
-  const params = route?.params || {};
+  const params: Partial<PlayerParams> = route?.params || {};
   const nav = useNavigation();
   const videoRef = useRef<Video>(null);
+  const { isLoading: flixorLoading, isConnected } = useFlixor();
 
-  const [api, setApi] = useState<MobileApi | null>(null);
   const [loading, setLoading] = useState(true);
   const [streamUrl, setStreamUrl] = useState<string>('');
   const [metadata, setMetadata] = useState<any>(null);
@@ -50,12 +56,10 @@ export default function Player({ route }: RouteParams) {
   const [markers, setMarkers] = useState<Array<{ type: string; startTimeOffset: number; endTimeOffset: number }>>([]);
 
   // Next episode for auto-play
-  const [nextEpisode, setNextEpisode] = useState<NextEpisode | null>(null);
+  const [nextEpisode, setNextEpisode] = useState<NextEpisodeInfo | null>(null);
   const [nextEpisodeCountdown, setNextEpisodeCountdown] = useState<number | null>(null);
 
-  // Store Plex server info for timeline updates
-  const [plexBaseUrl, setPlexBaseUrl] = useState<string>('');
-  const [plexToken, setPlexToken] = useState<string>('');
+  // Session ID for transcode management
   const [sessionId, setSessionId] = useState<string>('');
 
   // Track screen dimensions for rotation
@@ -68,17 +72,50 @@ export default function Player({ route }: RouteParams) {
   const controlsTimeout = useRef<NodeJS.Timeout | null>(null);
 
   // Store cleanup info in refs
-  const cleanupInfoRef = useRef({ plexBaseUrl: '', plexToken: '', sessionId: '' });
+  const cleanupInfoRef = useRef({ sessionId: '', ratingKey: '' });
   const isReplacingRef = useRef(false);
 
   // Scrubbing state
   const [isScrubbing, setIsScrubbing] = useState(false);
   // Legacy pan scrub state removed (using Slider now)
 
+  // Define cleanup and playNext callbacks early so they can be used in useEffects
+  const cleanup = useCallback(async () => {
+    const { sessionId: sid } = cleanupInfoRef.current;
+
+    if (sid) {
+      try {
+        await stopTranscodeSession(sid);
+        console.log('[Player] Stopped transcode session:', sid);
+      } catch (e) {
+        console.warn('[Player] Failed to stop transcode:', e);
+      }
+    }
+
+    if (progressInterval.current) clearInterval(progressInterval.current);
+    if (controlsTimeout.current) clearTimeout(controlsTimeout.current);
+    try {
+      await videoRef.current?.stopAsync?.();
+    } catch {}
+  }, []);
+
+  const playNext = useCallback(async () => {
+    if (nextEpisode) {
+      // Cleanup current player before navigating
+      isReplacingRef.current = true;
+      await cleanup();
+      // Replace current route using stack action for compatibility
+      // @ts-ignore - navigation may not expose replace; use dispatch
+      nav.dispatch(StackActions.replace('Player', { type: 'plex', ratingKey: nextEpisode.ratingKey }));
+    }
+  }, [nextEpisode, cleanup, nav]);
+
   useEffect(() => {
     // Hide TopBar and TabBar when Player is shown
     TopBarStore.setVisible(false);
     TopBarStore.setTabBarVisible(false);
+
+    if (flixorLoading || !isConnected) return;
 
     (async () => {
       // Configure audio session
@@ -99,25 +136,24 @@ export default function Player({ route }: RouteParams) {
         console.warn('[Player] Failed to unlock orientation:', e);
       }
 
-      const a = await MobileApi.load();
-      setApi(a);
-
-      if (params.type === 'plex' && params.ratingKey && a) {
+      if (params.type === 'plex' && params.ratingKey) {
         try {
           // Fetch metadata
-          const m = await a.get(`/api/plex/metadata/${encodeURIComponent(params.ratingKey)}`);
+          const m = await fetchPlayerMetadata(params.ratingKey);
           console.log('[Player] Metadata:', m ? { title: m.title, type: m.type } : 'null');
+
+          if (!m) {
+            setError('Could not load media metadata');
+            setLoading(false);
+            return;
+          }
+
           setMetadata(m);
+          cleanupInfoRef.current.ratingKey = params.ratingKey;
 
-          // Fetch markers - use plexBackendDir endpoint
+          // Fetch markers for skip intro/credits
           try {
-            const markersRes = await a.get(`/api/plex/dir/library/metadata/${encodeURIComponent(params.ratingKey)}?includeMarkers=1`);
-            console.log('[Player] Markers raw response:', JSON.stringify(markersRes).substring(0, 200));
-
-            // Check if it's wrapped in MediaContainer
-            const markerData = markersRes?.MediaContainer?.Metadata?.[0] || markersRes;
-            const markersList = markerData?.Marker || [];
-
+            const markersList = await fetchMarkers(params.ratingKey);
             setMarkers(markersList);
             console.log('[Player] Markers found:', markersList.length, markersList.map((mk: any) => `${mk.type}: ${mk.startTimeOffset}-${mk.endTimeOffset}`));
           } catch (e) {
@@ -125,154 +161,46 @@ export default function Player({ route }: RouteParams) {
           }
 
           // Fetch next episode if this is an episode
-          if (m?.type === 'episode') {
+          if (m?.type === 'episode' && m.parentRatingKey) {
             try {
-              // Get season episodes to find next episode
-              const parentRK = m.parentRatingKey;
-              if (parentRK) {
-                const seasonEps = await a.get(`/api/plex/dir/library/metadata/${encodeURIComponent(parentRK)}/children`);
-                const episodes = seasonEps?.Metadata || [];
-                const currentIndex = episodes.findIndex((ep: any) => String(ep.ratingKey) === String(params.ratingKey));
-                if (currentIndex >= 0 && episodes[currentIndex + 1]) {
-                  const nextEp = episodes[currentIndex + 1];
-                  const seasonNum = nextEp.parentIndex || nextEp.parentIndexTag || nextEp.parent?.index;
-                  const epNum = nextEp.index;
-                  const episodeLabel = (seasonNum && epNum) ? `S${seasonNum}:E${epNum}` : undefined;
-                  setNextEpisode({
-                    ratingKey: String(nextEp.ratingKey),
-                    title: nextEp.title || 'Next Episode',
-                    thumb: nextEp.thumb,
-                    episodeLabel,
-                  } as any);
-                  console.log('[Player] Next episode:', nextEp.title);
-                }
+              const nextEp = await fetchNextEpisode(params.ratingKey, String(m.parentRatingKey));
+              if (nextEp) {
+                setNextEpisode(nextEp);
+                console.log('[Player] Next episode:', nextEp.title);
               }
             } catch (e) {
               console.warn('[Player] Failed to fetch next episode:', e);
             }
           }
 
-          // Get Plex server connection details...
-          const serversRes = await a.get('/api/plex/servers');
-          const servers = Array.isArray(serversRes) ? serversRes : [];
-          const activeServer = servers.find((s: any) => s.isActive);
-
-          if (!activeServer) {
-            setError('No active Plex server configured');
-            setLoading(false);
-            return;
-          }
-
-          const connRes = await a.get(`/api/plex/servers/${encodeURIComponent(activeServer.id)}/connections`);
-          const connections = connRes?.connections || [];
-          const selectedConnection = connections.find((c: any) => c.local) || connections[0];
-
-          if (!selectedConnection) {
-            setError('No Plex server connection available');
-            setLoading(false);
-            return;
-          }
-
-          const baseUrl = selectedConnection.uri.replace(/\/$/, '');
-          setPlexBaseUrl(baseUrl);
-          cleanupInfoRef.current.plexBaseUrl = baseUrl;
-
-          const authRes = await a.get('/api/auth/servers');
-          const authServers = Array.isArray(authRes) ? authRes : [];
-          const serverWithToken = authServers.find((s: any) =>
-            s.clientIdentifier === activeServer.id ||
-            s.clientIdentifier === activeServer.machineIdentifier
-          );
-          const token = serverWithToken?.token;
-          setPlexToken(token || '');
-          cleanupInfoRef.current.plexToken = token || '';
-
-          if (!token) {
-            setError('Could not get Plex access token');
-            setLoading(false);
-            return;
-          }
-
+          // Get stream URL
           const media = (m?.Media || [])[0];
           const part = media?.Part?.[0];
 
           if (part?.key) {
-            const sid = Math.random().toString(36).substring(2, 15);
-            setSessionId(sid);
-            cleanupInfoRef.current.sessionId = sid;
+            // Always use HLS transcode for mobile compatibility
+            console.log('[Player] Using HLS transcode');
+            console.log(`[Player] Media: container=${media?.container}, videoCodec=${media?.videoCodec}`);
 
-            // Request streaming decision from Plex
-            const decisionUrl = `${baseUrl}/video/:/transcode/universal/decision`;
-            const decisionParams = new URLSearchParams({
-              'X-Plex-Token': token,
-              'path': `/library/metadata/${params.ratingKey}`,
-              'mediaIndex': '0',
-              'partIndex': '0',
-              'protocol': 'hls',
-              'directPlay': '1',
-              'directStream': '1',
-              'subtitleSize': '100',
-              'audioBoost': '100',
-              'location': 'lan',
-              'session': sid,
-              'X-Plex-Product': 'Flixor Mobile',
-              'X-Plex-Version': '1.0.0',
-              'X-Plex-Client-Identifier': sid,
-              'X-Plex-Platform': 'iOS',
-              'X-Plex-Platform-Version': '17.0',
-              'X-Plex-Device': 'iPhone',
-              'X-Plex-Device-Name': 'Mobile'
+            const { startUrl, sessionUrl, sessionId: sid } = getTranscodeStreamUrl(params.ratingKey, {
+              maxVideoBitrate: 20000,
+              videoResolution: '1920x1080',
+              protocol: 'hls',
             });
 
+            // Start the transcode session first
+            console.log('[Player] Starting transcode session...');
             try {
-              const decisionRes = await fetch(`${decisionUrl}?${decisionParams.toString()}`);
-              const decisionData = await decisionRes.text();
-
-              const canDirectPlay = decisionData.includes('directPlayDecisionCode="1000"');
-
-              if (canDirectPlay) {
-                const directUrl = `${baseUrl}${part.key}?X-Plex-Token=${token}`;
-                setStreamUrl(directUrl);
-              } else {
-                // Transcode - start session
-                const transcodeParams = new URLSearchParams({
-                  'hasMDE': '1',
-                  'path': `/library/metadata/${params.ratingKey}`,
-                  'mediaIndex': '0',
-                  'partIndex': '0',
-                  'protocol': 'hls',
-                  'fastSeek': '1',
-                  'directPlay': '0',
-                  'directStream': '0',
-                  'directStreamAudio': '0',
-                  'subtitleSize': '100',
-                  'audioBoost': '100',
-                  'location': 'lan',
-                  'addDebugOverlay': '0',
-                  'autoAdjustQuality': '0',
-                  'mediaBufferSize': '102400',
-                  'session': sid,
-                  'videoQuality': '100',
-                  'videoResolution': '1920x1080',
-                  'maxVideoBitrate': '20000',
-                  'copyts': '1',
-                  'X-Plex-Platform': 'iOS',
-                  'X-Plex-Client-Identifier': sid,
-                  'X-Plex-Product': 'Flixor Mobile',
-                  'X-Plex-Device': 'iPhone',
-                  'X-Plex-Token': token
-                });
-
-                const startUrl = `${baseUrl}/video/:/transcode/universal/start.m3u8?${transcodeParams.toString()}`;
-                await fetch(startUrl);
-                const hlsUrl = `${baseUrl}/video/:/transcode/universal/session/${sid}/base/index.m3u8?X-Plex-Token=${token}`;
-                setStreamUrl(hlsUrl);
-              }
-            } catch (err) {
-              console.error('[Player] Decision failed:', err);
-              const hlsUrl = `${baseUrl}/video/:/transcode/universal/start.m3u8?${decisionParams.toString()}`;
-              setStreamUrl(hlsUrl);
+              await startTranscodeSession(startUrl);
+              console.log('[Player] Transcode session started, using session URL');
+              setStreamUrl(sessionUrl);
+            } catch (e) {
+              console.log('[Player] Failed to start session, falling back to start URL');
+              setStreamUrl(startUrl);
             }
+
+            setSessionId(sid);
+            cleanupInfoRef.current.sessionId = sid;
 
             // Set resume position
             if (m?.viewOffset) {
@@ -306,12 +234,11 @@ export default function Player({ route }: RouteParams) {
 
       // Cleanup
       (async () => {
-        const { plexBaseUrl: baseUrl, plexToken: token, sessionId: sid } = cleanupInfoRef.current;
+        const { sessionId: sid } = cleanupInfoRef.current;
 
-        if (baseUrl && token && sid) {
+        if (sid) {
           try {
-            const stopUrl = `${baseUrl}/video/:/transcode/universal/stop?session=${sid}&X-Plex-Token=${token}`;
-            await fetch(stopUrl);
+            await stopTranscodeSession(sid);
             console.log('[Player] Stopped transcode session:', sid);
           } catch (e) {
             console.warn('[Player] Failed to stop transcode:', e);
@@ -338,29 +265,21 @@ export default function Player({ route }: RouteParams) {
       if (progressInterval.current) clearInterval(progressInterval.current);
       if (controlsTimeout.current) clearTimeout(controlsTimeout.current);
     };
-  }, []);
+  }, [flixorLoading, isConnected]);
 
   // Update progress to Plex
   useEffect(() => {
-    if (!plexBaseUrl || !plexToken || !params.ratingKey) return;
+    if (!params.ratingKey || !isConnected) return;
 
     const updateProgress = async () => {
       if (position > 0 && duration > 0) {
         try {
-          const timelineParams = new URLSearchParams({
-            'ratingKey': String(params.ratingKey),
-            'key': `/library/metadata/${params.ratingKey}`,
-            'state': isPlaying ? 'playing' : 'paused',
-            'time': String(Math.floor(position)),
-            'duration': String(Math.floor(duration)),
-            'X-Plex-Token': plexToken,
-            'X-Plex-Client-Identifier': sessionId || 'flixor-mobile',
-            'X-Plex-Product': 'Flixor Mobile',
-            'X-Plex-Device': 'iPhone'
-          });
-
-          const url = `${plexBaseUrl}/:/timeline?${timelineParams.toString()}`;
-          await fetch(url);
+          await updatePlaybackTimeline(
+            String(params.ratingKey),
+            isPlaying ? 'playing' : 'paused',
+            Math.floor(position),
+            Math.floor(duration)
+          );
         } catch (e) {
           console.error('[Player] Progress update failed:', e);
         }
@@ -373,35 +292,24 @@ export default function Player({ route }: RouteParams) {
     return () => {
       if (progressInterval.current) clearInterval(progressInterval.current);
     };
-  }, [plexBaseUrl, plexToken, sessionId, params.ratingKey, position, duration, isPlaying]);
+  }, [params.ratingKey, position, duration, isPlaying, isConnected]);
 
   // Cleanup on navigation
   useEffect(() => {
     const cleanup = async () => {
-      const { plexBaseUrl: baseUrl, plexToken: token, sessionId: sid } = cleanupInfoRef.current;
+      const { sessionId: sid, ratingKey: rk } = cleanupInfoRef.current;
 
-      if (!baseUrl || !token) return;
-
-      if (params.ratingKey) {
+      // Send stopped timeline update
+      if (rk) {
         try {
-          const timelineParams = new URLSearchParams({
-            'ratingKey': String(params.ratingKey),
-            'key': `/library/metadata/${params.ratingKey}`,
-            'state': 'stopped',
-            'time': '0',
-            'duration': '0',
-            'X-Plex-Token': token,
-            'X-Plex-Client-Identifier': sid || 'flixor-mobile',
-            'X-Plex-Product': 'Flixor Mobile',
-            'X-Plex-Device': 'iPhone'
-          });
-          await fetch(`${baseUrl}/:/timeline?${timelineParams.toString()}`);
+          await updatePlaybackTimeline(rk, 'stopped', 0, 0);
         } catch (e) {}
       }
 
+      // Stop transcode session
       if (sid) {
         try {
-          await fetch(`${baseUrl}/video/:/transcode/universal/stop?session=${sid}&X-Plex-Token=${token}`);
+          await stopTranscodeSession(sid);
         } catch (e) {}
       }
     };
@@ -536,37 +444,6 @@ export default function Player({ route }: RouteParams) {
     await videoRef.current.playAsync();
   };
 
-  const cleanup = useCallback(async () => {
-    const { plexBaseUrl: baseUrl, plexToken: token, sessionId: sid } = cleanupInfoRef.current;
-
-    if (baseUrl && token && sid) {
-      try {
-        const stopUrl = `${baseUrl}/video/:/transcode/universal/stop?session=${sid}&X-Plex-Token=${token}`;
-        await fetch(stopUrl);
-        console.log('[Player] Stopped transcode session:', sid);
-      } catch (e) {
-        console.warn('[Player] Failed to stop transcode:', e);
-      }
-    }
-
-    if (progressInterval.current) clearInterval(progressInterval.current);
-    if (controlsTimeout.current) clearTimeout(controlsTimeout.current);
-    try {
-      await videoRef.current?.stopAsync?.();
-    } catch {}
-  }, []);
-
-  const playNext = useCallback(async () => {
-    if (nextEpisode) {
-      // Cleanup current player before navigating
-      isReplacingRef.current = true;
-      await cleanup();
-      // Replace current route using stack action for compatibility
-      // @ts-ignore - navigation may not expose replace; use dispatch
-      nav.dispatch(StackActions.replace('Player', { type: 'plex', ratingKey: nextEpisode.ratingKey }));
-    }
-  }, [nextEpisode, cleanup, nav]);
-
   const currentMarker = markers.find(m =>
     position >= m.startTimeOffset && position <= m.endTimeOffset
   );
@@ -612,7 +489,7 @@ export default function Player({ route }: RouteParams) {
       {streamUrl ? (
         <Video
           ref={videoRef}
-          source={{ uri: streamUrl, headers: api?.token ? { Authorization: `Bearer ${api.token}` } : undefined }}
+          source={{ uri: streamUrl }}
           style={{ width: dimensions.width, height: dimensions.height }}
           resizeMode={ResizeMode.CONTAIN}
           shouldPlay={true}
@@ -754,12 +631,9 @@ export default function Player({ route }: RouteParams) {
                 activeOpacity={0.7}
               >
                 <View style={styles.nextEpisodeThumbnail}>
-                  {nextEpisode.thumb && api ? (
+                  {nextEpisode.thumb ? (
                     <ExpoImage
-                      source={{
-                        uri: `${api.baseUrl}/api/image/plex?path=${encodeURIComponent(nextEpisode.thumb)}&w=300&h=169&f=webp`,
-                        headers: api.token ? { Authorization: `Bearer ${api.token}` } : undefined,
-                      }}
+                      source={{ uri: getPlayerImageUrl(nextEpisode.thumb, 300) }}
                       style={{ width: '100%', height: '100%', borderRadius: 4 }}
                       contentFit="cover"
                     />
