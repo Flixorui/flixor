@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import FlixorKit
 
 enum NavItem: String, CaseIterable, Identifiable {
     case home = "Home"
@@ -68,27 +69,41 @@ final class NavigationRouter: ObservableObject {
 
 struct RootView: View {
     @EnvironmentObject var sessionManager: SessionManager
-    @AppStorage("backendConfigured") private var isBackendConfigured = false
+    @EnvironmentObject var flixorCore: FlixorCore
     @StateObject private var watchlistController = WatchlistController()
+    @State private var isInitializing = true
 
     var body: some View {
         Group {
-            if sessionManager.isAuthenticated {
+            if isInitializing {
+                // Loading state while FlixorCore initializes
+                VStack {
+                    ProgressView()
+                        .scaleEffect(1.5)
+                    Text("Loading...")
+                        .foregroundColor(.secondary)
+                        .padding(.top, 8)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color.black)
+            } else if flixorCore.isPlexAuthenticated && flixorCore.isPlexServerConnected {
                 MainView()
                     .transition(.opacity)
-            } else if !isBackendConfigured {
-                NavigationStack {
-                    BackendConfigView()
-                }
-                .transition(.opacity)
             } else {
                 PlexAuthView()
                     .transition(.opacity)
             }
         }
-        .animation(.easeInOut(duration: 0.3), value: sessionManager.isAuthenticated)
-        .animation(.easeInOut(duration: 0.3), value: isBackendConfigured)
+        .animation(.easeInOut(duration: 0.3), value: flixorCore.isPlexAuthenticated)
+        .animation(.easeInOut(duration: 0.3), value: flixorCore.isPlexServerConnected)
         .environmentObject(watchlistController)
+        .task {
+            // Wait for FlixorCore to initialize
+            _ = await FlixorCore.shared.initialize()
+            // Sync SessionManager with FlixorCore
+            sessionManager.updateFromFlixorCore()
+            isInitializing = false
+        }
     }
 }
 
@@ -178,10 +193,11 @@ struct MainView: View {
                         Text(sessionManager.currentUser?.username.uppercased() ?? "U")
                             .font(.headline)
                             .foregroundStyle(.white)
-                    }.padding(.horizontal, 10)
+                    }.padding(.horizontal, 20)
                 }
                 .menuStyle(.borderlessButton)
                 .menuIndicator(.hidden)
+                .padding(.horizontal, 15)
             }
         }
         .toolbarBackground(.visible, for: .windowToolbar)

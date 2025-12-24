@@ -122,7 +122,7 @@ final class MyListViewModel: ObservableObject {
 
     // MARK: - Trakt Types
     private struct TraktWatchlistEntry: Codable {
-        let listedAt: Date?
+        let listedAt: String?  // ISO 8601 date string from Trakt API
         let movie: TraktMovie?
         let show: TraktShow?
 
@@ -378,7 +378,7 @@ final class MyListViewModel: ObservableObject {
         return results
     }
 
-    private func createTraktItem(movie: TraktMovie, listedAt: Date?, mediaType: MediaType) async throws -> WatchlistItem? {
+    private func createTraktItem(movie: TraktMovie, listedAt: String?, mediaType: MediaType) async throws -> WatchlistItem? {
         guard let title = movie.title else { return nil }
         let tmdbId = movie.ids?.tmdb.map { String($0) }
         let imdbId = movie.ids?.imdb
@@ -395,6 +395,9 @@ final class MyListViewModel: ObservableObject {
             canonicalId = UUID().uuidString
         }
 
+        // Parse ISO 8601 date string
+        let dateAdded = listedAt.flatMap { ISO8601DateFormatter().date(from: $0) }
+
         let posterURL = try await tmdbPoster(for: mediaType, tmdbId: tmdbId)
 
         return WatchlistItem(
@@ -407,7 +410,7 @@ final class MyListViewModel: ObservableObject {
                 ratingText: movie.rating.map { "⭐️ \(String(format: "%.1f", $0))" },
                 mediaType: mediaType,
                 source: .trakt,
-                dateAdded: listedAt,
+                dateAdded: dateAdded,
             runtimeMinutes: movie.runtime,
             genres: movie.genres ?? [],
             plexRatingKey: nil,
@@ -417,7 +420,7 @@ final class MyListViewModel: ObservableObject {
         )
     }
 
-    private func createTraktItem(show: TraktShow, listedAt: Date?, mediaType: MediaType) async throws -> WatchlistItem? {
+    private func createTraktItem(show: TraktShow, listedAt: String?, mediaType: MediaType) async throws -> WatchlistItem? {
         guard let title = show.title else { return nil }
         let tmdbId = show.ids?.tmdb.map { String($0) }
         let imdbId = show.ids?.imdb
@@ -434,6 +437,9 @@ final class MyListViewModel: ObservableObject {
             canonicalId = UUID().uuidString
         }
 
+        // Parse ISO 8601 date string
+        let dateAdded = listedAt.flatMap { ISO8601DateFormatter().date(from: $0) }
+
         let posterURL = try await tmdbPoster(for: mediaType, tmdbId: tmdbId)
 
         return WatchlistItem(
@@ -446,7 +452,7 @@ final class MyListViewModel: ObservableObject {
                 ratingText: show.rating.map { "⭐️ \(String(format: "%.1f", $0))" },
                 mediaType: mediaType,
                 source: .trakt,
-                dateAdded: listedAt,
+                dateAdded: dateAdded,
             runtimeMinutes: show.runtime,
             genres: show.genres ?? [],
             plexRatingKey: nil,

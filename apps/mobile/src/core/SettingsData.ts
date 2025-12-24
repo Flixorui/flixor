@@ -3,6 +3,7 @@
  * Replaces the old api/client.ts functions for My/Settings screen
  */
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getFlixorCore } from './index';
 
 // ============================================
@@ -263,18 +264,52 @@ export async function selectServerEndpoint(serverId: string, uri: string): Promi
 // Settings State (stored locally since standalone)
 // ============================================
 
+const SETTINGS_KEY = 'flixor_app_settings';
+
 export interface AppSettings {
   watchlistProvider: 'trakt' | 'plex';
+  tmdbApiKey?: string; // Custom TMDB API key override
 }
 
 let cachedSettings: AppSettings = {
   watchlistProvider: 'trakt',
 };
 
+let settingsLoaded = false;
+
+export async function loadAppSettings(): Promise<AppSettings> {
+  try {
+    const stored = await AsyncStorage.getItem(SETTINGS_KEY);
+    if (stored) {
+      cachedSettings = { ...cachedSettings, ...JSON.parse(stored) };
+    }
+    settingsLoaded = true;
+  } catch (e) {
+    console.log('[SettingsData] loadAppSettings error:', e);
+  }
+  return { ...cachedSettings };
+}
+
 export function getAppSettings(): AppSettings {
   return { ...cachedSettings };
 }
 
-export function setAppSettings(settings: Partial<AppSettings>): void {
+export async function setAppSettings(settings: Partial<AppSettings>): Promise<void> {
   cachedSettings = { ...cachedSettings, ...settings };
+  try {
+    await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(cachedSettings));
+  } catch (e) {
+    console.log('[SettingsData] setAppSettings error:', e);
+  }
+}
+
+export async function getTmdbApiKey(): Promise<string | undefined> {
+  if (!settingsLoaded) {
+    await loadAppSettings();
+  }
+  return cachedSettings.tmdbApiKey;
+}
+
+export async function setTmdbApiKey(apiKey: string | undefined): Promise<void> {
+  await setAppSettings({ tmdbApiKey: apiKey });
 }

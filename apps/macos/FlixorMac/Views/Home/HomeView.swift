@@ -41,24 +41,29 @@ struct HomeView: View {
                             // Spacing below hero
                             Color.clear.frame(height: 24)
 
-                            // Content sections (mirror web order)
+                            // Content sections with modular skeleton loading
                             VStack(spacing: 40) {
-                                if viewModel.isLoading {
-                                    // Continue Watching (landscape)
-                                    SkeletonCarouselRow(itemWidth: 420, itemCount: 4, cardType: .landscape)
-                                // Popular on Plex (landscape)
-                                SkeletonCarouselRow(itemWidth: 420, itemCount: 8, cardType: .landscape)
-                                // Trending Now (landscape)
-                                SkeletonCarouselRow(itemWidth: 420, itemCount: 8, cardType: .landscape)
-                                } else {
-                                    // Continue Watching (second in order per web)
-                                    if !viewModel.continueWatchingItems.isEmpty {
+                                // Continue Watching - shows skeleton until loaded
+                                SectionContainer(
+                                    state: viewModel.continueWatchingState,
+                                    content: {
                                         ContinueWatchingSection(viewModel: viewModel, onTap: { item in
                                             viewModel.showItemDetails(item)
                                         })
+                                    },
+                                    skeleton: {
+                                        SkeletonCarouselRow(itemWidth: 420, itemCount: 4, cardType: .landscape)
                                     }
+                                )
 
-                                    // Extra sections (Popular on Plex, Trending Now, Watchlist, Genres, Trakt)
+                                // Extra sections (Popular on Plex, Trending Now, Watchlist, Genres, Trakt)
+                                // Show skeleton placeholders while loading, then fade in actual content
+                                if viewModel.extraSectionsState.isLoading {
+                                    // Show expected number of skeleton rows
+                                    ForEach(0..<viewModel.expectedExtraSectionCount, id: \.self) { _ in
+                                        SkeletonCarouselRow(itemWidth: 420, itemCount: 6, cardType: .landscape)
+                                    }
+                                } else {
                                     ForEach(viewModel.extraSections) { section in
                                         LandscapeSectionView(
                                             section: section,
@@ -69,12 +74,12 @@ struct HomeView: View {
                                                 presentBrowse(context)
                                             }
                                         )
+                                        .transition(.opacity)
                                     }
-
-                                    // Keep legacy rows out of this exact web-matching Home for now
                                 }
                             }
                             .padding(.vertical, 40)
+                            .animation(.easeInOut(duration: 0.3), value: viewModel.extraSectionsState)
                         }
                     }
                 }

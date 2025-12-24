@@ -7,6 +7,10 @@
 
 import Foundation
 
+// Local types for Trakt API responses (used with backend)
+private struct TraktIDs: Codable { let tmdb: Int?; let trakt: Int?; let imdb: String?; let tvdb: Int? }
+private struct TraktMedia: Codable { let title: String?; let year: Int?; let ids: TraktIDs }
+
 @MainActor
 class BrowseModalViewModel: ObservableObject {
     enum ViewState: Equatable {

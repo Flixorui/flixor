@@ -379,16 +379,28 @@ export default function Details({ route }: RouteParams) {
               }
             }
           }}
-          style={{ marginHorizontal:16, marginTop:12, backgroundColor:'#fff', paddingVertical:12, borderRadius:12, alignItems:'center' }}
+          style={{
+            marginHorizontal:16,
+            marginTop:12,
+            backgroundColor: matchedPlex ? '#fff' : '#333',
+            paddingVertical:12,
+            borderRadius:12,
+            alignItems:'center'
+          }}
         >
-          <Text style={{ color:'#000', fontWeight:'900', letterSpacing:2 }}>▶  PLAY</Text>
+          {matchedPlex ? (
+            <Text style={{ color:'#000', fontWeight:'900', letterSpacing:2 }}>▶  PLAY</Text>
+          ) : (
+            <Text style={{ color:'#888', fontWeight:'700', fontSize:13, textAlign:'center' }}>
+              You don't own this content{'\n'}No local source found
+            </Text>
+          )}
         </Pressable>
 
         {/* Actions */}
         <View style={{ flexDirection:'row', justifyContent:'space-around', marginTop:14 }}>
           <ActionIcon icon="play-circle-outline" label="TRAILER" />
           <ActionIcon icon="add" label="WATCHLIST" />
-          <ActionIcon icon="download-outline" label="DOWNLOAD" />
         </View>
 
         {/* Synopsis */}
@@ -588,10 +600,10 @@ function SuggestedRows({ meta, routeParams }: { meta: any; routeParams?: any }) 
     if (!it?.id) return;
     if (it.id.startsWith('plex:')) {
       const rk = it.id.split(':')[1];
-      nav.navigate('Details', { type:'plex', ratingKey: rk });
+      nav.push('Details', { type:'plex', ratingKey: rk });
     } else if (it.id.startsWith('tmdb:')) {
       const [, media, id] = it.id.split(':');
-      nav.navigate('Details', { type:'tmdb', mediaType: media === 'movie' ? 'movie' : 'tv', id });
+      nav.push('Details', { type:'tmdb', mediaType: media === 'movie' ? 'movie' : 'tv', id });
     }
   };
 

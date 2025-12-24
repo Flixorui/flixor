@@ -110,17 +110,24 @@ struct TraktAnticipatedItem: Codable {
     let show: TraktShow?
 }
 
-// Note: TraktIDs already defined in HomeViewModel.swift
+// Trakt types for API responses
+struct NewPopularTraktIDs: Codable {
+    let tmdb: Int?
+    let trakt: Int?
+    let imdb: String?
+    let tvdb: Int?
+}
+
 struct TraktMovie: Codable {
     let title: String
     let year: Int?
-    let ids: TraktIDs
+    let ids: NewPopularTraktIDs
 }
 
 struct TraktShow: Codable {
     let title: String
     let year: Int?
-    let ids: TraktIDs
+    let ids: NewPopularTraktIDs
 }
 
 // MARK: - Hero Data

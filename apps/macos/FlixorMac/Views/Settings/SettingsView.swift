@@ -164,6 +164,7 @@ struct TraktSettingsView: View {
     @AppStorage("traktAutoSyncWatched") private var autoSyncWatched: Bool = true
     @AppStorage("traktSyncRatings") private var syncRatings: Bool = true
     @AppStorage("traktSyncWatchlist") private var syncWatchlist: Bool = true
+    @AppStorage("traktScrobbleEnabled") private var scrobbleEnabled: Bool = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -298,7 +299,15 @@ struct TraktSettingsView: View {
             Toggle("Sync ratings", isOn: $syncRatings)
             Toggle("Sync watchlist", isOn: $syncWatchlist)
 
-            Text("Preferences are stored locally and respected by playback and library flows that interact with Trakt.")
+            Divider()
+                .padding(.vertical, 4)
+
+            Text("Scrobbling")
+                .font(.headline)
+
+            Toggle("Enable scrobbling", isOn: $scrobbleEnabled)
+
+            Text("When enabled, Flixor will automatically report what you're watching to Trakt in real-time. If you watch more than 80% of a movie or episode, it will be marked as watched.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

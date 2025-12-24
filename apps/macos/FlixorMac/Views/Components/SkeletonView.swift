@@ -176,6 +176,56 @@ struct LoadingView: View {
     }
 }
 
+// MARK: - Section Container (Modular Skeleton Support)
+
+/// A container that shows skeleton while loading and smoothly transitions to content
+/// Uses fixed height to prevent layout shift/jutter during loading
+struct SectionContainer<Content: View, Skeleton: View>: View {
+    let state: SectionLoadState
+    let expectedHeight: CGFloat?
+    @ViewBuilder let content: () -> Content
+    @ViewBuilder let skeleton: () -> Skeleton
+
+    init(
+        state: SectionLoadState,
+        expectedHeight: CGFloat? = nil,
+        @ViewBuilder content: @escaping () -> Content,
+        @ViewBuilder skeleton: @escaping () -> Skeleton
+    ) {
+        self.state = state
+        self.expectedHeight = expectedHeight
+        self.content = content
+        self.skeleton = skeleton
+    }
+
+    var body: some View {
+        Group {
+            switch state {
+            case .idle, .loading:
+                skeleton()
+            case .loaded:
+                content()
+                    .transition(.opacity)
+            case .empty:
+                EmptyView()
+            case .error:
+                // Could show error state, but for rows we just hide
+                EmptyView()
+            }
+        }
+        .frame(height: expectedHeight)
+        .animation(.easeInOut(duration: 0.3), value: state)
+    }
+}
+
+// MARK: - Row Heights Constants
+
+enum RowHeights {
+    static let landscape: CGFloat = (420 * 0.5625) + 56 + 40 // card + title + padding
+    static let poster: CGFloat = (150 * 1.5) + 56 + 40 // card + title + padding
+    static let hero: CGFloat = 600
+}
+
 #if DEBUG && canImport(PreviewsMacros)
 #Preview("Skeleton Poster") {
     HStack(spacing: 12) {

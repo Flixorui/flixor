@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import FlixorKit
 
 struct LandscapeCard: View {
     let item: MediaItem
@@ -156,15 +157,9 @@ struct LandscapeCard: View {
     }
 
     private func fetchTMDBBackdropForPlexItem(ratingKey: String, width: Int, height: Int) async throws -> URL? {
-        let api = APIClient.shared
-        struct PlexMeta: Codable {
-            let type: String?
-            let Guid: [PlexGuid]?
-            let parentRatingKey: String? // For seasons, get parent show
-        }
-        struct PlexGuid: Codable { let id: String? }
+        guard let plexServer = FlixorCore.shared.plexServer else { return nil }
 
-        let meta: PlexMeta = try await api.get("/api/plex/metadata/\(ratingKey)")
+        let meta = try await plexServer.getMetadata(ratingKey: ratingKey)
 
         // For seasons, fetch the parent show's backdrop instead
         if meta.type == "season", let parentKey = meta.parentRatingKey {
@@ -174,32 +169,35 @@ struct LandscapeCard: View {
 
         let mediaType = (meta.type == "movie") ? "movie" : "tv"
 
-        if let guid = meta.Guid?.compactMap({ $0.id }).first(where: { $0.contains("tmdb://") || $0.contains("themoviedb://") }),
-           let tid = guid.components(separatedBy: "://").last {
-            return try await fetchTMDBBestBackdropURL(mediaType: mediaType, id: tid, width: width, height: height)
+        // Extract TMDB ID from Guid array
+        if let tmdbGuid = meta.guids.first(where: { $0.contains("tmdb://") || $0.contains("themoviedb://") }),
+           let tmdbId = tmdbGuid.components(separatedBy: "://").last {
+            return try await fetchTMDBBestBackdropURL(mediaType: mediaType, id: tmdbId, width: width, height: height)
         }
         return nil
     }
 
     private func fetchTMDBBestBackdropURL(mediaType: String, id: String, width: Int, height: Int) async throws -> URL? {
-        struct TMDBImages: Codable { let backdrops: [TMDBImage]? }
-        struct TMDBImage: Codable { let file_path: String?; let iso_639_1: String?; let vote_average: Double? }
-        let api = APIClient.shared
-        let imgs: TMDBImages = try await api.get("/api/tmdb/\(mediaType)/\(id)/images", queryItems: [URLQueryItem(name: "language", value: "en,hi,null")])
-        let backs = imgs.backdrops ?? []
+        guard let tmdbId = Int(id) else { return nil }
+
+        let imgs = try await FlixorCore.shared.tmdb.getImages(mediaType: mediaType, id: tmdbId)
+        let backs = imgs.backdrops
         if backs.isEmpty { return nil }
-        let pick: ([TMDBImage]) -> TMDBImage? = { arr in
-            return arr.sorted { ($0.vote_average ?? 0) > ($1.vote_average ?? 0) }.first
+
+        let pick: ([FlixorKit.TMDBImage]) -> FlixorKit.TMDBImage? = { arr in
+            return arr.sorted { ($0.voteAverage ?? 0) > ($1.voteAverage ?? 0) }.first
         }
+
         // Priority: en/hi with titles > null (no text) > any other language
-        let en = pick(backs.filter { $0.iso_639_1 == "en" })
-        let hi = pick(backs.filter { $0.iso_639_1 == "hi" })
-        let nul = pick(backs.filter { $0.iso_639_1 == nil })
+        let en = pick(backs.filter { $0.iso6391 == "en" })
+        let hi = pick(backs.filter { $0.iso6391 == "hi" })
+        let nul = pick(backs.filter { $0.iso6391 == nil })
         let any = pick(backs)
         let sel = en ?? hi ?? nul ?? any
-        guard let path = sel?.file_path else { return nil }
+
+        guard let path = sel?.filePath else { return nil }
         let full = "https://image.tmdb.org/t/p/original\(path)"
-        return ImageService.shared.proxyImageURL(url: full, width: width, height: height)
+        return URL(string: full)
     }
 }
 #if DEBUG && canImport(PreviewsMacros)

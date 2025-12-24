@@ -7,9 +7,13 @@
 
 import Foundation
 import SwiftUI
+import FlixorKit
 
 @MainActor
 class DetailsViewModel: ObservableObject {
+    // API Client
+    private let api = APIClient.shared
+
     // Core
     @Published var isLoading = false
     @Published var error: String?
@@ -71,7 +75,6 @@ class DetailsViewModel: ObservableObject {
     @Published var episodeCount: Int?               // Total episodes
     @Published var watchedCount: Int?               // Watched episodes
 
-    private let api = APIClient.shared
     private var lastFetchedRatingsKey: String?
 
     struct ExternalRatings {
@@ -85,7 +88,7 @@ class DetailsViewModel: ObservableObject {
     struct PlexRole: Codable { let tag: String?; let thumb: String? }
     struct PlexGuid: Codable { let id: String? }
     struct PlexMedia: Codable {
-        let id: Int?
+        let id: String?  // Can be Int or String from different Plex APIs
         let width: Int?
         let height: Int?
         let duration: Int?
@@ -98,13 +101,13 @@ class DetailsViewModel: ObservableObject {
         let Part: [PlexPart]?
     }
     struct PlexPart: Codable {
-        let id: Int?
+        let id: String?  // Can be Int or String from different Plex APIs
         let size: Int?
         let key: String?
         let Stream: [PlexStream]?
     }
     struct PlexStream: Codable {
-        let id: Int?
+        let id: String?  // Can be Int or String from different Plex APIs
         let streamType: Int?
         let displayTitle: String?
         let language: String?
@@ -194,7 +197,11 @@ class DetailsViewModel: ObservableObject {
                 plexRatingKey = rk
                 do {
                     print("📦 [Details] Fetching Plex metadata for ratingKey: \(rk)")
-                    let meta: PlexMeta = try await api.get("/api/plex/metadata/\(rk)")
+                    guard let plexServer = FlixorCore.shared.plexServer else {
+                        throw NSError(domain: "DetailsVM", code: -1, userInfo: [NSLocalizedDescriptionKey: "No Plex server connected"])
+                    }
+                    let plexItem = try await plexServer.getMetadata(ratingKey: rk)
+                    let meta = plexItemToMeta(plexItem)
 
                     // Check if type is season
                     if meta.type == "season" {
@@ -714,7 +721,7 @@ class DetailsViewModel: ObservableObject {
         print("🎞️ [hydrateVersions] Processing \(media.count) media item(s)")
         var vds: [VersionDetail] = []
         for (idx, mm) in media.enumerated() {
-            let id = String(mm.id ?? idx)
+            let id = mm.id ?? String(idx)
             let width = mm.width ?? 0
             let height = mm.height ?? 0
             let resoLabel: String? = {
@@ -731,11 +738,11 @@ class DetailsViewModel: ObservableObject {
             let streams = part?.Stream ?? []
             let audio = streams.enumerated().filter { $0.element.streamType == 2 }.map { offset, stream -> Track in
                 let name = stream.displayTitle ?? stream.languageTag ?? stream.language ?? "Audio \(offset + 1)"
-                return Track(id: String(stream.id ?? offset), name: name, language: stream.languageTag ?? stream.language)
+                return Track(id: stream.id ?? String(offset), name: name, language: stream.languageTag ?? stream.language)
             }
             let subs = streams.enumerated().filter { $0.element.streamType == 3 }.map { offset, stream -> Track in
                 let name = stream.displayTitle ?? stream.languageTag ?? stream.language ?? "Sub \(offset + 1)"
-                return Track(id: String(stream.id ?? offset), name: name, language: stream.languageTag ?? stream.language)
+                return Track(id: stream.id ?? String(offset), name: name, language: stream.languageTag ?? stream.language)
             }
             let sizeMB = part?.size.map { Double($0) / (1024.0 * 1024.0) }
             let tech = VersionDetail.TechnicalInfo(
@@ -1090,5 +1097,60 @@ class DetailsViewModel: ObservableObject {
         var seen = Set<String>()
         let out = tags.filter { seen.insert($0).inserted }
         return Array(out.prefix(4))
+    }
+
+    // MARK: - FlixorKit Helpers
+
+    private func plexItemToMeta(_ item: FlixorKit.PlexMediaItem) -> PlexMeta {
+        return PlexMeta(
+            ratingKey: item.ratingKey,
+            type: item.type,
+            title: item.title,
+            summary: item.summary,
+            year: item.year,
+            contentRating: item.contentRating,
+            duration: item.duration,
+            thumb: item.thumb,
+            art: item.art,
+            Guid: item.guids.map { PlexGuid(id: $0) },
+            Genre: item.genres.map { PlexTag(tag: $0.tag) },
+            Role: item.roles.map { PlexRole(tag: $0.tag, thumb: $0.thumb) },
+            Media: item.media.map { m in
+                PlexMedia(
+                    id: m.id,
+                    width: m.width,
+                    height: m.height,
+                    duration: m.duration,
+                    bitrate: m.bitrate,
+                    videoCodec: m.videoCodec,
+                    videoProfile: m.videoProfile,
+                    audioChannels: m.audioChannels,
+                    audioCodec: m.audioCodec,
+                    audioProfile: m.audioProfile,
+                    Part: m.parts.map { p in
+                        PlexPart(
+                            id: p.id,
+                            size: p.size,
+                            key: p.key,
+                            Stream: (p.Stream ?? []).map { s in
+                                PlexStream(
+                                    id: s.id,
+                                    streamType: s.streamType,
+                                    displayTitle: s.displayTitle,
+                                    language: s.language,
+                                    languageTag: s.languageTag
+                                )
+                            }
+                        )
+                    }
+                )
+            },
+            parentRatingKey: item.parentRatingKey,
+            parentTitle: item.parentTitle,
+            index: item.index,
+            leafCount: item.leafCount,
+            viewedLeafCount: item.viewedLeafCount,
+            key: item.key
+        )
     }
 }
