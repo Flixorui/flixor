@@ -7,23 +7,39 @@
 //
 
 import SwiftUI
+import FlixorKit
 
 @main
 struct FlixorMacApp: App {
     @StateObject private var sessionManager = SessionManager.shared
     @StateObject private var apiClient = APIClient.shared
 
+    init() {
+        // Configure FlixorCore
+        let clientId = getOrCreateClientId()
+
+        FlixorCore.shared.configure(
+            clientId: clientId,
+            tmdbApiKey: APIKeys.tmdbApiKey,
+            traktClientId: APIKeys.traktClientId,
+            traktClientSecret: APIKeys.traktClientSecret,
+            productName: "Flixor",
+            productVersion: Bundle.main.appVersion,
+            platform: "macOS",
+            deviceName: Host.current().localizedName ?? "Flixor Mac"
+        )
+    }
+
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environmentObject(sessionManager)
                 .environmentObject(apiClient)
+                .environmentObject(FlixorCore.shared)
                 .frame(minWidth: 1024, minHeight: 768)
-                .onAppear {
-                    // Auto-login if credentials exist
-                    Task {
-                        await sessionManager.restoreSession()
-                    }
+                .task {
+                    // Initialize FlixorCore (restore sessions)
+                    _ = await FlixorCore.shared.initialize()
                 }
         }
         .windowStyle(.hiddenTitleBar)
@@ -37,8 +53,35 @@ struct FlixorMacApp: App {
             SettingsView()
                 .environmentObject(sessionManager)
                 .environmentObject(apiClient)
+                .environmentObject(FlixorCore.shared)
         }
         #endif
+    }
+
+    private func getOrCreateClientId() -> String {
+        let key = "flixor_client_id"
+        if let existing = UserDefaults.standard.string(forKey: key) {
+            return existing
+        }
+        let newId = UUID().uuidString
+        UserDefaults.standard.set(newId, forKey: key)
+        return newId
+    }
+}
+
+// MARK: - API Keys Configuration
+enum APIKeys {
+    // TMDB API Key
+    static let tmdbApiKey = "db55323b8d3e4154498498a75642b381"
+
+    // Trakt Client ID & Secret
+    static let traktClientId = "4ab0ead6d5510bf39180a5e1dd7b452f5ad700b7794564befdd6bca56e0f7ce4"
+    static let traktClientSecret = "64d24f12e4628dcf0dda74a61f2235c086daaf8146384016b6a86c196e419c26"
+}
+
+extension Bundle {
+    var appVersion: String {
+        infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
     }
 }
 

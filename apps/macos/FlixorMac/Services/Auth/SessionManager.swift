@@ -3,9 +3,11 @@
 //  FlixorMac
 //
 //  Session management and authentication state
+//  Now uses FlixorCore for standalone operation
 //
 
 import Foundation
+import FlixorKit
 
 @MainActor
 class SessionManager: ObservableObject {
@@ -14,58 +16,61 @@ class SessionManager: ObservableObject {
     @Published var isAuthenticated = false
     @Published var currentUser: User?
 
-    private let apiClient = APIClient.shared
+    private init() {
+        // Observe FlixorCore authentication state
+        observeFlixorCore()
+    }
 
-    private init() {}
+    private func observeFlixorCore() {
+        // FlixorCore is @MainActor so we can observe it safely
+        Task { @MainActor in
+            // Initial sync
+            syncWithFlixorCore()
+        }
+    }
+
+    private func syncWithFlixorCore() {
+        let core = FlixorCore.shared
+        isAuthenticated = core.isPlexAuthenticated && core.isPlexServerConnected
+
+        // Create a User from FlixorCore's server info if available
+        if let server = core.server {
+            currentUser = User(
+                id: server.id,
+                username: server.name,
+                email: nil,
+                thumb: nil
+            )
+        }
+    }
 
     // MARK: - Session Restore
 
     func restoreSession() async {
-        // Check if we have a token
-        guard apiClient.isAuthenticated else {
-            return
-        }
-
-        do {
-            // Verify session with backend
-            let sessionInfo: SessionInfo = try await apiClient.get("/api/auth/session")
-
-            if sessionInfo.authenticated, let user = sessionInfo.user {
-                currentUser = user
-                isAuthenticated = true
-            } else {
-                // Token invalid, clear it
-                await logout()
-            }
-        } catch {
-            print("Session restore failed: \(error)")
-            // Clear invalid session
-            await logout()
-        }
+        // FlixorCore handles session restoration in initialize()
+        // Just sync our state
+        syncWithFlixorCore()
     }
 
-    // MARK: - Login
+    // MARK: - Login (now handled by FlixorCore's Plex PIN flow)
 
     func login(token: String) async throws {
-        // Save token
-        apiClient.setToken(token)
-
-        // Fetch user info
-        let sessionInfo: SessionInfo = try await apiClient.get("/api/auth/session")
-
-        if sessionInfo.authenticated, let user = sessionInfo.user {
-            currentUser = user
-            isAuthenticated = true
-        } else {
-            throw APIError.unauthorized
-        }
+        // This method is for legacy compatibility
+        // New auth flow uses FlixorCore directly
+        syncWithFlixorCore()
     }
 
     // MARK: - Logout
 
     func logout() async {
-        apiClient.setToken(nil)
+        await FlixorCore.shared.signOutPlex()
         currentUser = nil
         isAuthenticated = false
+    }
+
+    // MARK: - Sync with FlixorCore
+
+    func updateFromFlixorCore() {
+        syncWithFlixorCore()
     }
 }

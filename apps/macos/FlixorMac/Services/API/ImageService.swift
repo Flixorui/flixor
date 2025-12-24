@@ -3,15 +3,15 @@
 //  FlixorMac
 //
 //  Service for building image URLs from Plex and TMDB
+//  Updated to use FlixorCore for standalone operation
 //
 
 import Foundation
+import FlixorKit
 
 @MainActor
 class ImageService {
     static let shared = ImageService()
-
-    private let apiClient = APIClient.shared
 
     private init() {}
 
@@ -20,51 +20,41 @@ class ImageService {
     func plexImageURL(path: String?, width: Int? = nil, height: Int? = nil, format: String = "webp", quality: Int? = nil) -> URL? {
         guard let path = path, !path.isEmpty else { return nil }
 
-        var components = URLComponents(string: apiClient.baseURL.absoluteString)
-        components?.path = "/api/image/plex"
+        // Use FlixorCore's PlexServerService for image URLs
+        guard let plexServer = FlixorCore.shared.plexServer else { return nil }
 
-        var queryItems = [URLQueryItem(name: "path", value: path)]
-
-        if let width = width {
-            queryItems.append(URLQueryItem(name: "w", value: String(width)))
-        }
-        if let height = height {
-            queryItems.append(URLQueryItem(name: "h", value: String(height)))
-        }
-        queryItems.append(URLQueryItem(name: "f", value: format))
-        if let q = quality {
-            queryItems.append(URLQueryItem(name: "q", value: String(q)))
-        }
-
-        components?.queryItems = queryItems
-
-        return components?.url
+        let urlString = plexServer.getImageUrl(path: path, width: width)
+        return urlString.flatMap { URL(string: $0) }
     }
 
     // MARK: - Generic External Proxy (TMDB)
 
+    /// For external images (TMDB), return the URL directly without proxy
+    /// Since we're standalone, we don't need to proxy through backend
     func proxyImageURL(url: String?, width: Int? = nil, height: Int? = nil, format: String = "webp", quality: Int = 70) -> URL? {
         guard let url = url, !url.isEmpty else { return nil }
-
-        var components = URLComponents(string: apiClient.baseURL.absoluteString)
-        components?.path = "/api/image/proxy"
-
-        var queryItems = [URLQueryItem(name: "url", value: url)]
-        if let width = width { queryItems.append(URLQueryItem(name: "w", value: String(width))) }
-        if let height = height { queryItems.append(URLQueryItem(name: "h", value: String(height))) }
-        queryItems.append(URLQueryItem(name: "q", value: String(quality)))
-        queryItems.append(URLQueryItem(name: "f", value: format))
-
-        components?.queryItems = queryItems
-        return components?.url
+        return URL(string: url)
     }
 
     // MARK: - TMDB Images
 
     func tmdbImageURL(path: String?, size: TMDBImageSize = .w500) -> URL? {
         guard let path = path, !path.isEmpty else { return nil }
-
         return URL(string: "https://image.tmdb.org/t/p/\(size.rawValue)\(path)")
+    }
+
+    // MARK: - TMDB Image URLs via FlixorCore
+
+    func tmdbPosterURL(path: String?, size: String = "w500") -> URL? {
+        guard let path = path else { return nil }
+        guard let urlString = FlixorCore.shared.tmdb.getPosterUrl(path: path, size: size) else { return nil }
+        return URL(string: urlString)
+    }
+
+    func tmdbBackdropURL(path: String?, size: String = "w1280") -> URL? {
+        guard let path = path else { return nil }
+        guard let urlString = FlixorCore.shared.tmdb.getBackdropUrl(path: path, size: size) else { return nil }
+        return URL(string: urlString)
     }
 
     // MARK: - Plex Thumb
@@ -91,7 +81,7 @@ class ImageService {
             // Priority: grandparentArt > grandparentThumb > art > thumb
             let path = item.grandparentArt ?? item.grandparentThumb ?? item.art ?? item.thumb
             if let p = path, p.hasPrefix("http") {
-                return proxyImageURL(url: p, width: width, height: height)
+                return URL(string: p)
             }
             return plexImageURL(path: path, width: width, height: height, quality: 70)
         }
@@ -101,7 +91,7 @@ class ImageService {
         if item.type == "season" {
             let path = item.art
             if let p = path, p.hasPrefix("http") {
-                return proxyImageURL(url: p, width: width, height: height)
+                return URL(string: p)
             }
             return plexImageURL(path: path, width: width, height: height, quality: 70)
         }
@@ -110,7 +100,7 @@ class ImageService {
         // Priority: art > thumb
         let path = item.art ?? item.thumb
         if let p = path, p.hasPrefix("http") {
-            return proxyImageURL(url: p, width: width, height: height)
+            return URL(string: p)
         }
         return plexImageURL(path: path, width: width, height: height, quality: 70)
     }

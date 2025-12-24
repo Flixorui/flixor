@@ -2,11 +2,12 @@
 //  PlexAuthViewModel.swift
 //  FlixorMac
 //
-//  View model for Plex authentication
+//  View model for Plex authentication using FlixorCore
 //
 
 import Foundation
 import AppKit
+import FlixorKit
 
 @MainActor
 class PlexAuthViewModel: ObservableObject {
@@ -14,49 +15,9 @@ class PlexAuthViewModel: ObservableObject {
     @Published var error: String?
     @Published var authToken: String?
 
-    @Published var backendURL: String = UserDefaults.standard.string(forKey: "backendBaseURL") ?? "http://localhost:3001"
-    @Published var isTestingBackend = false
-    @Published var backendStatus: String?
-    @Published var backendHealthy = false
-
-    private let apiClient = APIClient.shared
     private var pollingTask: Task<Void, Never>?
 
-    // MARK: - Backend Testing
-
-    func testBackend() async {
-        isTestingBackend = true
-        backendStatus = nil
-        backendHealthy = false
-
-        // Update API client base URL
-        apiClient.setBaseURL(backendURL)
-
-        do {
-            let health = try await apiClient.healthCheck()
-            backendStatus = "Connected (\(health["status"] ?? "ok"))"
-            backendHealthy = true
-        } catch {
-            backendStatus = "Connection failed"
-            backendHealthy = false
-        }
-
-        isTestingBackend = false
-    }
-
     // MARK: - Plex Authentication
-
-    struct PINResponse: Codable {
-        let id: Int
-        let code: String
-        let clientId: String
-        let authUrl: String
-    }
-
-    struct PINCheckResponse: Codable {
-        let authenticated: Bool
-        let token: String?
-    }
 
     func startAuthentication() async {
         guard !isAuthenticating else {
@@ -69,23 +30,21 @@ class PlexAuthViewModel: ObservableObject {
         error = nil
 
         do {
-            // 1. Request PIN from backend
-            print("📍 [Auth] Requesting PIN from backend...")
-            let pinResponse: PINResponse = try await apiClient.post("/api/auth/plex/pin")
-            print("✅ [Auth] Received PIN - ID: \(pinResponse.id), Code: \(pinResponse.code)")
-            print("🌐 [Auth] Auth URL: \(pinResponse.authUrl)")
+            // 1. Create PIN via FlixorCore
+            print("📍 [Auth] Creating Plex PIN...")
+            let pin = try await FlixorCore.shared.createPlexPin()
+            print("✅ [Auth] Received PIN - ID: \(pin.id), Code: \(pin.code)")
 
             // 2. Open browser to Plex auth URL
-            if let url = URL(string: pinResponse.authUrl) {
+            let authUrl = "https://app.plex.tv/auth#?clientID=\(FlixorCore.shared.clientId)&code=\(pin.code)&context%5Bdevice%5D%5Bproduct%5D=Flixor"
+            if let url = URL(string: authUrl) {
                 print("🔗 [Auth] Opening browser for authentication...")
                 NSWorkspace.shared.open(url)
-            } else {
-                print("❌ [Auth] Failed to create URL from authUrl")
             }
 
             // 3. Start polling for authentication
-            print("⏳ [Auth] Starting polling for PIN \(pinResponse.id) with clientId \(pinResponse.clientId)...")
-            await pollForAuth(pinId: pinResponse.id, clientId: pinResponse.clientId)
+            print("⏳ [Auth] Starting polling for PIN \(pin.id)...")
+            await pollForAuth(pinId: pin.id)
 
         } catch {
             print("❌ [Auth] Authentication failed: \(error)")
@@ -94,36 +53,51 @@ class PlexAuthViewModel: ObservableObject {
         }
     }
 
-    private func pollForAuth(pinId: Int, clientId: String) async {
+    private func pollForAuth(pinId: Int) async {
         pollingTask?.cancel()
 
         pollingTask = Task {
             var attempts = 0
             let maxAttempts = 60 // 2 minutes at 2 seconds per attempt
 
-            print("🔄 [Auth] Polling started - ClientID: \(clientId)")
+            print("🔄 [Auth] Polling started")
 
             while attempts < maxAttempts && !Task.isCancelled {
                 attempts += 1
 
                 do {
-                    // Check PIN status
-                    print("🔍 [Auth] Poll attempt \(attempts)/\(maxAttempts) - Checking PIN \(pinId) with clientId \(clientId)...")
-                    let response: PINCheckResponse = try await apiClient.get(
-                        "/api/auth/plex/pin/\(pinId)",
-                        queryItems: [
-                            URLQueryItem(name: "clientId", value: clientId),
-                            URLQueryItem(name: "mobile", value: "1")
-                        ]
-                    )
+                    // Check PIN status via FlixorCore
+                    print("🔍 [Auth] Poll attempt \(attempts)/\(maxAttempts) - Checking PIN \(pinId)...")
 
-                    print("📡 [Auth] Poll response - Authenticated: \(response.authenticated), Has token: \(response.token != nil)")
+                    if let token = try await FlixorCore.shared.checkPlexPin(pinId: pinId) {
+                        // PIN authorized! Now complete the authentication flow
+                        print("✅ [Auth] PIN authorized! Token received")
 
-                    if response.authenticated, let token = response.token {
+                        // Complete authentication (stores token and initializes PlexTvService)
+                        try await FlixorCore.shared.completePlexAuth(token: token)
+                        print("✅ [Auth] Authentication completed, fetching servers...")
+
+                        // Fetch servers
+                        let servers = try await FlixorCore.shared.getPlexServers()
+
+                        if servers.isEmpty {
+                            await MainActor.run {
+                                self.error = "No Plex servers found on your account"
+                                self.isAuthenticating = false
+                            }
+                            return
+                        }
+
+                        // Connect to the first server (auto-select)
+                        let server = servers[0]
+                        _ = try await FlixorCore.shared.connectToPlexServer(server)
+
                         // Success!
-                        print("✅ [Auth] Authentication successful! Token received: \(token.prefix(10))...")
-                        authToken = token
-                        isAuthenticating = false
+                        await MainActor.run {
+                            self.authToken = token
+                            self.isAuthenticating = false
+                        }
+                        print("✅ [Auth] Authentication complete! Connected to \(server.name)")
                         return
                     } else {
                         print("⏸️ [Auth] Not authenticated yet, waiting...")
@@ -131,7 +105,6 @@ class PlexAuthViewModel: ObservableObject {
 
                 } catch {
                     print("⚠️ [Auth] Poll attempt \(attempts) failed: \(error)")
-                    print("📝 [Auth] Error details: \(error.localizedDescription)")
                 }
 
                 // Wait 2 seconds before next attempt

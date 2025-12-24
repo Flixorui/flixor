@@ -109,26 +109,72 @@ struct WatchlistButton: View {
     }
 
     private func addToWatchlist() async {
-        do {
-            async let plex = addToPlex()
-            async let trakt = addToTrakt()
-            _ = try await (plex, trakt)
+        // Run both operations in parallel using unstructured tasks
+        // so one failure doesn't cancel the other
+        let plexTask = Task {
+            do {
+                try await addToPlex()
+                return true
+            } catch {
+                print("⚠️ Plex watchlist add failed: \(error)")
+                return false
+            }
+        }
+
+        let traktTask = Task {
+            do {
+                try await addToTrakt()
+                return true
+            } catch {
+                print("⚠️ Trakt watchlist add failed: \(error)")
+                return false
+            }
+        }
+
+        let plexSuccess = await plexTask.value
+        let traktSuccess = await traktTask.value
+
+        // Consider successful if at least one service succeeded
+        if plexSuccess || traktSuccess {
             watchlistController.registerAdd(id: canonicalId)
             isInWatchlist = true
-        } catch {
-            print("⚠️ Failed to add to watchlist: \(error)")
+        } else {
+            print("⚠️ Failed to add to watchlist on both services")
         }
     }
 
     private func removeFromWatchlist() async {
-        do {
-            async let plex = removeFromPlex()
-            async let trakt = removeFromTrakt()
-            _ = try await (plex, trakt)
+        // Run both operations in parallel using unstructured tasks
+        // so one failure doesn't cancel the other
+        let plexTask = Task {
+            do {
+                try await removeFromPlex()
+                return true
+            } catch {
+                print("⚠️ Plex watchlist remove failed: \(error)")
+                return false
+            }
+        }
+
+        let traktTask = Task {
+            do {
+                try await removeFromTrakt()
+                return true
+            } catch {
+                print("⚠️ Trakt watchlist remove failed: \(error)")
+                return false
+            }
+        }
+
+        let plexSuccess = await plexTask.value
+        let traktSuccess = await traktTask.value
+
+        // Consider successful if at least one service succeeded
+        if plexSuccess || traktSuccess {
             watchlistController.registerRemove(id: canonicalId)
             isInWatchlist = false
-        } catch {
-            print("⚠️ Failed to remove from watchlist: \(error)")
+        } else {
+            print("⚠️ Failed to remove from watchlist on both services")
         }
     }
 

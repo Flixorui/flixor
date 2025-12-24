@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, Pressable, ActivityIndicator, Linking, ScrollView, Animated, StyleSheet, Alert } from 'react-native';
+import { View, Text, Pressable, ActivityIndicator, Linking, ScrollView, Animated, StyleSheet, Alert, TextInput } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
@@ -19,9 +19,11 @@ import {
   selectServerEndpoint,
   getAppSettings,
   setAppSettings,
+  loadAppSettings,
   type PlexServerInfo,
   type PlexConnectionInfo,
 } from '../core/SettingsData';
+import { reinitializeFlixorCore } from '../core/index';
 import { TopBarStore, useTopBarStore } from '../components/TopBarStore';
 
 let WebBrowser: any = null;
@@ -45,6 +47,7 @@ export default function My({ onLogout }: MyProps) {
 
   // Settings state
   const [watchlistProvider, setWatchlistProvider] = useState<'trakt' | 'plex'>('trakt');
+  const [tmdbApiKey, setTmdbApiKey] = useState<string>('');
   const [serverInfo, setServerInfo] = useState<{ name: string; url: string } | null>(null);
 
   const pollRef = useRef<any>(null);
@@ -88,17 +91,37 @@ export default function My({ onLogout }: MyProps) {
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [flixorLoading, isConnected]);
 
-  function loadCurrentSettings() {
-    const settings = getAppSettings();
+  async function loadCurrentSettings() {
+    const settings = await loadAppSettings();
     setWatchlistProvider(settings.watchlistProvider);
+    setTmdbApiKey(settings.tmdbApiKey || '');
   }
 
   async function saveSettings() {
     try {
-      setAppSettings({ watchlistProvider });
+      await setAppSettings({ watchlistProvider });
       Alert.alert('Success', 'Settings saved');
     } catch (e: any) {
       Alert.alert('Error', e?.message || 'Failed to save settings');
+    }
+  }
+
+  async function saveTmdbApiKey() {
+    try {
+      const keyToSave = tmdbApiKey.trim() || undefined;
+      await setAppSettings({ tmdbApiKey: keyToSave });
+
+      // Reinitialize FlixorCore with the new API key
+      await reinitializeFlixorCore();
+
+      Alert.alert(
+        'Success',
+        keyToSave
+          ? 'TMDB API key saved. The app will use your custom key.'
+          : 'TMDB API key cleared. The app will use the default key.'
+      );
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to save TMDB API key');
     }
   }
 
@@ -356,6 +379,29 @@ export default function My({ onLogout }: MyProps) {
           </View>
 
           <Button onPress={saveSettings} title="Save Settings" variant="primary" />
+        </Card>
+
+        {/* TMDB API Key Section */}
+        <Card title="TMDB API Key">
+          <Text style={styles.description}>
+            Optionally provide your own TMDB API key. Leave empty to use the default key.
+          </Text>
+          <Text style={styles.hint}>
+            Get a free API key at themoviedb.org
+          </Text>
+          <View style={styles.inputGroup}>
+            <TextInput
+              value={tmdbApiKey}
+              onChangeText={setTmdbApiKey}
+              placeholder="Enter your TMDB API key..."
+              placeholderTextColor="#666"
+              style={styles.textInput}
+              autoCapitalize="none"
+              autoCorrect={false}
+              secureTextEntry={false}
+            />
+          </View>
+          <Button onPress={saveTmdbApiKey} title={tmdbApiKey.trim() ? "Save API Key" : "Clear & Use Default"} variant="primary" />
         </Card>
 
         {/* Plex Servers Section */}
@@ -645,5 +691,15 @@ const styles = StyleSheet.create({
   },
   pickerTextActive: {
     color: '#000',
+  },
+  textInput: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    color: '#fff',
+    fontSize: 15,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
   },
 });

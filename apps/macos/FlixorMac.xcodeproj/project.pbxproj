@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 56;
+	objectVersion = 60;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -73,6 +73,7 @@
 		A065 /* NewPopularData.swift in Sources */ = {isa = PBXBuildFile; fileRef = B065 /* NewPopularData.swift */; };
 		A066 /* NewPopularViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B066 /* NewPopularViewModel.swift */; };
 		A067 /* NewPopularHero.swift in Sources */ = {isa = PBXBuildFile; fileRef = B067 /* NewPopularHero.swift */; };
+		A085 /* TraktScrobbler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B085 /* TraktScrobbler.swift */; };
 		A163 /* PlexServersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B163 /* PlexServersView.swift */; };
 		A164 /* ServerConnectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B164 /* ServerConnectionView.swift */; };
 		A200 /* BrowseContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = B080 /* BrowseContext.swift */; };
@@ -159,6 +160,7 @@
 		C8D602AF2E990765002C9348 /* MPVThumbnailGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8D602AC2E990765002C9348 /* MPVThumbnailGenerator.swift */; };
 		C8D602B02E990765002C9348 /* ThumbnailCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8D602AD2E990765002C9348 /* ThumbnailCache.swift */; };
 		C8D602B12E990765002C9348 /* ThumbnailMPVPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8D602B22E990765002C9348 /* ThumbnailMPVPlayer.swift */; };
+		FKBF0001 /* FlixorKit in Frameworks */ = {isa = PBXBuildFile; productRef = FKPD0001 /* FlixorKit */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -315,6 +317,7 @@
 		B082 /* BrowseModalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowseModalView.swift; sourceTree = "<group>"; };
 		B083 /* PersonModalViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonModalViewModel.swift; sourceTree = "<group>"; };
 		B084 /* PersonModalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonModalView.swift; sourceTree = "<group>"; };
+		B085 /* TraktScrobbler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraktScrobbler.swift; sourceTree = "<group>"; };
 		B163 /* PlexServersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlexServersView.swift; sourceTree = "<group>"; };
 		B164 /* ServerConnectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerConnectionView.swift; sourceTree = "<group>"; };
 		B999 /* FlixorMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FlixorMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -402,6 +405,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FKBF0001 /* FlixorKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -577,6 +581,7 @@
 				C8D602AA2E990749002C9348 /* Thumbnail */,
 				D016 /* API */,
 				D017 /* Auth */,
+				B085 /* TraktScrobbler.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -749,6 +754,9 @@
 			dependencies = (
 			);
 			name = FlixorMac;
+			packageProductDependencies = (
+				FKPD0001 /* FlixorKit */,
+			);
 			productName = FlixorMac;
 			productReference = B999 /* FlixorMac.app */;
 			productType = "com.apple.product-type.application";
@@ -778,6 +786,7 @@
 			);
 			mainGroup = D001;
 			packageReferences = (
+				FKPR0001 /* XCLocalSwiftPackageReference "../../shared/FlixorKit" */,
 			);
 			productRefGroup = D099 /* Products */;
 			projectDirPath = "";
@@ -884,6 +893,7 @@
 				A065 /* NewPopularData.swift in Sources */,
 				A066 /* NewPopularViewModel.swift in Sources */,
 				A067 /* NewPopularHero.swift in Sources */,
+				A085 /* TraktScrobbler.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1040,7 +1050,7 @@
 					"@executable_path/../Frameworks",
 				);
 				LIBRARY_SEARCH_PATHS = "$(PROJECT_DIR)/deps/lib";
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.3.1;
 				OTHER_LDFLAGS = (
 					"$(PROJECT_DIR)/deps/lib/libmpv.2.dylib",
 					"-Wl,-rpath,@executable_path/../Frameworks",
@@ -1091,7 +1101,7 @@
 					"@executable_path/../Frameworks",
 				);
 				LIBRARY_SEARCH_PATHS = "$(PROJECT_DIR)/deps/lib";
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.3.1;
 				OTHER_LDFLAGS = (
 					"$(PROJECT_DIR)/deps/lib/libmpv.2.dylib",
 					"-Wl,-rpath,@executable_path/../Frameworks",
@@ -1132,6 +1142,20 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		FKPR0001 /* XCLocalSwiftPackageReference "../../shared/FlixorKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../../shared/FlixorKit;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		FKPD0001 /* FlixorKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = FlixorKit;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = G001 /* Project object */;
 }

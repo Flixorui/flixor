@@ -174,6 +174,10 @@ class PlayerViewModel: ObservableObject {
     private var plexToken: String?
     private var currentURLIsHLS: Bool = false
 
+    // Trakt scrobbling
+    private let scrobbler = TraktScrobbler.shared
+    private var scrobbleStarted = false
+
     // Navigation callback for next episode
     var onPlayNext: ((MediaItem) -> Void)?
 
@@ -293,6 +297,8 @@ class PlayerViewModel: ObservableObject {
                     self.isPlaying = true
                     self.isLoading = false
                     self.enableDisplaySleep()
+                    // Start Trakt scrobbling
+                    self.startTraktScrobble()
                 case "file-ended":
                     // Check if file-ended happened too quickly after file-started (< 3 seconds)
                     // This indicates a loading error, not actual playback completion
@@ -801,6 +807,8 @@ class PlayerViewModel: ObservableObject {
                         self.directPlayRetryCount = 0  // Reset counter on successful load
                         // Apply initial resume seek once when ready
                         self.applyInitialSeekIfNeeded()
+                        // Start Trakt scrobbling
+                        self.startTraktScrobble()
                     case .failed:
                         print("❌ [Player] Failed: \(playerItem.error?.localizedDescription ?? "Unknown error")")
                         if self.currentURLIsHLS == false {
@@ -983,6 +991,8 @@ class PlayerViewModel: ObservableObject {
     // MARK: - Playback Controls
 
     func togglePlayPause() {
+        let progress = duration > 0 ? (currentTime / duration) * 100 : 0
+
         switch playerBackend {
         case .avplayer:
             guard let player = player else { return }
@@ -991,11 +1001,15 @@ class PlayerViewModel: ObservableObject {
                 isPlaying = false
                 stopProgressTracking()
                 disableDisplaySleep()
+                // Pause Trakt scrobble
+                Task { await scrobbler.pauseScrobble(progress: progress) }
             } else {
                 player.rate = playbackSpeed // Restore playback speed
                 isPlaying = true
                 startProgressTracking()
                 enableDisplaySleep()
+                // Resume Trakt scrobble
+                Task { await scrobbler.resumeScrobble(progress: progress) }
             }
         case .mpv:
             guard let mpv = mpvController else { return }
@@ -1004,11 +1018,15 @@ class PlayerViewModel: ObservableObject {
                 isPlaying = false
                 stopProgressTracking()
                 disableDisplaySleep()
+                // Pause Trakt scrobble
+                Task { await scrobbler.pauseScrobble(progress: progress) }
             } else {
                 mpv.play()
                 isPlaying = true
                 startProgressTracking()
                 enableDisplaySleep()
+                // Resume Trakt scrobble
+                Task { await scrobbler.resumeScrobble(progress: progress) }
             }
         }
 
@@ -1202,6 +1220,7 @@ class PlayerViewModel: ObservableObject {
         progressTimer = Timer.scheduledTimer(withTimeInterval: 10.0, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 await self?.reportProgress()
+                self?.updateTraktProgress()
             }
         }
     }
@@ -1210,6 +1229,26 @@ class PlayerViewModel: ObservableObject {
         progressTimer?.invalidate()
         progressTimer = nil
     }
+
+    // MARK: - Trakt Scrobbling
+
+    private func startTraktScrobble() {
+        guard !scrobbleStarted else { return }
+        scrobbleStarted = true
+
+        let initialProgress = duration > 0 ? (currentTime / duration) * 100 : 0
+        Task {
+            await scrobbler.startScrobble(for: item, initialProgress: initialProgress)
+        }
+    }
+
+    private func updateTraktProgress() {
+        guard duration > 0 else { return }
+        let progress = (currentTime / duration) * 100
+        scrobbler.updateProgress(progress)
+    }
+
+    // MARK: - Plex Progress Reporting
 
     private func reportProgress() async {
         guard currentTime > 0, duration > 0 else { return }
@@ -1443,6 +1482,10 @@ class PlayerViewModel: ObservableObject {
             guard let self = self else { return }
             await self.reportProgress() // Final progress snapshot
             await self.reportStopped()  // Explicit stopped state like web
+
+            // Stop Trakt scrobble
+            let progress = self.duration > 0 ? (self.currentTime / self.duration) * 100 : 0
+            await self.scrobbler.stopScrobble(progress: progress)
 
             // Stop the transcode session
             await self.stopTranscodeSession()

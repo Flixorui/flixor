@@ -15,12 +15,14 @@ let package = Package(
     ],
     dependencies: [
         // Kingfisher for image caching
-        .package(url: "https://github.com/onevcat/Kingfisher.git", from: "7.10.0")
+        .package(url: "https://github.com/onevcat/Kingfisher.git", from: "7.10.0"),
+        // FlixorKit shared library
+        .package(path: "../../shared/FlixorKit")
     ],
     targets: [
         .target(
             name: "FlixorMac",
-            dependencies: ["Kingfisher"]),
+            dependencies: ["Kingfisher", "FlixorKit"]),
         .testTarget(
             name: "FlixorMacTests",
             dependencies: ["FlixorMac"]),

@@ -3,9 +3,10 @@ import { FlixorCore } from '@flixor/core';
 import { MobileStorage } from './MobileStorage';
 import { MobileSecureStorage } from './MobileSecureStorage';
 import { MobileCache } from './MobileCache';
+import { loadAppSettings } from './SettingsData';
 
-// API Keys - these should ideally come from environment/config
-const TMDB_API_KEY = 'db55323b8d3e4154498498a75642b381';
+// Default API Keys - can be overridden by user in settings
+const DEFAULT_TMDB_API_KEY = 'db55323b8d3e4154498498a75642b381';
 const TRAKT_CLIENT_ID = '4ab0ead6d5510bf39180a5e1dd7b452f5ad700b7794564befdd6bca56e0f7ce4';
 const TRAKT_CLIENT_SECRET = ''; // Add your Trakt client secret
 
@@ -40,6 +41,10 @@ export async function initializeFlixorCore(): Promise<FlixorCore> {
 
   const clientId = await getOrCreateClientId();
 
+  // Load settings to get custom TMDB API key if set
+  const settings = await loadAppSettings();
+  const tmdbApiKey = settings.tmdbApiKey || DEFAULT_TMDB_API_KEY;
+
   const storage = new MobileStorage();
   const secureStorage = new MobileSecureStorage(AsyncStorage);
   const cache = new MobileCache();
@@ -53,7 +58,7 @@ export async function initializeFlixorCore(): Promise<FlixorCore> {
     productVersion: '1.0.0',
     platform: 'iOS', // or detect dynamically
     deviceName: 'Flixor Mobile',
-    tmdbApiKey: TMDB_API_KEY,
+    tmdbApiKey: tmdbApiKey,
     traktClientId: TRAKT_CLIENT_ID,
     traktClientSecret: TRAKT_CLIENT_SECRET,
     language: 'en-US',
@@ -63,6 +68,15 @@ export async function initializeFlixorCore(): Promise<FlixorCore> {
   await flixorCoreInstance.initialize();
 
   return flixorCoreInstance;
+}
+
+/**
+ * Reinitialize FlixorCore with updated settings (e.g., new TMDB API key)
+ * This clears the existing instance and creates a new one
+ */
+export async function reinitializeFlixorCore(): Promise<FlixorCore> {
+  flixorCoreInstance = null;
+  return initializeFlixorCore();
 }
 
 /**

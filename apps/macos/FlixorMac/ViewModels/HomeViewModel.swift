@@ -2,22 +2,47 @@
 //  HomeViewModel.swift
 //  FlixorMac
 //
-//  View model for home screen
+//  View model for home screen using FlixorCore
 //
 
 import Foundation
 import SwiftUI
+import FlixorKit
 
-// MARK: - Shared lightweight models for external providers
+// Use types from FlixorKit directly
 
-struct TraktIDs: Codable { let tmdb: Int?; let trakt: Int?; let imdb: String?; let tvdb: Int? }
-struct TraktMedia: Codable { let title: String?; let year: Int?; let ids: TraktIDs }
+// MARK: - Section Load State
+
+enum SectionLoadState: Equatable {
+    case idle
+    case loading
+    case loaded
+    case empty
+    case error(String)
+
+    var isLoading: Bool {
+        if case .loading = self { return true }
+        return false
+    }
+}
 
 @MainActor
 class HomeViewModel: ObservableObject {
-    @Published var isLoading = false
+    // MARK: - Global State
+    @Published var isLoading = false  // Initial full-page loading
     @Published var error: String?
 
+    // MARK: - Per-Section Loading States
+    @Published var continueWatchingState: SectionLoadState = .idle
+    @Published var onDeckState: SectionLoadState = .idle
+    @Published var recentlyAddedState: SectionLoadState = .idle
+    @Published var librariesState: SectionLoadState = .idle
+    @Published var extraSectionsState: SectionLoadState = .idle
+
+    // Expected number of extra section rows (for skeleton placeholders)
+    let expectedExtraSectionCount = 8
+
+    // MARK: - Data
     @Published var billboardItems: [MediaItem] = []
     @Published var continueWatchingItems: [MediaItem] = []
     @Published var onDeckItems: [MediaItem] = []
@@ -28,7 +53,6 @@ class HomeViewModel: ObservableObject {
     @Published var currentBillboardIndex = 0
     @Published var pendingAction: HomeAction?
 
-    private let apiClient = APIClient.shared
     private var billboardTimer: Timer?
     private var loadTask: Task<Void, Never>?
 
@@ -46,46 +70,74 @@ class HomeViewModel: ObservableObject {
         isLoading = true
         error = nil
 
+        // Set all sections to loading state
+        continueWatchingState = .loading
+        onDeckState = .loading
+        recentlyAddedState = .loading
+        librariesState = .loading
+        extraSectionsState = .loading
+
         // Fire-and-forget each section; update UI as each finishes
         Task { @MainActor in
             do {
                 let data = try await self.fetchContinueWatching()
                 self.continueWatchingItems = data
+                self.continueWatchingState = data.isEmpty ? .empty : .loaded
                 if self.billboardItems.isEmpty, !data.isEmpty {
                     self.billboardItems = self.normalizeForHero(Array(data.prefix(5)))
                     self.startBillboardRotation()
                 }
-            } catch { print("⚠️ [Home] Continue Watching failed: \(error)") }
-            self.isLoading = false // allow skeleton to disappear as soon as first section arrives
+                print("✅ [Home] Continue Watching loaded: \(data.count) items")
+            } catch {
+                print("⚠️ [Home] Continue Watching failed: \(error)")
+                self.continueWatchingState = .error(error.localizedDescription)
+            }
+            // Mark initial loading complete after first section
+            self.isLoading = false
         }
 
         Task { @MainActor in
             do {
                 let data = try await self.fetchOnDeck()
                 self.onDeckItems = data
+                self.onDeckState = data.isEmpty ? .empty : .loaded
                 if self.billboardItems.isEmpty, !data.isEmpty {
                     self.billboardItems = self.normalizeForHero(Array(data.prefix(5)))
                     self.startBillboardRotation()
                 }
-            } catch { print("⚠️ [Home] On Deck failed: \(error)") }
+                print("✅ [Home] On Deck loaded: \(data.count) items")
+            } catch {
+                print("⚠️ [Home] On Deck failed: \(error)")
+                self.onDeckState = .error(error.localizedDescription)
+            }
         }
 
         Task { @MainActor in
             do {
                 let data = try await self.fetchRecentlyAdded()
                 self.recentlyAddedItems = data
+                self.recentlyAddedState = data.isEmpty ? .empty : .loaded
                 if self.billboardItems.isEmpty, !data.isEmpty {
                     self.billboardItems = self.normalizeForHero(Array(data.prefix(5)))
                     self.startBillboardRotation()
                 }
-            } catch { print("⚠️ [Home] Recently Added failed: \(error)") }
+                print("✅ [Home] Recently Added loaded: \(data.count) items")
+            } catch {
+                print("⚠️ [Home] Recently Added failed: \(error)")
+                self.recentlyAddedState = .error(error.localizedDescription)
+            }
         }
 
         Task { @MainActor in
             do {
                 let libs = try await self.fetchLibrarySections()
                 self.librarySections = libs
-            } catch { print("⚠️ [Home] Libraries failed: \(error)") }
+                self.librariesState = libs.isEmpty ? .empty : .loaded
+                print("✅ [Home] Libraries loaded: \(libs.count) sections")
+            } catch {
+                print("⚠️ [Home] Libraries failed: \(error)")
+                self.librariesState = .error(error.localizedDescription)
+            }
         }
 
         // Load additional content sections (TMDB/Trakt/Genres/Watchlist) without blocking
@@ -166,6 +218,7 @@ class HomeViewModel: ObservableObject {
         await MainActor.run {
             print("✅ [Home] Extra sections prepared: \(ordered.map { $0.title }.joined(separator: ", "))")
             self.extraSections = ordered
+            self.extraSectionsState = ordered.isEmpty ? .empty : .loaded
         }
     }
 
@@ -198,26 +251,44 @@ class HomeViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Convert PlexMediaItem to MediaItem
+
+    private func toMediaItem(_ plex: FlixorKit.PlexMediaItem) -> MediaItem {
+        return MediaItem(
+            id: plex.ratingKey ?? plex.key ?? "",
+            title: plex.title ?? "Unknown",
+            type: plex.type ?? "unknown",
+            thumb: plex.thumb,
+            art: plex.art,
+            year: plex.year,
+            rating: plex.viewCount.map { Double($0) },
+            duration: plex.duration,
+            viewOffset: plex.viewOffset,
+            summary: plex.summary,
+            grandparentTitle: plex.grandparentTitle,
+            grandparentThumb: plex.grandparentThumb,
+            grandparentArt: plex.grandparentArt,
+            parentIndex: plex.parentIndex,
+            index: plex.index,
+            parentRatingKey: plex.parentRatingKey,
+            parentTitle: plex.parentTitle,
+            leafCount: plex.leafCount,
+            viewedLeafCount: plex.viewedLeafCount
+        )
+    }
+
     // MARK: - TMDB Trending (TV)
 
     private func fetchTMDBTrendingTVSections() async throws -> ([LibrarySection], [LibrarySection]) {
-        struct TMDBTrendingResponse: Codable { let results: [TMDBTitle] }
-        struct TMDBTitle: Codable {
-            let id: Int
-            let name: String?
-            let title: String?
-            let backdrop_path: String?
-            let poster_path: String?
-        }
-
         print("📦 [Home] Fetching TMDB trending TV (week)...")
-        let res: TMDBTrendingResponse = try await apiClient.get("/api/tmdb/trending/tv/week")
-        let items = res.results.prefix(16)
+        let response = try await FlixorCore.shared.tmdb.getTrendingTV(timeWindow: "week")
+        let items = response.results.prefix(16)
+
         var mapped: [MediaItem] = []
         for r in items {
             let title = r.name ?? r.title ?? ""
-            let art = ImageService.shared.tmdbImageURL(path: r.backdrop_path, size: .original)?.absoluteString
-            let thumb = ImageService.shared.tmdbImageURL(path: r.poster_path, size: .w500)?.absoluteString
+            let art = FlixorCore.shared.tmdb.getBackdropUrl(path: r.backdropPath, size: "original")
+            let thumb = FlixorCore.shared.tmdb.getPosterUrl(path: r.posterPath, size: "w500")
             let m = MediaItem(
                 id: "tmdb:tv:\(r.id)",
                 title: title,
@@ -265,33 +336,22 @@ class HomeViewModel: ObservableObject {
     // MARK: - Plex.tv Watchlist
 
     private func fetchPlexTvWatchlistSection() async -> LibrarySection? {
-        struct PlexContainer: Codable { let MediaContainer: PlexMC }
-        struct PlexMC: Codable { let Metadata: [MediaItemFull]? }
+        guard let plexTv = FlixorCore.shared.plexTv else { return nil }
+
         do {
             print("📦 [Home] Fetching Plex.tv watchlist...")
-            let container: PlexContainer = try await apiClient.get("/api/plextv/watchlist")
-            let meta = container.MediaContainer.Metadata ?? []
+            let meta = try await plexTv.getWatchlist()
 
             var items: [MediaItem] = []
             for m in meta.prefix(20) {
-                // Use backend-enriched tmdbGuid if available, otherwise use original ID
-                var outId = m.id
-                if let tmdbGuid = m.tmdbGuid {
-                    // Backend already formatted as "tmdb:movie:123" or "tmdb:tv:456"
-                    outId = tmdbGuid
-                    print("✅ [Home] Using backend-enriched TMDB ID for \(m.title): \(tmdbGuid)")
-                } else {
-                    print("⚠️ [Home] No TMDB ID available for \(m.title), using original ID: \(outId)")
-                }
-
                 let item = MediaItem(
-                    id: outId,
-                    title: m.title,
-                    type: (m.type == "movie") ? "movie" : (m.type == "show" ? "show" : m.type),
+                    id: m.ratingKey ?? m.key ?? "",
+                    title: m.title ?? "Unknown",
+                    type: (m.type ?? "show") == "movie" ? "movie" : "show",
                     thumb: m.thumb,
                     art: m.art,
                     year: m.year,
-                    rating: m.rating,
+                    rating: nil,
                     duration: m.duration,
                     viewOffset: m.viewOffset,
                     summary: m.summary,
@@ -339,16 +399,7 @@ class HomeViewModel: ObservableObject {
     // MARK: - Plex Genre Sections
 
     private func fetchGenreSections() async throws -> [LibrarySection] {
-        struct Library: Codable { let key: String; let title: String; let type: String }
-        struct DirContainer: Codable { let MediaContainer: DirMC }
-        struct DirMC: Codable { let Directory: [DirEntry]? }
-        struct DirTop: Codable { let Directory: [DirEntry]? } // some endpoints return Directory at top-level
-        struct DirEntry: Codable { let key: String; let title: String; let fastKey: String? }
-        struct MetaResponse: Codable {
-            let MediaContainer: MetaMC?
-            let Metadata: [MediaItemFull]?
-        }
-        struct MetaMC: Codable { let Metadata: [MediaItemFull]? }
+        guard let plexServer = FlixorCore.shared.plexServer else { return [] }
 
         let genreRows: [(label: String, type: String, genre: String)] = [
             ("TV Shows - Children", "show", "Children"),
@@ -362,7 +413,7 @@ class HomeViewModel: ObservableObject {
         ]
 
         print("📦 [Home] Fetching libraries for genre rows...")
-        let libraries: [Library] = try await apiClient.get("/api/plex/libraries")
+        let libraries = try await plexServer.getLibraries()
         let movieLib = libraries.first { $0.type == "movie" }
         let showLib = libraries.first { $0.type == "show" }
 
@@ -371,31 +422,9 @@ class HomeViewModel: ObservableObject {
             let lib = (spec.type == "movie") ? movieLib : showLib
             guard let libKey = lib?.key else { continue }
             do {
-                // Try top-level Directory first, then MediaContainer
-                if let top: DirTop = try? await apiClient.get("/api/plex/library/\(libKey)/genre"),
-                   let dir = top.Directory?.first(where: { $0.title.lowercased() == spec.genre.lowercased() }) {
-                    let target = normalizedGenreRequest(dir.fastKey, libKey: libKey, rawKey: dir.key)
-                    let combinedPath = Self.browsePath(path: target.path, queryItems: target.queryItems)
-                    let meta: MetaResponse = try await apiClient.get("/api/plex/dir\(target.path)", queryItems: target.queryItems)
-                    let items = (meta.MediaContainer?.Metadata ?? meta.Metadata ?? []).map { $0.toMediaItem() }
-                    if !items.isEmpty {
-                        out.append(LibrarySection(
-                            id: "genre-\(spec.genre.lowercased())",
-                            title: spec.label,
-                            items: Array(items.prefix(12)),
-                            totalCount: items.count,
-                            libraryKey: libKey,
-                            browseContext: .plexDirectory(path: combinedPath, title: spec.label)
-                        ))
-                    }
-                    continue
-                }
-                let dirs: DirContainer = try await apiClient.get("/api/plex/library/\(libKey)/genre")
-                guard let dir = dirs.MediaContainer.Directory?.first(where: { $0.title.lowercased() == spec.genre.lowercased() }) else { continue }
-                let target = normalizedGenreRequest(dir.fastKey, libKey: libKey, rawKey: dir.key)
-                let combinedPath = Self.browsePath(path: target.path, queryItems: target.queryItems)
-                let meta: MetaResponse = try await apiClient.get("/api/plex/dir\(target.path)", queryItems: target.queryItems)
-                let items = (meta.MediaContainer?.Metadata ?? meta.Metadata ?? []).map { $0.toMediaItem() }
+                // Fetch items with genre filter
+                let plexItems = try await plexServer.getLibraryItems(key: libKey, limit: 20, genre: spec.genre)
+                let items = plexItems.map { toMediaItem($0) }
                 if !items.isEmpty {
                     out.append(LibrarySection(
                         id: "genre-\(spec.genre.lowercased())",
@@ -403,7 +432,7 @@ class HomeViewModel: ObservableObject {
                         items: Array(items.prefix(12)),
                         totalCount: items.count,
                         libraryKey: libKey,
-                        browseContext: .plexDirectory(path: combinedPath, title: spec.label)
+                        browseContext: .plexDirectory(path: "/library/sections/\(libKey)/all?genre=\(spec.genre)", title: spec.label)
                     ))
                 }
             } catch {
@@ -413,41 +442,16 @@ class HomeViewModel: ObservableObject {
         return out
     }
 
-    private func normalizedGenreRequest(_ fastKey: String?, libKey: String, rawKey: String) -> (path: String, queryItems: [URLQueryItem]?) {
-        var key = fastKey ?? "/library/sections/\(libKey)/all?genre=\(rawKey)"
-        if !key.hasPrefix("/") { key = "/\(key)" }
-
-        if let questionIndex = key.firstIndex(of: "?") {
-            let path = String(key[..<questionIndex])
-            let query = String(key[key.index(after: questionIndex)...])
-            let components = query.split(separator: "&").map { pair -> URLQueryItem in
-                let parts = pair.split(separator: "=", maxSplits: 1).map(String.init)
-                let name = parts.first ?? ""
-                let value = parts.count > 1 ? parts[1] : nil
-                return URLQueryItem(name: name, value: value)
-            }
-            return (path, components)
-        }
-        return (key, nil)
-    }
-
-    private static func browsePath(path: String, queryItems: [URLQueryItem]?) -> String {
-        guard let queryItems, !queryItems.isEmpty else { return path }
-        let query = queryItems.compactMap { item -> String? in
-            guard let value = item.value else { return item.name }
-            return "\(item.name)=\(value)"
-        }.joined(separator: "&")
-        return "\(path)?\(query)"
-    }
-
     // MARK: - Trakt Sections
 
     private func fetchTraktSections() async throws -> [LibrarySection] {
         var sections: [LibrarySection] = []
+        let trakt = FlixorCore.shared.trakt
 
         // Trending Movies (public)
         do {
-            let items = try await fetchTraktTrending(media: "movies")
+            let trendingMovies = try await trakt.getTrendingMovies(limit: 12)
+            let items = await mapTraktMoviesToMediaItems(trendingMovies.map { $0.movie })
             if !items.isEmpty {
                 sections.append(LibrarySection(
                     id: "trakt-trending-movies",
@@ -462,7 +466,8 @@ class HomeViewModel: ObservableObject {
 
         // Trending TV Shows (public)
         do {
-            let items = try await fetchTraktTrending(media: "shows")
+            let trendingShows = try await trakt.getTrendingShows(limit: 12)
+            let items = await mapTraktShowsToMediaItems(trendingShows.map { $0.show })
             if !items.isEmpty {
                 sections.append(LibrarySection(
                     id: "trakt-trending-shows",
@@ -476,50 +481,81 @@ class HomeViewModel: ObservableObject {
         } catch { print("⚠️ [Home] Trakt trending shows failed: \(error)") }
 
         // Your Trakt Watchlist (auth)
-        if let wl = try? await fetchTraktWatchlist() {
-            if !wl.isEmpty {
-                sections.append(LibrarySection(
-                    id: "trakt-watchlist",
-                    title: "Your Trakt Watchlist",
-                    items: wl,
-                    totalCount: wl.count,
-                    libraryKey: nil,
-                    browseContext: .trakt(kind: .watchlist)
-                ))
-            }
-        }
+        if trakt.isAuthenticated {
+            do {
+                let watchlist = try await trakt.getWatchlist()
+                var items: [MediaItem] = []
+                for wlItem in watchlist.prefix(12) {
+                    if let movie = wlItem.movie {
+                        if let item = await mapTraktMovieToMediaItem(movie) {
+                            items.append(item)
+                        }
+                    } else if let show = wlItem.show {
+                        if let item = await mapTraktShowToMediaItem(show) {
+                            items.append(item)
+                        }
+                    }
+                }
+                if !items.isEmpty {
+                    sections.append(LibrarySection(
+                        id: "trakt-watchlist",
+                        title: "Your Trakt Watchlist",
+                        items: items,
+                        totalCount: items.count,
+                        libraryKey: nil,
+                        browseContext: .trakt(kind: .watchlist)
+                    ))
+                }
+            } catch { print("⚠️ [Home] Trakt watchlist failed: \(error)") }
 
-        // Recently Watched (auth)
-        if let hist = try? await fetchTraktHistory() {
-            if !hist.isEmpty {
-                sections.append(LibrarySection(
-                    id: "trakt-history",
-                    title: "Recently Watched",
-                    items: hist,
-                    totalCount: hist.count,
-                    libraryKey: nil,
-                    browseContext: .trakt(kind: .history)
-                ))
-            }
-        }
+            // Recently Watched (auth)
+            do {
+                let history = try await trakt.getHistory(limit: 12)
+                var items: [MediaItem] = []
+                for histItem in history.prefix(12) {
+                    if let movie = histItem.movie {
+                        if let item = await mapTraktMovieToMediaItem(movie) {
+                            items.append(item)
+                        }
+                    } else if let show = histItem.show {
+                        if let item = await mapTraktShowToMediaItem(show) {
+                            items.append(item)
+                        }
+                    }
+                }
+                if !items.isEmpty {
+                    sections.append(LibrarySection(
+                        id: "trakt-history",
+                        title: "Recently Watched",
+                        items: items,
+                        totalCount: items.count,
+                        libraryKey: nil,
+                        browseContext: .trakt(kind: .history)
+                    ))
+                }
+            } catch { print("⚠️ [Home] Trakt history failed: \(error)") }
 
-        // Recommended for You (auth)
-        if let rec = try? await fetchTraktRecommendations() {
-            if !rec.isEmpty {
-                sections.append(LibrarySection(
-                    id: "trakt-recs",
-                    title: "Recommended for You",
-                    items: rec,
-                    totalCount: rec.count,
-                    libraryKey: nil,
-                    browseContext: .trakt(kind: .recommendations)
-                ))
-            }
+            // Recommended for You (auth)
+            do {
+                let recommended = try await trakt.getRecommendedMovies(limit: 12)
+                let items = await mapTraktMoviesToMediaItems(recommended)
+                if !items.isEmpty {
+                    sections.append(LibrarySection(
+                        id: "trakt-recs",
+                        title: "Recommended for You",
+                        items: items,
+                        totalCount: items.count,
+                        libraryKey: nil,
+                        browseContext: .trakt(kind: .recommendations)
+                    ))
+                }
+            } catch { print("⚠️ [Home] Trakt recommendations failed: \(error)") }
         }
 
         // Popular TV Shows on Trakt (public)
         do {
-            let items = try await fetchTraktPopular(media: "shows")
+            let popularShows = try await trakt.getPopularShows(limit: 12)
+            let items = await mapTraktShowsToMediaItems(popularShows)
             if !items.isEmpty {
                 sections.append(LibrarySection(
                     id: "trakt-popular-shows",
@@ -536,121 +572,120 @@ class HomeViewModel: ObservableObject {
     }
 
     // Helpers: Trakt mappers
-    private func fetchTraktTrending(media: String) async throws -> [MediaItem] {
-        struct TraktTrendingItem: Codable { let watchers: Int?; let movie: TraktMedia?; let show: TraktMedia? }
-        let arr: [TraktTrendingItem] = try await apiClient.get("/api/trakt/trending/\(media)")
-        let mediaType = (media == "movies") ? "movie" : "tv"
-        let limited = Array(arr.prefix(12))
-        let list: [TraktMedia] = limited.compactMap { $0.movie ?? $0.show }
-        return await mapTraktMediaListToMediaItems(list, mediaType: mediaType)
-    }
-
-    private func fetchTraktPopular(media: String) async throws -> [MediaItem] {
-        
-        let arr: [TraktMedia] = try await apiClient.get("/api/trakt/popular/\(media)")
-        let mediaType = (media == "movies") ? "movie" : "tv"
-        let limited = Array(arr.prefix(12))
-        return await mapTraktMediaListToMediaItems(limited, mediaType: mediaType)
-    }
-
-    private func fetchTraktWatchlist() async throws -> [MediaItem]? {
-        struct TraktItem: Codable { let movie: TraktMedia?; let show: TraktMedia? }
-        do {
-            let arr: [TraktItem] = try await apiClient.get("/api/trakt/users/me/watchlist")
-            let mediaList: [TraktMedia] = arr.compactMap { $0.movie ?? $0.show }
-            let items = await mapTraktMediaListToMediaItems(Array(mediaList.prefix(12)), mediaType: nil)
-            return items
-        } catch {
-            // likely 401 if not authenticated
-            return nil
-        }
-    }
-
-    private func fetchTraktHistory() async throws -> [MediaItem]? {
-        struct TraktItem: Codable { let movie: TraktMedia?; let show: TraktMedia? }
-        do {
-            let arr: [TraktItem] = try await apiClient.get("/api/trakt/users/me/history")
-            let mediaList: [TraktMedia] = arr.compactMap { $0.movie ?? $0.show }
-            let items = await mapTraktMediaListToMediaItems(Array(mediaList.prefix(12)), mediaType: nil)
-            return items
-        } catch { return nil }
-    }
-
-    private func fetchTraktRecommendations() async throws -> [MediaItem]? {
-        
-        do {
-            let arr: [TraktMedia] = try await apiClient.get("/api/trakt/recommendations/movies")
-            let items = await mapTraktMediaListToMediaItems(Array(arr.prefix(12)), mediaType: "movie")
-            return items
-        } catch { return nil }
-    }
-
-    private func mapTraktMediaListToMediaItems(_ list: [TraktMedia], mediaType: String?) async -> [MediaItem] {
+    private func mapTraktMoviesToMediaItems(_ movies: [FlixorKit.TraktMovie]) async -> [MediaItem] {
         var out: [MediaItem] = []
         await withTaskGroup(of: MediaItem?.self) { group in
-            for media in list {
+            for movie in movies {
                 group.addTask {
-                    guard let tmdb = media.ids.tmdb else { return nil }
-                    let inferredType: String = mediaType ?? "movie"
-                    let title = media.title ?? ""
-                    do {
-                        let backdrop = try await self.fetchTMDBBackdrop(mediaType: inferredType, id: tmdb)
-                        let m = MediaItem(
-                            id: "tmdb:\(inferredType):\(tmdb)",
-                            title: title,
-                            type: inferredType == "movie" ? "movie" : "show",
-                            thumb: nil,
-                            art: backdrop,
-                            year: media.year,
-                            rating: nil,
-                            duration: nil,
-                            viewOffset: nil,
-                            summary: nil,
-                            grandparentTitle: nil,
-                            grandparentThumb: nil,
-                            grandparentArt: nil,
-                            parentIndex: nil,
-                            index: nil,
-                parentRatingKey: nil,
-                parentTitle: nil,
-                leafCount: nil,
-                viewedLeafCount: nil
-                        )
-                        return m
-                    } catch { return nil }
+                    return await self.mapTraktMovieToMediaItem(movie)
                 }
             }
-            for await maybe in group { if let m = maybe { out.append(m) } }
+            for await maybe in group {
+                if let m = maybe { out.append(m) }
+            }
         }
         return out
     }
 
-    private func fetchTMDBBackdrop(mediaType: String, id: Int) async throws -> String? {
-        struct TMDBTitle: Codable { let backdrop_path: String? }
-        let path = "/api/tmdb/\(mediaType)/\(id)"
-        let detail: TMDBTitle = try await apiClient.get(path)
-        if let p = detail.backdrop_path {
-            return ImageService.shared.tmdbImageURL(path: p, size: .original)?.absoluteString
+    private func mapTraktMovieToMediaItem(_ movie: FlixorKit.TraktMovie) async -> MediaItem? {
+        guard let tmdb = movie.ids.tmdb else { return nil }
+        let backdrop = await fetchTMDBBackdrop(mediaType: "movie", id: tmdb)
+        return MediaItem(
+            id: "tmdb:movie:\(tmdb)",
+            title: movie.title,
+            type: "movie",
+            thumb: nil,
+            art: backdrop,
+            year: movie.year,
+            rating: nil,
+            duration: nil,
+            viewOffset: nil,
+            summary: nil,
+            grandparentTitle: nil,
+            grandparentThumb: nil,
+            grandparentArt: nil,
+            parentIndex: nil,
+            index: nil,
+            parentRatingKey: nil,
+            parentTitle: nil,
+            leafCount: nil,
+            viewedLeafCount: nil
+        )
+    }
+
+    private func mapTraktShowsToMediaItems(_ shows: [FlixorKit.TraktShow]) async -> [MediaItem] {
+        var out: [MediaItem] = []
+        await withTaskGroup(of: MediaItem?.self) { group in
+            for show in shows {
+                group.addTask {
+                    return await self.mapTraktShowToMediaItem(show)
+                }
+            }
+            for await maybe in group {
+                if let m = maybe { out.append(m) }
+            }
         }
-        return nil
+        return out
+    }
+
+    private func mapTraktShowToMediaItem(_ show: FlixorKit.TraktShow) async -> MediaItem? {
+        guard let tmdb = show.ids.tmdb else { return nil }
+        let backdrop = await fetchTMDBBackdrop(mediaType: "tv", id: tmdb)
+        return MediaItem(
+            id: "tmdb:tv:\(tmdb)",
+            title: show.title,
+            type: "show",
+            thumb: nil,
+            art: backdrop,
+            year: show.year,
+            rating: nil,
+            duration: nil,
+            viewOffset: nil,
+            summary: nil,
+            grandparentTitle: nil,
+            grandparentThumb: nil,
+            grandparentArt: nil,
+            parentIndex: nil,
+            index: nil,
+            parentRatingKey: nil,
+            parentTitle: nil,
+            leafCount: nil,
+            viewedLeafCount: nil
+        )
+    }
+
+    private func fetchTMDBBackdrop(mediaType: String, id: Int) async -> String? {
+        do {
+            if mediaType == "movie" {
+                let detail = try await FlixorCore.shared.tmdb.getMovieDetails(id: id)
+                return FlixorCore.shared.tmdb.getBackdropUrl(path: detail.backdropPath, size: "original")
+            } else {
+                let detail = try await FlixorCore.shared.tmdb.getTVDetails(id: id)
+                return FlixorCore.shared.tmdb.getBackdropUrl(path: detail.backdropPath, size: "original")
+            }
+        } catch {
+            return nil
+        }
     }
 
     // MARK: - Fetch Methods
 
     private func fetchOnDeck() async throws -> [MediaItem] {
+        guard let plexServer = FlixorCore.shared.plexServer else { return [] }
         print("📦 [Home] Fetching on deck items...")
-        let items: [MediaItemFull] = try await apiClient.get("/api/plex/ondeck")
+        let items = try await plexServer.getOnDeck()
         print("✅ [Home] Received \(items.count) on deck items")
-        return items.map { $0.toMediaItem() }
+        return items.map { toMediaItem($0) }
     }
 
     private func fetchContinueWatching() async throws -> [MediaItem] {
+        guard let plexServer = FlixorCore.shared.plexServer else { return [] }
         print("📦 [Home] Fetching continue watching items...")
-        let items: [MediaItemFull] = try await apiClient.get("/api/plex/continue")
+        let items = try await plexServer.getContinueWatching()
         print("✅ [Home] Received \(items.count) continue watching items")
 
         // Enrich with TMDB backdrop URLs before returning
-        let baseItems = items.map { $0.toMediaItem() }
+        let baseItems = items.map { toMediaItem($0) }
         return await enrichWithTMDBBackdrops(baseItems)
     }
 
@@ -705,6 +740,8 @@ class HomeViewModel: ObservableObject {
     }
 
     private func resolveTMDBBackdropForItem(_ item: MediaItem) async throws -> String? {
+        guard let plexServer = FlixorCore.shared.plexServer else { return nil }
+
         print("🔍 [Home] Resolving TMDB backdrop for: \(item.title) (id: \(item.id), type: \(item.type))")
 
         // Handle plain numeric IDs (assume they're Plex rating keys)
@@ -730,64 +767,40 @@ class HomeViewModel: ObservableObject {
         if normalizedId.hasPrefix("plex:") {
             let rk = String(normalizedId.dropFirst(5))
 
-            // Use MediaItemFull which has all the metadata we need
             do {
-                let fullItem: MediaItemFull = try await apiClient.get("/api/plex/metadata/\(rk)")
+                let fullItem = try await plexServer.getMetadata(ratingKey: rk)
 
                 // For TV episodes, fetch the parent series metadata instead
                 if fullItem.type == "episode", let grandparentRatingKey = fullItem.grandparentRatingKey {
                     print("📺 [Home] Episode detected, fetching parent series metadata for \(item.title)")
-                    let seriesItem: MediaItemFull = try await apiClient.get("/api/plex/metadata/\(grandparentRatingKey)")
+                    let seriesItem = try await plexServer.getMetadata(ratingKey: grandparentRatingKey)
 
                     // Extract TMDB ID from series Guid array
-                    if let guidArray = seriesItem.Guid {
-                        for guidEntry in guidArray {
-                            if guidEntry.id.contains("tmdb://") || guidEntry.id.contains("themoviedb://") {
-                                if let tmdbId = extractTMDBId(from: guidEntry.id) {
-                                    let url = try await fetchTMDBBestBackdropURLString(mediaType: "tv", id: tmdbId)
-                                    print("✅ [Home] TMDB backdrop resolved for \(item.title) from series Guid array: \(url ?? "nil")")
-                                    return url
-                                }
+                    for guidId in seriesItem.guids {
+                        if guidId.contains("tmdb://") || guidId.contains("themoviedb://") {
+                            if let tmdbId = extractTMDBId(from: guidId) {
+                                let url = try await fetchTMDBBestBackdropURLString(mediaType: "tv", id: tmdbId)
+                                print("✅ [Home] TMDB backdrop resolved for \(item.title) from series Guid array: \(url ?? "nil")")
+                                return url
                             }
-                        }
-                    }
-
-                    // Fallback to series guid string
-                    if let guid = seriesItem.guid {
-                        if let tmdbId = extractTMDBId(from: guid) {
-                            let url = try await fetchTMDBBestBackdropURLString(mediaType: "tv", id: tmdbId)
-                            print("✅ [Home] TMDB backdrop resolved for \(item.title) from series guid string: \(url ?? "nil")")
-                            return url
                         }
                     }
                     print("⚠️ [Home] No TMDB ID found in series metadata for \(item.title)")
                     return nil
                 }
 
-                // For movies and shows, extract TMDB ID from Guid array (prioritize over guid string)
-                if let guidArray = fullItem.Guid {
-                    for guidEntry in guidArray {
-                        if guidEntry.id.contains("tmdb://") || guidEntry.id.contains("themoviedb://") {
-                            if let tmdbId = extractTMDBId(from: guidEntry.id) {
-                                let mediaType = (fullItem.type == "movie") ? "movie" : "tv"
-                                let url = try await fetchTMDBBestBackdropURLString(mediaType: mediaType, id: tmdbId)
-                                print("✅ [Home] TMDB backdrop resolved for \(item.title) from Guid array: \(url ?? "nil")")
-                                return url
-                            }
+                // For movies and shows, extract TMDB ID from Guid array
+                for guidId in fullItem.guids {
+                    if guidId.contains("tmdb://") || guidId.contains("themoviedb://") {
+                        if let tmdbId = extractTMDBId(from: guidId) {
+                            let mediaType = (fullItem.type == "movie") ? "movie" : "tv"
+                            let url = try await fetchTMDBBestBackdropURLString(mediaType: mediaType, id: tmdbId)
+                            print("✅ [Home] TMDB backdrop resolved for \(item.title) from Guid array: \(url ?? "nil")")
+                            return url
                         }
                     }
                 }
-
-                // Fallback to guid string field if Guid array not present
-                if let guid = fullItem.guid {
-                    if let tmdbId = extractTMDBId(from: guid) {
-                        let mediaType = (fullItem.type == "movie") ? "movie" : "tv"
-                        let url = try await fetchTMDBBestBackdropURLString(mediaType: mediaType, id: tmdbId)
-                        print("✅ [Home] TMDB backdrop resolved for \(item.title) from guid string: \(url ?? "nil")")
-                        return url
-                    }
-                }
-                print("⚠️ [Home] No TMDB ID found in Guid array or guid string for \(item.title)")
+                print("⚠️ [Home] No TMDB ID found in Guid array for \(item.title)")
             } catch {
                 print("❌ [Home] Failed to fetch metadata for \(item.title): \(error)")
             }
@@ -797,45 +810,40 @@ class HomeViewModel: ObservableObject {
     }
 
     private func fetchTMDBBestBackdropURLString(mediaType: String, id: String) async throws -> String? {
-        struct TMDBImages: Codable { let backdrops: [TMDBImage]? }
-        struct TMDBImage: Codable { let file_path: String?; let iso_639_1: String?; let vote_average: Double? }
+        guard let tmdbId = Int(id) else { return nil }
 
-        let imgs: TMDBImages = try await apiClient.get("/api/tmdb/\(mediaType)/\(id)/images")
-        let backs = imgs.backdrops ?? []
+        let imgs = try await FlixorCore.shared.tmdb.getImages(mediaType: mediaType, id: tmdbId)
+        let backs = imgs.backdrops
         if backs.isEmpty { return nil }
 
-        let pick: ([TMDBImage]) -> TMDBImage? = { arr in
-            return arr.sorted { ($0.vote_average ?? 0) > ($1.vote_average ?? 0) }.first
+        let pick: ([FlixorKit.TMDBImage]) -> FlixorKit.TMDBImage? = { arr in
+            return arr.sorted(by: { ($0.voteAverage ?? 0) > ($1.voteAverage ?? 0) }).first
         }
 
         // Priority: en > hi > any non-null language > null (no text)
-        let en = pick(backs.filter { $0.iso_639_1 == "en" })
-        let hi = pick(backs.filter { $0.iso_639_1 == "hi" })
-        let withLang = pick(backs.filter { $0.iso_639_1 != nil && $0.iso_639_1 != "en" && $0.iso_639_1 != "hi" })
-        let nul = pick(backs.filter { $0.iso_639_1 == nil })
+        let en = pick(backs.filter { $0.iso6391 == "en" })
+        let hi = pick(backs.filter { $0.iso6391 == "hi" })
+        let withLang = pick(backs.filter { $0.iso6391 != nil && $0.iso6391 != "en" && $0.iso6391 != "hi" })
+        let nul = pick(backs.filter { $0.iso6391 == nil })
         let sel = en ?? hi ?? withLang ?? nul
 
-        guard let path = sel?.file_path else { return nil }
-        let full = "https://image.tmdb.org/t/p/original\(path)"
-        return ImageService.shared.proxyImageURL(url: full, width: 840, height: 420)?.absoluteString
+        guard let path = sel?.filePath else { return nil }
+        return FlixorCore.shared.tmdb.getBackdropUrl(path: path, size: "original")
     }
 
     private func fetchRecentlyAdded() async throws -> [MediaItem] {
+        guard let plexServer = FlixorCore.shared.plexServer else { return [] }
         print("📦 [Home] Fetching recently added items...")
-        let items: [MediaItemFull] = try await apiClient.get("/api/plex/recent")
+        let items = try await plexServer.getRecentlyAdded()
         print("✅ [Home] Received \(items.count) recently added items")
-        return items.map { $0.toMediaItem() }
+        return items.map { toMediaItem($0) }
     }
 
     private func fetchLibrarySections() async throws -> [LibrarySection] {
-        struct Library: Codable {
-            let key: String
-            let title: String
-            let type: String
-        }
+        guard let plexServer = FlixorCore.shared.plexServer else { return [] }
 
         print("📦 [Home] Fetching libraries...")
-        let libraries: [Library] = try await apiClient.get("/api/plex/libraries")
+        let libraries = try await plexServer.getLibraries()
         print("✅ [Home] Received \(libraries.count) libraries")
 
         // Fetch items for each library (limit to first 20)
@@ -844,20 +852,14 @@ class HomeViewModel: ObservableObject {
         for library in libraries {
             do {
                 print("📦 [Home] Fetching items for library: \(library.title)")
-                let items: [MediaItemFull] = try await apiClient.get(
-                    "/api/plex/library/\(library.key)/all",
-                    queryItems: [
-                        URLQueryItem(name: "offset", value: "0"),
-                        URLQueryItem(name: "limit", value: "20")
-                    ]
-                )
+                let items = try await plexServer.getLibraryItems(key: library.key, limit: 20)
 
                 if !items.isEmpty {
                     print("✅ [Home] Received \(items.count) items for \(library.title)")
                     sections.append(LibrarySection(
                         id: library.key,
                         title: library.title,
-                        items: items.map { $0.toMediaItem() },
+                        items: items.map { toMediaItem($0) },
                         totalCount: items.count,
                         libraryKey: library.key,
                         browseContext: .plexLibrary(key: library.key, title: library.title)

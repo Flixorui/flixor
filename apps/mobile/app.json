@@ -14,7 +14,10 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "xyz.flixor.mobile",
-      "icon": "./assets/icons/ios-light.png"
+      "icon": "./assets/icons/ios-light.png",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "xyz.flixor.mobile",

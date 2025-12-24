@@ -82,23 +82,6 @@ struct PlexAuthView: View {
                 }
 
                 Spacer()
-
-                // Change backend server link
-                Button(action: {
-                    // Reset backend configuration flag to go back
-                    UserDefaults.standard.set(false, forKey: "backendConfigured")
-                }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "server.rack")
-                            .font(.caption)
-                        Text("Change Backend Server")
-                            .font(.caption)
-                    }
-                    .foregroundStyle(.white.opacity(0.5))
-                }
-                .buttonStyle(.plain)
-
-                Spacer()
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
