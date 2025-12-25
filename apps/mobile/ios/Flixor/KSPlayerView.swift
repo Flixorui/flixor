@@ -1042,6 +1042,8 @@ extension KSPlayerView: KSPlayerLayerDelegate {
                 "currentTime": currentTime,
                 "duration": totalTime,
                 "bufferTime": p.playableTime,
+                "playbackRate": isPaused ? 0.0 : p.playbackRate,
+                "isPlaying": !isPaused,
                 "airPlayState": getAirPlayState()
             ])
         }
