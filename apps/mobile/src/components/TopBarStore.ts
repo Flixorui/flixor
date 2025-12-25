@@ -14,8 +14,11 @@ type State = {
   onNavigateLibrary?: (tab: 'movies'|'shows')=>void;
   onClose?: ()=>void;
   onSearch?: ()=>void;
+  onBrowse?: ()=>void;
+  onClearGenre?: ()=>void;
   compact?: boolean;
   customFilters?: React.ReactNode;
+  activeGenre?: string;
   height: number;
 };
 
@@ -32,8 +35,11 @@ const state: State = {
   onNavigateLibrary: undefined,
   onClose: undefined,
   onSearch: undefined,
+  onBrowse: undefined,
+  onClearGenre: undefined,
   compact: false,
   customFilters: undefined,
+  activeGenre: undefined,
   height: 90,
 };
 
@@ -51,6 +57,7 @@ export const TopBarStore = {
   setSelected(p: Pill) { if (state.selected !== p) { state.selected = p; emit(); } },
   setCompact(v: boolean) { if (state.compact !== v) { state.compact = v; emit(); } },
   setCustomFilters(v?: React.ReactNode) { if (state.customFilters !== v) { state.customFilters = v; emit(); } },
+  setActiveGenre(v?: string) { if (state.activeGenre !== v) { state.activeGenre = v; emit(); } },
   setScrollY(y?: Animated.Value) {
     // Don't emit on scrollY change since Animated.Value changes don't need React updates
     state.scrollY = y;
@@ -59,11 +66,13 @@ export const TopBarStore = {
     // Don't emit - Animated.Value changes don't need React updates
     state.showPills = v;
   },
-  setHandlers(h: { onNavigateLibrary?: (tab:'movies'|'shows')=>void; onClose?: ()=>void; onSearch?: ()=>void }) {
+  setHandlers(h: { onNavigateLibrary?: (tab:'movies'|'shows')=>void; onClose?: ()=>void; onSearch?: ()=>void; onBrowse?: ()=>void; onClearGenre?: ()=>void }) {
     let changed = false;
     if (state.onNavigateLibrary !== h.onNavigateLibrary) { state.onNavigateLibrary = h.onNavigateLibrary; changed = true; }
     if (state.onClose !== h.onClose) { state.onClose = h.onClose; changed = true; }
     if (state.onSearch !== h.onSearch) { state.onSearch = h.onSearch; changed = true; }
+    if (state.onBrowse !== h.onBrowse) { state.onBrowse = h.onBrowse; changed = true; }
+    if (state.onClearGenre !== h.onClearGenre) { state.onClearGenre = h.onClearGenre; changed = true; }
     if (changed) emit();
   },
   setHeight(h: number) { if (state.height !== h) { state.height = h; emit(); } },

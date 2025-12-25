@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, ActivityIndicator, Pressable, StyleSheet, Dimensions, Animated } from 'react-native';
+import { View, Text, ActivityIndicator, Pressable, StyleSheet, Dimensions, Animated, Modal, Platform } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import { FlashList } from '@shopify/flash-list';
 import { TopBarStore, useTopBarStore } from '../components/TopBarStore';
@@ -13,7 +13,10 @@ import {
   getLibraryUsername,
   LibraryItem,
   LibrarySections,
+  LIBRARY_SORT_OPTIONS,
 } from '../core/LibraryData';
+import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 
 export default function Library() {
   const route = useRoute();
@@ -29,6 +32,10 @@ export default function Library() {
   const [hasMore, setHasMore] = useState(true);
   const loadingMoreRef = useRef(false);
   const [sectionKeys, setSectionKeys] = useState<LibrarySections>({});
+  const [genreKey, setGenreKey] = useState<string | undefined>(undefined);
+  const [genreName, setGenreName] = useState<string | undefined>(undefined);
+  const [sortOption, setSortOption] = useState(LIBRARY_SORT_OPTIONS[0]);
+  const [showSortModal, setShowSortModal] = useState(false);
   const y = useRef(new Animated.Value(0)).current;
   const showPillsAnim = useRef(new Animated.Value(1)).current;
   const barHeight = useTopBarStore((s) => s.height || 90);
@@ -40,13 +47,21 @@ export default function Library() {
     [selected]
   );
 
-  // Read route params to set initial selection
+  // Read route params to set initial selection and genre filter
   useEffect(() => {
     const params = route.params as any;
     if (params?.tab === 'movies') {
       setSelected('movies');
     } else if (params?.tab === 'tv') {
       setSelected('shows');
+    }
+    // Set genre filter if provided
+    if (params?.genreKey) {
+      setGenreKey(params.genreKey);
+      setGenreName(params.genre || 'Genre');
+    } else {
+      setGenreKey(undefined);
+      setGenreName(undefined);
     }
     console.log('[Library] route params:', params);
   }, [route.params]);
@@ -58,6 +73,12 @@ export default function Library() {
     TopBarStore.setShowPills(showPillsAnim);
   }, [y]);
 
+  // Clear genre filter handler (stable ref for TopBar)
+  const clearGenreFilter = React.useCallback(() => {
+    setGenreKey(undefined);
+    setGenreName(undefined);
+  }, []);
+
   // Push top bar updates via effects (avoid setState in render)
   useEffect(() => {
     TopBarStore.setVisible(true);
@@ -65,6 +86,9 @@ export default function Library() {
     TopBarStore.setUsername(username);
     TopBarStore.setSelected(selected);
     TopBarStore.setCompact(false); // Library uses full-size bar
+    // Set active genre for Pills component
+    TopBarStore.setActiveGenre(genreName);
+    TopBarStore.setCustomFilters(undefined);
     TopBarStore.setHandlers({
       onNavigateLibrary: undefined,
       onClose: () => {
@@ -77,8 +101,21 @@ export default function Library() {
         console.log('[Library] Opening search');
         nav.navigate('Search');
       },
+      onBrowse: () => {
+        console.log('[Library] Opening Collections');
+        nav.navigate('Collections');
+      },
+      onClearGenre: clearGenreFilter,
     });
-  }, [username, selected, nav]);
+  }, [username, selected, nav, genreName, clearGenreFilter]);
+
+  // Clean up activeGenre when leaving Library
+  useEffect(() => {
+    return () => {
+      TopBarStore.setActiveGenre(undefined);
+      TopBarStore.setHandlers({ onClearGenre: undefined });
+    };
+  }, []);
 
   // Initial load: get username and library sections
   useEffect(() => {
@@ -98,7 +135,7 @@ export default function Library() {
     })();
   }, [flixorLoading, isConnected]);
 
-  // Load items when section keys or type changes
+  // Load items when section keys, type, genre, or sort changes
   useEffect(() => {
     if (flixorLoading || !isConnected) return;
     if (!sectionKeys.show && !sectionKeys.movie) return;
@@ -117,13 +154,15 @@ export default function Library() {
               ? sectionKeys.movie
               : sectionKeys.show || sectionKeys.movie;
 
-        console.log('[Library] load items', { selected, mType, useSection });
+        console.log('[Library] load items', { selected, mType, useSection, genreKey, sort: sortOption.value });
 
         if (useSection) {
           const result = await fetchLibraryItems(useSection, {
             type: mType === 'all' ? 'all' : mType,
             offset: 0,
             limit: 40,
+            genreKey,
+            sort: sortOption.value,
           });
 
           console.log('[Library] mapped first page', result.items.length);
@@ -140,7 +179,7 @@ export default function Library() {
         setLoading(false);
       }
     })();
-  }, [flixorLoading, isConnected, mType, sectionKeys]);
+  }, [flixorLoading, isConnected, mType, sectionKeys, genreKey, sortOption]);
 
   const loadMore = async () => {
     if (!hasMore || loadingMoreRef.current) return;
@@ -161,6 +200,8 @@ export default function Library() {
           type: mType === 'all' ? 'all' : mType,
           offset,
           limit: 40,
+          genreKey,
+          sort: sortOption.value,
         });
 
         console.log('[Library] loadMore page', nextPage, 'count', result.items.length);
@@ -284,6 +325,58 @@ export default function Library() {
           <Text style={{ color: '#888', textAlign: 'center', marginTop: 40 }}>No items</Text>
         }
       />
+
+      {/* Floating Sort Button */}
+      <Pressable
+        onPress={() => setShowSortModal(true)}
+        style={styles.sortButton}
+      >
+        <BlurView intensity={80} tint="dark" style={styles.sortButtonBlur}>
+          <Ionicons name="swap-vertical" size={20} color="#fff" />
+          <Text style={styles.sortButtonText}>{sortOption.label}</Text>
+        </BlurView>
+      </Pressable>
+
+      {/* Sort Modal */}
+      <Modal
+        visible={showSortModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowSortModal(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setShowSortModal(false)}>
+          <View style={styles.sortModalContent}>
+            <BlurView intensity={100} tint="dark" style={styles.sortModalBlur}>
+              <Text style={styles.sortModalTitle}>Sort By</Text>
+              {LIBRARY_SORT_OPTIONS.map((option) => (
+                <Pressable
+                  key={option.value}
+                  onPress={() => {
+                    setSortOption(option);
+                    setShowSortModal(false);
+                  }}
+                  style={[
+                    styles.sortOption,
+                    sortOption.value === option.value && styles.sortOptionActive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.sortOptionText,
+                      sortOption.value === option.value && styles.sortOptionTextActive,
+                    ]}
+                  >
+                    {option.label}
+                  </Text>
+                  {sortOption.value === option.value && (
+                    <Ionicons name="checkmark" size={20} color="#fff" />
+                  )}
+                </Pressable>
+              ))}
+            </BlurView>
+          </View>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -325,4 +418,65 @@ function Card({
 const styles = StyleSheet.create({
   center: { flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' },
   retry: { backgroundColor: '#fff', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8 },
+  sortButton: {
+    position: 'absolute',
+    bottom: Platform.OS === 'ios' ? 100 : 80,
+    right: 16,
+    borderRadius: 24,
+    overflow: 'hidden',
+  },
+  sortButtonBlur: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  sortButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sortModalContent: {
+    width: '80%',
+    maxWidth: 320,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  sortModalBlur: {
+    padding: 20,
+  },
+  sortModalTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  sortOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    marginBottom: 4,
+  },
+  sortOptionActive: {
+    backgroundColor: 'rgba(255,255,255,0.15)',
+  },
+  sortOptionText: {
+    color: '#aaa',
+    fontSize: 16,
+  },
+  sortOptionTextActive: {
+    color: '#fff',
+    fontWeight: '600',
+  },
 });

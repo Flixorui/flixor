@@ -216,3 +216,169 @@ export function canDirectStream(metadata: any): boolean {
 
   return containerOk && videoOk;
 }
+
+// ============================================
+// Trakt Scrobbling
+// ============================================
+
+export type TraktScrobbleIds = {
+  tmdbId?: number;
+  imdbId?: string;
+};
+
+// Convert local TraktScrobbleIds to the format TraktService expects
+function toTraktIds(ids: TraktScrobbleIds): { tmdb?: number; imdb?: string } {
+  return {
+    tmdb: ids.tmdbId,
+    imdb: ids.imdbId,
+  };
+}
+
+export type TraktEpisodeInfo = {
+  season: number;
+  number: number;
+};
+
+/**
+ * Check if Trakt is authenticated
+ */
+export function isTraktAuthenticated(): boolean {
+  try {
+    const core = getFlixorCore();
+    return core.isTraktAuthenticated;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Extract TMDB/IMDB IDs from Plex metadata for Trakt
+ */
+export function extractTraktIds(metadata: PlexMediaItem | null): TraktScrobbleIds {
+  const ids: TraktScrobbleIds = {};
+  if (!metadata) return ids;
+
+  const guids = (metadata as any)?.Guid || [];
+  for (const g of guids) {
+    const id = String(g.id || '');
+    if (id.includes('tmdb://') || id.includes('themoviedb://')) {
+      ids.tmdbId = Number(id.split('://')[1]);
+    }
+    if (id.includes('imdb://')) {
+      ids.imdbId = id.split('://')[1];
+    }
+  }
+
+  return ids;
+}
+
+/**
+ * Start scrobbling on Trakt
+ */
+export async function startTraktScrobble(
+  metadata: PlexMediaItem | null,
+  progress: number
+): Promise<void> {
+  if (!metadata || !isTraktAuthenticated()) return;
+
+  try {
+    const core = getFlixorCore();
+    const ids = extractTraktIds(metadata);
+
+    if (!ids.tmdbId && !ids.imdbId) {
+      console.log('[PlayerData] No TMDB/IMDB IDs for Trakt scrobble');
+      return;
+    }
+
+    const mediaType = metadata.type;
+
+    if (mediaType === 'movie') {
+      await core.trakt.startScrobbleMovie({ ids: toTraktIds(ids) }, progress);
+      console.log('[PlayerData] Started Trakt movie scrobble');
+    } else if (mediaType === 'episode') {
+      // For episodes, we need show IDs and episode info
+      const showIds = extractTraktIds({ Guid: (metadata as any).grandparentGuid } as any);
+      const episodeInfo = {
+        season: (metadata as any).parentIndex || 1,
+        number: (metadata as any).index || 1,
+      };
+
+      // Try with episode-specific IDs if show IDs aren't available
+      const finalIds = (showIds.tmdbId || showIds.imdbId) ? showIds : ids;
+      await core.trakt.startScrobbleEpisode({ ids: toTraktIds(finalIds) }, episodeInfo, progress);
+      console.log('[PlayerData] Started Trakt episode scrobble');
+    }
+  } catch (e) {
+    console.log('[PlayerData] startTraktScrobble error:', e);
+  }
+}
+
+/**
+ * Pause scrobbling on Trakt
+ */
+export async function pauseTraktScrobble(
+  metadata: PlexMediaItem | null,
+  progress: number
+): Promise<void> {
+  if (!metadata || !isTraktAuthenticated()) return;
+
+  try {
+    const core = getFlixorCore();
+    const ids = extractTraktIds(metadata);
+
+    if (!ids.tmdbId && !ids.imdbId) return;
+
+    const mediaType = metadata.type;
+
+    if (mediaType === 'movie') {
+      await core.trakt.pauseScrobbleMovie({ ids: toTraktIds(ids) }, progress);
+      console.log('[PlayerData] Paused Trakt movie scrobble');
+    } else if (mediaType === 'episode') {
+      const showIds = extractTraktIds({ Guid: (metadata as any).grandparentGuid } as any);
+      const episodeInfo = {
+        season: (metadata as any).parentIndex || 1,
+        number: (metadata as any).index || 1,
+      };
+      const finalIds = (showIds.tmdbId || showIds.imdbId) ? showIds : ids;
+      await core.trakt.pauseScrobbleEpisode({ ids: toTraktIds(finalIds) }, episodeInfo, progress);
+      console.log('[PlayerData] Paused Trakt episode scrobble');
+    }
+  } catch (e) {
+    console.log('[PlayerData] pauseTraktScrobble error:', e);
+  }
+}
+
+/**
+ * Stop scrobbling on Trakt (and auto-mark watched if progress >= 80%)
+ */
+export async function stopTraktScrobble(
+  metadata: PlexMediaItem | null,
+  progress: number
+): Promise<void> {
+  if (!metadata || !isTraktAuthenticated()) return;
+
+  try {
+    const core = getFlixorCore();
+    const ids = extractTraktIds(metadata);
+
+    if (!ids.tmdbId && !ids.imdbId) return;
+
+    const mediaType = metadata.type;
+
+    if (mediaType === 'movie') {
+      await core.trakt.stopScrobbleMovie({ ids: toTraktIds(ids) }, progress);
+      console.log('[PlayerData] Stopped Trakt movie scrobble, progress:', progress);
+    } else if (mediaType === 'episode') {
+      const showIds = extractTraktIds({ Guid: (metadata as any).grandparentGuid } as any);
+      const episodeInfo = {
+        season: (metadata as any).parentIndex || 1,
+        number: (metadata as any).index || 1,
+      };
+      const finalIds = (showIds.tmdbId || showIds.imdbId) ? showIds : ids;
+      await core.trakt.stopScrobbleEpisode({ ids: toTraktIds(finalIds) }, episodeInfo, progress);
+      console.log('[PlayerData] Stopped Trakt episode scrobble, progress:', progress);
+    }
+  } catch (e) {
+    console.log('[PlayerData] stopTraktScrobble error:', e);
+  }
+}

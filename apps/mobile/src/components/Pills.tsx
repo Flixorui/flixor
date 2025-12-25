@@ -9,6 +9,8 @@ type Props = {
   onChange: (tab: 'all'|'movies'|'shows') => void;
   onOpenCategories?: () => void;
   onClose?: () => void;
+  activeGenre?: string;
+  onClearGenre?: () => void;
 };
 
 function Pill({ active, label, onPress }: { active?: boolean; label: string; onPress?: () => void }) {
@@ -39,7 +41,7 @@ function Pill({ active, label, onPress }: { active?: boolean; label: string; onP
   );
 }
 
-export default function Pills({ selected, onChange, onOpenCategories, onClose }: Props) {
+export default function Pills({ selected, onChange, onOpenCategories, onClose, activeGenre, onClearGenre }: Props) {
   // Fade between different layouts
   const layoutOpacity = useRef(new Animated.Value(1)).current;
 
@@ -89,10 +91,49 @@ export default function Pills({ selected, onChange, onOpenCategories, onClose }:
         </>
       )}
       
-      <Pressable onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onOpenCategories?.(); }} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: '#4a4a4a', backgroundColor: 'transparent' }}>
-        <Text style={{ color: '#fff', fontWeight: '600', marginRight: 6 }}>Categories</Text>
-        <Ionicons name="chevron-down" color="#fff" size={16} />
-      </Pressable>
+      {activeGenre ? (
+        <>
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              onClearGenre?.();
+            }}
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 18,
+              borderWidth: 1,
+              borderColor: '#4a4a4a',
+              backgroundColor: 'transparent',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginRight: 8
+            }}
+          >
+            <Ionicons name="close-outline" color="#fff" size={20} />
+          </Pressable>
+          <Pressable
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onOpenCategories?.(); }}
+            style={{
+              paddingHorizontal: 14,
+              paddingVertical: 8,
+              borderRadius: 999,
+              borderWidth: 1,
+              borderColor: '#4a4a4a',
+              overflow: 'hidden',
+            }}
+          >
+            <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFillObject} />
+            <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(255,255,255,0.15)' }]} />
+            <Text style={{ color: '#fff', fontWeight: '600' }}>{activeGenre}</Text>
+          </Pressable>
+        </>
+      ) : (
+        <Pressable onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onOpenCategories?.(); }} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: '#4a4a4a', backgroundColor: 'transparent' }}>
+          <Text style={{ color: '#fff', fontWeight: '600', marginRight: 6 }}>Categories</Text>
+          <Ionicons name="chevron-down" color="#fff" size={16} />
+        </Pressable>
+      )}
     </Animated.View>
   );
 }

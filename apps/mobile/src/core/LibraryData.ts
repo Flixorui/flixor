@@ -19,6 +19,21 @@ export type LibrarySections = {
   movie?: string;
 };
 
+// Sort options for library items
+export type LibrarySortOption = {
+  label: string;
+  value: string;
+};
+
+export const LIBRARY_SORT_OPTIONS: LibrarySortOption[] = [
+  { label: 'Date Added', value: 'addedAt:desc' },
+  { label: 'Title', value: 'titleSort:asc' },
+  { label: 'Year (Newest)', value: 'year:desc' },
+  { label: 'Year (Oldest)', value: 'year:asc' },
+  { label: 'Rating', value: 'rating:desc' },
+  { label: 'Release Date', value: 'originallyAvailableAt:desc' },
+];
+
 // ============================================
 // Library Sections
 // ============================================
@@ -52,23 +67,35 @@ export async function fetchLibraryItems(
     offset?: number;
     limit?: number;
     sort?: string;
+    genreKey?: string;
   }
 ): Promise<{ items: LibraryItem[]; hasMore: boolean }> {
   try {
     const core = getFlixorCore();
-    const { type = 'all', offset = 0, limit = 40, sort = 'addedAt:desc' } = options || {};
+    const { type = 'all', offset = 0, limit = 40, sort = 'addedAt:desc', genreKey } = options || {};
 
     // Type filter: 1 = movie, 2 = show
     const typeNumber = type === 'movie' ? 1 : type === 'show' ? 2 : undefined;
 
-    console.log('[LibraryData] fetchLibraryItems:', { sectionKey, type, typeNumber, offset, limit, sort });
+    console.log('[LibraryData] fetchLibraryItems:', { sectionKey, type, typeNumber, offset, limit, sort, genreKey });
 
-    const items = await core.plexServer.getLibraryItems(sectionKey, {
-      type: typeNumber,
-      offset,
-      limit,
-      sort,
-    });
+    let items: PlexMediaItem[];
+
+    if (genreKey) {
+      // Use genre filtering
+      items = await core.plexServer.getItemsByGenre(sectionKey, genreKey, {
+        start: offset,
+        size: limit,
+        sort,
+      });
+    } else {
+      items = await core.plexServer.getLibraryItems(sectionKey, {
+        type: typeNumber,
+        offset,
+        limit,
+        sort,
+      });
+    }
 
     console.log('[LibraryData] Received', items.length, 'items from offset', offset);
 

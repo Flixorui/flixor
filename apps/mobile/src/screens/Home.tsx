@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { View, Text, ActivityIndicator, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -6,8 +6,9 @@ import Row from '../components/Row';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { TopBarStore, useTopBarStore } from '../components/TopBarStore';
 import HeroCard from '../components/HeroCard';
+import BrowseModal from '../components/BrowseModal';
 import { useFlixor } from '../core/FlixorContext';
-import type { PlexMediaItem } from '@flixor/core';
+import type { PlexMediaItem, BrowseContext, BrowseItem } from '@flixor/core';
 import {
   fetchTmdbTrendingTVWeek,
   fetchTmdbTrendingMoviesWeek,
@@ -25,9 +26,18 @@ import {
   getPlexImageUrl,
   getContinueWatchingImageUrl,
   getTmdbLogo,
+  getTmdbTextlessPoster,
+  getUltraBlurColors,
   getUsername,
   RowItem,
+  GenreItem,
+  PlexUltraBlurColors,
 } from '../core/HomeData';
+import {
+  toggleWatchlist,
+  checkWatchlistStatus,
+  WatchlistIds,
+} from '../core/DetailsData';
 
 interface HomeProps {
   onLogout: () => Promise<void>;
@@ -69,6 +79,11 @@ export default function Home({ onLogout }: HomeProps) {
   const [tab, setTab] = useState<'all' | 'movies' | 'shows'>('all');
   const [heroLogo, setHeroLogo] = useState<string | undefined>(undefined);
   const [heroPick, setHeroPick] = useState<HeroPick | null>(null);
+  const [heroInWatchlist, setHeroInWatchlist] = useState(false);
+  const [heroWatchlistLoading, setHeroWatchlistLoading] = useState(false);
+  const [heroColors, setHeroColors] = useState<PlexUltraBlurColors | null>(null);
+  const [browseModalVisible, setBrowseModalVisible] = useState(false);
+
   const y = React.useRef(new Animated.Value(0)).current;
   const showPillsAnim = React.useRef(new Animated.Value(1)).current;
   const barHeight = useTopBarStore((s) => s.height || 90);
@@ -121,6 +136,10 @@ export default function Home({ onLogout }: HomeProps) {
         console.log('[Home] Opening search');
         nav.navigate('Search');
       },
+      onBrowse: () => {
+        console.log('[Home] Opening browse modal');
+        setBrowseModalVisible(true);
+      },
     });
   }, [welcome, tab, nav, isFocused]);
 
@@ -141,7 +160,7 @@ export default function Home({ onLogout }: HomeProps) {
       return {
         title: pick.title,
         image: pick.image,
-        subtitle: 'Watch the Limited Series now',
+        subtitle: '',
         tmdbId,
         mediaType,
       };
@@ -149,6 +168,17 @@ export default function Home({ onLogout }: HomeProps) {
 
     return { title: 'Featured', image: undefined, subtitle: undefined };
   };
+
+  // Navigate to Browse screen with context and initial items
+  const openRowBrowse = useCallback((context: BrowseContext, title: string, items: RowItem[]) => {
+    // Convert RowItem to BrowseItem format
+    const browseItems: BrowseItem[] = items.map((item) => ({
+      id: item.id,
+      title: item.title,
+      image: item.image,
+    }));
+    nav.navigate('Browse', { context, title, initialItems: browseItems });
+  }, [nav]);
 
   // Main data loading effect
   useEffect(() => {
@@ -255,7 +285,7 @@ export default function Home({ onLogout }: HomeProps) {
     })();
   }, [flixorLoading, isConnected, retryCount]);
 
-  // Fetch logo for hero once popularOnPlexTmdb is loaded
+  // Fetch logo and textless backdrop for hero once popularOnPlexTmdb is loaded
   useEffect(() => {
     console.log('[Home] Hero effect triggered, popularOnPlexTmdb length:', popularOnPlexTmdb.length);
     if (popularOnPlexTmdb.length === 0) {
@@ -268,9 +298,25 @@ export default function Home({ onLogout }: HomeProps) {
       try {
         const hero = pickHero(popularOnPlexTmdb);
         console.log('[Home] Picked hero:', hero.title, 'tmdbId:', hero.tmdbId, 'has image:', !!hero.image);
-        setHeroPick(hero);
 
         if (hero.tmdbId && hero.mediaType) {
+          // Fetch textless poster from TMDB
+          console.log('[Home] Fetching textless poster for:', hero.mediaType, hero.tmdbId);
+          const poster = await getTmdbTextlessPoster(hero.tmdbId, hero.mediaType);
+          if (poster) {
+            console.log('[Home] Setting hero poster from TMDB (textless)');
+            hero.image = poster;
+
+            // Fetch UltraBlur colors from the poster
+            console.log('[Home] Fetching UltraBlur colors for hero poster');
+            const colors = await getUltraBlurColors(poster);
+            if (colors) {
+              console.log('[Home] Setting hero colors:', colors);
+              setHeroColors(colors);
+            }
+          }
+
+          // Fetch logo
           console.log('[Home] Fetching logo for:', hero.mediaType, hero.tmdbId);
           const logo = await getTmdbLogo(hero.tmdbId, hero.mediaType);
           if (logo) {
@@ -279,9 +325,19 @@ export default function Home({ onLogout }: HomeProps) {
           } else {
             console.log('[Home] No logo found for hero');
           }
+
+          // Check watchlist status for hero
+          const heroIds: WatchlistIds = {
+            tmdbId: hero.tmdbId,
+            mediaType: hero.mediaType,
+          };
+          const inWatchlist = await checkWatchlistStatus(heroIds);
+          setHeroInWatchlist(inWatchlist);
         } else {
           console.log('[Home] No TMDB ID for hero, logo unavailable');
         }
+
+        setHeroPick(hero);
       } catch (e) {
         console.log('[Home] Error in hero selection:', e);
       }
@@ -357,6 +413,18 @@ export default function Home({ onLogout }: HomeProps) {
   const plexImage = (item: PlexMediaItem) => getPlexImageUrl(item, 300);
   const plexContinueImage = (item: PlexMediaItem) => getContinueWatchingImageUrl(item, 300);
 
+  // Convert hex color to rgba with opacity
+  const hexToRgba = (hex: string, opacity: number) => {
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+    return `rgba(${r},${g},${b},${opacity})`;
+  };
+
+  // Get gradient colors from heroColors or use defaults
+  const bottomLeftColor = heroColors?.bottomLeft || '7a1612';
+  const topRightColor = heroColors?.topRight || '144c54';
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#1b0a10' }}>
       <LinearGradient
@@ -366,13 +434,21 @@ export default function Home({ onLogout }: HomeProps) {
         style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
       />
       <LinearGradient
-        colors={['rgba(122,22,18,0.28)', 'rgba(122,22,18,0.08)', 'rgba(122,22,18,0.0)']}
+        colors={[
+          hexToRgba(bottomLeftColor, 0.28),
+          hexToRgba(bottomLeftColor, 0.08),
+          hexToRgba(bottomLeftColor, 0.0),
+        ]}
         start={{ x: 0.0, y: 1.0 }}
         end={{ x: 0.45, y: 0.35 }}
         style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
       />
       <LinearGradient
-        colors={['rgba(20,76,84,0.26)', 'rgba(20,76,84,0.08)', 'rgba(20,76,84,0.0)']}
+        colors={[
+          hexToRgba(topRightColor, 0.26),
+          hexToRgba(topRightColor, 0.08),
+          hexToRgba(topRightColor, 0.0),
+        ]}
         start={{ x: 1.0, y: 0.0 }}
         end={{ x: 0.55, y: 0.45 }}
         style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
@@ -417,17 +493,38 @@ export default function Home({ onLogout }: HomeProps) {
         {heroPick ? (
           <HeroCard
             hero={{ title: heroPick.title, subtitle: heroPick.subtitle, imageUri: heroPick.image, logoUri: heroLogo }}
-            onPlay={() => {}}
-            onAdd={() => {}}
+            inWatchlist={heroInWatchlist}
+            watchlistLoading={heroWatchlistLoading}
+            onPlay={() => {
+              if (heroPick.tmdbId && heroPick.mediaType) {
+                nav.navigate('Details', {
+                  type: 'tmdb',
+                  id: String(heroPick.tmdbId),
+                  mediaType: heroPick.mediaType,
+                });
+              }
+            }}
+            onAdd={async () => {
+              if (!heroPick.tmdbId || !heroPick.mediaType || heroWatchlistLoading) return;
+              setHeroWatchlistLoading(true);
+              try {
+                const ids: WatchlistIds = {
+                  tmdbId: heroPick.tmdbId,
+                  mediaType: heroPick.mediaType,
+                };
+                const result = await toggleWatchlist(ids, 'both');
+                if (result.success) {
+                  setHeroInWatchlist(result.inWatchlist);
+                }
+              } finally {
+                setHeroWatchlistLoading(false);
+              }
+            }}
           />
         ) : null}
 
         <View style={{ paddingHorizontal: 16, marginTop: 16 }}>
-          {popularOnPlexTmdb.length > 0 && (
-            <Row title="Popular on Plex" items={popularOnPlexTmdb} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} />
-          )}
-
-          {continueItems.length > 0 && (
+        {continueItems.length > 0 && (
             <Row
               title="Continue Watching"
               items={continueItems}
@@ -436,21 +533,60 @@ export default function Home({ onLogout }: HomeProps) {
               onItemPress={(it) => nav.navigate('Details', { type: 'plex', ratingKey: String(it.ratingKey || it.guid || '') })}
             />
           )}
+          
+          {popularOnPlexTmdb.length > 0 && (
+            <Row
+              title="Popular on Plex"
+              items={popularOnPlexTmdb}
+              getImageUri={getRowUri}
+              getTitle={getRowTitle}
+              onItemPress={onRowPress}
+              onBrowsePress={() => openRowBrowse({ type: 'tmdb', kind: 'trending', mediaType: 'tv', title: 'Popular on Plex' }, 'Popular on Plex', popularOnPlexTmdb)}
+            />
+          )}
 
           {trendingNow.length > 0 && (
-            <Row title="Trending Now" items={trendingNow} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} />
+            <Row
+              title="Trending Now"
+              items={trendingNow}
+              getImageUri={getRowUri}
+              getTitle={getRowTitle}
+              onItemPress={onRowPress}
+              onBrowsePress={() => openRowBrowse({ type: 'tmdb', kind: 'trending', mediaType: 'tv', title: 'Trending Now' }, 'Trending Now', trendingNow)}
+            />
           )}
 
           {trendingMovies.length > 0 && (
-            <Row title="Trending Movies" items={trendingMovies} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} />
+            <Row
+              title="Trending Movies"
+              items={trendingMovies}
+              getImageUri={getRowUri}
+              getTitle={getRowTitle}
+              onItemPress={onRowPress}
+              onBrowsePress={() => openRowBrowse({ type: 'tmdb', kind: 'trending', mediaType: 'movie', title: 'Trending Movies' }, 'Trending Movies', trendingMovies)}
+            />
           )}
 
           {trendingAll.length > 0 && (
-            <Row title="Trending This Week" items={trendingAll} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} />
+            <Row
+              title="Trending This Week"
+              items={trendingAll}
+              getImageUri={getRowUri}
+              getTitle={getRowTitle}
+              onItemPress={onRowPress}
+              onBrowsePress={() => openRowBrowse({ type: 'tmdb', kind: 'trending', mediaType: 'movie', title: 'Trending This Week' }, 'Trending This Week', trendingAll)}
+            />
           )}
 
           {watchlist.length > 0 && (
-            <Row title="Watchlist" items={watchlist} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} />
+            <Row
+              title="Watchlist"
+              items={watchlist}
+              getImageUri={getRowUri}
+              getTitle={getRowTitle}
+              onItemPress={onRowPress}
+              onBrowsePress={() => openRowBrowse({ type: 'plexWatchlist' }, 'Watchlist', watchlist)}
+            />
           )}
 
           {genres['TV Shows - Children']?.length ? (
@@ -489,30 +625,94 @@ export default function Home({ onLogout }: HomeProps) {
           )}
 
           {tab !== 'shows' && traktTrendMovies.length > 0 && (
-            <Row title="Trending Movies on Trakt" items={traktTrendMovies} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} />
+            <Row
+              title="Trending Movies on Trakt"
+              items={traktTrendMovies}
+              getImageUri={getRowUri}
+              getTitle={getRowTitle}
+              onItemPress={onRowPress}
+              onBrowsePress={() => openRowBrowse({ type: 'trakt', kind: 'trending', mediaType: 'movie', title: 'Trending Movies on Trakt' }, 'Trending Movies on Trakt', traktTrendMovies)}
+            />
           )}
 
           {tab !== 'movies' && traktTrendShows.length > 0 && (
-            <Row title="Trending TV Shows on Trakt" items={traktTrendShows} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} />
+            <Row
+              title="Trending TV Shows on Trakt"
+              items={traktTrendShows}
+              getImageUri={getRowUri}
+              getTitle={getRowTitle}
+              onItemPress={onRowPress}
+              onBrowsePress={() => openRowBrowse({ type: 'trakt', kind: 'trending', mediaType: 'tv', title: 'Trending TV Shows on Trakt' }, 'Trending TV Shows on Trakt', traktTrendShows)}
+            />
           )}
 
           {traktMyWatchlist.length > 0 && (
-            <Row title="Your Trakt Watchlist" items={traktMyWatchlist} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} />
+            <Row
+              title="Your Trakt Watchlist"
+              items={traktMyWatchlist}
+              getImageUri={getRowUri}
+              getTitle={getRowTitle}
+              onItemPress={onRowPress}
+              onBrowsePress={() => openRowBrowse({ type: 'trakt', kind: 'watchlist', mediaType: 'movie', title: 'Your Trakt Watchlist' }, 'Your Trakt Watchlist', traktMyWatchlist)}
+            />
           )}
 
           {traktHistory.length > 0 && (
-            <Row title="Recently Watched" items={traktHistory} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} />
+            <Row
+              title="Recently Watched"
+              items={traktHistory}
+              getImageUri={getRowUri}
+              getTitle={getRowTitle}
+              onItemPress={onRowPress}
+              onBrowsePress={() => openRowBrowse({ type: 'trakt', kind: 'history', mediaType: 'movie', title: 'Recently Watched' }, 'Recently Watched', traktHistory)}
+            />
           )}
 
           {traktRecommendations.length > 0 && (
-            <Row title="Recommended for You" items={traktRecommendations} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} />
+            <Row
+              title="Recommended for You"
+              items={traktRecommendations}
+              getImageUri={getRowUri}
+              getTitle={getRowTitle}
+              onItemPress={onRowPress}
+              onBrowsePress={() => openRowBrowse({ type: 'trakt', kind: 'recommendations', mediaType: 'movie', title: 'Recommended for You' }, 'Recommended for You', traktRecommendations)}
+            />
           )}
 
           {traktPopularShows.length > 0 && (
-            <Row title="Popular TV Shows on Trakt" items={traktPopularShows} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} />
+            <Row
+              title="Popular TV Shows on Trakt"
+              items={traktPopularShows}
+              getImageUri={getRowUri}
+              getTitle={getRowTitle}
+              onItemPress={onRowPress}
+              onBrowsePress={() => openRowBrowse({ type: 'trakt', kind: 'trending', mediaType: 'tv', title: 'Popular TV Shows on Trakt' }, 'Popular TV Shows on Trakt', traktPopularShows)}
+            />
           )}
         </View>
       </Animated.ScrollView>
+
+      {/* Browse Modal for Categories */}
+      <BrowseModal
+        visible={browseModalVisible}
+        onClose={() => setBrowseModalVisible(false)}
+        onSelectGenre={(genre: GenreItem, type: 'movie' | 'tv') => {
+          nav.navigate('Library', {
+            tab: type === 'movie' ? 'movies' : 'tv',
+            genre: genre.title,
+            genreKey: genre.key,
+          });
+        }}
+        onSelectLibrary={(library) => {
+          nav.navigate('Library', {
+            tab: library.type === 'movie' ? 'movies' : 'tv',
+            libraryKey: library.key,
+          });
+        }}
+        onSelectCollections={() => {
+          nav.navigate('Collections');
+        }}
+      />
     </SafeAreaView>
   );
 }

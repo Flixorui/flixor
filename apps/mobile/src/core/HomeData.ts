@@ -4,7 +4,7 @@
  */
 
 import { getFlixorCore } from './index';
-import type { PlexMediaItem, TMDBMedia } from '@flixor/core';
+import type { PlexMediaItem, TMDBMedia, PlexUltraBlurColors } from '@flixor/core';
 
 export type RowItem = {
   id: string;
@@ -474,6 +474,69 @@ export async function getTmdbLogo(
   }
 }
 
+/**
+ * Fetch textless poster from TMDB (iso_639_1 is null)
+ * These are clean posters without any text overlay
+ */
+export async function getTmdbTextlessPoster(
+  tmdbId: number,
+  mediaType: 'movie' | 'tv'
+): Promise<string | undefined> {
+  try {
+    const core = getFlixorCore();
+    const images =
+      mediaType === 'movie'
+        ? await core.tmdb.getMovieImages(tmdbId)
+        : await core.tmdb.getTVImages(tmdbId);
+
+    const posters = images.posters || [];
+    console.log('[HomeData] getTmdbTextlessPoster - found', posters.length, 'posters for', mediaType, tmdbId);
+
+    // Find a textless poster (iso_639_1 is null means no language/text)
+    const textless = posters.find(
+      (p) => p.iso_639_1 === null || p.iso_639_1 === undefined
+    );
+
+    // Fallback to any poster if no textless found
+    const poster = textless || posters[0];
+
+    if (poster?.file_path) {
+      console.log('[HomeData] Using poster:', poster.file_path, 'iso_639_1:', poster.iso_639_1);
+      return core.tmdb.getPosterUrl(poster.file_path, 'w780');
+    }
+    return undefined;
+  } catch (e) {
+    console.log('[HomeData] getTmdbTextlessPoster error:', e);
+    return undefined;
+  }
+}
+
+// ============================================
+// UltraBlur Colors
+// ============================================
+
+export type { PlexUltraBlurColors };
+
+/**
+ * Get UltraBlur gradient colors from an image URL
+ * Uses Plex's color extraction service
+ */
+export async function getUltraBlurColors(
+  imageUrl: string
+): Promise<PlexUltraBlurColors | null> {
+  try {
+    const core = getFlixorCore();
+    const colors = await core.plexServer.getUltraBlurColors(imageUrl);
+    if (colors) {
+      console.log('[HomeData] UltraBlur colors:', colors);
+    }
+    return colors;
+  } catch (e) {
+    console.log('[HomeData] getUltraBlurColors error:', e);
+    return null;
+  }
+}
+
 // ============================================
 // User Info
 // ============================================
@@ -489,5 +552,71 @@ export async function getUsername(): Promise<string> {
     return 'User';
   } catch {
     return 'User';
+  }
+}
+
+// ============================================
+// Genres / Categories
+// ============================================
+
+export type GenreItem = {
+  key: string;
+  title: string;
+};
+
+/**
+ * Fetch all available genres for movies
+ */
+export async function fetchMovieGenres(): Promise<GenreItem[]> {
+  try {
+    const core = getFlixorCore();
+    return await core.plexServer.getAllGenres('movie');
+  } catch (e) {
+    console.log('[HomeData] fetchMovieGenres error:', e);
+    return [];
+  }
+}
+
+/**
+ * Fetch all available genres for TV shows
+ */
+export async function fetchTvGenres(): Promise<GenreItem[]> {
+  try {
+    const core = getFlixorCore();
+    return await core.plexServer.getAllGenres('show');
+  } catch (e) {
+    console.log('[HomeData] fetchTvGenres error:', e);
+    return [];
+  }
+}
+
+/**
+ * Fetch all available genres (movies + TV combined)
+ */
+export async function fetchAllGenres(): Promise<GenreItem[]> {
+  try {
+    const core = getFlixorCore();
+    return await core.plexServer.getAllGenres();
+  } catch (e) {
+    console.log('[HomeData] fetchAllGenres error:', e);
+    return [];
+  }
+}
+
+/**
+ * Fetch libraries (for browse modal)
+ */
+export async function fetchLibraries(): Promise<Array<{ key: string; title: string; type: string }>> {
+  try {
+    const core = getFlixorCore();
+    const libraries = await core.plexServer.getLibraries();
+    return libraries.map((lib) => ({
+      key: lib.key,
+      title: lib.title,
+      type: lib.type,
+    }));
+  } catch (e) {
+    console.log('[HomeData] fetchLibraries error:', e);
+    return [];
   }
 }

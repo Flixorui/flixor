@@ -1,0 +1,46 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0a0a0a;
+  --foreground: #ededed;
+  --accent: #E50914;
+  --accent-hover: #f6121d;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+/* Gradient background matching app */
+.gradient-bg {
+  background: #0a0a0a;
+  background-image:
+    radial-gradient(ellipse 80% 50% at 84% 6%, rgba(20, 76, 84, 0.42), transparent 60%),
+    radial-gradient(ellipse 70% 50% at 10% 92%, rgba(122, 22, 18, 0.44), transparent 60%),
+    radial-gradient(ellipse 50% 40% at 8% 8%, rgba(122, 22, 18, 0.12), transparent),
+    radial-gradient(ellipse 50% 40% at 92% 92%, rgba(20, 76, 84, 0.12), transparent);
+}
+
+/* Input styling */
+input[type="email"] {
+  transition: all 0.2s ease;
+}
+
+input[type="email"]:focus {
+  outline: none;
+  border-color: rgba(229, 9, 20, 0.6);
+  box-shadow: 0 0 0 3px rgba(229, 9, 20, 0.15);
+}
+
+input[type="email"]::placeholder {
+  color: #666;
+}

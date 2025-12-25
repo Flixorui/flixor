@@ -371,6 +371,65 @@ function extractGuidsFromItem(item: PlexMediaItem): string[] {
 }
 
 // ============================================
+// TMDB Videos/Trailers
+// ============================================
+
+export interface TrailerInfo {
+  key: string;
+  name: string;
+  site: string;
+  type: string;
+  official?: boolean;
+}
+
+export async function fetchTmdbTrailers(
+  mediaType: 'movie' | 'tv',
+  tmdbId: number
+): Promise<TrailerInfo[]> {
+  try {
+    const core = getFlixorCore();
+    const videos = mediaType === 'movie'
+      ? await core.tmdb.getMovieVideos(tmdbId)
+      : await core.tmdb.getTVVideos(tmdbId);
+
+    const results = videos.results || [];
+
+    // Filter for YouTube trailers and teasers, prioritize official trailers
+    const trailers = results
+      .filter((v: any) => v.site === 'YouTube' && ['Trailer', 'Teaser'].includes(v.type))
+      .sort((a: any, b: any) => {
+        // Prioritize official trailers
+        if (a.official && !b.official) return -1;
+        if (!a.official && b.official) return 1;
+        // Then prioritize trailers over teasers
+        if (a.type === 'Trailer' && b.type !== 'Trailer') return -1;
+        if (a.type !== 'Trailer' && b.type === 'Trailer') return 1;
+        return 0;
+      })
+      .map((v: any) => ({
+        key: v.key,
+        name: v.name,
+        site: v.site,
+        type: v.type,
+        official: v.official,
+      }));
+
+    return trailers;
+  } catch (e) {
+    console.log('[DetailsData] fetchTmdbTrailers error:', e);
+    return [];
+  }
+}
+
+export function getYouTubeUrl(videoKey: string): string {
+  return `https://www.youtube.com/watch?v=${videoKey}`;
+}
+
+export function getYouTubeThumbnailUrl(videoKey: string): string {
+  return `https://img.youtube.com/vi/${videoKey}/hqdefault.jpg`;
+}
+
+// ============================================
 // Image URLs
 // ============================================
 
@@ -417,4 +476,339 @@ export function extractTmdbIdFromGuids(guids: any[]): string | null {
     }
   }
   return null;
+}
+
+// ============================================
+// Helper: Extract IMDB ID from Plex Guids
+// ============================================
+
+export function extractImdbIdFromGuids(guids: any[]): string | null {
+  if (!Array.isArray(guids)) return null;
+  for (const g of guids) {
+    const id = String(g.id || '');
+    if (id.includes('imdb://')) {
+      return id.split('://')[1];
+    }
+  }
+  return null;
+}
+
+// ============================================
+// Person Data
+// ============================================
+
+export interface PersonInfo {
+  id: number;
+  name: string;
+  biography?: string;
+  birthday?: string;
+  deathday?: string;
+  placeOfBirth?: string;
+  profilePath?: string;
+  knownFor?: string;
+}
+
+export interface PersonCredit {
+  id: number;
+  title: string;
+  posterPath?: string;
+  mediaType: 'movie' | 'tv';
+  character?: string;
+  job?: string;
+  year?: string;
+  voteAverage?: number;
+}
+
+export async function fetchPersonDetails(personId: number): Promise<PersonInfo | null> {
+  try {
+    const core = getFlixorCore();
+    const person = await core.tmdb.getPersonDetails(personId);
+
+    return {
+      id: person.id,
+      name: person.name,
+      biography: person.biography,
+      birthday: person.birthday,
+      deathday: person.deathday,
+      placeOfBirth: person.place_of_birth,
+      profilePath: person.profile_path,
+      knownFor: person.known_for_department,
+    };
+  } catch (e) {
+    console.log('[DetailsData] fetchPersonDetails error:', e);
+    return null;
+  }
+}
+
+export async function fetchPersonCredits(personId: number): Promise<PersonCredit[]> {
+  try {
+    const core = getFlixorCore();
+    const credits = await core.tmdb.getPersonCredits(personId);
+
+    // Combine cast and crew, dedupe by id+media_type
+    const allCredits: PersonCredit[] = [];
+    const seen = new Set<string>();
+
+    // Process cast credits
+    for (const item of credits.cast || []) {
+      const key = `${item.media_type}:${item.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      allCredits.push({
+        id: item.id,
+        title: item.title || item.name || 'Untitled',
+        posterPath: item.poster_path,
+        mediaType: item.media_type,
+        character: item.character,
+        year: (item.release_date || item.first_air_date || '').slice(0, 4),
+        voteAverage: item.vote_average,
+      });
+    }
+
+    // Process crew credits (if not already added as cast)
+    for (const item of credits.crew || []) {
+      const key = `${item.media_type}:${item.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      allCredits.push({
+        id: item.id,
+        title: item.title || item.name || 'Untitled',
+        posterPath: item.poster_path,
+        mediaType: item.media_type,
+        job: item.job,
+        year: (item.release_date || item.first_air_date || '').slice(0, 4),
+        voteAverage: item.vote_average,
+      });
+    }
+
+    // Sort by popularity (vote_average as proxy)
+    allCredits.sort((a, b) => (b.voteAverage || 0) - (a.voteAverage || 0));
+
+    return allCredits.slice(0, 20); // Top 20 credits
+  } catch (e) {
+    console.log('[DetailsData] fetchPersonCredits error:', e);
+    return [];
+  }
+}
+
+export function getPersonProfileUrl(profilePath: string | undefined, size: string = 'w185'): string {
+  if (!profilePath) return '';
+  try {
+    const core = getFlixorCore();
+    return core.tmdb.getProfileUrl(profilePath, size);
+  } catch {
+    return '';
+  }
+}
+
+// ============================================
+// Watchlist Functions
+// ============================================
+
+export interface WatchlistIds {
+  tmdbId?: number;
+  imdbId?: string;
+  plexRatingKey?: string;
+  mediaType: 'movie' | 'tv';
+}
+
+/**
+ * Check if item is in Plex watchlist
+ */
+export async function isInPlexWatchlist(ratingKey: string): Promise<boolean> {
+  try {
+    const core = getFlixorCore();
+    return await core.plexTv.isInWatchlist(ratingKey);
+  } catch (e) {
+    console.log('[DetailsData] isInPlexWatchlist error:', e);
+    return false;
+  }
+}
+
+/**
+ * Check if item is in Trakt watchlist
+ */
+export async function isInTraktWatchlist(ids: WatchlistIds): Promise<boolean> {
+  try {
+    const core = getFlixorCore();
+    if (!core.isTraktAuthenticated) return false;
+
+    const type = ids.mediaType === 'movie' ? 'movies' : 'shows';
+    const watchlist = await core.trakt.getWatchlist(type);
+
+    return watchlist.some((item: any) => {
+      const mediaItem = ids.mediaType === 'movie' ? item.movie : item.show;
+      if (!mediaItem?.ids) return false;
+
+      if (ids.tmdbId && mediaItem.ids.tmdb === ids.tmdbId) return true;
+      if (ids.imdbId && mediaItem.ids.imdb === ids.imdbId) return true;
+      return false;
+    });
+  } catch (e) {
+    console.log('[DetailsData] isInTraktWatchlist error:', e);
+    return false;
+  }
+}
+
+/**
+ * Add item to Plex watchlist
+ */
+export async function addToPlexWatchlist(ratingKey: string): Promise<boolean> {
+  try {
+    const core = getFlixorCore();
+    await core.plexTv.addToWatchlist(ratingKey);
+    return true;
+  } catch (e) {
+    console.log('[DetailsData] addToPlexWatchlist error:', e);
+    return false;
+  }
+}
+
+/**
+ * Remove item from Plex watchlist
+ */
+export async function removeFromPlexWatchlist(ratingKey: string): Promise<boolean> {
+  try {
+    const core = getFlixorCore();
+    await core.plexTv.removeFromWatchlist(ratingKey);
+    return true;
+  } catch (e) {
+    console.log('[DetailsData] removeFromPlexWatchlist error:', e);
+    return false;
+  }
+}
+
+/**
+ * Add item to Trakt watchlist
+ */
+export async function addToTraktWatchlist(ids: WatchlistIds): Promise<boolean> {
+  try {
+    const core = getFlixorCore();
+    if (!core.isTraktAuthenticated) return false;
+
+    const idsObj: { tmdb?: number; imdb?: string } = {};
+    if (ids.tmdbId) idsObj.tmdb = ids.tmdbId;
+    if (ids.imdbId) idsObj.imdb = ids.imdbId;
+
+    if (ids.mediaType === 'movie') {
+      await core.trakt.addMovieToWatchlist({ ids: idsObj });
+    } else {
+      await core.trakt.addShowToWatchlist({ ids: idsObj });
+    }
+    return true;
+  } catch (e) {
+    console.log('[DetailsData] addToTraktWatchlist error:', e);
+    return false;
+  }
+}
+
+/**
+ * Remove item from Trakt watchlist
+ */
+export async function removeFromTraktWatchlist(ids: WatchlistIds): Promise<boolean> {
+  try {
+    const core = getFlixorCore();
+    if (!core.isTraktAuthenticated) return false;
+
+    const idsObj: { tmdb?: number; imdb?: string } = {};
+    if (ids.tmdbId) idsObj.tmdb = ids.tmdbId;
+    if (ids.imdbId) idsObj.imdb = ids.imdbId;
+
+    if (ids.mediaType === 'movie') {
+      await core.trakt.removeMovieFromWatchlist({ ids: idsObj });
+    } else {
+      await core.trakt.removeShowFromWatchlist({ ids: idsObj });
+    }
+    return true;
+  } catch (e) {
+    console.log('[DetailsData] removeFromTraktWatchlist error:', e);
+    return false;
+  }
+}
+
+/**
+ * Toggle watchlist status (add or remove based on current state)
+ * Uses the configured watchlist provider (Plex or Trakt)
+ */
+export async function toggleWatchlist(
+  ids: WatchlistIds,
+  provider: 'plex' | 'trakt' | 'both' = 'both'
+): Promise<{ inWatchlist: boolean; success: boolean }> {
+  try {
+    const core = getFlixorCore();
+    let isInWatchlist = false;
+
+    // Check current watchlist status
+    if (provider === 'plex' || provider === 'both') {
+      if (ids.plexRatingKey) {
+        isInWatchlist = await isInPlexWatchlist(ids.plexRatingKey);
+      }
+    }
+
+    if (!isInWatchlist && (provider === 'trakt' || provider === 'both')) {
+      if (core.isTraktAuthenticated && (ids.tmdbId || ids.imdbId)) {
+        isInWatchlist = await isInTraktWatchlist(ids);
+      }
+    }
+
+    // Toggle
+    if (isInWatchlist) {
+      // Remove from watchlist
+      let success = true;
+
+      if ((provider === 'plex' || provider === 'both') && ids.plexRatingKey) {
+        success = await removeFromPlexWatchlist(ids.plexRatingKey) && success;
+      }
+
+      if ((provider === 'trakt' || provider === 'both') && core.isTraktAuthenticated) {
+        success = await removeFromTraktWatchlist(ids) && success;
+      }
+
+      return { inWatchlist: false, success };
+    } else {
+      // Add to watchlist
+      let success = true;
+
+      if ((provider === 'plex' || provider === 'both') && ids.plexRatingKey) {
+        success = await addToPlexWatchlist(ids.plexRatingKey) && success;
+      }
+
+      if ((provider === 'trakt' || provider === 'both') && core.isTraktAuthenticated) {
+        success = await addToTraktWatchlist(ids) && success;
+      }
+
+      return { inWatchlist: true, success };
+    }
+  } catch (e) {
+    console.log('[DetailsData] toggleWatchlist error:', e);
+    return { inWatchlist: false, success: false };
+  }
+}
+
+/**
+ * Check if item is in watchlist (either Plex or Trakt)
+ */
+export async function checkWatchlistStatus(ids: WatchlistIds): Promise<boolean> {
+  try {
+    const core = getFlixorCore();
+
+    // Check Plex first
+    if (ids.plexRatingKey) {
+      const inPlex = await isInPlexWatchlist(ids.plexRatingKey);
+      if (inPlex) return true;
+    }
+
+    // Check Trakt
+    if (core.isTraktAuthenticated && (ids.tmdbId || ids.imdbId)) {
+      const inTrakt = await isInTraktWatchlist(ids);
+      if (inTrakt) return true;
+    }
+
+    return false;
+  } catch (e) {
+    console.log('[DetailsData] checkWatchlistStatus error:', e);
+    return false;
+  }
 }
