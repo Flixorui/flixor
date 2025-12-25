@@ -303,18 +303,26 @@ export default function Player({ route }: RouteParams) {
     };
   }, [flixorLoading, isConnected]);
 
-  // Update progress to Plex
+  // Update progress to Plex - use refs to avoid recreating interval on every position change
+  const isPlayingRef = useRef(isPlaying);
+  isPlayingRef.current = isPlaying;
+
   useEffect(() => {
     if (!params.ratingKey || !isConnected) return;
 
     const updateProgress = async () => {
-      if (position > 0 && duration > 0) {
+      const currentPosition = positionRef.current;
+      const currentDuration = durationRef.current;
+      const currentIsPlaying = isPlayingRef.current;
+
+      if (currentPosition > 0 && currentDuration > 0) {
+        console.log(`[Player] Sending timeline update: pos=${Math.floor(currentPosition)}ms, dur=${Math.floor(currentDuration)}ms, state=${currentIsPlaying ? 'playing' : 'paused'}`);
         try {
           await updatePlaybackTimeline(
             String(params.ratingKey),
-            isPlaying ? 'playing' : 'paused',
-            Math.floor(position),
-            Math.floor(duration)
+            currentIsPlaying ? 'playing' : 'paused',
+            Math.floor(currentPosition),
+            Math.floor(currentDuration)
           );
         } catch (e) {
           console.error('[Player] Progress update failed:', e);
@@ -322,13 +330,17 @@ export default function Player({ route }: RouteParams) {
       }
     };
 
+    // Send initial update after a short delay to ensure player has loaded
+    const initialTimeout = setTimeout(updateProgress, 2000);
+
+    // Then send updates every 10 seconds
     progressInterval.current = setInterval(updateProgress, 10000);
-    updateProgress();
 
     return () => {
+      clearTimeout(initialTimeout);
       if (progressInterval.current) clearInterval(progressInterval.current);
     };
-  }, [params.ratingKey, position, duration, isPlaying, isConnected]);
+  }, [params.ratingKey, isConnected]);
 
   // Cleanup on navigation
   useEffect(() => {
@@ -344,10 +356,11 @@ export default function Player({ route }: RouteParams) {
         lastScrobbleState.current = 'stopped';
       }
 
-      // Send stopped timeline update
+      // Send stopped timeline update with actual position
       if (rk) {
         try {
-          await updatePlaybackTimeline(rk, 'stopped', 0, 0);
+          console.log(`[Player] Sending stopped timeline: pos=${Math.floor(positionRef.current)}ms, dur=${Math.floor(durationRef.current)}ms`);
+          await updatePlaybackTimeline(rk, 'stopped', Math.floor(positionRef.current), Math.floor(durationRef.current));
         } catch (e) {}
       }
 
@@ -512,8 +525,8 @@ export default function Player({ route }: RouteParams) {
       durationRef.current = durationMs;
     }
 
-    // Update play state based on playbackRate
-    const currentlyPlaying = (data.playbackRate || 0) > 0;
+    // Update play state - prefer isPlaying flag, fallback to playbackRate
+    const currentlyPlaying = data.isPlaying ?? ((data.playbackRate || 0) > 0);
     const wasPlaying = isPlaying;
     setIsPlaying(currentlyPlaying);
 
