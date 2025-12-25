@@ -6,6 +6,8 @@ import type {
   PlexMarker,
   PlexLibraryOptions,
   PlexMediaContainer,
+  PlexUltraBlurColors,
+  PlexUltraBlurResponse,
 } from '../models/plex';
 
 /**
@@ -345,6 +347,158 @@ export class PlexServerService {
   }
 
   // ============================================
+  // Collections
+  // ============================================
+
+  /**
+   * Get all collections in a library section
+   */
+  async getCollections(libraryKey: string): Promise<PlexMediaItem[]> {
+    try {
+      const data = await this.get<PlexMediaContainer<PlexMediaItem>>(
+        `/library/sections/${libraryKey}/collections`,
+        {},
+        CacheTTL.TRENDING
+      );
+      return data.MediaContainer?.Metadata || [];
+    } catch (e) {
+      console.log('[PlexServerService] getCollections error:', e);
+      return [];
+    }
+  }
+
+  /**
+   * Get all collections across all libraries
+   */
+  async getAllCollections(type?: 'movie' | 'show'): Promise<PlexMediaItem[]> {
+    const libraries = await this.getLibraries();
+    const targetLibraries = libraries.filter((lib) => {
+      if (!type) return true;
+      return lib.type === type;
+    });
+
+    const allCollections: PlexMediaItem[] = [];
+
+    for (const lib of targetLibraries) {
+      try {
+        const collections = await this.getCollections(lib.key);
+        allCollections.push(...collections);
+      } catch {
+        // Continue on error
+      }
+    }
+
+    return allCollections;
+  }
+
+  /**
+   * Get items in a collection
+   */
+  async getCollectionItems(
+    collectionRatingKey: string,
+    options?: {
+      start?: number;
+      size?: number;
+    }
+  ): Promise<PlexMediaItem[]> {
+    const params: Record<string, string> = {};
+
+    if (options?.start !== undefined) params['X-Plex-Container-Start'] = String(options.start);
+    if (options?.size !== undefined) params['X-Plex-Container-Size'] = String(options.size);
+
+    try {
+      const data = await this.get<PlexMediaContainer<PlexMediaItem>>(
+        `/library/collections/${collectionRatingKey}/children`,
+        params,
+        CacheTTL.DYNAMIC
+      );
+      return data.MediaContainer?.Metadata || [];
+    } catch (e) {
+      console.log('[PlexServerService] getCollectionItems error:', e);
+      return [];
+    }
+  }
+
+  // ============================================
+  // Genres / Filters
+  // ============================================
+
+  /**
+   * Get available genres for a library section
+   */
+  async getGenres(libraryKey: string): Promise<Array<{ key: string; title: string }>> {
+    try {
+      const data = await this.get<PlexMediaContainer<{ key: string; title: string }>>(
+        `/library/sections/${libraryKey}/genre`,
+        {},
+        CacheTTL.TRENDING
+      );
+      return data.MediaContainer?.Directory || [];
+    } catch (e) {
+      console.log('[PlexServerService] getGenres error:', e);
+      return [];
+    }
+  }
+
+  /**
+   * Get all genres across all libraries of a given type
+   */
+  async getAllGenres(type?: 'movie' | 'show'): Promise<Array<{ key: string; title: string }>> {
+    const libraries = await this.getLibraries();
+    const targetLibraries = libraries.filter((lib) => {
+      if (!type) return true;
+      return lib.type === type;
+    });
+
+    const allGenres = new Map<string, { key: string; title: string }>();
+
+    for (const lib of targetLibraries) {
+      try {
+        const genres = await this.getGenres(lib.key);
+        for (const genre of genres) {
+          // Use title as key for deduplication
+          if (!allGenres.has(genre.title)) {
+            allGenres.set(genre.title, genre);
+          }
+        }
+      } catch {
+        // Continue on error
+      }
+    }
+
+    // Sort genres alphabetically
+    return Array.from(allGenres.values()).sort((a, b) => a.title.localeCompare(b.title));
+  }
+
+  /**
+   * Get items by genre
+   */
+  async getItemsByGenre(
+    libraryKey: string,
+    genreKey: string,
+    options?: {
+      start?: number;
+      size?: number;
+      sort?: string;
+    }
+  ): Promise<PlexMediaItem[]> {
+    const params: Record<string, string> = {
+      genre: genreKey,
+    };
+
+    if (options?.sort) params.sort = options.sort;
+    if (options?.start !== undefined) params['X-Plex-Container-Start'] = String(options.start);
+    if (options?.size !== undefined) params['X-Plex-Container-Size'] = String(options.size);
+
+    const data = await this.get<PlexMediaContainer<PlexMediaItem>>(
+      `/library/sections/${libraryKey}/all`,
+      params,
+      CacheTTL.DYNAMIC
+    );
+    return data.MediaContainer?.Metadata || [];
+  }
+
+  // ============================================
   // Markers (Skip Intro/Credits)
   // ============================================
 
@@ -546,6 +700,98 @@ export class PlexServerService {
     });
 
     return `${this.baseUrl}/photo/:/transcode?${params.toString()}`;
+  }
+
+  // ============================================
+  // UltraBlur Colors
+  // ============================================
+
+  /**
+   * Get UltraBlur colors from an image URL
+   * Returns gradient colors extracted from the image
+   */
+  async getUltraBlurColors(imageUrl: string): Promise<PlexUltraBlurColors | null> {
+    try {
+      const params = new URLSearchParams({
+        url: imageUrl,
+        'X-Plex-Token': this.token,
+      });
+
+      const url = `${this.baseUrl}/services/ultrablur/colors?${params.toString()}`;
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+          'X-Plex-Client-Identifier': this.clientId,
+        },
+      });
+
+      if (!response.ok) {
+        console.log('[PlexServerService] UltraBlur colors error:', response.status);
+        return null;
+      }
+
+      const data: PlexUltraBlurResponse = await response.json();
+      const colors = data.MediaContainer?.UltraBlurColors?.[0];
+
+      if (colors) {
+        return colors;
+      }
+      return null;
+    } catch (e) {
+      console.log('[PlexServerService] getUltraBlurColors error:', e);
+      return null;
+    }
+  }
+
+  /**
+   * Get UltraBlur gradient image URL
+   * Generates a gradient image from the given colors
+   */
+  getUltraBlurImageUrl(colors: PlexUltraBlurColors, noise: number = 1): string {
+    const params = new URLSearchParams({
+      topLeft: colors.topLeft,
+      topRight: colors.topRight,
+      bottomRight: colors.bottomRight,
+      bottomLeft: colors.bottomLeft,
+      noise: String(noise),
+      'X-Plex-Token': this.token,
+    });
+
+    return `${this.baseUrl}/services/ultrablur/image?${params.toString()}`;
+  }
+
+  // ============================================
+  // Generic Directory Fetch
+  // ============================================
+
+  /**
+   * Fetch any Plex directory path and return the MediaContainer
+   * Useful for browsing arbitrary paths like genres, hubs, etc.
+   */
+  async fetchDirectory(path: string): Promise<{
+    Metadata?: PlexMediaItem[];
+    Directory?: any[];
+    size?: number;
+    totalSize?: number;
+    offset?: number;
+  }> {
+    // Ensure path starts with /
+    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+    const separator = normalizedPath.includes('?') ? '&' : '?';
+    const url = `${this.baseUrl}${normalizedPath}${separator}X-Plex-Token=${this.token}`;
+
+    const response = await fetch(url, {
+      headers: { Accept: 'application/json' },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Plex fetchDirectory failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.MediaContainer || {};
   }
 
   // ============================================

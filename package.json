@@ -8,6 +8,11 @@
   "scripts": {
     "postinstall": "npm run build:core",
     "build:core": "npm run build --workspace=@flixor/core",
-    "dev:core": "npm run dev --workspace=@flixor/core"
+    "dev:core": "npm run dev --workspace=@flixor/core",
+    "dev:landing": "npm run dev --workspace=landing",
+    "build:landing": "npm run build --workspace=landing"
+  },
+  "overrides": {
+    "react": "19.1.0"
   }
 }

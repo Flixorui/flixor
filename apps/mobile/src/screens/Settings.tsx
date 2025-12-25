@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, Pressable, ActivityIndicator, Linking, ScrollView, Animated, StyleSheet, Alert, TextInput } from 'react-native';
+import { View, Text, Pressable, ActivityIndicator, Linking, ScrollView, StyleSheet, Alert, TextInput } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, useIsFocused } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFlixor } from '../core/FlixorContext';
 import {
   getTraktProfile,
@@ -17,26 +18,25 @@ import {
   selectPlexServer,
   getServerConnections,
   selectServerEndpoint,
-  getAppSettings,
   setAppSettings,
   loadAppSettings,
   type PlexServerInfo,
   type PlexConnectionInfo,
 } from '../core/SettingsData';
 import { reinitializeFlixorCore } from '../core/index';
-import { TopBarStore, useTopBarStore } from '../components/TopBarStore';
 
 let WebBrowser: any = null;
 try { WebBrowser = require('expo-web-browser'); } catch {}
 
-interface MyProps {
+interface SettingsProps {
   onLogout: () => Promise<void>;
+  onBack?: () => void;
 }
 
-export default function My({ onLogout }: MyProps) {
+export default function Settings({ onLogout, onBack }: SettingsProps) {
   const { isLoading: flixorLoading, isConnected } = useFlixor();
   const nav: any = useNavigation();
-  const isFocused = useIsFocused();
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [traktProfile, setTraktProfile] = useState<any | null>(null);
   const [plexUser, setPlexUser] = useState<any | null>(null);
@@ -51,31 +51,6 @@ export default function My({ onLogout }: MyProps) {
   const [serverInfo, setServerInfo] = useState<{ name: string; url: string } | null>(null);
 
   const pollRef = useRef<any>(null);
-  const y = useRef(new Animated.Value(0)).current;
-  const barHeight = useTopBarStore(s => s.height || 60);
-
-  // Set scrollY and configure TopBar when screen is focused
-  React.useLayoutEffect(() => {
-    if (isFocused) {
-      TopBarStore.setScrollY(y);
-    }
-  }, [isFocused, y]);
-
-  useEffect(() => {
-    if (!isFocused) return;
-
-    TopBarStore.setVisible(true);
-    TopBarStore.setShowFilters(false);
-    TopBarStore.setUsername('My Netflix');
-    TopBarStore.setSelected('all');
-    TopBarStore.setCompact(false);
-    TopBarStore.setCustomFilters(undefined);
-    TopBarStore.setHandlers({
-      onNavigateLibrary: undefined,
-      onClose: undefined,
-      onSearch: () => nav.navigate('HomeTab', { screen: 'Search' })
-    });
-  }, [isFocused, nav]);
 
   useEffect(() => {
     if (flixorLoading || !isConnected) return;
@@ -286,6 +261,14 @@ export default function My({ onLogout }: MyProps) {
     );
   }
 
+  const handleBack = () => {
+    if (onBack) {
+      onBack();
+    } else if (nav.canGoBack()) {
+      nav.goBack();
+    }
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: '#0a0a0a' }}>
       <LinearGradient
@@ -294,13 +277,18 @@ export default function My({ onLogout }: MyProps) {
         style={StyleSheet.absoluteFillObject}
       />
 
-      <Animated.ScrollView
+      {/* Custom Header */}
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+        <Pressable onPress={handleBack} style={styles.backButton}>
+          <Ionicons name="chevron-back" size={24} color="#fff" />
+        </Pressable>
+        <Text style={styles.headerTitle}>Settings</Text>
+        <View style={{ width: 40 }} />
+      </View>
+
+      <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingTop: barHeight, paddingBottom: 100, paddingHorizontal: 16 }}
-        scrollEventThrottle={16}
-        onScroll={Animated.event([
-          { nativeEvent: { contentOffset: { y } } }
-        ], { useNativeDriver: false })}
+        contentContainerStyle={{ paddingBottom: 100, paddingHorizontal: 16 }}
       >
         {/* Plex Account Section */}
         <Card title="Plex Account">
@@ -457,7 +445,7 @@ export default function My({ onLogout }: MyProps) {
           </Text>
           <Button onPress={handleLogout} title="Logout" variant="secondary" />
         </Card>
-      </Animated.ScrollView>
+      </ScrollView>
 
       {/* Endpoints Modal */}
       {showServerEndpoints && (
@@ -498,6 +486,25 @@ export default function My({ onLogout }: MyProps) {
 }
 
 const styles = StyleSheet.create({
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 8,
+    paddingBottom: 12,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
+  },
   card: {
     backgroundColor: 'rgba(15,15,18,0.6)',
     borderRadius: 16,

@@ -1,12 +1,13 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, ActivityIndicator, ScrollView, Pressable, Animated, PanResponder, Dimensions, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, ActivityIndicator, ScrollView, Pressable, Animated, PanResponder, Dimensions, StyleSheet, Linking, Alert, Easing, Image } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Row from '../components/Row';
 import { Ionicons } from '@expo/vector-icons';
 import Feather from '@expo/vector-icons/Feather';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import BadgePill from '../components/BadgePill';
+import PersonModal from '../components/PersonModal';
 import { useNavigation } from '@react-navigation/native';
 import { TopBarStore } from '../components/TopBarStore';
 import { useFlixor } from '../core/FlixorContext';
@@ -21,12 +22,20 @@ import {
   fetchTmdbSeasonEpisodes,
   fetchTmdbRecommendations,
   fetchTmdbSimilar,
+  fetchTmdbTrailers,
+  getYouTubeUrl,
   mapTmdbToPlex,
   getPlexImageUrl,
   getTmdbImageUrl,
   getTmdbProfileUrl,
   extractTmdbIdFromGuids,
+  extractImdbIdFromGuids,
+  toggleWatchlist,
+  checkWatchlistStatus,
+  WatchlistIds,
   RowItem,
+  TrailerInfo,
+  PersonCredit,
 } from '../core/DetailsData';
 
 let ExpoImage: any = null;
@@ -46,6 +55,7 @@ type RouteParams = {
 export default function Details({ route }: RouteParams) {
   const params: Partial<DetailsParams> = route?.params || {};
   const { isLoading: flixorLoading, isConnected } = useFlixor();
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [meta, setMeta] = useState<any>(null);
   const [episodes, setEpisodes] = useState<any[]>([]);
@@ -53,7 +63,7 @@ export default function Details({ route }: RouteParams) {
   const [seasonKey, setSeasonKey] = useState<string | null>(null);
   const [seasonSource, setSeasonSource] = useState<'plex'|'tmdb'|null>(null);
   const [tab, setTab] = useState<'episodes'|'suggested'|'details'>('suggested');
-  const [tmdbCast, setTmdbCast] = useState<Array<{ name: string; profile_path?: string }>>([]);
+  const [tmdbCast, setTmdbCast] = useState<Array<{ id: number; name: string; profile_path?: string }>>([]);
   const [tmdbCrew, setTmdbCrew] = useState<Array<{ name: string; job?: string }>>([]);
   const [matchedPlex, setMatchedPlex] = useState<boolean>(false);
   const [mappedRk, setMappedRk] = useState<string | null>(null);
@@ -62,10 +72,16 @@ export default function Details({ route }: RouteParams) {
   const [onDeck, setOnDeck] = useState<any | null>(null);
   const [closing, setClosing] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [inWatchlist, setInWatchlist] = useState(false);
+  const [watchlistLoading, setWatchlistLoading] = useState(false);
+  const [watchlistIds, setWatchlistIds] = useState<WatchlistIds | null>(null);
+  const [trailers, setTrailers] = useState<TrailerInfo[]>([]);
+  const [personModalVisible, setPersonModalVisible] = useState(false);
+  const [selectedPersonId, setSelectedPersonId] = useState<number | null>(null);
+  const [selectedPersonName, setSelectedPersonName] = useState<string>('');
   const y = useRef(new Animated.Value(0)).current;
   const panY = useRef(new Animated.Value(0)).current;
   const appear = useRef(new Animated.Value(0)).current;
-  const overlayOpacity = useRef(new Animated.Value(1)).current;
   const scrollRef = useRef<ScrollView | null>(null);
   const nav: any = useNavigation();
   const screenH = Dimensions.get('window').height;
@@ -88,25 +104,33 @@ export default function Details({ route }: RouteParams) {
         const shouldClose = g.dy > 120 || g.vy > 1.0;
         if (shouldClose) {
           setClosing(true);
-          // Fade overlay while sliding down the sheet together
-          Animated.parallel([
-            Animated.timing(panY, { toValue: screenH, duration: 180, useNativeDriver: true }),
-            Animated.timing(overlayOpacity, { toValue: 0, duration: 180, useNativeDriver: true })
-          ]).start(() => nav.goBack());
+          // Smooth slide down animation with easing
+          Animated.timing(panY, {
+            toValue: screenH,
+            duration: 280,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }).start(() => nav.goBack());
         } else {
-          Animated.parallel([
-            Animated.spring(panY, { toValue: 0, useNativeDriver: true, stiffness: 220, damping: 24, mass: 1 }),
-            Animated.timing(overlayOpacity, { toValue: 1, duration: 120, useNativeDriver: true })
-          ]).start(() => { setDragging(false); });
+          Animated.spring(panY, {
+            toValue: 0,
+            useNativeDriver: true,
+            stiffness: 220,
+            damping: 24,
+            mass: 1,
+          }).start(() => { setDragging(false); });
         }
       },
       onPanResponderTerminationRequest: () => false,
       onPanResponderTerminate: () => {
         setDragging(false);
-        Animated.parallel([
-          Animated.spring(panY, { toValue: 0, useNativeDriver: true, stiffness: 220, damping: 24, mass: 1 }),
-          Animated.timing(overlayOpacity, { toValue: 1, duration: 120, useNativeDriver: true })
-        ]).start();
+        Animated.spring(panY, {
+          toValue: 0,
+          useNativeDriver: true,
+          stiffness: 220,
+          damping: 24,
+          mass: 1,
+        }).start();
       },
     })
   ).current;
@@ -141,12 +165,21 @@ export default function Details({ route }: RouteParams) {
           setMatchedPlex(true);
           setMappedRk(String(params.ratingKey));
 
-          // Try to fetch TMDB logo
+          // Try to fetch TMDB logo and credits for person modal
           const tmdbId = extractTmdbIdFromGuids(m?.Guid || []);
           if (tmdbId) {
             const mediaType = m?.type === 'movie' ? 'movie' : 'tv';
             const logo = await fetchTmdbLogo(mediaType, Number(tmdbId));
             if (logo) next.logoUrl = logo;
+
+            // Fetch TMDB credits for Plex content so PersonModal works
+            try {
+              const credits = await fetchTmdbCredits(mediaType, Number(tmdbId));
+              setTmdbCast(credits.cast.map((c: any) => ({ id: c.id, name: c.name, profile_path: c.profile_path })));
+              setTmdbCrew(credits.crew.map((c: any) => ({ name: c.name, job: c.job })));
+            } catch (e) {
+              console.log('[Details] Error fetching TMDB credits for Plex content:', e);
+            }
           }
 
           setMeta(next);
@@ -161,6 +194,18 @@ export default function Details({ route }: RouteParams) {
               setEpisodes(await fetchPlexSeasonEpisodes(String(seas[0].ratingKey)));
             }
           }
+
+          // Setup watchlist IDs and check status
+          const tmdbIdStr = extractTmdbIdFromGuids(m?.Guid || []);
+          const imdbIdStr = extractImdbIdFromGuids(m?.Guid || []);
+          const ids: WatchlistIds = {
+            tmdbId: tmdbIdStr ? Number(tmdbIdStr) : undefined,
+            imdbId: imdbIdStr || undefined,
+            plexRatingKey: String(params.ratingKey),
+            mediaType: m?.type === 'movie' ? 'movie' : 'tv',
+          };
+          setWatchlistIds(ids);
+          checkWatchlistStatus(ids).then(setInWatchlist);
         } catch (e) {
           console.log('[Details] Plex metadata error:', e);
         }
@@ -184,12 +229,21 @@ export default function Details({ route }: RouteParams) {
             setMatchedPlex(true);
             setMappedRk(String(mapped.ratingKey));
 
-            // Get TMDB logo
+            // Get TMDB logo and credits
             const tmdbId = extractTmdbIdFromGuids(m?.Guid || []) || params.id;
             if (tmdbId) {
               const mediaType = m?.type === 'movie' ? 'movie' : 'tv';
               const logo = await fetchTmdbLogo(mediaType, Number(tmdbId));
               if (logo) next.logoUrl = logo;
+
+              // Fetch TMDB credits for mapped Plex content so PersonModal works
+              try {
+                const credits = await fetchTmdbCredits(mediaType, Number(tmdbId));
+                setTmdbCast(credits.cast.map((c: any) => ({ id: c.id, name: c.name, profile_path: c.profile_path })));
+                setTmdbCrew(credits.crew.map((c: any) => ({ name: c.name, job: c.job })));
+              } catch (e) {
+                console.log('[Details] Error fetching TMDB credits for mapped Plex:', e);
+              }
             }
 
             setMeta(next);
@@ -204,6 +258,18 @@ export default function Details({ route }: RouteParams) {
                 setEpisodes(await fetchPlexSeasonEpisodes(String(seas[0].ratingKey)));
               }
             }
+
+            // Setup watchlist IDs and check status for Plex-mapped content
+            const tmdbIdPlex = extractTmdbIdFromGuids(m?.Guid || []) || params.id;
+            const imdbIdPlex = extractImdbIdFromGuids(m?.Guid || []);
+            const idsMapped: WatchlistIds = {
+              tmdbId: tmdbIdPlex ? Number(tmdbIdPlex) : undefined,
+              imdbId: imdbIdPlex || undefined,
+              plexRatingKey: String(mapped.ratingKey),
+              mediaType: params.mediaType,
+            };
+            setWatchlistIds(idsMapped);
+            checkWatchlistStatus(idsMapped).then(setInWatchlist);
           } else {
             // Not in Plex - show TMDB details
             const back = det?.backdrop_path
@@ -229,7 +295,7 @@ export default function Details({ route }: RouteParams) {
 
             // Fetch TMDB credits
             const credits = await fetchTmdbCredits(params.mediaType, Number(params.id));
-            setTmdbCast(credits.cast.map((c: any) => ({ name: c.name, profile_path: c.profile_path })));
+            setTmdbCast(credits.cast.map((c: any) => ({ id: c.id, name: c.name, profile_path: c.profile_path })));
             setTmdbCrew(credits.crew.map((c: any) => ({ name: c.name, job: c.job })));
 
             // For TV shows, populate seasons + episodes
@@ -244,12 +310,71 @@ export default function Details({ route }: RouteParams) {
               }
             }
             setTab('suggested');
+
+            // Setup watchlist IDs for TMDB-only content (no Plex ratingKey)
+            // Get external IDs from TMDB for better watchlist matching
+            let imdbIdTmdb: string | undefined;
+            try {
+              const details = params.mediaType === 'movie'
+                ? await (await import('../core/DetailsData')).fetchTmdbDetails('movie', Number(params.id))
+                : await (await import('../core/DetailsData')).fetchTmdbDetails('tv', Number(params.id));
+              imdbIdTmdb = details?.external_ids?.imdb_id || details?.imdb_id;
+            } catch {}
+
+            const idsTmdb: WatchlistIds = {
+              tmdbId: Number(params.id),
+              imdbId: imdbIdTmdb,
+              plexRatingKey: undefined,
+              mediaType: params.mediaType,
+            };
+            setWatchlistIds(idsTmdb);
+            checkWatchlistStatus(idsTmdb).then(setInWatchlist);
           }
         } catch {}
       }
       setLoading(false);
     })();
   }, []);
+
+  // Fetch trailers when we have metadata with TMDB ID
+  useEffect(() => {
+    if (!meta) return;
+
+    const fetchTrailers = async () => {
+      try {
+        // Determine TMDB ID and media type
+        let tmdbId: number | undefined;
+        let mediaType: 'movie' | 'tv' = 'movie';
+
+        // Try to get TMDB ID from Plex GUIDs first
+        if (meta?.Guid) {
+          const id = extractTmdbIdFromGuids(meta.Guid);
+          if (id) tmdbId = Number(id);
+        }
+
+        // If from TMDB route params
+        if (!tmdbId && params.type === 'tmdb' && params.id) {
+          tmdbId = Number(params.id);
+        }
+
+        // Determine media type
+        if (meta?.type === 'show' || params.mediaType === 'tv') {
+          mediaType = 'tv';
+        }
+
+        if (tmdbId) {
+          console.log('[Details] Fetching trailers for TMDB ID:', tmdbId, 'type:', mediaType);
+          const trailersResult = await fetchTmdbTrailers(mediaType, tmdbId);
+          setTrailers(trailersResult);
+          console.log('[Details] Found', trailersResult.length, 'trailers');
+        }
+      } catch (e) {
+        console.log('[Details] Error fetching trailers:', e);
+      }
+    };
+
+    fetchTrailers();
+  }, [meta, params.type, params.id, params.mediaType]);
 
   console.log('[Details] Render - loading:', loading, 'isConnected:', isConnected, 'meta:', !!meta);
 
@@ -293,11 +418,29 @@ export default function Details({ route }: RouteParams) {
     /smpte2084|pq|hdr10/i.test(String(s?.colorTrc || ''))
   );
 
+  // Parse ratings for inline display
+  const plexRatings: any[] = Array.isArray(meta?.Rating) ? meta.Rating : [];
+  let imdbRating: number | undefined;
+  let rtCriticRating: number | undefined;
+  let rtAudienceRating: number | undefined;
+  try {
+    plexRatings.forEach((r: any) => {
+      const img = String(r?.image || '').toLowerCase();
+      const val = typeof r?.value === 'number' ? r.value : Number(r?.value);
+      if (img.includes('imdb://image.rating')) imdbRating = val;
+      if (img.includes('rottentomatoes://image.rating.ripe') || img.includes('rottentomatoes://image.rating.rotten')) rtCriticRating = val ? Math.round(val * 10) : undefined;
+      if (img.includes('rottentomatoes://image.rating.upright') || img.includes('rottentomatoes://image.rating.spilled')) rtAudienceRating = val ? Math.round(val * 10) : undefined;
+    });
+  } catch {}
+  // Fallbacks from top-level fields
+  if (!imdbRating && typeof meta?.rating === 'number') imdbRating = meta.rating;
+  if (!rtAudienceRating && typeof meta?.audienceRating === 'number') rtAudienceRating = Math.round(meta.audienceRating * 10);
+
   // Keep overlay fully visible until the sheet is mostly offscreen, then fade.
   const backdropOpacity = panY.interpolate({ inputRange: [0, screenH * 0.8, screenH], outputRange: [1, 1, 0], extrapolate: 'clamp' });
 
   return (
-    <SafeAreaView edges={['top']} style={{ flex:1, backgroundColor:'transparent' }}>
+    <View style={{ flex: 1, paddingTop: insets.top, backgroundColor: 'transparent' }}>
       <Animated.View style={{ flex:1, transform:[{ translateY: panY }] }} {...panResponder.panHandlers}>
         {/* Dim + blur backdrop under the modal so swiping reveals content behind, not black */}
         <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFillObject, { opacity: backdropOpacity }]}>
@@ -345,11 +488,14 @@ export default function Details({ route }: RouteParams) {
           </View>
         </View>
 
-        {/* Title */}
-        <Text style={{ color:'#fff', fontSize:28, fontWeight:'800', marginHorizontal:16 }}>{title}</Text>
+        {/* Title - hide when logo is displayed */}
+        {!meta?.logoUrl && (
+          <Text style={{ color:'#fff', fontSize:28, fontWeight:'800', marginHorizontal:16 }}>{title}</Text>
+        )}
 
-        {/* Badges */}
-        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8, marginTop:12, marginHorizontal:16 }}>
+        {/* Badges & Ratings */}
+        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8, marginTop:12, marginHorizontal:16, alignItems:'center' }}>
+          {/* Other badges */}
           <BadgePill label={contentRating} />
           {isHD ? <BadgePill icon="hd" /> : null}
           <BadgePill icon="5.1" />
@@ -358,6 +504,25 @@ export default function Details({ route }: RouteParams) {
           {hasAD ? <BadgePill icon="ad" /> : null}
           {matchedPlex ? <BadgePill label="Plex" /> : null}
           {!matchedPlex && params.type === 'tmdb' ? <BadgePill label="No local source" /> : null}
+          {/* Ratings */}
+          {typeof imdbRating === 'number' ? (
+            <View style={{ flexDirection:'row', alignItems:'center', backgroundColor:'rgba(255,255,255,0.1)', paddingHorizontal:8, paddingVertical:4, borderRadius:6 }}>
+              <Image source={RATING_IMAGES.imdb} style={{ width: 28, height: 14 }} resizeMode="contain" />
+              <Text style={{ color:'#fff', fontWeight:'700', marginLeft:4, fontSize: 12 }}>{imdbRating.toFixed(1)}</Text>
+            </View>
+          ) : null}
+          {typeof rtCriticRating === 'number' ? (
+            <View style={{ flexDirection:'row', alignItems:'center', backgroundColor:'rgba(255,255,255,0.1)', paddingHorizontal:8, paddingVertical:4, borderRadius:6 }}>
+              <Image source={rtCriticRating >= 60 ? RATING_IMAGES.tomatoFresh : RATING_IMAGES.tomatoRotten} style={{ width: 16, height: 16 }} resizeMode="contain" />
+              <Text style={{ color:'#fff', fontWeight:'700', marginLeft:4, fontSize: 12 }}>{rtCriticRating}%</Text>
+            </View>
+          ) : null}
+          {typeof rtAudienceRating === 'number' ? (
+            <View style={{ flexDirection:'row', alignItems:'center', backgroundColor:'rgba(255,255,255,0.1)', paddingHorizontal:8, paddingVertical:4, borderRadius:6 }}>
+              <Image source={rtAudienceRating >= 60 ? RATING_IMAGES.popcornFull : RATING_IMAGES.popcornFallen} style={{ width: 16, height: 16 }} resizeMode="contain" />
+              <Text style={{ color:'#fff', fontWeight:'700', marginLeft:4, fontSize: 12 }}>{rtAudienceRating}%</Text>
+            </View>
+          ) : null}
         </View>
 
         {/* Meta line */}
@@ -399,8 +564,42 @@ export default function Details({ route }: RouteParams) {
 
         {/* Actions */}
         <View style={{ flexDirection:'row', justifyContent:'space-around', marginTop:14 }}>
-          <ActionIcon icon="play-circle-outline" label="TRAILER" />
-          <ActionIcon icon="add" label="WATCHLIST" />
+          <Pressable
+            disabled={trailers.length === 0}
+            onPress={() => {
+              if (trailers.length > 0) {
+                const trailer = trailers[0];
+                const url = getYouTubeUrl(trailer.key);
+                console.log('[Details] Opening trailer:', trailer.name, url);
+                Linking.openURL(url).catch((err) => {
+                  Alert.alert('Error', 'Could not open trailer');
+                  console.log('[Details] Failed to open URL:', err);
+                });
+              }
+            }}
+            style={{ alignItems: 'center', opacity: trailers.length > 0 ? 1 : 0.4 }}
+          >
+            <Ionicons name="play-circle-outline" size={22} color="#fff" />
+            <Text style={{ color: '#fff', marginTop: 4, fontWeight: '600' }}>
+              {trailers.length > 0 ? 'TRAILER' : 'NO TRAILER'}
+            </Text>
+          </Pressable>
+          <WatchlistButton
+            inWatchlist={inWatchlist}
+            loading={watchlistLoading}
+            onPress={async () => {
+              if (!watchlistIds || watchlistLoading) return;
+              setWatchlistLoading(true);
+              try {
+                const result = await toggleWatchlist(watchlistIds, 'both');
+                if (result.success) {
+                  setInWatchlist(result.inWatchlist);
+                }
+              } finally {
+                setWatchlistLoading(false);
+              }
+            }}
+          />
         </View>
 
         {/* Synopsis */}
@@ -412,7 +611,7 @@ export default function Details({ route }: RouteParams) {
         <Tabs tab={tab} setTab={setTab} showEpisodes={meta?.type === 'show' && (seasons.length > 0)} />
 
         {/* Content area */}
-        <View style={{ marginTop:8 }}>
+        <View style={{ marginTop:20 }}>
           {meta?.type === 'show' && tab === 'episodes' ? (
             <>
               <SeasonSelector seasons={seasons} seasonKey={seasonKey} onChange={async (key)=> {
@@ -436,13 +635,43 @@ export default function Details({ route }: RouteParams) {
             <SuggestedRows meta={meta} routeParams={route?.params} />
           ) : null}
           {tab === 'details' ? (
-            <DetailsTab meta={meta} tmdbCast={tmdbCast} tmdbCrew={tmdbCrew} />
+            <DetailsTab
+              meta={meta}
+              tmdbCast={tmdbCast}
+              tmdbCrew={tmdbCrew}
+              onPersonPress={(id, name) => {
+                setSelectedPersonId(id);
+                setSelectedPersonName(name);
+                setPersonModalVisible(true);
+              }}
+            />
           ) : null}
         </View>
       </ScrollView>
         </View>
       </Animated.View>
-    </SafeAreaView>
+
+      {/* Person Modal */}
+      <PersonModal
+        visible={personModalVisible}
+        personId={selectedPersonId}
+        personName={selectedPersonName}
+        onClose={() => {
+          setPersonModalVisible(false);
+          setSelectedPersonId(null);
+        }}
+        onSelectCredit={(credit) => {
+          // Navigate to the selected credit's details
+          if (credit.mediaType === 'movie' || credit.mediaType === 'tv') {
+            nav.push('Details', {
+              type: 'tmdb',
+              mediaType: credit.mediaType,
+              id: String(credit.id),
+            });
+          }
+        }}
+      />
+    </View>
   );
 }
 
@@ -473,6 +702,21 @@ function ActionIcon({ icon, label }: { icon: any; label: string }) {
       <Ionicons name={icon} size={22} color="#fff" />
       <Text style={{ color:'#fff', marginTop:4, fontWeight:'600' }}>{label}</Text>
     </View>
+  );
+}
+
+function WatchlistButton({ inWatchlist, loading, onPress }: { inWatchlist: boolean; loading: boolean; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} disabled={loading} style={{ alignItems:'center', opacity: loading ? 0.5 : 1 }}>
+      {loading ? (
+        <ActivityIndicator size="small" color="#fff" />
+      ) : (
+        <Ionicons name={inWatchlist ? 'checkmark' : 'add'} size={22} color="#fff" />
+      )}
+      <Text style={{ color:'#fff', marginTop:4, fontWeight:'600' }}>
+        {inWatchlist ? 'IN LIST' : 'WATCHLIST'}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -645,6 +889,15 @@ function KeyValue({ k, v }: { k: string; v?: string }) {
   );
 }
 
+// Rating images - Metro bundler picks the right @2x/@3x variant automatically
+const RATING_IMAGES = {
+  imdb: require('../../assets/ratings/imdb.png'),
+  tomatoFresh: require('../../assets/ratings/tomato-fresh.png'),
+  tomatoRotten: require('../../assets/ratings/tomato-rotten.png'),
+  popcornFull: require('../../assets/ratings/popcorn-full.png'),
+  popcornFallen: require('../../assets/ratings/popcorn-fallen.png'),
+};
+
 function RatingsRow({ meta }: { meta: any }) {
   // Parse ratings from Plex metadata if available
   const ratings: any[] = Array.isArray(meta?.Rating) ? meta.Rating : [];
@@ -657,7 +910,7 @@ function RatingsRow({ meta }: { meta: any }) {
       const val = typeof r?.value === 'number' ? r.value : Number(r?.value);
       if (img.includes('imdb://image.rating')) imdb = val;
       if (img.includes('rottentomatoes://image.rating.ripe') || img.includes('rottentomatoes://image.rating.rotten')) rtCritic = val ? Math.round(val * 10) : undefined;
-      if (img.includes('rottentomatoes://image.rating.upright')) rtAudience = val ? Math.round(val * 10) : undefined;
+      if (img.includes('rottentomatoes://image.rating.upright') || img.includes('rottentomatoes://image.rating.spilled')) rtAudience = val ? Math.round(val * 10) : undefined;
     });
   } catch {}
 
@@ -666,49 +919,92 @@ function RatingsRow({ meta }: { meta: any }) {
   if (!rtAudience && typeof meta?.audienceRating === 'number') rtAudience = Math.round(meta.audienceRating * 10);
 
   if (!imdb && !rtCritic && !rtAudience) return null;
+
+  // Determine which tomato/popcorn icon to use based on score
+  // Fresh/Full >= 60%, Rotten/Fallen < 60%
+  const tomatoImage = rtCritic !== undefined && rtCritic >= 60 ? RATING_IMAGES.tomatoFresh : RATING_IMAGES.tomatoRotten;
+  const popcornImage = rtAudience !== undefined && rtAudience >= 60 ? RATING_IMAGES.popcornFull : RATING_IMAGES.popcornFallen;
+
   return (
-    <View style={{ flexDirection:'row', alignItems:'center', marginTop:8, marginHorizontal:16 }}>
+    <View style={{ flexDirection:'row', alignItems:'center', marginTop:8, marginHorizontal:16, flexWrap:'wrap', gap: 16 }}>
       {typeof imdb === 'number' ? (
-        <View style={{ flexDirection:'row', alignItems:'center', marginRight:16 }}>
-          <Ionicons name="star" size={16} color="#f5c518" />
-          <Text style={{ color:'#fff', fontWeight:'700', marginLeft:6 }}>IMDb {imdb.toFixed(1)}</Text>
+        <View style={{ flexDirection:'row', alignItems:'center' }}>
+          <Image source={RATING_IMAGES.imdb} style={{ width: 32, height: 16 }} resizeMode="contain" />
+          <Text style={{ color:'#fff', fontWeight:'700', marginLeft:6, fontSize: 14 }}>{imdb.toFixed(1)}</Text>
         </View>
       ) : null}
       {typeof rtCritic === 'number' ? (
-        <View style={{ flexDirection:'row', alignItems:'center', marginRight:16 }}>
-          <Ionicons name="leaf-outline" size={16} color="#66bb6a" />
-          <Text style={{ color:'#fff', fontWeight:'700', marginLeft:6 }}>Tomatometer {rtCritic}%</Text>
+        <View style={{ flexDirection:'row', alignItems:'center' }}>
+          <Image source={tomatoImage} style={{ width: 18, height: 18 }} resizeMode="contain" />
+          <Text style={{ color:'#fff', fontWeight:'700', marginLeft:6, fontSize: 14 }}>{rtCritic}%</Text>
         </View>
       ) : null}
       {typeof rtAudience === 'number' ? (
         <View style={{ flexDirection:'row', alignItems:'center' }}>
-          <Ionicons name="people-outline" size={16} color="#90caf9" />
-          <Text style={{ color:'#fff', fontWeight:'700', marginLeft:6 }}>Audience {rtAudience}%</Text>
+          <Image source={popcornImage} style={{ width: 18, height: 18 }} resizeMode="contain" />
+          <Text style={{ color:'#fff', fontWeight:'700', marginLeft:6, fontSize: 14 }}>{rtAudience}%</Text>
         </View>
       ) : null}
     </View>
   );
 }
 
-function CastScroller({ meta, tmdbCast }: { meta:any; tmdbCast?: Array<{ name: string; profile_path?: string }> }) {
-  const roles: any[] = Array.isArray(meta?.Role) ? meta.Role.slice(0, 16) : [];
-  const useTmdb = !roles.length && Array.isArray(tmdbCast) && tmdbCast.length > 0;
-  if (!roles.length && !useTmdb) return null;
+function CastScroller({ meta, tmdbCast, onPersonPress }: {
+  meta: any;
+  tmdbCast?: Array<{ id: number; name: string; profile_path?: string }>;
+  onPersonPress?: (id: number, name: string) => void;
+}) {
+  const plexRoles: any[] = Array.isArray(meta?.Role) ? meta.Role.slice(0, 16) : [];
+  const hasTmdbCast = Array.isArray(tmdbCast) && tmdbCast.length > 0;
+  const useTmdbOnly = !plexRoles.length && hasTmdbCast;
+
+  // Create a name-to-id map from TMDB cast for Plex cast lookup
+  const tmdbNameToId = React.useMemo(() => {
+    if (!hasTmdbCast) return new Map<string, number>();
+    const map = new Map<string, number>();
+    tmdbCast!.forEach(c => {
+      // Normalize name for matching (lowercase, trim)
+      map.set(c.name.toLowerCase().trim(), c.id);
+    });
+    return map;
+  }, [tmdbCast, hasTmdbCast]);
+
+  if (!plexRoles.length && !useTmdbOnly) return null;
+
   return (
     <View style={{ marginTop:8 }}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal:12 }}>
-        {(useTmdb ? tmdbCast! : roles).map((r:any, idx:number) => {
-          const src = useTmdb
+        {(useTmdbOnly ? tmdbCast! : plexRoles).map((r:any, idx:number) => {
+          const src = useTmdbOnly
             ? (r.profile_path ? getTmdbProfileUrl(r.profile_path) : undefined)
             : (r.thumb ? getPlexImageUrl(r.thumb, 200) : undefined);
-          const name = useTmdb ? r.name : (r.tag || r.title);
+          const name = useTmdbOnly ? r.name : (r.tag || r.title);
+
+          // For Plex cast, try to find matching TMDB person ID by name
+          let personId: number | undefined;
+          if (useTmdbOnly) {
+            personId = r.id;
+          } else if (hasTmdbCast && name) {
+            // Try exact match first, then normalized match
+            personId = tmdbNameToId.get(name.toLowerCase().trim());
+          }
+
           return (
-            <View key={idx} style={{ width:96, marginHorizontal:4, alignItems:'center' }}>
+            <Pressable
+              key={idx}
+              style={{ width:96, marginHorizontal:4, alignItems:'center' }}
+              onPress={() => {
+                if (personId && onPersonPress) {
+                  onPersonPress(personId, name);
+                }
+              }}
+              disabled={!personId}
+            >
               <View style={{ width:72, height:72, borderRadius:36, overflow:'hidden', backgroundColor:'#1a1a1a' }}>
                 {src && ExpoImage ? <ExpoImage source={{ uri: src }} style={{ width:'100%', height:'100%' }} contentFit="cover" /> : null}
               </View>
               <Text style={{ color:'#eee', marginTop:6 }} numberOfLines={1}>{name}</Text>
-            </View>
+            </Pressable>
           );
         })}
       </ScrollView>
@@ -785,18 +1081,20 @@ function Collections({ meta }: { meta:any }) {
   );
 }
 
-function DetailsTab({ meta, tmdbCast, tmdbCrew }: { meta:any; tmdbCast?: Array<{ name: string; profile_path?: string }>; tmdbCrew?: Array<{ name: string; job?: string }> }) {
+function DetailsTab({ meta, tmdbCast, tmdbCrew, onPersonPress }: {
+  meta: any;
+  tmdbCast?: Array<{ id: number; name: string; profile_path?: string }>;
+  tmdbCrew?: Array<{ name: string; job?: string }>;
+  onPersonPress?: (id: number, name: string) => void;
+}) {
   const guids: string[] = Array.isArray(meta?.Guid) ? meta.Guid.map((g:any)=> String(g.id||'')) : [];
   const imdbId = guids.find(x=> x.startsWith('imdb://'))?.split('://')[1];
   const tmdbId = guids.find(x=> x.includes('tmdb://') || x.includes('themoviedb://'))?.split('://')[1];
 
   return (
     <View>
-      <SectionHeader title="Ratings" />
-      <RatingsRow meta={meta} />
-
       <SectionHeader title="Cast" />
-      <CastScroller meta={meta} tmdbCast={tmdbCast} />
+      <CastScroller meta={meta} tmdbCast={tmdbCast} onPersonPress={onPersonPress} />
 
       <SectionHeader title="Crew" />
       <CrewList meta={meta} tmdbCrew={tmdbCrew} />
@@ -813,6 +1111,9 @@ function DetailsTab({ meta, tmdbCast, tmdbCrew }: { meta:any; tmdbCast?: Array<{
       <KeyValue k="Content Rating" v={meta?.contentRating} />
       <KeyValue k="IMDb" v={imdbId ? `https://www.imdb.com/title/${imdbId}` : undefined} />
       <KeyValue k="TMDB" v={tmdbId ? `https://www.themoviedb.org/${meta?.type==='movie'?'movie':'tv'}/${tmdbId}` : undefined} />
+
+      <SectionHeader title="Ratings" />
+      <RatingsRow meta={meta} />
       <View style={{ height:12 }} />
     </View>
   );

@@ -9,11 +9,14 @@ import { BlurView } from 'expo-blur';
 import { useTopBarStore } from './src/components/TopBarStore';
 import Home from './src/screens/Home';
 import Library from './src/screens/Library';
+import Collections from './src/screens/Collections';
 import Details from './src/screens/Details';
 import Player from './src/screens/Player';
 import Search from './src/screens/Search';
+import Browse from './src/screens/Browse';
 import NewHot from './src/screens/NewHot';
-import My from './src/screens/My';
+import MyList from './src/screens/MyList';
+import Settings from './src/screens/Settings';
 import * as Haptics from 'expo-haptics';
 import { Platform } from 'react-native';
 
@@ -34,6 +37,7 @@ type RootStackParamList = {
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator();
 const HomeStack = createNativeStackNavigator();
+const MyListStack = createNativeStackNavigator();
 
 function AppContent() {
   const { flixor, isLoading, error, isAuthenticated, isConnected, refresh } = useFlixor();
@@ -68,7 +72,7 @@ function AppContent() {
   }
 
   const HomeStackNavigator = () => {
-    const topBarVisible = useTopBarStore(s => s.visible);
+    const topBarVisible = useTopBarStore(s => s.visible === true);
 
     return (
       <View style={{ flex: 1 }}>
@@ -92,9 +96,19 @@ function AppContent() {
             options={{ presentation: 'card', animation: 'fade' }}
           />
           <HomeStack.Screen
+            name="Collections"
+            component={Collections}
+            options={{ presentation: 'card', animation: 'fade' }}
+          />
+          <HomeStack.Screen
             name="Search"
             component={Search}
             options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+          />
+          <HomeStack.Screen
+            name="Browse"
+            component={Browse}
+            options={{ presentation: 'card', animation: 'slide_from_right' }}
           />
         </HomeStack.Navigator>
         {topBarVisible && <GlobalTopAppBar />}
@@ -103,7 +117,7 @@ function AppContent() {
   };
 
   const Tabs = () => {
-    const tabBarVisible = useTopBarStore(s => s.tabBarVisible);
+    const tabBarVisible = useTopBarStore(s => s.tabBarVisible === true);
 
     return (
       <Tab.Navigator
@@ -113,12 +127,17 @@ function AppContent() {
           tabBarActiveTintColor: '#fff',
           tabBarInactiveTintColor: '#bdbdbd',
           tabBarStyle: tabBarVisible ? {
-            position: 'absolute', left: 0, right: 0, bottom: 0,
+            position: 'absolute' as const,
+            left: 0,
+            right: 0,
+            bottom: 0,
             backgroundColor: Platform.OS === 'ios' ? 'transparent' : 'rgba(0,0,0,0.9)',
             borderRadius: 0,
-            borderTopWidth: 0, height: 68, paddingBottom: 10, paddingTop: 10,
-            overflow: 'hidden', zIndex: 100,
-          } : { display: 'none' },
+            borderTopWidth: 0,
+            height: 68,
+            paddingBottom: 10,
+            paddingTop: 10,
+          } : { display: 'none' as const },
           tabBarBackground: () => (
             Platform.OS === 'ios'
               ? <BlurView intensity={90} tint="dark" style={{ flex: 1 }} />
@@ -127,7 +146,7 @@ function AppContent() {
           tabBarIcon: ({ color, focused }) => {
             const name = route.name === 'HomeTab' ? (focused ? 'home' : 'home-outline')
               : route.name === 'NewHotTab' ? (focused ? 'play-circle' : 'play-circle-outline')
-              : (focused ? 'person' : 'person-outline');
+              : (focused ? 'bookmark' : 'bookmark-outline');
             return <Ionicons name={name as any} size={22} color={color} />;
           }
         })}
@@ -146,8 +165,24 @@ function AppContent() {
             </View>
           )}
         </Tab.Screen>
-        <Tab.Screen name="MyTab" options={{ title: 'My Netflix' }}>
-          {() => <My onLogout={handleLogout} />}
+        <Tab.Screen name="MyTab" options={{ title: 'My List' }}>
+          {() => (
+            <MyListStack.Navigator screenOptions={{ headerShown: false }}>
+              <MyListStack.Screen name="MyListScreen">
+                {({ navigation }) => (
+                  <View style={{ flex: 1 }}>
+                    <MyList onOpenSettings={() => navigation.navigate('Settings')} />
+                    <GlobalTopAppBar />
+                  </View>
+                )}
+              </MyListStack.Screen>
+              <MyListStack.Screen name="Settings">
+                {({ navigation }) => (
+                  <Settings onLogout={handleLogout} onBack={() => navigation.goBack()} />
+                )}
+              </MyListStack.Screen>
+            </MyListStack.Navigator>
+          )}
         </Tab.Screen>
       </Tab.Navigator>
     );

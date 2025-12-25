@@ -8,7 +8,7 @@ import { Pressable } from 'react-native';
 import Pills from './Pills';
 import { LinearGradient } from 'expo-linear-gradient';
 
-export default function TopAppBar({ visible, username, showFilters, selected, onChange, onOpenCategories, onNavigateLibrary, onClose, onSearch, scrollY, onHeightChange, showPills, compact, customFilters }: {
+export default function TopAppBar({ visible, username, showFilters, selected, onChange, onOpenCategories, onNavigateLibrary, onClose, onSearch, scrollY, onHeightChange, showPills, compact, customFilters, activeGenre, onClearGenre }: {
   visible: boolean;
   username?: string;
   showFilters?: boolean;
@@ -24,6 +24,8 @@ export default function TopAppBar({ visible, username, showFilters, selected, on
   compact?: boolean; // Smaller header for screens like NewHot
   customTitle?: string;
   customFilters?: React.ReactNode; // Custom filter content (e.g., tab pills for NewHot)
+  activeGenre?: string;
+  onClearGenre?: ()=>void;
 }) {
   const insets = useSafeAreaInsets();
   const AnimatedBlurView: any = Animated.createAnimatedComponent(BlurView);
@@ -81,7 +83,7 @@ export default function TopAppBar({ visible, username, showFilters, selected, on
 
   return (
     <Animated.View
-      pointerEvents={visible ? 'auto' : 'none'}
+      pointerEvents={visible ? 'box-none' : 'none'}
       style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20, height: heightAnim }}
     >
       {/* Full-bleed frosted background – always at max, controlled by container opacity */}
@@ -95,9 +97,9 @@ export default function TopAppBar({ visible, username, showFilters, selected, on
         <View pointerEvents="none" style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(27,10,16,0.12)' }]} />
       </Animated.View>
       {/* Hairline separator at bottom – fades in with scroll */}
-      <Animated.View style={{ position:'absolute', left:0, right:0, bottom:0, height: StyleSheet.hairlineWidth, backgroundColor:'rgba(255,255,255,1)', opacity: separatorOpacity }} />
-      <SafeAreaView edges={["top"]} style={{ flex: 1 }}>
-        <View style={{ paddingHorizontal: 16, paddingTop: 0 }}>
+      <Animated.View pointerEvents="none" style={{ position:'absolute', left:0, right:0, bottom:0, height: StyleSheet.hairlineWidth, backgroundColor:'rgba(255,255,255,1)', opacity: separatorOpacity }} />
+      <SafeAreaView edges={["top"]} style={{ flex: 1 }} pointerEvents="box-none">
+        <View style={{ paddingHorizontal: 16, paddingTop: 0 }} pointerEvents="box-none">
           {/* Header row – always visible */}
           <View style={{ height: baseHeight, flexDirection: 'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal: 4 }}>
             <Text style={{ color: '#fff', fontSize: compact ? 20 : 25, fontWeight: compact ? '700' : '600'}}>
@@ -136,6 +138,8 @@ export default function TopAppBar({ visible, username, showFilters, selected, on
                 }}
                 onOpenCategories={onOpenCategories}
                 onClose={onClose}
+                activeGenre={activeGenre}
+                onClearGenre={onClearGenre}
               />
             </Animated.View>
           ) : null}

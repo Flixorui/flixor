@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, Pressable, Alert, StyleSheet } from 'react-native';
+import { View, Text, Pressable, Alert, StyleSheet, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image as ExpoImage } from 'expo-image';
@@ -14,7 +14,16 @@ type Hero = {
   logoUri?: string;
 };
 
-export default function HeroCard({ hero, authHeaders, onPlay, onAdd }: { hero: Hero; authHeaders?: Record<string,string>; onPlay?: ()=>void; onAdd?: ()=>void }) {
+type HeroCardProps = {
+  hero: Hero;
+  authHeaders?: Record<string, string>;
+  onPlay?: () => void;
+  onAdd?: () => void;
+  inWatchlist?: boolean;
+  watchlistLoading?: boolean;
+};
+
+export default function HeroCard({ hero, authHeaders, onPlay, onAdd, inWatchlist = false, watchlistLoading = false }: HeroCardProps) {
   return (
     <View style={{ paddingHorizontal: 16, marginTop: -40 }}>
       <View style={{ borderRadius: 12, overflow: 'hidden', backgroundColor: '#111', shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 8 }}>
@@ -85,9 +94,28 @@ export default function HeroCard({ hero, authHeaders, onPlay, onAdd }: { hero: H
               <Ionicons name="play" size={20} color="#000" style={{ marginRight: 8 }} />
               <Text style={{ color: '#000', fontWeight: '800', fontSize: 16 }}>Play</Text>
             </Pressable>
-            <Pressable onPress={onAdd || (()=>Alert.alert('My List', 'TODO'))} style={{ flex: 1, backgroundColor: 'rgba(109,109,110,0.7)', paddingVertical: 12, borderRadius: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-              <Ionicons name="add" size={20} color="#fff" style={{ marginRight: 8 }} />
-              <Text style={{ color: '#fff', fontWeight: '800', fontSize: 16 }}>My List</Text>
+            <Pressable
+              onPress={onAdd || (() => Alert.alert('My List', 'TODO'))}
+              disabled={watchlistLoading}
+              style={{
+                flex: 1,
+                backgroundColor: inWatchlist ? 'rgba(255,255,255,0.2)' : 'rgba(109,109,110,0.7)',
+                paddingVertical: 12,
+                borderRadius: 6,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                opacity: watchlistLoading ? 0.6 : 1,
+              }}
+            >
+              {watchlistLoading ? (
+                <ActivityIndicator size="small" color="#fff" style={{ marginRight: 8 }} />
+              ) : (
+                <Ionicons name={inWatchlist ? 'checkmark' : 'add'} size={20} color="#fff" style={{ marginRight: 8 }} />
+              )}
+              <Text style={{ color: '#fff', fontWeight: '800', fontSize: 16 }}>
+                {inWatchlist ? 'In List' : 'My List'}
+              </Text>
             </Pressable>
           </View>
         </View>

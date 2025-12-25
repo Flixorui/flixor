@@ -17,6 +17,10 @@ import {
   updatePlaybackTimeline,
   stopTranscodeSession,
   getPlayerImageUrl,
+  startTraktScrobble,
+  pauseTraktScrobble,
+  stopTraktScrobble,
+  isTraktAuthenticated,
   NextEpisodeInfo,
 } from '../core/PlayerData';
 import { Replay10Icon, Forward10Icon } from '../components/icons/SkipIcons';
@@ -75,6 +79,15 @@ export default function Player({ route }: RouteParams) {
   const cleanupInfoRef = useRef({ sessionId: '', ratingKey: '' });
   const isReplacingRef = useRef(false);
 
+  // Trakt scrobbling state
+  const traktScrobbleStarted = useRef(false);
+  const lastScrobbleState = useRef<'playing' | 'paused' | 'stopped'>('stopped');
+
+  // Refs for cleanup access to current state
+  const metadataRef = useRef<any>(null);
+  const positionRef = useRef(0);
+  const durationRef = useRef(0);
+
   // Scrubbing state
   const [isScrubbing, setIsScrubbing] = useState(false);
   // Legacy pan scrub state removed (using Slider now)
@@ -82,6 +95,16 @@ export default function Player({ route }: RouteParams) {
   // Define cleanup and playNext callbacks early so they can be used in useEffects
   const cleanup = useCallback(async () => {
     const { sessionId: sid } = cleanupInfoRef.current;
+
+    // Stop Trakt scrobble
+    if (traktScrobbleStarted.current && metadataRef.current) {
+      const progress = durationRef.current
+        ? Math.round((positionRef.current / durationRef.current) * 100)
+        : 0;
+      stopTraktScrobble(metadataRef.current, progress);
+      lastScrobbleState.current = 'stopped';
+      traktScrobbleStarted.current = false;
+    }
 
     if (sid) {
       try {
@@ -149,6 +172,7 @@ export default function Player({ route }: RouteParams) {
           }
 
           setMetadata(m);
+          metadataRef.current = m;
           cleanupInfoRef.current.ratingKey = params.ratingKey;
 
           // Fetch markers for skip intro/credits
@@ -236,6 +260,15 @@ export default function Player({ route }: RouteParams) {
       (async () => {
         const { sessionId: sid } = cleanupInfoRef.current;
 
+        // Stop Trakt scrobble
+        if (traktScrobbleStarted.current && metadataRef.current) {
+          const progress = durationRef.current
+            ? Math.round((positionRef.current / durationRef.current) * 100)
+            : 0;
+          stopTraktScrobble(metadataRef.current, progress);
+          lastScrobbleState.current = 'stopped';
+        }
+
         if (sid) {
           try {
             await stopTranscodeSession(sid);
@@ -298,6 +331,15 @@ export default function Player({ route }: RouteParams) {
   useEffect(() => {
     const cleanup = async () => {
       const { sessionId: sid, ratingKey: rk } = cleanupInfoRef.current;
+
+      // Stop Trakt scrobble
+      if (traktScrobbleStarted.current && metadataRef.current) {
+        const progress = durationRef.current
+          ? Math.round((positionRef.current / durationRef.current) * 100)
+          : 0;
+        stopTraktScrobble(metadataRef.current, progress);
+        lastScrobbleState.current = 'stopped';
+      }
 
       // Send stopped timeline update
       if (rk) {
@@ -410,12 +452,32 @@ export default function Player({ route }: RouteParams) {
       return;
     }
 
+    const wasPlaying = isPlaying;
     setIsPlaying(status.isPlaying);
     setDuration(status.durationMillis || 0);
+    durationRef.current = status.durationMillis || 0;
     if (!isScrubbing) {
       setPosition(status.positionMillis || 0);
+      positionRef.current = status.positionMillis || 0;
     }
     setBuffering(status.isBuffering);
+
+    // Trakt scrobbling integration
+    const progressPercent = status.durationMillis
+      ? Math.round((status.positionMillis / status.durationMillis) * 100)
+      : 0;
+
+    // Handle scrobble state changes
+    if (status.isPlaying && lastScrobbleState.current !== 'playing') {
+      // Started or resumed playback
+      lastScrobbleState.current = 'playing';
+      startTraktScrobble(metadata, progressPercent);
+      traktScrobbleStarted.current = true;
+    } else if (!status.isPlaying && wasPlaying && lastScrobbleState.current === 'playing') {
+      // Paused
+      lastScrobbleState.current = 'paused';
+      pauseTraktScrobble(metadata, progressPercent);
+    }
   };
 
   const togglePlayPause = async () => {

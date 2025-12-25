@@ -3,6 +3,7 @@ import { CacheTTL } from '../storage/ICache';
 import type { PlexMediaItem, PlexMediaContainer } from '../models/plex';
 
 const PLEX_TV_METADATA_URL = 'https://metadata.provider.plex.tv';
+const PLEX_TV_DISCOVER_URL = 'https://discover.provider.plex.tv';
 
 /**
  * Service for Plex.tv features (watchlist, discover, etc.)
@@ -76,11 +77,27 @@ export class PlexTvService {
    * Get user's watchlist
    */
   async getWatchlist(): Promise<PlexMediaItem[]> {
-    const data = await this.get<PlexMediaContainer<PlexMediaItem>>(
-      `${PLEX_TV_METADATA_URL}/library/sections/watchlist/all`,
-      CacheTTL.DYNAMIC
-    );
-    return data.MediaContainer?.Metadata || [];
+    try {
+      // Try discover endpoint first (newer API)
+      const data = await this.get<PlexMediaContainer<PlexMediaItem>>(
+        `${PLEX_TV_DISCOVER_URL}/library/sections/watchlist/all`,
+        CacheTTL.DYNAMIC
+      );
+      return data.MediaContainer?.Metadata || [];
+    } catch (e) {
+      console.log('[PlexTvService] Discover watchlist failed, trying metadata endpoint');
+      // Fallback to metadata endpoint
+      try {
+        const data = await this.get<PlexMediaContainer<PlexMediaItem>>(
+          `${PLEX_TV_METADATA_URL}/library/sections/watchlist/all`,
+          CacheTTL.DYNAMIC
+        );
+        return data.MediaContainer?.Metadata || [];
+      } catch {
+        console.log('[PlexTvService] Both watchlist endpoints failed');
+        return [];
+      }
+    }
   }
 
   /**

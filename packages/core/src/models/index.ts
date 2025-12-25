@@ -12,6 +12,8 @@ export type {
   PlexMarker,
   PlexLibraryOptions,
   PlexMediaContainer,
+  PlexUltraBlurColors,
+  PlexUltraBlurResponse,
 } from './plex';
 
 // TMDB models
@@ -37,6 +39,9 @@ export type {
   TMDBImages,
   TMDBImage,
   TMDBResultsResponse,
+  TMDBPerson,
+  TMDBPersonCredits,
+  TMDBPersonCreditItem,
 } from './tmdb';
 export { TMDBImageSize } from './tmdb';
 
@@ -61,3 +66,12 @@ export type {
   TraktUser,
   TraktStats,
 } from './trakt';
+
+// Browse models
+export type {
+  BrowseContext,
+  BrowseItem,
+  BrowseResult,
+  TMDBBrowseKind,
+  TraktBrowseKind,
+} from './browse';

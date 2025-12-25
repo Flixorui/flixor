@@ -212,6 +212,44 @@ export interface TMDBResultsResponse<T> {
   results: T[];
 }
 
+// Person
+export interface TMDBPerson {
+  id: number;
+  name: string;
+  biography?: string;
+  birthday?: string;
+  deathday?: string;
+  place_of_birth?: string;
+  profile_path?: string;
+  known_for_department?: string;
+  popularity?: number;
+  also_known_as?: string[];
+  gender?: number;
+  adult?: boolean;
+  imdb_id?: string;
+  homepage?: string;
+}
+
+export interface TMDBPersonCredits {
+  cast?: TMDBPersonCreditItem[];
+  crew?: TMDBPersonCreditItem[];
+}
+
+export interface TMDBPersonCreditItem {
+  id: number;
+  title?: string;
+  name?: string;
+  poster_path?: string;
+  backdrop_path?: string;
+  media_type: 'movie' | 'tv';
+  character?: string;
+  job?: string;
+  release_date?: string;
+  first_air_date?: string;
+  vote_average?: number;
+  vote_count?: number;
+}
+
 // Image sizes
 export const TMDBImageSize = {
   POSTER: {
