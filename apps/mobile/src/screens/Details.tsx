@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, ActivityIndicator, ScrollView, Pressable, Animated, PanResponder, Dimensions, StyleSheet, Linking, Alert, Easing, Image } from 'react-native';
+import { View, Text, ActivityIndicator, ScrollView, Pressable, Animated, PanResponder, Dimensions, StyleSheet, Linking, Alert, Easing, Image, FlatList } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Row from '../components/Row';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,6 +11,7 @@ import PersonModal from '../components/PersonModal';
 import { useNavigation } from '@react-navigation/native';
 import { TopBarStore } from '../components/TopBarStore';
 import { useFlixor } from '../core/FlixorContext';
+import { useAppSettings } from '../hooks/useAppSettings';
 import {
   fetchPlexMetadata,
   fetchPlexSeasons,
@@ -722,6 +723,42 @@ function WatchlistButton({ inWatchlist, loading, onPress }: { inWatchlist: boole
 
 function EpisodeList({ season, episodes, tmdbMode, tmdbId, loading }: { season: string | null; episodes: any[]; tmdbMode?: boolean; tmdbId?: string; loading?: boolean }) {
   const nav: any = useNavigation();
+  const { settings } = useAppSettings();
+  const useHorizontalLayout = settings.episodeLayoutStyle === 'horizontal';
+  const screenW = Dimensions.get('window').width;
+  const horizontalCardWidth = Math.min(screenW * 0.75, 340);
+  const horizontalCardHeight = 180;
+  const horizontalItemSpacing = 14;
+
+  const resolveEpisodeImage = (ep: any) => {
+    const path = tmdbMode ? undefined : (ep.thumb || ep.art);
+    if (tmdbMode) {
+      return ep.still_path ? getTmdbImageUrl(ep.still_path, 'w780') : undefined;
+    }
+    return path ? getPlexImageUrl(path, 640) : undefined;
+  };
+
+  const resolveEpisodeProgress = (ep: any) => {
+    if (tmdbMode) return undefined;
+    try {
+      const dur = (ep.duration || 0) / 1000;
+      const vo = (ep.viewOffset || 0) / 1000;
+      const vc = ep.viewCount || 0;
+      if (vc > 0) return 100;
+      if (dur > 0 && vo / dur >= 0.95) return 100;
+      if (dur > 0) return Math.round((vo / dur) * 100);
+    } catch {}
+    return undefined;
+  };
+
+  const resolveDurationLabel = (ep: any) => {
+    if (tmdbMode) {
+      return ep.runtime ? `${ep.runtime}m` : '';
+    }
+    return ep.duration ? `${Math.round(ep.duration / 60000)}m` : '';
+  };
+
+  const resolveOverview = (ep: any) => ep.summary || ep.description || ep.overview || ep.synopsis || '';
 
   if (loading) {
     return (
@@ -731,55 +768,141 @@ function EpisodeList({ season, episodes, tmdbMode, tmdbId, loading }: { season: 
     );
   }
 
+  const renderHorizontalCard = ({ item: ep, index }: { item: any; index: number }) => {
+    const img = resolveEpisodeImage(ep);
+    const progress = resolveEpisodeProgress(ep);
+    const durationLabel = resolveDurationLabel(ep);
+    const overview = resolveOverview(ep);
+    const showProgress = typeof progress === 'number' && progress > 0 && progress < 85;
+    const showCompleted = typeof progress === 'number' && progress >= 85;
+
+    return (
+      <Pressable
+        onPress={() => {
+          if (!tmdbMode && ep.ratingKey) {
+            console.log('[Details] Playing episode:', ep.ratingKey);
+            nav.navigate('Player', { type: 'plex', ratingKey: String(ep.ratingKey) });
+          }
+        }}
+        style={{
+          width: horizontalCardWidth,
+          height: horizontalCardHeight,
+          borderRadius: 16,
+          overflow: 'hidden',
+          marginRight: horizontalItemSpacing,
+          backgroundColor: '#1a1a1a',
+          borderWidth: 1,
+          borderColor: 'rgba(255,255,255,0.12)',
+        }}
+      >
+        {img && ExpoImage ? (
+          <ExpoImage source={{ uri: img }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+        ) : null}
+        <LinearGradient
+          colors={['rgba(0,0,0,0.05)', 'rgba(0,0,0,0.2)', 'rgba(0,0,0,0.6)', 'rgba(0,0,0,0.9)']}
+          locations={[0, 0.25, 0.6, 1]}
+          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'flex-end' }}
+        >
+          <View style={{ padding: 12 }}>
+            <View style={{ alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: 'rgba(0,0,0,0.5)' }}>
+              <Text style={{ color: '#e5e7eb', fontSize: 10, fontWeight: '700', letterSpacing: 0.8 }}>
+                EPISODE {index + 1}
+              </Text>
+            </View>
+            <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15, marginTop: 6 }} numberOfLines={2}>
+              {ep.title || ep.name || 'Episode'}
+            </Text>
+            {overview ? (
+              <Text style={{ color: 'rgba(255,255,255,0.82)', fontSize: 12, marginTop: 6 }} numberOfLines={3}>
+                {overview}
+              </Text>
+            ) : null}
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
+              {durationLabel ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 12 }}>
+                  <Ionicons name="time-outline" size={12} color="#9ca3af" />
+                  <Text style={{ color: '#9ca3af', fontSize: 11, marginLeft: 4 }}>{durationLabel}</Text>
+                </View>
+              ) : null}
+              {ep.air_date ? (
+                <Text style={{ color: '#9ca3af', fontSize: 11 }}>{ep.air_date}</Text>
+              ) : null}
+            </View>
+          </View>
+          {showProgress ? (
+            <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 4, backgroundColor: '#ffffff33' }}>
+              <View style={{ width: `${Math.min(100, Math.max(0, progress as number))}%`, height: '100%', backgroundColor: '#fff' }} />
+            </View>
+          ) : null}
+          {showCompleted ? (
+            <View style={{ position: 'absolute', top: 10, left: 10, width: 22, height: 22, borderRadius: 11, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="checkmark" size={14} color="#111" />
+            </View>
+          ) : null}
+        </LinearGradient>
+      </Pressable>
+    );
+  };
+
   return (
     <View style={{ marginTop: 12 }}>
       <Text style={{ color:'#fff', fontSize:18, fontWeight:'800', marginHorizontal:16, marginBottom:8 }}>Season {season}</Text>
-      {episodes.map((ep:any, idx:number) => {
-        const path = tmdbMode ? undefined : (ep.thumb || ep.art);
-        const img = tmdbMode
-          ? (ep.still_path ? getTmdbImageUrl(ep.still_path, 'w780') : undefined)
-          : (path ? getPlexImageUrl(path, 640) : undefined);
-        // Compute progress (Plex episodes only)
-        let progress: number | undefined = undefined;
-        if (!tmdbMode) {
-          try {
-            const dur = (ep.duration||0)/1000; const vo = (ep.viewOffset||0)/1000; const vc = ep.viewCount||0;
-            if (vc > 0) progress = 100;
-            else if (dur > 0 && vo/dur >= 0.95) progress = 100;
-            else if (dur > 0) progress = Math.round((vo/dur)*100);
-          } catch {}
-        }
-        return (
-          <Pressable
-            key={idx}
-            onPress={() => {
-              if (!tmdbMode && ep.ratingKey) {
-                console.log('[Details] Playing episode:', ep.ratingKey);
-                nav.navigate('Player', { type: 'plex', ratingKey: String(ep.ratingKey) });
-              }
-            }}
-            style={{ flexDirection:'row', marginHorizontal:16, marginBottom:12 }}
-          >
-            <View style={{ width:140, height:78, borderRadius:10, overflow:'hidden', backgroundColor:'#222' }}>
-              {img && ExpoImage ? (
-                <ExpoImage source={{ uri: img }} style={{ width:'100%', height:'100%' }} contentFit="cover" />
-              ) : null}
-              {typeof progress === 'number' && progress > 0 ? (
-                <View style={{ position:'absolute', left:0, right:0, bottom:0, height:4, backgroundColor:'#ffffff33' }}>
-                  <View style={{ width: `${Math.min(100, Math.max(0, progress))}%`, height:'100%', backgroundColor:'#fff' }} />
-                </View>
-              ) : null}
-            </View>
-            <View style={{ flex:1, marginLeft:12, justifyContent:'center' }}>
-              <Text style={{ color:'#fff', fontWeight:'800' }}>{idx+1}. {ep.title || ep.name || 'Episode'}</Text>
-              <Text style={{ color:'#bbb', marginTop:2 }}>
-                {tmdbMode ? (ep.runtime ? `${ep.runtime}m` : '') : (ep.duration ? `${Math.round(ep.duration/60000)}m` : '')}
-              </Text>
-            </View>
-            <Ionicons name="download-outline" size={18} color="#fff" style={{ alignSelf:'center' }} />
-          </Pressable>
-        );
-      })}
+      {useHorizontalLayout ? (
+        <FlatList
+          data={episodes}
+          renderItem={renderHorizontalCard}
+          keyExtractor={(item, index) => String(item?.ratingKey || item?.id || `${season}-${index}`)}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: 16 }}
+          snapToInterval={horizontalCardWidth + horizontalItemSpacing}
+          snapToAlignment="start"
+          decelerationRate="fast"
+          getItemLayout={(_, index) => {
+            const length = horizontalCardWidth + horizontalItemSpacing;
+            return { length, offset: 16 + (length * index), index };
+          }}
+        />
+      ) : (
+        episodes.map((ep:any, idx:number) => {
+          const img = resolveEpisodeImage(ep);
+          const progress = resolveEpisodeProgress(ep);
+          const durationLabel = resolveDurationLabel(ep);
+
+          return (
+            <Pressable
+              key={idx}
+              onPress={() => {
+                if (!tmdbMode && ep.ratingKey) {
+                  console.log('[Details] Playing episode:', ep.ratingKey);
+                  nav.navigate('Player', { type: 'plex', ratingKey: String(ep.ratingKey) });
+                }
+              }}
+              style={{ flexDirection: 'row', marginHorizontal: 16, marginBottom: 12 }}
+            >
+              <View style={{ width: 140, height: 78, borderRadius: 10, overflow: 'hidden', backgroundColor: '#222' }}>
+                {img && ExpoImage ? (
+                  <ExpoImage source={{ uri: img }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+                ) : null}
+                {typeof progress === 'number' && progress > 0 ? (
+                  <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 4, backgroundColor: '#ffffff33' }}>
+                    <View style={{ width: `${Math.min(100, Math.max(0, progress))}%`, height: '100%', backgroundColor: '#fff' }} />
+                  </View>
+                ) : null}
+              </View>
+              <View style={{ flex: 1, marginLeft: 12, justifyContent: 'center' }}>
+                <Text style={{ color: '#fff', fontWeight: '800' }}>
+                  {idx + 1}. {ep.title || ep.name || 'Episode'}
+                </Text>
+                <Text style={{ color: '#bbb', marginTop: 2 }}>
+                  {durationLabel}
+                </Text>
+              </View>
+              <Ionicons name="download-outline" size={18} color="#fff" style={{ alignSelf: 'center' }} />
+            </Pressable>
+          );
+        })
+      )}
     </View>
   );
 }

@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useAppSettings } from '../hooks/useAppSettings';
 
 export type Stream = {
   id: string;
@@ -48,6 +49,8 @@ export default function PlayerSettingsSheet({
   onQualityChange,
 }: PlayerSettingsSheetProps) {
   const [activeTab, setActiveTab] = React.useState<'audio' | 'subtitles' | 'quality'>('subtitles');
+  const { settings } = useAppSettings();
+  const showBackdrop = settings.enableStreamsBackdrop;
 
   return (
     <Modal
@@ -56,7 +59,7 @@ export default function PlayerSettingsSheet({
       animationType="slide"
       onRequestClose={onClose}
     >
-      <View style={styles.backdrop}>
+      <View style={[styles.backdrop, !showBackdrop && styles.backdropDisabled]}>
         <TouchableOpacity
           style={styles.backdropTouchable}
           activeOpacity={1}
@@ -211,6 +214,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.7)',
     justifyContent: 'flex-end',
+  },
+  backdropDisabled: {
+    backgroundColor: 'transparent',
   },
   backdropTouchable: {
     flex: 1,

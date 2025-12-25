@@ -269,11 +269,52 @@ const SETTINGS_KEY = 'flixor_app_settings';
 export interface AppSettings {
   watchlistProvider: 'trakt' | 'plex';
   tmdbApiKey?: string; // Custom TMDB API key override
+  tmdbLanguagePreference: string;
+  enrichMetadataWithTMDB: boolean;
+  useTmdbLocalizedMetadata: boolean;
+  episodeLayoutStyle: 'vertical' | 'horizontal';
+  enableStreamsBackdrop: boolean;
+  useCachedStreams: boolean;
+  openMetadataScreenWhenCacheDisabled: boolean;
+  streamCacheTTL: number;
+  showHeroSection: boolean;
+  showContinueWatchingRow: boolean;
+  showTrendingRows: boolean;
+  showTraktRows: boolean;
+  showPlexPopularRow: boolean;
+  showPosterTitles: boolean;
+  posterSize: 'small' | 'medium' | 'large';
+  posterBorderRadius: number;
+  showLibraryTitles: boolean;
+  heroLayout: 'legacy' | 'carousel' | 'appletv';
+  enabledLibraryKeys?: string[];
 }
 
-let cachedSettings: AppSettings = {
+export const DEFAULT_APP_SETTINGS: AppSettings = {
   watchlistProvider: 'trakt',
+  tmdbApiKey: undefined,
+  tmdbLanguagePreference: 'en',
+  enrichMetadataWithTMDB: true,
+  useTmdbLocalizedMetadata: false,
+  episodeLayoutStyle: 'horizontal',
+  enableStreamsBackdrop: true,
+  useCachedStreams: false,
+  openMetadataScreenWhenCacheDisabled: true,
+  streamCacheTTL: 60 * 60 * 1000,
+  showHeroSection: true,
+  showContinueWatchingRow: true,
+  showTrendingRows: true,
+  showTraktRows: true,
+  showPlexPopularRow: true,
+  showPosterTitles: true,
+  posterSize: 'medium',
+  posterBorderRadius: 12,
+  showLibraryTitles: true,
+  heroLayout: 'legacy',
+  enabledLibraryKeys: undefined,
 };
+
+let cachedSettings: AppSettings = { ...DEFAULT_APP_SETTINGS };
 
 let settingsLoaded = false;
 
@@ -281,7 +322,9 @@ export async function loadAppSettings(): Promise<AppSettings> {
   try {
     const stored = await AsyncStorage.getItem(SETTINGS_KEY);
     if (stored) {
-      cachedSettings = { ...cachedSettings, ...JSON.parse(stored) };
+      cachedSettings = { ...DEFAULT_APP_SETTINGS, ...JSON.parse(stored) };
+    } else {
+      cachedSettings = { ...DEFAULT_APP_SETTINGS };
     }
     settingsLoaded = true;
   } catch (e) {

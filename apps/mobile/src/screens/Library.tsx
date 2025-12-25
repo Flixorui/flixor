@@ -6,6 +6,7 @@ import { TopBarStore, useTopBarStore } from '../components/TopBarStore';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { useFlixor } from '../core/FlixorContext';
+import { useAppSettings } from '../hooks/useAppSettings';
 import {
   fetchLibrarySections,
   fetchLibraryItems,
@@ -390,6 +391,7 @@ function Card({
   size: number;
   onPress?: () => void;
 }) {
+  const { settings } = useAppSettings();
   const img = getLibraryImageUrl(item.thumb, size * 2);
 
   return (
@@ -407,10 +409,14 @@ function Card({
           <ExpoImage source={{ uri: img }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
         ) : null}
       </View>
-      <Text numberOfLines={1} style={{ color: '#fff', marginTop: 6, fontWeight: '700' }}>
-        {item.title}
-      </Text>
-      {item.year ? <Text style={{ color: '#aaa', fontSize: 12 }}>{item.year}</Text> : null}
+      {settings.showLibraryTitles ? (
+        <>
+          <Text numberOfLines={1} style={{ color: '#fff', marginTop: 6, fontWeight: '700' }}>
+            {item.title}
+          </Text>
+          {item.year ? <Text style={{ color: '#aaa', fontSize: 12 }}>{item.year}</Text> : null}
+        </>
+      ) : null}
     </Pressable>
   );
 }

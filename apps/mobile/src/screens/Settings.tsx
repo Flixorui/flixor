@@ -1,712 +1,387 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, Pressable, ActivityIndicator, Linking, ScrollView, StyleSheet, Alert, TextInput } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { View, Text, ScrollView, StyleSheet, Switch, Dimensions, Linking, Pressable } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useFlixor } from '../core/FlixorContext';
 import {
   getTraktProfile,
-  startTraktDeviceAuth,
-  pollTraktToken,
-  saveTraktTokens,
-  signOutTrakt,
   getPlexUser,
-  getAppVersion,
   getConnectedServerInfo,
-  getPlexServers,
-  selectPlexServer,
-  getServerConnections,
-  selectServerEndpoint,
-  setAppSettings,
-  loadAppSettings,
-  type PlexServerInfo,
-  type PlexConnectionInfo,
+  getAppVersion,
 } from '../core/SettingsData';
-import { reinitializeFlixorCore } from '../core/index';
+import { useAppSettings } from '../hooks/useAppSettings';
+import SettingsCard from '../components/settings/SettingsCard';
+import SettingItem from '../components/settings/SettingItem';
+import SettingsHeader from '../components/settings/SettingsHeader';
 
-let WebBrowser: any = null;
-try { WebBrowser = require('expo-web-browser'); } catch {}
+const { width } = Dimensions.get('window');
+const isTablet = width >= 768;
+
+const ABOUT_LINKS = {
+  privacy: 'https://flixor.app/privacy',
+  reportIssue: 'https://github.com/flixor/flixor/issues',
+  contributors: 'https://github.com/flixor/flixor',
+  discord: 'https://discord.gg/flixor',
+  reddit: 'https://www.reddit.com/r/flixor/',
+};
+
+type CategoryId =
+  | 'account'
+  | 'content'
+  | 'appearance'
+  | 'integrations'
+  | 'playback'
+  | 'about';
+
+const CATEGORIES: Array<{ id: CategoryId; title: string; icon: keyof typeof Ionicons.glyphMap }> = [
+  { id: 'account', title: 'Account', icon: 'person-circle-outline' },
+  { id: 'content', title: 'Content & Discovery', icon: 'compass-outline' },
+  { id: 'appearance', title: 'Appearance', icon: 'color-palette-outline' },
+  { id: 'integrations', title: 'Integrations', icon: 'layers-outline' },
+  { id: 'playback', title: 'Playback', icon: 'play-circle-outline' },
+  { id: 'about', title: 'About', icon: 'information-circle-outline' },
+];
 
 interface SettingsProps {
-  onLogout: () => Promise<void>;
+  onLogout?: () => Promise<void>;
   onBack?: () => void;
 }
 
-export default function Settings({ onLogout, onBack }: SettingsProps) {
-  const { isLoading: flixorLoading, isConnected } = useFlixor();
+export default function Settings({ onBack }: SettingsProps) {
   const nav: any = useNavigation();
-  const insets = useSafeAreaInsets();
-  const [loading, setLoading] = useState(true);
+  const { isLoading: flixorLoading, isConnected } = useFlixor();
+  const { settings, updateSetting } = useAppSettings();
   const [traktProfile, setTraktProfile] = useState<any | null>(null);
   const [plexUser, setPlexUser] = useState<any | null>(null);
-  const [deviceCode, setDeviceCode] = useState<any | null>(null);
-  const [servers, setServers] = useState<PlexServerInfo[]>([]);
-  const [showServerEndpoints, setShowServerEndpoints] = useState<string | null>(null);
-  const [endpoints, setEndpoints] = useState<PlexConnectionInfo[]>([]);
-
-  // Settings state
-  const [watchlistProvider, setWatchlistProvider] = useState<'trakt' | 'plex'>('trakt');
-  const [tmdbApiKey, setTmdbApiKey] = useState<string>('');
   const [serverInfo, setServerInfo] = useState<{ name: string; url: string } | null>(null);
-
-  const pollRef = useRef<any>(null);
+  const [selectedCategory, setSelectedCategory] = useState<CategoryId>('account');
 
   useEffect(() => {
     if (flixorLoading || !isConnected) return;
 
     (async () => {
-      await loadCurrentSettings();
-      await refreshTraktProfile();
-      await loadPlexUser();
-      await loadServers();
-      loadServerInfo();
-      setLoading(false);
+      setTraktProfile(await getTraktProfile());
+      setPlexUser(await getPlexUser());
+      setServerInfo(getConnectedServerInfo());
     })();
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [flixorLoading, isConnected]);
 
-  async function loadCurrentSettings() {
-    const settings = await loadAppSettings();
-    setWatchlistProvider(settings.watchlistProvider);
-    setTmdbApiKey(settings.tmdbApiKey || '');
-  }
-
-  async function saveSettings() {
-    try {
-      await setAppSettings({ watchlistProvider });
-      Alert.alert('Success', 'Settings saved');
-    } catch (e: any) {
-      Alert.alert('Error', e?.message || 'Failed to save settings');
-    }
-  }
-
-  async function saveTmdbApiKey() {
-    try {
-      const keyToSave = tmdbApiKey.trim() || undefined;
-      await setAppSettings({ tmdbApiKey: keyToSave });
-
-      // Reinitialize FlixorCore with the new API key
-      await reinitializeFlixorCore();
-
-      Alert.alert(
-        'Success',
-        keyToSave
-          ? 'TMDB API key saved. The app will use your custom key.'
-          : 'TMDB API key cleared. The app will use the default key.'
-      );
-    } catch (e: any) {
-      Alert.alert('Error', e?.message || 'Failed to save TMDB API key');
-    }
-  }
-
-  async function refreshTraktProfile() {
-    try {
-      const p = await getTraktProfile();
-      setTraktProfile(p);
-    } catch (e: any) {
-      setTraktProfile(null);
-    }
-  }
-
-  async function loadPlexUser() {
-    try {
-      const user = await getPlexUser();
-      setPlexUser(user);
-    } catch (e) {
-      console.log('[My] Failed to load Plex user:', e);
-    }
-  }
-
-  function loadServerInfo() {
-    const info = getConnectedServerInfo();
-    setServerInfo(info);
-  }
-
-  async function loadServers() {
-    try {
-      const res = await getPlexServers();
-      setServers(res || []);
-    } catch (e) {
-      console.error('[My] Failed to load servers:', e);
-    }
-  }
-
-  async function handleSignOutTrakt() {
-    try {
-      await signOutTrakt();
-      setTraktProfile(null);
-      Alert.alert('Success', 'Signed out from Trakt');
-    } catch (e: any) {
-      Alert.alert('Error', e?.message || 'Failed to sign out');
-    }
-  }
-
-  async function startTraktAuth() {
-    try {
-      const dc = await startTraktDeviceAuth();
-      if (!dc) {
-        Alert.alert('Error', 'Failed to start Trakt auth');
-        return;
-      }
-      setDeviceCode(dc);
-
-      try {
-        if (WebBrowser && WebBrowser.openBrowserAsync) await WebBrowser.openBrowserAsync(dc.verification_url);
-        else Linking.openURL(dc.verification_url);
-      } catch {}
-
-      if (pollRef.current) clearInterval(pollRef.current);
-      pollRef.current = setInterval(async () => {
-        try {
-          const res = await pollTraktToken(dc.device_code);
-          if (res && res.access_token) {
-            await saveTraktTokens(res);
-            clearInterval(pollRef.current);
-            setDeviceCode(null);
-            await refreshTraktProfile();
-          }
-        } catch (err: any) {
-          const msg = String(err?.message || '');
-          if (msg.includes('expired')) {
-            clearInterval(pollRef.current);
-            setDeviceCode(null);
-            Alert.alert('Error', 'Device code expired. Please try again.');
-          }
-        }
-      }, Math.max(5, Number(dc.interval || 5)) * 1000);
-
-      setTimeout(() => {
-        try { if (pollRef.current) clearInterval(pollRef.current); } catch {}
-      }, Math.max(30, Number(dc.expires_in || 600)) * 1000);
-    } catch (e: any) {
-      Alert.alert('Error', e?.message || 'Failed to start Trakt auth');
-    }
-  }
-
-  async function handleSelectServer(server: PlexServerInfo) {
-    try {
-      await selectPlexServer(server);
-      Alert.alert('Success', `Connected to ${server.name}`);
-      await loadServers();
-      loadServerInfo();
-    } catch (e: any) {
-      Alert.alert('Error', e?.message || 'Failed to set server');
-    }
-  }
-
-  async function loadEndpoints(serverId: string) {
-    try {
-      const res = await getServerConnections(serverId);
-      setEndpoints(res || []);
-      setShowServerEndpoints(serverId);
-    } catch (e: any) {
-      console.error('[My] Failed to load endpoints:', e);
-      Alert.alert('Error', e?.message || 'Failed to load endpoints');
-    }
-  }
-
-  async function handleSelectEndpoint(serverId: string, uri: string) {
-    try {
-      await selectServerEndpoint(serverId, uri);
-      Alert.alert('Success', 'Endpoint updated');
-      setShowServerEndpoints(null);
-      await loadServers();
-      loadServerInfo();
-    } catch (e: any) {
-      Alert.alert('Error', e?.message || 'Endpoint unreachable');
-    }
-  }
-
-  async function handleLogout() {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout? You will need to sign in again.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: async () => {
-            await onLogout();
-          }
-        }
-      ]
-    );
-  }
-
-  const Card = ({ children, title }: { children: any; title?: string }) => (
-    <View style={styles.card}>
-      {title && <Text style={styles.cardTitle}>{title}</Text>}
-      {children}
-    </View>
-  );
-
-  const Button = ({ onPress, title, variant = 'primary' }: { onPress: () => void; title: string; variant?: 'primary' | 'secondary' }) => (
-    <Pressable
-      onPress={onPress}
-      style={[styles.button, variant === 'primary' ? styles.buttonPrimary : styles.buttonSecondary]}
-    >
-      <Text style={[styles.buttonText, variant === 'primary' ? styles.buttonTextPrimary : styles.buttonTextSecondary]}>
-        {title}
-      </Text>
-    </Pressable>
-  );
-
-  if (flixorLoading || loading) {
-    return (
-      <View style={{ flex: 1, backgroundColor: '#0a0a0a', alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator color="#fff" />
-      </View>
-    );
-  }
-
-  const handleBack = () => {
+  const goBack = useCallback(() => {
     if (onBack) {
       onBack();
-    } else if (nav.canGoBack()) {
-      nav.goBack();
+      return;
+    }
+    if (nav.canGoBack()) nav.goBack();
+  }, [nav, onBack]);
+
+  const renderRightChevron = useCallback(
+    () => <Ionicons name="chevron-forward" size={18} color="#9ca3af" />,
+    []
+  );
+
+  const plexDescription = useMemo(() => {
+    if (!plexUser) return 'Not connected';
+    if (serverInfo) return `${plexUser?.username || plexUser?.title || 'Connected'} · ${serverInfo.name}`;
+    return plexUser?.username || plexUser?.title || 'Connected';
+  }, [plexUser, serverInfo]);
+
+  const traktDescription = traktProfile
+    ? `@${traktProfile?.username || traktProfile?.ids?.slug}`
+    : 'Sign in to sync';
+
+  const renderAccount = () => (
+    <SettingsCard title="ACCOUNT">
+      <SettingItem
+        title="Plex"
+        description={plexDescription}
+        icon="tv-outline"
+        isLast={false}
+      />
+      <SettingItem
+        title="Trakt"
+        description={traktDescription}
+        icon="layers-outline"
+        renderRight={renderRightChevron}
+        onPress={() => nav.navigate('TraktSettings')}
+        isLast={true}
+      />
+    </SettingsCard>
+  );
+
+  const renderContent = () => (
+    <SettingsCard title="CONTENT & DISCOVERY">
+      <SettingItem
+        title="Catalogs"
+        description="Choose which libraries appear"
+        icon="albums-outline"
+        renderRight={renderRightChevron}
+        onPress={() => nav.navigate('CatalogSettings')}
+        isLast={false}
+      />
+      <SettingItem
+        title="Home Screen"
+        description="Hero and row visibility"
+        icon="home-outline"
+        renderRight={renderRightChevron}
+        onPress={() => nav.navigate('HomeScreenSettings')}
+        isLast={false}
+      />
+      <SettingItem
+        title="Continue Watching"
+        description="Playback and cache behavior"
+        icon="play-outline"
+        renderRight={renderRightChevron}
+        onPress={() => nav.navigate('ContinueWatchingSettings')}
+        isLast={true}
+      />
+    </SettingsCard>
+  );
+
+  const renderAppearance = () => (
+    <SettingsCard title="APPEARANCE">
+      <SettingItem
+        title="Episode Layout"
+        description={settings.episodeLayoutStyle === 'horizontal' ? 'Horizontal' : 'Vertical'}
+        icon="grid-outline"
+        renderRight={() => (
+          <Switch
+            value={settings.episodeLayoutStyle === 'horizontal'}
+            onValueChange={(value) =>
+              updateSetting('episodeLayoutStyle', value ? 'horizontal' : 'vertical')
+            }
+          />
+        )}
+        isLast={false}
+      />
+      <SettingItem
+        title="Streams Backdrop"
+        description="Show dimmed backdrop behind player settings"
+        icon="image-outline"
+        renderRight={() => (
+          <Switch
+            value={settings.enableStreamsBackdrop}
+            onValueChange={(value) => updateSetting('enableStreamsBackdrop', value)}
+          />
+        )}
+        isLast={true}
+      />
+    </SettingsCard>
+  );
+
+  const renderIntegrations = () => (
+    <SettingsCard title="INTEGRATIONS">
+      <SettingItem
+        title="TMDB"
+        description="Metadata and language preferences"
+        icon="film-outline"
+        renderRight={renderRightChevron}
+        onPress={() => nav.navigate('TMDBSettings')}
+        isLast={true}
+      />
+    </SettingsCard>
+  );
+
+  const renderPlayback = () => (
+    <SettingsCard title="PLAYBACK">
+      <SettingItem
+        title="Video Player"
+        description="Coming soon"
+        icon="play-circle-outline"
+        renderRight={() => <Text style={styles.comingSoon}>Soon</Text>}
+        disabled
+        isLast={false}
+      />
+      <SettingItem
+        title="Auto-play Best Stream"
+        description="Coming soon"
+        icon="flash-outline"
+        renderRight={() => <Switch value={false} onValueChange={() => {}} disabled />}
+        disabled
+        isLast={false}
+      />
+      <SettingItem
+        title="Always Resume"
+        description="Coming soon"
+        icon="refresh-outline"
+        renderRight={() => <Switch value={false} onValueChange={() => {}} disabled />}
+        disabled
+        isLast={true}
+      />
+    </SettingsCard>
+  );
+
+  const renderAbout = () => (
+    <SettingsCard title="ABOUT">
+      <SettingItem
+        title="Privacy Policy"
+        description="Review how data is handled"
+        icon="shield-outline"
+        renderRight={renderRightChevron}
+        onPress={() => Linking.openURL(ABOUT_LINKS.privacy)}
+        isLast={false}
+      />
+      <SettingItem
+        title="Report Issue"
+        description="Open a GitHub issue"
+        icon="bug-outline"
+        renderRight={renderRightChevron}
+        onPress={() => Linking.openURL(ABOUT_LINKS.reportIssue)}
+        isLast={false}
+      />
+      <SettingItem
+        title="Contributors"
+        description="Project contributors"
+        icon="people-outline"
+        renderRight={renderRightChevron}
+        onPress={() => Linking.openURL(ABOUT_LINKS.contributors)}
+        isLast={false}
+      />
+      <SettingItem
+        title="Version"
+        description={`v${getAppVersion()}`}
+        icon="information-circle-outline"
+        isLast={false}
+      />
+      <SettingItem
+        title="Discord"
+        description="Join the community"
+        icon="chatbubbles-outline"
+        renderRight={renderRightChevron}
+        onPress={() => Linking.openURL(ABOUT_LINKS.discord)}
+        isLast={false}
+      />
+      <SettingItem
+        title="Reddit"
+        description="Follow updates"
+        icon="chatbox-ellipses-outline"
+        renderRight={renderRightChevron}
+        onPress={() => Linking.openURL(ABOUT_LINKS.reddit)}
+        isLast={true}
+      />
+    </SettingsCard>
+  );
+
+  const renderCategory = (category: CategoryId) => {
+    switch (category) {
+      case 'account':
+        return renderAccount();
+      case 'content':
+        return renderContent();
+      case 'appearance':
+        return renderAppearance();
+      case 'integrations':
+        return renderIntegrations();
+      case 'playback':
+        return renderPlayback();
+      case 'about':
+        return renderAbout();
+      default:
+        return null;
     }
   };
 
-  return (
-    <View style={{ flex: 1, backgroundColor: '#0a0a0a' }}>
-      <LinearGradient
-        colors={['#0a0a0a', '#0f0f10', '#0b0c0d']}
-        start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }}
-        style={StyleSheet.absoluteFillObject}
-      />
-
-      {/* Custom Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        <Pressable onPress={handleBack} style={styles.backButton}>
-          <Ionicons name="chevron-back" size={24} color="#fff" />
-        </Pressable>
-        <Text style={styles.headerTitle}>Settings</Text>
-        <View style={{ width: 40 }} />
-      </View>
-
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ paddingBottom: 100, paddingHorizontal: 16 }}
-      >
-        {/* Plex Account Section */}
-        <Card title="Plex Account">
-          {plexUser ? (
-            <View>
-              <View style={styles.row}>
-                <Ionicons name="checkmark-circle" size={20} color="#4ade80" />
-                <Text style={styles.connectedText}>Connected</Text>
-              </View>
-              <Text style={styles.username}>{plexUser?.username || plexUser?.title || 'Plex User'}</Text>
-              {serverInfo && (
-                <Text style={styles.hint}>Server: {serverInfo.name} ({serverInfo.url})</Text>
-              )}
-            </View>
-          ) : (
-            <View>
-              <Text style={styles.description}>Not connected to Plex</Text>
-            </View>
-          )}
-        </Card>
-
-        {/* Trakt Account Section */}
-        <Card title="Trakt Account">
-          {traktProfile ? (
-            <View>
-              <View style={styles.row}>
-                <Ionicons name="checkmark-circle" size={20} color="#4ade80" />
-                <Text style={styles.connectedText}>Connected</Text>
-              </View>
-              <Text style={styles.username}>@{traktProfile?.username || traktProfile?.ids?.slug}</Text>
-              <Text style={styles.hint}>Personalized rows are enabled on Home</Text>
-              <Button onPress={handleSignOutTrakt} title="Sign Out" variant="secondary" />
-            </View>
-          ) : (
-            <View>
-              <Text style={styles.description}>
-                Sign in to Trakt to enable Watchlist, Recently Watched, and Recommendations.
-              </Text>
-              {deviceCode ? (
-                <View style={{ marginTop: 12 }}>
-                  <Text style={styles.codeLabel}>1) Open: {deviceCode.verification_url}</Text>
-                  <Text style={styles.codeLabel}>2) Enter code:</Text>
-                  <Text style={styles.codeValue}>{deviceCode.user_code}</Text>
-                  <Button onPress={() => Linking.openURL(deviceCode.verification_url)} title="Open Verification Page" variant="secondary" />
-                  <Text style={styles.waiting}>Waiting for authorization…</Text>
-                </View>
-              ) : (
-                <Button onPress={startTraktAuth} title="Connect Trakt" variant="primary" />
-              )}
-            </View>
-          )}
-        </Card>
-
-        {/* App Settings Section */}
-        <Card title="App Settings">
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Watchlist Provider</Text>
-            <View style={styles.pickerContainer}>
+  if (isTablet) {
+    return (
+      <View style={styles.container}>
+        <SettingsHeader title="Settings" onBack={goBack} />
+        <View style={styles.tabletLayout}>
+          <View style={styles.sidebar}>
+            {CATEGORIES.map((cat) => (
               <Pressable
-                onPress={() => setWatchlistProvider('trakt')}
-                style={[styles.pickerOption, watchlistProvider === 'trakt' && styles.pickerOptionActive]}
+                key={cat.id}
+                onPress={() => setSelectedCategory(cat.id)}
+                style={[
+                  styles.sidebarItem,
+                  selectedCategory === cat.id && styles.sidebarItemActive,
+                ]}
               >
-                <Text style={[styles.pickerText, watchlistProvider === 'trakt' && styles.pickerTextActive]}>
-                  Trakt
+                <Ionicons
+                  name={cat.icon}
+                  size={18}
+                  color={selectedCategory === cat.id ? '#fff' : '#9ca3af'}
+                />
+                <Text
+                  style={[
+                    styles.sidebarText,
+                    selectedCategory === cat.id && styles.sidebarTextActive,
+                  ]}
+                >
+                  {cat.title}
                 </Text>
               </Pressable>
-              <Pressable
-                onPress={() => setWatchlistProvider('plex')}
-                style={[styles.pickerOption, watchlistProvider === 'plex' && styles.pickerOptionActive]}
-              >
-                <Text style={[styles.pickerText, watchlistProvider === 'plex' && styles.pickerTextActive]}>
-                  Plex
-                </Text>
-              </Pressable>
-            </View>
+            ))}
           </View>
-
-          <Button onPress={saveSettings} title="Save Settings" variant="primary" />
-        </Card>
-
-        {/* TMDB API Key Section */}
-        <Card title="TMDB API Key">
-          <Text style={styles.description}>
-            Optionally provide your own TMDB API key. Leave empty to use the default key.
-          </Text>
-          <Text style={styles.hint}>
-            Get a free API key at themoviedb.org
-          </Text>
-          <View style={styles.inputGroup}>
-            <TextInput
-              value={tmdbApiKey}
-              onChangeText={setTmdbApiKey}
-              placeholder="Enter your TMDB API key..."
-              placeholderTextColor="#666"
-              style={styles.textInput}
-              autoCapitalize="none"
-              autoCorrect={false}
-              secureTextEntry={false}
-            />
-          </View>
-          <Button onPress={saveTmdbApiKey} title={tmdbApiKey.trim() ? "Save API Key" : "Clear & Use Default"} variant="primary" />
-        </Card>
-
-        {/* Plex Servers Section */}
-        <Card title="Plex Servers">
-          <Text style={styles.description}>
-            Select which Plex server to use for your library.
-          </Text>
-          <Button onPress={loadServers} title="Refresh Servers" variant="secondary" />
-
-          {servers.length > 0 && (
-            <View style={{ marginTop: 16 }}>
-              {servers.map((server, idx) => (
-                <View key={idx} style={styles.serverItem}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.serverName}>{server.name}</Text>
-                    <Text style={styles.serverDetails}>
-                      {server.protocol}://{server.host}:{server.port}
-                    </Text>
-                    {server.isActive && (
-                      <Text style={styles.activeLabel}>• Active</Text>
-                    )}
-                  </View>
-                  <View style={{ flexDirection: 'row', gap: 8 }}>
-                    {!server.isActive && (
-                      <Pressable onPress={() => handleSelectServer(server)} style={styles.smallButton}>
-                        <Text style={styles.smallButtonText}>Use</Text>
-                      </Pressable>
-                    )}
-                    <Pressable onPress={() => loadEndpoints(server.id)} style={styles.smallButton}>
-                      <Text style={styles.smallButtonText}>Endpoints</Text>
-                    </Pressable>
-                  </View>
-                </View>
-              ))}
-            </View>
-          )}
-        </Card>
-
-        {/* About Section */}
-        <Card title="About">
-          <Text style={styles.description}>
-            Version {getAppVersion()}
-          </Text>
-          <Text style={styles.hint}>
-            Mobile Plex client with Netflix-style UI
-          </Text>
-        </Card>
-
-        {/* Logout Section */}
-        <Card title="Account">
-          <Text style={styles.description}>
-            Sign out of your account and return to the login screen.
-          </Text>
-          <Button onPress={handleLogout} title="Logout" variant="secondary" />
-        </Card>
-      </ScrollView>
-
-      {/* Endpoints Modal */}
-      {showServerEndpoints && (
-        <View style={styles.modal}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Endpoint</Text>
-              <Pressable onPress={() => setShowServerEndpoints(null)}>
-                <Ionicons name="close" size={24} color="#fff" />
-              </Pressable>
-            </View>
-            <ScrollView style={styles.modalScroll}>
-              {endpoints.map((endpoint, idx) => (
-                <View key={idx} style={styles.endpointItem}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.endpointUri}>{endpoint.uri}</Text>
-                    {endpoint.isPreferred && (
-                      <Text style={styles.preferredLabel}>preferred</Text>
-                    )}
-                    {endpoint.isCurrent && (
-                      <Text style={styles.currentLabel}>current</Text>
-                    )}
-                  </View>
-                  <Pressable
-                    onPress={() => handleSelectEndpoint(showServerEndpoints, endpoint.uri)}
-                    style={styles.smallButton}
-                  >
-                    <Text style={styles.smallButtonText}>Use</Text>
-                  </Pressable>
-                </View>
-              ))}
-            </ScrollView>
-          </View>
+          <ScrollView contentContainerStyle={styles.tabletContent}>
+            {renderCategory(selectedCategory)}
+          </ScrollView>
         </View>
-      )}
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <SettingsHeader title="Settings" onBack={goBack} />
+      <ScrollView contentContainerStyle={styles.content}>
+        {renderAccount()}
+        {renderContent()}
+        {renderAppearance()}
+        {renderIntegrations()}
+        {renderPlayback()}
+        {renderAbout()}
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 8,
-    paddingBottom: 12,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  card: {
-    backgroundColor: 'rgba(15,15,18,0.6)',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(31,32,48,0.5)',
-    marginBottom: 16,
-  },
-  cardTitle: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 12,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 8,
-  },
-  connectedText: {
-    color: '#4ade80',
-    fontWeight: '600',
-  },
-  username: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  description: {
-    color: '#bbb',
-    marginBottom: 12,
-    lineHeight: 20,
-  },
-  hint: {
-    color: '#888',
-    fontSize: 13,
-    marginBottom: 12,
-  },
-  button: {
-    paddingVertical: 12,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  buttonPrimary: {
-    backgroundColor: '#fff',
-  },
-  buttonSecondary: {
-    backgroundColor: 'rgba(31,36,48,0.8)',
-  },
-  buttonText: {
-    fontWeight: '700',
-    fontSize: 15,
-  },
-  buttonTextPrimary: {
-    color: '#000',
-  },
-  buttonTextSecondary: {
-    color: '#fff',
-  },
-  codeLabel: {
-    color: '#ddd',
-    marginBottom: 6,
-  },
-  codeValue: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: '700',
-    marginBottom: 12,
-  },
-  waiting: {
-    color: '#888',
-    marginTop: 8,
-    textAlign: 'center',
-  },
-  serverItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 8,
-  },
-  serverName: {
-    color: '#fff',
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  serverDetails: {
-    color: '#888',
-    fontSize: 12,
-  },
-  activeLabel: {
-    color: '#4ade80',
-    fontSize: 12,
-    marginTop: 4,
-  },
-  smallButton: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  smallButtonText: {
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  modal: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.8)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    backgroundColor: '#1a1a1a',
-    borderRadius: 16,
-    width: '90%',
-    maxHeight: '70%',
-    padding: 16,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  modalTitle: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  modalScroll: {
-    maxHeight: 400,
-  },
-  endpointItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 8,
-  },
-  endpointUri: {
-    color: '#fff',
-    fontSize: 13,
-    marginBottom: 4,
-  },
-  preferredLabel: {
-    color: '#4ade80',
-    fontSize: 11,
-  },
-  currentLabel: {
-    color: '#60a5fa',
-    fontSize: 11,
-  },
-  inputGroup: {
-    marginBottom: 16,
-  },
-  inputLabel: {
-    color: '#bbb',
-    fontSize: 13,
-    marginBottom: 6,
-  },
-  pickerContainer: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  pickerOption: {
+  container: {
     flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: '#0b0b0d',
   },
-  pickerOptionActive: {
-    backgroundColor: '#fff',
-    borderColor: '#fff',
+  content: {
+    paddingHorizontal: 16,
+    paddingBottom: 40,
   },
-  pickerText: {
-    color: '#fff',
+  comingSoon: {
+    color: '#9ca3af',
+    fontSize: 12,
     fontWeight: '600',
   },
-  pickerTextActive: {
-    color: '#000',
+  tabletLayout: {
+    flex: 1,
+    flexDirection: 'row',
   },
-  textInput: {
+  sidebar: {
+    width: 260,
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    borderRightWidth: 1,
+    borderRightColor: 'rgba(255,255,255,0.08)',
+  },
+  sidebarItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    marginBottom: 6,
+  },
+  sidebarItemActive: {
     backgroundColor: 'rgba(255,255,255,0.08)',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+  },
+  sidebarText: {
+    color: '#9ca3af',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  sidebarTextActive: {
     color: '#fff',
-    fontSize: 15,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
+  },
+  tabletContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+    flexGrow: 1,
   },
 });

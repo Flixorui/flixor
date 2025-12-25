@@ -4,6 +4,7 @@
  */
 
 import { getFlixorCore } from './index';
+import { loadAppSettings } from './SettingsData';
 import type { PlexMediaItem, TMDBMedia, PlexUltraBlurColors } from '@flixor/core';
 
 export type RowItem = {
@@ -511,6 +512,38 @@ export async function getTmdbTextlessPoster(
   }
 }
 
+/**
+ * Fetch textless backdrop from TMDB (iso_639_1 is null and iso_3166_1 is null)
+ */
+export async function getTmdbTextlessBackdrop(
+  tmdbId: number,
+  mediaType: 'movie' | 'tv'
+): Promise<string | undefined> {
+  try {
+    const core = getFlixorCore();
+    const images =
+      mediaType === 'movie'
+        ? await core.tmdb.getMovieImages(tmdbId)
+        : await core.tmdb.getTVImages(tmdbId);
+
+    const backdrops = images.backdrops || [];
+    console.log('[HomeData] getTmdbTextlessBackdrop - found', backdrops.length, 'backdrops for', mediaType, tmdbId);
+
+    const textless = backdrops.find(
+      (b: any) => (b.iso_639_1 == null) && (b.iso_3166_1 == null)
+    );
+    const backdrop = textless || backdrops[0];
+
+    if (backdrop?.file_path) {
+      return core.tmdb.getBackdropUrl(backdrop.file_path, 'w780');
+    }
+    return undefined;
+  } catch (e) {
+    console.log('[HomeData] getTmdbTextlessBackdrop error:', e);
+    return undefined;
+  }
+}
+
 // ============================================
 // UltraBlur Colors
 // ============================================
@@ -610,13 +643,33 @@ export async function fetchLibraries(): Promise<Array<{ key: string; title: stri
   try {
     const core = getFlixorCore();
     const libraries = await core.plexServer.getLibraries();
-    return libraries.map((lib) => ({
+    const settings = await loadAppSettings();
+    const enabledKeys = settings.enabledLibraryKeys;
+    const filtered = enabledKeys && enabledKeys.length > 0
+      ? libraries.filter((lib) => enabledKeys.includes(String(lib.key)))
+      : libraries;
+    return filtered.map((lib) => ({
       key: lib.key,
       title: lib.title,
       type: lib.type,
     }));
   } catch (e) {
     console.log('[HomeData] fetchLibraries error:', e);
+    return [];
+  }
+}
+
+export async function fetchAllLibraries(): Promise<Array<{ key: string; title: string; type: string }>> {
+  try {
+    const core = getFlixorCore();
+    const libraries = await core.plexServer.getLibraries();
+    return libraries.map((lib) => ({
+      key: lib.key,
+      title: lib.title,
+      type: lib.type,
+    }));
+  } catch (e) {
+    console.log('[HomeData] fetchAllLibraries error:', e);
     return [];
   }
 }

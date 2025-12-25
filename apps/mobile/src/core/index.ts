@@ -44,6 +44,11 @@ export async function initializeFlixorCore(): Promise<FlixorCore> {
   // Load settings to get custom TMDB API key if set
   const settings = await loadAppSettings();
   const tmdbApiKey = settings.tmdbApiKey || DEFAULT_TMDB_API_KEY;
+  const tmdbLanguage = settings.tmdbLanguagePreference
+    ? settings.tmdbLanguagePreference.includes('-')
+      ? settings.tmdbLanguagePreference
+      : `${settings.tmdbLanguagePreference}-US`
+    : 'en-US';
 
   const storage = new MobileStorage();
   const secureStorage = new MobileSecureStorage(AsyncStorage);
@@ -61,7 +66,7 @@ export async function initializeFlixorCore(): Promise<FlixorCore> {
     tmdbApiKey: tmdbApiKey,
     traktClientId: TRAKT_CLIENT_ID,
     traktClientSecret: TRAKT_CLIENT_SECRET,
-    language: 'en-US',
+    language: tmdbLanguage,
   });
 
   // Initialize (restore sessions)

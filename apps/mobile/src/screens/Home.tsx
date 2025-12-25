@@ -1,14 +1,17 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { View, Text, ActivityIndicator, Animated } from 'react-native';
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import { View, Text, ActivityIndicator, Animated, FlatList, Pressable, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Row from '../components/Row';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { TopBarStore, useTopBarStore } from '../components/TopBarStore';
 import HeroCard from '../components/HeroCard';
+import HeroCarousel from '../components/HeroCarousel';
 import BrowseModal from '../components/BrowseModal';
 import { useFlixor } from '../core/FlixorContext';
+import { useAppSettings } from '../hooks/useAppSettings';
 import type { PlexMediaItem, BrowseContext, BrowseItem } from '@flixor/core';
+import { Image as ExpoImage } from 'expo-image';
 import {
   fetchTmdbTrendingTVWeek,
   fetchTmdbTrendingMoviesWeek,
@@ -27,6 +30,7 @@ import {
   getContinueWatchingImageUrl,
   getTmdbLogo,
   getTmdbTextlessPoster,
+  getTmdbTextlessBackdrop,
   getUltraBlurColors,
   getUsername,
   RowItem,
@@ -48,6 +52,7 @@ type HeroPick = { title: string; image?: string; subtitle?: string; tmdbId?: num
 export default function Home({ onLogout }: HomeProps) {
   const { flixor, isLoading: flixorLoading, isConnected } = useFlixor();
   const nav: any = useNavigation();
+  const { settings } = useAppSettings();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
@@ -83,6 +88,31 @@ export default function Home({ onLogout }: HomeProps) {
   const [heroWatchlistLoading, setHeroWatchlistLoading] = useState(false);
   const [heroColors, setHeroColors] = useState<PlexUltraBlurColors | null>(null);
   const [browseModalVisible, setBrowseModalVisible] = useState(false);
+  const heroCarouselItems = useMemo(() => {
+    const base = popularOnPlexTmdb.length
+      ? popularOnPlexTmdb
+      : trendingNow.length
+        ? trendingNow
+        : trendingMovies.length
+          ? trendingMovies
+          : trendingAll;
+    return base.slice(0, 6).map((item) => ({
+      id: item.id,
+      title: item.title,
+      image: item.image,
+      mediaType: item.mediaType,
+    }));
+  }, [popularOnPlexTmdb, trendingNow, trendingMovies, trendingAll]);
+  const [heroCarouselData, setHeroCarouselData] = useState<Array<{ id: string; title: string; image?: string; mediaType?: 'movie' | 'tv'; logo?: string; backdrop?: string }>>([]);
+  const [carouselIndex, setCarouselIndex] = useState(0);
+  const [carouselInWatchlist, setCarouselInWatchlist] = useState(false);
+  const [carouselWatchlistLoading, setCarouselWatchlistLoading] = useState(false);
+  const carouselItem = heroCarouselData[carouselIndex] || null;
+  const carouselColorCache = useRef<Map<string, PlexUltraBlurColors>>(new Map());
+  const [appleTvIndex, setAppleTvIndex] = useState(0);
+  const [appleInWatchlist, setAppleInWatchlist] = useState(false);
+  const [appleWatchlistLoading, setAppleWatchlistLoading] = useState(false);
+  const appleItem = heroCarouselData[appleTvIndex] || heroCarouselItems[appleTvIndex] || null;
 
   const y = React.useRef(new Animated.Value(0)).current;
   const showPillsAnim = React.useRef(new Animated.Value(1)).current;
@@ -167,6 +197,18 @@ export default function Home({ onLogout }: HomeProps) {
     }
 
     return { title: 'Featured', image: undefined, subtitle: undefined };
+  };
+
+  const getRowWatchlistIds = (item: RowItem): WatchlistIds | null => {
+    if (!item.id || !item.mediaType) return null;
+    if (item.id.startsWith('tmdb:')) {
+      const parts = item.id.split(':');
+      const tmdbId = parseInt(parts[2], 10);
+      if (!Number.isNaN(tmdbId)) {
+        return { tmdbId, mediaType: item.mediaType };
+      }
+    }
+    return null;
   };
 
   // Navigate to Browse screen with context and initial items
@@ -344,6 +386,123 @@ export default function Home({ onLogout }: HomeProps) {
     })();
   }, [popularOnPlexTmdb]);
 
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const enriched = await Promise.all(
+        heroCarouselItems.map(async (item) => {
+          if (!item.id.startsWith('tmdb:') || !item.mediaType) return item;
+          const parts = item.id.split(':');
+          const tmdbId = Number(parts[2]);
+          if (!tmdbId) return item;
+          const [poster, logo, backdrop] = await Promise.all([
+            getTmdbTextlessPoster(tmdbId, item.mediaType),
+            getTmdbLogo(tmdbId, item.mediaType),
+            getTmdbTextlessBackdrop(tmdbId, item.mediaType),
+          ]);
+          return {
+            ...item,
+            image: poster || item.image,
+            logo: logo || undefined,
+            backdrop: backdrop || undefined,
+          };
+        })
+      );
+      if (active) {
+        setHeroCarouselData(enriched);
+        setCarouselIndex(0);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [heroCarouselItems]);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      if (!carouselItem) return;
+      const ids = getRowWatchlistIds(carouselItem as RowItem);
+      if (!ids) return;
+      try {
+        const inWatchlist = await checkWatchlistStatus(ids);
+        if (active) setCarouselInWatchlist(inWatchlist);
+      } catch {}
+    })();
+    return () => {
+      active = false;
+    };
+  }, [carouselItem]);
+
+  useEffect(() => {
+    if (settings.heroLayout !== 'carousel') return;
+    if (!carouselItem?.image) return;
+    const cacheKey = `carousel:${carouselItem.id}`;
+    const cached = carouselColorCache.current.get(cacheKey);
+    if (cached) {
+      setHeroColors(cached);
+      return;
+    }
+    const timer = setTimeout(() => {
+      (async () => {
+        try {
+          const colors = await getUltraBlurColors(carouselItem.image as string);
+          if (colors) {
+            carouselColorCache.current.set(cacheKey, colors);
+            setHeroColors(colors);
+          }
+        } catch {}
+      })();
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [carouselItem, settings.heroLayout]);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      if (!appleItem || settings.heroLayout !== 'appletv') return;
+      const ids = getRowWatchlistIds(appleItem);
+      if (!ids) return;
+      try {
+        const inWatchlist = await checkWatchlistStatus(ids);
+        if (active) setAppleInWatchlist(inWatchlist);
+      } catch {}
+    })();
+    return () => {
+      active = false;
+    };
+  }, [appleItem, settings.heroLayout]);
+
+  useEffect(() => {
+    if (settings.heroLayout !== 'appletv') return;
+    const source = appleItem?.backdrop || appleItem?.image;
+    if (!appleItem?.id || !source) return;
+    const cacheKey = `appletv:${appleItem.id}`;
+    const cached = carouselColorCache.current.get(cacheKey);
+    if (cached) {
+      setHeroColors(cached);
+      return;
+    }
+    const timer = setTimeout(() => {
+      (async () => {
+        try {
+          const colors = await getUltraBlurColors(source);
+          if (colors) {
+            carouselColorCache.current.set(cacheKey, colors);
+            setHeroColors(colors);
+          }
+        } catch {}
+      })();
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [appleItem, settings.heroLayout]);
+
+  useEffect(() => {
+    if (appleTvIndex >= heroCarouselItems.length) {
+      setAppleTvIndex(0);
+    }
+  }, [appleTvIndex, heroCarouselItems.length]);
+
   // Light refresh of Trakt-dependent rows on focus
   useEffect(() => {
     (async () => {
@@ -421,6 +580,8 @@ export default function Home({ onLogout }: HomeProps) {
     return `rgba(${r},${g},${b},${opacity})`;
   };
 
+  const canShowHero = settings.showHeroSection && (heroPick || heroCarouselItems.length > 0);
+
   // Get gradient colors from heroColors or use defaults
   const bottomLeftColor = heroColors?.bottomLeft || '7a1612';
   const topRightColor = heroColors?.topRight || '144c54';
@@ -490,51 +651,135 @@ export default function Home({ onLogout }: HomeProps) {
           },
         })}
       >
-        {heroPick ? (
-          <HeroCard
-            hero={{ title: heroPick.title, subtitle: heroPick.subtitle, imageUri: heroPick.image, logoUri: heroLogo }}
-            inWatchlist={heroInWatchlist}
-            watchlistLoading={heroWatchlistLoading}
-            onPlay={() => {
-              if (heroPick.tmdbId && heroPick.mediaType) {
-                nav.navigate('Details', {
-                  type: 'tmdb',
-                  id: String(heroPick.tmdbId),
-                  mediaType: heroPick.mediaType,
-                });
-              }
-            }}
-            onAdd={async () => {
-              if (!heroPick.tmdbId || !heroPick.mediaType || heroWatchlistLoading) return;
-              setHeroWatchlistLoading(true);
-              try {
-                const ids: WatchlistIds = {
-                  tmdbId: heroPick.tmdbId,
-                  mediaType: heroPick.mediaType,
-                };
-                const result = await toggleWatchlist(ids, 'both');
-                if (result.success) {
-                  setHeroInWatchlist(result.inWatchlist);
+        {canShowHero ? (
+          settings.heroLayout === 'carousel' ? (
+            <View style={{ marginTop: -52 }}>
+              <HeroCarousel
+                items={heroCarouselData}
+                onSelect={(item) => {
+                  const ids = getRowWatchlistIds(item);
+                  if (!ids) return;
+                  nav.navigate('Details', {
+                    type: 'tmdb',
+                    id: String(ids.tmdbId),
+                    mediaType: ids.mediaType,
+                  });
+                }}
+                onPlay={(item) => {
+                  const ids = getRowWatchlistIds(item);
+                  if (!ids) return;
+                  nav.navigate('Details', {
+                    type: 'tmdb',
+                    id: String(ids.tmdbId),
+                    mediaType: ids.mediaType,
+                  });
+                }}
+                onAdd={async (item) => {
+                  const ids = getRowWatchlistIds(item);
+                  if (!ids || carouselWatchlistLoading) return;
+                  setCarouselWatchlistLoading(true);
+                  try {
+                    const result = await toggleWatchlist(ids, 'both');
+                    if (result.success) {
+                      setCarouselInWatchlist(result.inWatchlist);
+                    }
+                  } finally {
+                    setCarouselWatchlistLoading(false);
+                  }
+                }}
+                inWatchlist={carouselInWatchlist}
+                watchlistLoading={carouselWatchlistLoading}
+                onActiveIndexChange={setCarouselIndex}
+              />
+            </View>
+          ) : settings.heroLayout === 'appletv' ? (
+            <HeroAppleTV
+              items={heroCarouselData}
+              selectedIndex={appleTvIndex}
+              onSelectIndex={setAppleTvIndex}
+              onPlay={() => {
+                const ids = appleItem ? getRowWatchlistIds(appleItem) : null;
+                if (ids) {
+                  nav.navigate('Details', {
+                    type: 'tmdb',
+                    id: String(ids.tmdbId),
+                    mediaType: ids.mediaType,
+                  });
                 }
-              } finally {
-                setHeroWatchlistLoading(false);
-              }
-            }}
-          />
+              }}
+              onAdd={async () => {
+                const ids = appleItem ? getRowWatchlistIds(appleItem) : null;
+                if (!ids || appleWatchlistLoading) return;
+                setAppleWatchlistLoading(true);
+                try {
+                  const result = await toggleWatchlist(ids, 'both');
+                  if (result.success) {
+                    setAppleInWatchlist(result.inWatchlist);
+                  }
+                } finally {
+                  setAppleWatchlistLoading(false);
+                }
+              }}
+              inWatchlist={appleInWatchlist}
+              watchlistLoading={appleWatchlistLoading}
+            />
+          ) : (
+            heroPick ? (
+              <HeroCard
+                hero={{ title: heroPick.title, subtitle: heroPick.subtitle, imageUri: heroPick.image, logoUri: heroLogo }}
+                inWatchlist={heroInWatchlist}
+                watchlistLoading={heroWatchlistLoading}
+                onPlay={() => {
+                  if (heroPick.tmdbId && heroPick.mediaType) {
+                    nav.navigate('Details', {
+                      type: 'tmdb',
+                      id: String(heroPick.tmdbId),
+                      mediaType: heroPick.mediaType,
+                    });
+                  }
+                }}
+                onAdd={async () => {
+                  if (!heroPick.tmdbId || !heroPick.mediaType || heroWatchlistLoading) return;
+                  setHeroWatchlistLoading(true);
+                  try {
+                    const ids: WatchlistIds = {
+                      tmdbId: heroPick.tmdbId,
+                      mediaType: heroPick.mediaType,
+                    };
+                    const result = await toggleWatchlist(ids, 'both');
+                    if (result.success) {
+                      setHeroInWatchlist(result.inWatchlist);
+                    }
+                  } finally {
+                    setHeroWatchlistLoading(false);
+                  }
+                }}
+              />
+            ) : null
+          )
         ) : null}
 
         <View style={{ paddingHorizontal: 16, marginTop: 16 }}>
-        {continueItems.length > 0 && (
+        {settings.showContinueWatchingRow && continueItems.length > 0 && (
             <Row
               title="Continue Watching"
               items={continueItems}
               getImageUri={plexContinueImage}
               getTitle={(it) => (it.type === 'episode' ? it.grandparentTitle || it.title || it.name : it.title || it.name)}
-              onItemPress={(it) => nav.navigate('Details', { type: 'plex', ratingKey: String(it.ratingKey || it.guid || '') })}
+              onItemPress={(it) => {
+                const ratingKey = String(it.ratingKey || it.guid || '');
+                if (settings.useCachedStreams) {
+                  nav.navigate('Player', { type: 'plex', ratingKey });
+                } else if (settings.openMetadataScreenWhenCacheDisabled) {
+                  nav.navigate('Details', { type: 'plex', ratingKey });
+                } else {
+                  nav.navigate('Player', { type: 'plex', ratingKey });
+                }
+              }}
             />
           )}
           
-          {popularOnPlexTmdb.length > 0 && (
+          {settings.showPlexPopularRow && popularOnPlexTmdb.length > 0 && (
             <Row
               title="Popular on Plex"
               items={popularOnPlexTmdb}
@@ -545,7 +790,7 @@ export default function Home({ onLogout }: HomeProps) {
             />
           )}
 
-          {trendingNow.length > 0 && (
+          {settings.showTrendingRows && trendingNow.length > 0 && (
             <Row
               title="Trending Now"
               items={trendingNow}
@@ -556,7 +801,7 @@ export default function Home({ onLogout }: HomeProps) {
             />
           )}
 
-          {trendingMovies.length > 0 && (
+          {settings.showTrendingRows && trendingMovies.length > 0 && (
             <Row
               title="Trending Movies"
               items={trendingMovies}
@@ -567,7 +812,7 @@ export default function Home({ onLogout }: HomeProps) {
             />
           )}
 
-          {trendingAll.length > 0 && (
+          {settings.showTrendingRows && trendingAll.length > 0 && (
             <Row
               title="Trending This Week"
               items={trendingAll}
@@ -624,7 +869,7 @@ export default function Home({ onLogout }: HomeProps) {
             />
           )}
 
-          {tab !== 'shows' && traktTrendMovies.length > 0 && (
+          {settings.showTraktRows && tab !== 'shows' && traktTrendMovies.length > 0 && (
             <Row
               title="Trending Movies on Trakt"
               items={traktTrendMovies}
@@ -635,7 +880,7 @@ export default function Home({ onLogout }: HomeProps) {
             />
           )}
 
-          {tab !== 'movies' && traktTrendShows.length > 0 && (
+          {settings.showTraktRows && tab !== 'movies' && traktTrendShows.length > 0 && (
             <Row
               title="Trending TV Shows on Trakt"
               items={traktTrendShows}
@@ -646,7 +891,7 @@ export default function Home({ onLogout }: HomeProps) {
             />
           )}
 
-          {traktMyWatchlist.length > 0 && (
+          {settings.showTraktRows && traktMyWatchlist.length > 0 && (
             <Row
               title="Your Trakt Watchlist"
               items={traktMyWatchlist}
@@ -657,7 +902,7 @@ export default function Home({ onLogout }: HomeProps) {
             />
           )}
 
-          {traktHistory.length > 0 && (
+          {settings.showTraktRows && traktHistory.length > 0 && (
             <Row
               title="Recently Watched"
               items={traktHistory}
@@ -668,7 +913,7 @@ export default function Home({ onLogout }: HomeProps) {
             />
           )}
 
-          {traktRecommendations.length > 0 && (
+          {settings.showTraktRows && traktRecommendations.length > 0 && (
             <Row
               title="Recommended for You"
               items={traktRecommendations}
@@ -679,7 +924,7 @@ export default function Home({ onLogout }: HomeProps) {
             />
           )}
 
-          {traktPopularShows.length > 0 && (
+          {settings.showTraktRows && traktPopularShows.length > 0 && (
             <Row
               title="Popular TV Shows on Trakt"
               items={traktPopularShows}
@@ -714,5 +959,131 @@ export default function Home({ onLogout }: HomeProps) {
         }}
       />
     </SafeAreaView>
+  );
+}
+
+function HeroAppleTV({
+  items,
+  selectedIndex,
+  onSelectIndex,
+  onPlay,
+  onAdd,
+  inWatchlist,
+  watchlistLoading,
+}: {
+  items: Array<{ id: string; title: string; image?: string; mediaType?: 'movie' | 'tv'; logo?: string; backdrop?: string }>;
+  selectedIndex: number;
+  onSelectIndex: (index: number) => void;
+  onPlay: () => void;
+  onAdd: () => void;
+  inWatchlist: boolean;
+  watchlistLoading: boolean;
+}) {
+  const current = items[selectedIndex];
+  const screenW = Dimensions.get('window').width;
+  const thumbWidth = Math.min(screenW * 0.28, 140);
+  const thumbHeight = Math.round(thumbWidth * 0.56);
+
+  if (!current) return null;
+
+  return (
+    <View style={{ paddingHorizontal: 16, marginTop: -24 }}>
+      <View
+        style={{
+          borderRadius: 18,
+          overflow: 'hidden',
+          backgroundColor: '#111',
+          borderWidth: 1,
+          borderColor: 'rgba(255,255,255,0.08)',
+        }}
+      >
+        <View style={{ width: '100%', aspectRatio: 16 / 9 }}>
+          {(current.backdrop || current.image) ? (
+            <ExpoImage
+              source={{ uri: current.backdrop || current.image }}
+              style={{ width: '100%', height: '100%' }}
+              contentFit="cover"
+              transition={250}
+            />
+          ) : null}
+        </View>
+        <LinearGradient
+          colors={['rgba(0,0,0,0.0)', 'rgba(0,0,0,0.65)', 'rgba(0,0,0,0.95)']}
+          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+        />
+        <View style={{ position: 'absolute', left: 18, right: 18, bottom: 18 }}>
+          {current.logo ? (
+            <ExpoImage
+              source={{ uri: current.logo }}
+              style={{ width: 200, height: 70, marginBottom: 8 }}
+              contentFit="contain"
+              transition={200}
+            />
+          ) : (
+            <Text style={{ color: '#fff', fontSize: 26, fontWeight: '900', marginBottom: 6 }}>
+              {current.title}
+            </Text>
+          )}
+          {current.mediaType ? (
+            <Text style={{ color: '#d1d5db', fontSize: 13, marginBottom: 12 }}>
+              {current.mediaType === 'movie' ? 'Movie' : 'Series'}
+            </Text>
+          ) : null}
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <Pressable
+              onPress={onPlay}
+              style={{ backgroundColor: '#fff', paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8 }}
+            >
+              <Text style={{ color: '#111', fontWeight: '800' }}>Play</Text>
+            </Pressable>
+            <Pressable
+              onPress={onAdd}
+              disabled={watchlistLoading}
+              style={{
+                backgroundColor: inWatchlist ? 'rgba(255,255,255,0.2)' : 'rgba(109,109,110,0.7)',
+                paddingVertical: 10,
+                paddingHorizontal: 16,
+                borderRadius: 8,
+                opacity: watchlistLoading ? 0.6 : 1,
+              }}
+            >
+              <Text style={{ color: '#fff', fontWeight: '800' }}>{inWatchlist ? 'In List' : 'My List'}</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+      <View style={{ marginTop: 14 }}>
+        <FlatList
+          data={items}
+          horizontal
+          keyExtractor={(item) => item.id}
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: 2 }}
+          renderItem={({ item, index }) => (
+            <Pressable
+              onPress={() => onSelectIndex(index)}
+              style={{
+                width: thumbWidth,
+                height: thumbHeight,
+                borderRadius: 12,
+                overflow: 'hidden',
+                marginRight: 10,
+                borderWidth: index === selectedIndex ? 2 : 1,
+                borderColor: index === selectedIndex ? '#fff' : 'rgba(255,255,255,0.2)',
+              }}
+            >
+              {(item.backdrop || item.image) ? (
+                <ExpoImage
+                  source={{ uri: item.backdrop || item.image }}
+                  style={{ width: '100%', height: '100%' }}
+                  contentFit="cover"
+                  transition={150}
+                />
+              ) : null}
+            </Pressable>
+          )}
+        />
+      </View>
+    </View>
   );
 }

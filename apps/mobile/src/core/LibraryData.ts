@@ -4,6 +4,7 @@
  */
 
 import { getFlixorCore } from './index';
+import { loadAppSettings } from './SettingsData';
 import type { PlexLibrary, PlexMediaItem } from '@flixor/core';
 
 export type LibraryItem = {
@@ -43,8 +44,14 @@ export async function fetchLibrarySections(): Promise<LibrarySections> {
     const core = getFlixorCore();
     const libraries = await core.plexServer.getLibraries();
 
-    const showLib = libraries.find((lib: PlexLibrary) => lib.type === 'show');
-    const movieLib = libraries.find((lib: PlexLibrary) => lib.type === 'movie');
+    const settings = await loadAppSettings();
+    const enabledKeys = settings.enabledLibraryKeys;
+    const filtered = enabledKeys && enabledKeys.length > 0
+      ? libraries.filter((lib) => enabledKeys.includes(String(lib.key)))
+      : libraries;
+
+    const showLib = filtered.find((lib: PlexLibrary) => lib.type === 'show');
+    const movieLib = filtered.find((lib: PlexLibrary) => lib.type === 'movie');
 
     return {
       show: showLib?.key ? String(showLib.key) : undefined,
