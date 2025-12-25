@@ -42,7 +42,8 @@
             "usesCleartextTraffic": true
           }
         }
-      ]
+      ],
+      "./plugins/withKSPlayer"
     ]
   }
 }
