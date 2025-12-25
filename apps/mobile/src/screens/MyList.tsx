@@ -585,6 +585,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.1)',
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 50,
+    elevation: 5, // Android-specific elevation for touch handling
   },
   cardImage: {
     backgroundColor: '#111',
