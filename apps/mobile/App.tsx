@@ -17,6 +17,11 @@ import Browse from './src/screens/Browse';
 import NewHot from './src/screens/NewHot';
 import MyList from './src/screens/MyList';
 import Settings from './src/screens/Settings';
+import CatalogSettings from './src/screens/settings/CatalogSettings';
+import HomeScreenSettings from './src/screens/settings/HomeScreenSettings';
+import ContinueWatchingSettings from './src/screens/settings/ContinueWatchingSettings';
+import TMDBSettings from './src/screens/settings/TMDBSettings';
+import TraktSettings from './src/screens/settings/TraktSettings';
 import * as Haptics from 'expo-haptics';
 import { Platform } from 'react-native';
 
@@ -183,6 +188,11 @@ function AppContent() {
                   <Settings onLogout={handleLogout} onBack={() => navigation.goBack()} />
                 )}
               </MyListStack.Screen>
+              <MyListStack.Screen name="CatalogSettings" component={CatalogSettings} />
+              <MyListStack.Screen name="HomeScreenSettings" component={HomeScreenSettings} />
+              <MyListStack.Screen name="ContinueWatchingSettings" component={ContinueWatchingSettings} />
+              <MyListStack.Screen name="TMDBSettings" component={TMDBSettings} />
+              <MyListStack.Screen name="TraktSettings" component={TraktSettings} />
             </MyListStack.Navigator>
           )}
         </Tab.Screen>

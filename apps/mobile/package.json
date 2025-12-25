@@ -10,6 +10,7 @@
     "build": "echo 'Use EAS or expo build'"
   },
   "dependencies": {
+    "@d11/react-native-fast-image": "^8.13.0",
     "@flixor/core": "*",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-navigation/bottom-tabs": "^6.6.1",
@@ -20,6 +21,7 @@
     "expo-av": "~16.0.7",
     "expo-blur": "~15.0.7",
     "expo-build-properties": "~1.0.9",
+    "expo-glass-effect": "^0.1.8",
     "expo-haptics": "~15.0.7",
     "expo-image": "~3.0.8",
     "expo-linear-gradient": "~15.0.7",
@@ -29,9 +31,12 @@
     "expo-updates": "~29.0.12",
     "react": "19.1.0",
     "react-native": "0.81.4",
+    "react-native-reanimated": "^4.2.1",
+    "react-native-reanimated-carousel": "^4.0.3",
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",
-    "react-native-svg": "15.12.1"
+    "react-native-svg": "15.12.1",
+    "semver": "^7.7.3"
   },
   "devDependencies": {
     "@react-native-community/slider": "^5.0.1",
