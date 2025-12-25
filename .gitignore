@@ -22,3 +22,5 @@ build
 deps/
 Pods/
 *.xcodeproj
+ios/Flixor/
+android/
