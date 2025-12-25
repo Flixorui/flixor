@@ -428,15 +428,15 @@ export default function Home({ onLogout }: HomeProps) {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#1b0a10' }}>
       <LinearGradient
-        colors={['#0a0a0a', '#0f0f10', '#0b0c0d']}
+        colors={['#1a1a1a', '#181818', '#151515']}
         start={{ x: 0.5, y: 0 }}
         end={{ x: 0.5, y: 1 }}
         style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
       />
       <LinearGradient
         colors={[
-          hexToRgba(bottomLeftColor, 0.28),
-          hexToRgba(bottomLeftColor, 0.08),
+          hexToRgba(bottomLeftColor, 0.55),
+          hexToRgba(bottomLeftColor, 0.25),
           hexToRgba(bottomLeftColor, 0.0),
         ]}
         start={{ x: 0.0, y: 1.0 }}
@@ -445,8 +445,8 @@ export default function Home({ onLogout }: HomeProps) {
       />
       <LinearGradient
         colors={[
-          hexToRgba(topRightColor, 0.26),
-          hexToRgba(topRightColor, 0.08),
+          hexToRgba(topRightColor, 0.50),
+          hexToRgba(topRightColor, 0.20),
           hexToRgba(topRightColor, 0.0),
         ]}
         start={{ x: 1.0, y: 0.0 }}
