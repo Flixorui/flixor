@@ -1,12 +1,13 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, StatusBar, Dimensions } from 'react-native';
-import { Video, ResizeMode, AVPlaybackStatus, Audio } from 'expo-av';
+import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, StatusBar, Dimensions, Platform } from 'react-native';
+import { Audio } from 'expo-av';
 import { Image as ExpoImage } from 'expo-image';
 import Slider from '@react-native-community/slider';
 import { useNavigation, StackActions } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { LinearGradient } from 'expo-linear-gradient';
+import { KSPlayerComponent, KSPlayerRef, AudioTrack, TextTrack } from '../components/player';
 import { useFlixor } from '../core/FlixorContext';
 import {
   fetchPlayerMetadata,
@@ -41,8 +42,14 @@ type RouteParams = {
 export default function Player({ route }: RouteParams) {
   const params: Partial<PlayerParams> = route?.params || {};
   const nav = useNavigation();
-  const videoRef = useRef<Video>(null);
+  const playerRef = useRef<KSPlayerRef>(null);
   const { isLoading: flixorLoading, isConnected } = useFlixor();
+
+  // Track selection state
+  const [audioTracks, setAudioTracks] = useState<AudioTrack[]>([]);
+  const [textTracks, setTextTracks] = useState<TextTrack[]>([]);
+  const [selectedAudioTrack, setSelectedAudioTrack] = useState<number | null>(null);
+  const [selectedTextTrack, setSelectedTextTrack] = useState<number | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [streamUrl, setStreamUrl] = useState<string>('');
@@ -118,7 +125,7 @@ export default function Player({ route }: RouteParams) {
     if (progressInterval.current) clearInterval(progressInterval.current);
     if (controlsTimeout.current) clearTimeout(controlsTimeout.current);
     try {
-      await videoRef.current?.stopAsync?.();
+      playerRef.current?.setPaused(true);
     } catch {}
   }, []);
 
@@ -226,17 +233,8 @@ export default function Player({ route }: RouteParams) {
             setSessionId(sid);
             cleanupInfoRef.current.sessionId = sid;
 
-            // Set resume position
-            if (m?.viewOffset) {
-              const resumeMs = parseInt(String(m.viewOffset));
-              if (resumeMs > 0) {
-                setTimeout(async () => {
-                  if (videoRef.current) {
-                    await videoRef.current.setPositionAsync(resumeMs);
-                  }
-                }, 500);
-              }
-            }
+            // Set resume position (handled in onLoad callback)
+            // viewOffset will be used in onLoad to seek to resume position
 
             setLoading(false);
           } else {
@@ -368,14 +366,14 @@ export default function Player({ route }: RouteParams) {
         if (isReplacingRef.current) {
           isReplacingRef.current = false;
           try { await ScreenOrientation.unlockAsync(); } catch {}
-          try { await videoRef.current?.playAsync?.(); } catch {}
+          try { playerRef.current?.setPaused(false); } catch {}
         }
       } catch {}
     });
 
     const blurSub = nav.addListener('blur', async () => {
       try {
-        await videoRef.current?.pauseAsync?.();
+        playerRef.current?.setPaused(true);
       } catch {}
     });
 
@@ -443,67 +441,136 @@ export default function Player({ route }: RouteParams) {
     }
   }, [metadata, duration, position, markers, nav]);
 
-  const onPlaybackStatusUpdate = (status: AVPlaybackStatus) => {
-    if (!status.isLoaded) {
-      if (status.error) {
-        console.error('[Player] Playback error:', status.error);
-        setError(`Playback error: ${status.error}`);
+  // KSPlayer event handlers
+  const onPlayerLoad = useCallback(async (data: any) => {
+    console.log('[Player] KSPlayer onLoad:', data);
+    const durationMs = (data.duration || 0) * 1000;
+    setDuration(durationMs);
+    durationRef.current = durationMs;
+
+    // Fetch tracks after load
+    if (playerRef.current) {
+      try {
+        const tracks = await playerRef.current.getTracks();
+        console.log('[Player] Tracks:', tracks);
+        setAudioTracks(tracks.audioTracks || []);
+        setTextTracks(tracks.textTracks || []);
+
+        // Set default selected tracks based on isEnabled
+        const enabledAudio = tracks.audioTracks.find((t: AudioTrack) => t.isEnabled);
+        const enabledText = tracks.textTracks.find((t: TextTrack) => t.isEnabled);
+        if (enabledAudio) setSelectedAudioTrack(enabledAudio.id);
+        if (enabledText) setSelectedTextTrack(enabledText.id);
+      } catch (e) {
+        console.warn('[Player] Failed to get tracks:', e);
       }
-      return;
     }
 
-    const wasPlaying = isPlaying;
-    setIsPlaying(status.isPlaying);
-    setDuration(status.durationMillis || 0);
-    durationRef.current = status.durationMillis || 0;
-    if (!isScrubbing) {
-      setPosition(status.positionMillis || 0);
-      positionRef.current = status.positionMillis || 0;
+    // Resume from viewOffset if available
+    if (metadata?.viewOffset) {
+      const resumeMs = parseInt(String(metadata.viewOffset));
+      if (resumeMs > 0 && playerRef.current) {
+        console.log('[Player] Resuming from viewOffset:', resumeMs);
+        playerRef.current.seek(resumeMs / 1000); // KSPlayer uses seconds
+      }
     }
-    setBuffering(status.isBuffering);
+
+    // Start Trakt scrobble
+    if (metadata && !traktScrobbleStarted.current) {
+      startTraktScrobble(metadata, 0);
+      traktScrobbleStarted.current = true;
+      lastScrobbleState.current = 'playing';
+    }
+  }, [metadata]);
+
+  const onPlayerProgress = useCallback((data: any) => {
+    const currentTimeMs = (data.currentTime || 0) * 1000;
+    const durationMs = (data.duration || 0) * 1000;
+
+    if (!isScrubbing) {
+      setPosition(currentTimeMs);
+      positionRef.current = currentTimeMs;
+    }
+
+    if (durationMs > 0) {
+      setDuration(durationMs);
+      durationRef.current = durationMs;
+    }
+
+    // Update play state based on playbackRate
+    const currentlyPlaying = (data.playbackRate || 0) > 0;
+    const wasPlaying = isPlaying;
+    setIsPlaying(currentlyPlaying);
 
     // Trakt scrobbling integration
-    const progressPercent = status.durationMillis
-      ? Math.round((status.positionMillis / status.durationMillis) * 100)
-      : 0;
+    const progressPercent = durationMs > 0 ? Math.round((currentTimeMs / durationMs) * 100) : 0;
 
     // Handle scrobble state changes
-    if (status.isPlaying && lastScrobbleState.current !== 'playing') {
-      // Started or resumed playback
+    if (currentlyPlaying && lastScrobbleState.current !== 'playing') {
       lastScrobbleState.current = 'playing';
       startTraktScrobble(metadata, progressPercent);
       traktScrobbleStarted.current = true;
-    } else if (!status.isPlaying && wasPlaying && lastScrobbleState.current === 'playing') {
-      // Paused
+    } else if (!currentlyPlaying && wasPlaying && lastScrobbleState.current === 'playing') {
       lastScrobbleState.current = 'paused';
       pauseTraktScrobble(metadata, progressPercent);
     }
+  }, [isScrubbing, isPlaying, metadata]);
+
+  const onPlayerBuffering = useCallback((data: any) => {
+    setBuffering(data.isBuffering || false);
+  }, []);
+
+  const onPlayerEnd = useCallback(() => {
+    console.log('[Player] KSPlayer onEnd');
+    setIsPlaying(false);
+
+    // Stop Trakt scrobble
+    if (traktScrobbleStarted.current && metadata) {
+      stopTraktScrobble(metadata, 100);
+      lastScrobbleState.current = 'stopped';
+    }
+  }, [metadata]);
+
+  const onPlayerError = useCallback((error: any) => {
+    console.error('[Player] KSPlayer onError:', error);
+    setError(`Playback error: ${error.message || error.error || 'Unknown error'}`);
+  }, []);
+
+  const togglePlayPause = () => {
+    if (!playerRef.current) return;
+    playerRef.current.setPaused(isPlaying);
   };
 
-  const togglePlayPause = async () => {
-    if (!videoRef.current) return;
-    if (isPlaying) {
-      await videoRef.current.pauseAsync();
-    } else {
-      await videoRef.current.playAsync();
+  const skip = (seconds: number) => {
+    if (!playerRef.current) return;
+    const newPositionMs = Math.max(0, Math.min(duration, position + seconds * 1000));
+    playerRef.current.seek(newPositionMs / 1000); // KSPlayer uses seconds
+  };
+
+  const skipMarker = (marker: { type: string; startTimeOffset: number; endTimeOffset: number }) => {
+    if (!playerRef.current) return;
+    playerRef.current.seek((marker.endTimeOffset + 1000) / 1000); // KSPlayer uses seconds
+  };
+
+  const restart = () => {
+    if (!playerRef.current) return;
+    playerRef.current.seek(0);
+    playerRef.current.setPaused(false);
+  };
+
+  // Track selection handlers
+  const handleAudioTrackChange = (trackId: number) => {
+    if (playerRef.current) {
+      playerRef.current.setAudioTrack(trackId);
+      setSelectedAudioTrack(trackId);
     }
   };
 
-  const skip = async (seconds: number) => {
-    if (!videoRef.current) return;
-    const newPosition = Math.max(0, Math.min(duration, position + seconds * 1000));
-    await videoRef.current.setPositionAsync(newPosition);
-  };
-
-  const skipMarker = async (marker: { type: string; startTimeOffset: number; endTimeOffset: number }) => {
-    if (!videoRef.current) return;
-    await videoRef.current.setPositionAsync(marker.endTimeOffset + 1000);
-  };
-
-  const restart = async () => {
-    if (!videoRef.current) return;
-    await videoRef.current.setPositionAsync(0);
-    await videoRef.current.playAsync();
+  const handleTextTrackChange = (trackId: number) => {
+    if (playerRef.current) {
+      playerRef.current.setTextTrack(trackId);
+      setSelectedTextTrack(trackId);
+    }
   };
 
   const currentMarker = markers.find(m =>
@@ -548,17 +615,22 @@ export default function Player({ route }: RouteParams) {
     <View style={styles.container}>
       <StatusBar hidden />
 
-      {streamUrl ? (
-        <Video
-          ref={videoRef}
+      {streamUrl && Platform.OS === 'ios' ? (
+        <KSPlayerComponent
+          ref={playerRef}
           source={{ uri: streamUrl }}
           style={{ width: dimensions.width, height: dimensions.height }}
-          resizeMode={ResizeMode.CONTAIN}
-          shouldPlay={true}
-          isMuted={false}
+          resizeMode="contain"
+          paused={false}
           volume={1.0}
-          onPlaybackStatusUpdate={onPlaybackStatusUpdate}
-          useNativeControls={false}
+          rate={1.0}
+          allowsExternalPlayback={true}
+          usesExternalPlaybackWhileExternalScreenIsActive={true}
+          onLoad={onPlayerLoad}
+          onProgress={onPlayerProgress}
+          onBuffering={onPlayerBuffering}
+          onEnd={onPlayerEnd}
+          onError={onPlayerError}
         />
       ) : null}
 
@@ -590,9 +662,14 @@ export default function Player({ route }: RouteParams) {
                   </View>
                 )}
                 <View style={styles.topIcons}>
-                  <TouchableOpacity style={styles.iconButton}>
-                    <Ionicons name="search" size={24} color="#fff" />
-                  </TouchableOpacity>
+                  {Platform.OS === 'ios' && (
+                    <TouchableOpacity
+                      style={styles.iconButton}
+                      onPress={() => playerRef.current?.showAirPlayPicker()}
+                    >
+                      <Ionicons name="tv-outline" size={24} color="#fff" />
+                    </TouchableOpacity>
+                  )}
                   <TouchableOpacity style={styles.iconButton}>
                     <Ionicons name="ellipsis-horizontal" size={24} color="#fff" />
                   </TouchableOpacity>
@@ -637,9 +714,9 @@ export default function Player({ route }: RouteParams) {
                   thumbTintColor="#fff"
                   onSlidingStart={() => setIsScrubbing(true)}
                   onValueChange={(val: number) => setPosition(val)}
-                  onSlidingComplete={async (val: number) => {
-                    if (videoRef.current) {
-                      await videoRef.current.setPositionAsync(Math.max(0, Math.min(duration, val)));
+                  onSlidingComplete={(val: number) => {
+                    if (playerRef.current) {
+                      playerRef.current.seek(Math.max(0, Math.min(duration, val)) / 1000); // KSPlayer uses seconds
                     }
                     setIsScrubbing(false);
                   }}
