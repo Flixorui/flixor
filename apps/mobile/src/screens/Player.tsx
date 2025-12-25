@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, StatusBar, Dimensions, Platform } from 'react-native';
-import { Audio } from 'expo-av';
+import { Video, ResizeMode, AVPlaybackStatus, Audio } from 'expo-av';
 import { Image as ExpoImage } from 'expo-image';
 import Slider from '@react-native-community/slider';
 import { useNavigation, StackActions } from '@react-navigation/native';
@@ -43,9 +43,10 @@ export default function Player({ route }: RouteParams) {
   const params: Partial<PlayerParams> = route?.params || {};
   const nav = useNavigation();
   const playerRef = useRef<KSPlayerRef>(null);
+  const videoRef = useRef<Video>(null); // expo-av fallback for Android
   const { isLoading: flixorLoading, isConnected } = useFlixor();
 
-  // Track selection state
+  // Track selection state (iOS KSPlayer only)
   const [audioTracks, setAudioTracks] = useState<AudioTrack[]>([]);
   const [textTracks, setTextTracks] = useState<TextTrack[]>([]);
   const [selectedAudioTrack, setSelectedAudioTrack] = useState<number | null>(null);
@@ -125,7 +126,11 @@ export default function Player({ route }: RouteParams) {
     if (progressInterval.current) clearInterval(progressInterval.current);
     if (controlsTimeout.current) clearTimeout(controlsTimeout.current);
     try {
-      playerRef.current?.setPaused(true);
+      if (Platform.OS === 'ios') {
+        playerRef.current?.setPaused(true);
+      } else {
+        await videoRef.current?.stopAsync?.();
+      }
     } catch {}
   }, []);
 
@@ -366,14 +371,24 @@ export default function Player({ route }: RouteParams) {
         if (isReplacingRef.current) {
           isReplacingRef.current = false;
           try { await ScreenOrientation.unlockAsync(); } catch {}
-          try { playerRef.current?.setPaused(false); } catch {}
+          try {
+            if (Platform.OS === 'ios') {
+              playerRef.current?.setPaused(false);
+            } else {
+              await videoRef.current?.playAsync?.();
+            }
+          } catch {}
         }
       } catch {}
     });
 
     const blurSub = nav.addListener('blur', async () => {
       try {
-        playerRef.current?.setPaused(true);
+        if (Platform.OS === 'ios') {
+          playerRef.current?.setPaused(true);
+        } else {
+          await videoRef.current?.pauseAsync?.();
+        }
       } catch {}
     });
 
@@ -536,26 +551,92 @@ export default function Player({ route }: RouteParams) {
     setError(`Playback error: ${error.message || error.error || 'Unknown error'}`);
   }, []);
 
-  const togglePlayPause = () => {
-    if (!playerRef.current) return;
-    playerRef.current.setPaused(isPlaying);
+  // expo-av playback status handler (Android fallback)
+  const onPlaybackStatusUpdate = useCallback((status: AVPlaybackStatus) => {
+    if (!status.isLoaded) {
+      if (status.error) {
+        console.error('[Player] expo-av error:', status.error);
+        setError(`Playback error: ${status.error}`);
+      }
+      return;
+    }
+
+    const wasPlaying = isPlaying;
+    setIsPlaying(status.isPlaying);
+    setDuration(status.durationMillis || 0);
+    durationRef.current = status.durationMillis || 0;
+    if (!isScrubbing) {
+      setPosition(status.positionMillis || 0);
+      positionRef.current = status.positionMillis || 0;
+    }
+    setBuffering(status.isBuffering);
+
+    // Trakt scrobbling integration
+    const progressPercent = status.durationMillis
+      ? Math.round((status.positionMillis / status.durationMillis) * 100)
+      : 0;
+
+    // Handle scrobble state changes
+    if (status.isPlaying && lastScrobbleState.current !== 'playing') {
+      lastScrobbleState.current = 'playing';
+      startTraktScrobble(metadata, progressPercent);
+      traktScrobbleStarted.current = true;
+    } else if (!status.isPlaying && wasPlaying && lastScrobbleState.current === 'playing') {
+      lastScrobbleState.current = 'paused';
+      pauseTraktScrobble(metadata, progressPercent);
+    }
+  }, [isScrubbing, isPlaying, metadata]);
+
+  const togglePlayPause = async () => {
+    if (Platform.OS === 'ios') {
+      if (!playerRef.current) return;
+      playerRef.current.setPaused(isPlaying);
+    } else {
+      // Android: expo-av
+      if (!videoRef.current) return;
+      if (isPlaying) {
+        await videoRef.current.pauseAsync();
+      } else {
+        await videoRef.current.playAsync();
+      }
+    }
   };
 
-  const skip = (seconds: number) => {
-    if (!playerRef.current) return;
+  const skip = async (seconds: number) => {
     const newPositionMs = Math.max(0, Math.min(duration, position + seconds * 1000));
-    playerRef.current.seek(newPositionMs / 1000); // KSPlayer uses seconds
+    if (Platform.OS === 'ios') {
+      if (!playerRef.current) return;
+      playerRef.current.seek(newPositionMs / 1000); // KSPlayer uses seconds
+    } else {
+      // Android: expo-av
+      if (!videoRef.current) return;
+      await videoRef.current.setPositionAsync(newPositionMs);
+    }
   };
 
-  const skipMarker = (marker: { type: string; startTimeOffset: number; endTimeOffset: number }) => {
-    if (!playerRef.current) return;
-    playerRef.current.seek((marker.endTimeOffset + 1000) / 1000); // KSPlayer uses seconds
+  const skipMarker = async (marker: { type: string; startTimeOffset: number; endTimeOffset: number }) => {
+    const targetMs = marker.endTimeOffset + 1000;
+    if (Platform.OS === 'ios') {
+      if (!playerRef.current) return;
+      playerRef.current.seek(targetMs / 1000); // KSPlayer uses seconds
+    } else {
+      // Android: expo-av
+      if (!videoRef.current) return;
+      await videoRef.current.setPositionAsync(targetMs);
+    }
   };
 
-  const restart = () => {
-    if (!playerRef.current) return;
-    playerRef.current.seek(0);
-    playerRef.current.setPaused(false);
+  const restart = async () => {
+    if (Platform.OS === 'ios') {
+      if (!playerRef.current) return;
+      playerRef.current.seek(0);
+      playerRef.current.setPaused(false);
+    } else {
+      // Android: expo-av
+      if (!videoRef.current) return;
+      await videoRef.current.setPositionAsync(0);
+      await videoRef.current.playAsync();
+    }
   };
 
   // Track selection handlers
@@ -615,23 +696,38 @@ export default function Player({ route }: RouteParams) {
     <View style={styles.container}>
       <StatusBar hidden />
 
-      {streamUrl && Platform.OS === 'ios' ? (
-        <KSPlayerComponent
-          ref={playerRef}
-          source={{ uri: streamUrl }}
-          style={{ width: dimensions.width, height: dimensions.height }}
-          resizeMode="contain"
-          paused={false}
-          volume={1.0}
-          rate={1.0}
-          allowsExternalPlayback={true}
-          usesExternalPlaybackWhileExternalScreenIsActive={true}
-          onLoad={onPlayerLoad}
-          onProgress={onPlayerProgress}
-          onBuffering={onPlayerBuffering}
-          onEnd={onPlayerEnd}
-          onError={onPlayerError}
-        />
+      {streamUrl ? (
+        Platform.OS === 'ios' ? (
+          <KSPlayerComponent
+            ref={playerRef}
+            source={{ uri: streamUrl }}
+            style={{ width: dimensions.width, height: dimensions.height }}
+            resizeMode="contain"
+            paused={false}
+            volume={1.0}
+            rate={1.0}
+            allowsExternalPlayback={true}
+            usesExternalPlaybackWhileExternalScreenIsActive={true}
+            onLoad={onPlayerLoad}
+            onProgress={onPlayerProgress}
+            onBuffering={onPlayerBuffering}
+            onEnd={onPlayerEnd}
+            onError={onPlayerError}
+          />
+        ) : (
+          // Android fallback: expo-av
+          <Video
+            ref={videoRef}
+            source={{ uri: streamUrl }}
+            style={{ width: dimensions.width, height: dimensions.height }}
+            resizeMode={ResizeMode.CONTAIN}
+            shouldPlay={true}
+            isMuted={false}
+            volume={1.0}
+            onPlaybackStatusUpdate={onPlaybackStatusUpdate}
+            useNativeControls={false}
+          />
+        )
       ) : null}
 
       {/* Background tap area to show/hide controls */}
@@ -714,9 +810,12 @@ export default function Player({ route }: RouteParams) {
                   thumbTintColor="#fff"
                   onSlidingStart={() => setIsScrubbing(true)}
                   onValueChange={(val: number) => setPosition(val)}
-                  onSlidingComplete={(val: number) => {
-                    if (playerRef.current) {
-                      playerRef.current.seek(Math.max(0, Math.min(duration, val)) / 1000); // KSPlayer uses seconds
+                  onSlidingComplete={async (val: number) => {
+                    const targetMs = Math.max(0, Math.min(duration, val));
+                    if (Platform.OS === 'ios') {
+                      playerRef.current?.seek(targetMs / 1000); // KSPlayer uses seconds
+                    } else {
+                      await videoRef.current?.setPositionAsync(targetMs);
                     }
                     setIsScrubbing(false);
                   }}
