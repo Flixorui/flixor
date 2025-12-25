@@ -728,19 +728,14 @@ export class PlexServerService {
       });
 
       if (!response.ok) {
-        console.log('[PlexServerService] UltraBlur colors error:', response.status);
         return null;
       }
 
       const data: PlexUltraBlurResponse = await response.json();
       const colors = data.MediaContainer?.UltraBlurColors?.[0];
 
-      if (colors) {
-        return colors;
-      }
-      return null;
+      return colors || null;
     } catch (e) {
-      console.log('[PlexServerService] getUltraBlurColors error:', e);
       return null;
     }
   }

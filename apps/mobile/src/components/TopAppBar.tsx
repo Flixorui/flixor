@@ -106,8 +106,8 @@ export default function TopAppBar({ visible, username, showFilters, selected, on
               {compact ? username : `For ${username || 'You'}`}
             </Text>
             <View style={{ flexDirection: 'row' }}>
-              {!compact && <Feather name="cast" size={20} color="#fff" style={{ marginHorizontal: 8 }} />}
-              {!compact && <Ionicons name="download-outline" size={20} color="#fff" style={{ marginHorizontal: 8 }} />}
+              {/* {!compact && <Feather name="cast" size={20} color="#fff" style={{ marginHorizontal: 8 }} />}
+              {!compact && <Ionicons name="download-outline" size={20} color="#fff" style={{ marginHorizontal: 8 }} />} */}
               <Pressable onPress={onSearch}>
                 <Ionicons name="search-outline" size={compact ? 22 : 20} color="#fff" style={{ marginHorizontal: compact ? 0 : 8 }} />
               </Pressable>

@@ -135,7 +135,7 @@ function AppContent() {
             borderRadius: 0,
             borderTopWidth: 0,
             height: 68,
-            paddingBottom: 10,
+            paddingBottom: 20,
             paddingTop: 10,
           } : { display: 'none' as const },
           tabBarBackground: () => (
@@ -146,7 +146,9 @@ function AppContent() {
           tabBarIcon: ({ color, focused }) => {
             const name = route.name === 'HomeTab' ? (focused ? 'home' : 'home-outline')
               : route.name === 'NewHotTab' ? (focused ? 'play-circle' : 'play-circle-outline')
-              : (focused ? 'bookmark' : 'bookmark-outline');
+              : route.name === 'SettingsTab' ? (focused ? 'settings' : 'settings-outline')
+              : route.name === 'MyTab' ? (focused ? 'bookmark' : 'bookmark-outline')
+              : (focused ? 'home' : 'home-outline');
             return <Ionicons name={name as any} size={22} color={color} />;
           }
         })}
@@ -182,6 +184,11 @@ function AppContent() {
                 )}
               </MyListStack.Screen>
             </MyListStack.Navigator>
+          )}
+        </Tab.Screen>
+        <Tab.Screen name="SettingsTab" options={{ title: 'Settings' }}>
+          {() => (
+            <View style={{ flex: 1 }}></View>
           )}
         </Tab.Screen>
       </Tab.Navigator>
