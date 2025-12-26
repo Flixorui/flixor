@@ -43,6 +43,7 @@ RCT_EXTERN_METHOD(setAllowsExternalPlayback:(nonnull NSNumber *)node allows:(BOO
 RCT_EXTERN_METHOD(setUsesExternalPlaybackWhileExternalScreenIsActive:(nonnull NSNumber *)node uses:(BOOL)uses)
 RCT_EXTERN_METHOD(getAirPlayState:(nonnull NSNumber *)node resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
 RCT_EXTERN_METHOD(showAirPlayPicker:(nonnull NSNumber *)node)
+RCT_EXTERN_METHOD(getPlaybackStats:(nonnull NSNumber *)node resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
 
 @end
 
@@ -51,5 +52,7 @@ RCT_EXTERN_METHOD(showAirPlayPicker:(nonnull NSNumber *)node)
 RCT_EXTERN_METHOD(getTracks:(NSNumber *)nodeTag resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
 RCT_EXTERN_METHOD(getAirPlayState:(NSNumber *)nodeTag resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
 RCT_EXTERN_METHOD(showAirPlayPicker:(NSNumber *)nodeTag)
+RCT_EXTERN_METHOD(getPlaybackStats:(NSNumber *)nodeTag resolve:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
+RCT_EXTERN_METHOD(getNativeLog:(RCTPromiseResolveBlock)resolve reject:(RCTPromiseRejectBlock)reject)
 
 @end
