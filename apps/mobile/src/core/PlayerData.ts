@@ -108,6 +108,9 @@ export function getTranscodeStreamUrl(
     protocol?: 'hls' | 'dash';
     sessionId?: string;
     directStream?: boolean;
+    audioStreamID?: string;
+    subtitleStreamID?: string;
+    offset?: number;
   }
 ): { url: string; startUrl: string; sessionUrl: string; sessionId: string } {
   try {
@@ -125,6 +128,38 @@ export async function startTranscodeSession(startUrl: string): Promise<void> {
     await core.plexServer.startTranscodeSession(startUrl);
   } catch (e) {
     console.log('[PlayerData] startTranscodeSession error:', e);
+    throw e;
+  }
+}
+
+export async function makeTranscodeDecision(
+  ratingKey: string,
+  options?: {
+    audioStreamID?: string;
+    subtitleStreamID?: string;
+  }
+): Promise<void> {
+  try {
+    const core = getFlixorCore();
+    await core.plexServer.makeTranscodeDecision(ratingKey, options);
+  } catch (e) {
+    console.log('[PlayerData] makeTranscodeDecision error:', e);
+    // Non-fatal, continue with transcode
+  }
+}
+
+export async function setStreamSelection(
+  partId: string,
+  options: {
+    audioStreamID?: string;
+    subtitleStreamID?: string;
+  }
+): Promise<void> {
+  try {
+    const core = getFlixorCore();
+    await core.plexServer.setStreamSelection(partId, options);
+  } catch (e) {
+    console.log('[PlayerData] setStreamSelection error:', e);
     throw e;
   }
 }

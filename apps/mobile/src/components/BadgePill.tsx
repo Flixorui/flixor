@@ -3,7 +3,7 @@ import { View, Text } from 'react-native';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { Ionicons } from '@expo/vector-icons';
 
-export default function BadgePill({ icon, label }: { icon?: 'cc'|'ad'|'dolby'|'hd'|'5.1'; label?: string }) {
+export default function BadgePill({ icon, label }: { icon?: 'cc'|'ad'|'dolby'|'hd'|'5.1'|'hdr'|'hdr10'|'hdr10+'|'hlg'; label?: string }) {
   const bg = { backgroundColor:'#1a1b20', paddingHorizontal:10, paddingVertical:6, borderRadius:8, flexDirection:'row', alignItems:'center' } as const;
   const textStyle = { color:'#fff', fontWeight:'700', fontSize:12 } as const;
 
@@ -32,8 +32,29 @@ export default function BadgePill({ icon, label }: { icon?: 'cc'|'ad'|'dolby'|'h
   }
   if (icon === 'dolby') {
     return (
-      <View style={bg}>
+      <View style={[bg, { backgroundColor: '#9b59b6' }]}>
         <Text style={textStyle}>DV</Text>
+      </View>
+    );
+  }
+  if (icon === 'hdr' || icon === 'hdr10') {
+    return (
+      <View style={[bg, { backgroundColor: '#8e44ad' }]}>
+        <Text style={textStyle}>HDR10</Text>
+      </View>
+    );
+  }
+  if (icon === 'hdr10+') {
+    return (
+      <View style={[bg, { backgroundColor: '#9b59b6' }]}>
+        <Text style={textStyle}>HDR10+</Text>
+      </View>
+    );
+  }
+  if (icon === 'hlg') {
+    return (
+      <View style={[bg, { backgroundColor: '#27ae60' }]}>
+        <Text style={textStyle}>HLG</Text>
       </View>
     );
   }

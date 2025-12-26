@@ -547,15 +547,33 @@ export class PlexServerService {
       protocol?: 'hls' | 'dash';
       sessionId?: string;
       directStream?: boolean;
+      audioStreamID?: string;
+      subtitleStreamID?: string;
+      offset?: number; // Start offset in ms for seeking
     }
   ): { url: string; startUrl: string; sessionUrl: string; sessionId: string } {
+    // Always generate a fresh session ID to avoid Plex caching issues
+    const freshSessionId = `${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
+
     const {
       maxVideoBitrate = 20000,
       videoResolution = '1920x1080',
       protocol = 'hls',
-      sessionId = Math.random().toString(36).substring(2, 15),
+      sessionId = freshSessionId,
       directStream = false,
+      audioStreamID,
+      subtitleStreamID,
+      offset,
     } = options || {};
+
+    console.log('[PlexServerService] getTranscodeUrl called with:', {
+      ratingKey,
+      maxVideoBitrate,
+      videoResolution,
+      audioStreamID,
+      subtitleStreamID,
+      sessionId,
+    });
 
     const params = new URLSearchParams({
       hasMDE: '1',
@@ -579,11 +597,43 @@ export class PlexServerService {
       session: sessionId,
       copyts: '1',
       'X-Plex-Token': this.token,
-      'X-Plex-Client-Identifier': sessionId,
+      'X-Plex-Client-Identifier': this.clientId,
       'X-Plex-Product': 'Flixor Mobile',
       'X-Plex-Platform': 'iOS',
       'X-Plex-Device': 'iPhone',
     });
+
+    // Add audio stream selection if specified
+    if (audioStreamID) {
+      params.set('audioStreamID', audioStreamID);
+      console.log('[PlexServerService] Added audioStreamID to transcode URL:', audioStreamID);
+    }
+
+    // Handle subtitle stream selection
+    // Special case: 'burn' = just burn subtitles using Plex's default selection
+    // '0' = disable subtitles
+    // Other values = enable that specific subtitle track
+    if (subtitleStreamID !== undefined) {
+      if (subtitleStreamID === 'burn') {
+        // Just enable subtitle burning, let Plex use the default selected subtitle
+        params.set('subtitles', 'burn');
+        console.log('[PlexServerService] Added subtitles=burn (using Plex default subtitle)');
+      } else if (subtitleStreamID === '0') {
+        // Explicitly disable subtitles
+        params.set('subtitleStreamID', '0');
+        console.log('[PlexServerService] Subtitle disabled (ID=0)');
+      } else {
+        // Enable specific subtitle track and burn it
+        params.set('subtitleStreamID', subtitleStreamID);
+        params.set('subtitles', 'burn');
+        console.log('[PlexServerService] Added subtitleStreamID:', subtitleStreamID, 'with burn');
+      }
+    }
+
+    // Add offset for seeking on transcode restart
+    if (offset && offset > 0) {
+      params.set('offset', String(Math.floor(offset / 1000))); // Plex uses seconds
+    }
 
     const startUrl = `${this.baseUrl}/video/:/transcode/universal/start.m3u8?${params.toString()}`;
     const sessionUrl = `${this.baseUrl}/video/:/transcode/universal/session/${sessionId}/base/index.m3u8?X-Plex-Token=${this.token}`;
@@ -597,12 +647,80 @@ export class PlexServerService {
   }
 
   /**
+   * Make a transcode decision - tells Plex which streams to use
+   * This should be called BEFORE requesting the transcode stream
+   */
+  async makeTranscodeDecision(
+    ratingKey: string,
+    options?: {
+      audioStreamID?: string;
+      subtitleStreamID?: string;
+    }
+  ): Promise<void> {
+    const params = new URLSearchParams({
+      path: `/library/metadata/${ratingKey}`,
+      mediaIndex: '0',
+      partIndex: '0',
+      protocol: 'hls',
+      directPlay: '0',
+      directStream: '0',
+      directStreamAudio: '0',
+      'X-Plex-Token': this.token,
+      'X-Plex-Client-Identifier': this.clientId,
+      'X-Plex-Product': 'Flixor Mobile',
+      'X-Plex-Platform': 'iOS',
+    });
+
+    if (options?.audioStreamID) {
+      params.set('audioStreamID', options.audioStreamID);
+    }
+    if (options?.subtitleStreamID) {
+      params.set('subtitleStreamID', options.subtitleStreamID);
+      if (options.subtitleStreamID !== '0') {
+        params.set('subtitles', 'burn');
+      }
+    }
+
+    const url = `${this.baseUrl}/video/:/transcode/universal/decision?${params.toString()}`;
+    console.log('[PlexServerService] Making transcode decision:', url.substring(0, 200) + '...');
+
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: this.getHeaders(),
+      });
+
+      if (!response.ok) {
+        console.warn('[PlexServerService] Decision API returned:', response.status);
+      } else {
+        console.log('[PlexServerService] Transcode decision made successfully');
+      }
+    } catch (e) {
+      console.warn('[PlexServerService] Failed to make transcode decision:', e);
+    }
+  }
+
+  /**
    * Start a transcode session (must be called before using sessionUrl)
    */
   async startTranscodeSession(startUrl: string): Promise<void> {
     try {
-      await fetch(startUrl);
-      console.log('[PlexServerService] Transcode session started');
+      console.log('[PlexServerService] Starting transcode session...');
+      console.log('[PlexServerService] URL:', startUrl.substring(0, 200) + '...');
+
+      const response = await fetch(startUrl, {
+        headers: this.getHeaders(),
+      });
+
+      console.log('[PlexServerService] Transcode response status:', response.status);
+
+      if (!response.ok) {
+        const text = await response.text();
+        console.error('[PlexServerService] Transcode error response:', text.substring(0, 500));
+        throw new Error(`Transcode failed with status ${response.status}`);
+      }
+
+      console.log('[PlexServerService] Transcode session started successfully');
     } catch (e) {
       console.error('[PlexServerService] Failed to start transcode session:', e);
       throw e;
@@ -653,6 +771,56 @@ export class PlexServerService {
       );
     } catch {
       // Best-effort
+    }
+  }
+
+  /**
+   * Change audio/subtitle stream selection for a media part
+   * This tells Plex which streams to use - requires player to reload stream
+   */
+  async setStreamSelection(
+    partId: string,
+    options: {
+      audioStreamID?: string;
+      subtitleStreamID?: string; // Stream ID to enable, undefined to disable
+    }
+  ): Promise<void> {
+    const params = new URLSearchParams({
+      'X-Plex-Token': this.token,
+      'allParts': '1', // Apply to all parts of the media
+    });
+
+    if (options.audioStreamID) {
+      params.set('audioStreamID', options.audioStreamID);
+      console.log('[PlexServerService] setStreamSelection - audioStreamID:', options.audioStreamID);
+    }
+
+    // Only set subtitleStreamID if it's a valid stream ID (not undefined)
+    // To disable subtitles, we simply don't set this parameter
+    if (options.subtitleStreamID) {
+      params.set('subtitleStreamID', options.subtitleStreamID);
+      console.log('[PlexServerService] setStreamSelection - subtitleStreamID:', options.subtitleStreamID);
+    } else {
+      console.log('[PlexServerService] setStreamSelection - subtitles disabled (no ID)');
+    }
+
+    const url = `${this.baseUrl}/library/parts/${partId}?${params.toString()}`;
+    console.log('[PlexServerService] Setting stream selection:', url);
+
+    try {
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers: this.getHeaders(),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to set stream selection: ${response.status}`);
+      }
+
+      console.log('[PlexServerService] Stream selection updated successfully');
+    } catch (e) {
+      console.error('[PlexServerService] Failed to set stream selection:', e);
+      throw e;
     }
   }
 

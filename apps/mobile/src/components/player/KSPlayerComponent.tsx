@@ -58,6 +58,32 @@ export interface TextTrack {
   isImageSubtitle: boolean;
 }
 
+export interface PlaybackStats {
+  currentTime: number;
+  duration: number;
+  naturalSize: { width: number; height: number };
+  videoCodec: string;
+  bitDepth: number;
+  dynamicRange: string;
+  fps: number;
+  bitRate: number;
+  audioCodec: string;
+  audioChannels: number;
+  audioBitRate: number;
+  playableTime: number;
+  bufferProgress: number;
+  // Real-time render stats (KSMEPlayer only)
+  displayFPS?: number;
+  avSyncDiff?: number;
+  droppedFrames?: number;
+  droppedVideoFrames?: number;
+  droppedVideoPackets?: number;
+  videoBitrateActual?: number;
+  audioBitrateActual?: number;
+  bytesRead?: number;
+  isHardwareAccelerated?: boolean;
+}
+
 export interface KSPlayerRef {
   seek: (time: number) => void;
   setSource: (source: KSPlayerSource) => void;
@@ -71,6 +97,7 @@ export interface KSPlayerRef {
   setUsesExternalPlaybackWhileExternalScreenIsActive: (uses: boolean) => void;
   getAirPlayState: () => Promise<{ allowsExternalPlayback: boolean; usesExternalPlaybackWhileExternalScreenIsActive: boolean; isExternalPlaybackActive: boolean }>;
   showAirPlayPicker: () => void;
+  getPlaybackStats: () => Promise<PlaybackStats | null>;
 }
 
 export interface KSPlayerProps {
@@ -197,6 +224,15 @@ const KSPlayer = forwardRef<KSPlayerRef, KSPlayerProps>((props, ref) => {
           KSPlayerModule.showAirPlayPicker(node);
         }
       }
+    },
+    getPlaybackStats: async () => {
+      if (nativeRef.current && KSPlayerModule) {
+        const node = findNodeHandle(nativeRef.current);
+        if (node) {
+          return await KSPlayerModule.getPlaybackStats(node);
+        }
+      }
+      return null;
     },
   }));
 

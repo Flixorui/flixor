@@ -87,6 +87,7 @@ class KSPlayerViewManager: RCTViewManager {
     }
 
     @objc func setTextTrack(_ node: NSNumber, trackId: NSNumber) {
+        NSLog("KSPlayerViewManager: setTextTrack called for node=\(node), trackId=\(trackId)")
         DispatchQueue.main.async {
             if let view = self.bridge.uiManager.view(forReactTag: node) as? KSPlayerView {
                 view.setTextTrack(Int(truncating: trackId))
@@ -141,6 +142,17 @@ class KSPlayerViewManager: RCTViewManager {
                 view.showAirPlayPicker()
             } else {
                 print("[KSPlayerViewManager] Could not find KSPlayerView for node: \(node)")
+            }
+        }
+    }
+
+    @objc func getPlaybackStats(_ node: NSNumber, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
+        DispatchQueue.main.async {
+            if let view = self.bridge.uiManager.view(forReactTag: node) as? KSPlayerView {
+                let stats = view.getPlaybackStats()
+                resolve(stats)
+            } else {
+                reject("NO_VIEW", "KSPlayerView not found", nil)
             }
         }
     }

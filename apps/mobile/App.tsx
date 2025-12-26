@@ -7,6 +7,15 @@ import GlobalTopAppBar from './src/components/GlobalTopAppBar';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { useTopBarStore } from './src/components/TopBarStore';
+
+// Silence Reanimated warning about reading shared value during render
+// This is caused by third-party libraries and is a known issue
+import { configureReanimatedLogger, ReanimatedLogLevel } from 'react-native-reanimated';
+configureReanimatedLogger({
+  level: ReanimatedLogLevel.warn,
+  strict: false, // Disable strict mode warnings
+});
+
 import Home from './src/screens/Home';
 import Library from './src/screens/Library';
 import Collections from './src/screens/Collections';

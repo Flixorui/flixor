@@ -471,7 +471,7 @@ export default function Details({ route }: RouteParams) {
             ) : null}
             {/* Top-right actions over image */}
             <View style={{ position:'absolute', right: 12, top: 12, flexDirection:'row' }}>
-              <Feather name="cast" size={25} color="#fff" style={{ marginHorizontal: 20 }} />
+              {/* <Feather name="cast" size={25} color="#fff" style={{ marginHorizontal: 20 }} /> */}
               <Pressable onPress={() => { nav.goBack(); }} style={{ width: 25, height: 25, borderRadius: 18, borderWidth: 1, borderColor: 'rgba(27,10,16,0.12)', backgroundColor: 'rgba(27,10,16,0.12)', alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>
                 <Ionicons name="close" color="#fff" size={18} />
               </Pressable>
