@@ -95,6 +95,8 @@ export default function PlayerSettingsSheet({
       visible={visible}
       transparent
       animationType="slide"
+      presentationStyle="overFullScreen"
+      supportedOrientations={['portrait', 'landscape']}
       onRequestClose={onClose}
     >
       <View style={[styles.backdrop, !showBackdrop && styles.backdropDisabled]}>

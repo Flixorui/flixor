@@ -72,6 +72,8 @@ export default function Player({ route }: RouteParams) {
 
   // Settings sheet state
   const [showSettingsSheet, setShowSettingsSheet] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const isFullscreenRef = useRef(false);
 
   const [loading, setLoading] = useState(true);
   const [streamUrl, setStreamUrl] = useState<string>('');
@@ -540,6 +542,8 @@ export default function Player({ route }: RouteParams) {
           try {
             await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
           } catch (e) {}
+          isFullscreenRef.current = false;
+          setIsFullscreen(false);
 
           try {
             await Audio.setAudioModeAsync({
@@ -630,12 +634,22 @@ export default function Player({ route }: RouteParams) {
 
     const focusSub = nav.addListener('focus', async () => {
       try {
-        await ScreenOrientation.unlockAsync();
+        if (isFullscreenRef.current) {
+          await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
+        } else {
+          await ScreenOrientation.unlockAsync();
+        }
         await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, staysActiveInBackground: true, shouldDuckAndroid: true });
         // If we just replaced into this screen, ensure playback starts and orientation is landscape
         if (isReplacingRef.current) {
           isReplacingRef.current = false;
-          try { await ScreenOrientation.unlockAsync(); } catch {}
+          try {
+            if (isFullscreenRef.current) {
+              await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
+            } else {
+              await ScreenOrientation.unlockAsync();
+            }
+          } catch {}
           try {
             if (Platform.OS === 'ios') {
               playerRef.current?.setPaused(false);
@@ -667,6 +681,22 @@ export default function Player({ route }: RouteParams) {
     controlsTimeout.current = setTimeout(() => {
       setShowControls(false);
     }, 4000);
+  };
+
+  const toggleFullscreen = async () => {
+    try {
+      if (isFullscreen) {
+        await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+        setIsFullscreen(false);
+        isFullscreenRef.current = false;
+      } else {
+        await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
+        setIsFullscreen(true);
+        isFullscreenRef.current = true;
+      }
+    } catch (e) {
+      console.warn('[Player] Failed to toggle fullscreen:', e);
+    }
   };
 
   useEffect(() => {
@@ -1347,6 +1377,12 @@ export default function Player({ route }: RouteParams) {
                       <Ionicons name="tv-outline" size={24} color="#fff" />
                     </TouchableOpacity>
                   )}
+                  <TouchableOpacity
+                    style={styles.iconButton}
+                    onPress={toggleFullscreen}
+                  >
+                    <Ionicons name={isFullscreen ? 'contract-outline' : 'expand-outline'} size={24} color="#fff" />
+                  </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.iconButton}
                     onPress={() => setShowSettingsSheet(true)}
