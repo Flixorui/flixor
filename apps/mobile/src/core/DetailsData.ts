@@ -604,6 +604,133 @@ export function getPersonProfileUrl(profilePath: string | undefined, size: strin
 }
 
 // ============================================
+// Next Up Episode for TV Shows
+// ============================================
+
+export interface NextUpEpisode {
+  ratingKey: string;
+  title: string;
+  seasonNumber: number;
+  episodeNumber: number;
+  thumb?: string;
+  progress: number; // 0-100
+  status: 'in-progress' | 'next-unwatched' | 'all-watched';
+}
+
+/**
+ * Get the next episode to watch for a TV show
+ * Priority:
+ * 1. Episode currently in progress (has viewOffset but not completed)
+ * 2. First unwatched episode
+ * 3. If all watched, returns first episode for "Rewatch"
+ */
+export async function getNextUpEpisode(
+  showRatingKey: string,
+  allSeasons: any[]
+): Promise<NextUpEpisode | null> {
+  try {
+    const core = getFlixorCore();
+
+    // First, check Plex on-deck for this show
+    try {
+      const onDeck = await core.plexServer.getOnDeck();
+      const showOnDeck = onDeck.find(
+        (item: any) =>
+          item.type === 'episode' &&
+          (item.grandparentRatingKey === showRatingKey ||
+            String(item.grandparentRatingKey) === String(showRatingKey))
+      );
+
+      if (showOnDeck) {
+        const progress = showOnDeck.viewOffset && showOnDeck.duration
+          ? Math.round((showOnDeck.viewOffset / showOnDeck.duration) * 100)
+          : 0;
+        return {
+          ratingKey: String(showOnDeck.ratingKey),
+          title: showOnDeck.title || 'Episode',
+          seasonNumber: showOnDeck.parentIndex || 1,
+          episodeNumber: showOnDeck.index || 1,
+          thumb: showOnDeck.thumb,
+          progress,
+          status: 'in-progress',
+        };
+      }
+    } catch (e) {
+      console.log('[DetailsData] getOnDeck failed, falling back to episode scan:', e);
+    }
+
+    // Fallback: scan through all seasons/episodes to find next up
+    let firstEpisode: NextUpEpisode | null = null;
+    let firstUnwatched: NextUpEpisode | null = null;
+    let inProgress: NextUpEpisode | null = null;
+
+    for (const season of allSeasons) {
+      const seasonRk = season.ratingKey || season.key;
+      if (!seasonRk) continue;
+
+      // Skip specials (season 0)
+      const seasonNum = season.index || season.parentIndex || parseInt(season.key) || 0;
+      if (seasonNum === 0) continue;
+
+      try {
+        const episodes = await core.plexServer.getChildren(String(seasonRk));
+
+        for (const ep of episodes) {
+          const epNum = ep.index || 1;
+          const viewOffset = ep.viewOffset || 0;
+          const duration = ep.duration || 1;
+          const viewCount = ep.viewCount || 0;
+          const progress = Math.round((viewOffset / duration) * 100);
+          const isCompleted = viewCount > 0 || progress >= 95;
+
+          const epInfo: NextUpEpisode = {
+            ratingKey: String(ep.ratingKey),
+            title: ep.title || `Episode ${epNum}`,
+            seasonNumber: seasonNum,
+            episodeNumber: epNum,
+            thumb: ep.thumb,
+            progress,
+            status: 'next-unwatched',
+          };
+
+          // Track first episode for rewatch
+          if (!firstEpisode) {
+            firstEpisode = { ...epInfo, status: 'all-watched' };
+          }
+
+          // Check for in-progress episode (has progress but not completed)
+          if (viewOffset > 0 && !isCompleted && !inProgress) {
+            inProgress = { ...epInfo, status: 'in-progress' };
+          }
+
+          // Check for first unwatched episode
+          if (!isCompleted && !firstUnwatched) {
+            firstUnwatched = epInfo;
+          }
+
+          // If we found an in-progress episode, we can stop
+          if (inProgress) break;
+        }
+
+        if (inProgress) break;
+      } catch (e) {
+        console.log(`[DetailsData] Failed to fetch episodes for season ${seasonRk}:`, e);
+      }
+    }
+
+    // Return in priority order
+    if (inProgress) return inProgress;
+    if (firstUnwatched) return firstUnwatched;
+    if (firstEpisode) return firstEpisode; // All watched - offer rewatch
+
+    return null;
+  } catch (e) {
+    console.log('[DetailsData] getNextUpEpisode error:', e);
+    return null;
+  }
+}
+
+// ============================================
 // Watchlist Functions
 // ============================================
 

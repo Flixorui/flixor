@@ -33,10 +33,12 @@ import {
   extractImdbIdFromGuids,
   toggleWatchlist,
   checkWatchlistStatus,
+  getNextUpEpisode,
   WatchlistIds,
   RowItem,
   TrailerInfo,
   PersonCredit,
+  NextUpEpisode,
 } from '../core/DetailsData';
 
 let ExpoImage: any = null;
@@ -70,7 +72,7 @@ export default function Details({ route }: RouteParams) {
   const [mappedRk, setMappedRk] = useState<string | null>(null);
   const [noLocalSource, setNoLocalSource] = useState<boolean>(false);
   const [episodesLoading, setEpisodesLoading] = useState<boolean>(false);
-  const [onDeck, setOnDeck] = useState<any | null>(null);
+  const [nextUp, setNextUp] = useState<NextUpEpisode | null>(null);
   const [closing, setClosing] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [inWatchlist, setInWatchlist] = useState(false);
@@ -194,6 +196,9 @@ export default function Details({ route }: RouteParams) {
               setSeasonKey(String(seas[0].ratingKey));
               setEpisodes(await fetchPlexSeasonEpisodes(String(seas[0].ratingKey)));
             }
+            // Fetch next up episode for continue watching
+            const nextUpEp = await getNextUpEpisode(params.ratingKey, seas);
+            setNextUp(nextUpEp);
           }
 
           // Setup watchlist IDs and check status
@@ -258,6 +263,9 @@ export default function Details({ route }: RouteParams) {
                 setSeasonKey(String(seas[0].ratingKey));
                 setEpisodes(await fetchPlexSeasonEpisodes(String(seas[0].ratingKey)));
               }
+              // Fetch next up episode for continue watching
+              const nextUpEp = await getNextUpEpisode(String(mapped.ratingKey), seas);
+              setNextUp(nextUpEp);
             }
 
             // Setup watchlist IDs and check status for Plex-mapped content
@@ -533,15 +541,22 @@ export default function Details({ route }: RouteParams) {
           {meta?.Genre?.length ? ` • ${meta.Genre.map((g:any)=>g.tag).slice(0,3).join(', ')}` : ''}
         </Text>
 
-        {/* Play */}
+        {/* Play / Continue */}
         <Pressable
           disabled={!matchedPlex}
           onPress={() => {
             if (matchedPlex || params.type === 'plex') {
-              const rk = mappedRk || params.ratingKey;
-              if (rk) {
-                console.log('[Details] Playing ratingKey:', rk);
-                nav.navigate('Player', { type: 'plex', ratingKey: rk });
+              // For TV shows with nextUp, play that episode
+              if (meta?.type === 'show' && nextUp) {
+                console.log('[Details] Playing next up episode:', nextUp.ratingKey, `S${nextUp.seasonNumber}E${nextUp.episodeNumber}`);
+                nav.navigate('Player', { type: 'plex', ratingKey: nextUp.ratingKey });
+              } else {
+                // For movies or shows without nextUp data, play the main content
+                const rk = mappedRk || params.ratingKey;
+                if (rk) {
+                  console.log('[Details] Playing ratingKey:', rk);
+                  nav.navigate('Player', { type: 'plex', ratingKey: rk });
+                }
               }
             }
           }}
@@ -555,7 +570,14 @@ export default function Details({ route }: RouteParams) {
           }}
         >
           {matchedPlex ? (
-            <Text style={{ color:'#000', fontWeight:'900', letterSpacing:2 }}>▶  PLAY</Text>
+            meta?.type === 'show' && nextUp ? (
+              <Text style={{ color:'#000', fontWeight:'900', letterSpacing:1 }}>
+                {nextUp.status === 'in-progress' ? '▶  CONTINUE' : nextUp.status === 'all-watched' ? '▶  REWATCH' : '▶  PLAY'}
+                {' · '}S{nextUp.seasonNumber} E{nextUp.episodeNumber}
+              </Text>
+            ) : (
+              <Text style={{ color:'#000', fontWeight:'900', letterSpacing:2 }}>▶  PLAY</Text>
+            )
           ) : (
             <Text style={{ color:'#888', fontWeight:'700', fontSize:13, textAlign:'center' }}>
               You don't own this content{'\n'}No local source found
