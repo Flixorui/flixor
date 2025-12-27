@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { View, Text, ActivityIndicator, Pressable, StyleSheet, Dimensions, Animated, Alert, Modal, Platform } from 'react-native';
+import PullToRefresh from '../components/PullToRefresh';
 import { Image as ExpoImage } from 'expo-image';
 import { FlashList } from '@shopify/flash-list';
 import { Ionicons } from '@expo/vector-icons';
@@ -45,7 +46,7 @@ const SORT_OPTIONS: Array<{ value: SortOption; label: string }> = [
 export default function MyList() {
   const nav: any = useNavigation();
   const isFocused = useIsFocused();
-  const { isLoading: flixorLoading, isConnected } = useFlixor();
+  const { flixor, isLoading: flixorLoading, isConnected } = useFlixor();
 
   const [items, setItems] = useState<MyListItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -94,6 +95,28 @@ export default function MyList() {
       loadItems(true);
     }
   }, [isFocused]);
+
+  // Pull-to-refresh handler
+  const handleRefresh = useCallback(async () => {
+    console.log('[MyList] Pull-to-refresh triggered');
+    setRefreshing(true);
+
+    // Invalidate watchlist caches
+    if (flixor) {
+      console.log('[MyList] Clearing Plex and Trakt caches...');
+      await Promise.all([
+        flixor.clearPlexCache(),
+        flixor.clearTraktCache(),
+      ]);
+      console.log('[MyList] Caches cleared');
+    }
+
+    // Reload items
+    console.log('[MyList] Reloading items...');
+    await loadItems(false); // false because we already set refreshing=true
+    console.log('[MyList] Items reloaded');
+    setRefreshing(false);
+  }, [flixor, loadItems]);
 
   const handleRemove = useCallback(async (item: MyListItem) => {
     Alert.alert(
@@ -222,6 +245,8 @@ export default function MyList() {
         style={StyleSheet.absoluteFillObject}
       />
 
+      <PullToRefresh scrollY={y} refreshing={refreshing} onRefresh={handleRefresh} />
+
       {/* Items Grid */}
       {items.length === 0 ? (
         <View style={[styles.emptyContainer, { paddingTop: barHeight }]}>
@@ -320,6 +345,16 @@ export default function MyList() {
           </View>
         </Pressable>
       </Modal>
+
+      {/* Custom refresh indicator above TopAppBar */}
+      {refreshing && (
+        <View style={{ position: 'absolute', top: barHeight + 10, left: 0, right: 0, alignItems: 'center', zIndex: 50 }}>
+          <View style={{ backgroundColor: 'rgba(0,0,0,0.7)', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, flexDirection: 'row', alignItems: 'center' }}>
+            <ActivityIndicator color="#fff" size="small" />
+            <Text style={{ color: '#fff', marginLeft: 8, fontSize: 13 }}>Refreshing...</Text>
+          </View>
+        </View>
+      )}
     </View>
   );
 }

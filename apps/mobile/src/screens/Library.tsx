@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, ActivityIndicator, Pressable, StyleSheet, Dimensions, Animated, Modal, Platform } from 'react-native';
+import PullToRefresh from '../components/PullToRefresh';
 import { Image as ExpoImage } from 'expo-image';
 import { FlashList } from '@shopify/flash-list';
 import { TopBarStore, useTopBarStore } from '../components/TopBarStore';
@@ -37,7 +38,7 @@ if (Platform.OS === 'ios') {
 export default function Library() {
   const route = useRoute();
   const nav: any = useNavigation();
-  const { isLoading: flixorLoading, isConnected } = useFlixor();
+  const { flixor, isLoading: flixorLoading, isConnected } = useFlixor();
   const isFocused = useIsFocused();
 
   const [items, setItems] = useState<LibraryItem[]>([]);
@@ -53,6 +54,7 @@ export default function Library() {
   const [genreName, setGenreName] = useState<string | undefined>(undefined);
   const [sortOption, setSortOption] = useState(LIBRARY_SORT_OPTIONS[0]);
   const [showSortModal, setShowSortModal] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const y = useRef(new Animated.Value(0)).current;
   const showPillsAnim = useRef(new Animated.Value(1)).current;
   const barHeight = useTopBarStore((s) => s.height || 90);
@@ -63,6 +65,52 @@ export default function Library() {
     () => (selected === 'movies' ? 'movie' : selected === 'shows' ? 'show' : 'all'),
     [selected]
   );
+
+  // Pull-to-refresh handler
+  const handleRefresh = useCallback(async () => {
+    console.log('[Library] Pull-to-refresh triggered');
+    setRefreshing(true);
+
+    // Invalidate library cache
+    if (flixor) {
+      console.log('[Library] Clearing Plex cache...');
+      await flixor.clearPlexCache();
+      console.log('[Library] Cache cleared');
+    }
+
+    // Reset pagination
+    setPage(1);
+    setItems([]);
+
+    try {
+      // Resolve a concrete section key based on pill
+      const useSection =
+        mType === 'show'
+          ? sectionKeys.show
+          : mType === 'movie'
+            ? sectionKeys.movie
+            : sectionKeys.show || sectionKeys.movie;
+
+      if (useSection) {
+        console.log('[Library] Fetching items...');
+        const result = await fetchLibraryItems(useSection, {
+          type: mType === 'all' ? 'all' : mType,
+          offset: 0,
+          limit: 40,
+          genreKey,
+          sort: sortOption.value,
+        });
+        setItems(result.items);
+        setHasMore(result.hasMore);
+        console.log('[Library] Items loaded:', result.items.length);
+      }
+    } catch (e) {
+      console.log('[Library] Refresh error:', e);
+      setError('Failed to refresh library');
+    }
+
+    setRefreshing(false);
+  }, [flixor, mType, sectionKeys, genreKey, sortOption]);
 
   // Read route params to set initial selection and genre filter
   useEffect(() => {
@@ -292,6 +340,8 @@ export default function Library() {
         style={StyleSheet.absoluteFillObject}
       />
 
+      <PullToRefresh scrollY={y} refreshing={refreshing} onRefresh={handleRefresh} />
+
       <FlashList
         data={items}
         keyExtractor={(it) => String(it.ratingKey)}
@@ -404,6 +454,16 @@ export default function Library() {
           </View>
         </Pressable>
       </Modal>
+
+      {/* Custom refresh indicator above TopAppBar */}
+      {refreshing && (
+        <View style={{ position: 'absolute', top: barHeight + 10, left: 0, right: 0, alignItems: 'center', zIndex: 50 }}>
+          <View style={{ backgroundColor: 'rgba(0,0,0,0.7)', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, flexDirection: 'row', alignItems: 'center' }}>
+            <ActivityIndicator color="#fff" size="small" />
+            <Text style={{ color: '#fff', marginLeft: 8, fontSize: 13 }}>Refreshing...</Text>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
