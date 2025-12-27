@@ -544,6 +544,28 @@ export async function getTmdbTextlessBackdrop(
   }
 }
 
+/**
+ * Get TMDB overview/description for a movie or TV show
+ */
+export async function getTmdbOverview(
+  tmdbId: number,
+  mediaType: 'movie' | 'tv'
+): Promise<string | undefined> {
+  try {
+    const core = getFlixorCore();
+    if (mediaType === 'movie') {
+      const details = await core.tmdb.getMovieDetails(tmdbId);
+      return details.overview || undefined;
+    } else {
+      const details = await core.tmdb.getTVDetails(tmdbId);
+      return details.overview || undefined;
+    }
+  } catch (e) {
+    console.log('[HomeData] getTmdbOverview error:', e);
+    return undefined;
+  }
+}
+
 // ============================================
 // UltraBlur Colors
 // ============================================

@@ -14,13 +14,12 @@ type Hero = {
 type HeroCardProps = {
   hero: Hero;
   authHeaders?: Record<string, string>;
-  onPlay?: () => void;
   onAdd?: () => void;
   inWatchlist?: boolean;
   watchlistLoading?: boolean;
 };
 
-function HeroCard({ hero, authHeaders, onPlay, onAdd, inWatchlist = false, watchlistLoading = false }: HeroCardProps) {
+function HeroCard({ hero, authHeaders, onAdd, inWatchlist = false, watchlistLoading = false }: HeroCardProps) {
   return (
     <View style={{ paddingHorizontal: 16, marginTop: -40 }}>
       <View style={{ borderRadius: 12, overflow: 'hidden', backgroundColor: '#111', shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 8 }}>
@@ -53,11 +52,37 @@ function HeroCard({ hero, authHeaders, onPlay, onAdd, inWatchlist = false, watch
           pointerEvents="none"
         />
 
+        {/* List button - top right corner */}
+        <Pressable
+          onPress={onAdd || (() => Alert.alert('My List', 'TODO'))}
+          disabled={watchlistLoading}
+          style={{
+            position: 'absolute',
+            top: 12,
+            right: 12,
+            width: 36,
+            height: 36,
+            borderRadius: 18,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderWidth: 1,
+            borderColor: 'rgba(255,255,255,0.2)',
+            opacity: watchlistLoading ? 0.6 : 1,
+          }}
+        >
+          {watchlistLoading ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <Ionicons name={inWatchlist ? 'checkmark' : 'add'} size={20} color="#fff" />
+          )}
+        </Pressable>
+
         {/* Content overlay at bottom */}
         <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 20, paddingBottom: 20 }}>
           {/* Logo or Title */}
           {hero.logoUri ? (
-            <View style={{ marginBottom: 12, alignItems: 'center', width: '100%' }}>
+            <View style={{ alignItems: 'center', width: '100%' }}>
               <FastImage
                 source={{
                   uri: hero.logoUri,
@@ -86,39 +111,8 @@ function HeroCard({ hero, authHeaders, onPlay, onAdd, inWatchlist = false, watch
 
           {/* Subtitle */}
           {hero.subtitle ? (
-            <Text style={{ color: '#e0e0e0', fontSize: 13, marginBottom: 14, fontWeight: '400', textAlign: 'center', width: '100%' }}>{hero.subtitle}</Text>
+            <Text style={{ color: '#e0e0e0', fontSize: 13, fontWeight: '400', textAlign: 'center', width: '100%' }}>{hero.subtitle}</Text>
           ) : null}
-
-          {/* Action buttons */}
-          <View style={{ flexDirection: 'row', gap: 12 }}>
-            <Pressable onPress={onPlay || (()=>Alert.alert('Play', 'TODO'))} style={{ flex: 1, backgroundColor: '#fff', paddingVertical: 12, borderRadius: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-              <Ionicons name="play" size={20} color="#000" style={{ marginRight: 8 }} />
-              <Text style={{ color: '#000', fontWeight: '800', fontSize: 16 }}>Play</Text>
-            </Pressable>
-            <Pressable
-              onPress={onAdd || (() => Alert.alert('My List', 'TODO'))}
-              disabled={watchlistLoading}
-              style={{
-                flex: 1,
-                backgroundColor: inWatchlist ? 'rgba(255,255,255,0.2)' : 'rgba(109,109,110,0.7)',
-                paddingVertical: 12,
-                borderRadius: 6,
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'center',
-                opacity: watchlistLoading ? 0.6 : 1,
-              }}
-            >
-              {watchlistLoading ? (
-                <ActivityIndicator size="small" color="#fff" style={{ marginRight: 8 }} />
-              ) : (
-                <Ionicons name={inWatchlist ? 'checkmark' : 'add'} size={20} color="#fff" style={{ marginRight: 8 }} />
-              )}
-              <Text style={{ color: '#fff', fontWeight: '800', fontSize: 16 }}>
-                {inWatchlist ? 'In List' : 'My List'}
-              </Text>
-            </Pressable>
-          </View>
         </View>
       </View>
     </View>

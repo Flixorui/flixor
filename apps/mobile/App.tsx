@@ -253,6 +253,9 @@ function AppContent() {
           tabBarShowLabel: true,
           tabBarActiveTintColor: '#fff',
           tabBarInactiveTintColor: '#bdbdbd',
+          lazy: true,
+          freezeOnBlur: true,
+          animation: 'fade',
           tabBarStyle: tabBarVisible ? {
             position: 'absolute' as const,
             left: 0,

@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, ScrollView, Switch, Pressable, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import SettingsHeader from '../../components/settings/SettingsHeader';
 import SettingsCard from '../../components/settings/SettingsCard';
 import SettingItem from '../../components/settings/SettingItem';
@@ -17,12 +18,14 @@ const TTL_OPTIONS = [
 
 export default function ContinueWatchingSettings() {
   const nav: any = useNavigation();
+  const insets = useSafeAreaInsets();
+  const headerHeight = insets.top + 52;
   const { settings, updateSetting } = useAppSettings();
 
   return (
     <View style={styles.container}>
       <SettingsHeader title="Continue Watching" onBack={() => nav.goBack()} />
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingTop: headerHeight }]}>
         <SettingsCard title="PLAYBACK">
           <SettingItem
             title="Use Cached Streams"

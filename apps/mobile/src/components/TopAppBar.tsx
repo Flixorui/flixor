@@ -42,7 +42,14 @@ function TopAppBar({ visible, username, showFilters, selected, onChange, onOpenC
   
   // When showPills changes, animate height smoothly (only in non-compact mode)
   useEffect(() => {
-    if (showPills && !compact) {
+    if (customFilters) {
+      // When customFilters is present, always use expanded height
+      Animated.timing(heightAnim, {
+        toValue: expandedHeight,
+        duration: 0,
+        useNativeDriver: false,
+      }).start();
+    } else if (showPills && !compact) {
       // Listen to showPills changes and animate height accordingly
       const listener = showPills.addListener(({ value }) => {
         const targetHeight = collapsedHeight + (value * (pillsHeight + 8));
@@ -61,7 +68,7 @@ function TopAppBar({ visible, username, showFilters, selected, onChange, onOpenC
         useNativeDriver: false,
       }).start();
     }
-  }, [showPills, compact, collapsedHeight, pillsHeight]);
+  }, [showPills, compact, customFilters, collapsedHeight, expandedHeight, pillsHeight]);
 
   // Report height based on mode
   useEffect(() => {

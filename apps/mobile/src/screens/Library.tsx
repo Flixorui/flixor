@@ -4,7 +4,7 @@ import { Image as ExpoImage } from 'expo-image';
 import { FlashList } from '@shopify/flash-list';
 import { TopBarStore, useTopBarStore } from '../components/TopBarStore';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRoute, useNavigation } from '@react-navigation/native';
+import { useRoute, useNavigation, useIsFocused } from '@react-navigation/native';
 import { useFlixor } from '../core/FlixorContext';
 import { useAppSettings } from '../hooks/useAppSettings';
 import {
@@ -19,10 +19,26 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 
+// Conditionally import GlassView for iOS 26+ liquid glass effect
+let GlassViewComp: any = null;
+let liquidGlassAvailable = false;
+if (Platform.OS === 'ios') {
+  try {
+    const glass = require('expo-glass-effect');
+    GlassViewComp = glass.GlassView;
+    liquidGlassAvailable = typeof glass.isLiquidGlassAvailable === 'function'
+      ? glass.isLiquidGlassAvailable()
+      : false;
+  } catch {
+    liquidGlassAvailable = false;
+  }
+}
+
 export default function Library() {
   const route = useRoute();
   const nav: any = useNavigation();
   const { isLoading: flixorLoading, isConnected } = useFlixor();
+  const isFocused = useIsFocused();
 
   const [items, setItems] = useState<LibraryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -67,12 +83,16 @@ export default function Library() {
     console.log('[Library] route params:', params);
   }, [route.params]);
 
-  // Set scrollY and showPills immediately on mount
+  // Set scrollY and showPills immediately on mount and when regaining focus
   React.useLayoutEffect(() => {
-    console.log('[Library] Setting scrollY and showPills for Library screen');
-    TopBarStore.setScrollY(y);
-    TopBarStore.setShowPills(showPillsAnim);
-  }, [y]);
+    if (isFocused) {
+      // Reset showPillsAnim to 1 (visible) when gaining focus
+      showPillsAnim.setValue(1);
+      scrollDirection.current = 'up';
+      TopBarStore.setScrollY(y);
+      TopBarStore.setShowPills(showPillsAnim);
+    }
+  }, [isFocused, y]);
 
   // Clear genre filter handler (stable ref for TopBar)
   const clearGenreFilter = React.useCallback(() => {
@@ -80,35 +100,34 @@ export default function Library() {
     setGenreName(undefined);
   }, []);
 
-  // Push top bar updates via effects (avoid setState in render)
-  useEffect(() => {
-    TopBarStore.setVisible(true);
-    TopBarStore.setShowFilters(true);
-    TopBarStore.setUsername(username);
-    TopBarStore.setSelected(selected);
-    TopBarStore.setCompact(false); // Library uses full-size bar
-    // Set active genre for Pills component
-    TopBarStore.setActiveGenre(genreName);
-    TopBarStore.setCustomFilters(undefined);
-    TopBarStore.setHandlers({
+  // Push top bar updates synchronously before paint (useLayoutEffect)
+  React.useLayoutEffect(() => {
+    if (!isFocused) return;
+
+    TopBarStore.setState({
+      visible: true,
+      tabBarVisible: true,
+      showFilters: true,
+      username: username,
+      selected: selected,
+      compact: false,
+      customFilters: undefined,
+      activeGenre: genreName,
       onNavigateLibrary: undefined,
       onClose: () => {
-        console.log('[Library] Close button clicked, navigating back');
         if (nav.canGoBack()) {
           nav.goBack();
         }
       },
       onSearch: () => {
-        console.log('[Library] Opening search');
         nav.navigate('Search');
       },
       onBrowse: () => {
-        console.log('[Library] Opening Collections');
         nav.navigate('Collections');
       },
       onClearGenre: clearGenreFilter,
     });
-  }, [username, selected, nav, genreName, clearGenreFilter]);
+  }, [isFocused, username, selected, nav, genreName, clearGenreFilter]);
 
   // Clean up activeGenre when leaving Library
   useEffect(() => {
@@ -301,7 +320,7 @@ export default function Library() {
                 scrollDirection.current = 'down';
                 Animated.spring(showPillsAnim, {
                   toValue: 0,
-                  useNativeDriver: true,
+                  useNativeDriver: false, // Must be false for TopAppBar listener
                   tension: 60,
                   friction: 10,
                 }).start();
@@ -312,7 +331,7 @@ export default function Library() {
                 scrollDirection.current = 'up';
                 Animated.spring(showPillsAnim, {
                   toValue: 1,
-                  useNativeDriver: true,
+                  useNativeDriver: false, // Must be false for TopAppBar listener
                   tension: 60,
                   friction: 10,
                 }).start();
@@ -332,13 +351,20 @@ export default function Library() {
         onPress={() => setShowSortModal(true)}
         style={styles.sortButton}
       >
-        <BlurView intensity={80} tint="dark" style={styles.sortButtonBlur}>
-          <Ionicons name="swap-vertical" size={20} color="#fff" />
-          <Text style={styles.sortButtonText}>{sortOption.label}</Text>
-        </BlurView>
+        {liquidGlassAvailable && GlassViewComp ? (
+          <GlassViewComp style={styles.sortButtonGlass}>
+            <Ionicons name="swap-vertical" size={20} color="#fff" />
+            <Text style={styles.sortButtonText}>{sortOption.label}</Text>
+          </GlassViewComp>
+        ) : (
+          <BlurView intensity={80} tint="dark" style={styles.sortButtonBlur}>
+            <Ionicons name="swap-vertical" size={20} color="#fff" />
+            <Text style={styles.sortButtonText}>{sortOption.label}</Text>
+          </BlurView>
+        )}
       </Pressable>
 
-      {/* Sort Modal */}
+      {/* Sort Modal - BlurView works better in modals than GlassView */}
       <Modal
         visible={showSortModal}
         transparent
@@ -406,7 +432,13 @@ function Card({
         }}
       >
         {img ? (
-          <ExpoImage source={{ uri: img }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+          <ExpoImage
+            source={{ uri: img }}
+            style={{ width: '100%', height: '100%' }}
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            transition={200}
+          />
         ) : null}
       </View>
       {settings.showLibraryTitles ? (
@@ -437,6 +469,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     gap: 8,
+  },
+  sortButtonGlass: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 8,
+    borderRadius: 24,
   },
   sortButtonText: {
     color: '#fff',
