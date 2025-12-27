@@ -30,7 +30,7 @@ export default function Row({ title, items, getImageUri, getTitle, authHeaders, 
 
   return (
     <View style={{ marginBottom: 16 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 15, marginTop: 15, paddingRight: 8 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 15, marginTop: 15, paddingHorizontal: 16 }}>
         <Pressable onPress={handleTitlePress} disabled={!onTitlePress}>
           <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700', lineHeight: 20 }}>{title}</Text>
         </Pressable>
@@ -62,6 +62,10 @@ export default function Row({ title, items, getImageUri, getTitle, authHeaders, 
           <Poster uri={getImageUri(item)} title={getTitle(item)} authHeaders={authHeaders} onPress={() => onItemPress && onItemPress(item)} />
         )}
         showsHorizontalScrollIndicator={false}
+        bounces={false}
+        overScrollMode="never"
+        alwaysBounceHorizontal={false}
+        contentContainerStyle={{ paddingHorizontal: 16 }}
       />
     </View>
   );

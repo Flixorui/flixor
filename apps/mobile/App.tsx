@@ -33,6 +33,7 @@ import TMDBSettings from './src/screens/settings/TMDBSettings';
 import TraktSettings from './src/screens/settings/TraktSettings';
 import * as Haptics from 'expo-haptics';
 import { Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // New standalone imports
 import { FlixorProvider, useFlixor } from './src/core';
@@ -132,9 +133,12 @@ function AppContent() {
 
   const Tabs = () => {
     const tabBarVisible = useTopBarStore(s => s.tabBarVisible === true);
+    const insets = useSafeAreaInsets();
+    const tabBarHeight = 56 + insets.bottom;
 
     return (
       <Tab.Navigator
+        sceneContainerStyle={{ backgroundColor: '#1b0a10' }}
         screenOptions={({ route }) => ({
           headerShown: false,
           tabBarShowLabel: true,
@@ -148,9 +152,9 @@ function AppContent() {
             backgroundColor: Platform.OS === 'ios' ? 'transparent' : 'rgba(0,0,0,0.9)',
             borderRadius: 0,
             borderTopWidth: 0,
-            height: 68,
-            paddingBottom: 20,
-            paddingTop: 10,
+            height: tabBarHeight,
+            paddingBottom: insets.bottom,
+            paddingTop: 8,
           } : { display: 'none' as const },
           tabBarBackground: () => (
             Platform.OS === 'ios'
