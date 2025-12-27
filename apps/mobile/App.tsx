@@ -2,11 +2,24 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { View, ActivityIndicator, Text } from 'react-native';
+import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import { View, ActivityIndicator, Text, Pressable, Platform } from 'react-native';
 import GlobalTopAppBar from './src/components/GlobalTopAppBar';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { useTopBarStore } from './src/components/TopBarStore';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+// Native iOS bottom tabs for liquid glass effect
+let createNativeBottomTabNavigator: any = null;
+if (Platform.OS === 'ios') {
+  try {
+    const bottomTabs = require('@bottom-tabs/react-navigation');
+    createNativeBottomTabNavigator = bottomTabs.createNativeBottomTabNavigator;
+  } catch {
+    createNativeBottomTabNavigator = null;
+  }
+}
 
 // Silence Reanimated warning about reading shared value during render
 // This is caused by third-party libraries and is a known issue
@@ -32,8 +45,20 @@ import ContinueWatchingSettings from './src/screens/settings/ContinueWatchingSet
 import TMDBSettings from './src/screens/settings/TMDBSettings';
 import TraktSettings from './src/screens/settings/TraktSettings';
 import * as Haptics from 'expo-haptics';
-import { Platform } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+let GlassViewComp: any = null;
+let liquidGlassAvailable = false;
+if (Platform.OS === 'ios') {
+  try {
+    const glass = require('expo-glass-effect');
+    GlassViewComp = glass.GlassView;
+    liquidGlassAvailable = typeof glass.isLiquidGlassAvailable === 'function'
+      ? glass.isLiquidGlassAvailable()
+      : false;
+  } catch {
+    liquidGlassAvailable = false;
+  }
+}
 
 // New standalone imports
 import { FlixorProvider, useFlixor } from './src/core';
@@ -52,7 +77,7 @@ type RootStackParamList = {
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator();
 const HomeStack = createNativeStackNavigator();
-const MyListStack = createNativeStackNavigator();
+const SettingsStack = createNativeStackNavigator();
 
 function AppContent() {
   const { flixor, isLoading, error, isAuthenticated, isConnected, refresh } = useFlixor();
@@ -131,11 +156,95 @@ function AppContent() {
     );
   };
 
+  // Screen wrapper components for native iOS tabs
+  const NewHotScreen = () => (
+    <View style={{ flex: 1 }}>
+      <NewHot />
+      <GlobalTopAppBar />
+    </View>
+  );
+
+  const MyListScreen = () => (
+    <View style={{ flex: 1 }}>
+      <MyList />
+      <GlobalTopAppBar />
+    </View>
+  );
+
+  const SettingsTabScreen = () => (
+    <SettingsStack.Navigator screenOptions={{ headerShown: false }}>
+      <SettingsStack.Screen name="SettingsMain">
+        {() => (
+          <Settings onLogout={handleLogout} />
+        )}
+      </SettingsStack.Screen>
+      <SettingsStack.Screen name="CatalogSettings" component={CatalogSettings} />
+      <SettingsStack.Screen name="HomeScreenSettings" component={HomeScreenSettings} />
+      <SettingsStack.Screen name="ContinueWatchingSettings" component={ContinueWatchingSettings} />
+      <SettingsStack.Screen name="TMDBSettings" component={TMDBSettings} />
+      <SettingsStack.Screen name="TraktSettings" component={TraktSettings} />
+    </SettingsStack.Navigator>
+  );
+
   const Tabs = () => {
     const tabBarVisible = useTopBarStore(s => s.tabBarVisible === true);
     const insets = useSafeAreaInsets();
-    const tabBarHeight = 56 + insets.bottom;
 
+    // Use native iOS tabs when available (iOS 18+ with @bottom-tabs)
+    if (Platform.OS === 'ios' && createNativeBottomTabNavigator) {
+      const IOSTab = createNativeBottomTabNavigator();
+
+      return (
+        <View style={{ flex: 1, backgroundColor: '#1b0a10' }}>
+          <IOSTab.Navigator
+            initialRouteName="HomeTab"
+            screenOptions={{
+              headerShown: false,
+              tabBarActiveTintColor: '#007AFF',
+              tabBarInactiveTintColor: '#8E8E93',
+              translucent: true,
+              lazy: true,
+              freezeOnBlur: true,
+            }}
+          >
+            <IOSTab.Screen
+              name="HomeTab"
+              component={HomeStackNavigator}
+              options={{
+                title: 'Home',
+                tabBarIcon: () => ({ sfSymbol: 'house' }),
+              }}
+            />
+            <IOSTab.Screen
+              name="NewHotTab"
+              component={NewHotScreen}
+              options={{
+                title: 'New & Hot',
+                tabBarIcon: () => ({ sfSymbol: 'play.circle' }),
+              }}
+            />
+            <IOSTab.Screen
+              name="MyTab"
+              component={MyListScreen}
+              options={{
+                title: 'My List',
+                tabBarIcon: () => ({ sfSymbol: 'bookmark' }),
+              }}
+            />
+            <IOSTab.Screen
+              name="SettingsTab"
+              component={SettingsTabScreen}
+              options={{
+                title: 'Settings',
+                tabBarIcon: () => ({ sfSymbol: 'gear' }),
+              }}
+            />
+          </IOSTab.Navigator>
+        </View>
+      );
+    }
+
+    // Fallback for Android and older iOS
     return (
       <Tab.Navigator
         sceneContainerStyle={{ backgroundColor: '#1b0a10' }}
@@ -150,11 +259,10 @@ function AppContent() {
             right: 0,
             bottom: 0,
             backgroundColor: Platform.OS === 'ios' ? 'transparent' : 'rgba(0,0,0,0.9)',
-            borderRadius: 0,
             borderTopWidth: 0,
-            height: tabBarHeight,
-            paddingBottom: insets.bottom,
-            paddingTop: 8,
+            height: 68 + insets.bottom,
+            paddingBottom: insets.bottom + 10,
+            paddingTop: 10,
           } : { display: 'none' as const },
           tabBarBackground: () => (
             Platform.OS === 'ios'
@@ -177,43 +285,9 @@ function AppContent() {
         }}
       >
         <Tab.Screen name="HomeTab" options={{ title: 'Home' }} component={HomeStackNavigator} />
-        <Tab.Screen name="NewHotTab" options={{ title: 'New & Hot' }}>
-          {() => (
-            <View style={{ flex: 1 }}>
-              <NewHot />
-              <GlobalTopAppBar />
-            </View>
-          )}
-        </Tab.Screen>
-        <Tab.Screen name="MyTab" options={{ title: 'My List' }}>
-          {() => (
-            <MyListStack.Navigator screenOptions={{ headerShown: false }}>
-              <MyListStack.Screen name="MyListScreen">
-                {({ navigation }) => (
-                  <View style={{ flex: 1 }}>
-                    <MyList onOpenSettings={() => navigation.navigate('Settings')} />
-                    <GlobalTopAppBar />
-                  </View>
-                )}
-              </MyListStack.Screen>
-              <MyListStack.Screen name="Settings">
-                {({ navigation }) => (
-                  <Settings onLogout={handleLogout} onBack={() => navigation.goBack()} />
-                )}
-              </MyListStack.Screen>
-              <MyListStack.Screen name="CatalogSettings" component={CatalogSettings} />
-              <MyListStack.Screen name="HomeScreenSettings" component={HomeScreenSettings} />
-              <MyListStack.Screen name="ContinueWatchingSettings" component={ContinueWatchingSettings} />
-              <MyListStack.Screen name="TMDBSettings" component={TMDBSettings} />
-              <MyListStack.Screen name="TraktSettings" component={TraktSettings} />
-            </MyListStack.Navigator>
-          )}
-        </Tab.Screen>
-        <Tab.Screen name="SettingsTab" options={{ title: 'Settings' }}>
-          {() => (
-            <View style={{ flex: 1 }}></View>
-          )}
-        </Tab.Screen>
+        <Tab.Screen name="NewHotTab" options={{ title: 'New & Hot' }} component={NewHotScreen} />
+        <Tab.Screen name="MyTab" options={{ title: 'My List' }} component={MyListScreen} />
+        <Tab.Screen name="SettingsTab" options={{ title: 'Settings' }} component={SettingsTabScreen} />
       </Tab.Navigator>
     );
   };

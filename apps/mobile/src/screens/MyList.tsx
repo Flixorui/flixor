@@ -17,14 +17,9 @@ import {
   SortOption,
   FilterOption,
 } from '../core/MyListData';
-import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 
-interface MyListProps {
-  onOpenSettings: () => void;
-}
-
-export default function MyList({ onOpenSettings }: MyListProps) {
+export default function MyList() {
   const nav: any = useNavigation();
   const isFocused = useIsFocused();
   const { isLoading: flixorLoading, isConnected } = useFlixor();
@@ -51,25 +46,6 @@ export default function MyList({ onOpenSettings }: MyListProps) {
       TopBarStore.setShowPills(showPillsAnim);
     }
   }, [isFocused, y]);
-
-  // Push top bar updates
-  useEffect(() => {
-    if (!isFocused) return;
-
-    TopBarStore.setVisible(true);
-    TopBarStore.setShowFilters(false);
-    TopBarStore.setUsername('My List');
-    TopBarStore.setSelected('all');
-    TopBarStore.setCompact(false);
-    TopBarStore.setActiveGenre(undefined);
-    TopBarStore.setCustomFilters(undefined);
-    TopBarStore.setHandlers({
-      onNavigateLibrary: undefined,
-      onClose: undefined,
-      onSearch: () => nav.navigate('HomeTab', { screen: 'Search' }),
-      onBrowse: onOpenSettings, // Gear icon opens settings
-    });
-  }, [isFocused, nav, onOpenSettings]);
 
   // Load items
   const loadItems = useCallback(async (showRefresh = false) => {
@@ -159,6 +135,40 @@ export default function MyList({ onOpenSettings }: MyListProps) {
     setFilter(newFilter);
   }, []);
 
+  // Push top bar updates - match Home/NewHot pattern
+  useEffect(() => {
+    if (!isFocused) return;
+
+    // Create custom filter pills like NewHot
+    const filterPills = (
+      <View style={{ flexDirection: 'row', paddingHorizontal: 16, alignItems: 'center' }}>
+        <FilterPill label="All" active={filter === 'all'} onPress={() => selectFilter('all')} />
+        <FilterPill label="Movies" active={filter === 'movies'} onPress={() => selectFilter('movies')} />
+        <FilterPill label="TV Shows" active={filter === 'shows'} onPress={() => selectFilter('shows')} />
+      </View>
+    );
+
+    TopBarStore.setState({
+      visible: true,
+      tabBarVisible: true,
+      showFilters: false,
+      username: 'My List',
+      selected: 'all',
+      compact: false,
+      customFilters: filterPills,
+      activeGenre: undefined,
+      onNavigateLibrary: undefined,
+      onClose: undefined,
+      onSearch: () => nav.navigate('HomeTab', { screen: 'Search' }),
+      onBrowse: undefined,
+      onClearGenre: undefined,
+    });
+
+    return () => {
+      TopBarStore.setCustomFilters(undefined);
+    };
+  }, [isFocused, nav, filter, selectFilter]);
+
   // Show loading while FlixorCore is initializing
   if (flixorLoading || !isConnected) {
     return (
@@ -215,28 +225,8 @@ export default function MyList({ onOpenSettings }: MyListProps) {
         style={StyleSheet.absoluteFillObject}
       />
 
-      {/* Filter and Sort Header */}
+      {/* Sort Header */}
       <View style={[styles.header, { paddingTop: barHeight + 8 }]}>
-        {/* Filter Pills */}
-        <View style={styles.filterRow}>
-          <FilterPill
-            label="All"
-            active={filter === 'all'}
-            onPress={() => selectFilter('all')}
-          />
-          <FilterPill
-            label="Movies"
-            active={filter === 'movies'}
-            onPress={() => selectFilter('movies')}
-          />
-          <FilterPill
-            label="TV Shows"
-            active={filter === 'shows'}
-            onPress={() => selectFilter('shows')}
-          />
-        </View>
-
-        {/* Sort Button */}
         <Pressable onPress={toggleSort} style={styles.sortButton}>
           <Text style={styles.sortText}>{sortLabels[sort]}</Text>
           <Ionicons
@@ -282,13 +272,8 @@ export default function MyList({ onOpenSettings }: MyListProps) {
           <Text style={styles.emptySubtitle}>
             {isTraktConnected()
               ? 'Add movies and shows to your watchlist to see them here'
-              : 'Connect Trakt in settings to sync your watchlist'}
+              : 'Connect Trakt in Settings tab to sync your watchlist'}
           </Text>
-          {!isTraktConnected() && (
-            <Pressable onPress={onOpenSettings} style={styles.connectButton}>
-              <Text style={styles.connectButtonText}>Connect Trakt</Text>
-            </Pressable>
-          )}
         </View>
       ) : (
         <FlashList
@@ -338,30 +323,22 @@ export default function MyList({ onOpenSettings }: MyListProps) {
         />
       )}
 
-      {/* Settings Button in Header */}
-      <Pressable
-        onPress={onOpenSettings}
-        style={[styles.settingsButton, { top: barHeight - 36 }]}
-      >
-        <Ionicons name="settings-outline" size={22} color="#fff" />
-      </Pressable>
     </View>
   );
 }
 
 function FilterPill({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+  const handlePress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onPress();
+  };
+
   return (
     <Pressable
-      onPress={onPress}
+      onPress={handlePress}
       style={[styles.filterPill, active && styles.filterPillActive]}
     >
-      {active && (
-        <>
-          <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFillObject} />
-          <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(255,255,255,0.15)' }]} />
-        </>
-      )}
-      <Text style={styles.filterPillText}>{label}</Text>
+      <Text style={[styles.filterPillText, { color: active ? '#000' : '#fff' }]}>{label}</Text>
     </Pressable>
   );
 }
@@ -471,20 +448,19 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
     gap: 12,
   },
-  filterRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
   filterPill: {
     paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 999,
+    paddingVertical: 6,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: '#4a4a4a',
+    backgroundColor: 'transparent',
+    marginRight: 8,
     overflow: 'hidden',
   },
   filterPillActive: {
-    borderColor: 'rgba(255,255,255,0.3)',
+    backgroundColor: '#fff',
+    borderColor: '#fff',
   },
   filterPillText: {
     color: '#fff',
@@ -560,33 +536,10 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
   },
-  connectButton: {
-    marginTop: 20,
-    backgroundColor: '#fff',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  connectButtonText: {
-    color: '#000',
-    fontWeight: '700',
-  },
   emptyText: {
     color: '#888',
     textAlign: 'center',
     marginTop: 40,
-  },
-  settingsButton: {
-    position: 'absolute',
-    right: 16,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 50,
-    elevation: 5, // Android-specific elevation for touch handling
   },
   cardImage: {
     backgroundColor: '#111',

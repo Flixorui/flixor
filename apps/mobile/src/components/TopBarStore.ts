@@ -50,6 +50,17 @@ function emit() { listeners.forEach(l => l()); }
 export const TopBarStore = {
   subscribe(fn: Listener) { listeners.add(fn); return () => listeners.delete(fn); },
   getState(): State { return state; },
+  setState(next: Partial<State>) {
+    let changed = false;
+    (Object.keys(next) as Array<keyof State>).forEach((key) => {
+      const value = next[key];
+      if (state[key] !== value) {
+        (state as any)[key] = value;
+        changed = true;
+      }
+    });
+    if (changed) emit();
+  },
   setVisible(v: boolean) { if (state.visible !== v) { state.visible = v; emit(); } },
   setTabBarVisible(v: boolean) { if (state.tabBarVisible !== v) { state.tabBarVisible = v; emit(); } },
   setUsername(u?: string) { if (state.username !== u) { state.username = u; emit(); } },
@@ -82,5 +93,4 @@ export const TopBarStore = {
 export function useTopBarStore<T>(selector: (s: State) => T): T {
   return React.useSyncExternalStore(TopBarStore.subscribe, () => selector(TopBarStore.getState()), () => selector(TopBarStore.getState()));
 }
-
 

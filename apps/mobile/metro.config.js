@@ -19,6 +19,7 @@ config.resolver.nodeModulesPaths = [
 config.resolver.extraNodeModules = {
   'react': path.resolve(monorepoRoot, 'node_modules/react'),
   'react-native': path.resolve(monorepoRoot, 'node_modules/react-native'),
+  'react-refresh': path.resolve(monorepoRoot, 'node_modules/react-refresh'),
   '@flixor/core': path.resolve(monorepoRoot, 'packages/core'),
 };
 
