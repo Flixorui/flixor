@@ -772,9 +772,24 @@ export default function Home({ onLogout }: HomeProps) {
 
   const plexImage = useCallback((item: PlexMediaItem) => getPlexImageUrl(item, 300), []);
   const plexContinueImage = useCallback((item: PlexMediaItem) => getContinueWatchingImageUrl(item, 300), []);
-  const getContinueTitle = useCallback((it: any) => (
-    it.type === 'episode' ? it.grandparentTitle || it.title || it.name : it.title || it.name
-  ), []);
+  const getContinueTitle = useCallback((it: any) => {
+    if (it.type === 'episode') {
+      return it.grandparentTitle || it.title || 'Episode';
+    }
+    return it.title || it.name;
+  }, []);
+  const getContinueSubtitle = useCallback((it: any) => {
+    if (it.type === 'episode') {
+      const seasonNum = it.parentIndex || 1;
+      const episodeNum = it.index || 1;
+      return `S${seasonNum}E${episodeNum}`;
+    }
+    // For movies, show the year
+    if (it.year) {
+      return String(it.year);
+    }
+    return undefined;
+  }, []);
   const onContinuePress = useCallback((it: any) => {
     const ratingKey = String(it.ratingKey || it.guid || '');
     if (settings.useCachedStreams) {
@@ -1004,6 +1019,7 @@ export default function Home({ onLogout }: HomeProps) {
               items={continueItems}
               getImageUri={plexContinueImage}
               getTitle={getContinueTitle}
+              getSubtitle={getContinueSubtitle}
               onItemPress={onContinuePress}
               onBrowsePress={() => openRowBrowse({ type: 'plexContinue' }, 'Continue Watching', continueItems)}
             />

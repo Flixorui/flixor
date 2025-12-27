@@ -96,12 +96,6 @@ function HeroCard({ hero, authHeaders, onAdd, inWatchlist = false, watchlistLoad
             </View>
           ) : (
             <>
-              {/* N SERIES badge (fallback when no logo) */}
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 8, width: '100%' }}>
-                <Text style={{ color: '#E50914', fontSize: 20, fontWeight: '900', letterSpacing: -0.5 }}>N</Text>
-                <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700', marginLeft: 6, letterSpacing: 0.5, textTransform: 'uppercase' }}>SERIES</Text>
-              </View>
-
               {/* Title (fallback when no logo) */}
               <Text style={{ color: '#fff', fontSize: 32, fontWeight: '900', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 6, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 4, textAlign: 'center' }}>
                 {hero.title}

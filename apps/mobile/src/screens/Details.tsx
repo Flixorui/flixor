@@ -73,6 +73,7 @@ export default function Details({ route }: RouteParams) {
   const [noLocalSource, setNoLocalSource] = useState<boolean>(false);
   const [episodesLoading, setEpisodesLoading] = useState<boolean>(false);
   const [nextUp, setNextUp] = useState<NextUpEpisode | null>(null);
+  const [parentShowMeta, setParentShowMeta] = useState<any>(null);
   const [closing, setClosing] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [inWatchlist, setInWatchlist] = useState(false);
@@ -187,6 +188,19 @@ export default function Details({ route }: RouteParams) {
 
           setMeta(next);
           setTab(next?.type === 'show' ? 'episodes' : 'suggested');
+
+          // If this is an episode, fetch the parent show metadata for suggestions
+          if (next?.type === 'episode' && next?.grandparentRatingKey) {
+            try {
+              const showMeta = await fetchPlexMetadata(String(next.grandparentRatingKey));
+              if (showMeta) {
+                setParentShowMeta(showMeta);
+                console.log('[Details] Fetched parent show for episode:', showMeta.title);
+              }
+            } catch (e) {
+              console.log('[Details] Error fetching parent show metadata:', e);
+            }
+          }
 
           if (next?.type === 'show') {
             const seas = await fetchPlexSeasons(params.ratingKey);
@@ -452,13 +466,13 @@ export default function Details({ route }: RouteParams) {
     <View style={{ flex: 1, paddingTop: insets.top, backgroundColor: 'transparent' }}>
       <Animated.View style={{ flex:1, transform:[{ translateY: panY }] }} {...panResponder.panHandlers}>
         {/* Dim + blur backdrop under the modal so swiping reveals content behind, not black */}
-        <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFillObject, { opacity: backdropOpacity }]}>
+        <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFillObject, { opacity: backdropOpacity, borderTopLeftRadius: 32, borderTopRightRadius: 32, overflow: 'hidden' }]}>
           <BlurOverlay />
         </Animated.View>
 
         {/* Shadow under the sheet so any reveal looks natural, not a black jump */}
         <View style={{ position:'absolute', top:0, left:0, right:0, height:16, backgroundColor:'transparent', shadowColor:'#000', shadowOpacity:0.35, shadowRadius:14, shadowOffset:{ width:0, height:6 }, zIndex:1 }} />
-        <View style={{ flex:1, backgroundColor:'#0d0d0f', borderTopLeftRadius: 20, borderTopRightRadius: 20, overflow: 'hidden' }}>
+        <View style={{ flex:1, backgroundColor:'#0d0d0f', borderTopLeftRadius: 32, borderTopRightRadius: 32, overflow: 'hidden' }}>
       <ScrollView ref={ref => { scrollRef.current = ref; }}
         scrollEventThrottle={16}
         onScroll={(e:any) => { scrollYRef.current = e.nativeEvent.contentOffset.y; }}
@@ -480,8 +494,11 @@ export default function Details({ route }: RouteParams) {
             {/* Top-right actions over image */}
             <View style={{ position:'absolute', right: 12, top: 12, flexDirection:'row' }}>
               {/* <Feather name="cast" size={25} color="#fff" style={{ marginHorizontal: 20 }} /> */}
-              <Pressable onPress={() => { nav.goBack(); }} style={{ width: 25, height: 25, borderRadius: 18, borderWidth: 1, borderColor: 'rgba(27,10,16,0.12)', backgroundColor: 'rgba(27,10,16,0.12)', alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>
-                <Ionicons name="close" color="#fff" size={18} />
+              <Pressable onPress={() => { nav.goBack(); }} style={{ width: 32, height: 32, borderRadius: 16, overflow: 'hidden', marginRight: 8 }}>
+                <BlurView intensity={60} tint="dark" style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                  <Ionicons name="close" color="#fff" size={18} />
+                </BlurView>
+                <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' }} pointerEvents="none" />
               </Pressable>
             </View>
             {/* Gradient from image into content */}
@@ -667,7 +684,7 @@ export default function Details({ route }: RouteParams) {
             </>
           ) : null}
           {tab === 'suggested' ? (
-            <SuggestedRows meta={meta} routeParams={route?.params} />
+            <SuggestedRows meta={meta} routeParams={route?.params} parentShowMeta={parentShowMeta} />
           ) : null}
           {tab === 'details' ? (
             <DetailsTab
@@ -959,24 +976,32 @@ function Tabs({ tab, setTab, showEpisodes }: { tab: 'episodes'|'suggested'|'deta
   );
 }
 
-function SuggestedRows({ meta, routeParams }: { meta: any; routeParams?: any }) {
+function SuggestedRows({ meta, routeParams, parentShowMeta }: { meta: any; routeParams?: any; parentShowMeta?: any }) {
   const [recs, setRecs] = React.useState<RowItem[]>([]);
   const [similar, setSimilar] = React.useState<RowItem[]>([]);
   const [loading, setLoading] = React.useState(true);
+
+  // For episodes, use parent show's TMDB ID for suggestions
+  const isEpisode = meta?.type === 'episode';
+  const effectiveMeta = isEpisode && parentShowMeta ? parentShowMeta : meta;
+
   const tmdbId = React.useMemo(() => {
     try {
       // Prefer Plex GUID (meta) if available
-      const guids: string[] = Array.isArray(meta?.Guid) ? meta.Guid.map((g:any)=> String(g.id||'')) : [];
+      const guids: string[] = Array.isArray(effectiveMeta?.Guid) ? effectiveMeta.Guid.map((g:any)=> String(g.id||'')) : [];
       const tmdbGuid = guids.find(g=> g.includes('tmdb://') || g.includes('themoviedb://'));
       if (tmdbGuid) return tmdbGuid.split('://')[1];
       // Fallback to route param for TMDB-only details
       const pid = routeParams?.id; return pid ? String(pid) : null;
     } catch { return null; }
-  }, [meta, routeParams]);
+  }, [effectiveMeta, routeParams]);
+
   const mediaType: 'movie'|'tv' = React.useMemo(() => {
-    if (meta?.type === 'movie' || meta?.type === 'show') return (meta.type === 'movie') ? 'movie' : 'tv';
+    // Episodes are always TV
+    if (isEpisode) return 'tv';
+    if (effectiveMeta?.type === 'movie' || effectiveMeta?.type === 'show') return (effectiveMeta.type === 'movie') ? 'movie' : 'tv';
     const rt = routeParams?.mediaType; return rt === 'movie' ? 'movie' : 'tv';
-  }, [meta, routeParams]);
+  }, [effectiveMeta, routeParams, isEpisode]);
 
   React.useEffect(() => {
     (async () => {

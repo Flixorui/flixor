@@ -10,7 +10,7 @@ const POSTER_SIZES = {
   large: { width: 128, height: 192 },
 } as const;
 
-function Poster({ uri, title, width, height, authHeaders, onPress }: { uri?: string; title?: string; width?: number; height?: number; authHeaders?: Record<string,string>; onPress?: ()=>void }) {
+function Poster({ uri, title, subtitle, width, height, authHeaders, onPress }: { uri?: string; title?: string; subtitle?: string; width?: number; height?: number; authHeaders?: Record<string,string>; onPress?: ()=>void }) {
   const { settings } = useAppSettings();
   const size = POSTER_SIZES[settings.posterSize] || POSTER_SIZES.medium;
   const finalWidth = width ?? size.width;
@@ -44,8 +44,15 @@ function Poster({ uri, title, width, height, authHeaders, onPress }: { uri?: str
           </View>
         )}
       </View>
-      {title && settings.showPosterTitles ? (
-        <Text style={{ color: '#ddd', fontSize: 12, marginTop: 6 }} numberOfLines={1}>{title}</Text>
+      {settings.showPosterTitles && (title || subtitle) ? (
+        <View style={{ marginTop: 6 }}>
+          {title ? (
+            <Text style={{ color: '#ddd', fontSize: 12 }} numberOfLines={1}>{title}</Text>
+          ) : null}
+          {subtitle ? (
+            <Text style={{ color: '#888', fontSize: 11, marginTop: 2 }} numberOfLines={1}>{subtitle}</Text>
+          ) : null}
+        </View>
       ) : null}
     </Pressable>
   );
