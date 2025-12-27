@@ -4,7 +4,7 @@ import Poster from './Poster';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 
-export default function Row({ title, items, getImageUri, getTitle, authHeaders, onItemPress, onTitlePress, onBrowsePress }: {
+function Row({ title, items, getImageUri, getTitle, authHeaders, onItemPress, onTitlePress, onBrowsePress }: {
   title: string;
   items: any[];
   getImageUri: (item: any) => string | undefined;
@@ -57,7 +57,7 @@ export default function Row({ title, items, getImageUri, getTitle, authHeaders, 
       <FlatList
         horizontal
         data={items}
-        keyExtractor={(_, idx) => String(idx)}
+        keyExtractor={(item, idx) => item.id || item.ratingKey || `${title}-${idx}`}
         renderItem={({ item }) => (
           <Poster uri={getImageUri(item)} title={getTitle(item)} authHeaders={authHeaders} onPress={() => onItemPress && onItemPress(item)} />
         )}
@@ -66,7 +66,14 @@ export default function Row({ title, items, getImageUri, getTitle, authHeaders, 
         overScrollMode="never"
         alwaysBounceHorizontal={false}
         contentContainerStyle={{ paddingHorizontal: 16 }}
+        windowSize={5}
+        initialNumToRender={6}
+        maxToRenderPerBatch={4}
+        removeClippedSubviews={true}
+        getItemLayout={(_, index) => ({ length: 122, offset: 122 * index, index })}
       />
     </View>
   );
 }
+
+export default React.memo(Row);

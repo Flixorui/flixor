@@ -3,9 +3,6 @@ import TopAppBar from './TopAppBar';
 import { useTopBarStore, TopBarStore } from './TopBarStore';
 
 export default function GlobalTopAppBar() {
-  // Force re-render when any store value changes to pick up new scrollY
-  const [, forceUpdate] = React.useReducer(x => x + 1, 0);
-  
   const visible = useTopBarStore((st) => st.visible === true);
   const username = useTopBarStore((st) => st.username);
   const showFilters = useTopBarStore((st) => st.showFilters === true);
@@ -18,11 +15,6 @@ export default function GlobalTopAppBar() {
   const compact = useTopBarStore((st) => st.compact === true);
   const customFilters = useTopBarStore((st) => st.customFilters);
   const activeGenre = useTopBarStore((st) => st.activeGenre);
-
-  // Re-render when any tracked value changes to pick up latest scrollY
-  React.useEffect(() => {
-    forceUpdate();
-  }, [visible, username, showFilters, selected, compact, customFilters, onBrowse, activeGenre]);
   
   // Read scrollY and showPills directly from store (don't cause re-renders)
   const scrollY = TopBarStore.getState().scrollY;
@@ -49,5 +41,4 @@ export default function GlobalTopAppBar() {
     />
   );
 }
-
 

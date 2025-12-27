@@ -2,10 +2,7 @@ import React from 'react';
 import { View, Text, Pressable, Alert, StyleSheet, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Image as ExpoImage } from 'expo-image';
-
-// Blurhash for hero images
-const HERO_BLURHASH = 'L6PZfSi_.AyE_3t7t7R**0o#DgR4';
+import FastImage from '@d11/react-native-fast-image';
 
 type Hero = {
   title: string;
@@ -23,21 +20,22 @@ type HeroCardProps = {
   watchlistLoading?: boolean;
 };
 
-export default function HeroCard({ hero, authHeaders, onPlay, onAdd, inWatchlist = false, watchlistLoading = false }: HeroCardProps) {
+function HeroCard({ hero, authHeaders, onPlay, onAdd, inWatchlist = false, watchlistLoading = false }: HeroCardProps) {
   return (
     <View style={{ paddingHorizontal: 16, marginTop: -40 }}>
       <View style={{ borderRadius: 12, overflow: 'hidden', backgroundColor: '#111', shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 8 }}>
         {/* Image container - wider aspect ratio like Netflix hero cards */}
         <View style={{ width: '100%', aspectRatio: 0.78 }}>
           {hero.imageUri ? (
-            <ExpoImage
-              source={{ uri: hero.imageUri, headers: authHeaders }}
-              placeholder={{ blurhash: HERO_BLURHASH }}
+            <FastImage
+              source={{
+                uri: hero.imageUri,
+                headers: authHeaders,
+                priority: FastImage.priority.high,
+                cache: FastImage.cacheControl.immutable,
+              }}
               style={{ width: '100%', height: '100%' }}
-              contentFit="cover"
-              cachePolicy="memory-disk"
-              priority="high"
-              transition={300}
+              resizeMode={FastImage.resizeMode.cover}
             />
           ) : (
             <View style={{ flex:1, alignItems:'center', justifyContent:'center' }}>
@@ -60,12 +58,15 @@ export default function HeroCard({ hero, authHeaders, onPlay, onAdd, inWatchlist
           {/* Logo or Title */}
           {hero.logoUri ? (
             <View style={{ marginBottom: 12, alignItems: 'center', width: '100%' }}>
-              <ExpoImage
-                source={{ uri: hero.logoUri, headers: authHeaders }}
+              <FastImage
+                source={{
+                  uri: hero.logoUri,
+                  headers: authHeaders,
+                  priority: FastImage.priority.normal,
+                  cache: FastImage.cacheControl.immutable,
+                }}
                 style={{ width: 240, height: 80 }}
-                contentFit="contain"
-                cachePolicy="memory-disk"
-                transition={200}
+                resizeMode={FastImage.resizeMode.contain}
               />
             </View>
           ) : (
@@ -123,3 +124,5 @@ export default function HeroCard({ hero, authHeaders, onPlay, onAdd, inWatchlist
     </View>
   );
 }
+
+export default React.memo(HeroCard);

@@ -15,6 +15,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "xyz.flixor.mobile",
       "icon": "./assets/icons/ios-light.png",
+      "jsEngine": "hermes",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -22,6 +23,7 @@
     "android": {
       "package": "xyz.flixor.mobile",
       "usesCleartextTraffic": true,
+      "jsEngine": "hermes",
       "adaptiveIcon": {
         "foregroundImage": "./assets/icons/adaptive-icon.png",
         "monochromeImage": "./assets/icons/adaptive-icon.png",

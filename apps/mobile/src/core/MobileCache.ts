@@ -1,8 +1,12 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { createMMKV, type MMKV } from 'react-native-mmkv';
 import type { ICache } from '@flixor/core';
 
 const CACHE_PREFIX = 'cache:';
 const CACHE_INDEX_KEY = 'cache_index';
+
+// Initialize MMKV storage (synchronous, native-backed)
+// MMKV v4 uses createMMKV function (requires react-native-nitro-modules)
+const storage = createMMKV({ id: 'flixor-cache' });
 
 interface CacheEntry<T> {
   data: T;
@@ -11,21 +15,27 @@ interface CacheEntry<T> {
 }
 
 const CACHE_LIMITS = {
-  maxMemoryEntries: 200,
-  maxDiskEntries: 400,
+  maxMemoryEntries: 100, // Reduced to 100 like NuvioStreaming
+  maxDiskEntries: 100,   // Reduced to 100 like NuvioStreaming (was 400)
   maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days absolute max
+  memoryTTL: 30000, // 30 seconds in-memory cache (like NuvioStreaming)
 };
 
 /**
- * Mobile implementation of ICache using AsyncStorage + in-memory LRU
+ * Mobile implementation of ICache using MMKV + in-memory LRU
+ * MMKV is 10x faster than AsyncStorage due to native implementation
  */
 export class MobileCache implements ICache {
-  private memoryCache = new Map<string, CacheEntry<unknown>>();
+  private memoryCache = new Map<string, { entry: CacheEntry<unknown>; accessTime: number }>();
   private accessOrder: string[] = [];
 
   private isValid<T>(entry: CacheEntry<T>): boolean {
     const age = Date.now() - entry.timestamp;
     return age < entry.ttl && age < CACHE_LIMITS.maxAge;
+  }
+
+  private isMemoryCacheValid(accessTime: number): boolean {
+    return Date.now() - accessTime < CACHE_LIMITS.memoryTTL;
   }
 
   private touchKey(key: string) {
@@ -46,29 +56,30 @@ export class MobileCache implements ICache {
   }
 
   async get<T>(key: string): Promise<T | null> {
-    // 1. Check memory cache
-    const memEntry = this.memoryCache.get(key) as CacheEntry<T> | undefined;
-    if (memEntry) {
-      if (this.isValid(memEntry)) {
+    // 1. Check memory cache first (fastest path)
+    const memEntry = this.memoryCache.get(key);
+    if (memEntry && this.isMemoryCacheValid(memEntry.accessTime)) {
+      const entry = memEntry.entry as CacheEntry<T>;
+      if (this.isValid(entry)) {
         this.touchKey(key);
-        return memEntry.data;
+        return entry.data;
       }
       this.memoryCache.delete(key);
     }
 
-    // 2. Check disk cache
+    // 2. Check MMKV disk cache (synchronous, very fast)
     try {
-      const raw = await AsyncStorage.getItem(CACHE_PREFIX + key);
+      const raw = storage.getString(CACHE_PREFIX + key);
       if (!raw) return null;
 
       const entry: CacheEntry<T> = JSON.parse(raw);
       if (!this.isValid(entry)) {
-        await AsyncStorage.removeItem(CACHE_PREFIX + key);
+        storage.remove(CACHE_PREFIX + key);
         return null;
       }
 
-      // Promote to memory cache
-      this.memoryCache.set(key, entry);
+      // Promote to memory cache with current access time
+      this.memoryCache.set(key, { entry, accessTime: Date.now() });
       this.touchKey(key);
       this.evictIfNeeded();
 
@@ -85,38 +96,38 @@ export class MobileCache implements ICache {
       ttl: ttlMs,
     };
 
-    // Memory cache
-    this.memoryCache.set(key, entry);
+    // Memory cache with access time
+    this.memoryCache.set(key, { entry, accessTime: Date.now() });
     this.touchKey(key);
     this.evictIfNeeded();
 
-    // Disk cache
+    // Disk cache (MMKV is synchronous but we keep async interface for compatibility)
     try {
-      await AsyncStorage.setItem(CACHE_PREFIX + key, JSON.stringify(entry));
-      await this.updateCacheIndex(key);
+      storage.set(CACHE_PREFIX + key, JSON.stringify(entry));
+      this.updateCacheIndex(key);
     } catch (e) {
       console.error('[MobileCache] Failed to write to disk:', e);
     }
   }
 
-  private async updateCacheIndex(key: string) {
+  private updateCacheIndex(key: string) {
     try {
-      const indexRaw = await AsyncStorage.getItem(CACHE_INDEX_KEY);
+      const indexRaw = storage.getString(CACHE_INDEX_KEY);
       const index: string[] = indexRaw ? JSON.parse(indexRaw) : [];
 
       if (!index.includes(key)) {
         index.push(key);
       }
 
-      // Limit disk cache entries
+      // Limit disk cache entries with LRU eviction
       while (index.length > CACHE_LIMITS.maxDiskEntries) {
         const oldKey = index.shift();
         if (oldKey) {
-          await AsyncStorage.removeItem(CACHE_PREFIX + oldKey);
+          storage.remove(CACHE_PREFIX + oldKey);
         }
       }
 
-      await AsyncStorage.setItem(CACHE_INDEX_KEY, JSON.stringify(index));
+      storage.set(CACHE_INDEX_KEY, JSON.stringify(index));
     } catch (e) {
       console.error('[MobileCache] Failed to update index:', e);
     }
@@ -128,7 +139,7 @@ export class MobileCache implements ICache {
     if (idx > -1) {
       this.accessOrder.splice(idx, 1);
     }
-    await AsyncStorage.removeItem(CACHE_PREFIX + key);
+    storage.remove(CACHE_PREFIX + key);
   }
 
   // Alias for backwards compatibility
@@ -138,10 +149,9 @@ export class MobileCache implements ICache {
 
   async invalidatePattern(pattern: string): Promise<void> {
     // Convert glob pattern to regex-like matching
-    // e.g., "plex:*" matches "plex:anything"
     const regexPattern = pattern
-      .replace(/[.+^${}()|[\]\\]/g, '\\$&') // Escape special regex chars
-      .replace(/\*/g, '.*'); // Convert * to .*
+      .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+      .replace(/\*/g, '.*');
     const regex = new RegExp(`^${regexPattern}$`);
 
     // Memory
@@ -161,18 +171,18 @@ export class MobileCache implements ICache {
 
     // Disk
     try {
-      const indexRaw = await AsyncStorage.getItem(CACHE_INDEX_KEY);
+      const indexRaw = storage.getString(CACHE_INDEX_KEY);
       const index: string[] = indexRaw ? JSON.parse(indexRaw) : [];
 
       for (const key of index) {
         if (regex.test(key)) {
-          await AsyncStorage.removeItem(CACHE_PREFIX + key);
+          storage.remove(CACHE_PREFIX + key);
         }
       }
 
       // Update index
       const newIndex = index.filter((key) => !regex.test(key));
-      await AsyncStorage.setItem(CACHE_INDEX_KEY, JSON.stringify(newIndex));
+      storage.set(CACHE_INDEX_KEY, JSON.stringify(newIndex));
     } catch (e) {
       console.error('[MobileCache] Failed to invalidate pattern:', e);
     }
@@ -183,15 +193,27 @@ export class MobileCache implements ICache {
     this.accessOrder = [];
 
     try {
-      const indexRaw = await AsyncStorage.getItem(CACHE_INDEX_KEY);
+      const indexRaw = storage.getString(CACHE_INDEX_KEY);
       const index: string[] = indexRaw ? JSON.parse(indexRaw) : [];
 
       for (const key of index) {
-        await AsyncStorage.removeItem(CACHE_PREFIX + key);
+        storage.remove(CACHE_PREFIX + key);
       }
-      await AsyncStorage.removeItem(CACHE_INDEX_KEY);
+      storage.remove(CACHE_INDEX_KEY);
     } catch (e) {
       console.error('[MobileCache] Failed to clear cache:', e);
     }
+  }
+
+  // New: Get cache stats for debugging
+  getStats() {
+    const indexRaw = storage.getString(CACHE_INDEX_KEY);
+    const index: string[] = indexRaw ? JSON.parse(indexRaw) : [];
+    return {
+      memoryEntries: this.memoryCache.size,
+      diskEntries: index.length,
+      memoryLimit: CACHE_LIMITS.maxMemoryEntries,
+      diskLimit: CACHE_LIMITS.maxDiskEntries,
+    };
   }
 }

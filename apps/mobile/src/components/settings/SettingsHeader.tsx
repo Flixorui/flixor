@@ -13,9 +13,13 @@ export default function SettingsHeader({ title, onBack }: SettingsHeaderProps) {
 
   return (
     <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-      <Pressable onPress={onBack} style={styles.backButton} hitSlop={8}>
-        <Ionicons name="chevron-back" size={22} color="#fff" />
-      </Pressable>
+      {onBack ? (
+        <Pressable onPress={onBack} style={styles.backButton} hitSlop={8}>
+          <Ionicons name="chevron-back" size={22} color="#fff" />
+        </Pressable>
+      ) : (
+        <View style={styles.trailingSpace} />
+      )}
       <Text style={styles.title}>{title}</Text>
       <View style={styles.trailingSpace} />
     </View>

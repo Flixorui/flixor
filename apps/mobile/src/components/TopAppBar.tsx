@@ -8,7 +8,7 @@ import { Pressable } from 'react-native';
 import Pills from './Pills';
 import { LinearGradient } from 'expo-linear-gradient';
 
-export default function TopAppBar({ visible, username, showFilters, selected, onChange, onOpenCategories, onNavigateLibrary, onClose, onSearch, scrollY, onHeightChange, showPills, compact, customFilters, activeGenre, onClearGenre }: {
+function TopAppBar({ visible, username, showFilters, selected, onChange, onOpenCategories, onNavigateLibrary, onClose, onSearch, scrollY, onHeightChange, showPills, compact, customFilters, activeGenre, onClearGenre }: {
   visible: boolean;
   username?: string;
   showFilters?: boolean;
@@ -148,3 +148,5 @@ export default function TopAppBar({ visible, username, showFilters, selected, on
     </Animated.View>
   );
 }
+
+export default React.memo(TopAppBar);

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from 'react';
 import { FlixorMobile, initializeFlixorMobile } from './FlixorMobile';
 
 interface FlixorContextValue {
@@ -53,26 +53,26 @@ export function FlixorProvider({ children }: FlixorProviderProps) {
     initialize();
   }, []);
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     if (flixor) {
       setAuthState({
         isAuthenticated: flixor.isPlexAuthenticated,
         isConnected: flixor.isConnected,
       });
     }
-  };
+  }, [flixor]);
+
+  const value = useMemo(() => ({
+    flixor,
+    isLoading,
+    error,
+    isAuthenticated: authState.isAuthenticated,
+    isConnected: authState.isConnected,
+    refresh,
+  }), [flixor, isLoading, error, authState.isAuthenticated, authState.isConnected, refresh]);
 
   return (
-    <FlixorContext.Provider
-      value={{
-        flixor,
-        isLoading,
-        error,
-        isAuthenticated: authState.isAuthenticated,
-        isConnected: authState.isConnected,
-        refresh,
-      }}
-    >
+    <FlixorContext.Provider value={value}>
       {children}
     </FlixorContext.Provider>
   );

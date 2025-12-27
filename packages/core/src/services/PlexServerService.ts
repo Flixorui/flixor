@@ -880,6 +880,15 @@ export class PlexServerService {
    */
   async getUltraBlurColors(imageUrl: string): Promise<PlexUltraBlurColors | null> {
     try {
+      // Create a cache key based on the image URL
+      const cacheKey = `ultrablur:${imageUrl}`;
+
+      // Check cache first
+      const cached = await this.cache.get<PlexUltraBlurColors>(cacheKey);
+      if (cached) {
+        return cached;
+      }
+
       const params = new URLSearchParams({
         url: imageUrl,
         'X-Plex-Token': this.token,
@@ -901,6 +910,11 @@ export class PlexServerService {
 
       const data: PlexUltraBlurResponse = await response.json();
       const colors = data.MediaContainer?.UltraBlurColors?.[0];
+
+      // Cache the result (24 hours - colors don't change for a given image)
+      if (colors) {
+        await this.cache.set(cacheKey, colors, CacheTTL.STATIC);
+      }
 
       return colors || null;
     } catch (e) {

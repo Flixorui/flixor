@@ -44,7 +44,7 @@ type HeroCarouselItem = {
   year?: string;
 };
 
-export default function HeroCarousel({
+function HeroCarousel({
   items,
   onSelect,
   onPlay,
@@ -554,3 +554,5 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
 });
+
+export default React.memo(HeroCarousel);
