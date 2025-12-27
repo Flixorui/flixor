@@ -4,11 +4,12 @@ import Poster from './Poster';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 
-function Row({ title, items, getImageUri, getTitle, authHeaders, onItemPress, onTitlePress, onBrowsePress }: {
+function Row({ title, items, getImageUri, getTitle, getSubtitle, authHeaders, onItemPress, onTitlePress, onBrowsePress }: {
   title: string;
   items: any[];
   getImageUri: (item: any) => string | undefined;
   getTitle: (item: any) => string | undefined;
+  getSubtitle?: (item: any) => string | undefined;
   authHeaders?: Record<string,string>;
   onItemPress?: (item: any) => void;
   onTitlePress?: () => void;
@@ -59,7 +60,7 @@ function Row({ title, items, getImageUri, getTitle, authHeaders, onItemPress, on
         data={items}
         keyExtractor={(item, idx) => item.id || item.ratingKey || `${title}-${idx}`}
         renderItem={({ item }) => (
-          <Poster uri={getImageUri(item)} title={getTitle(item)} authHeaders={authHeaders} onPress={() => onItemPress && onItemPress(item)} />
+          <Poster uri={getImageUri(item)} title={getTitle(item)} subtitle={getSubtitle?.(item)} authHeaders={authHeaders} onPress={() => onItemPress && onItemPress(item)} />
         )}
         showsHorizontalScrollIndicator={false}
         bounces={false}
