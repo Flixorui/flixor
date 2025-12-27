@@ -629,7 +629,19 @@ export default function Details({ route }: RouteParams) {
                   setEpisodesLoading(false);
                 }
               }} />
-              <EpisodeList season={seasonKey} episodes={episodes} tmdbMode={seasonSource==='tmdb'} tmdbId={route?.params?.id ? String(route?.params?.id) : undefined} loading={episodesLoading} />
+              <EpisodeList 
+                season={(() => {
+                  const idx = seasons.findIndex((s: any, i: number) => String(s.ratingKey || s.key || i) === seasonKey);
+                  if (idx !== -1) {
+                    return String(seasons[idx].index || (idx + 1));
+                  }
+                  return seasonKey;
+                })()}
+                episodes={episodes} 
+                tmdbMode={seasonSource==='tmdb'} 
+                tmdbId={route?.params?.id ? String(route?.params?.id) : undefined} 
+                loading={episodesLoading} 
+              />
             </>
           ) : null}
           {tab === 'suggested' ? (
