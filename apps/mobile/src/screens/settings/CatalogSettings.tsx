@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, Switch, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import SettingsHeader from '../../components/settings/SettingsHeader';
 import SettingsCard from '../../components/settings/SettingsCard';
@@ -12,6 +13,8 @@ type LibraryItem = { key: string; title: string; type: string };
 
 export default function CatalogSettings() {
   const nav: any = useNavigation();
+  const insets = useSafeAreaInsets();
+  const headerHeight = insets.top + 52;
   const { settings, updateSetting } = useAppSettings();
   const [libraries, setLibraries] = useState<LibraryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,7 +53,7 @@ export default function CatalogSettings() {
   return (
     <View style={styles.container}>
       <SettingsHeader title="Catalogs" onBack={() => nav.goBack()} />
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingTop: headerHeight }]}>
         <SettingsCard title="LIBRARIES">
           {loading && (
             <View style={styles.loadingRow}>

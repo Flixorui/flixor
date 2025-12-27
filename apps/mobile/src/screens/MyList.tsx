@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
-import { View, Text, ActivityIndicator, Pressable, StyleSheet, Dimensions, Animated, Alert } from 'react-native';
+import { View, Text, ActivityIndicator, Pressable, StyleSheet, Dimensions, Animated, Alert, Modal, Platform } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import { FlashList } from '@shopify/flash-list';
 import { Ionicons } from '@expo/vector-icons';
 import { TopBarStore, useTopBarStore } from '../components/TopBarStore';
 import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
 import { useFlixor } from '../core/FlixorContext';
 import {
@@ -19,6 +20,28 @@ import {
 } from '../core/MyListData';
 import * as Haptics from 'expo-haptics';
 
+// Conditionally import GlassView for iOS 26+ liquid glass effect
+let GlassViewComp: any = null;
+let liquidGlassAvailable = false;
+if (Platform.OS === 'ios') {
+  try {
+    const glass = require('expo-glass-effect');
+    GlassViewComp = glass.GlassView;
+    liquidGlassAvailable = typeof glass.isLiquidGlassAvailable === 'function'
+      ? glass.isLiquidGlassAvailable()
+      : false;
+  } catch {
+    liquidGlassAvailable = false;
+  }
+}
+
+// Sort options configuration (like Library)
+const SORT_OPTIONS: Array<{ value: SortOption; label: string }> = [
+  { value: 'added', label: 'Date Added' },
+  { value: 'title', label: 'Title' },
+  { value: 'year', label: 'Year' },
+];
+
 export default function MyList() {
   const nav: any = useNavigation();
   const isFocused = useIsFocused();
@@ -29,21 +52,17 @@ export default function MyList() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterOption>('all');
-  const [sort, setSort] = useState<SortOption>('added');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
-  const [showSortPicker, setShowSortPicker] = useState(false);
+  const [sortOption, setSortOption] = useState(SORT_OPTIONS[0]);
+  const [showSortModal, setShowSortModal] = useState(false);
 
   const y = useRef(new Animated.Value(0)).current;
-  const showPillsAnim = useRef(new Animated.Value(1)).current;
   const barHeight = useTopBarStore((s) => s.height || 90);
   const lastScrollY = useRef(0);
-  const scrollDirection = useRef<'up' | 'down'>('down');
 
-  // Set scrollY and showPills immediately on mount
+  // Set scrollY on mount (no showPills needed - using customFilters)
   React.useLayoutEffect(() => {
     if (isFocused) {
       TopBarStore.setScrollY(y);
-      TopBarStore.setShowPills(showPillsAnim);
     }
   }, [isFocused, y]);
 
@@ -54,7 +73,7 @@ export default function MyList() {
     setError(null);
 
     try {
-      const result = await fetchMyList({ filter, sort, sortDirection });
+      const result = await fetchMyList({ filter, sort: sortOption.value, sortDirection: 'desc' });
       setItems(result);
     } catch (e: any) {
       setError(e?.message || 'Failed to load watchlist');
@@ -62,7 +81,7 @@ export default function MyList() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [filter, sort, sortDirection]);
+  }, [filter, sortOption]);
 
   useEffect(() => {
     if (flixorLoading || !isConnected) return;
@@ -114,32 +133,16 @@ export default function MyList() {
     }
   }, [nav]);
 
-  const toggleSort = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setShowSortPicker(!showSortPicker);
-  }, [showSortPicker]);
-
-  const selectSort = useCallback((newSort: SortOption) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (sort === newSort) {
-      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSort(newSort);
-      setSortDirection('desc');
-    }
-    setShowSortPicker(false);
-  }, [sort]);
-
   const selectFilter = useCallback((newFilter: FilterOption) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setFilter(newFilter);
   }, []);
 
-  // Push top bar updates - match Home/NewHot pattern
-  useEffect(() => {
+  // Push top bar updates synchronously before paint (useLayoutEffect)
+  React.useLayoutEffect(() => {
     if (!isFocused) return;
 
-    // Create custom filter pills like NewHot
+    // Create custom filter pills
     const filterPills = (
       <View style={{ flexDirection: 'row', paddingHorizontal: 16, alignItems: 'center' }}>
         <FilterPill label="All" active={filter === 'all'} onPress={() => selectFilter('all')} />
@@ -203,12 +206,6 @@ export default function MyList() {
   const numColumns = Dimensions.get('window').width >= 800 ? 5 : 3;
   const itemSize = Math.floor((Dimensions.get('window').width - 16 - (numColumns - 1) * 8) / numColumns);
 
-  const sortLabels: Record<SortOption, string> = {
-    added: 'Date Added',
-    title: 'Title',
-    year: 'Year',
-  };
-
   return (
     <View style={styles.container}>
       {/* Background gradients */}
@@ -225,48 +222,9 @@ export default function MyList() {
         style={StyleSheet.absoluteFillObject}
       />
 
-      {/* Sort Header */}
-      <View style={[styles.header, { paddingTop: barHeight + 8 }]}>
-        <Pressable onPress={toggleSort} style={styles.sortButton}>
-          <Text style={styles.sortText}>{sortLabels[sort]}</Text>
-          <Ionicons
-            name={sortDirection === 'desc' ? 'chevron-down' : 'chevron-up'}
-            size={16}
-            color="#fff"
-          />
-        </Pressable>
-      </View>
-
-      {/* Sort Picker Modal */}
-      {showSortPicker && (
-        <View style={styles.sortPickerOverlay}>
-          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setShowSortPicker(false)} />
-          <View style={styles.sortPicker}>
-            {(['added', 'title', 'year'] as SortOption[]).map((option) => (
-              <Pressable
-                key={option}
-                onPress={() => selectSort(option)}
-                style={[styles.sortOption, sort === option && styles.sortOptionActive]}
-              >
-                <Text style={[styles.sortOptionText, sort === option && styles.sortOptionTextActive]}>
-                  {sortLabels[option]}
-                </Text>
-                {sort === option && (
-                  <Ionicons
-                    name={sortDirection === 'desc' ? 'arrow-down' : 'arrow-up'}
-                    size={16}
-                    color="#000"
-                  />
-                )}
-              </Pressable>
-            ))}
-          </View>
-        </View>
-      )}
-
       {/* Items Grid */}
       {items.length === 0 ? (
-        <View style={styles.emptyContainer}>
+        <View style={[styles.emptyContainer, { paddingTop: barHeight }]}>
           <Ionicons name="bookmark-outline" size={64} color="#444" />
           <Text style={styles.emptyTitle}>Your list is empty</Text>
           <Text style={styles.emptySubtitle}>
@@ -289,40 +247,79 @@ export default function MyList() {
           )}
           estimatedItemSize={itemSize + 28}
           numColumns={numColumns}
-          contentContainerStyle={{ padding: 8, paddingTop: 8 }}
-          onScroll={Animated.event([{ nativeEvent: { contentOffset: { y } } }], {
-            useNativeDriver: false,
-            listener: (e: any) => {
-              const currentY = e.nativeEvent.contentOffset.y;
-              const delta = currentY - lastScrollY.current;
-
-              if (delta > 5 && scrollDirection.current !== 'down') {
-                scrollDirection.current = 'down';
-                Animated.spring(showPillsAnim, {
-                  toValue: 0,
-                  useNativeDriver: true,
-                  tension: 60,
-                  friction: 10,
-                }).start();
-              } else if (delta < -5 && scrollDirection.current !== 'up') {
-                scrollDirection.current = 'up';
-                Animated.spring(showPillsAnim, {
-                  toValue: 1,
-                  useNativeDriver: true,
-                  tension: 60,
-                  friction: 10,
-                }).start();
-              }
-
-              lastScrollY.current = currentY;
-            },
-          })}
+          contentContainerStyle={{ padding: 8, paddingTop: barHeight, paddingBottom: 120 }}
+          scrollEventThrottle={16}
+          onScroll={(e: any) => {
+            const currentY = e.nativeEvent.contentOffset.y;
+            // Manually update animated value (FlashList doesn't support Animated.event properly)
+            y.setValue(currentY);
+            lastScrollY.current = currentY;
+          }}
           ListEmptyComponent={
             <Text style={styles.emptyText}>No items</Text>
           }
         />
       )}
 
+      {/* Floating Sort Button */}
+      <Pressable
+        onPress={() => setShowSortModal(true)}
+        style={styles.floatingSortButton}
+      >
+        {liquidGlassAvailable && GlassViewComp ? (
+          <GlassViewComp style={styles.floatingSortButtonGlass}>
+            <Ionicons name="swap-vertical" size={20} color="#fff" />
+            <Text style={styles.floatingSortButtonText}>{sortOption.label}</Text>
+          </GlassViewComp>
+        ) : (
+          <BlurView intensity={80} tint="dark" style={styles.floatingSortButtonBlur}>
+            <Ionicons name="swap-vertical" size={20} color="#fff" />
+            <Text style={styles.floatingSortButtonText}>{sortOption.label}</Text>
+          </BlurView>
+        )}
+      </Pressable>
+
+      {/* Sort Modal - BlurView works better in modals than GlassView */}
+      <Modal
+        visible={showSortModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowSortModal(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setShowSortModal(false)}>
+          <View style={styles.sortModalContent}>
+            <BlurView intensity={100} tint="dark" style={styles.sortModalBlur}>
+              <Text style={styles.sortModalTitle}>Sort By</Text>
+              {SORT_OPTIONS.map((option) => (
+                <Pressable
+                  key={option.value}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setSortOption(option);
+                    setShowSortModal(false);
+                  }}
+                  style={[
+                    styles.sortOption,
+                    sortOption.value === option.value && styles.sortOptionActive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.sortOptionText,
+                      sortOption.value === option.value && styles.sortOptionTextActive,
+                    ]}
+                  >
+                    {option.label}
+                  </Text>
+                  {sortOption.value === option.value && (
+                    <Ionicons name="checkmark" size={20} color="#fff" />
+                  )}
+                </Pressable>
+              ))}
+            </BlurView>
+          </View>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -391,7 +388,13 @@ function Card({
     <Pressable onPress={onPress} onLongPress={onLongPress} style={{ width: size, margin: 4 }}>
       <View style={[styles.cardImage, { width: size, height: Math.round(size * 1.5) }]}>
         {posterUrl ? (
-          <ExpoImage source={{ uri: posterUrl }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+          <ExpoImage
+            source={{ uri: posterUrl }}
+            style={{ width: '100%', height: '100%' }}
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            transition={200}
+          />
         ) : (
           <View style={styles.placeholderImage}>
             <Ionicons name="film-outline" size={32} color="#444" />
@@ -443,11 +446,6 @@ const styles = StyleSheet.create({
     color: '#000',
     fontWeight: '800',
   },
-  header: {
-    paddingHorizontal: 12,
-    paddingBottom: 8,
-    gap: 12,
-  },
   filterPill: {
     paddingHorizontal: 14,
     paddingVertical: 6,
@@ -467,55 +465,76 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 14,
   },
-  sortButton: {
+  // Floating sort button (like Library)
+  floatingSortButton: {
+    position: 'absolute',
+    bottom: Platform.OS === 'ios' ? 100 : 80,
+    right: 16,
+    borderRadius: 24,
+    overflow: 'hidden',
+  },
+  floatingSortButtonBlur: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    alignSelf: 'flex-start',
-    paddingVertical: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 8,
   },
-  sortText: {
-    color: '#aaa',
-    fontSize: 13,
+  floatingSortButtonGlass: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 8,
+    borderRadius: 24,
+  },
+  floatingSortButtonText: {
+    color: '#fff',
     fontWeight: '600',
+    fontSize: 14,
   },
-  sortPickerOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 100,
+  // Modal styles (like Library)
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  sortPicker: {
-    position: 'absolute',
-    top: 180,
-    left: 12,
-    backgroundColor: '#1a1a1a',
-    borderRadius: 12,
-    padding: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+  sortModalContent: {
+    width: '80%',
+    maxWidth: 320,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  sortModalBlur: {
+    padding: 20,
+  },
+  sortModalTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 16,
+    textAlign: 'center',
   },
   sortOption: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
-    gap: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    marginBottom: 4,
   },
   sortOptionActive: {
-    backgroundColor: '#fff',
+    backgroundColor: 'rgba(255,255,255,0.15)',
   },
   sortOptionText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
+    color: '#aaa',
+    fontSize: 16,
   },
   sortOptionTextActive: {
-    color: '#000',
+    color: '#fff',
+    fontWeight: '600',
   },
   emptyContainer: {
     flex: 1,

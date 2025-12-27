@@ -47,7 +47,6 @@ type HeroCarouselItem = {
 function HeroCarousel({
   items,
   onSelect,
-  onPlay,
   onAdd,
   inWatchlist,
   watchlistLoading,
@@ -55,7 +54,6 @@ function HeroCarousel({
 }: {
   items: HeroCarouselItem[];
   onSelect: (item: HeroCarouselItem) => void;
-  onPlay: (item: HeroCarouselItem) => void;
   onAdd: (item: HeroCarouselItem) => void;
   inWatchlist: boolean;
   watchlistLoading: boolean;
@@ -79,10 +77,26 @@ function HeroCarousel({
   }, [data, loopingEnabled]);
 
   const [activeIndex, setActiveIndex] = useState(0);
-  const scrollX = useSharedValue(0);
-  const paginationProgress = useSharedValue(0);
+  const initialOffset = loopingEnabled ? interval : 0;
+  const scrollX = useSharedValue(initialOffset);
+  const paginationProgress = useSharedValue(loopingEnabled ? 0 : 0);
   const scrollViewRef = useRef<any>(null);
   const [flippedMap, setFlippedMap] = useState<Record<string, boolean>>({});
+  const hasInitialized = useRef(false);
+
+  // Reset initialization when data changes
+  React.useEffect(() => {
+    hasInitialized.current = false;
+  }, [data]);
+
+  // Handle ScrollView layout - set initial position
+  const handleScrollViewLayout = useCallback(() => {
+    if (!loopingEnabled || hasInitialized.current) return;
+    hasInitialized.current = true;
+    // Immediately scroll to correct position and sync scrollX
+    scrollViewRef.current?.scrollTo({ x: interval, y: 0, animated: false });
+    scrollX.value = interval;
+  }, [loopingEnabled, interval, scrollX]);
 
   const toggleFlipById = useCallback((id: string) => {
     setFlippedMap((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -147,13 +161,13 @@ function HeroCarousel({
           snapToInterval={interval}
           decelerationRate="fast"
           onScroll={scrollHandler}
-          scrollEventThrottle={32}
+          scrollEventThrottle={16}
           disableIntervalMomentum
           pagingEnabled={false}
           bounces={false}
           overScrollMode="never"
           onMomentumScrollEnd={handleMomentumEnd}
-          contentOffset={{ x: loopingEnabled ? interval : 0, y: 0 }}
+          onLayout={handleScrollViewLayout}
           contentContainerStyle={contentPadding}
         >
           {loopData.map((item, index) => {
@@ -174,7 +188,6 @@ function HeroCarousel({
               onToggleFlip={() => toggleFlipById(item.id)}
               onPress={() => onSelect(item)}
               showActions={logicalIndex === activeIndex}
-              onPlay={() => onPlay(item)}
               onAdd={() => onAdd(item)}
               inWatchlist={inWatchlist}
               watchlistLoading={watchlistLoading}
@@ -211,7 +224,6 @@ function CarouselCard({
   onToggleFlip,
   onPress,
   showActions,
-  onPlay,
   onAdd,
   inWatchlist,
   watchlistLoading,
@@ -227,7 +239,6 @@ function CarouselCard({
   onToggleFlip: () => void;
   onPress: () => void;
   showActions: boolean;
-  onPlay: () => void;
   onAdd: () => void;
   inWatchlist: boolean;
   watchlistLoading: boolean;
@@ -311,23 +322,6 @@ function CarouselCard({
                 </Animated.Text>
               </View>
             ) : null}
-            {showActions && (
-              <Animated.View style={[styles.actions, overlayAnimatedStyle]} pointerEvents="box-none">
-                <TouchableOpacity activeOpacity={0.85} onPress={onPlay} style={styles.actionPrimary}>
-                  <Ionicons name="play" size={18} color="#000" style={{ marginRight: 8 }} />
-                  <Text style={styles.actionPrimaryText}>Play</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  activeOpacity={0.85}
-                  onPress={onAdd}
-                  disabled={watchlistLoading}
-                  style={[styles.actionSecondary, watchlistLoading && { opacity: 0.6 }]}
-                >
-                  <Ionicons name={inWatchlist ? 'checkmark' : 'add'} size={18} color="#fff" style={{ marginRight: 8 }} />
-                  <Text style={styles.actionSecondaryText}>{inWatchlist ? 'In List' : 'My List'}</Text>
-                </TouchableOpacity>
-              </Animated.View>
-            )}
           </TouchableOpacity>
         </Animated.View>
 
@@ -365,15 +359,25 @@ function CarouselCard({
               </View>
             ) : null}
             <ScrollView style={{ maxHeight: 120 }} showsVerticalScrollIndicator={false}>
-              <Text style={styles.backDescription}>
+              <Text style={styles.backDescription} numberOfLines={2}>
                 {item.description || 'No description available'}
               </Text>
             </ScrollView>
           </View>
         </Animated.View>
 
-        <View style={styles.flipButtonContainer} pointerEvents="box-none">
-          <TouchableOpacity activeOpacity={0.8} onPress={onToggleFlip} style={styles.flipButton}>
+        <View style={styles.topButtonsContainer} pointerEvents="box-none">
+          {showActions && (
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={onAdd}
+              disabled={watchlistLoading}
+              style={[styles.topButton, watchlistLoading && { opacity: 0.6 }]}
+            >
+              <Ionicons name={inWatchlist ? 'checkmark' : 'add'} size={18} color="#fff" />
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity activeOpacity={0.8} onPress={onToggleFlip} style={styles.topButton}>
             <Ionicons name={flipped ? 'close' : 'information-outline'} size={18} color="#fff" />
           </TouchableOpacity>
         </View>
@@ -446,42 +450,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     textAlign: 'center',
   },
-  actions: {
-    position: 'absolute',
-    left: 16,
-    right: 16,
-    bottom: 18,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    justifyContent: 'center',
-  },
-  actionPrimary: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 18,
-  },
-  actionPrimaryText: {
-    color: '#000',
-    fontWeight: '800',
-    fontSize: 14,
-  },
-  actionSecondary: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(109,109,110,0.7)',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 18,
-  },
-  actionSecondaryText: {
-    color: '#fff',
-    fontWeight: '800',
-    fontSize: 14,
-  },
   flipFace: {
     ...StyleSheet.absoluteFillObject,
     backfaceVisibility: 'hidden',
@@ -519,13 +487,15 @@ const styles = StyleSheet.create({
     color: '#9ca3af',
     fontSize: 12,
   },
-  flipButtonContainer: {
+  topButtonsContainer: {
     position: 'absolute',
     top: 10,
     right: 10,
     zIndex: 10,
+    flexDirection: 'row',
+    gap: 8,
   },
-  flipButton: {
+  topButton: {
     width: 32,
     height: 32,
     borderRadius: 16,

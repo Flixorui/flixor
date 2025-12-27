@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { View, Text, ActivityIndicator, Animated, FlatList, Pressable, Dimensions, InteractionManager, AppState, Platform } from 'react-native';
 import FastImage from '@d11/react-native-fast-image';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Row from '../components/Row';
 import LazyRow from '../components/LazyRow';
@@ -33,6 +34,7 @@ import {
   getTmdbLogo,
   getTmdbTextlessPoster,
   getTmdbTextlessBackdrop,
+  getTmdbOverview,
   getUltraBlurColors,
   getUsername,
   RowItem,
@@ -52,7 +54,7 @@ interface HomeProps {
 // Persistent store for hero content (like NuvioStreaming)
 // Cached at module scope to persist across mounts and reduce re-fetches
 const persistentStore = {
-  heroCarouselData: null as Array<{ id: string; title: string; image?: string; mediaType?: 'movie' | 'tv'; logo?: string; backdrop?: string }> | null,
+  heroCarouselData: null as Array<{ id: string; title: string; image?: string; mediaType?: 'movie' | 'tv'; logo?: string; backdrop?: string; description?: string }> | null,
   popularOnPlexTmdb: null as RowItem[] | null,
   lastFetchTime: 0,
   CACHE_TTL: 5 * 60 * 1000, // 5 minutes
@@ -125,7 +127,7 @@ export default function Home({ onLogout }: HomeProps) {
       mediaType: item.mediaType,
     }));
   }, [popularOnPlexTmdb, trendingNow, trendingMovies, trendingAll]);
-  const [heroCarouselData, setHeroCarouselData] = useState<Array<{ id: string; title: string; image?: string; mediaType?: 'movie' | 'tv'; logo?: string; backdrop?: string }>>(
+  const [heroCarouselData, setHeroCarouselData] = useState<Array<{ id: string; title: string; image?: string; mediaType?: 'movie' | 'tv'; logo?: string; backdrop?: string; description?: string }>>(
     () => persistentStore.heroCarouselData || []
   );
   const [carouselIndex, setCarouselIndex] = useState(0);
@@ -183,7 +185,9 @@ export default function Home({ onLogout }: HomeProps) {
   // Set scrollY and showPills immediately on mount and when regaining focus
   React.useLayoutEffect(() => {
     if (isFocused) {
-      console.log('[Home] Setting scrollY and showPills for Home screen');
+      // Reset showPillsAnim to 1 (visible) when gaining focus
+      showPillsAnim.setValue(1);
+      scrollDirection.current = 'up';
       TopBarStore.setScrollY(y);
       TopBarStore.setShowPills(showPillsAnim);
     }
@@ -191,46 +195,34 @@ export default function Home({ onLogout }: HomeProps) {
 
   // Keep the selected tab stable across focus to avoid heavy re-render on return.
 
-  // Push top bar updates via effects
-  useEffect(() => {
+  // Push top bar updates synchronously before paint (useLayoutEffect)
+  React.useLayoutEffect(() => {
     if (!isFocused) return;
     if (!welcome) return;
 
-    const task = InteractionManager.runAfterInteractions(() => {
-      console.log('[Home] Updating TopBar handlers, tab:', tab);
-      TopBarStore.setState({
-        visible: true,
-        tabBarVisible: true,
-        showFilters: true,
-        username: welcome.replace('Welcome, ', ''),
-        selected: tab,
-        compact: false,
-        customFilters: undefined, // Reset from NewHot
-        activeGenre: undefined, // Reset from Library
-        onNavigateLibrary: (t) => {
-          console.log('[Home] Navigating to Library with tab:', t);
-          nav.navigate('Library', { tab: t === 'movies' ? 'movies' : 'tv' });
-        },
-        onClose: () => {
-          console.log('[Home] Close button clicked, resetting to all');
-          setTab('all');
-        },
-        onSearch: () => {
-          console.log('[Home] Opening search');
-          nav.navigate('Search');
-        },
-        onBrowse: () => {
-          console.log('[Home] Opening browse modal');
-          setBrowseModalVisible(true);
-        },
-        onClearGenre: undefined, // Reset handler from Library
-      });
+    TopBarStore.setState({
+      visible: true,
+      tabBarVisible: true,
+      showFilters: true,
+      username: welcome.replace('Welcome, ', ''),
+      selected: tab,
+      compact: false,
+      customFilters: undefined, // Reset from NewHot
+      activeGenre: undefined, // Reset from Library
+      onNavigateLibrary: (t) => {
+        nav.navigate('Library', { tab: t === 'movies' ? 'movies' : 'tv' });
+      },
+      onClose: () => {
+        setTab('all');
+      },
+      onSearch: () => {
+        nav.navigate('Search');
+      },
+      onBrowse: () => {
+        setBrowseModalVisible(true);
+      },
+      onClearGenre: undefined,
     });
-    return () => {
-      if ('cancel' in task) {
-        task.cancel();
-      }
-    };
   }, [welcome, tab, nav, isFocused]);
 
   // Helper function to pick hero
@@ -555,16 +547,18 @@ export default function Home({ onLogout }: HomeProps) {
           const parts = item.id.split(':');
           const tmdbId = Number(parts[2]);
           if (!tmdbId) return item;
-          const [poster, logo, backdrop] = await Promise.all([
+          const [poster, logo, backdrop, overview] = await Promise.all([
             getTmdbTextlessPoster(tmdbId, item.mediaType),
             getTmdbLogo(tmdbId, item.mediaType),
             getTmdbTextlessBackdrop(tmdbId, item.mediaType),
+            getTmdbOverview(tmdbId, item.mediaType),
           ]);
           return {
             ...item,
             image: poster || item.image,
             logo: logo || undefined,
             backdrop: backdrop || undefined,
+            description: overview || undefined,
           };
         })
       );
@@ -899,7 +893,7 @@ export default function Home({ onLogout }: HomeProps) {
                     lastScrollUpdateRef.current = now;
                     Animated.spring(showPillsAnim, {
                       toValue: 0,
-                      useNativeDriver: true,
+                      useNativeDriver: false, // Must be false for TopAppBar listener
                       tension: 60,
                       friction: 10,
                     }).start();
@@ -910,7 +904,7 @@ export default function Home({ onLogout }: HomeProps) {
                     lastScrollUpdateRef.current = now;
                     Animated.spring(showPillsAnim, {
                       toValue: 1,
-                      useNativeDriver: true,
+                      useNativeDriver: false, // Must be false for TopAppBar listener
                       tension: 60,
                       friction: 10,
                     }).start();
@@ -929,15 +923,6 @@ export default function Home({ onLogout }: HomeProps) {
               <HeroCarousel
                 items={heroCarouselData}
                 onSelect={(item) => {
-                  const ids = getRowWatchlistIds(item);
-                  if (!ids) return;
-                  nav.navigate('Details', {
-                    type: 'tmdb',
-                    id: String(ids.tmdbId),
-                    mediaType: ids.mediaType,
-                  });
-                }}
-                onPlay={(item) => {
                   const ids = getRowWatchlistIds(item);
                   if (!ids) return;
                   nav.navigate('Details', {
@@ -969,16 +954,6 @@ export default function Home({ onLogout }: HomeProps) {
               items={heroCarouselData}
               selectedIndex={appleTvIndex}
               onSelectIndex={setAppleTvIndex}
-              onPlay={() => {
-                const ids = appleItem ? getRowWatchlistIds(appleItem) : null;
-                if (ids) {
-                  nav.navigate('Details', {
-                    type: 'tmdb',
-                    id: String(ids.tmdbId),
-                    mediaType: ids.mediaType,
-                  });
-                }
-              }}
               onAdd={async () => {
                 const ids = appleItem ? getRowWatchlistIds(appleItem) : null;
                 if (!ids || appleWatchlistLoading) return;
@@ -1001,15 +976,6 @@ export default function Home({ onLogout }: HomeProps) {
                 hero={{ title: heroPick.title, subtitle: heroPick.subtitle, imageUri: heroPick.image, logoUri: heroLogo }}
                 inWatchlist={heroInWatchlist}
                 watchlistLoading={heroWatchlistLoading}
-                onPlay={() => {
-                  if (heroPick.tmdbId && heroPick.mediaType) {
-                    nav.navigate('Details', {
-                      type: 'tmdb',
-                      id: String(heroPick.tmdbId),
-                      mediaType: heroPick.mediaType,
-                    });
-                  }
-                }}
                 onAdd={async () => {
                   if (!heroPick.tmdbId || !heroPick.mediaType || heroWatchlistLoading) return;
                   setHeroWatchlistLoading(true);
@@ -1231,7 +1197,6 @@ function HeroAppleTV({
   items,
   selectedIndex,
   onSelectIndex,
-  onPlay,
   onAdd,
   inWatchlist,
   watchlistLoading,
@@ -1239,7 +1204,6 @@ function HeroAppleTV({
   items: Array<{ id: string; title: string; image?: string; mediaType?: 'movie' | 'tv'; logo?: string; backdrop?: string }>;
   selectedIndex: number;
   onSelectIndex: (index: number) => void;
-  onPlay: () => void;
   onAdd: () => void;
   inWatchlist: boolean;
   watchlistLoading: boolean;
@@ -1290,32 +1254,32 @@ function HeroAppleTV({
             </Text>
           )}
           {current.mediaType ? (
-            <Text style={{ color: '#d1d5db', fontSize: 13, marginBottom: 12 }}>
+            <Text style={{ color: '#d1d5db', fontSize: 13 }}>
               {current.mediaType === 'movie' ? 'Movie' : 'Series'}
             </Text>
           ) : null}
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            <Pressable
-              onPress={onPlay}
-              style={{ backgroundColor: '#fff', paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8 }}
-            >
-              <Text style={{ color: '#111', fontWeight: '800' }}>Play</Text>
-            </Pressable>
-            <Pressable
-              onPress={onAdd}
-              disabled={watchlistLoading}
-              style={{
-                backgroundColor: inWatchlist ? 'rgba(255,255,255,0.2)' : 'rgba(109,109,110,0.7)',
-                paddingVertical: 10,
-                paddingHorizontal: 16,
-                borderRadius: 8,
-                opacity: watchlistLoading ? 0.6 : 1,
-              }}
-            >
-              <Text style={{ color: '#fff', fontWeight: '800' }}>{inWatchlist ? 'In List' : 'My List'}</Text>
-            </Pressable>
-          </View>
         </View>
+        {/* List button - top right corner */}
+        <Pressable
+          onPress={onAdd}
+          disabled={watchlistLoading}
+          style={{
+            position: 'absolute',
+            top: 12,
+            right: 12,
+            width: 36,
+            height: 36,
+            borderRadius: 18,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderWidth: 1,
+            borderColor: 'rgba(255,255,255,0.2)',
+            opacity: watchlistLoading ? 0.6 : 1,
+          }}
+        >
+          <Ionicons name={inWatchlist ? 'checkmark' : 'add'} size={20} color="#fff" />
+        </Pressable>
       </View>
       <View style={{ marginTop: 14 }}>
         <FlatList

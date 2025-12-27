@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, ScrollView, TextInput, Pressable, StyleSheet, Switch } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import SettingsHeader from '../../components/settings/SettingsHeader';
 import SettingsCard from '../../components/settings/SettingsCard';
 import SettingItem from '../../components/settings/SettingItem';
@@ -17,6 +18,8 @@ const LANGUAGE_OPTIONS = [
 
 export default function TMDBSettings() {
   const nav: any = useNavigation();
+  const insets = useSafeAreaInsets();
+  const headerHeight = insets.top + 52;
   const { settings, updateSetting } = useAppSettings();
   const [apiKey, setApiKey] = useState(settings.tmdbApiKey || '');
   const hasKey = useMemo(() => apiKey.trim().length > 0, [apiKey]);
@@ -35,7 +38,7 @@ export default function TMDBSettings() {
   return (
     <View style={styles.container}>
       <SettingsHeader title="TMDB" onBack={() => nav.goBack()} />
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingTop: headerHeight }]}>
         <SettingsCard title="API KEY">
           <View style={styles.inputWrap}>
             <TextInput

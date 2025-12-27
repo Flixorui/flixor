@@ -17,6 +17,13 @@ import {
 
 type TabType = 'coming-soon' | 'everyones-watching' | 'top10-shows' | 'top10-movies';
 
+const TABS = [
+  { id: 'coming-soon' as const, label: '🎁 Coming Soon' },
+  { id: 'everyones-watching' as const, label: "🔥 Everyone's Watching" },
+  { id: 'top10-shows' as const, label: '🔝 Top 10 Shows' },
+  { id: 'top10-movies' as const, label: '🔝 Top 10 Movies' },
+];
+
 export default function NewHot() {
   const nav: any = useNavigation();
   const { isConnected } = useFlixor();
@@ -34,9 +41,10 @@ export default function NewHot() {
     }
   }, [isFocused, y]);
 
-  useEffect(() => {
+  // Push top bar updates synchronously before paint (useLayoutEffect)
+  React.useLayoutEffect(() => {
     if (!isFocused) return;
-    
+
     // Render tab pills inside TopAppBar
     const tabPills = (
       <ScrollView
@@ -45,7 +53,7 @@ export default function NewHot() {
         contentContainerStyle={{ paddingHorizontal: 16, alignItems: 'center'}}
         style={{ flexGrow: 0 }}
       >
-        {tabs.map((tab) => (
+        {TABS.map((tab) => (
           <TabPill
             key={tab.id}
             active={activeTab === tab.id}
@@ -55,26 +63,25 @@ export default function NewHot() {
         ))}
       </ScrollView>
     );
-    
-    TopBarStore.setVisible(true);
-    TopBarStore.setShowFilters(false); // No default pills
-    TopBarStore.setUsername('New & Hot');
-    TopBarStore.setSelected('all');
-    TopBarStore.setCompact(false); // Use compact mode for NewHot
-    TopBarStore.setCustomFilters(tabPills); // Pass custom tab pills
-    TopBarStore.setHandlers({ 
+
+    TopBarStore.setState({
+      visible: true,
+      tabBarVisible: true,
+      showFilters: false,
+      username: 'New & Hot',
+      selected: 'all',
+      compact: false,
+      customFilters: tabPills,
+      activeGenre: undefined,
       onNavigateLibrary: undefined,
       onClose: undefined,
-      onSearch: () => {
-        // Navigate to HomeTab first, then to Search
-        nav.navigate('HomeTab', { screen: 'Search' });
-      }
+      onSearch: () => nav.navigate('HomeTab', { screen: 'Search' }),
+      onBrowse: undefined,
+      onClearGenre: undefined,
     });
-    
-    // Cleanup when leaving screen
+
     return () => {
       TopBarStore.setCustomFilters(undefined);
-      TopBarStore.setCompact(false);
     };
   }, [isFocused, nav, activeTab]);
 
@@ -135,13 +142,6 @@ export default function NewHot() {
     );
   };
 
-  const tabs = [
-    { id: 'coming-soon' as const, label: '🎁 Coming Soon' },
-    { id: 'everyones-watching' as const, label: "🔥 Everyone's Watching" },
-    { id: 'top10-shows' as const, label: '🔝 Top 10 Shows' },
-    { id: 'top10-movies' as const, label: '🔝 Top 10 Movies' },
-  ];
-
   return (
     <View style={{ flex: 1, backgroundColor: '#0a0a0a' }}>
       {/* Gradients */}
@@ -183,6 +183,8 @@ export default function NewHot() {
                         source={{ uri: item.backdropImage }}
                         style={{ width: '100%', height: '100%' }}
                         contentFit="cover"
+                        cachePolicy="memory-disk"
+                        transition={200}
                       />
                     ) : (
                       <View style={{ width: '100%', height: '100%', backgroundColor: '#1a1a1a' }} />

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet, Linking } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import SettingsHeader from '../../components/settings/SettingsHeader';
 import SettingsCard from '../../components/settings/SettingsCard';
@@ -14,6 +15,8 @@ import {
 
 export default function TraktSettings() {
   const nav: any = useNavigation();
+  const insets = useSafeAreaInsets();
+  const headerHeight = insets.top + 52;
   const [profile, setProfile] = useState<any | null>(null);
   const [deviceCode, setDeviceCode] = useState<any | null>(null);
   const pollRef = useRef<any>(null);
@@ -55,7 +58,7 @@ export default function TraktSettings() {
   return (
     <View style={styles.container}>
       <SettingsHeader title="Trakt" onBack={() => nav.goBack()} />
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingTop: headerHeight }]}>
         <SettingsCard title="ACCOUNT">
           {profile ? (
             <View style={styles.statusRow}>

@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, Switch, Dimensions, Linking, Pressable } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, ScrollView, StyleSheet, Switch, Dimensions, Linking, Pressable, Animated } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFlixor } from '../core/FlixorContext';
 import {
   getTraktProfile,
@@ -49,6 +50,9 @@ interface SettingsProps {
 
 export default function Settings({ onBack }: SettingsProps) {
   const nav: any = useNavigation();
+  const insets = useSafeAreaInsets();
+  const headerHeight = insets.top + 52;
+  const scrollY = useRef(new Animated.Value(0)).current;
   const { isLoading: flixorLoading, isConnected } = useFlixor();
   const { settings, updateSetting } = useAppSettings();
   const [traktProfile, setTraktProfile] = useState<any | null>(null);
@@ -66,13 +70,8 @@ export default function Settings({ onBack }: SettingsProps) {
     })();
   }, [flixorLoading, isConnected]);
 
-  const goBack = useCallback(() => {
-    if (onBack) {
-      onBack();
-      return;
-    }
-    if (nav.canGoBack()) nav.goBack();
-  }, [nav, onBack]);
+  // Only create goBack if onBack was provided (from sub-screen navigation)
+  const goBack = onBack ? onBack : undefined;
 
   const renderRightChevron = useCallback(
     () => <Ionicons name="chevron-forward" size={18} color="#9ca3af" />,
@@ -283,8 +282,8 @@ export default function Settings({ onBack }: SettingsProps) {
   if (isTablet) {
     return (
       <View style={styles.container}>
-        <SettingsHeader title="Settings" onBack={goBack} />
-        <View style={styles.tabletLayout}>
+        <SettingsHeader title="Settings" onBack={goBack} scrollY={scrollY} />
+        <View style={[styles.tabletLayout, { paddingTop: headerHeight }]}>
           <View style={styles.sidebar}>
             {CATEGORIES.map((cat) => (
               <Pressable
@@ -311,9 +310,16 @@ export default function Settings({ onBack }: SettingsProps) {
               </Pressable>
             ))}
           </View>
-          <ScrollView contentContainerStyle={styles.tabletContent}>
+          <Animated.ScrollView
+            contentContainerStyle={styles.tabletContent}
+            onScroll={Animated.event(
+              [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+              { useNativeDriver: false }
+            )}
+            scrollEventThrottle={16}
+          >
             {renderCategory(selectedCategory)}
-          </ScrollView>
+          </Animated.ScrollView>
         </View>
       </View>
     );
@@ -321,15 +327,22 @@ export default function Settings({ onBack }: SettingsProps) {
 
   return (
     <View style={styles.container}>
-      <SettingsHeader title="Settings" onBack={goBack} />
-      <ScrollView contentContainerStyle={styles.content}>
+      <SettingsHeader title="Settings" onBack={goBack} scrollY={scrollY} />
+      <Animated.ScrollView
+        contentContainerStyle={[styles.content, { paddingTop: headerHeight + 12 }]}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: false }
+        )}
+        scrollEventThrottle={16}
+      >
         {renderAccount()}
         {renderContent()}
         {renderAppearance()}
         {renderIntegrations()}
         {renderPlayback()}
         {renderAbout()}
-      </ScrollView>
+      </Animated.ScrollView>
     </View>
   );
 }
