@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { View, Text, ActivityIndicator, Animated, FlatList, Pressable, Dimensions, InteractionManager, AppState, Platform } from 'react-native';
+import PullToRefresh from '../components/PullToRefresh';
 import FastImage from '@d11/react-native-fast-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -140,6 +141,9 @@ export default function Home({ onLogout }: HomeProps) {
   const [appleWatchlistLoading, setAppleWatchlistLoading] = useState(false);
   const appleItem = heroCarouselData[appleTvIndex] || heroCarouselItems[appleTvIndex] || null;
 
+  // Pull-to-refresh state
+  const [refreshing, setRefreshing] = useState(false);
+
   // Preload images for hero carousel (capped at 10 images like NuvioStreaming)
   const preloadImages = useCallback((items: Array<{ image?: string; backdrop?: string }>) => {
     const MAX_PRELOAD = 10;
@@ -158,6 +162,50 @@ export default function Home({ onLogout }: HomeProps) {
       console.log(`[Home] Preloaded ${sources.length} images (max ${MAX_PRELOAD})`);
     }
   }, []);
+
+  // Pull-to-refresh handler
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+
+    // Clear module-level persistent store
+    persistentStore.heroCarouselData = null;
+    persistentStore.popularOnPlexTmdb = null;
+    persistentStore.lastFetchTime = 0;
+
+    // Clear carousel color cache
+    carouselColorCache.current.clear();
+
+    // Invalidate API caches
+    if (flixor) {
+      await Promise.all([
+        flixor.clearPlexCache(),
+        flixor.clearTraktCache(),
+        flixor.clearTmdbCache(),
+      ]);
+    }
+
+    // Reset all row states
+    setContinueItems([]);
+    setRecent([]);
+    setPopularOnPlexTmdb([]);
+    setTrendingNow([]);
+    setTrendingMovies([]);
+    setTrendingAll([]);
+    setWatchlist([]);
+    setGenres({});
+    setTraktTrendMovies([]);
+    setTraktTrendShows([]);
+    setTraktPopularShows([]);
+    setTraktMyWatchlist([]);
+    setTraktHistory([]);
+    setTraktRecommendations([]);
+    setHeroCarouselData([]);
+
+    // Re-trigger data load by incrementing retryCount
+    setLoading(true);
+    setRetryCount(c => c + 1);
+    setRefreshing(false);
+  }, [flixor]);
 
   // Preload hero carousel images when data changes
   useEffect(() => {
@@ -881,6 +929,8 @@ export default function Home({ onLogout }: HomeProps) {
         style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
       />
 
+      <PullToRefresh scrollY={y} refreshing={refreshing} onRefresh={handleRefresh} />
+
       <Animated.ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingBottom: 24, paddingTop: barHeight }}
@@ -1205,6 +1255,16 @@ export default function Home({ onLogout }: HomeProps) {
           nav.navigate('Collections');
         }}
       />
+
+      {/* Custom refresh indicator above TopAppBar */}
+      {refreshing && (
+        <View style={{ position: 'absolute', top: barHeight + 10, left: 0, right: 0, alignItems: 'center', zIndex: 50 }}>
+          <View style={{ backgroundColor: 'rgba(0,0,0,0.7)', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, flexDirection: 'row', alignItems: 'center' }}>
+            <ActivityIndicator color="#fff" size="small" />
+            <Text style={{ color: '#fff', marginLeft: 8, fontSize: 13 }}>Refreshing...</Text>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
