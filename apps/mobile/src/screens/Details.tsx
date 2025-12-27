@@ -989,7 +989,7 @@ function SuggestedRows({ meta, routeParams }: { meta: any; routeParams?: any }) 
   if (loading) return <Text style={{ color:'#888', marginHorizontal:16 }}>Loading…</Text>;
   if (!recs.length && !similar.length) return <Text style={{ color:'#888', marginHorizontal:16 }}>No suggestions</Text>;
   return (
-    <View style={{ marginLeft: 12 }}>
+    <View>
       {recs.length > 0 && (
         <Row title="Recommended" items={recs}
           getImageUri={getUri} getTitle={getTitle}

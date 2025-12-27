@@ -759,7 +759,7 @@ export default function Home({ onLogout }: HomeProps) {
           )
         ) : null}
 
-        <View style={{ paddingHorizontal: 16, marginTop: 16 }}>
+        <View style={{ marginTop: 16 }}>
         {settings.showContinueWatchingRow && continueItems.length > 0 && (
             <Row
               title="Continue Watching"

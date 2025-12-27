@@ -265,7 +265,7 @@ export default function Search() {
 
                       {/* Additional Plex results as horizontal row */}
                       {plexResults.length > 4 ? (
-                        <View style={{ marginTop: 8, marginHorizontal: 16}}>
+                        <View style={{ marginTop: 8 }}>
                           <Row
                             title="More from Your Plex"
                             items={plexResults.slice(4).map(r => ({ id: r.id, title: r.title, image: r.image }))}
@@ -376,4 +376,3 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
 });
-
