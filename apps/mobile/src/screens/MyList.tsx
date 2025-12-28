@@ -4,11 +4,12 @@ import { IMAGE_PRELOAD_CAP, CACHE_TTL, isCacheValid } from '../core/PerformanceC
 import PullToRefresh from '../components/PullToRefresh';
 import FastImage from '@d11/react-native-fast-image';
 import { FlashList } from '@shopify/flash-list';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { TopBarStore, useTopBarStore } from '../components/TopBarStore';
+import { TopBarStore } from '../components/TopBarStore';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
-import { useNavigation, useIsFocused } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useFlixor } from '../core/FlixorContext';
 import {
   fetchMyList,
@@ -55,7 +56,7 @@ const persistentStore = {
 
 export default function MyList() {
   const nav: any = useNavigation();
-  const isFocused = useIsFocused();
+  const insets = useSafeAreaInsets();
   const { flixor, isLoading: flixorLoading, isConnected } = useFlixor();
   const { settings } = useAppSettings();
 
@@ -69,15 +70,9 @@ export default function MyList() {
   const [showSortModal, setShowSortModal] = useState(false);
 
   const y = useRef(new Animated.Value(0)).current;
-  const barHeight = useTopBarStore((s) => s.height || 90);
+  // Use stable local barHeight
+  const barHeight = insets.top + 100;
   const lastScrollY = useRef(0);
-
-  // Set scrollY on mount (no showPills needed - using customFilters)
-  React.useLayoutEffect(() => {
-    if (isFocused) {
-      TopBarStore.setScrollY(y);
-    }
-  }, [isFocused, y]);
 
   // Load items
   const loadItems = useCallback(async (showRefresh = false, forceRefetch = false) => {
@@ -136,12 +131,24 @@ export default function MyList() {
     loadItems();
   }, [flixorLoading, isConnected, loadItems]);
 
-  // Reload when screen comes into focus
-  useEffect(() => {
-    if (isFocused && !loading && !flixorLoading && isConnected) {
-      loadItems(true);
-    }
-  }, [isFocused]);
+  // Reload when screen comes into focus - but only if cache is stale
+  // Using useFocusEffect to avoid continuous re-renders from useIsFocused
+  useFocusEffect(
+    useCallback(() => {
+      if (loading || flixorLoading || !isConnected) return;
+
+      // Check if cache is still valid before reloading
+      const cacheValid = isCacheValid(persistentStore.lastFetchTime, CACHE_TTL.MY_LIST) &&
+        persistentStore.items &&
+        persistentStore.filter === filter &&
+        persistentStore.sort === sortOption.value;
+
+      if (!cacheValid) {
+        // Only reload if cache is stale or filters changed
+        loadItems(false); // Don't show refresh indicator for background reload
+      }
+    }, [loading, flixorLoading, isConnected, filter, sortOption.value, loadItems])
+  );
 
   // Pull-to-refresh handler
   const handleRefresh = useCallback(async () => {
@@ -208,39 +215,31 @@ export default function MyList() {
     setFilter(newFilter);
   }, []);
 
-  // Push top bar updates synchronously before paint (useLayoutEffect)
-  React.useLayoutEffect(() => {
-    if (!isFocused) return;
+  // Filter pills for TopAppBar customFilters
+  const filterPills = useMemo(() => (
+    <View style={{ flexDirection: 'row', paddingHorizontal: 16, alignItems: 'center' }}>
+      <FilterPill label="All" active={filter === 'all'} onPress={() => selectFilter('all')} />
+      <FilterPill label="Movies" active={filter === 'movies'} onPress={() => selectFilter('movies')} />
+      <FilterPill label="TV Shows" active={filter === 'shows'} onPress={() => selectFilter('shows')} />
+    </View>
+  ), [filter, selectFilter]);
 
-    // Create custom filter pills
-    const filterPills = (
-      <View style={{ flexDirection: 'row', paddingHorizontal: 16, alignItems: 'center' }}>
-        <FilterPill label="All" active={filter === 'all'} onPress={() => selectFilter('all')} />
-        <FilterPill label="Movies" active={filter === 'movies'} onPress={() => selectFilter('movies')} />
-        <FilterPill label="TV Shows" active={filter === 'shows'} onPress={() => selectFilter('shows')} />
-      </View>
-    );
-
-    TopBarStore.setState({
-      visible: true,
-      tabBarVisible: true,
-      showFilters: false,
-      username: 'My List',
-      selected: 'all',
-      compact: false,
-      customFilters: filterPills,
-      activeGenre: undefined,
-      onNavigateLibrary: undefined,
-      onClose: undefined,
-      onSearch: () => nav.navigate('HomeTab', { screen: 'Search' }),
-      onBrowse: undefined,
-      onClearGenre: undefined,
-    });
-
-    return () => {
-      TopBarStore.setCustomFilters(undefined);
-    };
-  }, [isFocused, nav, filter, selectFilter]);
+  // Update TopBarStore with MyList configuration when focused
+  useFocusEffect(
+    useCallback(() => {
+      TopBarStore.setState({
+        visible: true,
+        tabBarVisible: true,
+        showFilters: false,
+        compact: false,
+        customFilters: filterPills,
+        activeGenre: undefined,
+        onSearch: () => nav.navigate('HomeTab', { screen: 'Search' }),
+        onClearGenre: undefined,
+      });
+      TopBarStore.setScrollY(y);
+    }, [filterPills, nav, y])
+  );
 
   // Show loading while FlixorCore is initializing
   if (flixorLoading || !isConnected) {

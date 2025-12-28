@@ -1,5 +1,5 @@
-import React, { useEffect, useRef } from 'react';
-import { Animated, View, Text, StyleSheet, Easing } from 'react-native';
+import React from 'react';
+import { Animated, View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Feather from '@expo/vector-icons/Feather';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -29,54 +29,22 @@ function TopAppBar({ visible, username, showFilters, selected, onChange, onOpenC
   onClearGenre?: ()=>void;
 }) {
   const insets = useSafeAreaInsets();
-  const AnimatedBlurView: any = Animated.createAnimatedComponent(BlurView);
 
   // Compute heights - use smaller base height in compact mode
   const baseHeight = 44;
   const pillsHeight = 48;
-  // In compact mode (NewHot), always use collapsed height; in normal mode respect showFilters
+  // In compact mode, always use collapsed height; in normal mode respect showFilters/customFilters
   const collapsedHeight = insets.top + baseHeight + 4;
-  const expandedHeight = (insets.top + baseHeight + pillsHeight + 8);
+  const expandedHeight = insets.top + baseHeight + pillsHeight + 8;
 
-  // Animated height - interpolate from showPills (uses spring animation from screens)
-  const heightAnim = useRef(new Animated.Value(expandedHeight)).current;
-  
-  // When showPills changes, animate height smoothly (only in non-compact mode)
-  useEffect(() => {
-    if (customFilters) {
-      // When customFilters is present, always use expanded height
-      Animated.timing(heightAnim, {
-        toValue: expandedHeight,
-        duration: 0,
-        useNativeDriver: false,
-      }).start();
-    } else if (showPills && !compact) {
-      // Listen to showPills changes and animate height accordingly
-      const listener = showPills.addListener(({ value }) => {
-        const targetHeight = collapsedHeight + (value * (pillsHeight + 8));
-        Animated.timing(heightAnim, {
-          toValue: targetHeight,
-          duration: 0, // Instant follow, spring handles smoothness
-          useNativeDriver: false,
-        }).start();
-      });
-      return () => showPills.removeListener(listener);
-    } else if (compact) {
-      // In compact mode, set height to collapsed immediately
-      Animated.timing(heightAnim, {
-        toValue: collapsedHeight,
-        duration: 0,
-        useNativeDriver: false,
-      }).start();
-    }
-  }, [showPills, compact, customFilters, collapsedHeight, expandedHeight, pillsHeight]);
-
-  // Report height based on mode
-  useEffect(() => {
-    if (onHeightChange && visible) {
-      onHeightChange(compact ? collapsedHeight : expandedHeight);
-    }
-  }, [expandedHeight, collapsedHeight, visible, onHeightChange, compact]);
+  // For Home screen (showFilters + showPills), animate height based on pills visibility
+  // For other screens (customFilters or no filters), use fixed height
+  const animatedHeight = (showFilters && showPills)
+    ? showPills.interpolate({
+        inputRange: [0, 1],
+        outputRange: [collapsedHeight, expandedHeight],
+      })
+    : (showFilters || customFilters) ? expandedHeight : collapsedHeight;
 
   // Derive blur/tint from scrollY
   const blurIntensity = scrollY ? scrollY.interpolate({ inputRange:[0,120], outputRange:[0,90], extrapolate:'clamp' }) : new Animated.Value(0);
@@ -92,7 +60,7 @@ function TopAppBar({ visible, username, showFilters, selected, onChange, onOpenC
   return (
     <Animated.View
       pointerEvents={visible ? 'box-none' : 'none'}
-      style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20, height: heightAnim }}
+      style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20, height: animatedHeight, overflow: 'hidden' }}
     >
       {/* Full-bleed frosted background – always at max, controlled by container opacity */}
       <Animated.View style={[StyleSheet.absoluteFillObject, { opacity: scrollY ? scrollY.interpolate({ inputRange:[0,120], outputRange:[0,1], extrapolate:'clamp' }) : 0 }]}>
@@ -127,8 +95,8 @@ function TopAppBar({ visible, username, showFilters, selected, onChange, onOpenC
               {customFilters}
             </View>
           ) : showFilters ? (
-            <Animated.View style={{ 
-              opacity: pillsOpacity, 
+            <Animated.View style={{
+              opacity: pillsOpacity,
               transform: [{ translateY: pillsTranslateY }],
               overflow: 'hidden',
             }}>
@@ -138,9 +106,13 @@ function TopAppBar({ visible, username, showFilters, selected, onChange, onOpenC
                   // Always call onChange first to update state
                   onChange && onChange(t);
                   // Then navigate if it's a content pill (not 'all')
-                  // Use TopBarStore.navigateLibrary to get fresh handler from store
+                  // Use prop directly for local TopAppBar, fallback to store for global
                   if (t === 'movies' || t === 'shows') {
-                    TopBarStore.navigateLibrary(t);
+                    if (onNavigateLibrary) {
+                      onNavigateLibrary(t);
+                    } else {
+                      TopBarStore.navigateLibrary(t);
+                    }
                   }
                 }}
                 onOpenCategories={onOpenCategories}

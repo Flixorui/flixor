@@ -1,10 +1,14 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import TopAppBar from './TopAppBar';
 import { useTopBarStore, TopBarStore } from './TopBarStore';
 
-export default function GlobalTopAppBar() {
+type Props = {
+  screenContext?: 'HomeStack' | 'NewHot' | 'MyList';
+};
+
+export default function GlobalTopAppBar({ screenContext }: Props) {
   const visible = useTopBarStore((st) => st.visible === true);
-  const username = useTopBarStore((st) => st.username);
+  const baseUsername = useTopBarStore((st) => st.baseUsername);
   const showFilters = useTopBarStore((st) => st.showFilters === true);
   const selected = useTopBarStore((st) => st.selected);
   const onClose = useTopBarStore((st) => st.onClose);
@@ -15,15 +19,32 @@ export default function GlobalTopAppBar() {
   const compact = useTopBarStore((st) => st.compact === true);
   const customFilters = useTopBarStore((st) => st.customFilters);
   const activeGenre = useTopBarStore((st) => st.activeGenre);
-  
+
   // Read scrollY and showPills directly from store (don't cause re-renders)
   const scrollY = TopBarStore.getState().scrollY;
   const showPills = TopBarStore.getState().showPills;
-    
+
+  // Derive title INSTANTLY from screenContext - no useFocusEffect delay
+  // Return just the username - TopAppBar will add "For " prefix when compact=false
+  const displayTitle = useMemo(() => {
+    switch (screenContext) {
+      case 'NewHot':
+        return 'New & Hot'; // Will be displayed as-is because compact=true for NewHot
+      case 'MyList':
+        return baseUsername || 'You'; // Will become "For {username}"
+      case 'HomeStack':
+      default:
+        return baseUsername || 'You'; // Will become "For {username}"
+    }
+  }, [screenContext, baseUsername]);
+
+  // NewHot uses compact mode (no "For" prefix)
+  const isCompact = screenContext === 'NewHot' ? true : compact;
+
   return (
     <TopAppBar
       visible={visible}
-      username={username}
+      username={displayTitle}
       showFilters={showFilters}
       selected={selected}
       onChange={(t)=> TopBarStore.setSelected(t)}
@@ -33,7 +54,7 @@ export default function GlobalTopAppBar() {
       onSearch={onSearch}
       scrollY={scrollY}
       showPills={showPills}
-      compact={compact}
+      compact={isCompact}
       customFilters={customFilters}
       activeGenre={activeGenre}
       onClearGenre={onClearGenre}
