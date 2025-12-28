@@ -26,6 +26,34 @@ export default function ContinueWatchingSettings() {
     <View style={styles.container}>
       <SettingsHeader title="Continue Watching" onBack={() => nav.goBack()} />
       <ScrollView contentContainerStyle={[styles.content, { paddingTop: headerHeight }]}>
+        <SettingsCard title="LAYOUT">
+          <View style={styles.layoutGroup}>
+            <Text style={styles.layoutLabel}>Card Style</Text>
+            <View style={styles.layoutSegment}>
+              {[
+                { label: 'Landscape', value: 'landscape' },
+                { label: 'Poster', value: 'poster' },
+              ].map((option) => {
+                const selected = settings.continueWatchingLayout === option.value;
+                return (
+                  <Pressable
+                    key={option.value}
+                    style={[styles.layoutChip, selected && styles.layoutChipActive]}
+                    onPress={() => updateSetting('continueWatchingLayout', option.value as 'poster' | 'landscape')}
+                  >
+                    <Text style={[styles.layoutChipText, selected && styles.layoutChipTextActive]}>
+                      {option.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <Text style={styles.layoutDescription}>
+              Landscape shows large cards with progress bar. Poster shows traditional vertical cards.
+            </Text>
+          </View>
+        </SettingsCard>
+
         <SettingsCard title="PLAYBACK">
           <SettingItem
             title="Use Cached Streams"
@@ -121,5 +149,45 @@ const styles = StyleSheet.create({
     fontSize: 12,
     paddingHorizontal: 14,
     paddingBottom: 12,
+  },
+  layoutGroup: {
+    padding: 14,
+  },
+  layoutLabel: {
+    color: '#f9fafb',
+    fontSize: 15,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  layoutSegment: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  layoutChip: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    alignItems: 'center',
+  },
+  layoutChipActive: {
+    backgroundColor: 'rgba(229, 160, 13, 0.2)',
+    borderColor: '#e5a00d',
+  },
+  layoutChipText: {
+    color: '#9ca3af',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  layoutChipTextActive: {
+    color: '#fff',
+  },
+  layoutDescription: {
+    color: '#6b7280',
+    fontSize: 12,
+    marginTop: 12,
+    lineHeight: 16,
   },
 });

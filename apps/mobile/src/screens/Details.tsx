@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, ActivityIndicator, ScrollView, Pressable, Animated, PanResponder, Dimensions, StyleSheet, Linking, Alert, Easing, Image, FlatList } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Row from '../components/Row';
+import TrailersRow from '../components/TrailersRow';
 import { Ionicons } from '@expo/vector-icons';
 import Feather from '@expo/vector-icons/Feather';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -12,6 +13,8 @@ import { useNavigation } from '@react-navigation/native';
 import { TopBarStore } from '../components/TopBarStore';
 import { useFlixor } from '../core/FlixorContext';
 import { useAppSettings } from '../hooks/useAppSettings';
+import { useMDBListRatings } from '../hooks/useMDBListRatings';
+import { MDBListRatings } from '../core/MDBListService';
 import {
   fetchPlexMetadata,
   fetchPlexSeasons,
@@ -41,8 +44,7 @@ import {
   NextUpEpisode,
 } from '../core/DetailsData';
 
-let ExpoImage: any = null;
-try { ExpoImage = require('expo-image').Image; } catch {}
+import FastImage from '@d11/react-native-fast-image';
 
 type DetailsParams = {
   type: 'plex' | 'tmdb';
@@ -80,9 +82,28 @@ export default function Details({ route }: RouteParams) {
   const [watchlistLoading, setWatchlistLoading] = useState(false);
   const [watchlistIds, setWatchlistIds] = useState<WatchlistIds | null>(null);
   const [trailers, setTrailers] = useState<TrailerInfo[]>([]);
+  const [productionInfo, setProductionInfo] = useState<Array<{id: number; name: string; logo?: string}>>([]);
+  const [tmdbExtraInfo, setTmdbExtraInfo] = useState<{
+    runtime?: number;
+    status?: string;
+    tagline?: string;
+    budget?: number;
+    revenue?: number;
+    originalLanguage?: string;
+    spokenLanguages?: string[];
+    numberOfSeasons?: number;
+    numberOfEpisodes?: number;
+    creators?: string[];
+    releaseDate?: string;
+    firstAirDate?: string;
+    lastAirDate?: string;
+    voteAverage?: number;
+    voteCount?: number;
+  }>({});
   const [personModalVisible, setPersonModalVisible] = useState(false);
   const [selectedPersonId, setSelectedPersonId] = useState<number | null>(null);
   const [selectedPersonName, setSelectedPersonName] = useState<string>('');
+  const [imdbId, setImdbId] = useState<string | undefined>(undefined);
   const y = useRef(new Animated.Value(0)).current;
   const panY = useRef(new Animated.Value(0)).current;
   const appear = useRef(new Animated.Value(0)).current;
@@ -139,6 +160,12 @@ export default function Details({ route }: RouteParams) {
     })
   ).current;
 
+  // MDBList ratings hook - fetches from multiple sources (if enabled)
+  const mdblistRating = useMDBListRatings(
+    imdbId,
+    meta?.type === 'movie' ? 'movie' : 'show'
+  );
+
   useEffect(() => {
     Animated.timing(appear, { toValue: 1, duration: 200, useNativeDriver: true }).start();
     // Hide TopBar and TabBar when Details screen is shown
@@ -184,6 +211,39 @@ export default function Details({ route }: RouteParams) {
             } catch (e) {
               console.log('[Details] Error fetching TMDB credits for Plex content:', e);
             }
+
+            // Fetch production companies (movies) or networks (TV) and extra TMDB info
+            try {
+              const tmdbDet = await fetchTmdbDetails(mediaType, Number(tmdbId));
+              const prodData = mediaType === 'movie' ? tmdbDet?.production_companies : tmdbDet?.networks;
+              if (Array.isArray(prodData)) {
+                setProductionInfo(prodData.map((p: any) => ({
+                  id: p.id,
+                  name: p.name,
+                  logo: p.logo_path ? getTmdbImageUrl(p.logo_path, 'w185') : undefined,
+                })).filter((p: any) => p.name));
+              }
+              // Extract extra TMDB info
+              setTmdbExtraInfo({
+                runtime: tmdbDet?.runtime || tmdbDet?.episode_run_time?.[0],
+                status: tmdbDet?.status,
+                tagline: tmdbDet?.tagline,
+                budget: tmdbDet?.budget,
+                revenue: tmdbDet?.revenue,
+                originalLanguage: tmdbDet?.original_language,
+                spokenLanguages: tmdbDet?.spoken_languages?.map((l: any) => l.english_name || l.name),
+                numberOfSeasons: tmdbDet?.number_of_seasons,
+                numberOfEpisodes: tmdbDet?.number_of_episodes,
+                creators: tmdbDet?.created_by?.map((c: any) => c.name),
+                releaseDate: tmdbDet?.release_date,
+                firstAirDate: tmdbDet?.first_air_date,
+                lastAirDate: tmdbDet?.last_air_date,
+                voteAverage: tmdbDet?.vote_average,
+                voteCount: tmdbDet?.vote_count,
+              });
+            } catch (e) {
+              console.log('[Details] Error fetching production info:', e);
+            }
           }
 
           setMeta(next);
@@ -218,6 +278,7 @@ export default function Details({ route }: RouteParams) {
           // Setup watchlist IDs and check status
           const tmdbIdStr = extractTmdbIdFromGuids(m?.Guid || []);
           const imdbIdStr = extractImdbIdFromGuids(m?.Guid || []);
+          if (imdbIdStr) setImdbId(imdbIdStr);
           const ids: WatchlistIds = {
             tmdbId: tmdbIdStr ? Number(tmdbIdStr) : undefined,
             imdbId: imdbIdStr || undefined,
@@ -249,7 +310,7 @@ export default function Details({ route }: RouteParams) {
             setMatchedPlex(true);
             setMappedRk(String(mapped.ratingKey));
 
-            // Get TMDB logo and credits
+            // Get TMDB logo, credits, and production info
             const tmdbId = extractTmdbIdFromGuids(m?.Guid || []) || params.id;
             if (tmdbId) {
               const mediaType = m?.type === 'movie' ? 'movie' : 'tv';
@@ -263,6 +324,39 @@ export default function Details({ route }: RouteParams) {
                 setTmdbCrew(credits.crew.map((c: any) => ({ name: c.name, job: c.job })));
               } catch (e) {
                 console.log('[Details] Error fetching TMDB credits for mapped Plex:', e);
+              }
+
+              // Fetch production companies (movies) or networks (TV) and extra TMDB info
+              try {
+                const tmdbDet = await fetchTmdbDetails(mediaType, Number(tmdbId));
+                const prodData = mediaType === 'movie' ? tmdbDet?.production_companies : tmdbDet?.networks;
+                if (Array.isArray(prodData)) {
+                  setProductionInfo(prodData.map((p: any) => ({
+                    id: p.id,
+                    name: p.name,
+                    logo: p.logo_path ? getTmdbImageUrl(p.logo_path, 'w185') : undefined,
+                  })).filter((p: any) => p.name));
+                }
+                // Extract extra TMDB info
+                setTmdbExtraInfo({
+                  runtime: tmdbDet?.runtime || tmdbDet?.episode_run_time?.[0],
+                  status: tmdbDet?.status,
+                  tagline: tmdbDet?.tagline,
+                  budget: tmdbDet?.budget,
+                  revenue: tmdbDet?.revenue,
+                  originalLanguage: tmdbDet?.original_language,
+                  spokenLanguages: tmdbDet?.spoken_languages?.map((l: any) => l.english_name || l.name),
+                  numberOfSeasons: tmdbDet?.number_of_seasons,
+                  numberOfEpisodes: tmdbDet?.number_of_episodes,
+                  creators: tmdbDet?.created_by?.map((c: any) => c.name),
+                  releaseDate: tmdbDet?.release_date,
+                  firstAirDate: tmdbDet?.first_air_date,
+                  lastAirDate: tmdbDet?.last_air_date,
+                  voteAverage: tmdbDet?.vote_average,
+                  voteCount: tmdbDet?.vote_count,
+                });
+              } catch (e) {
+                console.log('[Details] Error fetching production info:', e);
               }
             }
 
@@ -285,6 +379,7 @@ export default function Details({ route }: RouteParams) {
             // Setup watchlist IDs and check status for Plex-mapped content
             const tmdbIdPlex = extractTmdbIdFromGuids(m?.Guid || []) || params.id;
             const imdbIdPlex = extractImdbIdFromGuids(m?.Guid || []);
+            if (imdbIdPlex) setImdbId(imdbIdPlex);
             const idsMapped: WatchlistIds = {
               tmdbId: tmdbIdPlex ? Number(tmdbIdPlex) : undefined,
               imdbId: imdbIdPlex || undefined,
@@ -321,6 +416,35 @@ export default function Details({ route }: RouteParams) {
             setTmdbCast(credits.cast.map((c: any) => ({ id: c.id, name: c.name, profile_path: c.profile_path })));
             setTmdbCrew(credits.crew.map((c: any) => ({ name: c.name, job: c.job })));
 
+            // Extract production companies (movies) or networks (TV) from already-fetched det
+            const prodData = params.mediaType === 'movie' ? det?.production_companies : det?.networks;
+            if (Array.isArray(prodData)) {
+              setProductionInfo(prodData.map((p: any) => ({
+                id: p.id,
+                name: p.name,
+                logo: p.logo_path ? getTmdbImageUrl(p.logo_path, 'w185') : undefined,
+              })).filter((p: any) => p.name));
+            }
+
+            // Extract extra TMDB info from already-fetched det
+            setTmdbExtraInfo({
+              runtime: det?.runtime || det?.episode_run_time?.[0],
+              status: det?.status,
+              tagline: det?.tagline,
+              budget: det?.budget,
+              revenue: det?.revenue,
+              originalLanguage: det?.original_language,
+              spokenLanguages: det?.spoken_languages?.map((l: any) => l.english_name || l.name),
+              numberOfSeasons: det?.number_of_seasons,
+              numberOfEpisodes: det?.number_of_episodes,
+              creators: det?.created_by?.map((c: any) => c.name),
+              releaseDate: det?.release_date,
+              firstAirDate: det?.first_air_date,
+              lastAirDate: det?.last_air_date,
+              voteAverage: det?.vote_average,
+              voteCount: det?.vote_count,
+            });
+
             // For TV shows, populate seasons + episodes
             if (params.mediaType === 'tv') {
               const ss = await fetchTmdbSeasonsList(Number(params.id));
@@ -342,6 +466,7 @@ export default function Details({ route }: RouteParams) {
                 ? await (await import('../core/DetailsData')).fetchTmdbDetails('movie', Number(params.id))
                 : await (await import('../core/DetailsData')).fetchTmdbDetails('tv', Number(params.id));
               imdbIdTmdb = details?.external_ids?.imdb_id || details?.imdb_id;
+              if (imdbIdTmdb) setImdbId(imdbIdTmdb);
             } catch {}
 
             const idsTmdb: WatchlistIds = {
@@ -488,8 +613,8 @@ export default function Details({ route }: RouteParams) {
           overflow: 'hidden',
         }}>
           <View style={{ width:'100%', aspectRatio: 16/9, backgroundColor:'#111' }}>
-            {backdrop() && ExpoImage ? (
-              <ExpoImage source={{ uri: backdrop() }} style={{ width:'100%', height:'100%' }} contentFit="cover" />
+            {backdrop() && FastImage ? (
+              <FastImage source={{ uri: backdrop() }} style={{ width:'100%', height:'100%' }} resizeMode="cover" />
             ) : null}
             {/* Top-right actions over image */}
             <View style={{ position:'absolute', right: 12, top: 12, flexDirection:'row' }}>
@@ -508,8 +633,8 @@ export default function Details({ route }: RouteParams) {
               style={{ position:'absolute', left:0, right:0, bottom:0, height:'55%' }}
             />
             {/* TMDB logo overlay (center) if available */}
-            {meta?.logoUrl && ExpoImage ? (
-              <ExpoImage source={{ uri: meta.logoUrl }} style={{ position:'absolute', bottom: 24, left:'10%', right:'10%', height: 48 }} contentFit="contain" />
+            {meta?.logoUrl && FastImage ? (
+              <FastImage source={{ uri: meta.logoUrl }} style={{ position:'absolute', bottom: 24, left:'10%', right:'10%', height: 48 }} resizeMode="contain" />
             ) : null}
           </View>
         </View>
@@ -647,6 +772,14 @@ export default function Details({ route }: RouteParams) {
           <Text style={{ color:'#ddd', marginHorizontal:16, marginTop:16, lineHeight:20 }}>{meta.summary}</Text>
         ) : null}
 
+        {/* Trailers & Videos Row */}
+        {trailers.length > 0 && (
+          <TrailersRow
+            trailers={trailers}
+            contentTitle={meta?.title}
+          />
+        )}
+
         {/* Tabs (TV shows include Episodes; Movies omit Episodes) */}
         <Tabs tab={tab} setTab={setTab} showEpisodes={meta?.type === 'show' && (seasons.length > 0)} />
 
@@ -691,6 +824,9 @@ export default function Details({ route }: RouteParams) {
               meta={meta}
               tmdbCast={tmdbCast}
               tmdbCrew={tmdbCrew}
+              productionInfo={productionInfo}
+              tmdbExtraInfo={tmdbExtraInfo}
+              mdblistRatings={mdblistRating.ratings}
               onPersonPress={(id, name) => {
                 setSelectedPersonId(id);
                 setSelectedPersonName(name);
@@ -846,8 +982,8 @@ function EpisodeList({ season, episodes, tmdbMode, tmdbId, loading }: { season: 
           borderColor: 'rgba(255,255,255,0.12)',
         }}
       >
-        {img && ExpoImage ? (
-          <ExpoImage source={{ uri: img }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+        {img && FastImage ? (
+          <FastImage source={{ uri: img }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
         ) : null}
         <LinearGradient
           colors={['rgba(0,0,0,0.05)', 'rgba(0,0,0,0.2)', 'rgba(0,0,0,0.6)', 'rgba(0,0,0,0.9)']}
@@ -932,8 +1068,8 @@ function EpisodeList({ season, episodes, tmdbMode, tmdbId, loading }: { season: 
               style={{ flexDirection: 'row', marginHorizontal: 16, marginBottom: 12 }}
             >
               <View style={{ width: 140, height: 78, borderRadius: 10, overflow: 'hidden', backgroundColor: '#222' }}>
-                {img && ExpoImage ? (
-                  <ExpoImage source={{ uri: img }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+                {img && FastImage ? (
+                  <FastImage source={{ uri: img }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                 ) : null}
                 {typeof progress === 'number' && progress > 0 ? (
                   <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 4, backgroundColor: '#ffffff33' }}>
@@ -1078,29 +1214,76 @@ const RATING_IMAGES = {
   tomatoRotten: require('../../assets/ratings/tomato-rotten.png'),
   popcornFull: require('../../assets/ratings/popcorn-full.png'),
   popcornFallen: require('../../assets/ratings/popcorn-fallen.png'),
+  metacritic: require('../../assets/ratings/metacritic.png'),
+  audienceScore: require('../../assets/ratings/audienscore.png'),
 };
 
-function RatingsRow({ meta }: { meta: any }) {
-  // Parse ratings from Plex metadata if available
-  const ratings: any[] = Array.isArray(meta?.Rating) ? meta.Rating : [];
-  let imdb: number | undefined;
-  let rtCritic: number | undefined;
-  let rtAudience: number | undefined;
+// SVG logo URLs for ratings (used with FastImage)
+const RATING_SVGS = {
+  tmdb: require('../../assets/ratings/tmdb.svg'),
+  trakt: require('../../assets/ratings/trakt.svg'),
+  letterboxd: require('../../assets/ratings/letterboxd.svg'),
+};
+
+/**
+ * RatingsRow - Displays ratings with priority: MDBList → Plex → TMDB
+ */
+function RatingsRow({ meta, tmdbRating, mdblistRatings }: {
+  meta: any;
+  tmdbRating?: number;
+  mdblistRatings?: MDBListRatings | null;
+}) {
+  // Parse ratings from Plex metadata
+  const plexRatings: any[] = Array.isArray(meta?.Rating) ? meta.Rating : [];
+  let plexImdb: number | undefined;
+  let plexRtCritic: number | undefined;
+  let plexRtAudience: number | undefined;
   try {
-    ratings.forEach((r:any) => {
+    plexRatings.forEach((r:any) => {
       const img = String(r?.image || '').toLowerCase();
       const val = typeof r?.value === 'number' ? r.value : Number(r?.value);
-      if (img.includes('imdb://image.rating')) imdb = val;
-      if (img.includes('rottentomatoes://image.rating.ripe') || img.includes('rottentomatoes://image.rating.rotten')) rtCritic = val ? Math.round(val * 10) : undefined;
-      if (img.includes('rottentomatoes://image.rating.upright') || img.includes('rottentomatoes://image.rating.spilled')) rtAudience = val ? Math.round(val * 10) : undefined;
+      if (img.includes('imdb://image.rating')) plexImdb = val;
+      if (img.includes('rottentomatoes://image.rating.ripe') || img.includes('rottentomatoes://image.rating.rotten')) plexRtCritic = val ? Math.round(val * 10) : undefined;
+      if (img.includes('rottentomatoes://image.rating.upright') || img.includes('rottentomatoes://image.rating.spilled')) plexRtAudience = val ? Math.round(val * 10) : undefined;
     });
   } catch {}
 
-  // Fallbacks from top-level fields if present
-  if (!imdb && typeof meta?.rating === 'number') imdb = meta.rating;
-  if (!rtAudience && typeof meta?.audienceRating === 'number') rtAudience = Math.round(meta.audienceRating * 10);
+  // Fallbacks from Plex top-level fields
+  if (!plexImdb && typeof meta?.rating === 'number') plexImdb = meta.rating;
+  if (!plexRtAudience && typeof meta?.audienceRating === 'number') plexRtAudience = Math.round(meta.audienceRating * 10);
 
-  if (!imdb && !rtCritic && !rtAudience) return null;
+  // Rating priority: MDBList → Plex → TMDB
+  // IMDb rating
+  let imdb: number | undefined;
+  if (mdblistRatings?.imdb) imdb = mdblistRatings.imdb;
+  else if (plexImdb) imdb = plexImdb;
+
+  // Rotten Tomatoes Critic
+  let rtCritic: number | undefined;
+  if (mdblistRatings?.tomatoes) rtCritic = mdblistRatings.tomatoes;
+  else if (plexRtCritic) rtCritic = plexRtCritic;
+
+  // Rotten Tomatoes Audience
+  let rtAudience: number | undefined;
+  if (mdblistRatings?.audience) rtAudience = mdblistRatings.audience;
+  else if (plexRtAudience) rtAudience = plexRtAudience;
+
+  // Metacritic - only from MDBList
+  let metacritic: number | undefined;
+  if (mdblistRatings?.metacritic) metacritic = mdblistRatings.metacritic;
+
+  // Trakt - only from MDBList
+  const trakt = mdblistRatings?.trakt;
+
+  // Letterboxd - only from MDBList
+  const letterboxd = mdblistRatings?.letterboxd;
+
+  // TMDB - MDBList → TMDB API (as ultimate fallback)
+  let tmdb: number | undefined;
+  if (mdblistRatings?.tmdb) tmdb = mdblistRatings.tmdb;
+  else if (tmdbRating && tmdbRating > 0) tmdb = tmdbRating;
+
+  if (!imdb && !rtCritic && !rtAudience && !tmdb && !metacritic && !trakt && !letterboxd) return null;
 
   // Determine which tomato/popcorn icon to use based on score
   // Fresh/Full >= 60%, Rotten/Fallen < 60%
@@ -1115,6 +1298,12 @@ function RatingsRow({ meta }: { meta: any }) {
           <Text style={{ color:'#fff', fontWeight:'700', marginLeft:6, fontSize: 14 }}>{imdb.toFixed(1)}</Text>
         </View>
       ) : null}
+      {typeof tmdb === 'number' ? (
+        <View style={{ flexDirection:'row', alignItems:'center' }}>
+          <Image source={RATING_SVGS.tmdb} style={{ width: 18, height: 18 }} resizeMode="contain" />
+          <Text style={{ color:'#fff', fontWeight:'700', marginLeft:6, fontSize: 14 }}>{tmdb.toFixed(1)}</Text>
+        </View>
+      ) : null}
       {typeof rtCritic === 'number' ? (
         <View style={{ flexDirection:'row', alignItems:'center' }}>
           <Image source={tomatoImage} style={{ width: 18, height: 18 }} resizeMode="contain" />
@@ -1125,6 +1314,24 @@ function RatingsRow({ meta }: { meta: any }) {
         <View style={{ flexDirection:'row', alignItems:'center' }}>
           <Image source={popcornImage} style={{ width: 18, height: 18 }} resizeMode="contain" />
           <Text style={{ color:'#fff', fontWeight:'700', marginLeft:6, fontSize: 14 }}>{rtAudience}%</Text>
+        </View>
+      ) : null}
+      {typeof metacritic === 'number' ? (
+        <View style={{ flexDirection:'row', alignItems:'center' }}>
+          <Image source={RATING_IMAGES.metacritic} style={{ width: 18, height: 18 }} resizeMode="contain" />
+          <Text style={{ color:'#fff', fontWeight:'700', marginLeft:6, fontSize: 14 }}>{metacritic}</Text>
+        </View>
+      ) : null}
+      {typeof trakt === 'number' ? (
+        <View style={{ flexDirection:'row', alignItems:'center' }}>
+          <Image source={RATING_SVGS.trakt} style={{ width: 18, height: 18 }} resizeMode="contain" />
+          <Text style={{ color:'#fff', fontWeight:'700', marginLeft:6, fontSize: 14 }}>{trakt.toFixed(0)}</Text>
+        </View>
+      ) : null}
+      {typeof letterboxd === 'number' ? (
+        <View style={{ flexDirection:'row', alignItems:'center' }}>
+          <Image source={RATING_SVGS.letterboxd} style={{ width: 18, height: 18 }} resizeMode="contain" />
+          <Text style={{ color:'#fff', fontWeight:'700', marginLeft:6, fontSize: 14 }}>{letterboxd.toFixed(1)}</Text>
         </View>
       ) : null}
     </View>
@@ -1183,7 +1390,7 @@ function CastScroller({ meta, tmdbCast, onPersonPress }: {
               disabled={!personId}
             >
               <View style={{ width:72, height:72, borderRadius:36, overflow:'hidden', backgroundColor:'#1a1a1a' }}>
-                {src && ExpoImage ? <ExpoImage source={{ uri: src }} style={{ width:'100%', height:'100%' }} contentFit="cover" /> : null}
+                {src && FastImage ? <FastImage source={{ uri: src }} style={{ width:'100%', height:'100%' }} resizeMode="cover" /> : null}
               </View>
               <Text style={{ color:'#eee', marginTop:6 }} numberOfLines={1}>{name}</Text>
             </Pressable>
@@ -1194,16 +1401,25 @@ function CastScroller({ meta, tmdbCast, onPersonPress }: {
   );
 }
 
-function CrewList({ meta, tmdbCrew }: { meta:any; tmdbCrew?: Array<{ name: string; job?: string }> }) {
+function CrewList({ meta, tmdbCrew, creators, isShow }: { meta:any; tmdbCrew?: Array<{ name: string; job?: string }>; creators?: string[]; isShow?: boolean }) {
   const directors: any[] = Array.isArray(meta?.Director) ? meta.Director : [];
   const writers: any[] = Array.isArray(meta?.Writer) ? meta.Writer : [];
   let dirNames: string[] = directors.map((d:any)=> d.tag || d.title);
   let writerNames: string[] = writers.map((w:any)=> w.tag || w.title);
   if (!dirNames.length && Array.isArray(tmdbCrew)) dirNames = tmdbCrew.filter(c=> /director/i.test(String(c.job||''))).map(c=> c.name);
   if (!writerNames.length && Array.isArray(tmdbCrew)) writerNames = tmdbCrew.filter(c=> /(writer|screenplay)/i.test(String(c.job||''))).map(c=> c.name);
-  if (!dirNames.length && !writerNames.length) return null;
+
+  const hasCreators = isShow && creators && creators.length > 0;
+  if (!dirNames.length && !writerNames.length && !hasCreators) return null;
+
   return (
     <View style={{ marginTop:4, paddingHorizontal:16 }}>
+      {hasCreators ? (
+        <View style={{ marginBottom:8 }}>
+          <Text style={{ color:'#aaa', marginBottom:6 }}>Created By</Text>
+          <Text style={{ color:'#eee' }}>{creators!.join(', ')}</Text>
+        </View>
+      ) : null}
       {dirNames.length ? (
         <View style={{ marginBottom:8 }}>
           <Text style={{ color:'#aaa', marginBottom:6 }}>Directors</Text>
@@ -1222,7 +1438,6 @@ function CrewList({ meta, tmdbCrew }: { meta:any; tmdbCrew?: Array<{ name: strin
 
 function TechSpecs({ meta }: { meta:any }) {
   const m = (meta?.Media || [])[0] || {};
-  if (!m) return null;
   const container = m?.container;
   const vCodec = m?.videoCodec || (m as any)?.videoCodecTag;
   const aCodec = m?.audioCodec;
@@ -1237,14 +1452,20 @@ function TechSpecs({ meta }: { meta:any }) {
     return 'HDR10';
   })();
 
+  // Don't render if no tech specs available
+  if (!res && !vCodec && !aCodec && !container && !bitrate && !hdr) return null;
+
   return (
-    <View style={{ marginTop:8 }}>
-      <KeyValue k="Resolution" v={res} />
-      <KeyValue k="Video" v={vCodec} />
-      <KeyValue k="Audio" v={aCodec} />
-      <KeyValue k="Container" v={container} />
-      <KeyValue k="Bitrate" v={bitrate} />
-      <KeyValue k="HDR" v={hdr} />
+    <View>
+      <SectionHeader title="Technical" />
+      <View style={{ marginTop:8 }}>
+        <KeyValue k="Resolution" v={res} />
+        <KeyValue k="Video" v={vCodec} />
+        <KeyValue k="Audio" v={aCodec} />
+        <KeyValue k="Container" v={container} />
+        <KeyValue k="Bitrate" v={bitrate} />
+        <KeyValue k="HDR" v={hdr} />
+      </View>
     </View>
   );
 }
@@ -1253,41 +1474,162 @@ function Collections({ meta }: { meta:any }) {
   const cols: any[] = Array.isArray(meta?.Collection) ? meta.Collection : [];
   if (!cols.length) return null;
   return (
-    <View style={{ flexDirection:'row', flexWrap:'wrap', paddingHorizontal:12, marginTop:8 }}>
-      {cols.map((c:any, idx:number) => (
-        <View key={idx} style={{ margin:4, paddingHorizontal:10, paddingVertical:6, borderRadius:999, backgroundColor:'#1a1b20', borderWidth:1, borderColor:'#2a2b30' }}>
-          <Text style={{ color:'#fff', fontWeight:'700' }}>{c.tag || c.title}</Text>
-        </View>
-      ))}
+    <View>
+      <SectionHeader title="Collections" />
+      <View style={{ flexDirection:'row', flexWrap:'wrap', paddingHorizontal:12, marginTop:8 }}>
+        {cols.map((c:any, idx:number) => (
+          <View key={idx} style={{ margin:4, paddingHorizontal:10, paddingVertical:6, borderRadius:999, backgroundColor:'#1a1b20', borderWidth:1, borderColor:'#2a2b30' }}>
+            <Text style={{ color:'#fff', fontWeight:'700' }}>{c.tag || c.title}</Text>
+          </View>
+        ))}
+      </View>
     </View>
   );
 }
 
-function DetailsTab({ meta, tmdbCast, tmdbCrew, onPersonPress }: {
+function ProductionRow({ items, isMovie }: { items: Array<{id: number; name: string; logo?: string}>; isMovie: boolean }) {
+  if (!items?.length) return null;
+
+  return (
+    <View>
+      <SectionHeader title={isMovie ? "Production" : "Network"} />
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ paddingHorizontal: 12, gap: 10, paddingTop: 8 }}
+      >
+        {items.slice(0, 6).map((item) => (
+          <View
+            key={String(item.id || item.name)}
+            style={{
+              paddingVertical: 10,
+              paddingHorizontal: 14,
+              backgroundColor: 'rgb(255, 255, 255)',
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: 'rgba(255,255,255,0.1)',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minHeight: 44,
+            }}
+          >
+            {item.logo && FastImage ? (
+              <FastImage
+                source={{ uri: item.logo }}
+                style={{ width: 64, height: 24 }}
+                resizeMode="contain"
+              />
+            ) : (
+              <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>{item.name}</Text>
+            )}
+          </View>
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
+// Helper functions for formatting
+function formatRuntime(minutes?: number): string | undefined {
+  if (!minutes) return undefined;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h > 0 && m > 0) return `${h}h ${m}m`;
+  if (h > 0) return `${h}h`;
+  return `${m}m`;
+}
+
+function formatCurrency(amount?: number): string | undefined {
+  if (!amount || amount === 0) return undefined;
+  if (amount >= 1_000_000_000) return `$${(amount / 1_000_000_000).toFixed(1)}B`;
+  if (amount >= 1_000_000) return `$${(amount / 1_000_000).toFixed(1)}M`;
+  if (amount >= 1_000) return `$${(amount / 1_000).toFixed(0)}K`;
+  return `$${amount}`;
+}
+
+function formatLanguage(code?: string): string | undefined {
+  if (!code) return undefined;
+  const languages: Record<string, string> = {
+    en: 'English', es: 'Spanish', fr: 'French', de: 'German', it: 'Italian',
+    pt: 'Portuguese', ja: 'Japanese', ko: 'Korean', zh: 'Chinese', hi: 'Hindi',
+    ar: 'Arabic', ru: 'Russian', nl: 'Dutch', sv: 'Swedish', pl: 'Polish',
+    tr: 'Turkish', th: 'Thai', vi: 'Vietnamese', id: 'Indonesian', no: 'Norwegian',
+    da: 'Danish', fi: 'Finnish', cs: 'Czech', el: 'Greek', he: 'Hebrew',
+  };
+  return languages[code] || code.toUpperCase();
+}
+
+function formatDate(dateStr?: string): string | undefined {
+  if (!dateStr) return undefined;
+  const date = new Date(dateStr);
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function DetailsTab({ meta, tmdbCast, tmdbCrew, productionInfo, tmdbExtraInfo, mdblistRatings, onPersonPress }: {
   meta: any;
   tmdbCast?: Array<{ id: number; name: string; profile_path?: string }>;
   tmdbCrew?: Array<{ name: string; job?: string }>;
+  productionInfo?: Array<{id: number; name: string; logo?: string}>;
+  tmdbExtraInfo?: {
+    runtime?: number;
+    status?: string;
+    tagline?: string;
+    budget?: number;
+    revenue?: number;
+    originalLanguage?: string;
+    spokenLanguages?: string[];
+    numberOfSeasons?: number;
+    numberOfEpisodes?: number;
+    creators?: string[];
+    releaseDate?: string;
+    firstAirDate?: string;
+    lastAirDate?: string;
+    voteAverage?: number;
+    voteCount?: number;
+  };
+  mdblistRatings?: MDBListRatings | null;
   onPersonPress?: (id: number, name: string) => void;
 }) {
   const guids: string[] = Array.isArray(meta?.Guid) ? meta.Guid.map((g:any)=> String(g.id||'')) : [];
   const imdbId = guids.find(x=> x.startsWith('imdb://'))?.split('://')[1];
   const tmdbId = guids.find(x=> x.includes('tmdb://') || x.includes('themoviedb://'))?.split('://')[1];
+  const isMovie = meta?.type === 'movie';
+  const isShow = meta?.type === 'show';
 
   return (
     <View>
+      {/* Tagline */}
+      {tmdbExtraInfo?.tagline ? (
+        <Text style={{ color:'rgba(255,255,255,0.7)', fontSize:15, fontStyle:'italic', marginHorizontal:16, marginTop:8, marginBottom:12 }}>
+          "{tmdbExtraInfo.tagline}"
+        </Text>
+      ) : null}
+
       <SectionHeader title="Cast" />
       <CastScroller meta={meta} tmdbCast={tmdbCast} onPersonPress={onPersonPress} />
 
       <SectionHeader title="Crew" />
-      <CrewList meta={meta} tmdbCrew={tmdbCrew} />
+      <CrewList meta={meta} tmdbCrew={tmdbCrew} creators={tmdbExtraInfo?.creators} isShow={isShow} />
 
-      <SectionHeader title="Technical" />
+      {productionInfo && productionInfo.length > 0 && (
+        <ProductionRow items={productionInfo} isMovie={isMovie} />
+      )}
+
       <TechSpecs meta={meta} />
 
-      <SectionHeader title="Collections" />
       <Collections meta={meta} />
 
       <SectionHeader title="Info" />
+      <KeyValue k="Runtime" v={formatRuntime(tmdbExtraInfo?.runtime) || (meta?.duration ? formatRuntime(Math.floor(meta.duration / 60000)) : undefined)} />
+      <KeyValue k="Status" v={tmdbExtraInfo?.status} />
+      {isMovie && <KeyValue k="Release Date" v={formatDate(tmdbExtraInfo?.releaseDate)} />}
+      {isShow && <KeyValue k="First Aired" v={formatDate(tmdbExtraInfo?.firstAirDate)} />}
+      {isShow && tmdbExtraInfo?.lastAirDate && tmdbExtraInfo?.status === 'Ended' && <KeyValue k="Last Aired" v={formatDate(tmdbExtraInfo?.lastAirDate)} />}
+      {isShow && <KeyValue k="Seasons" v={tmdbExtraInfo?.numberOfSeasons ? String(tmdbExtraInfo.numberOfSeasons) : undefined} />}
+      {isShow && <KeyValue k="Episodes" v={tmdbExtraInfo?.numberOfEpisodes ? String(tmdbExtraInfo.numberOfEpisodes) : undefined} />}
+      <KeyValue k="Original Language" v={formatLanguage(tmdbExtraInfo?.originalLanguage)} />
+      {isMovie && <KeyValue k="Budget" v={formatCurrency(tmdbExtraInfo?.budget)} />}
+      {isMovie && <KeyValue k="Revenue" v={formatCurrency(tmdbExtraInfo?.revenue)} />}
       <KeyValue k="Studio" v={meta?.studio} />
       <KeyValue k="Year" v={meta?.year ? String(meta.year) : undefined} />
       <KeyValue k="Content Rating" v={meta?.contentRating} />
@@ -1295,7 +1637,7 @@ function DetailsTab({ meta, tmdbCast, tmdbCrew, onPersonPress }: {
       <KeyValue k="TMDB" v={tmdbId ? `https://www.themoviedb.org/${meta?.type==='movie'?'movie':'tv'}/${tmdbId}` : undefined} />
 
       <SectionHeader title="Ratings" />
-      <RatingsRow meta={meta} />
+      <RatingsRow meta={meta} tmdbRating={tmdbExtraInfo?.voteAverage} mdblistRatings={mdblistRatings} />
       <View style={{ height:12 }} />
     </View>
   );

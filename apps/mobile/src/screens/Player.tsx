@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, StatusBar, Dimensions, Platform, NativeModules } from 'react-native';
 import { Video, ResizeMode, AVPlaybackStatus, Audio } from 'expo-av';
-import { Image as ExpoImage } from 'expo-image';
+import FastImage from '@d11/react-native-fast-image';
 import Slider from '@react-native-community/slider';
 import { useNavigation, StackActions } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -1495,10 +1495,14 @@ export default function Player({ route }: RouteParams) {
               >
                 <View style={styles.nextEpisodeThumbnail}>
                   {nextEpisode.thumb ? (
-                    <ExpoImage
-                      source={{ uri: getPlayerImageUrl(nextEpisode.thumb, 300) }}
+                    <FastImage
+                      source={{
+                        uri: getPlayerImageUrl(nextEpisode.thumb, 300),
+                        priority: FastImage.priority.high,
+                        cache: FastImage.cacheControl.immutable,
+                      }}
                       style={{ width: '100%', height: '100%', borderRadius: 4 }}
-                      contentFit="cover"
+                      resizeMode={FastImage.resizeMode.cover}
                     />
                   ) : (
                     <Ionicons name="play-circle" size={40} color="#fff" />

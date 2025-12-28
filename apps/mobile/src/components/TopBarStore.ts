@@ -87,7 +87,9 @@ export const TopBarStore = {
     if (changed) emit();
   },
   setHeight(h: number) { if (state.height !== h) { state.height = h; emit(); } },
-  navigateLibrary(tab: 'movies'|'shows') { state.onNavigateLibrary && state.onNavigateLibrary(tab); },
+  navigateLibrary(tab: 'movies'|'shows') {
+    state.onNavigateLibrary && state.onNavigateLibrary(tab);
+  },
 };
 
 export function useTopBarStore<T>(selector: (s: State) => T): T {

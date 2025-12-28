@@ -8,8 +8,9 @@ import {
   Dimensions,
   Animated,
   Platform,
+  InteractionManager,
 } from 'react-native';
-import { Image as ExpoImage } from 'expo-image';
+import FastImage from '@d11/react-native-fast-image';
 import { FlashList } from '@shopify/flash-list';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -23,6 +24,7 @@ import {
   CollectionItem,
   CollectionMediaItem,
 } from '../core/CollectionsData';
+import { IMAGE_PRELOAD_CAP, ITEM_LIMITS } from '../core/PerformanceConfig';
 
 type ViewMode = 'collections' | 'items';
 
@@ -55,11 +57,25 @@ export default function Collections() {
       try {
         const result = await fetchCollections(initialType);
         console.log('[Collections] Loaded', result.length, 'collections');
-        setCollections(result);
+        // Preload collection images for smoother scrolling
+        const preloadSize = Math.floor(Dimensions.get('window').width / 2);
+        const imagesToPreload = result
+          .slice(0, IMAGE_PRELOAD_CAP)
+          .filter((item) => item.thumb)
+          .map((item) => ({ uri: getCollectionImageUrl(item.thumb, preloadSize * 2) }));
+        if (imagesToPreload.length > 0) {
+          FastImage.preload(imagesToPreload);
+        }
+        // Use InteractionManager to defer state updates for smoother UI
+        InteractionManager.runAfterInteractions(() => {
+          setCollections(result);
+        });
       } catch (e: any) {
         setError(e?.message || 'Failed to load collections');
       } finally {
-        setLoading(false);
+        InteractionManager.runAfterInteractions(() => {
+          setLoading(false);
+        });
       }
     })();
   }, [flixorLoading, isConnected, initialType]);
@@ -75,15 +91,29 @@ export default function Collections() {
     try {
       const result = await fetchCollectionItems(collection.ratingKey, {
         offset: 0,
-        limit: 40,
+        limit: ITEM_LIMITS.GRID_PAGE,
       });
       console.log('[Collections] Loaded', result.items.length, 'items from collection');
-      setCollectionItems(result.items);
-      setHasMore(result.hasMore);
+      // Preload item images for smoother scrolling
+      const preloadSize = Math.floor(Dimensions.get('window').width / 3);
+      const imagesToPreload = result.items
+        .slice(0, IMAGE_PRELOAD_CAP)
+        .filter((item) => item.thumb)
+        .map((item) => ({ uri: getCollectionImageUrl(item.thumb, preloadSize * 2) }));
+      if (imagesToPreload.length > 0) {
+        FastImage.preload(imagesToPreload);
+      }
+      // Use InteractionManager to defer state updates for smoother UI
+      InteractionManager.runAfterInteractions(() => {
+        setCollectionItems(result.items);
+        setHasMore(result.hasMore);
+      });
     } catch (e: any) {
       setError(e?.message || 'Failed to load collection items');
     } finally {
-      setLoading(false);
+      InteractionManager.runAfterInteractions(() => {
+        setLoading(false);
+      });
     }
   };
 
@@ -97,12 +127,15 @@ export default function Collections() {
       const offset = (nextPage - 1) * 40;
       const result = await fetchCollectionItems(selectedCollection.ratingKey, {
         offset,
-        limit: 40,
+        limit: ITEM_LIMITS.GRID_PAGE,
       });
 
-      setCollectionItems((prev) => [...prev, ...result.items]);
-      setPage(nextPage);
-      setHasMore(result.hasMore);
+      // Use InteractionManager to defer state updates for smoother scrolling
+      InteractionManager.runAfterInteractions(() => {
+        setCollectionItems((prev) => [...prev, ...result.items]);
+        setPage(nextPage);
+        setHasMore(result.hasMore);
+      });
     } catch (e) {
       console.log('[Collections] loadMoreItems error:', e);
     }
@@ -286,10 +319,14 @@ function CollectionCard({
         }}
       >
         {img ? (
-          <ExpoImage
-            source={{ uri: img }}
+          <FastImage
+            source={{
+              uri: img,
+              priority: FastImage.priority.normal,
+              cache: FastImage.cacheControl.immutable,
+            }}
             style={{ width: '100%', height: '100%' }}
-            contentFit="cover"
+            resizeMode={FastImage.resizeMode.cover}
           />
         ) : (
           <View style={styles.placeholderContainer}>
@@ -337,10 +374,14 @@ function MediaCard({
         }}
       >
         {img ? (
-          <ExpoImage
-            source={{ uri: img }}
+          <FastImage
+            source={{
+              uri: img,
+              priority: FastImage.priority.normal,
+              cache: FastImage.cacheControl.immutable,
+            }}
             style={{ width: '100%', height: '100%' }}
-            contentFit="cover"
+            resizeMode={FastImage.resizeMode.cover}
           />
         ) : null}
       </View>

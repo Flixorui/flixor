@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { useTopBarStore } from './src/components/TopBarStore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { memoryManager } from './src/core/MemoryManager';
 
 // Native iOS bottom tabs for liquid glass effect
 let createNativeBottomTabNavigator: any = null;
@@ -44,6 +45,8 @@ import HomeScreenSettings from './src/screens/settings/HomeScreenSettings';
 import ContinueWatchingSettings from './src/screens/settings/ContinueWatchingSettings';
 import TMDBSettings from './src/screens/settings/TMDBSettings';
 import TraktSettings from './src/screens/settings/TraktSettings';
+import MDBListSettings from './src/screens/settings/MDBListSettings';
+import PlexSettings from './src/screens/settings/PlexSettings';
 import * as Haptics from 'expo-haptics';
 
 let GlassViewComp: any = null;
@@ -183,6 +186,10 @@ function AppContent() {
       <SettingsStack.Screen name="ContinueWatchingSettings" component={ContinueWatchingSettings} />
       <SettingsStack.Screen name="TMDBSettings" component={TMDBSettings} />
       <SettingsStack.Screen name="TraktSettings" component={TraktSettings} />
+      <SettingsStack.Screen name="MDBListSettings" component={MDBListSettings} />
+      <SettingsStack.Screen name="PlexSettings">
+        {(props) => <PlexSettings {...props} onLogout={handleLogout} />}
+      </SettingsStack.Screen>
     </SettingsStack.Navigator>
   );
 
@@ -318,6 +325,12 @@ function AppContent() {
 }
 
 export default function App() {
+  // Initialize memory manager on app start (clears image cache when app goes to background)
+  useEffect(() => {
+    memoryManager.initialize();
+    return () => memoryManager.cleanup();
+  }, []);
+
   return (
     <FlixorProvider>
       <AppContent />

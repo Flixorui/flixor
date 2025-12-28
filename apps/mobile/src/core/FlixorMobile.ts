@@ -73,6 +73,72 @@ export class FlixorMobile {
     return this.core.connectToPlexServer(server);
   }
 
+  /**
+   * Test if a server connection/endpoint is reachable
+   */
+  async testConnection(
+    connection: { uri: string; protocol?: string; local?: boolean; relay?: boolean },
+    accessToken: string
+  ): Promise<boolean> {
+    return this.core.plexAuth.testConnection(
+      {
+        uri: connection.uri,
+        protocol: connection.protocol || 'https',
+        local: connection.local ?? false,
+        relay: connection.relay ?? false,
+        IPv6: false,
+      },
+      accessToken
+    );
+  }
+
+  /**
+   * Connect to a server using a specific URI (custom endpoint)
+   */
+  async connectToServerWithUri(
+    server: Awaited<ReturnType<typeof this.getServers>>[0],
+    uri: string
+  ): Promise<void> {
+    // Create a custom connection object
+    const customConnection = {
+      uri,
+      protocol: uri.startsWith('https') ? 'https' : 'http',
+      local: false,
+      relay: false,
+      IPv6: false,
+    };
+
+    // Test the connection first
+    const isValid = await this.core.plexAuth.testConnection(customConnection, server.accessToken);
+    if (!isValid) {
+      throw new Error('Could not connect to this endpoint');
+    }
+
+    // Use internal core method to set up the connection
+    // We need to directly manipulate the core state
+    const PlexServerService = (await import('@flixor/core')).PlexServerService;
+
+    // Store state
+    (this.core as any).currentServer = server;
+    (this.core as any).currentConnection = customConnection;
+
+    // Initialize server service with custom URI
+    (this.core as any)._plexServer = new PlexServerService({
+      baseUrl: uri,
+      token: server.accessToken,
+      clientId: (this.core as any).config.clientId,
+      cache: (this.core as any).config.cache,
+    });
+
+    // Persist to secure storage
+    const plexToken = (this.core as any).plexToken;
+    await (this.core as any).config.secureStorage.set('plex_auth', {
+      token: plexToken,
+      server,
+      connection: customConnection,
+    });
+  }
+
   async getPlexUser() {
     if (!this.core.isPlexAuthenticated) return null;
     // User info is embedded in the token verification

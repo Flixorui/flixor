@@ -14,6 +14,10 @@ import { useAppSettings } from '../hooks/useAppSettings';
 import SettingsCard from '../components/settings/SettingsCard';
 import SettingItem from '../components/settings/SettingItem';
 import SettingsHeader from '../components/settings/SettingsHeader';
+import MDBListIcon from '../components/icons/MDBListIcon';
+import TMDBIcon from '../components/icons/TMDBIcon';
+import TraktIcon from '../components/icons/TraktIcon';
+import PlexIcon from '../components/icons/PlexIcon';
 
 const { width } = Dimensions.get('window');
 const isTablet = width >= 768;
@@ -93,15 +97,9 @@ export default function Settings({ onBack }: SettingsProps) {
       <SettingItem
         title="Plex"
         description={plexDescription}
-        icon="tv-outline"
-        isLast={false}
-      />
-      <SettingItem
-        title="Trakt"
-        description={traktDescription}
-        icon="layers-outline"
+        renderIcon={() => <PlexIcon size={18} color="#e5e7eb" />}
         renderRight={renderRightChevron}
-        onPress={() => nav.navigate('TraktSettings')}
+        onPress={() => nav.navigate('PlexSettings')}
         isLast={true}
       />
     </SettingsCard>
@@ -171,10 +169,26 @@ export default function Settings({ onBack }: SettingsProps) {
     <SettingsCard title="INTEGRATIONS">
       <SettingItem
         title="TMDB"
-        description="Metadata and language preferences"
-        icon="film-outline"
+        description="Metadata and language (always enabled)"
+        renderIcon={() => <TMDBIcon size={18} color="#e5e7eb" />}
         renderRight={renderRightChevron}
         onPress={() => nav.navigate('TMDBSettings')}
+        isLast={false}
+      />
+      <SettingItem
+        title="MDBList (Multi-source)"
+        description={settings.mdblistEnabled ? 'Enabled' : 'Disabled'}
+        renderIcon={() => <MDBListIcon size={18} color="#e5e7eb" />}
+        renderRight={renderRightChevron}
+        onPress={() => nav.navigate('MDBListSettings')}
+        isLast={false}
+      />
+      <SettingItem
+        title="Trakt"
+        description={traktProfile ? `@${traktProfile?.username || traktProfile?.ids?.slug}` : 'Sign in to sync'}
+        renderIcon={() => <TraktIcon size={18} color="#e5e7eb" />}
+        renderRight={renderRightChevron}
+        onPress={() => nav.navigate('TraktSettings')}
         isLast={true}
       />
     </SettingsCard>

@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
-import { View, Text, ActivityIndicator, Pressable, StyleSheet, Dimensions, Animated, Alert, Modal, Platform } from 'react-native';
+import { View, Text, ActivityIndicator, Pressable, StyleSheet, Dimensions, Animated, Alert, Modal, Platform, InteractionManager } from 'react-native';
+import { IMAGE_PRELOAD_CAP, CACHE_TTL, isCacheValid } from '../core/PerformanceConfig';
 import PullToRefresh from '../components/PullToRefresh';
-import { Image as ExpoImage } from 'expo-image';
+import FastImage from '@d11/react-native-fast-image';
 import { FlashList } from '@shopify/flash-list';
 import { Ionicons } from '@expo/vector-icons';
 import { TopBarStore, useTopBarStore } from '../components/TopBarStore';
@@ -19,6 +20,7 @@ import {
   SortOption,
   FilterOption,
 } from '../core/MyListData';
+import { useAppSettings } from '../hooks/useAppSettings';
 import * as Haptics from 'expo-haptics';
 
 // Conditionally import GlassView for iOS 26+ liquid glass effect
@@ -43,13 +45,23 @@ const SORT_OPTIONS: Array<{ value: SortOption; label: string }> = [
   { value: 'year', label: 'Year' },
 ];
 
+// Persistent store for caching watchlist across mounts (like NuvioStreaming)
+const persistentStore = {
+  items: null as MyListItem[] | null,
+  lastFetchTime: 0,
+  filter: 'all' as FilterOption,
+  sort: 'added' as SortOption,
+};
+
 export default function MyList() {
   const nav: any = useNavigation();
   const isFocused = useIsFocused();
   const { flixor, isLoading: flixorLoading, isConnected } = useFlixor();
+  const { settings } = useAppSettings();
 
-  const [items, setItems] = useState<MyListItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Initialize from persistent store for instant render
+  const [items, setItems] = useState<MyListItem[]>(() => persistentStore.items || []);
+  const [loading, setLoading] = useState(!persistentStore.items);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterOption>('all');
@@ -68,19 +80,54 @@ export default function MyList() {
   }, [isFocused, y]);
 
   // Load items
-  const loadItems = useCallback(async (showRefresh = false) => {
+  const loadItems = useCallback(async (showRefresh = false, forceRefetch = false) => {
+    // Check if cache is still valid and filters haven't changed
+    const cacheValid = !forceRefetch &&
+      isCacheValid(persistentStore.lastFetchTime, CACHE_TTL.MY_LIST) &&
+      persistentStore.items &&
+      persistentStore.filter === filter &&
+      persistentStore.sort === sortOption.value;
+
+    if (cacheValid && !showRefresh) {
+      // Use cached data
+      setItems(persistentStore.items!);
+      setLoading(false);
+      return;
+    }
+
     if (showRefresh) setRefreshing(true);
-    else setLoading(true);
+    else if (!persistentStore.items) setLoading(true);
     setError(null);
 
     try {
       const result = await fetchMyList({ filter, sort: sortOption.value, sortDirection: 'desc' });
-      setItems(result);
+
+      // Update persistent store
+      persistentStore.items = result;
+      persistentStore.lastFetchTime = Date.now();
+      persistentStore.filter = filter;
+      persistentStore.sort = sortOption.value;
+
+      // Preload images for smoother scrolling
+      const preloadSize = Math.floor(Dimensions.get('window').width / 3);
+      const imagesToPreload = result
+        .slice(0, IMAGE_PRELOAD_CAP)
+        .filter((item) => item.poster || item.tmdbId)
+        .map((item) => ({ uri: getMyListPosterUrl(item, preloadSize * 2) }));
+      if (imagesToPreload.length > 0) {
+        FastImage.preload(imagesToPreload);
+      }
+      // Use InteractionManager to defer state updates for smoother UI
+      InteractionManager.runAfterInteractions(() => {
+        setItems(result);
+      });
     } catch (e: any) {
       setError(e?.message || 'Failed to load watchlist');
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      InteractionManager.runAfterInteractions(() => {
+        setLoading(false);
+        setRefreshing(false);
+      });
     }
   }, [filter, sortOption]);
 
@@ -268,6 +315,7 @@ export default function MyList() {
               size={itemSize}
               onPress={() => handleItemPress(item)}
               onLongPress={() => handleRemove(item)}
+              showTitles={settings.showPosterTitles}
             />
           )}
           estimatedItemSize={itemSize + 28}
@@ -380,11 +428,13 @@ function Card({
   size,
   onPress,
   onLongPress,
+  showTitles,
 }: {
   item: MyListItem;
   size: number;
   onPress?: () => void;
   onLongPress?: () => void;
+  showTitles: boolean;
 }) {
   const [posterUrl, setPosterUrl] = useState<string>('');
 
@@ -423,12 +473,14 @@ function Card({
     <Pressable onPress={onPress} onLongPress={onLongPress} style={{ width: size, margin: 4 }}>
       <View style={[styles.cardImage, { width: size, height: Math.round(size * 1.5) }]}>
         {posterUrl ? (
-          <ExpoImage
-            source={{ uri: posterUrl }}
+          <FastImage
+            source={{
+              uri: posterUrl,
+              priority: FastImage.priority.normal,
+              cache: FastImage.cacheControl.immutable,
+            }}
             style={{ width: '100%', height: '100%' }}
-            contentFit="cover"
-            cachePolicy="memory-disk"
-            transition={200}
+            resizeMode={FastImage.resizeMode.cover}
           />
         ) : (
           <View style={styles.placeholderImage}>
@@ -444,10 +496,14 @@ function Card({
           </View>
         )}
       </View>
-      <Text numberOfLines={1} style={styles.cardTitle}>
-        {item.title}
-      </Text>
-      {item.year ? <Text style={styles.cardYear}>{item.year}</Text> : null}
+      {showTitles && (
+        <>
+          <Text numberOfLines={1} style={styles.cardTitle}>
+            {item.title}
+          </Text>
+          {item.year ? <Text style={styles.cardYear}>{item.year}</Text> : null}
+        </>
+      )}
     </Pressable>
   );
 }

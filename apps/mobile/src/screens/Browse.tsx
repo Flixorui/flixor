@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,16 +9,18 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Image as ExpoImage } from 'expo-image';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import FastImage from '@d11/react-native-fast-image';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import type { BrowseContext, BrowseItem } from '@flixor/core';
 import { fetchBrowseItems } from '../core/BrowseData';
 import { TopBarStore } from '../components/TopBarStore';
+import { useAppSettings } from '../hooks/useAppSettings';
 
-const BLURHASH_PLACEHOLDER = 'L6PZfSi_.AyE_3t7t7R**0o#DgR4';
+// Preload cap for pagination
+const IMAGE_PRELOAD_CAP = 12;
 
 type BrowseParams = {
   context: BrowseContext;
@@ -33,6 +35,8 @@ export default function Browse() {
   const route = useRoute<BrowseRouteProp>();
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
+  const { settings } = useAppSettings();
+  const isMounted = useRef(true);
 
   const { context, title, initialItems = [] } = route.params || {};
 
@@ -42,6 +46,17 @@ export default function Browse() {
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(1);
 
+  // Preload images for better UX
+  const preloadImages = useCallback((itemsToPreload: BrowseItem[]) => {
+    const images = itemsToPreload
+      .slice(0, IMAGE_PRELOAD_CAP)
+      .filter(item => item.image)
+      .map(item => ({ uri: item.image! }));
+    if (images.length > 0) {
+      FastImage.preload(images);
+    }
+  }, []);
+
   // Calculate grid item size (3 columns with gap)
   const horizontalPadding = 16;
   const gap = 12;
@@ -49,11 +64,19 @@ export default function Browse() {
   const itemWidth = (screenWidth - horizontalPadding * 2 - gap * (numColumns - 1)) / numColumns;
   const itemHeight = itemWidth * 1.5; // 2:3 aspect ratio
 
-  // Hide top bar when this screen is focused
+  // Hide top bar when this screen is focused + cleanup
   useEffect(() => {
+    isMounted.current = true;
     TopBarStore.setVisible(false);
     TopBarStore.setTabBarVisible(false);
+
+    // Preload initial items if provided
+    if (initialItems.length > 0) {
+      preloadImages(initialItems);
+    }
+
     return () => {
+      isMounted.current = false;
       TopBarStore.setVisible(true);
       TopBarStore.setTabBarVisible(true);
     };
@@ -71,13 +94,16 @@ export default function Browse() {
     setLoading(true);
     try {
       const result = await fetchBrowseItems(context, 1);
+      if (!isMounted.current) return;
       setItems(result.items);
       setHasMore(result.hasMore);
       setPage(1);
+      // Preload images for initial load
+      preloadImages(result.items);
     } catch (e) {
       console.log('[Browse] Error loading items:', e);
     } finally {
-      setLoading(false);
+      if (isMounted.current) setLoading(false);
     }
   };
 
@@ -87,13 +113,16 @@ export default function Browse() {
     try {
       const nextPage = page + 1;
       const result = await fetchBrowseItems(context, nextPage);
+      if (!isMounted.current) return;
       setItems(prev => [...prev, ...result.items]);
       setHasMore(result.hasMore);
       setPage(nextPage);
+      // Preload new page images
+      preloadImages(result.items);
     } catch (e) {
       console.log('[Browse] Error loading more:', e);
     } finally {
-      setLoadingMore(false);
+      if (isMounted.current) setLoadingMore(false);
     }
   };
 
@@ -121,13 +150,14 @@ export default function Browse() {
     >
       <View style={[styles.posterContainer, { width: itemWidth, height: itemHeight }]}>
         {item.image ? (
-          <ExpoImage
-            source={{ uri: item.image }}
-            placeholder={{ blurhash: BLURHASH_PLACEHOLDER }}
+          <FastImage
+            source={{
+              uri: item.image,
+              priority: FastImage.priority.normal,
+              cache: FastImage.cacheControl.immutable,
+            }}
             style={styles.poster}
-            contentFit="cover"
-            transition={200}
-            cachePolicy="memory-disk"
+            resizeMode={FastImage.resizeMode.cover}
           />
         ) : (
           <View style={styles.noImage}>
@@ -135,8 +165,16 @@ export default function Browse() {
           </View>
         )}
       </View>
-      <Text style={styles.itemTitle} numberOfLines={2}>{item.title}</Text>
-      {item.year && <Text style={styles.itemYear}>{item.year}</Text>}
+      {settings.showPosterTitles && (
+        <>
+          <Text style={styles.itemTitle} numberOfLines={2}>{item.title}</Text>
+          {item.subtitle ? (
+            <Text style={styles.itemYear}>{item.subtitle}</Text>
+          ) : item.year ? (
+            <Text style={styles.itemYear}>{item.year}</Text>
+          ) : null}
+        </>
+      )}
     </Pressable>
   );
 

@@ -7,6 +7,7 @@ import { BlurView } from 'expo-blur';
 import { Pressable } from 'react-native';
 import Pills from './Pills';
 import { LinearGradient } from 'expo-linear-gradient';
+import { TopBarStore } from './TopBarStore';
 
 function TopAppBar({ visible, username, showFilters, selected, onChange, onOpenCategories, onNavigateLibrary, onClose, onSearch, scrollY, onHeightChange, showPills, compact, customFilters, activeGenre, onClearGenre }: {
   visible: boolean;
@@ -134,13 +135,12 @@ function TopAppBar({ visible, username, showFilters, selected, onChange, onOpenC
               <Pills
                 selected={selected || 'all'}
                 onChange={(t)=> {
-                  console.log('[TopAppBar] Pill onChange:', t, 'current selected:', selected);
                   // Always call onChange first to update state
                   onChange && onChange(t);
                   // Then navigate if it's a content pill (not 'all')
-                  if ((t === 'movies' || t === 'shows') && onNavigateLibrary) {
-                    console.log('[TopAppBar] Calling onNavigateLibrary with:', t);
-                    onNavigateLibrary(t);
+                  // Use TopBarStore.navigateLibrary to get fresh handler from store
+                  if (t === 'movies' || t === 'shows') {
+                    TopBarStore.navigateLibrary(t);
                   }
                 }}
                 onOpenCategories={onOpenCategories}

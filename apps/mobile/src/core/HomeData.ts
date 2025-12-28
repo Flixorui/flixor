@@ -545,6 +545,76 @@ export async function getTmdbTextlessBackdrop(
 }
 
 /**
+ * Fetch backdrop with title from TMDB
+ * Priority:
+ * 1. iso_639_1 = 'en' (English title burned in)
+ * 2. Highest rated backdrop with iso_639_1 != null (any language with title)
+ * 3. Fallback to iso_639_1 = null (textless) if no titled backdrops available
+ */
+export async function getTmdbBackdropWithTitle(
+  tmdbId: number,
+  mediaType: 'movie' | 'tv'
+): Promise<string | undefined> {
+  try {
+    const core = getFlixorCore();
+    const images =
+      mediaType === 'movie'
+        ? await core.tmdb.getMovieImages(tmdbId)
+        : await core.tmdb.getTVImages(tmdbId);
+
+    const backdrops = images.backdrops || [];
+    let backdrop: any = null;
+
+    // 1. Prefer English backdrop (has title text burned in)
+    backdrop = backdrops.find((b: any) => b.iso_639_1 === 'en');
+
+    // 2. If no English, get highest rated backdrop with any language (iso_639_1 != null)
+    if (!backdrop) {
+      const withLanguage = backdrops
+        .filter((b: any) => b.iso_639_1 != null)
+        .sort((a: any, b: any) => (b.vote_average || 0) - (a.vote_average || 0));
+      backdrop = withLanguage[0];
+    }
+
+    // 3. Fallback to textless (iso_639_1 = null) - highest rated
+    if (!backdrop) {
+      const textless = backdrops
+        .filter((b: any) => b.iso_639_1 == null)
+        .sort((a: any, b: any) => (b.vote_average || 0) - (a.vote_average || 0));
+      backdrop = textless[0];
+    }
+
+    if (backdrop?.file_path) {
+      return core.tmdb.getBackdropUrl(backdrop.file_path, 'w780');
+    }
+    return undefined;
+  } catch (e) {
+    return undefined;
+  }
+}
+
+/**
+ * Get show's TMDB ID from its rating key (for episodes that need parent show ID)
+ */
+export async function getShowTmdbId(showRatingKey: string): Promise<string | null> {
+  try {
+    const core = getFlixorCore();
+    const showMeta = await core.plexServer.getMetadata(showRatingKey, true);
+    if (!showMeta?.Guid) return null;
+
+    for (const g of showMeta.Guid) {
+      const id = String(g.id || '');
+      if (id.includes('tmdb://') || id.includes('themoviedb://')) {
+        return id.split('://')[1];
+      }
+    }
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
  * Get TMDB overview/description for a movie or TV show
  */
 export async function getTmdbOverview(
