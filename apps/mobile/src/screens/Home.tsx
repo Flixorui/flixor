@@ -9,8 +9,8 @@ import Row from '../components/Row';
 import LazyRow from '../components/LazyRow';
 import ContinueWatchingLandscapeRow from '../components/ContinueWatchingLandscapeRow';
 import ContinueWatchingPosterRow from '../components/ContinueWatchingPosterRow';
-import { useNavigation, useIsFocused, useFocusEffect } from '@react-navigation/native';
-import { TopBarStore, useTopBarStore } from '../components/TopBarStore';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { TopBarStore } from '../components/TopBarStore';
 import HeroCard from '../components/HeroCard';
 import HeroCarousel from '../components/HeroCarousel';
 import BrowseModal from '../components/BrowseModal';
@@ -80,7 +80,8 @@ export default function Home({ onLogout }: HomeProps) {
   const nav: any = useNavigation();
   const insets = useSafeAreaInsets();
   const { settings } = useAppSettings();
-  const [loading, setLoading] = useState(true);
+  // Initialize loading based on cache - if we have cached data, skip loading screen
+  const [loading, setLoading] = useState(() => !persistentStore.popularOnPlexTmdb);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   const [welcome, setWelcome] = useState<string>('');
@@ -223,8 +224,20 @@ export default function Home({ onLogout }: HomeProps) {
 
   const y = React.useRef(new Animated.Value(0)).current;
   const showPillsAnim = React.useRef(new Animated.Value(1)).current;
-  const barHeight = useTopBarStore((s) => s.height || 90);
-  const isFocused = useIsFocused();
+  // Calculate bar heights for TopAppBar animation (NOT including insets.top - SafeAreaView handles that)
+  // expandedPadding should match TopAppBar content area: baseHeight + pillsHeight + 8 = 100
+  const baseHeight = 44;
+  const pillsHeight = 48;
+  const collapsedPadding = baseHeight + 8; // 52 - when pills hidden
+  const expandedPadding = baseHeight + pillsHeight + 60; // 104 - when pills visible, slight buffer
+
+  // Animated padding that follows the TopAppBar height (SafeAreaView adds insets.top separately)
+  const animatedPaddingTop = showPillsAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [collapsedPadding, expandedPadding],
+  });
+  // Use ref instead of useIsFocused() to avoid re-renders on focus change
+  const isFocusedRef = useRef(true);
   const perfRef = useRef({ focusAt: 0, loadAt: 0 });
   const lastTraktRefreshRef = useRef(0);
   const lastHeroColorKeyRef = useRef<string | null>(null);
@@ -237,16 +250,6 @@ export default function Home({ onLogout }: HomeProps) {
   const lastScrollUpdateRef = useRef(0);
   const SCROLL_DEBOUNCE_MS = 120; // Debounce header toggle like NuvioStreaming
 
-  // Set scrollY and showPills immediately on mount and when regaining focus
-  React.useLayoutEffect(() => {
-    if (isFocused) {
-      // Reset showPillsAnim to 1 (visible) when gaining focus
-      showPillsAnim.setValue(1);
-      scrollDirection.current = 'up';
-      TopBarStore.setScrollY(y);
-      TopBarStore.setShowPills(showPillsAnim);
-    }
-  }, [isFocused, y]);
 
   // Keep the selected tab stable across focus to avoid heavy re-render on return.
 
@@ -267,35 +270,55 @@ export default function Home({ onLogout }: HomeProps) {
     setBrowseModalVisible(true);
   }, []);
 
-  // Use useFocusEffect to reliably set TopBar state when screen gains focus
-  // This is more reliable than useLayoutEffect + useIsFocused for navigation focus events
+  // Set baseUsername once when user data loads (not on every focus)
+  // This enables instant title display on navigation without jumpy updates
+  useEffect(() => {
+    if (welcome) {
+      const username = welcome.replace('Welcome, ', '');
+      TopBarStore.setBaseUsername(username);
+    }
+  }, [welcome]);
+
+  // Set scrollY and showPills immediately on mount and when regaining focus
+  React.useLayoutEffect(() => {
+    // Reset showPillsAnim to 1 (visible) when gaining focus
+    showPillsAnim.setValue(1);
+    scrollDirection.current = 'up';
+    TopBarStore.setScrollY(y);
+    TopBarStore.setShowPills(showPillsAnim);
+  }, [y, showPillsAnim]);
+
+  // Update TopBarStore with Home configuration when focused
   useFocusEffect(
     useCallback(() => {
-      if (!welcome) return;
+      isFocusedRef.current = true;
 
       TopBarStore.setState({
         visible: true,
         tabBarVisible: true,
         showFilters: true,
-        username: welcome.replace('Welcome, ', ''),
         selected: tab,
         compact: false,
-        customFilters: undefined, // Reset from NewHot
-        activeGenre: undefined, // Reset from Library
+        customFilters: undefined,
+        activeGenre: undefined,
         onNavigateLibrary: navigateToLibrary,
         onClose: closeHandler,
         onSearch: searchHandler,
         onBrowse: browseHandler,
         onClearGenre: undefined,
       });
-    }, [welcome, tab, navigateToLibrary, closeHandler, searchHandler, browseHandler])
+
+      return () => {
+        isFocusedRef.current = false;
+      };
+    }, [tab, navigateToLibrary, closeHandler, searchHandler, browseHandler])
   );
 
   // Also update when tab changes while focused (for pill selection on Home)
   React.useLayoutEffect(() => {
-    if (!isFocused || !welcome) return;
+    if (!isFocusedRef.current || !welcome) return;
     TopBarStore.setSelected(tab);
-  }, [tab, isFocused, welcome]);
+  }, [tab, welcome]);
 
   // Helper function to pick hero
   const pickHero = (items: RowItem[]): HeroPick => {
@@ -621,7 +644,7 @@ export default function Home({ onLogout }: HomeProps) {
   }, [popularOnPlexTmdb, heroPick, scheduleIdleWork]);
 
   useEffect(() => {
-    if (!isFocused) return;
+    if (!isFocusedRef.current) return;
     if (!heroPick?.image) return;
     const colorKey = `hero:${heroPick.image}`;
     if (colorKey === lastHeroColorKeyRef.current && heroColors) return;
@@ -646,7 +669,7 @@ export default function Home({ onLogout }: HomeProps) {
       } catch {}
     }, 800);
     return cancel;
-  }, [heroPick?.image, heroColors, isFocused, scheduleIdleWork]);
+  }, [heroPick?.image, heroColors, scheduleIdleWork]);
 
   useEffect(() => {
     let active = true;
@@ -736,7 +759,7 @@ export default function Home({ onLogout }: HomeProps) {
   }, [carouselItem]);
 
   useEffect(() => {
-    if (!isFocused) return;
+    if (!isFocusedRef.current) return;
     if (settings.heroLayout !== 'carousel') return;
     if (!carouselItem?.image) return;
     const cacheKey = `carousel:${carouselItem.id}`;
@@ -757,7 +780,7 @@ export default function Home({ onLogout }: HomeProps) {
       } catch {}
     }, 100); // Reduced delay for faster color updates
     return cancel;
-  }, [carouselItem, settings.heroLayout, isFocused, scheduleIdleWork]);
+  }, [carouselItem, settings.heroLayout, scheduleIdleWork]);
 
   useEffect(() => {
     let active = true;
@@ -776,7 +799,7 @@ export default function Home({ onLogout }: HomeProps) {
   }, [appleItem, settings.heroLayout]);
 
   useEffect(() => {
-    if (!isFocused) return;
+    if (!isFocusedRef.current) return;
     if (settings.heroLayout !== 'appletv') return;
     const source = appleItem?.backdrop || appleItem?.image;
     if (!appleItem?.id || !source) return;
@@ -799,7 +822,7 @@ export default function Home({ onLogout }: HomeProps) {
       } catch {}
     }, 800);
     return cancel;
-  }, [appleItem, settings.heroLayout, isFocused, scheduleIdleWork]);
+  }, [appleItem, settings.heroLayout, scheduleIdleWork]);
 
   useEffect(() => {
     if (appleTvIndex >= heroCarouselItems.length) {
@@ -814,57 +837,54 @@ export default function Home({ onLogout }: HomeProps) {
     return prev[0]?.id === next[0]?.id && prev[prev.length - 1]?.id === next[next.length - 1]?.id;
   }, []);
 
-  // Light refresh of Trakt-dependent rows on focus
-  useEffect(() => {
-    if (!isFocused || loading || !hasLoadedOnceRef.current) return;
-    const focusAt = Date.now();
-    perfRef.current.focusAt = focusAt;
-    console.log('[Home][perf] focus');
+  // Light refresh of Trakt-dependent rows on focus - using useFocusEffect to avoid re-renders
+  useFocusEffect(
+    useCallback(() => {
+      if (loading || !hasLoadedOnceRef.current) return;
+      const focusAt = Date.now();
+      perfRef.current.focusAt = focusAt;
 
-    const now = Date.now();
-    if (now - lastTraktRefreshRef.current < 120000) {
-      console.log('[Home][perf] skip refresh (cooldown)');
-      return;
-    }
+      const now = Date.now();
+      if (now - lastTraktRefreshRef.current < 120000) {
+        return;
+      }
 
-    const cancel = scheduleIdleWork(async () => {
-      const start = Date.now();
-      console.log(`[Home][perf] post-interaction refresh start +${start - focusAt}ms`);
-      try {
-        await new Promise(resolve => setTimeout(resolve, 500));
-        const results = await Promise.allSettled([
-          fetchTraktTrendingMovies(),
-          fetchTraktTrendingShows(),
-          fetchTraktPopularShows(),
-          fetchTraktWatchlist(),
-          fetchTraktHistory(),
-          fetchTraktRecommendations(),
-        ]);
-        const tval = <T,>(i: number): T =>
-          results[i].status === 'fulfilled'
-            ? (results[i] as PromiseFulfilledResult<T>).value
-            : ([] as any);
+      const cancel = scheduleIdleWork(async () => {
+        try {
+          await new Promise(resolve => setTimeout(resolve, 500));
+          const results = await Promise.allSettled([
+            fetchTraktTrendingMovies(),
+            fetchTraktTrendingShows(),
+            fetchTraktPopularShows(),
+            fetchTraktWatchlist(),
+            fetchTraktHistory(),
+            fetchTraktRecommendations(),
+          ]);
+          const tval = <T,>(i: number): T =>
+            results[i].status === 'fulfilled'
+              ? (results[i] as PromiseFulfilledResult<T>).value
+              : ([] as any);
 
-        const nextTrendMovies = tval<RowItem[]>(0);
-        const nextTrendShows = tval<RowItem[]>(1);
-        const nextPopularShows = tval<RowItem[]>(2);
-        const nextWatchlist = tval<RowItem[]>(3);
-        const nextHistory = tval<RowItem[]>(4);
-        const nextRecommendations = tval<RowItem[]>(5);
+          const nextTrendMovies = tval<RowItem[]>(0);
+          const nextTrendShows = tval<RowItem[]>(1);
+          const nextPopularShows = tval<RowItem[]>(2);
+          const nextWatchlist = tval<RowItem[]>(3);
+          const nextHistory = tval<RowItem[]>(4);
+          const nextRecommendations = tval<RowItem[]>(5);
 
-        setTraktTrendMovies(prev => (isSameRowList(prev, nextTrendMovies) ? prev : nextTrendMovies));
-        setTraktTrendShows(prev => (isSameRowList(prev, nextTrendShows) ? prev : nextTrendShows));
-        setTraktPopularShows(prev => (isSameRowList(prev, nextPopularShows) ? prev : nextPopularShows));
-        setTraktMyWatchlist(prev => (isSameRowList(prev, nextWatchlist) ? prev : nextWatchlist));
-        setTraktHistory(prev => (isSameRowList(prev, nextHistory) ? prev : nextHistory));
-        setTraktRecommendations(prev => (isSameRowList(prev, nextRecommendations) ? prev : nextRecommendations));
-        lastTraktRefreshRef.current = Date.now();
-      } catch {}
-      console.log(`[Home][perf] post-interaction refresh complete in ${Date.now() - start}ms`);
-    }, 1200);
+          setTraktTrendMovies(prev => (isSameRowList(prev, nextTrendMovies) ? prev : nextTrendMovies));
+          setTraktTrendShows(prev => (isSameRowList(prev, nextTrendShows) ? prev : nextTrendShows));
+          setTraktPopularShows(prev => (isSameRowList(prev, nextPopularShows) ? prev : nextPopularShows));
+          setTraktMyWatchlist(prev => (isSameRowList(prev, nextWatchlist) ? prev : nextWatchlist));
+          setTraktHistory(prev => (isSameRowList(prev, nextHistory) ? prev : nextHistory));
+          setTraktRecommendations(prev => (isSameRowList(prev, nextRecommendations) ? prev : nextRecommendations));
+          lastTraktRefreshRef.current = Date.now();
+        } catch {}
+      }, 1200);
 
-    return cancel;
-  }, [isFocused, loading, isSameRowList, scheduleIdleWork]);
+      return cancel;
+    }, [loading, isSameRowList, scheduleIdleWork])
+  );
 
   const getRowUri = useCallback((it: RowItem) => it.image, []);
   const getRowTitle = useCallback((it: RowItem) => it.title, []);
@@ -927,7 +947,7 @@ export default function Home({ onLogout }: HomeProps) {
   // Show loading while FlixorCore is initializing or not connected
   if (flixorLoading || !isConnected) {
     return (
-      <View style={{ flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ flex: 1, backgroundColor: '#1b0a10', alignItems: 'center', justifyContent: 'center' }}>
         <ActivityIndicator color="#fff" />
         <Text style={{ color: '#999', marginTop: 12 }}>
           {flixorLoading ? 'Initializing...' : 'Connecting to server...'}
@@ -936,9 +956,12 @@ export default function Home({ onLogout }: HomeProps) {
     );
   }
 
-  if (loading || error) {
+  // Only show loading screen if we have no cached content to display
+  // This prevents blank screen flash when returning to Home with cached data
+  const hasContentToShow = popularOnPlexTmdb.length > 0 || heroCarouselData.length > 0 || continueItems.length > 0;
+  if ((loading && !hasContentToShow) || error) {
     return (
-      <View style={{ flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <View style={{ flex: 1, backgroundColor: '#1b0a10', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
         {error ? (
           <>
             <Text style={{ color: '#fff', fontSize: 18, marginBottom: 10, textAlign: 'center' }}>
@@ -1008,7 +1031,7 @@ export default function Home({ onLogout }: HomeProps) {
 
       <Animated.ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingBottom: 80 + insets.bottom, paddingTop: barHeight }}
+        contentContainerStyle={{ paddingBottom: 80 + insets.bottom }}
         scrollEventThrottle={16}
         onScroll={Animated.event([{ nativeEvent: { contentOffset: { y } } }], {
           useNativeDriver: false,
@@ -1031,22 +1054,21 @@ export default function Home({ onLogout }: HomeProps) {
                   if (scrollDirection.current !== 'down') {
                     scrollDirection.current = 'down';
                     lastScrollUpdateRef.current = now;
-                    Animated.spring(showPillsAnim, {
+                    // Use timing for smoother, more predictable animation
+                    Animated.timing(showPillsAnim, {
                       toValue: 0,
-                      useNativeDriver: false, // Must be false for TopAppBar listener
-                      tension: 60,
-                      friction: 10,
+                      duration: 200,
+                      useNativeDriver: false, // Must be false for height animation
                     }).start();
                   }
                 } else if (delta < -6) {
                   if (scrollDirection.current !== 'up') {
                     scrollDirection.current = 'up';
                     lastScrollUpdateRef.current = now;
-                    Animated.spring(showPillsAnim, {
+                    Animated.timing(showPillsAnim, {
                       toValue: 1,
-                      useNativeDriver: false, // Must be false for TopAppBar listener
-                      tension: 60,
-                      friction: 10,
+                      duration: 200,
+                      useNativeDriver: false, // Must be false for height animation
                     }).start();
                   }
                 }
@@ -1057,6 +1079,9 @@ export default function Home({ onLogout }: HomeProps) {
           },
         })}
       >
+        {/* Animated spacer that follows TopAppBar height */}
+        <Animated.View style={{ height: animatedPaddingTop }} />
+
         {canShowHero ? (
           settings.heroLayout === 'carousel' ? (
             <View style={{ marginTop: -52 }}>
@@ -1319,6 +1344,7 @@ export default function Home({ onLogout }: HomeProps) {
         </View>
       </Animated.ScrollView>
 
+
       {/* Browse Modal for Categories */}
       <BrowseModal
         visible={browseModalVisible}
@@ -1343,7 +1369,7 @@ export default function Home({ onLogout }: HomeProps) {
 
       {/* Custom refresh indicator above TopAppBar */}
       {refreshing && (
-        <View style={{ position: 'absolute', top: barHeight + 10, left: 0, right: 0, alignItems: 'center', zIndex: 50 }}>
+        <View style={{ position: 'absolute', top: expandedPadding + insets.top + 10, left: 0, right: 0, alignItems: 'center', zIndex: 50 }}>
           <View style={{ backgroundColor: 'rgba(0,0,0,0.7)', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, flexDirection: 'row', alignItems: 'center' }}>
             <ActivityIndicator color="#fff" size="small" />
             <Text style={{ color: '#fff', marginLeft: 8, fontSize: 13 }}>Refreshing...</Text>

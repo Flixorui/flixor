@@ -374,7 +374,7 @@ function CarouselCard({
               disabled={watchlistLoading}
               style={[styles.topButton, watchlistLoading && { opacity: 0.6 }]}
             >
-              <Ionicons name={inWatchlist ? 'checkmark' : 'add'} size={18} color="#fff" />
+              <Ionicons name={inWatchlist ? 'bookmark' : 'bookmark-outline'} size={18} color="#fff" />
             </TouchableOpacity>
           )}
           <TouchableOpacity activeOpacity={0.8} onPress={onToggleFlip} style={styles.topButton}>

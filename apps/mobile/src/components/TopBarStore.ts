@@ -7,6 +7,7 @@ type State = {
   visible: boolean;
   tabBarVisible: boolean;
   username?: string;
+  baseUsername?: string; // Set once when user data loads, used for stable title display
   showFilters: boolean;
   selected: Pill;
   scrollY?: Animated.Value;
@@ -28,6 +29,7 @@ const state: State = {
   visible: true,
   tabBarVisible: true,
   username: undefined,
+  baseUsername: undefined,
   showFilters: true, // default to true so pills are visible
   selected: 'all',
   scrollY: undefined,
@@ -64,6 +66,7 @@ export const TopBarStore = {
   setVisible(v: boolean) { if (state.visible !== v) { state.visible = v; emit(); } },
   setTabBarVisible(v: boolean) { if (state.tabBarVisible !== v) { state.tabBarVisible = v; emit(); } },
   setUsername(u?: string) { if (state.username !== u) { state.username = u; emit(); } },
+  setBaseUsername(u?: string) { if (state.baseUsername !== u) { state.baseUsername = u; emit(); } },
   setShowFilters(v: boolean) { if (state.showFilters !== v) { state.showFilters = v; emit(); } },
   setSelected(p: Pill) { if (state.selected !== p) { state.selected = p; emit(); } },
   setCompact(v: boolean) { if (state.compact !== v) { state.compact = v; emit(); } },

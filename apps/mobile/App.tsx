@@ -4,11 +4,11 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { View, ActivityIndicator, Text, Pressable, Platform } from 'react-native';
-import GlobalTopAppBar from './src/components/GlobalTopAppBar';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { useTopBarStore } from './src/components/TopBarStore';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import GlobalTopAppBar from './src/components/GlobalTopAppBar';
+import { useSafeAreaInsets, SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import { memoryManager } from './src/core/MemoryManager';
 
 // Native iOS bottom tabs for liquid glass effect
@@ -82,15 +82,208 @@ const Tab = createBottomTabNavigator();
 const HomeStack = createNativeStackNavigator();
 const SettingsStack = createNativeStackNavigator();
 
+// Store logout handler in a ref accessible to child components
+let logoutHandlerRef: (() => Promise<void>) | null = null;
+
+// Define screen components OUTSIDE of AppContent to prevent recreation on every render
+// This is critical for performance - inline components cause React Navigation to do extra work
+
+const HomeStackNavigator = React.memo(() => {
+  const topBarVisible = useTopBarStore((s) => s.visible === true);
+
+  return (
+    <View style={{ flex: 1 }}>
+      <HomeStack.Navigator screenOptions={{ headerShown: false }}>
+        <HomeStack.Screen name="HomeScreen">
+          {() => <Home onLogout={() => logoutHandlerRef?.()} />}
+        </HomeStack.Screen>
+        <HomeStack.Screen
+          name="Details"
+          component={Details}
+          options={{ presentation: 'transparentModal', animation: 'fade', gestureEnabled: false }}
+        />
+        <HomeStack.Screen
+          name="Player"
+          component={Player}
+          options={{ presentation: 'fullScreenModal', animation: 'fade' }}
+        />
+        <HomeStack.Screen
+          name="Library"
+          component={Library}
+          options={{ presentation: 'card', animation: 'fade' }}
+        />
+        <HomeStack.Screen
+          name="Collections"
+          component={Collections}
+          options={{ presentation: 'card', animation: 'fade' }}
+        />
+        <HomeStack.Screen
+          name="Search"
+          component={Search}
+          options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
+        />
+        <HomeStack.Screen
+          name="Browse"
+          component={Browse}
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
+        />
+      </HomeStack.Navigator>
+      {topBarVisible && <GlobalTopAppBar screenContext="HomeStack" />}
+    </View>
+  );
+});
+
+const NewHotScreen = React.memo(() => (
+  <View style={{ flex: 1 }}>
+    <NewHot />
+    <GlobalTopAppBar screenContext="NewHot" />
+  </View>
+));
+
+const MyListScreen = React.memo(() => (
+  <View style={{ flex: 1 }}>
+    <MyList />
+    <GlobalTopAppBar screenContext="MyList" />
+  </View>
+));
+
+const SettingsTabScreen = React.memo(() => (
+  <SettingsStack.Navigator screenOptions={{ headerShown: false }}>
+    <SettingsStack.Screen name="SettingsMain">
+      {() => <Settings onLogout={() => logoutHandlerRef?.()} />}
+    </SettingsStack.Screen>
+    <SettingsStack.Screen name="CatalogSettings" component={CatalogSettings} />
+    <SettingsStack.Screen name="HomeScreenSettings" component={HomeScreenSettings} />
+    <SettingsStack.Screen name="ContinueWatchingSettings" component={ContinueWatchingSettings} />
+    <SettingsStack.Screen name="TMDBSettings" component={TMDBSettings} />
+    <SettingsStack.Screen name="TraktSettings" component={TraktSettings} />
+    <SettingsStack.Screen name="MDBListSettings" component={MDBListSettings} />
+    <SettingsStack.Screen name="PlexSettings">
+      {() => <PlexSettings onLogout={() => logoutHandlerRef?.()} />}
+    </SettingsStack.Screen>
+  </SettingsStack.Navigator>
+));
+
+// Tabs component extracted and memoized to prevent unnecessary re-renders
+const Tabs = React.memo(() => {
+  const tabBarVisible = useTopBarStore(s => s.tabBarVisible === true);
+  const insets = useSafeAreaInsets();
+
+  // Use native iOS tabs when available (iOS 18+ with @bottom-tabs)
+  if (Platform.OS === 'ios' && createNativeBottomTabNavigator) {
+    const IOSTab = createNativeBottomTabNavigator();
+
+    return (
+      <View style={{ flex: 1, backgroundColor: '#1b0a10' }}>
+        <IOSTab.Navigator
+          initialRouteName="HomeTab"
+          screenOptions={{
+            headerShown: false,
+            tabBarActiveTintColor: '#007AFF',
+            tabBarInactiveTintColor: '#8E8E93',
+            translucent: true,
+            lazy: false,
+            freezeOnBlur: false,
+          }}
+        >
+          <IOSTab.Screen
+            name="HomeTab"
+            component={HomeStackNavigator}
+            options={{
+              title: 'Home',
+              tabBarIcon: () => ({ sfSymbol: 'house' }),
+            }}
+          />
+          <IOSTab.Screen
+            name="NewHotTab"
+            component={NewHotScreen}
+            options={{
+              title: 'New & Hot',
+              tabBarIcon: () => ({ sfSymbol: 'play.circle' }),
+            }}
+          />
+          <IOSTab.Screen
+            name="MyTab"
+            component={MyListScreen}
+            options={{
+              title: 'My List',
+              tabBarIcon: () => ({ sfSymbol: 'bookmark' }),
+            }}
+          />
+          <IOSTab.Screen
+            name="SettingsTab"
+            component={SettingsTabScreen}
+            options={{
+              title: 'Settings',
+              tabBarIcon: () => ({ sfSymbol: 'gear' }),
+            }}
+          />
+        </IOSTab.Navigator>
+      </View>
+    );
+  }
+
+  // Fallback for Android and older iOS
+  return (
+    <Tab.Navigator
+      sceneContainerStyle={{ backgroundColor: '#1b0a10' }}
+      screenOptions={({ route }) => ({
+        headerShown: false,
+        tabBarShowLabel: true,
+        tabBarActiveTintColor: '#fff',
+        tabBarInactiveTintColor: '#bdbdbd',
+        lazy: false,
+        freezeOnBlur: false,
+        animation: 'fade',
+        tabBarStyle: tabBarVisible ? {
+          position: 'absolute' as const,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: Platform.OS === 'ios' ? 'transparent' : 'rgba(0,0,0,0.9)',
+          borderTopWidth: 0,
+          height: 68 + insets.bottom,
+          paddingBottom: insets.bottom + 10,
+          paddingTop: 10,
+        } : { display: 'none' as const },
+        tabBarBackground: () => (
+          Platform.OS === 'ios'
+            ? <BlurView intensity={90} tint="dark" style={{ flex: 1 }} />
+            : <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.9)' }} />
+        ),
+        tabBarIcon: ({ color, focused }) => {
+          const name = route.name === 'HomeTab' ? (focused ? 'home' : 'home-outline')
+            : route.name === 'NewHotTab' ? (focused ? 'play-circle' : 'play-circle-outline')
+            : route.name === 'SettingsTab' ? (focused ? 'settings' : 'settings-outline')
+            : route.name === 'MyTab' ? (focused ? 'bookmark' : 'bookmark-outline')
+            : (focused ? 'home' : 'home-outline');
+          return <Ionicons name={name as any} size={22} color={color} />;
+        }
+      })}
+      screenListeners={{
+        tabPress: () => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        }
+      }}
+    >
+      <Tab.Screen name="HomeTab" options={{ title: 'Home' }} component={HomeStackNavigator} />
+      <Tab.Screen name="NewHotTab" options={{ title: 'New & Hot' }} component={NewHotScreen} />
+      <Tab.Screen name="MyTab" options={{ title: 'My List' }} component={MyListScreen} />
+      <Tab.Screen name="SettingsTab" options={{ title: 'Settings' }} component={SettingsTabScreen} />
+    </Tab.Navigator>
+  );
+});
+
 function AppContent() {
   const { flixor, isLoading, error, isAuthenticated, isConnected, refresh } = useFlixor();
 
-  const handleLogout = async () => {
+  // Update the logout handler ref so memoized components can access it
+  logoutHandlerRef = React.useCallback(async () => {
     if (flixor) {
       await flixor.logout();
       refresh();
     }
-  };
+  }, [flixor, refresh]);
 
   // Show loading screen during initialization
   if (isLoading) {
@@ -113,194 +306,6 @@ function AppContent() {
       </View>
     );
   }
-
-  const HomeStackNavigator = () => {
-    const topBarVisible = useTopBarStore(s => s.visible === true);
-
-    return (
-      <View style={{ flex: 1 }}>
-        <HomeStack.Navigator screenOptions={{ headerShown: false }}>
-          <HomeStack.Screen name="HomeScreen">
-            {() => <Home onLogout={handleLogout} />}
-          </HomeStack.Screen>
-          <HomeStack.Screen
-            name="Details"
-            component={Details}
-            options={{ presentation: 'transparentModal', animation: 'fade', gestureEnabled: false }}
-          />
-          <HomeStack.Screen
-            name="Player"
-            component={Player}
-            options={{ presentation: 'fullScreenModal', animation: 'fade' }}
-          />
-          <HomeStack.Screen
-            name="Library"
-            component={Library}
-            options={{ presentation: 'card', animation: 'fade' }}
-          />
-          <HomeStack.Screen
-            name="Collections"
-            component={Collections}
-            options={{ presentation: 'card', animation: 'fade' }}
-          />
-          <HomeStack.Screen
-            name="Search"
-            component={Search}
-            options={{ presentation: 'modal', animation: 'slide_from_bottom' }}
-          />
-          <HomeStack.Screen
-            name="Browse"
-            component={Browse}
-            options={{ presentation: 'card', animation: 'slide_from_right' }}
-          />
-        </HomeStack.Navigator>
-        {topBarVisible && <GlobalTopAppBar />}
-      </View>
-    );
-  };
-
-  // Screen wrapper components for native iOS tabs
-  const NewHotScreen = () => (
-    <View style={{ flex: 1 }}>
-      <NewHot />
-      <GlobalTopAppBar />
-    </View>
-  );
-
-  const MyListScreen = () => (
-    <View style={{ flex: 1 }}>
-      <MyList />
-      <GlobalTopAppBar />
-    </View>
-  );
-
-  const SettingsTabScreen = () => (
-    <SettingsStack.Navigator screenOptions={{ headerShown: false }}>
-      <SettingsStack.Screen name="SettingsMain">
-        {() => (
-          <Settings onLogout={handleLogout} />
-        )}
-      </SettingsStack.Screen>
-      <SettingsStack.Screen name="CatalogSettings" component={CatalogSettings} />
-      <SettingsStack.Screen name="HomeScreenSettings" component={HomeScreenSettings} />
-      <SettingsStack.Screen name="ContinueWatchingSettings" component={ContinueWatchingSettings} />
-      <SettingsStack.Screen name="TMDBSettings" component={TMDBSettings} />
-      <SettingsStack.Screen name="TraktSettings" component={TraktSettings} />
-      <SettingsStack.Screen name="MDBListSettings" component={MDBListSettings} />
-      <SettingsStack.Screen name="PlexSettings">
-        {(props) => <PlexSettings {...props} onLogout={handleLogout} />}
-      </SettingsStack.Screen>
-    </SettingsStack.Navigator>
-  );
-
-  const Tabs = () => {
-    const tabBarVisible = useTopBarStore(s => s.tabBarVisible === true);
-    const insets = useSafeAreaInsets();
-
-    // Use native iOS tabs when available (iOS 18+ with @bottom-tabs)
-    if (Platform.OS === 'ios' && createNativeBottomTabNavigator) {
-      const IOSTab = createNativeBottomTabNavigator();
-
-      return (
-        <View style={{ flex: 1, backgroundColor: '#1b0a10' }}>
-          <IOSTab.Navigator
-            initialRouteName="HomeTab"
-            screenOptions={{
-              headerShown: false,
-              tabBarActiveTintColor: '#007AFF',
-              tabBarInactiveTintColor: '#8E8E93',
-              translucent: true,
-              lazy: true,
-              freezeOnBlur: true,
-            }}
-          >
-            <IOSTab.Screen
-              name="HomeTab"
-              component={HomeStackNavigator}
-              options={{
-                title: 'Home',
-                tabBarIcon: () => ({ sfSymbol: 'house' }),
-              }}
-            />
-            <IOSTab.Screen
-              name="NewHotTab"
-              component={NewHotScreen}
-              options={{
-                title: 'New & Hot',
-                tabBarIcon: () => ({ sfSymbol: 'play.circle' }),
-              }}
-            />
-            <IOSTab.Screen
-              name="MyTab"
-              component={MyListScreen}
-              options={{
-                title: 'My List',
-                tabBarIcon: () => ({ sfSymbol: 'bookmark' }),
-              }}
-            />
-            <IOSTab.Screen
-              name="SettingsTab"
-              component={SettingsTabScreen}
-              options={{
-                title: 'Settings',
-                tabBarIcon: () => ({ sfSymbol: 'gear' }),
-              }}
-            />
-          </IOSTab.Navigator>
-        </View>
-      );
-    }
-
-    // Fallback for Android and older iOS
-    return (
-      <Tab.Navigator
-        sceneContainerStyle={{ backgroundColor: '#1b0a10' }}
-        screenOptions={({ route }) => ({
-          headerShown: false,
-          tabBarShowLabel: true,
-          tabBarActiveTintColor: '#fff',
-          tabBarInactiveTintColor: '#bdbdbd',
-          lazy: true,
-          freezeOnBlur: true,
-          animation: 'fade',
-          tabBarStyle: tabBarVisible ? {
-            position: 'absolute' as const,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: Platform.OS === 'ios' ? 'transparent' : 'rgba(0,0,0,0.9)',
-            borderTopWidth: 0,
-            height: 68 + insets.bottom,
-            paddingBottom: insets.bottom + 10,
-            paddingTop: 10,
-          } : { display: 'none' as const },
-          tabBarBackground: () => (
-            Platform.OS === 'ios'
-              ? <BlurView intensity={90} tint="dark" style={{ flex: 1 }} />
-              : <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.9)' }} />
-          ),
-          tabBarIcon: ({ color, focused }) => {
-            const name = route.name === 'HomeTab' ? (focused ? 'home' : 'home-outline')
-              : route.name === 'NewHotTab' ? (focused ? 'play-circle' : 'play-circle-outline')
-              : route.name === 'SettingsTab' ? (focused ? 'settings' : 'settings-outline')
-              : route.name === 'MyTab' ? (focused ? 'bookmark' : 'bookmark-outline')
-              : (focused ? 'home' : 'home-outline');
-            return <Ionicons name={name as any} size={22} color={color} />;
-          }
-        })}
-        screenListeners={{
-          tabPress: () => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          }
-        }}
-      >
-        <Tab.Screen name="HomeTab" options={{ title: 'Home' }} component={HomeStackNavigator} />
-        <Tab.Screen name="NewHotTab" options={{ title: 'New & Hot' }} component={NewHotScreen} />
-        <Tab.Screen name="MyTab" options={{ title: 'My List' }} component={MyListScreen} />
-        <Tab.Screen name="SettingsTab" options={{ title: 'Settings' }} component={SettingsTabScreen} />
-      </Tab.Navigator>
-    );
-  };
 
   return (
     <NavigationContainer>
@@ -332,8 +337,10 @@ export default function App() {
   }, []);
 
   return (
-    <FlixorProvider>
-      <AppContent />
-    </FlixorProvider>
+    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+      <FlixorProvider>
+        <AppContent />
+      </FlixorProvider>
+    </SafeAreaProvider>
   );
 }

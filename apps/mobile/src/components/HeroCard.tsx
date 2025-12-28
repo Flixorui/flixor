@@ -74,7 +74,7 @@ function HeroCard({ hero, authHeaders, onAdd, inWatchlist = false, watchlistLoad
           {watchlistLoading ? (
             <ActivityIndicator size="small" color="#fff" />
           ) : (
-            <Ionicons name={inWatchlist ? 'checkmark' : 'add'} size={20} color="#fff" />
+            <Ionicons name={inWatchlist ? 'bookmark' : 'bookmark-outline'} size={20} color="#fff" />
           )}
         </Pressable>
 

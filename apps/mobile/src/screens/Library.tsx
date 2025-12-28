@@ -3,6 +3,7 @@ import { View, Text, ActivityIndicator, Pressable, StyleSheet, Dimensions, Anima
 import PullToRefresh from '../components/PullToRefresh';
 import FastImage from '@d11/react-native-fast-image';
 import { FlashList } from '@shopify/flash-list';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TopBarStore, useTopBarStore } from '../components/TopBarStore';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRoute, useNavigation, useIsFocused } from '@react-navigation/native';
@@ -41,6 +42,7 @@ export default function Library() {
   const nav: any = useNavigation();
   const { flixor, isLoading: flixorLoading, isConnected } = useFlixor();
   const isFocused = useIsFocused();
+  const insets = useSafeAreaInsets();
 
   const [items, setItems] = useState<LibraryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,7 +60,9 @@ export default function Library() {
   const [refreshing, setRefreshing] = useState(false);
   const y = useRef(new Animated.Value(0)).current;
   const showPillsAnim = useRef(new Animated.Value(1)).current;
-  const barHeight = useTopBarStore((s) => s.height || 90);
+  // Use stable local barHeight instead of TopBarStore to prevent layout shift on tab switch
+  // Library uses expanded TopAppBar (showFilters: true), so height = insets.top + 44 + 48 + 8
+  const barHeight = useMemo(() => insets.top + 100, [insets.top]);
   const lastScrollY = useRef(0);
   const scrollDirection = useRef<'up' | 'down'>('down');
   const scrollAnimFrameRef = useRef<number | null>(null);
@@ -137,7 +141,8 @@ export default function Library() {
   // Set scrollY and showPills immediately on mount and when regaining focus
   React.useLayoutEffect(() => {
     if (isFocused) {
-      // Reset showPillsAnim to 1 (visible) when gaining focus
+      // Don't reset y.setValue(0) - preserve scroll position to avoid visual jump
+      // Just reset pills visibility and tell store to use this tab's animated values
       showPillsAnim.setValue(1);
       scrollDirection.current = 'up';
       TopBarStore.setScrollY(y);
@@ -159,7 +164,7 @@ export default function Library() {
       visible: true,
       tabBarVisible: true,
       showFilters: true,
-      username: username,
+      // username removed - now derived from screenContext in GlobalTopAppBar
       selected: selected,
       compact: false,
       customFilters: undefined,
@@ -178,7 +183,7 @@ export default function Library() {
       },
       onClearGenre: clearGenreFilter,
     });
-  }, [isFocused, username, selected, nav, genreName, clearGenreFilter]);
+  }, [isFocused, selected, nav, genreName, clearGenreFilter]);
 
   // Clean up activeGenre when leaving Library
   useEffect(() => {
@@ -501,6 +506,7 @@ export default function Library() {
           </View>
         </View>
       )}
+
     </View>
   );
 }

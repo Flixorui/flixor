@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { View, Text, ScrollView, Pressable, ActivityIndicator, StyleSheet, Animated, InteractionManager } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import FastImage from '@d11/react-native-fast-image';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, useIsFocused } from '@react-navigation/native';
-import { TopBarStore, useTopBarStore } from '../components/TopBarStore';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { TopBarStore } from '../components/TopBarStore';
 import * as Haptics from 'expo-haptics';
 import { useFlixor } from '../core/FlixorContext';
 import { IMAGE_PRELOAD_CAP, CACHE_TTL, isCacheValid } from '../core/PerformanceConfig';
@@ -46,67 +47,67 @@ const persistentStore: {
   },
 };
 
+// TabPill component - defined outside to be available in useMemo
+function TabPill({ active, label, onPress }: { active?: boolean; label: string; onPress?: () => void }) {
+  const handlePress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onPress?.();
+  };
+
+  return (
+    <Pressable onPress={handlePress} style={[styles.tabPill, active && styles.tabPillActive]}>
+      <Text style={[styles.tabPillText, { color: active ? '#000' : '#fff' }]}>{label}</Text>
+    </Pressable>
+  );
+}
+
 export default function NewHot() {
   const nav: any = useNavigation();
   const { isConnected } = useFlixor();
+  const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<TabType>('coming-soon');
   const [loading, setLoading] = useState(false);
   // Initialize from persistent store for instant render
   const [content, setContent] = useState<ContentItem[]>(() => persistentStore['coming-soon'] || []);
   const y = useRef(new Animated.Value(0)).current;
-  const barHeight = useTopBarStore(s => s.height || 60);
-  const isFocused = useIsFocused();
+  // Use stable local barHeight - calculate once based on typical safe area
+  const barHeight = insets.top + 100;
 
-  // Set scrollY and configure TopBar when screen is focused
-  React.useLayoutEffect(() => {
-    if (isFocused) {
+  // Tab pills for TopAppBar customFilters
+  const tabPills = useMemo(() => (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={{ paddingHorizontal: 16, alignItems: 'center'}}
+      style={{ flexGrow: 0 }}
+    >
+      {TABS.map((tab) => (
+        <TabPill
+          key={tab.id}
+          active={activeTab === tab.id}
+          label={tab.label}
+          onPress={() => setActiveTab(tab.id)}
+        />
+      ))}
+    </ScrollView>
+  ), [activeTab]);
+
+  // Update TopBarStore with NewHot configuration when focused
+  useFocusEffect(
+    useCallback(() => {
+      TopBarStore.setState({
+        visible: true,
+        tabBarVisible: true,
+        showFilters: false,
+        compact: true,
+        customFilters: tabPills,
+        activeGenre: undefined,
+        onSearch: () => nav.navigate('HomeTab', { screen: 'Search' }),
+        onClearGenre: undefined,
+      });
       TopBarStore.setScrollY(y);
-    }
-  }, [isFocused, y]);
-
-  // Push top bar updates synchronously before paint (useLayoutEffect)
-  React.useLayoutEffect(() => {
-    if (!isFocused) return;
-
-    // Render tab pills inside TopAppBar
-    const tabPills = (
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 16, alignItems: 'center'}}
-        style={{ flexGrow: 0 }}
-      >
-        {TABS.map((tab) => (
-          <TabPill
-            key={tab.id}
-            active={activeTab === tab.id}
-            label={tab.label}
-            onPress={() => setActiveTab(tab.id)}
-          />
-        ))}
-      </ScrollView>
-    );
-
-    TopBarStore.setState({
-      visible: true,
-      tabBarVisible: true,
-      showFilters: false,
-      username: 'New & Hot',
-      selected: 'all',
-      compact: false,
-      customFilters: tabPills,
-      activeGenre: undefined,
-      onNavigateLibrary: undefined,
-      onClose: undefined,
-      onSearch: () => nav.navigate('HomeTab', { screen: 'Search' }),
-      onBrowse: undefined,
-      onClearGenre: undefined,
-    });
-
-    return () => {
-      TopBarStore.setCustomFilters(undefined);
-    };
-  }, [isFocused, nav, activeTab]);
+    }, [tabPills, nav, y])
+  );
 
   // When tab changes, load from persistent cache first for instant display
   useEffect(() => {
@@ -198,19 +199,6 @@ export default function NewHot() {
     }
   };
 
-  const TabPill = ({ active, label, onPress }: { active?: boolean; label: string; onPress?: () => void }) => {
-    const handlePress = () => {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      onPress?.();
-    };
-
-    return (
-      <Pressable onPress={handlePress} style={[styles.tabPill, active && styles.tabPillActive]}>
-        <Text style={[styles.tabPillText, { color: active ? '#000' : '#fff' }]}>{label}</Text>
-      </Pressable>
-    );
-  };
-
   return (
     <View style={{ flex: 1, backgroundColor: '#0a0a0a' }}>
       {/* Gradients */}
@@ -293,6 +281,7 @@ export default function NewHot() {
             </View>
           )}
         </Animated.ScrollView>
+
       </View>
     </View>
   );
