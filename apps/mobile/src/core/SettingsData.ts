@@ -269,6 +269,9 @@ const SETTINGS_KEY = 'flixor_app_settings';
 export interface AppSettings {
   watchlistProvider: 'trakt' | 'plex';
   tmdbApiKey?: string; // Custom TMDB API key override
+  // MDBList settings
+  mdblistEnabled: boolean; // Enable MDBList integration (disabled by default)
+  mdblistApiKey?: string; // MDBList API key (required when enabled)
   tmdbLanguagePreference: string;
   enrichMetadataWithTMDB: boolean;
   useTmdbLocalizedMetadata: boolean;
@@ -287,12 +290,16 @@ export interface AppSettings {
   posterBorderRadius: number;
   showLibraryTitles: boolean;
   heroLayout: 'legacy' | 'carousel' | 'appletv';
+  continueWatchingLayout: 'poster' | 'landscape';
   enabledLibraryKeys?: string[];
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   watchlistProvider: 'trakt',
   tmdbApiKey: undefined,
+  // MDBList defaults
+  mdblistEnabled: false,
+  mdblistApiKey: undefined,
   tmdbLanguagePreference: 'en',
   enrichMetadataWithTMDB: true,
   useTmdbLocalizedMetadata: false,
@@ -310,7 +317,8 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   posterSize: 'medium',
   posterBorderRadius: 12,
   showLibraryTitles: true,
-  heroLayout: 'legacy',
+  heroLayout: 'carousel',
+  continueWatchingLayout: 'landscape',
   enabledLibraryKeys: undefined,
 };
 
@@ -355,4 +363,21 @@ export async function getTmdbApiKey(): Promise<string | undefined> {
 
 export async function setTmdbApiKey(apiKey: string | undefined): Promise<void> {
   await setAppSettings({ tmdbApiKey: apiKey });
+}
+
+// MDBList helpers
+export function isMdblistEnabled(): boolean {
+  return cachedSettings.mdblistEnabled ?? false;
+}
+
+export async function setMdblistEnabled(enabled: boolean): Promise<void> {
+  await setAppSettings({ mdblistEnabled: enabled });
+}
+
+export function getMdblistApiKey(): string | undefined {
+  return cachedSettings.mdblistApiKey;
+}
+
+export async function setMdblistApiKey(apiKey: string | undefined): Promise<void> {
+  await setAppSettings({ mdblistApiKey: apiKey });
 }

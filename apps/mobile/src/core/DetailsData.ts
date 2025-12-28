@@ -374,12 +374,16 @@ function extractGuidsFromItem(item: PlexMediaItem): string[] {
 // TMDB Videos/Trailers
 // ============================================
 
+// Supported video types (ordered by priority)
+const VIDEO_TYPES = ['Trailer', 'Teaser', 'Clip', 'Featurette', 'Behind the Scenes'];
+
 export interface TrailerInfo {
   key: string;
   name: string;
   site: string;
   type: string;
   official?: boolean;
+  publishedAt?: string;
 }
 
 export async function fetchTmdbTrailers(
@@ -394,16 +398,21 @@ export async function fetchTmdbTrailers(
 
     const results = videos.results || [];
 
-    // Filter for YouTube trailers and teasers, prioritize official trailers
+    // Filter for YouTube videos of supported types
     const trailers = results
-      .filter((v: any) => v.site === 'YouTube' && ['Trailer', 'Teaser'].includes(v.type))
+      .filter((v: any) => v.site === 'YouTube' && VIDEO_TYPES.includes(v.type))
       .sort((a: any, b: any) => {
-        // Prioritize official trailers
+        // Prioritize official videos
         if (a.official && !b.official) return -1;
         if (!a.official && b.official) return 1;
-        // Then prioritize trailers over teasers
-        if (a.type === 'Trailer' && b.type !== 'Trailer') return -1;
-        if (a.type !== 'Trailer' && b.type === 'Trailer') return 1;
+        // Then by type priority
+        const aTypeIndex = VIDEO_TYPES.indexOf(a.type);
+        const bTypeIndex = VIDEO_TYPES.indexOf(b.type);
+        if (aTypeIndex !== bTypeIndex) return aTypeIndex - bTypeIndex;
+        // Then by publish date (newest first)
+        if (a.published_at && b.published_at) {
+          return new Date(b.published_at).getTime() - new Date(a.published_at).getTime();
+        }
         return 0;
       })
       .map((v: any) => ({
@@ -412,6 +421,7 @@ export async function fetchTmdbTrailers(
         site: v.site,
         type: v.type,
         official: v.official,
+        publishedAt: v.published_at,
       }));
 
     return trailers;
@@ -857,56 +867,86 @@ export async function removeFromTraktWatchlist(ids: WatchlistIds): Promise<boole
 
 /**
  * Toggle watchlist status (add or remove based on current state)
- * Uses the configured watchlist provider (Plex or Trakt)
+ *
+ * ADD behavior (respects user preference):
+ * - If Trakt is NOT authenticated → always saves to Plex
+ * - If Trakt IS authenticated → uses watchlistProvider setting (default: 'trakt')
+ *
+ * REMOVE behavior (keeps providers in sync):
+ * - Always removes from BOTH Plex and Trakt to prevent orphaned entries
  */
 export async function toggleWatchlist(
   ids: WatchlistIds,
-  provider: 'plex' | 'trakt' | 'both' = 'both'
+  _provider: 'plex' | 'trakt' | 'both' = 'both'
 ): Promise<{ inWatchlist: boolean; success: boolean }> {
   try {
     const core = getFlixorCore();
+    const { getAppSettings } = await import('./SettingsData');
+    const settings = getAppSettings();
+
     let isInWatchlist = false;
 
-    // Check current watchlist status
-    if (provider === 'plex' || provider === 'both') {
-      if (ids.plexRatingKey) {
-        isInWatchlist = await isInPlexWatchlist(ids.plexRatingKey);
-      }
+    // Check current watchlist status from BOTH providers
+    if (ids.plexRatingKey) {
+      isInWatchlist = await isInPlexWatchlist(ids.plexRatingKey);
     }
 
-    if (!isInWatchlist && (provider === 'trakt' || provider === 'both')) {
-      if (core.isTraktAuthenticated && (ids.tmdbId || ids.imdbId)) {
-        isInWatchlist = await isInTraktWatchlist(ids);
-      }
+    if (!isInWatchlist && core.isTraktAuthenticated && (ids.tmdbId || ids.imdbId)) {
+      isInWatchlist = await isInTraktWatchlist(ids);
     }
 
     // Toggle
     if (isInWatchlist) {
-      // Remove from watchlist
+      // REMOVE: Always remove from BOTH providers to keep them in sync
       let success = true;
 
-      if ((provider === 'plex' || provider === 'both') && ids.plexRatingKey) {
+      if (ids.plexRatingKey) {
         success = await removeFromPlexWatchlist(ids.plexRatingKey) && success;
       }
 
-      if ((provider === 'trakt' || provider === 'both') && core.isTraktAuthenticated) {
+      if (core.isTraktAuthenticated && (ids.tmdbId || ids.imdbId)) {
         success = await removeFromTraktWatchlist(ids) && success;
       }
 
       return { inWatchlist: false, success };
     } else {
-      // Add to watchlist
-      let success = true;
+      // ADD: Save to determined provider only based on settings
+      let targetProvider: 'plex' | 'trakt';
 
-      if ((provider === 'plex' || provider === 'both') && ids.plexRatingKey) {
-        success = await addToPlexWatchlist(ids.plexRatingKey) && success;
+      if (!core.isTraktAuthenticated) {
+        // Trakt not enabled, always use Plex
+        targetProvider = 'plex';
+      } else {
+        // Trakt is enabled - use user preference (default: 'trakt')
+        targetProvider = settings.watchlistProvider || 'trakt';
       }
 
-      if ((provider === 'trakt' || provider === 'both') && core.isTraktAuthenticated) {
-        success = await addToTraktWatchlist(ids) && success;
+      let success = false;
+
+      if (targetProvider === 'trakt') {
+        if (ids.tmdbId || ids.imdbId) {
+          success = await addToTraktWatchlist(ids);
+        } else {
+          // Fallback to Plex if we don't have TMDB/IMDB IDs for Trakt
+          console.log('[DetailsData] No TMDB/IMDB IDs for Trakt, falling back to Plex');
+          if (ids.plexRatingKey) {
+            success = await addToPlexWatchlist(ids.plexRatingKey);
+          }
+        }
+      } else {
+        // targetProvider === 'plex'
+        if (ids.plexRatingKey) {
+          success = await addToPlexWatchlist(ids.plexRatingKey);
+        } else {
+          // Fallback to Trakt if we don't have Plex rating key
+          console.log('[DetailsData] No Plex rating key, falling back to Trakt');
+          if (core.isTraktAuthenticated && (ids.tmdbId || ids.imdbId)) {
+            success = await addToTraktWatchlist(ids);
+          }
+        }
       }
 
-      return { inWatchlist: true, success };
+      return { inWatchlist: success, success };
     }
   } catch (e) {
     console.log('[DetailsData] toggleWatchlist error:', e);

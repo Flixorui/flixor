@@ -10,7 +10,7 @@ import {
   Dimensions,
   Platform,
 } from 'react-native';
-import { Image as ExpoImage } from 'expo-image';
+import FastImage from '@d11/react-native-fast-image';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -132,10 +132,14 @@ export default function PersonModal({
               <View style={styles.profileSection}>
                 {profileUrl ? (
                   <View style={styles.profileImageContainer}>
-                    <ExpoImage
-                      source={{ uri: profileUrl }}
+                    <FastImage
+                      source={{
+                        uri: profileUrl,
+                        priority: FastImage.priority.high,
+                        cache: FastImage.cacheControl.immutable,
+                      }}
                       style={styles.profileImage}
-                      contentFit="cover"
+                      resizeMode={FastImage.resizeMode.cover}
                     />
                   </View>
                 ) : (
@@ -207,10 +211,14 @@ export default function PersonModal({
                       >
                         <View style={[styles.creditPoster, { width: posterWidth, height: posterWidth * 1.5 }]}>
                           {credit.posterPath ? (
-                            <ExpoImage
-                              source={{ uri: getTmdbImageUrl(credit.posterPath, 'w342') }}
+                            <FastImage
+                              source={{
+                                uri: getTmdbImageUrl(credit.posterPath, 'w342'),
+                                priority: FastImage.priority.normal,
+                                cache: FastImage.cacheControl.immutable,
+                              }}
                               style={{ width: '100%', height: '100%' }}
-                              contentFit="cover"
+                              resizeMode={FastImage.resizeMode.cover}
                             />
                           ) : (
                             <View style={styles.creditPlaceholder}>

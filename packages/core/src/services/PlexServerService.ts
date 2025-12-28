@@ -155,10 +155,10 @@ export class PlexServerService {
   /**
    * Get metadata for a specific item
    */
-  async getMetadata(ratingKey: string): Promise<PlexMediaItem | null> {
+  async getMetadata(ratingKey: string, includeGuids = false): Promise<PlexMediaItem | null> {
     const data = await this.get<PlexMediaContainer<PlexMediaItem>>(
       `/library/metadata/${ratingKey}`,
-      undefined,
+      includeGuids ? { includeGuids: '1' } : undefined,
       CacheTTL.TRENDING
     );
     return data.MediaContainer?.Metadata?.[0] || null;
@@ -198,7 +198,7 @@ export class PlexServerService {
   async getContinueWatching(): Promise<PlexMediaItem[]> {
     const data = await this.get<PlexMediaContainer<PlexMediaItem>>(
       '/hubs/continueWatching/items',
-      undefined,
+      { includeGuids: '1' }, // Include external GUIDs (TMDB, IMDB, etc.)
       CacheTTL.SHORT
     );
     return data.MediaContainer?.Metadata || [];

@@ -16,44 +16,27 @@ function Row({ title, items, getImageUri, getTitle, getSubtitle, authHeaders, on
   onBrowsePress?: () => void;
 }) {
   const handleTitlePress = () => {
-    if (onTitlePress) {
+    // Prefer onBrowsePress for chevron tap, fall back to onTitlePress
+    const handler = onBrowsePress || onTitlePress;
+    if (handler) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      onTitlePress();
-    }
-  };
-
-  const handleBrowsePress = () => {
-    if (onBrowsePress) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      onBrowsePress();
+      handler();
     }
   };
 
   return (
     <View style={{ marginBottom: 16 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 15, marginTop: 15, paddingHorizontal: 16 }}>
-        <Pressable onPress={handleTitlePress} disabled={!onTitlePress}>
-          <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700', lineHeight: 20 }}>{title}</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 15, marginTop: 15, paddingHorizontal: 16 }}>
+        <Pressable
+          onPress={handleTitlePress}
+          disabled={!onBrowsePress && !onTitlePress}
+          style={{ flexDirection: 'row', alignItems: 'center' }}
+        >
+          <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700', lineHeight: 22 }}>{title}</Text>
+          {(onBrowsePress || onTitlePress) && (
+            <Ionicons name="chevron-forward" size={18} color="#fff" style={{ marginLeft: 4, marginTop: 1 }} />
+          )}
         </Pressable>
-        {onBrowsePress && (
-          <Pressable
-            onPress={handleBrowsePress}
-            style={({ pressed }) => ({
-              paddingHorizontal: 12,
-              paddingVertical: 6,
-              borderRadius: 999,
-              borderWidth: 1,
-              borderColor: '#4a4a4a',
-              backgroundColor: 'transparent',
-              opacity: pressed ? 0.6 : 1,
-            })}
-          >
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3 }}>
-              <Text style={{ color: '#fff', fontWeight: '600', fontSize: 13, lineHeight: 15 }}>Browse</Text>
-              <Ionicons name="chevron-forward-outline" size={15} color="#fff" style={{ marginTop: 1 }} />
-            </View>
-          </Pressable>
-        )}
       </View>
       <FlatList
         horizontal

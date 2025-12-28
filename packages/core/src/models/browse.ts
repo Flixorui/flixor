@@ -15,6 +15,7 @@ export interface BrowseItem {
   title: string;
   image?: string;    // Full image URL
   year?: number;
+  subtitle?: string; // e.g., "S1E1" for episodes
 }
 
 export interface BrowseResult {

@@ -3,6 +3,7 @@
  */
 
 import { getFlixorCore } from './index';
+import { getTmdbBackdropWithTitle } from './HomeData';
 
 export type SearchResult = {
   id: string;
@@ -19,7 +20,35 @@ export type RowItem = {
   title: string;
   image?: string;
   year?: string;
+  tmdbId?: number;
+  mediaType?: 'movie' | 'tv';
 };
+
+/**
+ * Fetch preferred backdrops with titles for a list of row items
+ * Returns a map of id -> backdrop URL
+ */
+export async function fetchPreferredBackdropsForSearch(
+  items: RowItem[]
+): Promise<Record<string, string>> {
+  const results: Record<string, string> = {};
+
+  await Promise.all(
+    items.map(async (item) => {
+      if (!item.tmdbId || !item.mediaType) return;
+      try {
+        const backdrop = await getTmdbBackdropWithTitle(item.tmdbId, item.mediaType);
+        if (backdrop) {
+          results[item.id] = backdrop;
+        }
+      } catch {
+        // Silently fail - fallback to default backdrop
+      }
+    })
+  );
+
+  return results;
+}
 
 // TMDB Genre mapping
 export const GENRE_MAP: { [key: number]: string } = {
@@ -114,6 +143,8 @@ export async function getTrendingForSearch(): Promise<RowItem[]> {
       title: item.title,
       image: item.backdrop_path ? core.tmdb.getBackdropUrl(item.backdrop_path, 'w780') : undefined,
       year: item.release_date?.slice(0, 4),
+      tmdbId: item.id,
+      mediaType: 'movie' as const,
     }));
 
     const shows = (showsRes?.results || []).slice(0, 6).map((item: any) => ({
@@ -121,6 +152,8 @@ export async function getTrendingForSearch(): Promise<RowItem[]> {
       title: item.name,
       image: item.backdrop_path ? core.tmdb.getBackdropUrl(item.backdrop_path, 'w780') : undefined,
       year: item.first_air_date?.slice(0, 4),
+      tmdbId: item.id,
+      mediaType: 'tv' as const,
     }));
 
     // Interleave movies and shows for variety

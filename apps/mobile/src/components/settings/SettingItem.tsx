@@ -6,6 +6,7 @@ type SettingItemProps = {
   title: string;
   description?: string;
   icon?: keyof typeof Ionicons.glyphMap;
+  renderIcon?: () => React.ReactNode;
   renderRight?: () => React.ReactNode;
   onPress?: () => void;
   disabled?: boolean;
@@ -16,6 +17,7 @@ export default function SettingItem({
   title,
   description,
   icon,
+  renderIcon,
   renderRight,
   onPress,
   disabled,
@@ -31,7 +33,7 @@ export default function SettingItem({
       ]}
     >
       <View style={styles.iconWrap}>
-        <Ionicons name={icon || 'settings-outline'} size={18} color="#e5e7eb" />
+        {renderIcon ? renderIcon() : <Ionicons name={icon || 'settings-outline'} size={18} color="#e5e7eb" />}
       </View>
       <View style={styles.textWrap}>
         <Text style={styles.title}>{title}</Text>

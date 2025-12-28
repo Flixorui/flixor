@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, ActivityIndicator, Pressable, StyleSheet, Dimensions, Animated, Modal, Platform } from 'react-native';
+import { View, Text, ActivityIndicator, Pressable, StyleSheet, Dimensions, Animated, Modal, Platform, InteractionManager } from 'react-native';
 import PullToRefresh from '../components/PullToRefresh';
-import { Image as ExpoImage } from 'expo-image';
+import FastImage from '@d11/react-native-fast-image';
 import { FlashList } from '@shopify/flash-list';
 import { TopBarStore, useTopBarStore } from '../components/TopBarStore';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -19,6 +19,7 @@ import {
 } from '../core/LibraryData';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
+import { SCROLL_DEBOUNCE_MS, IMAGE_PRELOAD_CAP, ITEM_LIMITS } from '../core/PerformanceConfig';
 
 // Conditionally import GlassView for iOS 26+ liquid glass effect
 let GlassViewComp: any = null;
@@ -60,6 +61,8 @@ export default function Library() {
   const barHeight = useTopBarStore((s) => s.height || 90);
   const lastScrollY = useRef(0);
   const scrollDirection = useRef<'up' | 'down'>('down');
+  const scrollAnimFrameRef = useRef<number | null>(null);
+  const lastScrollUpdateRef = useRef(0);
 
   const mType = useMemo(
     () => (selected === 'movies' ? 'movie' : selected === 'shows' ? 'show' : 'all'),
@@ -96,7 +99,7 @@ export default function Library() {
         const result = await fetchLibraryItems(useSection, {
           type: mType === 'all' ? 'all' : mType,
           offset: 0,
-          limit: 40,
+          limit: ITEM_LIMITS.GRID_PAGE,
           genreKey,
           sort: sortOption.value,
         });
@@ -228,23 +231,39 @@ export default function Library() {
           const result = await fetchLibraryItems(useSection, {
             type: mType === 'all' ? 'all' : mType,
             offset: 0,
-            limit: 40,
+            limit: ITEM_LIMITS.GRID_PAGE,
             genreKey,
             sort: sortOption.value,
           });
 
           console.log('[Library] mapped first page', result.items.length);
-          setItems(result.items);
-          setHasMore(result.hasMore);
+          // Preload images for smoother scrolling
+          const preloadSize = Math.floor(Dimensions.get('window').width / 3);
+          const imagesToPreload = result.items
+            .slice(0, IMAGE_PRELOAD_CAP)
+            .filter((item) => item.thumb)
+            .map((item) => ({ uri: getLibraryImageUrl(item.thumb, preloadSize * 2) }));
+          if (imagesToPreload.length > 0) {
+            FastImage.preload(imagesToPreload);
+          }
+          // Use InteractionManager to defer state updates for smoother UI
+          InteractionManager.runAfterInteractions(() => {
+            setItems(result.items);
+            setHasMore(result.hasMore);
+          });
         } else {
           console.log('[Library] no section found; showing empty');
-          setItems([]);
-          setHasMore(false);
+          InteractionManager.runAfterInteractions(() => {
+            setItems([]);
+            setHasMore(false);
+          });
         }
       } catch (e: any) {
         setError(e?.message || 'Failed to load library');
       } finally {
-        setLoading(false);
+        InteractionManager.runAfterInteractions(() => {
+          setLoading(false);
+        });
       }
     })();
   }, [flixorLoading, isConnected, mType, sectionKeys, genreKey, sortOption]);
@@ -267,15 +286,18 @@ export default function Library() {
         const result = await fetchLibraryItems(useSection, {
           type: mType === 'all' ? 'all' : mType,
           offset,
-          limit: 40,
+          limit: ITEM_LIMITS.GRID_PAGE,
           genreKey,
           sort: sortOption.value,
         });
 
         console.log('[Library] loadMore page', nextPage, 'count', result.items.length);
-        setItems((prev) => [...prev, ...result.items]);
-        setPage(nextPage);
-        setHasMore(result.hasMore);
+        // Use InteractionManager to defer state updates for smoother scrolling
+        InteractionManager.runAfterInteractions(() => {
+          setItems((prev) => [...prev, ...result.items]);
+          setPage(nextPage);
+          setHasMore(result.hasMore);
+        });
       }
     } catch (e) {
       console.log('[Library] loadMore error:', e);
@@ -360,35 +382,50 @@ export default function Library() {
         onScroll={Animated.event([{ nativeEvent: { contentOffset: { y } } }], {
           useNativeDriver: false,
           listener: (e: any) => {
-            const currentY = e.nativeEvent.contentOffset.y;
-            const delta = currentY - lastScrollY.current;
-
-            // Determine scroll direction
-            if (delta > 5) {
-              // Scrolling down - hide pills
-              if (scrollDirection.current !== 'down') {
-                scrollDirection.current = 'down';
-                Animated.spring(showPillsAnim, {
-                  toValue: 0,
-                  useNativeDriver: false, // Must be false for TopAppBar listener
-                  tension: 60,
-                  friction: 10,
-                }).start();
-              }
-            } else if (delta < -5) {
-              // Scrolling up - show pills
-              if (scrollDirection.current !== 'up') {
-                scrollDirection.current = 'up';
-                Animated.spring(showPillsAnim, {
-                  toValue: 1,
-                  useNativeDriver: false, // Must be false for TopAppBar listener
-                  tension: 60,
-                  friction: 10,
-                }).start();
-              }
+            // Cancel any pending animation frame for throttling
+            if (scrollAnimFrameRef.current !== null) {
+              cancelAnimationFrame(scrollAnimFrameRef.current);
             }
 
-            lastScrollY.current = currentY;
+            const currentY = e.nativeEvent.contentOffset.y;
+
+            // Use requestAnimationFrame for throttling (like NuvioStreaming)
+            scrollAnimFrameRef.current = requestAnimationFrame(() => {
+              const now = Date.now();
+              const delta = currentY - lastScrollY.current;
+
+              // Debounce header toggle
+              if (now - lastScrollUpdateRef.current > SCROLL_DEBOUNCE_MS) {
+                // Determine scroll direction
+                if (delta > 5) {
+                  // Scrolling down - hide pills
+                  if (scrollDirection.current !== 'down') {
+                    scrollDirection.current = 'down';
+                    lastScrollUpdateRef.current = now;
+                    Animated.spring(showPillsAnim, {
+                      toValue: 0,
+                      useNativeDriver: false,
+                      tension: 60,
+                      friction: 10,
+                    }).start();
+                  }
+                } else if (delta < -5) {
+                  // Scrolling up - show pills
+                  if (scrollDirection.current !== 'up') {
+                    scrollDirection.current = 'up';
+                    lastScrollUpdateRef.current = now;
+                    Animated.spring(showPillsAnim, {
+                      toValue: 1,
+                      useNativeDriver: false,
+                      tension: 60,
+                      friction: 10,
+                    }).start();
+                  }
+                }
+              }
+
+              lastScrollY.current = currentY;
+            });
           },
         })}
         ListEmptyComponent={
@@ -492,12 +529,14 @@ function Card({
         }}
       >
         {img ? (
-          <ExpoImage
-            source={{ uri: img }}
+          <FastImage
+            source={{
+              uri: img,
+              priority: FastImage.priority.normal,
+              cache: FastImage.cacheControl.immutable,
+            }}
             style={{ width: '100%', height: '100%' }}
-            contentFit="cover"
-            cachePolicy="memory-disk"
-            transition={200}
+            resizeMode={FastImage.resizeMode.cover}
           />
         ) : null}
       </View>

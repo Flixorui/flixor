@@ -1,13 +1,15 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import { View, Text, ActivityIndicator, Animated, FlatList, Pressable, Dimensions, InteractionManager, AppState, Platform } from 'react-native';
+import { View, Text, ActivityIndicator, Animated, FlatList, Pressable, Dimensions, InteractionManager, Platform } from 'react-native';
 import PullToRefresh from '../components/PullToRefresh';
 import FastImage from '@d11/react-native-fast-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Row from '../components/Row';
 import LazyRow from '../components/LazyRow';
-import { useNavigation, useIsFocused } from '@react-navigation/native';
+import ContinueWatchingLandscapeRow from '../components/ContinueWatchingLandscapeRow';
+import ContinueWatchingPosterRow from '../components/ContinueWatchingPosterRow';
+import { useNavigation, useIsFocused, useFocusEffect } from '@react-navigation/native';
 import { TopBarStore, useTopBarStore } from '../components/TopBarStore';
 import HeroCard from '../components/HeroCard';
 import HeroCarousel from '../components/HeroCarousel';
@@ -15,7 +17,6 @@ import BrowseModal from '../components/BrowseModal';
 import { useFlixor } from '../core/FlixorContext';
 import { useAppSettings } from '../hooks/useAppSettings';
 import type { PlexMediaItem, BrowseContext, BrowseItem } from '@flixor/core';
-import { Image as ExpoImage } from 'expo-image';
 import {
   fetchTmdbTrendingTVWeek,
   fetchTmdbTrendingMoviesWeek,
@@ -35,6 +36,8 @@ import {
   getTmdbLogo,
   getTmdbTextlessPoster,
   getTmdbTextlessBackdrop,
+  getTmdbBackdropWithTitle,
+  getShowTmdbId,
   getTmdbOverview,
   getUltraBlurColors,
   getUsername,
@@ -46,6 +49,7 @@ import {
   toggleWatchlist,
   checkWatchlistStatus,
   WatchlistIds,
+  extractTmdbIdFromGuids,
 } from '../core/DetailsData';
 
 interface HomeProps {
@@ -74,6 +78,7 @@ type HeroPick = { title: string; image?: string; subtitle?: string; tmdbId?: num
 export default function Home({ onLogout }: HomeProps) {
   const { flixor, isLoading: flixorLoading, isConnected } = useFlixor();
   const nav: any = useNavigation();
+  const insets = useSafeAreaInsets();
   const { settings } = useAppSettings();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -83,6 +88,8 @@ export default function Home({ onLogout }: HomeProps) {
   // Plex data
   const [continueItems, setContinueItems] = useState<PlexMediaItem[]>([]);
   const [recent, setRecent] = useState<PlexMediaItem[]>([]);
+  // Cache for TMDB backdrop URLs with titles (ratingKey -> url)
+  const [continueBackdrops, setContinueBackdrops] = useState<Record<string, string>>({});
 
   // TMDB trending (split into multiple rows)
   // Initialize from persistent store for instant render (like NuvioStreaming)
@@ -243,35 +250,52 @@ export default function Home({ onLogout }: HomeProps) {
 
   // Keep the selected tab stable across focus to avoid heavy re-render on return.
 
-  // Push top bar updates synchronously before paint (useLayoutEffect)
-  React.useLayoutEffect(() => {
-    if (!isFocused) return;
-    if (!welcome) return;
+  // Stable handlers to avoid recreating on every render (prevents stale closures)
+  const navigateToLibrary = useCallback((t: 'movies' | 'shows') => {
+    nav.navigate('Library', { tab: t === 'movies' ? 'movies' : 'tv' });
+  }, [nav]);
 
-    TopBarStore.setState({
-      visible: true,
-      tabBarVisible: true,
-      showFilters: true,
-      username: welcome.replace('Welcome, ', ''),
-      selected: tab,
-      compact: false,
-      customFilters: undefined, // Reset from NewHot
-      activeGenre: undefined, // Reset from Library
-      onNavigateLibrary: (t) => {
-        nav.navigate('Library', { tab: t === 'movies' ? 'movies' : 'tv' });
-      },
-      onClose: () => {
-        setTab('all');
-      },
-      onSearch: () => {
-        nav.navigate('Search');
-      },
-      onBrowse: () => {
-        setBrowseModalVisible(true);
-      },
-      onClearGenre: undefined,
-    });
-  }, [welcome, tab, nav, isFocused]);
+  const closeHandler = useCallback(() => {
+    setTab('all');
+  }, []);
+
+  const searchHandler = useCallback(() => {
+    nav.navigate('Search');
+  }, [nav]);
+
+  const browseHandler = useCallback(() => {
+    setBrowseModalVisible(true);
+  }, []);
+
+  // Use useFocusEffect to reliably set TopBar state when screen gains focus
+  // This is more reliable than useLayoutEffect + useIsFocused for navigation focus events
+  useFocusEffect(
+    useCallback(() => {
+      if (!welcome) return;
+
+      TopBarStore.setState({
+        visible: true,
+        tabBarVisible: true,
+        showFilters: true,
+        username: welcome.replace('Welcome, ', ''),
+        selected: tab,
+        compact: false,
+        customFilters: undefined, // Reset from NewHot
+        activeGenre: undefined, // Reset from Library
+        onNavigateLibrary: navigateToLibrary,
+        onClose: closeHandler,
+        onSearch: searchHandler,
+        onBrowse: browseHandler,
+        onClearGenre: undefined,
+      });
+    }, [welcome, tab, navigateToLibrary, closeHandler, searchHandler, browseHandler])
+  );
+
+  // Also update when tab changes while focused (for pill selection on Home)
+  React.useLayoutEffect(() => {
+    if (!isFocused || !welcome) return;
+    TopBarStore.setSelected(tab);
+  }, [tab, isFocused, welcome]);
 
   // Helper function to pick hero
   const pickHero = (items: RowItem[]): HeroPick => {
@@ -321,6 +345,25 @@ export default function Home({ onLogout }: HomeProps) {
     }));
     nav.navigate('Browse', { context, title, initialItems: browseItems });
   }, [nav]);
+
+  // Navigate to Browse for Continue Watching (PlexMediaItem -> BrowseItem conversion)
+  const openContinueWatchingBrowse = useCallback(() => {
+    const browseItems: BrowseItem[] = continueItems.map((item) => {
+      const isEpisode = item.type === 'episode';
+      return {
+        id: `plex:${item.ratingKey}`,
+        title: isEpisode ? (item.grandparentTitle || item.title) : item.title,
+        image: getContinueWatchingImageUrl(item, 300), // Use show poster for episodes
+        subtitle: isEpisode ? `S${item.parentIndex || 1}, E${item.index || 1}` : undefined,
+        year: !isEpisode && item.year ? item.year : undefined,
+      };
+    });
+    nav.navigate('Browse', {
+      context: { type: 'plexContinue' } as any,
+      title: 'Continue Watching',
+      initialItems: browseItems
+    });
+  }, [nav, continueItems]);
 
   // Main data loading effect - Progressive loading pattern (like NuvioStreaming)
   // Shows UI as soon as first content is ready instead of waiting for everything
@@ -376,7 +419,35 @@ export default function Home({ onLogout }: HomeProps) {
 
         // Process other primary rows as they complete - defer updates to avoid jank
         continuePromise.then((items) => {
-          InteractionManager.runAfterInteractions(() => setContinueItems(items));
+          InteractionManager.runAfterInteractions(() => {
+            setContinueItems(items);
+            // Fetch TMDB backdrops with titles for movies and episodes
+            items.forEach(async (item) => {
+              try {
+                let tmdbId: string | null = null;
+                let mediaType: 'movie' | 'tv' = 'movie';
+
+                if (item.type === 'movie') {
+                  // For movies, extract TMDB ID from Guid array
+                  tmdbId = extractTmdbIdFromGuids(item.Guid || []);
+                  mediaType = 'movie';
+                } else if (item.type === 'episode' && item.grandparentRatingKey) {
+                  // For episodes, fetch the show's TMDB ID using grandparentRatingKey
+                  tmdbId = await getShowTmdbId(item.grandparentRatingKey);
+                  mediaType = 'tv';
+                }
+
+                if (tmdbId) {
+                  const backdrop = await getTmdbBackdropWithTitle(Number(tmdbId), mediaType);
+                  if (backdrop) {
+                    setContinueBackdrops(prev => ({ ...prev, [item.ratingKey]: backdrop }));
+                  }
+                }
+              } catch (e) {
+                // Silently handle errors - fallback to Plex images
+              }
+            });
+          });
         }).catch(() => setContinueItems([]));
         recentPromise.then((items) => {
           InteractionManager.runAfterInteractions(() => setRecent(items));
@@ -472,16 +543,7 @@ export default function Home({ onLogout }: HomeProps) {
   }, [flixorLoading, isConnected, retryCount]);
 
   // Memory management: Clear FastImage memory cache when app goes to background
-  // This prevents memory warnings while preserving disk cache for fast reloads
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', (nextAppState) => {
-      if (nextAppState === 'background') {
-        console.log('[Home] App going to background - clearing FastImage memory cache');
-        FastImage.clearMemoryCache();
-      }
-    });
-    return () => subscription.remove();
-  }, []);
+  // Note: Memory cleanup on app background is now handled centrally by MemoryManager
 
   const scheduleIdleWork = useCallback((work: () => void, delayMs = 0) => {
     let cancelled = false;
@@ -820,6 +882,19 @@ export default function Home({ onLogout }: HomeProps) {
 
   const plexImage = useCallback((item: PlexMediaItem) => getPlexImageUrl(item, 300), []);
   const plexContinueImage = useCallback((item: PlexMediaItem) => getContinueWatchingImageUrl(item, 300), []);
+  // Landscape image for Continue Watching - prefer TMDB backdrop with title
+  const plexContinueLandscapeImage = useCallback((item: PlexMediaItem) => {
+    // Check if we have a TMDB backdrop with title cached (for both movies and episodes)
+    if (item.ratingKey && continueBackdrops[item.ratingKey]) {
+      return continueBackdrops[item.ratingKey];
+    }
+    // Fallback to Plex art - for episodes use grandparentArt (show backdrop)
+    const path = item.type === 'episode'
+      ? (item.grandparentArt || item.art || item.thumb)
+      : (item.art || item.thumb);
+    if (!path) return '';
+    return getPlexImageUrl({ ...item, thumb: path } as PlexMediaItem, 600);
+  }, [continueBackdrops]);
   const getContinueTitle = useCallback((it: any) => {
     if (it.type === 'episode') {
       return it.grandparentTitle || it.title || 'Episode';
@@ -830,7 +905,7 @@ export default function Home({ onLogout }: HomeProps) {
     if (it.type === 'episode') {
       const seasonNum = it.parentIndex || 1;
       const episodeNum = it.index || 1;
-      return `S${seasonNum}E${episodeNum}`;
+      return `S${seasonNum}, E${episodeNum}`;
     }
     // For movies, show the year
     if (it.year) {
@@ -933,7 +1008,7 @@ export default function Home({ onLogout }: HomeProps) {
 
       <Animated.ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingBottom: 24, paddingTop: barHeight }}
+        contentContainerStyle={{ paddingBottom: 80 + insets.bottom, paddingTop: barHeight }}
         scrollEventThrottle={16}
         onScroll={Animated.event([{ nativeEvent: { contentOffset: { y } } }], {
           useNativeDriver: false,
@@ -1064,15 +1139,25 @@ export default function Home({ onLogout }: HomeProps) {
 
         <View style={{ marginTop: 16 }}>
         {settings.showContinueWatchingRow && continueItems.length > 0 && (
-            <Row
-              title="Continue Watching"
-              items={continueItems}
-              getImageUri={plexContinueImage}
-              getTitle={getContinueTitle}
-              getSubtitle={getContinueSubtitle}
-              onItemPress={onContinuePress}
-              onBrowsePress={() => openRowBrowse({ type: 'plexContinue' }, 'Continue Watching', continueItems)}
-            />
+            settings.continueWatchingLayout === 'landscape' ? (
+              <ContinueWatchingLandscapeRow
+                items={continueItems}
+                onItemPress={onContinuePress}
+                onBrowsePress={openContinueWatchingBrowse}
+                getImageUri={plexContinueLandscapeImage}
+                onInfo={(item) => nav.navigate('Details', { type: 'plex', ratingKey: item.ratingKey })}
+              />
+            ) : (
+              <ContinueWatchingPosterRow
+                items={continueItems}
+                onItemPress={onContinuePress}
+                onBrowsePress={openContinueWatchingBrowse}
+                getImageUri={plexContinueImage}
+                getTitle={getContinueTitle}
+                getSubtitle={getContinueSubtitle}
+                onInfo={(item) => nav.navigate('Details', { type: 'plex', ratingKey: item.ratingKey })}
+              />
+            )
           )}
           
           {settings.showPlexPopularRow && popularOnPlexTmdb.length > 0 && (
@@ -1304,11 +1389,14 @@ function HeroAppleTV({
       >
         <View style={{ width: '100%', aspectRatio: 16 / 9 }}>
           {(current.backdrop || current.image) ? (
-            <ExpoImage
-              source={{ uri: current.backdrop || current.image }}
+            <FastImage
+              source={{
+                uri: current.backdrop || current.image,
+                priority: FastImage.priority.high,
+                cache: FastImage.cacheControl.immutable,
+              }}
               style={{ width: '100%', height: '100%' }}
-              contentFit="cover"
-              transition={250}
+              resizeMode={FastImage.resizeMode.cover}
             />
           ) : null}
         </View>
@@ -1318,11 +1406,14 @@ function HeroAppleTV({
         />
         <View style={{ position: 'absolute', left: 18, right: 18, bottom: 18 }}>
           {current.logo ? (
-            <ExpoImage
-              source={{ uri: current.logo }}
+            <FastImage
+              source={{
+                uri: current.logo,
+                priority: FastImage.priority.high,
+                cache: FastImage.cacheControl.immutable,
+              }}
               style={{ width: 200, height: 70, marginBottom: 8 }}
-              contentFit="contain"
-              transition={200}
+              resizeMode={FastImage.resizeMode.contain}
             />
           ) : (
             <Text style={{ color: '#fff', fontSize: 26, fontWeight: '900', marginBottom: 6 }}>
@@ -1378,11 +1469,14 @@ function HeroAppleTV({
               }}
             >
               {(item.backdrop || item.image) ? (
-                <ExpoImage
-                  source={{ uri: item.backdrop || item.image }}
+                <FastImage
+                  source={{
+                    uri: item.backdrop || item.image,
+                    priority: FastImage.priority.normal,
+                    cache: FastImage.cacheControl.immutable,
+                  }}
                   style={{ width: '100%', height: '100%' }}
-                  contentFit="cover"
-                  transition={150}
+                  resizeMode={FastImage.resizeMode.cover}
                 />
               ) : null}
             </Pressable>
