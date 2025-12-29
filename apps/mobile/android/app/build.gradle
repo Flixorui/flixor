@@ -152,12 +152,10 @@ android {
     }
 }
 
-configurations.all {
-    // Exclude duplicate androidsvg library (use aar version only)
-    exclude group: 'com.caverock', module: 'androidsvg'
-}
-
 dependencies {
+    // MPV Player library - local AAR from GitHub releases (no Glide conflict)
+    implementation files("libs/libmpv-release.aar")
+
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
 

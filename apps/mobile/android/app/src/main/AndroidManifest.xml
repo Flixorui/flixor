@@ -27,7 +27,6 @@
         <category android:name="android.intent.category.DEFAULT"/>
         <category android:name="android.intent.category.BROWSABLE"/>
         <data android:scheme="flixor"/>
-        <data android:scheme="exp+flixor-mobile"/>
       </intent-filter>
     </activity>
   </application>

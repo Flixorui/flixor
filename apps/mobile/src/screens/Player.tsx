@@ -7,7 +7,7 @@ import { useNavigation, StackActions } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { LinearGradient } from 'expo-linear-gradient';
-import { KSPlayerComponent, KSPlayerRef, AudioTrack, TextTrack } from '../components/player';
+import { KSPlayerComponent, KSPlayerRef, AudioTrack, TextTrack, MPVPlayerComponent, MPVPlayerRef, MPVAudioTrack, MPVSubtitleTrack } from '../components/player';
 import PlaybackStatsHUD from '../components/player/PlaybackStatsHUD';
 import { Stream, PlaybackInfo } from '../components/PlayerSettingsSheet';
 import { useFlixor } from '../core/FlixorContext';
@@ -52,7 +52,8 @@ export default function Player({ route }: RouteParams) {
   const params: Partial<PlayerParams> = route?.params || {};
   const nav = useNavigation();
   const playerRef = useRef<KSPlayerRef>(null);
-  const videoRef = useRef<Video>(null); // expo-av fallback for Android
+  const mpvPlayerRef = useRef<MPVPlayerRef>(null); // Android MPV player
+  const videoRef = useRef<Video>(null); // expo-av fallback (unused with MPV)
   const { isLoading: flixorLoading, isConnected } = useFlixor();
   const KSPlayerModule = Platform.OS === 'ios' ? NativeModules.KSPlayerModule : null;
 
@@ -449,9 +450,60 @@ export default function Player({ route }: RouteParams) {
                 }
               }
             } else {
-              // Android: Use HLS transcode
-              console.log('[Player] Android: Using HLS transcode');
-              await setupHlsTranscode(params.ratingKey);
+              // Android with MPV: Can use Direct Play for compatible formats
+              // MPV supports MKV, HEVC, HDR, etc.
+              const userRequestedTranscode = typeof params.initialQuality === 'number';
+              const userRequestedOriginal = params.initialQuality === 'original';
+
+              // Check audio codec for transcoding requirements (same as iOS)
+              const audioCodec = (media?.audioCodec || '').toLowerCase();
+              const audioProfile = ((media as any)?.audioProfile || '').toLowerCase();
+              const firstAudioStream = streams.find((s: any) => s.streamType === 2);
+              const audioDisplayTitle = (firstAudioStream?.displayTitle || '').toLowerCase();
+
+              // DTS codec can be reported as "dca" or "dca-ma"
+              const isDTS = audioCodec.includes('dts') || audioCodec.includes('dca');
+              const isDTSHD = isDTS && (
+                audioCodec.includes('ma') ||
+                audioProfile.includes('ma') ||
+                audioProfile.includes('hd') ||
+                audioDisplayTitle.includes('dts-hd') ||
+                audioDisplayTitle.includes('dts:x')
+              );
+
+              const needsAudioTranscode =
+                isDTSHD || // DTS-HD MA, DTS-HD HR, DTS:X
+                audioCodec.includes('truehd') ||
+                audioDisplayTitle.includes('truehd') ||
+                audioDisplayTitle.includes('atmos');
+
+              const shouldTranscode = userRequestedTranscode || (needsAudioTranscode && !userRequestedOriginal);
+
+              console.log('[Player] Android audio analysis:', { audioCodec, audioProfile, audioDisplayTitle, needsAudioTranscode, userRequestedOriginal });
+
+              if (shouldTranscode) {
+                console.log('[Player] Android: Using HLS transcode', userRequestedTranscode ? '(user selected quality)' : '(audio requires transcode)');
+                await setupHlsTranscode(params.ratingKey);
+              } else {
+                try {
+                  console.log('[Player] Android: Trying Direct Play with MPV', userRequestedOriginal ? '(user requested original)' : '(compatible audio)');
+                  const directUrl = await getDirectStreamUrl(params.ratingKey);
+                  console.log('[Player] ====== DIRECT PLAY (MPV) ======');
+                  console.log('[Player] Stream URL:', directUrl);
+                  console.log('[Player] Mode: Direct Play (original file)');
+                  console.log('[Player] ============================');
+                  // Reset track refs before loading new stream
+                  lastAudioTrackRef.current = null;
+                  lastTextTrackRef.current = -1;
+                  setStreamUrl(directUrl);
+                  setIsDirectPlay(true);
+                  setSelectedQuality('original');
+                  setLoading(false);
+                } catch (e) {
+                  console.log('[Player] Direct Play failed, falling back to HLS transcode:', e);
+                  await setupHlsTranscode(params.ratingKey);
+                }
+              }
             }
 
             async function setupHlsTranscode(ratingKey: string, options?: { bitrate?: number }) {
@@ -947,18 +999,111 @@ export default function Player({ route }: RouteParams) {
     }
   }, [isScrubbing, isPlaying, metadata]);
 
+  // MPV Player callbacks (Android)
+  const onMpvLoad = useCallback((data: { duration: number; width: number; height: number }) => {
+    console.log('[Player] MPV onLoad:', data);
+    const durationMs = (data.duration || 0) * 1000;
+    setDuration(durationMs);
+    durationRef.current = durationMs;
+
+    // Set player backend for UI display
+    setPlayerBackend('MPV');
+
+    // Resume from viewOffset if available
+    if (metadata?.viewOffset) {
+      const resumeMs = parseInt(String(metadata.viewOffset));
+      if (resumeMs > 0 && mpvPlayerRef.current) {
+        console.log('[Player] Resuming from viewOffset:', resumeMs);
+        mpvPlayerRef.current.seek(resumeMs / 1000);
+      }
+    }
+
+    // Start Trakt scrobble
+    if (metadata && !traktScrobbleStarted.current) {
+      startTraktScrobble(metadata, 0);
+      traktScrobbleStarted.current = true;
+      lastScrobbleState.current = 'playing';
+    }
+  }, [metadata]);
+
+  const onMpvProgress = useCallback((data: { currentTime: number; duration: number }) => {
+    const currentTimeMs = (data.currentTime || 0) * 1000;
+    const durationMs = (data.duration || 0) * 1000;
+
+    positionRef.current = currentTimeMs;
+
+    if (!isScrubbing) {
+      setPosition(currentTimeMs);
+    }
+
+    if (durationMs > 0 && Math.abs(durationMs - durationRef.current) > 100) {
+      setDuration(durationMs);
+      durationRef.current = durationMs;
+    }
+  }, [isScrubbing]);
+
+  const onMpvEnd = useCallback(() => {
+    console.log('[Player] MPV onEnd');
+    setIsPlaying(false);
+
+    if (traktScrobbleStarted.current && metadata) {
+      stopTraktScrobble(metadata, 100);
+      lastScrobbleState.current = 'stopped';
+    }
+  }, [metadata]);
+
+  const onMpvError = useCallback((error: { error: string }) => {
+    console.error('[Player] MPV onError:', error);
+    setError(`Playback error: ${error.error || 'Unknown error'}`);
+  }, []);
+
+  const onMpvTracksChanged = useCallback((data: { audioTracks: MPVAudioTrack[]; subtitleTracks: MPVSubtitleTrack[] }) => {
+    console.log('[Player] MPV onTracksChanged:', data);
+
+    // Convert MPV tracks to AudioTrack/TextTrack format for compatibility
+    const convertedAudioTracks: AudioTrack[] = (data.audioTracks || []).map((track, index) => ({
+      id: track.id,
+      index: index,
+      name: track.name,
+      language: track.language,
+      languageCode: track.language,
+      isEnabled: index === 0, // First track enabled by default
+      bitRate: 0, // Not available from MPV
+      bitDepth: 0, // Not available from MPV
+    }));
+
+    const convertedTextTracks: TextTrack[] = (data.subtitleTracks || []).map((track, index) => ({
+      id: track.id,
+      index: index,
+      name: track.name,
+      language: track.language,
+      languageCode: track.language,
+      isEnabled: false, // Subtitles off by default
+      isImageSubtitle: track.codec === 'hdmv_pgs_subtitle' || track.codec === 'dvd_subtitle',
+    }));
+
+    audioTracksRef.current = convertedAudioTracks;
+    textTracksRef.current = convertedTextTracks;
+    setAudioTracks(convertedAudioTracks);
+    setTextTracks(convertedTextTracks);
+
+    // Set initial selections
+    if (convertedAudioTracks.length > 0) {
+      setSelectedAudioTrack(convertedAudioTracks[0].id);
+      lastAudioTrackRef.current = convertedAudioTracks[0].id;
+    }
+    lastTextTrackRef.current = -1;
+  }, []);
+
   const togglePlayPause = async () => {
     if (Platform.OS === 'ios') {
       if (!playerRef.current) return;
       playerRef.current.setPaused(isPlaying);
     } else {
-      // Android: expo-av
-      if (!videoRef.current) return;
-      if (isPlaying) {
-        await videoRef.current.pauseAsync();
-      } else {
-        await videoRef.current.playAsync();
-      }
+      // Android: MPV player
+      // Note: MPV paused prop is controlled via state, not direct method call
+      // The component re-renders with updated paused prop
+      setIsPlaying(!isPlaying);
     }
   };
 
@@ -968,9 +1113,9 @@ export default function Player({ route }: RouteParams) {
       if (!playerRef.current) return;
       playerRef.current.seek(newPositionMs / 1000); // KSPlayer uses seconds
     } else {
-      // Android: expo-av
-      if (!videoRef.current) return;
-      await videoRef.current.setPositionAsync(newPositionMs);
+      // Android: MPV player
+      if (!mpvPlayerRef.current) return;
+      mpvPlayerRef.current.seek(newPositionMs / 1000); // MPV uses seconds
     }
   };
 
@@ -980,9 +1125,9 @@ export default function Player({ route }: RouteParams) {
       if (!playerRef.current) return;
       playerRef.current.seek(targetMs / 1000); // KSPlayer uses seconds
     } else {
-      // Android: expo-av
-      if (!videoRef.current) return;
-      await videoRef.current.setPositionAsync(targetMs);
+      // Android: MPV player
+      if (!mpvPlayerRef.current) return;
+      mpvPlayerRef.current.seek(targetMs / 1000); // MPV uses seconds
     }
   };
 
@@ -992,14 +1137,14 @@ export default function Player({ route }: RouteParams) {
       playerRef.current.seek(0);
       playerRef.current.setPaused(false);
     } else {
-      // Android: expo-av
-      if (!videoRef.current) return;
-      await videoRef.current.setPositionAsync(0);
-      await videoRef.current.playAsync();
+      // Android: MPV player
+      if (!mpvPlayerRef.current) return;
+      mpvPlayerRef.current.seek(0);
+      setIsPlaying(true);
     }
   };
 
-  // Track selection handlers (KSPlayer tracks by ID)
+  // Track selection handlers (native player tracks by ID)
   const handleAudioTrackChange = useCallback((trackId: number) => {
     // Prevent duplicate calls
     if (lastAudioTrackRef.current === trackId) {
@@ -1008,10 +1153,18 @@ export default function Player({ route }: RouteParams) {
     }
     lastAudioTrackRef.current = trackId;
 
-    if (playerRef.current) {
-      console.log('[Player] Setting audio track:', trackId);
-      playerRef.current.setAudioTrack(trackId);
-      setSelectedAudioTrack(trackId);
+    if (Platform.OS === 'ios') {
+      if (playerRef.current) {
+        console.log('[Player] Setting audio track (KSPlayer):', trackId);
+        playerRef.current.setAudioTrack(trackId);
+        setSelectedAudioTrack(trackId);
+      }
+    } else {
+      if (mpvPlayerRef.current) {
+        console.log('[Player] Setting audio track (MPV):', trackId);
+        mpvPlayerRef.current.setAudioTrack(trackId);
+        setSelectedAudioTrack(trackId);
+      }
     }
   }, []);
 
@@ -1023,10 +1176,18 @@ export default function Player({ route }: RouteParams) {
     }
     lastTextTrackRef.current = trackId;
 
-    if (playerRef.current) {
-      console.log('[Player] Setting text track:', trackId);
-      playerRef.current.setTextTrack(trackId);
-      setSelectedTextTrack(trackId);
+    if (Platform.OS === 'ios') {
+      if (playerRef.current) {
+        console.log('[Player] Setting text track (KSPlayer):', trackId);
+        playerRef.current.setTextTrack(trackId);
+        setSelectedTextTrack(trackId);
+      }
+    } else {
+      if (mpvPlayerRef.current) {
+        console.log('[Player] Setting subtitle track (MPV):', trackId);
+        mpvPlayerRef.current.setSubtitleTrack(trackId);
+        setSelectedTextTrack(trackId);
+      }
     }
   }, []);
 
@@ -1092,9 +1253,12 @@ export default function Player({ route }: RouteParams) {
     setSelectedPlexAudio(streamId);
     setShowSettingsSheet(false);
 
-    if (isDirectPlay && Platform.OS === 'ios') {
+    if (isDirectPlay) {
+      // Direct Play: Use in-player track switching (iOS KSPlayer or Android MPV)
       let availableAudioTracks = audioTracksRef.current.length ? audioTracksRef.current : audioTracks;
-      if (availableAudioTracks.length === 0 && playerRef.current) {
+
+      // iOS: Try to refresh tracks from KSPlayer if needed
+      if (Platform.OS === 'ios' && availableAudioTracks.length === 0 && playerRef.current) {
         try {
           const freshTracks = await playerRef.current.getTracks();
           availableAudioTracks = freshTracks.audioTracks || [];
@@ -1105,9 +1269,8 @@ export default function Player({ route }: RouteParams) {
         }
       }
 
-      // Direct Play: Use in-player track switching
       // Find the Plex stream index - this is the most reliable way to match
-      // since Plex streams and KSPlayer tracks are typically in the same order
+      // since Plex streams and native player tracks are typically in the same order
       const plexStreamIndex = plexAudioStreams.findIndex(s => s.id === streamId);
       const plexStream = plexAudioStreams[plexStreamIndex];
 
@@ -1116,7 +1279,7 @@ export default function Player({ route }: RouteParams) {
         return;
       }
 
-      console.log('[Player] Direct Play: Looking for KSPlayer audio track at index', plexStreamIndex, 'matching Plex stream:', {
+      console.log('[Player] Direct Play: Looking for audio track at index', plexStreamIndex, 'matching Plex stream:', {
         displayTitle: plexStream.displayTitle,
         languageCode: plexStream.languageCode,
         codec: plexStream.codec,
@@ -1140,14 +1303,14 @@ export default function Player({ route }: RouteParams) {
       }
 
       if (matchedTrack) {
-        console.log('[Player] Direct Play: Matched KSPlayer audio track:', {
+        console.log('[Player] Direct Play: Matched audio track:', {
           id: matchedTrack.id,
           name: matchedTrack.name,
           languageCode: matchedTrack.languageCode,
         });
         handleAudioTrackChange(matchedTrack.id);
       } else {
-        console.log('[Player] Direct Play: No matching KSPlayer audio track found');
+        console.log('[Player] Direct Play: No matching audio track found, available:', availableAudioTracks.map((t, i) => ({ index: i, id: t.id, name: t.name })));
       }
     } else {
       // HLS Transcode: Restart player with new stream selection
@@ -1163,9 +1326,12 @@ export default function Player({ route }: RouteParams) {
     setSelectedPlexSubtitle(streamId);
     setShowSettingsSheet(false);
 
-    if (isDirectPlay && Platform.OS === 'ios') {
+    if (isDirectPlay) {
+      // Direct Play: Use in-player track switching (iOS KSPlayer or Android MPV)
       let availableTextTracks = textTracksRef.current.length ? textTracksRef.current : textTracks;
-      if (availableTextTracks.length === 0 && playerRef.current) {
+
+      // iOS: Try to refresh tracks from KSPlayer if needed
+      if (Platform.OS === 'ios' && availableTextTracks.length === 0 && playerRef.current) {
         try {
           const freshTracks = await playerRef.current.getTracks();
           availableTextTracks = freshTracks.textTracks || [];
@@ -1176,14 +1342,13 @@ export default function Player({ route }: RouteParams) {
         }
       }
 
-      // Direct Play: Use in-player track switching (like macOS/MPV)
       if (streamId === '0') {
         // Disable subtitles
         console.log('[Player] Direct Play: Disabling subtitles');
         handleTextTrackChange(-1);
       } else {
         // Find the Plex stream index - this is the most reliable way to match
-        // since Plex streams and KSPlayer tracks are in the same order
+        // since Plex streams and native player tracks are in the same order
         const plexStreamIndex = plexSubtitleStreams.findIndex(s => s.id === streamId);
         const plexStream = plexSubtitleStreams[plexStreamIndex];
 
@@ -1192,7 +1357,7 @@ export default function Player({ route }: RouteParams) {
           return;
         }
 
-        console.log('[Player] Direct Play: Looking for KSPlayer track at index', plexStreamIndex, 'matching Plex stream:', {
+        console.log('[Player] Direct Play: Looking for subtitle track at index', plexStreamIndex, 'matching Plex stream:', {
           displayTitle: plexStream.displayTitle,
           languageCode: plexStream.languageCode,
           language: plexStream.language,
@@ -1216,7 +1381,7 @@ export default function Player({ route }: RouteParams) {
         }
 
         if (matchedTrack) {
-          console.log('[Player] Direct Play: Matched KSPlayer subtitle track:', {
+          console.log('[Player] Direct Play: Matched subtitle track:', {
             id: matchedTrack.id,
             name: matchedTrack.name,
             languageCode: matchedTrack.languageCode,
@@ -1224,8 +1389,8 @@ export default function Player({ route }: RouteParams) {
           });
           handleTextTrackChange(matchedTrack.id);
         } else {
-          console.log('[Player] Direct Play: No matching KSPlayer subtitle track found');
-          console.log('[Player] Available KSPlayer tracks:', availableTextTracks.map((t, i) => ({ index: i, id: t.id, name: t.name })));
+          console.log('[Player] Direct Play: No matching subtitle track found');
+          console.log('[Player] Available tracks:', availableTextTracks.map((t, i) => ({ index: i, id: t.id, name: t.name })));
         }
       }
     } else {
@@ -1318,17 +1483,21 @@ export default function Player({ route }: RouteParams) {
             onError={onPlayerError}
           />
         ) : (
-          // Android fallback: expo-av
-          <Video
-            ref={videoRef}
+          // Android: MPV native player
+          <MPVPlayerComponent
+            ref={mpvPlayerRef}
             source={{ uri: streamUrl }}
             style={{ width: dimensions.width, height: dimensions.height }}
-            resizeMode={ResizeMode.CONTAIN}
-            shouldPlay={true}
-            isMuted={false}
+            resizeMode="contain"
+            paused={!isPlaying}
             volume={1.0}
-            onPlaybackStatusUpdate={onPlaybackStatusUpdate}
-            useNativeControls={false}
+            rate={1.0}
+            decoderMode="auto"
+            onLoad={onMpvLoad}
+            onProgress={onMpvProgress}
+            onEnd={onMpvEnd}
+            onError={onMpvError}
+            onTracksChanged={onMpvTracksChanged}
           />
         )
       ) : null}
