@@ -5,7 +5,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { View, ActivityIndicator, Text, Pressable, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
+import ConditionalBlurView from './src/components/ConditionalBlurView';
 import { useTopBarStore } from './src/components/TopBarStore';
 import GlobalTopAppBar from './src/components/GlobalTopAppBar';
 import { useSafeAreaInsets, SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
@@ -247,9 +247,7 @@ const Tabs = React.memo(() => {
           paddingTop: 10,
         } : { display: 'none' as const },
         tabBarBackground: () => (
-          Platform.OS === 'ios'
-            ? <BlurView intensity={90} tint="dark" style={{ flex: 1 }} />
-            : <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.9)' }} />
+          <ConditionalBlurView intensity={90} tint="dark" style={{ flex: 1 }} fallbackColor="rgba(0,0,0,0.9)" />
         ),
         tabBarIcon: ({ color, focused }) => {
           const name = route.name === 'HomeTab' ? (focused ? 'home' : 'home-outline')

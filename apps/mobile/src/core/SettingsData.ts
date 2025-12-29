@@ -292,6 +292,8 @@ export interface AppSettings {
   heroLayout: 'legacy' | 'carousel' | 'appletv';
   continueWatchingLayout: 'poster' | 'landscape';
   enabledLibraryKeys?: string[];
+  // Android-specific settings
+  enableAndroidBlurView: boolean; // Enable blur effects on Android (may impact performance)
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -320,6 +322,8 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   heroLayout: 'carousel',
   continueWatchingLayout: 'landscape',
   enabledLibraryKeys: undefined,
+  // Android-specific defaults
+  enableAndroidBlurView: false, // Disabled by default for performance
 };
 
 let cachedSettings: AppSettings = { ...DEFAULT_APP_SETTINGS };

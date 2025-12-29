@@ -9,7 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { TopBarStore } from '../components/TopBarStore';
 import { TOP_BAR_EXPANDED_CONTENT_HEIGHT } from '../components/topBarMetrics';
 import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
+import ConditionalBlurView from '../components/ConditionalBlurView';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useFlixor } from '../core/FlixorContext';
 import {
@@ -345,10 +345,10 @@ export default function MyList() {
             <Text style={styles.floatingSortButtonText}>{sortOption.label}</Text>
           </GlassViewComp>
         ) : (
-          <BlurView intensity={80} tint="dark" style={styles.floatingSortButtonBlur}>
+          <ConditionalBlurView intensity={80} tint="dark" style={styles.floatingSortButtonBlur}>
             <Ionicons name="swap-vertical" size={20} color="#fff" />
             <Text style={styles.floatingSortButtonText}>{sortOption.label}</Text>
-          </BlurView>
+          </ConditionalBlurView>
         )}
       </Pressable>
 
@@ -361,7 +361,7 @@ export default function MyList() {
       >
         <Pressable style={styles.modalOverlay} onPress={() => setShowSortModal(false)}>
           <View style={styles.sortModalContent}>
-            <BlurView intensity={100} tint="dark" style={styles.sortModalBlur}>
+            <ConditionalBlurView intensity={100} tint="dark" style={styles.sortModalBlur}>
               <Text style={styles.sortModalTitle}>Sort By</Text>
               {SORT_OPTIONS.map((option) => (
                 <Pressable
@@ -389,7 +389,7 @@ export default function MyList() {
                   )}
                 </Pressable>
               ))}
-            </BlurView>
+            </ConditionalBlurView>
           </View>
         </Pressable>
       </Modal>

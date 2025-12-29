@@ -15,7 +15,7 @@ import { FlashList } from '@shopify/flash-list';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
+import ConditionalBlurView from '../components/ConditionalBlurView';
 import { useFlixor } from '../core/FlixorContext';
 import {
   fetchCollections,
@@ -213,7 +213,7 @@ export default function Collections() {
 
       {/* Header */}
       <Animated.View style={[styles.headerBlurContainer, { opacity: headerOpacity }]}>
-        <BlurView intensity={80} tint="dark" style={styles.headerBlur} />
+        <ConditionalBlurView intensity={80} tint="dark" style={styles.headerBlur} />
       </Animated.View>
       <View style={styles.header}>
         <Pressable onPress={goBack} style={styles.backButton}>

@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
+import ConditionalBlurView from './ConditionalBlurView';
 import * as Haptics from 'expo-haptics';
 
 type Props = {
@@ -32,7 +32,7 @@ function Pill({ active, label, onPress }: { active?: boolean; label: string; onP
       {/* Blur background only when active */}
       {active && (
         <>
-          <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFillObject} />
+          <ConditionalBlurView intensity={20} tint="dark" style={StyleSheet.absoluteFillObject} />
           <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(255,255,255,0.15)' }]} />
         </>
       )}
@@ -108,7 +108,7 @@ export default function Pills({ selected, onChange, onOpenCategories, onClose, a
               overflow: 'hidden',
             }}
           >
-            <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFillObject} />
+            <ConditionalBlurView intensity={20} tint="dark" style={StyleSheet.absoluteFillObject} />
             <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(255,255,255,0.15)' }]} />
             <Text style={{ color: '#fff', fontWeight: '600' }}>{activeGenre}</Text>
           </Pressable>

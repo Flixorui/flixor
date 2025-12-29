@@ -12,7 +12,7 @@ import Animated, {
   runOnJS,
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
+import ConditionalBlurView from './ConditionalBlurView';
 import FastImage from '@d11/react-native-fast-image';
 import { Pagination } from 'react-native-reanimated-carousel';
 import { Ionicons } from '@expo/vector-icons';
@@ -337,7 +337,7 @@ function CarouselCard({
             {Platform.OS === 'ios' && GlassViewComp && liquidGlassAvailable ? (
               <GlassViewComp style={styles.banner} glassEffectStyle="regular" />
             ) : (
-              <BlurView style={styles.banner} intensity={30} tint="dark" />
+              <ConditionalBlurView style={styles.banner} intensity={30} tint="dark" />
             )}
           </View>
           <View style={styles.backContent}>

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, Switch, Dimensions, Linking, Pressable, Animated } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Switch, Dimensions, Linking, Pressable, Animated, Platform } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -34,14 +34,16 @@ type CategoryId =
   | 'account'
   | 'content'
   | 'appearance'
+  | 'androidPerformance'
   | 'integrations'
   | 'playback'
   | 'about';
 
-const CATEGORIES: Array<{ id: CategoryId; title: string; icon: keyof typeof Ionicons.glyphMap }> = [
+const CATEGORIES: Array<{ id: CategoryId; title: string; icon: keyof typeof Ionicons.glyphMap; androidOnly?: boolean }> = [
   { id: 'account', title: 'Account', icon: 'person-circle-outline' },
   { id: 'content', title: 'Content & Discovery', icon: 'compass-outline' },
   { id: 'appearance', title: 'Appearance', icon: 'color-palette-outline' },
+  { id: 'androidPerformance', title: 'Android Performance', icon: 'speedometer-outline', androidOnly: true },
   { id: 'integrations', title: 'Integrations', icon: 'layers-outline' },
   { id: 'playback', title: 'Playback', icon: 'play-circle-outline' },
   { id: 'about', title: 'About', icon: 'information-circle-outline' },
@@ -158,6 +160,23 @@ export default function Settings({ onBack }: SettingsProps) {
           <Switch
             value={settings.enableStreamsBackdrop}
             onValueChange={(value) => updateSetting('enableStreamsBackdrop', value)}
+          />
+        )}
+        isLast={true}
+      />
+    </SettingsCard>
+  );
+
+  const renderAndroidPerformance = () => (
+    <SettingsCard title="ANDROID PERFORMANCE">
+      <SettingItem
+        title="Enable Blur Effects"
+        description="Enable blur view effects. May impact performance on some devices."
+        icon="sparkles-outline"
+        renderRight={() => (
+          <Switch
+            value={settings.enableAndroidBlurView}
+            onValueChange={(value) => updateSetting('enableAndroidBlurView', value)}
           />
         )}
         isLast={true}
@@ -282,6 +301,8 @@ export default function Settings({ onBack }: SettingsProps) {
         return renderContent();
       case 'appearance':
         return renderAppearance();
+      case 'androidPerformance':
+        return renderAndroidPerformance();
       case 'integrations':
         return renderIntegrations();
       case 'playback':
@@ -293,13 +314,19 @@ export default function Settings({ onBack }: SettingsProps) {
     }
   };
 
+  // Filter categories based on platform
+  const visibleCategories = useMemo(() =>
+    CATEGORIES.filter(cat => !cat.androidOnly || Platform.OS === 'android'),
+    []
+  );
+
   if (isTablet) {
     return (
       <View style={styles.container}>
         <SettingsHeader title="Settings" onBack={goBack} scrollY={scrollY} />
         <View style={[styles.tabletLayout, { paddingTop: headerHeight }]}>
           <View style={styles.sidebar}>
-            {CATEGORIES.map((cat) => (
+            {visibleCategories.map((cat) => (
               <Pressable
                 key={cat.id}
                 onPress={() => setSelectedCategory(cat.id)}
@@ -353,6 +380,7 @@ export default function Settings({ onBack }: SettingsProps) {
         {renderAccount()}
         {renderContent()}
         {renderAppearance()}
+        {Platform.OS === 'android' && renderAndroidPerformance()}
         {renderIntegrations()}
         {renderPlayback()}
         {renderAbout()}

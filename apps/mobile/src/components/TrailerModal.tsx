@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, Modal, Pressable, StyleSheet, Dimensions, ActivityIndicator } from 'react-native';
-import { BlurView } from 'expo-blur';
+import ConditionalBlurView from './ConditionalBlurView';
 import * as Haptics from 'expo-haptics';
 import YoutubePlayer from 'react-native-youtube-iframe';
 
@@ -89,7 +89,7 @@ export default function TrailerModal({ visible, trailer, onClose, contentTitle }
     >
       <Pressable style={styles.overlay} onPress={handleClose}>
         <Pressable style={[styles.modalContainer, { width: MODAL_WIDTH, maxHeight: MODAL_MAX_HEIGHT }]} onPress={(e) => e.stopPropagation()}>
-          <BlurView intensity={100} tint="dark" style={styles.modalBlur}>
+          <ConditionalBlurView intensity={100} tint="dark" style={styles.modalBlur}>
             {/* Header */}
             <View style={styles.header}>
               <View style={styles.headerLeft}>
@@ -162,7 +162,7 @@ export default function TrailerModal({ visible, trailer, onClose, contentTitle }
                 <Text style={styles.footerText}>{contentTitle}</Text>
               </View>
             )}
-          </BlurView>
+          </ConditionalBlurView>
         </Pressable>
       </Pressable>
     </Modal>

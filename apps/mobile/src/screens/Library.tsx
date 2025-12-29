@@ -19,7 +19,7 @@ import {
   LIBRARY_SORT_OPTIONS,
 } from '../core/LibraryData';
 import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
+import ConditionalBlurView from '../components/ConditionalBlurView';
 import { IMAGE_PRELOAD_CAP, ITEM_LIMITS } from '../core/PerformanceConfig';
 import { TOP_BAR_EXPANDED_CONTENT_HEIGHT } from '../components/topBarMetrics';
 
@@ -394,10 +394,10 @@ export default function Library() {
             <Text style={styles.sortButtonText}>{sortOption.label}</Text>
           </GlassViewComp>
         ) : (
-          <BlurView intensity={80} tint="dark" style={styles.sortButtonBlur}>
+          <ConditionalBlurView intensity={80} tint="dark" style={styles.sortButtonBlur}>
             <Ionicons name="swap-vertical" size={20} color="#fff" />
             <Text style={styles.sortButtonText}>{sortOption.label}</Text>
-          </BlurView>
+          </ConditionalBlurView>
         )}
       </Pressable>
 
@@ -410,7 +410,7 @@ export default function Library() {
       >
         <Pressable style={styles.modalOverlay} onPress={() => setShowSortModal(false)}>
           <View style={styles.sortModalContent}>
-            <BlurView intensity={100} tint="dark" style={styles.sortModalBlur}>
+            <ConditionalBlurView intensity={100} tint="dark" style={styles.sortModalBlur}>
               <Text style={styles.sortModalTitle}>Sort By</Text>
               {LIBRARY_SORT_OPTIONS.map((option) => (
                 <Pressable
@@ -437,7 +437,7 @@ export default function Library() {
                   )}
                 </Pressable>
               ))}
-            </BlurView>
+            </ConditionalBlurView>
           </View>
         </Pressable>
       </Modal>

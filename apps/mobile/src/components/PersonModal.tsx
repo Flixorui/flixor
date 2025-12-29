@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import FastImage from '@d11/react-native-fast-image';
 import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
+import ConditionalBlurView from './ConditionalBlurView';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   fetchPersonDetails,
@@ -105,7 +105,7 @@ export default function PersonModal({
       onRequestClose={onClose}
     >
       <View style={styles.container}>
-        <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFillObject} />
+        <ConditionalBlurView intensity={80} tint="dark" style={StyleSheet.absoluteFillObject} />
 
         <View style={styles.content}>
           {/* Header */}
