@@ -23,11 +23,8 @@ prepare_react_native_project!
 target 'Flixor' do
   use_expo_modules!
 
-  # KSPlayer dependencies for native video playback
-  pod 'KSPlayer', :git => 'https://github.com/kingslay/KSPlayer.git', :branch => 'main'
-  pod 'DisplayCriteria', :git => 'https://github.com/kingslay/KSPlayer.git', :branch => 'main', :modular_headers => true
-  pod 'FFmpegKit', :git => 'https://github.com/kingslay/FFmpegKit.git', :branch => 'main', :modular_headers => true
-  pod 'Libass', :git => 'https://github.com/kingslay/FFmpegKit.git', :branch => 'main'
+  # KSPlayer is added via Swift Package Manager in withKSPlayer.js config plugin
+  # Do NOT add KSPlayer pods here - SPM handles the dependency
 
   if ENV['EXPO_USE_COMMUNITY_AUTOLINKING'] == '1'
     config_command = ['node', '-e', "process.argv=['', '', 'config'];require('@react-native-community/cli').run()"];
