@@ -22,3 +22,12 @@ allprojects {
 
 apply plugin: "expo-root-project"
 apply plugin: "com.facebook.react.rootproject"
+
+subprojects {
+    configurations.all {
+        resolutionStrategy {
+            // Exclude androidsvg-aar in favor of androidsvg to avoid duplicate classes
+            exclude group: 'com.caverock', module: 'androidsvg-aar'
+        }
+    }
+}
