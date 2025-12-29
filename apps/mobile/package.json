@@ -7,7 +7,8 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "build": "echo 'Use EAS or expo build'"
+    "build": "echo 'Use EAS or expo build'",
+    "eas-build-post-install": "[ \"$EAS_BUILD_PLATFORM\" = \"ios\" ] && xcodebuild -downloadComponent MetalToolchain || true"
   },
   "dependencies": {
     "@bottom-tabs/react-navigation": "^1.1.0",
