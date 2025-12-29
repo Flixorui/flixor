@@ -11,7 +11,6 @@ type State = {
   showFilters: boolean;
   selected: Pill;
   scrollY?: Animated.Value;
-  showPills?: Animated.Value;
   onNavigateLibrary?: (tab: 'movies'|'shows')=>void;
   onClose?: ()=>void;
   onSearch?: ()=>void;
@@ -33,7 +32,6 @@ const state: State = {
   showFilters: true, // default to true so pills are visible
   selected: 'all',
   scrollY: undefined,
-  showPills: undefined,
   onNavigateLibrary: undefined,
   onClose: undefined,
   onSearch: undefined,
@@ -73,12 +71,10 @@ export const TopBarStore = {
   setCustomFilters(v?: React.ReactNode) { if (state.customFilters !== v) { state.customFilters = v; emit(); } },
   setActiveGenre(v?: string) { if (state.activeGenre !== v) { state.activeGenre = v; emit(); } },
   setScrollY(y?: Animated.Value) {
-    // Don't emit on scrollY change since Animated.Value changes don't need React updates
-    state.scrollY = y;
-  },
-  setShowPills(v?: Animated.Value) {
-    // Don't emit - Animated.Value changes don't need React updates
-    state.showPills = v;
+    if (state.scrollY !== y) {
+      state.scrollY = y;
+      emit();
+    }
   },
   setHandlers(h: { onNavigateLibrary?: (tab:'movies'|'shows')=>void; onClose?: ()=>void; onSearch?: ()=>void; onBrowse?: ()=>void; onClearGenre?: ()=>void }) {
     let changed = false;
@@ -98,4 +94,3 @@ export const TopBarStore = {
 export function useTopBarStore<T>(selector: (s: State) => T): T {
   return React.useSyncExternalStore(TopBarStore.subscribe, () => selector(TopBarStore.getState()), () => selector(TopBarStore.getState()));
 }
-

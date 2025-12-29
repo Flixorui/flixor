@@ -4,9 +4,9 @@ import PullToRefresh from '../components/PullToRefresh';
 import FastImage from '@d11/react-native-fast-image';
 import { FlashList } from '@shopify/flash-list';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { TopBarStore, useTopBarStore } from '../components/TopBarStore';
+import { TopBarStore } from '../components/TopBarStore';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRoute, useNavigation, useIsFocused } from '@react-navigation/native';
+import { useRoute, useNavigation, useIsFocused, useFocusEffect } from '@react-navigation/native';
 import { useFlixor } from '../core/FlixorContext';
 import { useAppSettings } from '../hooks/useAppSettings';
 import {
@@ -20,7 +20,8 @@ import {
 } from '../core/LibraryData';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
-import { SCROLL_DEBOUNCE_MS, IMAGE_PRELOAD_CAP, ITEM_LIMITS } from '../core/PerformanceConfig';
+import { IMAGE_PRELOAD_CAP, ITEM_LIMITS } from '../core/PerformanceConfig';
+import { TOP_BAR_EXPANDED_CONTENT_HEIGHT } from '../components/topBarMetrics';
 
 // Conditionally import GlassView for iOS 26+ liquid glass effect
 let GlassViewComp: any = null;
@@ -59,14 +60,8 @@ export default function Library() {
   const [showSortModal, setShowSortModal] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const y = useRef(new Animated.Value(0)).current;
-  const showPillsAnim = useRef(new Animated.Value(1)).current;
   // Use stable local barHeight instead of TopBarStore to prevent layout shift on tab switch
-  // Library uses expanded TopAppBar (showFilters: true), so height = insets.top + 44 + 48 + 8
-  const barHeight = useMemo(() => insets.top + 100, [insets.top]);
-  const lastScrollY = useRef(0);
-  const scrollDirection = useRef<'up' | 'down'>('down');
-  const scrollAnimFrameRef = useRef<number | null>(null);
-  const lastScrollUpdateRef = useRef(0);
+  const barHeight = useMemo(() => insets.top + TOP_BAR_EXPANDED_CONTENT_HEIGHT, [insets.top]);
 
   const mType = useMemo(
     () => (selected === 'movies' ? 'movie' : selected === 'shows' ? 'show' : 'all'),
@@ -138,17 +133,12 @@ export default function Library() {
     console.log('[Library] route params:', params);
   }, [route.params]);
 
-  // Set scrollY and showPills immediately on mount and when regaining focus
-  React.useLayoutEffect(() => {
-    if (isFocused) {
+  useFocusEffect(
+    useCallback(() => {
       // Don't reset y.setValue(0) - preserve scroll position to avoid visual jump
-      // Just reset pills visibility and tell store to use this tab's animated values
-      showPillsAnim.setValue(1);
-      scrollDirection.current = 'up';
       TopBarStore.setScrollY(y);
-      TopBarStore.setShowPills(showPillsAnim);
-    }
-  }, [isFocused, y]);
+    }, [y])
+  );
 
   // Clear genre filter handler (stable ref for TopBar)
   const clearGenreFilter = React.useCallback(() => {
@@ -384,55 +374,10 @@ export default function Library() {
         contentContainerStyle={{ padding: 8, paddingTop: barHeight }}
         onEndReached={loadMore}
         onEndReachedThreshold={0.5}
-        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y } } }], {
-          useNativeDriver: false,
-          listener: (e: any) => {
-            // Cancel any pending animation frame for throttling
-            if (scrollAnimFrameRef.current !== null) {
-              cancelAnimationFrame(scrollAnimFrameRef.current);
-            }
-
-            const currentY = e.nativeEvent.contentOffset.y;
-
-            // Use requestAnimationFrame for throttling (like NuvioStreaming)
-            scrollAnimFrameRef.current = requestAnimationFrame(() => {
-              const now = Date.now();
-              const delta = currentY - lastScrollY.current;
-
-              // Debounce header toggle
-              if (now - lastScrollUpdateRef.current > SCROLL_DEBOUNCE_MS) {
-                // Determine scroll direction
-                if (delta > 5) {
-                  // Scrolling down - hide pills
-                  if (scrollDirection.current !== 'down') {
-                    scrollDirection.current = 'down';
-                    lastScrollUpdateRef.current = now;
-                    Animated.spring(showPillsAnim, {
-                      toValue: 0,
-                      useNativeDriver: false,
-                      tension: 60,
-                      friction: 10,
-                    }).start();
-                  }
-                } else if (delta < -5) {
-                  // Scrolling up - show pills
-                  if (scrollDirection.current !== 'up') {
-                    scrollDirection.current = 'up';
-                    lastScrollUpdateRef.current = now;
-                    Animated.spring(showPillsAnim, {
-                      toValue: 1,
-                      useNativeDriver: false,
-                      tension: 60,
-                      friction: 10,
-                    }).start();
-                  }
-                }
-              }
-
-              lastScrollY.current = currentY;
-            });
-          },
-        })}
+        onScroll={(e: any) => {
+          const currentY = e.nativeEvent.contentOffset.y;
+          y.setValue(currentY);
+        }}
         ListEmptyComponent={
           <Text style={{ color: '#888', textAlign: 'center', marginTop: 40 }}>No items</Text>
         }
