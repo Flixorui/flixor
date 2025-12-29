@@ -16,18 +16,14 @@ allprojects {
   repositories {
     google()
     mavenCentral()
-    maven { url 'https://www.jitpack.io' }
+    maven {
+      url 'https://www.jitpack.io'
+      content {
+        excludeGroup 'dev.jdtech.mpv'
+      }
+    }
   }
 }
 
 apply plugin: "expo-root-project"
 apply plugin: "com.facebook.react.rootproject"
-
-subprojects {
-    configurations.all {
-        resolutionStrategy {
-            // Exclude androidsvg-aar in favor of androidsvg to avoid duplicate classes
-            exclude group: 'com.caverock', module: 'androidsvg-aar'
-        }
-    }
-}

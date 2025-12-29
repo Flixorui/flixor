@@ -41,31 +41,9 @@ function copyMpvFiles(projectRoot) {
   }
 }
 
-/**
- * Copy libmpv AAR to android libs folder
- */
-function copyMpvLibrary(projectRoot) {
-  const sourceAar = path.join(projectRoot, 'native', 'android', 'libs', 'libmpv-release.aar');
-  const destDir = path.join(projectRoot, 'android', 'app', 'libs');
-  const destAar = path.join(destDir, 'libmpv-release.aar');
-
-  // Create libs directory if it doesn't exist
-  if (!fs.existsSync(destDir)) {
-    fs.mkdirSync(destDir, { recursive: true });
-    console.log(`[withMPVPlayer] Created libs directory: ${destDir}`);
-  }
-
-  // Copy the AAR file
-  if (fs.existsSync(sourceAar)) {
-    fs.copyFileSync(sourceAar, destAar);
-    console.log('[withMPVPlayer] Copied libmpv-release.aar to android/app/libs/');
-  } else {
-    console.warn(`[withMPVPlayer] WARNING: libmpv-release.aar not found at: ${sourceAar}`);
-  }
-}
 
 /**
- * Add libmpv local AAR dependency to app build.gradle
+ * Add libmpv Maven dependency to app build.gradle
  */
 function addMpvDependency(projectRoot) {
   const buildGradlePath = path.join(projectRoot, 'android', 'app', 'build.gradle');
@@ -78,32 +56,67 @@ function addMpvDependency(projectRoot) {
   let content = fs.readFileSync(buildGradlePath, 'utf8');
 
   // Check if dependency already exists
-  if (content.includes('libmpv-release.aar')) {
-    console.log('[withMPVPlayer] libmpv dependency already exists in build.gradle');
+  if (content.includes('dev.jdtech.mpv:libmpv')) {
+    console.log('[withMPVPlayer] libmpv Maven dependency already exists in build.gradle');
     return;
   }
 
-  // Find the dependencies block and add libmpv as local AAR
+  // Find the dependencies block and add libmpv Maven dependency
   const dependenciesRegex = /dependencies\s*\{/;
   if (dependenciesRegex.test(content)) {
     content = content.replace(
       dependenciesRegex,
       `dependencies {
-    // MPV Player library - local AAR from GitHub releases (no Glide conflict)
-    implementation files("libs/libmpv-release.aar")
+    // MPV Player library from Maven Central
+    implementation 'dev.jdtech.mpv:libmpv:0.5.1'
 `
     );
     fs.writeFileSync(buildGradlePath, content);
-    console.log('[withMPVPlayer] Added libmpv local AAR dependency to build.gradle');
+    console.log('[withMPVPlayer] Added libmpv Maven dependency to build.gradle');
   } else {
     console.warn('[withMPVPlayer] WARNING: Could not find dependencies block in build.gradle');
   }
 }
 
 /**
- * Add dependency resolution strategy to root build.gradle to resolve androidsvg conflict
+ * Add configurations exclusion to app build.gradle (like NuvioStreaming)
  */
-function addResolutionStrategy(projectRoot) {
+function addConfigurationsExclusion(projectRoot) {
+  const buildGradlePath = path.join(projectRoot, 'android', 'app', 'build.gradle');
+
+  if (!fs.existsSync(buildGradlePath)) {
+    console.warn('[withMPVPlayer] WARNING: app build.gradle not found');
+    return;
+  }
+
+  let content = fs.readFileSync(buildGradlePath, 'utf8');
+
+  // Check if exclusion already exists
+  if (content.includes("exclude group: 'com.caverock'")) {
+    console.log('[withMPVPlayer] androidsvg exclusion already exists in app build.gradle');
+    return;
+  }
+
+  // Add configurations.all exclusion before dependencies block (like NuvioStreaming)
+  const dependenciesRegex = /dependencies\s*\{/;
+  if (dependenciesRegex.test(content)) {
+    content = content.replace(
+      dependenciesRegex,
+      `configurations.all {
+    exclude group: 'com.caverock', module: 'androidsvg'
+}
+
+dependencies {`
+    );
+    fs.writeFileSync(buildGradlePath, content);
+    console.log('[withMPVPlayer] Added configurations exclusion to app build.gradle');
+  }
+}
+
+/**
+ * Update root build.gradle to exclude jdtech.mpv from JitPack
+ */
+function fixMavenRepositories(projectRoot) {
   const rootBuildGradlePath = path.join(projectRoot, 'android', 'build.gradle');
 
   if (!fs.existsSync(rootBuildGradlePath)) {
@@ -113,28 +126,48 @@ function addResolutionStrategy(projectRoot) {
 
   let content = fs.readFileSync(rootBuildGradlePath, 'utf8');
 
-  // Check if resolution strategy already exists
-  if (content.includes('androidsvg')) {
-    console.log('[withMPVPlayer] Resolution strategy already exists in root build.gradle');
+  // Check if already fixed
+  if (content.includes('jdtech')) {
+    console.log('[withMPVPlayer] JitPack exclusion already configured');
     return;
   }
 
-  // Add subprojects configuration with resolution strategy
-  const subprojectsConfig = `
-subprojects {
-    configurations.all {
-        resolutionStrategy {
-            // Exclude androidsvg-aar in favor of androidsvg to avoid duplicate classes
-            exclude group: 'com.caverock', module: 'androidsvg-aar'
-        }
-    }
-}
-`;
+  // Replace JitPack repo with exclusion for jdtech
+  content = content.replace(
+    "maven { url 'https://www.jitpack.io' }",
+    `maven {
+      url 'https://www.jitpack.io'
+      content {
+        excludeGroup 'dev.jdtech.mpv'
+      }
+    }`
+  );
 
-  // Append to the end of the file
-  content = content + subprojectsConfig;
   fs.writeFileSync(rootBuildGradlePath, content);
-  console.log('[withMPVPlayer] Added resolution strategy to root build.gradle');
+  console.log('[withMPVPlayer] Added JitPack exclusion for dev.jdtech.mpv');
+}
+
+/**
+ * Add excludeAppGlideModule to gradle.properties to prevent Glide duplicate class conflict
+ */
+function addGlideExclusion(projectRoot) {
+  const gradlePropertiesPath = path.join(projectRoot, 'android', 'gradle.properties');
+
+  if (!fs.existsSync(gradlePropertiesPath)) {
+    console.warn('[withMPVPlayer] WARNING: gradle.properties not found');
+    return;
+  }
+
+  let content = fs.readFileSync(gradlePropertiesPath, 'utf8');
+
+  if (content.includes('excludeAppGlideModule')) {
+    console.log('[withMPVPlayer] excludeAppGlideModule already set in gradle.properties');
+    return;
+  }
+
+  content += '\n# Exclude AppGlideModule from react-native-fast-image to prevent duplicate class\nexcludeAppGlideModule=true\n';
+  fs.writeFileSync(gradlePropertiesPath, content);
+  console.log('[withMPVPlayer] Added excludeAppGlideModule=true to gradle.properties');
 }
 
 /**
@@ -179,9 +212,10 @@ function withMPVPlayer(config) {
     'android',
     async (config) => {
       copyMpvFiles(config.modRequest.projectRoot);
-      copyMpvLibrary(config.modRequest.projectRoot);
       addMpvDependency(config.modRequest.projectRoot);
-      addResolutionStrategy(config.modRequest.projectRoot);
+      addConfigurationsExclusion(config.modRequest.projectRoot);
+      addGlideExclusion(config.modRequest.projectRoot);
+      fixMavenRepositories(config.modRequest.projectRoot);
       return config;
     },
   ]);

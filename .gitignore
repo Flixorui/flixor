@@ -23,3 +23,5 @@ deps/
 Pods/
 *.xcodeproj
 *.aar
+libmpv/
+*.apk
