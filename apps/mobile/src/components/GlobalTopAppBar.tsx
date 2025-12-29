@@ -20,9 +20,8 @@ export default function GlobalTopAppBar({ screenContext }: Props) {
   const customFilters = useTopBarStore((st) => st.customFilters);
   const activeGenre = useTopBarStore((st) => st.activeGenre);
 
-  // Read scrollY and showPills directly from store (don't cause re-renders)
-  const scrollY = TopBarStore.getState().scrollY;
-  const showPills = TopBarStore.getState().showPills;
+  // Re-render only when the scrollY reference changes (screen switch)
+  const scrollY = useTopBarStore((st) => st.scrollY);
 
   // Derive title INSTANTLY from screenContext - no useFocusEffect delay
   // Return just the username - TopAppBar will add "For " prefix when compact=false
@@ -53,7 +52,6 @@ export default function GlobalTopAppBar({ screenContext }: Props) {
       onClose={onClose}
       onSearch={onSearch}
       scrollY={scrollY}
-      showPills={showPills}
       compact={isCompact}
       customFilters={customFilters}
       activeGenre={activeGenre}
@@ -62,4 +60,3 @@ export default function GlobalTopAppBar({ screenContext }: Props) {
     />
   );
 }
-

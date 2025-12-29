@@ -11,6 +11,7 @@ import ContinueWatchingLandscapeRow from '../components/ContinueWatchingLandscap
 import ContinueWatchingPosterRow from '../components/ContinueWatchingPosterRow';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { TopBarStore } from '../components/TopBarStore';
+import { TOP_BAR_EXPANDED_CONTENT_HEIGHT } from '../components/topBarMetrics';
 import HeroCard from '../components/HeroCard';
 import HeroCarousel from '../components/HeroCarousel';
 import BrowseModal from '../components/BrowseModal';
@@ -223,19 +224,7 @@ export default function Home({ onLogout }: HomeProps) {
   }, [heroCarouselData, preloadImages]);
 
   const y = React.useRef(new Animated.Value(0)).current;
-  const showPillsAnim = React.useRef(new Animated.Value(1)).current;
-  // Calculate bar heights for TopAppBar animation (NOT including insets.top - SafeAreaView handles that)
-  // expandedPadding should match TopAppBar content area: baseHeight + pillsHeight + 8 = 100
-  const baseHeight = 44;
-  const pillsHeight = 48;
-  const collapsedPadding = baseHeight + 8; // 52 - when pills hidden
-  const expandedPadding = baseHeight + pillsHeight + 60; // 104 - when pills visible, slight buffer
-
-  // Animated padding that follows the TopAppBar height (SafeAreaView adds insets.top separately)
-  const animatedPaddingTop = showPillsAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [collapsedPadding, expandedPadding],
-  });
+  const contentTopInset = TOP_BAR_EXPANDED_CONTENT_HEIGHT;
   // Use ref instead of useIsFocused() to avoid re-renders on focus change
   const isFocusedRef = useRef(true);
   const perfRef = useRef({ focusAt: 0, loadAt: 0 });
@@ -244,13 +233,6 @@ export default function Home({ onLogout }: HomeProps) {
   const lastHeroColorAtRef = useRef(0);
   const lastHeroSourceRef = useRef<string | null>(null);
   const hasLoadedOnceRef = useRef(false);
-  const lastScrollY = useRef(0);
-  const scrollDirection = useRef<'up' | 'down'>('down');
-  const scrollAnimFrameRef = useRef<number | null>(null);
-  const lastScrollUpdateRef = useRef(0);
-  const SCROLL_DEBOUNCE_MS = 120; // Debounce header toggle like NuvioStreaming
-
-
   // Keep the selected tab stable across focus to avoid heavy re-render on return.
 
   // Stable handlers to avoid recreating on every render (prevents stale closures)
@@ -279,20 +261,12 @@ export default function Home({ onLogout }: HomeProps) {
     }
   }, [welcome]);
 
-  // Set scrollY and showPills immediately on mount and when regaining focus
-  React.useLayoutEffect(() => {
-    // Reset showPillsAnim to 1 (visible) when gaining focus
-    showPillsAnim.setValue(1);
-    scrollDirection.current = 'up';
-    TopBarStore.setScrollY(y);
-    TopBarStore.setShowPills(showPillsAnim);
-  }, [y, showPillsAnim]);
-
   // Update TopBarStore with Home configuration when focused
   useFocusEffect(
     useCallback(() => {
       isFocusedRef.current = true;
 
+      TopBarStore.setScrollY(y);
       TopBarStore.setState({
         visible: true,
         tabBarVisible: true,
@@ -311,7 +285,7 @@ export default function Home({ onLogout }: HomeProps) {
       return () => {
         isFocusedRef.current = false;
       };
-    }, [tab, navigateToLibrary, closeHandler, searchHandler, browseHandler])
+    }, [tab, navigateToLibrary, closeHandler, searchHandler, browseHandler, y])
   );
 
   // Also update when tab changes while focused (for pill selection on Home)
@@ -1031,89 +1005,43 @@ export default function Home({ onLogout }: HomeProps) {
 
       <Animated.ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingBottom: 80 + insets.bottom }}
+        contentContainerStyle={{ paddingBottom: 80 + insets.bottom, paddingTop: contentTopInset }}
         scrollEventThrottle={16}
-        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y } } }], {
-          useNativeDriver: false,
-          listener: (e: any) => {
-            // Cancel any pending animation frame
-            if (scrollAnimFrameRef.current !== null) {
-              cancelAnimationFrame(scrollAnimFrameRef.current);
-            }
-
-            const scrollY = e.nativeEvent.contentOffset.y;
-
-            // Use requestAnimationFrame for throttling (like NuvioStreaming)
-            scrollAnimFrameRef.current = requestAnimationFrame(() => {
-              const now = Date.now();
-              const delta = scrollY - lastScrollY.current;
-
-              // Debounce header toggle (120ms like NuvioStreaming)
-              if (now - lastScrollUpdateRef.current > SCROLL_DEBOUNCE_MS) {
-                if (delta > 6) {
-                  if (scrollDirection.current !== 'down') {
-                    scrollDirection.current = 'down';
-                    lastScrollUpdateRef.current = now;
-                    // Use timing for smoother, more predictable animation
-                    Animated.timing(showPillsAnim, {
-                      toValue: 0,
-                      duration: 200,
-                      useNativeDriver: false, // Must be false for height animation
-                    }).start();
-                  }
-                } else if (delta < -6) {
-                  if (scrollDirection.current !== 'up') {
-                    scrollDirection.current = 'up';
-                    lastScrollUpdateRef.current = now;
-                    Animated.timing(showPillsAnim, {
-                      toValue: 1,
-                      duration: 200,
-                      useNativeDriver: false, // Must be false for height animation
-                    }).start();
-                  }
-                }
-              }
-
-              lastScrollY.current = scrollY;
-            });
-          },
-        })}
+        onScroll={(e: any) => {
+          const currentY = e.nativeEvent.contentOffset.y;
+          y.setValue(currentY);
+        }}
       >
-        {/* Animated spacer that follows TopAppBar height */}
-        <Animated.View style={{ height: animatedPaddingTop }} />
-
         {canShowHero ? (
           settings.heroLayout === 'carousel' ? (
-            <View style={{ marginTop: -52 }}>
-              <HeroCarousel
-                items={heroCarouselData}
-                onSelect={(item) => {
-                  const ids = getRowWatchlistIds(item);
-                  if (!ids) return;
-                  nav.navigate('Details', {
-                    type: 'tmdb',
-                    id: String(ids.tmdbId),
-                    mediaType: ids.mediaType,
-                  });
-                }}
-                onAdd={async (item) => {
-                  const ids = getRowWatchlistIds(item);
-                  if (!ids || carouselWatchlistLoading) return;
-                  setCarouselWatchlistLoading(true);
-                  try {
-                    const result = await toggleWatchlist(ids, 'both');
-                    if (result.success) {
-                      setCarouselInWatchlist(result.inWatchlist);
-                    }
-                  } finally {
-                    setCarouselWatchlistLoading(false);
+            <HeroCarousel
+              items={heroCarouselData}
+              onSelect={(item) => {
+                const ids = getRowWatchlistIds(item);
+                if (!ids) return;
+                nav.navigate('Details', {
+                  type: 'tmdb',
+                  id: String(ids.tmdbId),
+                  mediaType: ids.mediaType,
+                });
+              }}
+              onAdd={async (item) => {
+                const ids = getRowWatchlistIds(item);
+                if (!ids || carouselWatchlistLoading) return;
+                setCarouselWatchlistLoading(true);
+                try {
+                  const result = await toggleWatchlist(ids, 'both');
+                  if (result.success) {
+                    setCarouselInWatchlist(result.inWatchlist);
                   }
-                }}
-                inWatchlist={carouselInWatchlist}
-                watchlistLoading={carouselWatchlistLoading}
-                onActiveIndexChange={setCarouselIndex}
-              />
-            </View>
+                } finally {
+                  setCarouselWatchlistLoading(false);
+                }
+              }}
+              inWatchlist={carouselInWatchlist}
+              watchlistLoading={carouselWatchlistLoading}
+              onActiveIndexChange={setCarouselIndex}
+            />
           ) : settings.heroLayout === 'appletv' ? (
             <HeroAppleTV
               items={heroCarouselData}

@@ -1,5 +1,5 @@
-import React, { useRef, useEffect } from 'react';
-import { View, Text, Pressable, Animated, Easing, StyleSheet } from 'react-native';
+import React from 'react';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
@@ -42,23 +42,8 @@ function Pill({ active, label, onPress }: { active?: boolean; label: string; onP
 }
 
 export default function Pills({ selected, onChange, onOpenCategories, onClose, activeGenre, onClearGenre }: Props) {
-  // Fade between different layouts
-  const layoutOpacity = useRef(new Animated.Value(1)).current;
-
-  const prevSelected = useRef(selected);
-  useEffect(() => {
-    if (prevSelected.current !== selected) {
-      // Fade out, swap layout, fade in
-      Animated.sequence([
-        Animated.timing(layoutOpacity, { toValue: 0, duration: 120, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-        Animated.timing(layoutOpacity, { toValue: 1, duration: 150, easing: Easing.in(Easing.cubic), useNativeDriver: true }),
-      ]).start();
-      prevSelected.current = selected;
-    }
-  }, [selected]);
-
   return (
-    <Animated.View style={{ flexDirection: 'row', paddingHorizontal: 0, paddingVertical: 6, alignItems: 'center', opacity: layoutOpacity }}>
+    <View style={{ flexDirection: 'row', paddingHorizontal: 0, paddingVertical: 6, alignItems: 'center' }}>
       {/* Render different layouts based on selected state */}
       {selected === 'all' && (
         <>
@@ -134,7 +119,6 @@ export default function Pills({ selected, onChange, onOpenCategories, onClose, a
           <Ionicons name="chevron-down" color="#fff" size={16} />
         </Pressable>
       )}
-    </Animated.View>
+    </View>
   );
 }
-

@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TopBarStore } from '../components/TopBarStore';
+import { TOP_BAR_EXPANDED_CONTENT_HEIGHT } from '../components/topBarMetrics';
 import * as Haptics from 'expo-haptics';
 import { useFlixor } from '../core/FlixorContext';
 import { IMAGE_PRELOAD_CAP, CACHE_TTL, isCacheValid } from '../core/PerformanceConfig';
@@ -71,7 +72,7 @@ export default function NewHot() {
   const [content, setContent] = useState<ContentItem[]>(() => persistentStore['coming-soon'] || []);
   const y = useRef(new Animated.Value(0)).current;
   // Use stable local barHeight - calculate once based on typical safe area
-  const barHeight = insets.top + 100;
+  const barHeight = insets.top + TOP_BAR_EXPANDED_CONTENT_HEIGHT;
 
   // Tab pills for TopAppBar customFilters
   const tabPills = useMemo(() => (

@@ -7,6 +7,7 @@ import { FlashList } from '@shopify/flash-list';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { TopBarStore } from '../components/TopBarStore';
+import { TOP_BAR_EXPANDED_CONTENT_HEIGHT } from '../components/topBarMetrics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -71,7 +72,7 @@ export default function MyList() {
 
   const y = useRef(new Animated.Value(0)).current;
   // Use stable local barHeight
-  const barHeight = insets.top + 100;
+  const barHeight = insets.top + TOP_BAR_EXPANDED_CONTENT_HEIGHT;
   const lastScrollY = useRef(0);
 
   // Load items
