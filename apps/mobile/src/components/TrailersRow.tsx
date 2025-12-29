@@ -2,7 +2,7 @@ import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet, Dimensions, Modal } from 'react-native';
 import FastImage from '@d11/react-native-fast-image';
 import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
+import ConditionalBlurView from './ConditionalBlurView';
 import * as Haptics from 'expo-haptics';
 import Animated, { useSharedValue, withTiming, withDelay, useAnimatedStyle } from 'react-native-reanimated';
 import TrailerModal from './TrailerModal';
@@ -209,7 +209,7 @@ export default function TrailersRow({ trailers, title = 'Trailers & Videos', con
           onPress={() => setDropdownVisible(false)}
         >
           <View style={styles.dropdownContainer}>
-            <BlurView intensity={100} tint="dark" style={styles.dropdownBlur}>
+            <ConditionalBlurView intensity={100} tint="dark" style={styles.dropdownBlur}>
               {categoryNames.map(category => (
                 <Pressable
                   key={category}
@@ -238,7 +238,7 @@ export default function TrailersRow({ trailers, title = 'Trailers & Videos', con
                   </View>
                 </Pressable>
               ))}
-            </BlurView>
+            </ConditionalBlurView>
           </View>
         </Pressable>
       </Modal>

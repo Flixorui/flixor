@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, Pressable, StyleSheet, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BlurView } from 'expo-blur';
+import ConditionalBlurView from '../ConditionalBlurView';
 
 type SettingsHeaderProps = {
   title: string;
@@ -26,7 +26,7 @@ export default function SettingsHeader({ title, onBack, scrollY }: SettingsHeade
     <View style={[styles.header, { height: headerHeight }]}>
       {/* Animated blur background - fades in on scroll */}
       <Animated.View style={[StyleSheet.absoluteFillObject, { opacity: blurOpacity }]}>
-        <BlurView intensity={90} tint="dark" style={StyleSheet.absoluteFillObject} />
+        <ConditionalBlurView intensity={90} tint="dark" style={StyleSheet.absoluteFillObject} />
         {/* Glass tint overlay */}
         <View pointerEvents="none" style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(27,10,16,0.12)' }]} />
       </Animated.View>

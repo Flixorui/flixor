@@ -9,7 +9,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
+import ConditionalBlurView from './ConditionalBlurView';
 import {
   fetchMovieGenres,
   fetchTvGenres,
@@ -193,7 +193,7 @@ export default function BrowseModal({
       onRequestClose={onClose}
     >
       <View style={styles.container}>
-        <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFillObject} />
+        <ConditionalBlurView intensity={80} tint="dark" style={StyleSheet.absoluteFillObject} />
 
         <View style={styles.content}>
           {/* Header */}

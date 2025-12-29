@@ -2,7 +2,7 @@ import React from 'react';
 import { Animated, View, Text, StyleSheet, LayoutAnimation, UIManager, Platform, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BlurView } from 'expo-blur';
+import ConditionalBlurView from './ConditionalBlurView';
 import Pills from './Pills';
 import { TopBarStore } from './TopBarStore';
 import {
@@ -104,7 +104,7 @@ function TopAppBar({ visible, username, showFilters, selected, onChange, onOpenC
           overflow: 'hidden',
         }}
       >
-        <BlurView intensity={90} tint="dark" style={StyleSheet.absoluteFillObject} />
+        <ConditionalBlurView intensity={90} tint="dark" style={StyleSheet.absoluteFillObject} />
         <View pointerEvents="none" style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(27,10,16,0.12)' }]} />
         <Animated.View
           pointerEvents="none"

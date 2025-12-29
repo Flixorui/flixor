@@ -6,7 +6,7 @@ import TrailersRow from '../components/TrailersRow';
 import { Ionicons } from '@expo/vector-icons';
 import Feather from '@expo/vector-icons/Feather';
 import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
+import ConditionalBlurView from '../components/ConditionalBlurView';
 import BadgePill from '../components/BadgePill';
 import PersonModal from '../components/PersonModal';
 import { useNavigation } from '@react-navigation/native';
@@ -620,9 +620,9 @@ export default function Details({ route }: RouteParams) {
             <View style={{ position:'absolute', right: 12, top: 12, flexDirection:'row' }}>
               {/* <Feather name="cast" size={25} color="#fff" style={{ marginHorizontal: 20 }} /> */}
               <Pressable onPress={() => { nav.goBack(); }} style={{ width: 32, height: 32, borderRadius: 16, overflow: 'hidden', marginRight: 8 }}>
-                <BlurView intensity={60} tint="dark" style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                <ConditionalBlurView intensity={60} tint="dark" style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
                   <Ionicons name="close" color="#fff" size={18} />
-                </BlurView>
+                </ConditionalBlurView>
                 <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' }} pointerEvents="none" />
               </Pressable>
             </View>
@@ -866,7 +866,7 @@ export default function Details({ route }: RouteParams) {
 function BlurOverlay() {
   return (
     <View style={StyleSheet.absoluteFillObject}>
-      <BlurView intensity={60} tint="dark" style={StyleSheet.absoluteFillObject} />
+      <ConditionalBlurView intensity={60} tint="dark" style={StyleSheet.absoluteFillObject} />
       <LinearGradient
         colors={[ 'rgba(10,10,10,0.22)', 'rgba(10,10,10,0.10)' ]}
         start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }}
