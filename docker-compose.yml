@@ -1,23 +1,18 @@
-version: '3.9'
+# Flixor Development Docker Compose
+# Runs backend and frontend as separate services for development
 
 services:
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: plex-backend
+    container_name: flixor-backend
     environment:
       - NODE_ENV=production
       - PORT=3001
       - HOST=0.0.0.0
-      # Set to your site origin for CORS (adjust in prod)
       - FRONTEND_URL=http://localhost:8080
-      # Provide a secure secret in real deployments
-      - SESSION_SECRET=change-me-in-prod
-      # Optionally override DB/config/cache locations
-      # - CONFIG_DIRECTORY=/app/config
-      # - DATABASE_PATH=/app/config/db/app.sqlite
-      # - IMAGE_CACHE_DIR=/app/cache/images
+      - SESSION_SECRET=${SESSION_SECRET:-change-me-in-dev}
     ports:
       - "3001:3001"
     volumes:
@@ -29,7 +24,7 @@ services:
     build:
       context: ./web_frontend
       dockerfile: docker/frontend.Dockerfile
-    container_name: plex-frontend
+    container_name: flixor-frontend
     depends_on:
       - backend
     ports:
@@ -39,4 +34,3 @@ services:
 volumes:
   backend-config:
   backend-cache:
-

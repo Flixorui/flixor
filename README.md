@@ -12,17 +12,63 @@ A fast, Netflix‑style web app, Android, iOS, and MacOS for your Plex library. 
 - Smooth, responsive UI with image optimization and caching
 
 ## Installation
-- Quick start (Docker, recommended)
-  1) Ensure Docker Desktop is installed
-  2) In this folder, run: `docker compose up -d`
-  3) Open `http://localhost:8080` and sign in with Plex
 
-- Local (advanced)
-  1) Install Node.js 18+ and npm
-  2) Run: `npm install` then `npm run dev:all`
-  3) Open `http://localhost:5173` and sign in with Plex
+### Docker (recommended)
 
-Notes for multi‑device/dev
+**Using published image:**
+```bash
+docker run -d \
+  --name flixor \
+  -p 8080:80 \
+  -e SESSION_SECRET=your-secure-secret-here \
+  -v flixor-config:/app/config \
+  -v flixor-cache:/app/cache \
+  --restart unless-stopped \
+  ghcr.io/flixorui/flixor:latest
+```
+
+Or with Docker Compose, create a `docker-compose.yml`:
+```yaml
+services:
+  flixor:
+    image: ghcr.io/flixorui/flixor:latest
+    container_name: flixor
+    environment:
+      - SESSION_SECRET=your-secure-secret-here
+    ports:
+      - "8080:80"
+    volumes:
+      - flixor-config:/app/config
+      - flixor-cache:/app/cache
+    restart: unless-stopped
+
+volumes:
+  flixor-config:
+  flixor-cache:
+```
+
+Then run:
+```bash
+docker compose up -d
+```
+
+Open `http://localhost:8080` and sign in with Plex.
+
+**Build from source:**
+```bash
+git clone https://github.com/flixorui/flixor.git
+cd flixor
+SESSION_SECRET=your-secret docker compose -f docker-compose.prod.yml up -d
+```
+
+### Local development
+
+1. Install Node.js 18+ and npm
+2. Run: `npm install` then `npm run dev:all`
+3. Open `http://localhost:5173` and sign in with Plex
+
+### Notes
+
 - The app calls the backend via relative `/api` so it works from any device on your network.
 - Vite dev server is reachable on your LAN. Visit `http://YOUR_COMPUTER_IP:5173` on your phone/another PC.
 - If you need to point dev proxy to a different backend, set `VITE_PROXY_TARGET` in `.env` (see `.env.example`).

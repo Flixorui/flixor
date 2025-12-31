@@ -1,0 +1,23 @@
+# Flixor Production Docker Compose
+# Single container with nginx + backend (all-in-one)
+
+services:
+  flixor:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: flixorui/flixor:latest
+    container_name: flixor
+    environment:
+      - NODE_ENV=production
+      - SESSION_SECRET=${SESSION_SECRET:?SESSION_SECRET is required}
+    ports:
+      - "8080:80"
+    volumes:
+      - flixor-config:/app/config
+      - flixor-cache:/app/cache
+    restart: unless-stopped
+
+volumes:
+  flixor-config:
+  flixor-cache:
