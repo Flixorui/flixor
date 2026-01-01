@@ -6,7 +6,7 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile
-    image: flixorui/flixor:latest
+    image: ghcr.io/flixorui/flixor:latest
     container_name: flixor
     environment:
       - NODE_ENV=production
