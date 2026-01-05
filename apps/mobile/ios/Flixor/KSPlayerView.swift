@@ -25,13 +25,13 @@ class KSPlayerView: UIView {
     private var lastSubtitleRender: SubtitleRender?
     private let nativeLogFileName = "ksplayer_native.log"
     weak var viewManager: KSPlayerViewManager?
-    
+
     // Store constraint references for dynamic updates
     private var subtitleBottomConstraint: NSLayoutConstraint?
     private var subtitleLabelBottomConstraint: NSLayoutConstraint?
 
     // AirPlay properties (removed duplicate declarations)
-    
+
     // Event blocks for Fabric
     @objc var onLoad: RCTDirectEventBlock?
     @objc var onProgress: RCTDirectEventBlock?
@@ -39,7 +39,7 @@ class KSPlayerView: UIView {
     @objc var onEnd: RCTDirectEventBlock?
     @objc var onError: RCTDirectEventBlock?
     @objc var onBufferingProgress: RCTDirectEventBlock?
-    
+
     // Property setters that React Native will call
     @objc var source: NSDictionary? {
         didSet {
@@ -48,37 +48,37 @@ class KSPlayerView: UIView {
             }
         }
     }
-    
+
     @objc var paused: Bool = false {
         didSet {
             setPaused(paused)
         }
     }
-    
+
     @objc var volume: NSNumber = 1.0 {
         didSet {
             setVolume(volume.floatValue)
         }
     }
-    
+
     @objc var rate: NSNumber = 1.0 {
         didSet {
             setPlaybackRate(rate.floatValue)
         }
     }
-    
+
     @objc var audioTrack: NSNumber = -1 {
         didSet {
             setAudioTrack(audioTrack.intValue)
         }
     }
-    
+
     @objc var textTrack: NSNumber = -1 {
         didSet {
             setTextTrack(textTrack.intValue)
         }
     }
-    
+
     // AirPlay properties
     @objc var allowsExternalPlayback: Bool = true {
         didSet {
@@ -91,7 +91,7 @@ class KSPlayerView: UIView {
             setUsesExternalPlaybackWhileExternalScreenIsActive(usesExternalPlaybackWhileExternalScreenIsActive)
         }
     }
-    
+
     @objc var subtitleBottomOffset: NSNumber = 60 {
         didSet {
             print("KSPlayerView: [PROP SETTER] subtitleBottomOffset setter called with value: \(subtitleBottomOffset.floatValue)")
@@ -106,7 +106,7 @@ class KSPlayerView: UIView {
             updateSubtitleFont(size: size)
         }
     }
-    
+
     @objc var resizeMode: NSString = "contain" {
         didSet {
             print("KSPlayerView: [PROP SETTER] resizeMode setter called with value: \(resizeMode)")
@@ -154,14 +154,14 @@ class KSPlayerView: UIView {
         setupPlayerCallbacks()
         logToFile("KSPlayerView setupPlayerView complete")
     }
-    
+
     private func setupCustomSubtitlePositioning() {
         // Wait for the player view to be fully set up before modifying subtitle positioning
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
             self?.adjustSubtitlePositioning()
         }
     }
-    
+
     private func adjustSubtitlePositioning() {
         // Remove existing constraints for subtitle positioning
         playerView.subtitleBackView.removeFromSuperview()
@@ -217,7 +217,7 @@ class KSPlayerView: UIView {
         print("KSPlayerView: Custom subtitle positioning applied - positioned \(subtitleBottomOffset.floatValue)pts from bottom for mobile visibility")
         print("KSPlayerView: subtitleBackView contentMode: \(playerView.subtitleBackView.contentMode.rawValue) (scaleAspectFit=1)")
     }
-    
+
     private func updateSubtitlePositioning() {
         // Update subtitle positioning when offset changes
         print("KSPlayerView: [OFFSET UPDATE] subtitleBottomOffset changed to: \(subtitleBottomOffset.floatValue)")
@@ -240,13 +240,13 @@ class KSPlayerView: UIView {
             }
         }
     }
-    
+
     private func applyVideoGravity() {
         print("KSPlayerView: [VIDEO GRAVITY] Applying resizeMode: \(resizeMode)")
-        
+
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
-            
+
             let contentMode: UIViewContentMode
             switch self.resizeMode.lowercased {
             case "cover":
@@ -258,7 +258,7 @@ class KSPlayerView: UIView {
             default:
                 contentMode = .scaleAspectFit
             }
-            
+
             // Set contentMode on the player itself, not the view
             self.playerView.playerLayer?.player.contentMode = contentMode
             print("KSPlayerView: [VIDEO GRAVITY] Set player contentMode to: \(contentMode)")
@@ -372,14 +372,14 @@ class KSPlayerView: UIView {
 
         print("KSPlayerView: Setting source: \(uri)")
         print("KSPlayerView: URL scheme: \(url.scheme ?? "unknown"), host: \(url.host ?? "unknown")")
-        
+
         playerView.set(resource: resource)
-        
+
         // Set up delegate after setting the resource
         if let playerLayer = playerView.playerLayer {
             playerLayer.delegate = self
             print("KSPlayerView: Delegate set successfully on playerLayer")
-            
+
             // Apply video gravity after player is set up
             applyVideoGravity()
         } else {
@@ -413,27 +413,27 @@ class KSPlayerView: UIView {
 
         // Allow selecting image-based subtitles (PGS/DVB). KSMEPlayer requires this to enable image subtitle tracks.
         options.isSeekImageSubtitle = true
-        
+
         // PERFORMANCE OPTIMIZATION: Buffer durations for smooth high bitrate playback
         // preferredForwardBufferDuration = 5.0s: Increased to give decoder more headroom before playback starts
         // This prevents frame drops by ensuring sufficient decoded frames are available
         options.preferredForwardBufferDuration = 5.0
         // maxBufferDuration = 120.0s: Increased to allow the player to cache more content ahead of time (2 minutes)
         options.maxBufferDuration = 120.0
-        
+
         // Enable "second open" to relax startup/seek buffering thresholds (already enabled)
         options.isSecondOpen = true
-        
+
         // PERFORMANCE OPTIMIZATION: Fast stream analysis for high bitrate content
         // Reduces startup latency significantly for large high-bitrate streams
         options.probesize = 50_000_000  // 50MB for faster format detection
         options.maxAnalyzeDuration = 5_000_000  // 5 seconds in microseconds for faster stream structure analysis
-        
+
         // PERFORMANCE OPTIMIZATION: Decoder thread optimization
         // Use all available CPU cores for parallel decoding
         options.decoderOptions["threads"] = "0"  // Use all CPU cores instead of "auto"
         // refcounted_frames already set to "1" in KSOptions init for memory efficiency
-        
+
         // PERFORMANCE OPTIMIZATION: Hardware decode explicitly enabled
         // Ensure VideoToolbox hardware acceleration is always preferred for non-simulator
         #if targetEnvironment(simulator)
@@ -454,13 +454,13 @@ class KSPlayerView: UIView {
         // Allows the player to adapt video quality dynamically if needed
         options.videoAdaptable = true
         #endif
-        
+
         // HDR handling: Let KSPlayer automatically detect content's native dynamic range
         // Setting destinationDynamicRange to nil allows KSPlayer to use the content's actual HDR/SDR mode
         // This prevents forcing HDR tone mapping on SDR content (which causes oversaturation)
         // KSPlayer will automatically detect HDR10/Dolby Vision/HLG from the video format description
         options.destinationDynamicRange = nil
-        
+
         // Configure audio for proper dialogue mixing using FFmpeg's pan filter
         // This approach uses standard audio engineering practices for multi-channel downmixing
 
@@ -473,7 +473,7 @@ class KSPlayerView: UIView {
         // Alternative: Use FFmpeg's surround filter for more sophisticated downmixing
         // This provides better spatial audio processing and natural dialogue mixing
         // options.audioFilters.append("surround=ang=45")
-        
+
         if !headers.isEmpty {
             // Clean and validate headers before adding
             var cleanHeaders: [String: String] = [:]
@@ -483,20 +483,20 @@ class KSPlayerView: UIView {
                     cleanHeaders[key] = value
                 }
             }
-            
+
             if !cleanHeaders.isEmpty {
                 options.appendHeader(cleanHeaders)
                 print("KSPlayerView: Added headers: \(cleanHeaders.keys.joined(separator: ", "))")
-                
+
                 if let referer = cleanHeaders["Referer"] ?? cleanHeaders["referer"] {
                     options.referer = referer
                     print("KSPlayerView: Set referer: \(referer)")
                 }
             }
         }
-        
+
         print("KSPlayerView: [PERF] High-performance options configured: asyncDecomp=\(options.asynchronousDecompression), hwDecode=\(options.hardwareDecode), buffer=\(options.preferredForwardBufferDuration)s/\(options.maxBufferDuration)s, HDR=\(options.destinationDynamicRange?.description ?? "auto")")
-        
+
         return options
     }
 
@@ -526,17 +526,17 @@ class KSPlayerView: UIView {
             print("KSPlayerView: Cannot seek - player not ready or not seekable")
             return
         }
-        
+
         // Capture the current paused state before seeking
         let wasPaused = isPaused
         print("KSPlayerView: Seeking to \(time), paused state before seek: \(wasPaused)")
-        
+
         playerView.seek(time: time) { [weak self] success in
             guard let self = self else { return }
-            
+
             if success {
                 print("KSPlayerView: Seek successful to \(time)")
-                
+
                 // Restore the paused state after seeking
                 // KSPlayer's seek may resume playback, so we need to re-apply the paused state
                 if wasPaused {
@@ -608,7 +608,7 @@ class KSPlayerView: UIView {
             print("KSPlayerView: No player available for audio track selection")
         }
     }
-    
+
     private func configureAudioDownmixing(for track: MediaPlayerTrack) {
         // Check if this is a multi-channel audio track that needs downmixing
         // This is a simplified check - in practice, you might want to check the actual channel layout
@@ -752,7 +752,7 @@ class KSPlayerView: UIView {
             logToFile("setTextTrack failed to match SubtitleInfo")
         }
     }
-    
+
     // Get available tracks for React Native
     func getAvailableTracks() -> [String: Any] {
         guard let player = playerView.playerLayer?.player else {
@@ -784,12 +784,12 @@ class KSPlayerView: UIView {
                     displayName = "Subtitle \(index + 1)"
                 }
             }
-            
+
             // Add language info if not already in the name
             if let language = track.language, !language.isEmpty && language != "Unknown" && !displayName.lowercased().contains(language.lowercased()) {
                 displayName += " (\(language))"
             }
-            
+
             return [
                 "id": Int(track.trackID), // Use actual track ID, not array index
                 "index": index, // Keep index for backward compatibility
@@ -878,7 +878,7 @@ class KSPlayerView: UIView {
             print("[KSPlayerView] Could not find AirPlay button in route picker")
         }
     }
-    
+
     func getAirPlayState() -> [String: Any] {
         guard let player = playerView.playerLayer?.player else {
             return [
@@ -887,7 +887,7 @@ class KSPlayerView: UIView {
                 "isExternalPlaybackActive": false
             ]
         }
-        
+
         return [
             "allowsExternalPlayback": player.allowsExternalPlayback,
             "usesExternalPlaybackWhileExternalScreenIsActive": player.usesExternalPlaybackWhileExternalScreenIsActive,
@@ -909,7 +909,7 @@ class KSPlayerView: UIView {
             "volume": currentVolume
         ]
     }
-    
+
     // MARK: - Performance Optimization Helpers
 
     // MARK: - HDR Detection
@@ -1056,7 +1056,7 @@ private class HighPerformanceOptions: KSOptions {
             // Increased from 4 to 8 for better live stream stability
             return 8
         }
-        
+
         // For high bitrate VOD: increase buffer based on resolution
         if naturalSize.width >= 3840 || naturalSize.height >= 2160 {
             // 4K needs more buffer frames to handle decode spikes
@@ -1065,7 +1065,7 @@ private class HighPerformanceOptions: KSOptions {
             // 1080p benefits from more frames
             return 24
         }
-        
+
         // Default for lower resolutions
         return 16
     }
@@ -1192,7 +1192,7 @@ extension KSPlayerView: KSPlayerLayerDelegate {
         if currentTime.truncatingRemainder(dividingBy: 10.0) < 0.1 {
             print("KSPlayerView: [DELEGATE CALLED] time=\(currentTime), total=\(totalTime)")
         }
-        
+
         // Manually implement subtitle rendering logic from VideoPlayerView
         // This is the critical missing piece that was preventing subtitle rendering
 
@@ -1286,7 +1286,7 @@ extension KSPlayerView: KSPlayerLayerDelegate {
             playerView.subtitleBackView.isHidden = true
             playerView.subtitleLabel.isHidden = true
         }
-        
+
         let p = layer.player
         // Ensure we have valid duration before sending progress updates
         if totalTime > 0 {
@@ -1305,7 +1305,7 @@ extension KSPlayerView: KSPlayerLayerDelegate {
         if let error = error {
             let errorMessage = error.localizedDescription
             print("KSPlayerView: Player finished with error: \(errorMessage)")
-            
+
             // Provide more specific error messages for common issues
             var detailedError = errorMessage
             if errorMessage.contains("avformat can't open input") {
@@ -1317,7 +1317,7 @@ extension KSPlayerView: KSPlayerLayerDelegate {
             } else if errorMessage.contains("403") || errorMessage.contains("Forbidden") {
                 detailedError = "Access denied. The server may be blocking requests or require authentication."
             }
-            
+
             sendEvent("onError", ["error": detailedError])
         }
     }

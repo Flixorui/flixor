@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import SettingsHeader from '../../components/settings/SettingsHeader';
 import SettingsCard from '../../components/settings/SettingsCard';
 import SettingItem from '../../components/settings/SettingItem';
+import MDBListIcon from '../../components/icons/MDBListIcon';
 import { useAppSettings } from '../../hooks/useAppSettings';
 import { clearMDBListCache, RATING_PROVIDERS } from '../../core/MDBListService';
 
@@ -47,6 +48,15 @@ export default function MDBListSettings() {
     <View style={styles.container}>
       <SettingsHeader title="MDBList" onBack={() => nav.goBack()} />
       <ScrollView contentContainerStyle={[styles.content, { paddingTop: headerHeight + 12, paddingBottom: insets.bottom + 100 }]}>
+        {/* Header with MDBList logo */}
+        <View style={styles.logoHeader}>
+          <View style={styles.logoContainer}>
+            <MDBListIcon size={32} color="#f5c518" />
+          </View>
+          <Text style={styles.logoTitle}>MDBList</Text>
+          <Text style={styles.logoSubtitle}>Multi-source ratings aggregator</Text>
+        </View>
+
         {/* Status Card */}
         <View style={[styles.statusCard, isReady ? styles.statusReady : styles.statusNotReady]}>
           <Ionicons
@@ -168,6 +178,30 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 16,
     paddingBottom: 40,
+  },
+  logoHeader: {
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingVertical: 16,
+  },
+  logoContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 16,
+    backgroundColor: 'rgba(245, 197, 24, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  logoTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  logoSubtitle: {
+    color: '#9ca3af',
+    fontSize: 13,
+    marginTop: 4,
   },
   statusCard: {
     flexDirection: 'row',

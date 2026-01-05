@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import SettingsHeader from '../../components/settings/SettingsHeader';
 import SettingsCard from '../../components/settings/SettingsCard';
 import SettingItem from '../../components/settings/SettingItem';
+import OverseerrIcon from '../../components/icons/OverseerrIcon';
 import { useAppSettings } from '../../hooks/useAppSettings';
 import { validateOverseerrConnection, clearOverseerrCache } from '../../core/OverseerrService';
 
@@ -171,6 +172,15 @@ export default function OverseerrSettings() {
           { paddingTop: headerHeight + 12, paddingBottom: insets.bottom + 100 },
         ]}
       >
+        {/* Header with Overseerr logo */}
+        <View style={styles.logoHeader}>
+          <View style={styles.logoContainer}>
+            <OverseerrIcon size={32} color="#6366f1" />
+          </View>
+          <Text style={styles.logoTitle}>Overseerr</Text>
+          <Text style={styles.logoSubtitle}>Media request management</Text>
+        </View>
+
         {/* Status Card */}
         <View
           style={[
@@ -335,6 +345,30 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 16,
+  },
+  logoHeader: {
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingVertical: 16,
+  },
+  logoContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 16,
+    backgroundColor: 'rgba(99, 102, 241, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  logoTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  logoSubtitle: {
+    color: '#9ca3af',
+    fontSize: 13,
+    marginTop: 4,
   },
   statusCard: {
     flexDirection: 'row',
