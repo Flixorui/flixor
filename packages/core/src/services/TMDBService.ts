@@ -10,6 +10,8 @@ import type {
   TMDBVideosResponse,
   TMDBImages,
   TMDBResultsResponse,
+  TMDBPerson,
+  TMDBPersonCredits,
 } from '../models/tmdb';
 import { TMDBImageSize } from '../models/tmdb';
 
@@ -521,6 +523,32 @@ export class TMDBService {
       `/find/${tvdbId}`,
       { external_source: 'tvdb_id' },
       CacheTTL.STATIC
+    );
+  }
+
+  // ============================================
+  // Person
+  // ============================================
+
+  /**
+   * Get person details
+   */
+  async getPersonDetails(personId: number): Promise<TMDBPerson> {
+    return this.get<TMDBPerson>(
+      `/person/${personId}`,
+      undefined,
+      CacheTTL.TRENDING
+    );
+  }
+
+  /**
+   * Get person combined credits (movies + TV)
+   */
+  async getPersonCredits(personId: number): Promise<TMDBPersonCredits> {
+    return this.get<TMDBPersonCredits>(
+      `/person/${personId}/combined_credits`,
+      undefined,
+      CacheTTL.DYNAMIC
     );
   }
 

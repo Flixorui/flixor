@@ -712,6 +712,111 @@ export class TraktService {
   }
 
   // ============================================
+  // Scrobbling (Real-time playback tracking)
+  // ============================================
+
+  /**
+   * Start scrobbling a movie
+   */
+  async startScrobbleMovie(
+    movie: { ids: { tmdb?: number; imdb?: string } },
+    progress: number
+  ): Promise<void> {
+    if (!this.isAuthenticated()) return;
+    await this.post(
+      '/scrobble/start',
+      { movie, progress },
+      true
+    );
+  }
+
+  /**
+   * Start scrobbling an episode
+   */
+  async startScrobbleEpisode(
+    show: { ids: { tmdb?: number; imdb?: string } },
+    episode: { season: number; number: number },
+    progress: number
+  ): Promise<void> {
+    if (!this.isAuthenticated()) return;
+    await this.post(
+      '/scrobble/start',
+      { show, episode, progress },
+      true
+    );
+  }
+
+  /**
+   * Pause scrobbling a movie
+   */
+  async pauseScrobbleMovie(
+    movie: { ids: { tmdb?: number; imdb?: string } },
+    progress: number
+  ): Promise<void> {
+    if (!this.isAuthenticated()) return;
+    await this.post(
+      '/scrobble/pause',
+      { movie, progress },
+      true
+    );
+  }
+
+  /**
+   * Pause scrobbling an episode
+   */
+  async pauseScrobbleEpisode(
+    show: { ids: { tmdb?: number; imdb?: string } },
+    episode: { season: number; number: number },
+    progress: number
+  ): Promise<void> {
+    if (!this.isAuthenticated()) return;
+    await this.post(
+      '/scrobble/pause',
+      { show, episode, progress },
+      true
+    );
+  }
+
+  /**
+   * Stop scrobbling a movie
+   */
+  async stopScrobbleMovie(
+    movie: { ids: { tmdb?: number; imdb?: string } },
+    progress: number
+  ): Promise<void> {
+    if (!this.isAuthenticated()) return;
+    await this.post(
+      '/scrobble/stop',
+      { movie, progress },
+      true
+    );
+    // If progress >= 80%, Trakt will auto-mark as watched
+    if (progress >= 80) {
+      await this.cache.invalidatePattern('trakt:auth:*history*');
+    }
+  }
+
+  /**
+   * Stop scrobbling an episode
+   */
+  async stopScrobbleEpisode(
+    show: { ids: { tmdb?: number; imdb?: string } },
+    episode: { season: number; number: number },
+    progress: number
+  ): Promise<void> {
+    if (!this.isAuthenticated()) return;
+    await this.post(
+      '/scrobble/stop',
+      { show, episode, progress },
+      true
+    );
+    // If progress >= 80%, Trakt will auto-mark as watched
+    if (progress >= 80) {
+      await this.cache.invalidatePattern('trakt:auth:*history*');
+    }
+  }
+
+  // ============================================
   // Cache Management
   // ============================================
 

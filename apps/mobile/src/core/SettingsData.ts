@@ -269,11 +269,72 @@ const SETTINGS_KEY = 'flixor_app_settings';
 export interface AppSettings {
   watchlistProvider: 'trakt' | 'plex';
   tmdbApiKey?: string; // Custom TMDB API key override
+  // MDBList settings
+  mdblistEnabled: boolean; // Enable MDBList integration (disabled by default)
+  mdblistApiKey?: string; // MDBList API key (required when enabled)
+  // Overseerr settings
+  overseerrEnabled: boolean; // Enable Overseerr integration (disabled by default)
+  overseerrUrl?: string; // Overseerr server URL (e.g., https://overseerr.example.com)
+  overseerrApiKey?: string; // Overseerr API key
+  tmdbLanguagePreference: string;
+  enrichMetadataWithTMDB: boolean;
+  useTmdbLocalizedMetadata: boolean;
+  episodeLayoutStyle: 'vertical' | 'horizontal';
+  enableStreamsBackdrop: boolean;
+  useCachedStreams: boolean;
+  openMetadataScreenWhenCacheDisabled: boolean;
+  streamCacheTTL: number;
+  showHeroSection: boolean;
+  showContinueWatchingRow: boolean;
+  showTrendingRows: boolean;
+  showTraktRows: boolean;
+  showPlexPopularRow: boolean;
+  showPosterTitles: boolean;
+  posterSize: 'small' | 'medium' | 'large';
+  posterBorderRadius: number;
+  showLibraryTitles: boolean;
+  heroLayout: 'legacy' | 'carousel' | 'appletv';
+  continueWatchingLayout: 'poster' | 'landscape';
+  enabledLibraryKeys?: string[];
+  // Android-specific settings
+  enableAndroidBlurView: boolean; // Enable blur effects on Android (may impact performance)
 }
 
-let cachedSettings: AppSettings = {
+export const DEFAULT_APP_SETTINGS: AppSettings = {
   watchlistProvider: 'trakt',
+  tmdbApiKey: undefined,
+  // MDBList defaults
+  mdblistEnabled: false,
+  mdblistApiKey: undefined,
+  // Overseerr defaults
+  overseerrEnabled: false,
+  overseerrUrl: undefined,
+  overseerrApiKey: undefined,
+  tmdbLanguagePreference: 'en',
+  enrichMetadataWithTMDB: true,
+  useTmdbLocalizedMetadata: false,
+  episodeLayoutStyle: 'horizontal',
+  enableStreamsBackdrop: true,
+  useCachedStreams: false,
+  openMetadataScreenWhenCacheDisabled: true,
+  streamCacheTTL: 60 * 60 * 1000,
+  showHeroSection: true,
+  showContinueWatchingRow: true,
+  showTrendingRows: true,
+  showTraktRows: true,
+  showPlexPopularRow: true,
+  showPosterTitles: true,
+  posterSize: 'medium',
+  posterBorderRadius: 12,
+  showLibraryTitles: true,
+  heroLayout: 'carousel',
+  continueWatchingLayout: 'landscape',
+  enabledLibraryKeys: undefined,
+  // Android-specific defaults
+  enableAndroidBlurView: false, // Disabled by default for performance
 };
+
+let cachedSettings: AppSettings = { ...DEFAULT_APP_SETTINGS };
 
 let settingsLoaded = false;
 
@@ -281,7 +342,9 @@ export async function loadAppSettings(): Promise<AppSettings> {
   try {
     const stored = await AsyncStorage.getItem(SETTINGS_KEY);
     if (stored) {
-      cachedSettings = { ...cachedSettings, ...JSON.parse(stored) };
+      cachedSettings = { ...DEFAULT_APP_SETTINGS, ...JSON.parse(stored) };
+    } else {
+      cachedSettings = { ...DEFAULT_APP_SETTINGS };
     }
     settingsLoaded = true;
   } catch (e) {
@@ -312,4 +375,46 @@ export async function getTmdbApiKey(): Promise<string | undefined> {
 
 export async function setTmdbApiKey(apiKey: string | undefined): Promise<void> {
   await setAppSettings({ tmdbApiKey: apiKey });
+}
+
+// MDBList helpers
+export function isMdblistEnabled(): boolean {
+  return cachedSettings.mdblistEnabled ?? false;
+}
+
+export async function setMdblistEnabled(enabled: boolean): Promise<void> {
+  await setAppSettings({ mdblistEnabled: enabled });
+}
+
+export function getMdblistApiKey(): string | undefined {
+  return cachedSettings.mdblistApiKey;
+}
+
+export async function setMdblistApiKey(apiKey: string | undefined): Promise<void> {
+  await setAppSettings({ mdblistApiKey: apiKey });
+}
+
+// Overseerr helpers
+export function isOverseerrEnabled(): boolean {
+  return cachedSettings.overseerrEnabled ?? false;
+}
+
+export function getOverseerrUrl(): string | undefined {
+  return cachedSettings.overseerrUrl;
+}
+
+export function getOverseerrApiKey(): string | undefined {
+  return cachedSettings.overseerrApiKey;
+}
+
+export async function setOverseerrEnabled(enabled: boolean): Promise<void> {
+  await setAppSettings({ overseerrEnabled: enabled });
+}
+
+export async function setOverseerrUrl(url: string | undefined): Promise<void> {
+  await setAppSettings({ overseerrUrl: url });
+}
+
+export async function setOverseerrApiKey(apiKey: string | undefined): Promise<void> {
+  await setAppSettings({ overseerrApiKey: apiKey });
 }

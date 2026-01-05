@@ -163,3 +163,18 @@ export interface PlexMediaContainer<T> {
     Directory?: T[];
   };
 }
+
+// UltraBlur Colors
+export interface PlexUltraBlurColors {
+  topLeft: string;
+  topRight: string;
+  bottomRight: string;
+  bottomLeft: string;
+}
+
+export interface PlexUltraBlurResponse {
+  MediaContainer: {
+    size?: number;
+    UltraBlurColors?: PlexUltraBlurColors[];
+  };
+}

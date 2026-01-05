@@ -1,7 +1,9 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Modal } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Modal, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useAppSettings } from '../hooks/useAppSettings';
+import type { AudioTrack, TextTrack } from './player';
 
 export type Stream = {
   id: string;
@@ -20,43 +22,84 @@ export type QualityOption = {
   value: number | 'original';
 };
 
+export type PlaybackInfo = {
+  isDirectPlay: boolean;
+  videoCodec?: string;
+  videoResolution?: string;
+  videoBitrate?: number;
+  audioCodec?: string;
+  audioChannels?: string;
+  container?: string;
+  playerBackend?: string;
+  hdrType?: 'HDR10' | 'HDR10+' | 'Dolby Vision' | 'HLG' | null;
+  colorSpace?: string;
+  colorPrimaries?: string;
+  colorTransfer?: string;
+};
+
 type PlayerSettingsSheetProps = {
   visible: boolean;
   onClose: () => void;
-  audioStreams: Stream[];
-  subtitleStreams: Stream[];
-  selectedAudio: string | null;
-  selectedSubtitle: string | null;
-  onAudioChange: (streamId: string) => void;
-  onSubtitleChange: (streamId: string) => void;
-  qualityOptions: QualityOption[];
-  selectedQuality: number | 'original';
-  onQualityChange: (quality: number | 'original') => void;
+  // Legacy stream format (for non-KSPlayer)
+  audioStreams?: Stream[];
+  subtitleStreams?: Stream[];
+  selectedAudio?: string | null;
+  selectedSubtitle?: string | null;
+  onAudioChange?: (streamId: string) => void;
+  onSubtitleChange?: (streamId: string) => void;
+  // KSPlayer track format (iOS)
+  ksAudioTracks?: AudioTrack[];
+  ksTextTracks?: TextTrack[];
+  selectedKsAudioTrack?: number | null;
+  selectedKsTextTrack?: number | null;
+  onKsAudioChange?: (trackId: number) => void;
+  onKsTextTrack?: (trackId: number) => void;
+  // Quality options
+  qualityOptions?: QualityOption[];
+  selectedQuality?: number | 'original';
+  onQualityChange?: (quality: number | 'original') => void;
+  // Playback info
+  playbackInfo?: PlaybackInfo;
 };
 
 export default function PlayerSettingsSheet({
   visible,
   onClose,
-  audioStreams,
-  subtitleStreams,
+  audioStreams = [],
+  subtitleStreams = [],
   selectedAudio,
   selectedSubtitle,
   onAudioChange,
   onSubtitleChange,
-  qualityOptions,
+  ksAudioTracks = [],
+  ksTextTracks = [],
+  selectedKsAudioTrack,
+  selectedKsTextTrack,
+  onKsAudioChange,
+  onKsTextTrack,
+  qualityOptions = [],
   selectedQuality,
   onQualityChange,
+  playbackInfo,
 }: PlayerSettingsSheetProps) {
-  const [activeTab, setActiveTab] = React.useState<'audio' | 'subtitles' | 'quality'>('subtitles');
+  // Prefer Plex streams (legacy format with proper names) over KSPlayer tracks
+  // Only use KSPlayer tracks if Plex streams are not available
+  const hasPlexStreams = audioStreams.length > 0 || subtitleStreams.length > 0;
+  const useKsPlayer = !hasPlexStreams && (ksAudioTracks.length > 0 || ksTextTracks.length > 0);
+  const [activeTab, setActiveTab] = React.useState<'audio' | 'subtitles' | 'quality' | 'info'>('subtitles');
+  const { settings } = useAppSettings();
+  const showBackdrop = settings.enableStreamsBackdrop;
 
   return (
     <Modal
       visible={visible}
       transparent
       animationType="slide"
+      presentationStyle="overFullScreen"
+      supportedOrientations={['portrait', 'landscape']}
       onRequestClose={onClose}
     >
-      <View style={styles.backdrop}>
+      <View style={[styles.backdrop, !showBackdrop && styles.backdropDisabled]}>
         <TouchableOpacity
           style={styles.backdropTouchable}
           activeOpacity={1}
@@ -107,71 +150,177 @@ export default function PlayerSettingsSheet({
                   Quality
                 </Text>
               </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.tab, activeTab === 'info' && styles.tabActive]}
+                onPress={() => setActiveTab('info')}
+              >
+                <Ionicons name="information-circle" size={20} color={activeTab === 'info' ? '#fff' : '#888'} />
+                <Text style={[styles.tabText, activeTab === 'info' && styles.tabTextActive]}>
+                  Info
+                </Text>
+              </TouchableOpacity>
             </View>
 
             {/* Content */}
             <ScrollView style={styles.scrollContent}>
               {activeTab === 'audio' && (
                 <View>
-                  {audioStreams.length === 0 ? (
-                    <Text style={styles.emptyText}>No audio tracks available</Text>
-                  ) : (
-                    audioStreams.map((stream) => (
-                      <TouchableOpacity
-                        key={stream.id}
-                        style={styles.option}
-                        onPress={() => onAudioChange(stream.id)}
-                      >
-                        <View style={styles.optionContent}>
-                          <Text style={styles.optionTitle}>
-                            {stream.displayTitle || stream.language || `Track ${stream.index}`}
-                          </Text>
-                          {stream.codec && (
-                            <Text style={styles.optionSubtitle}>{stream.codec.toUpperCase()}</Text>
+                  {useKsPlayer ? (
+                    // KSPlayer tracks (iOS)
+                    ksAudioTracks.length === 0 ? (
+                      <Text style={styles.emptyText}>No audio tracks available</Text>
+                    ) : (
+                      ksAudioTracks.map((track) => (
+                        <TouchableOpacity
+                          key={track.id}
+                          style={styles.option}
+                          onPress={() => onKsAudioChange?.(track.id)}
+                        >
+                          <View style={styles.optionContent}>
+                            <Text style={styles.optionTitle}>
+                              {track.name || track.language || `Track ${track.index}`}
+                            </Text>
+                            {track.languageCode && (
+                              <Text style={styles.optionSubtitle}>{track.languageCode.toUpperCase()}</Text>
+                            )}
+                          </View>
+                          {selectedKsAudioTrack === track.id && (
+                            <Ionicons name="checkmark" size={24} color="#4a9eff" />
                           )}
-                        </View>
-                        {selectedAudio === stream.id && (
-                          <Ionicons name="checkmark" size={24} color="#4a9eff" />
-                        )}
-                      </TouchableOpacity>
-                    ))
+                        </TouchableOpacity>
+                      ))
+                    )
+                  ) : (
+                    // Legacy streams (Android/expo-av)
+                    audioStreams.length === 0 ? (
+                      <Text style={styles.emptyText}>No audio tracks available</Text>
+                    ) : (
+                      audioStreams.map((stream) => (
+                        <TouchableOpacity
+                          key={stream.id}
+                          style={styles.option}
+                          onPress={() => onAudioChange?.(stream.id)}
+                        >
+                          <View style={styles.optionContent}>
+                            <Text style={styles.optionTitle}>
+                              {stream.displayTitle || stream.language || `Track ${stream.index}`}
+                            </Text>
+                            {stream.codec && (
+                              <Text style={styles.optionSubtitle}>{stream.codec.toUpperCase()}</Text>
+                            )}
+                          </View>
+                          {selectedAudio === stream.id && (
+                            <Ionicons name="checkmark" size={24} color="#4a9eff" />
+                          )}
+                        </TouchableOpacity>
+                      ))
+                    )
                   )}
                 </View>
               )}
 
               {activeTab === 'subtitles' && (
                 <View>
-                  {/* None option */}
-                  <TouchableOpacity
-                    style={styles.option}
-                    onPress={() => onSubtitleChange('0')}
-                  >
-                    <View style={styles.optionContent}>
-                      <Text style={styles.optionTitle}>None</Text>
-                    </View>
-                    {selectedSubtitle === '0' && (
-                      <Ionicons name="checkmark" size={24} color="#4a9eff" />
-                    )}
-                  </TouchableOpacity>
-
-                  {subtitleStreams.length === 0 ? (
-                    <Text style={styles.emptyText}>No subtitle tracks available</Text>
-                  ) : (
-                    subtitleStreams.map((stream) => (
+                  {useKsPlayer ? (
+                    // KSPlayer text tracks (iOS)
+                    <>
+                      {/* None option */}
                       <TouchableOpacity
-                        key={stream.id}
                         style={styles.option}
-                        onPress={() => onSubtitleChange(stream.id)}
+                        onPress={() => onKsTextTrack?.(-1)}
                       >
                         <View style={styles.optionContent}>
-                          <Text style={styles.optionTitle}>
-                            {stream.displayTitle || stream.language || `Track ${stream.index}`}
-                          </Text>
-                          {stream.codec && (
-                            <Text style={styles.optionSubtitle}>{stream.codec.toUpperCase()}</Text>
-                          )}
+                          <Text style={styles.optionTitle}>None</Text>
                         </View>
-                        {selectedSubtitle === stream.id && (
+                        {selectedKsTextTrack === -1 && (
+                          <Ionicons name="checkmark" size={24} color="#4a9eff" />
+                        )}
+                      </TouchableOpacity>
+
+                      {ksTextTracks.length === 0 ? (
+                        <Text style={styles.emptyText}>No subtitle tracks available</Text>
+                      ) : (
+                        ksTextTracks.map((track) => (
+                          <TouchableOpacity
+                            key={track.id}
+                            style={styles.option}
+                            onPress={() => onKsTextTrack?.(track.id)}
+                          >
+                            <View style={styles.optionContent}>
+                              <Text style={styles.optionTitle}>
+                                {track.name || track.language || `Track ${track.index}`}
+                              </Text>
+                              {track.languageCode && (
+                                <Text style={styles.optionSubtitle}>{track.languageCode.toUpperCase()}</Text>
+                              )}
+                            </View>
+                            {selectedKsTextTrack === track.id && (
+                              <Ionicons name="checkmark" size={24} color="#4a9eff" />
+                            )}
+                          </TouchableOpacity>
+                        ))
+                      )}
+                    </>
+                  ) : (
+                    // Legacy streams (Android/expo-av)
+                    <>
+                      {/* None option */}
+                      <TouchableOpacity
+                        style={styles.option}
+                        onPress={() => onSubtitleChange?.('0')}
+                      >
+                        <View style={styles.optionContent}>
+                          <Text style={styles.optionTitle}>None</Text>
+                        </View>
+                        {selectedSubtitle === '0' && (
+                          <Ionicons name="checkmark" size={24} color="#4a9eff" />
+                        )}
+                      </TouchableOpacity>
+
+                      {subtitleStreams.length === 0 ? (
+                        <Text style={styles.emptyText}>No subtitle tracks available</Text>
+                      ) : (
+                        subtitleStreams.map((stream) => (
+                          <TouchableOpacity
+                            key={stream.id}
+                            style={styles.option}
+                            onPress={() => onSubtitleChange?.(stream.id)}
+                          >
+                            <View style={styles.optionContent}>
+                              <Text style={styles.optionTitle}>
+                                {stream.displayTitle || stream.language || `Track ${stream.index}`}
+                              </Text>
+                              {stream.codec && (
+                                <Text style={styles.optionSubtitle}>{stream.codec.toUpperCase()}</Text>
+                              )}
+                            </View>
+                            {selectedSubtitle === stream.id && (
+                              <Ionicons name="checkmark" size={24} color="#4a9eff" />
+                            )}
+                          </TouchableOpacity>
+                        ))
+                      )}
+                    </>
+                  )}
+                </View>
+              )}
+
+              {activeTab === 'quality' && (
+                <View>
+                  {qualityOptions.length === 0 ? (
+                    <Text style={styles.emptyText}>No quality options available</Text>
+                  ) : (
+                    qualityOptions.map((option) => (
+                      <TouchableOpacity
+                        key={option.value}
+                        style={styles.option}
+                        onPress={() => onQualityChange?.(option.value)}
+                      >
+                        <View style={styles.optionContent}>
+                          <Text style={styles.optionTitle}>{option.label}</Text>
+                        </View>
+                        {selectedQuality === option.value && (
                           <Ionicons name="checkmark" size={24} color="#4a9eff" />
                         )}
                       </TouchableOpacity>
@@ -180,22 +329,131 @@ export default function PlayerSettingsSheet({
                 </View>
               )}
 
-              {activeTab === 'quality' && (
+              {activeTab === 'info' && (
                 <View>
-                  {qualityOptions.map((option) => (
-                    <TouchableOpacity
-                      key={option.value}
-                      style={styles.option}
-                      onPress={() => onQualityChange(option.value)}
-                    >
-                      <View style={styles.optionContent}>
-                        <Text style={styles.optionTitle}>{option.label}</Text>
+                  {!playbackInfo ? (
+                    <Text style={styles.emptyText}>No playback info available</Text>
+                  ) : (
+                    <>
+                      {/* Playback Mode */}
+                      <View style={styles.infoRow}>
+                        <View style={styles.infoLabel}>
+                          <Ionicons name="play-circle" size={18} color="#888" />
+                          <Text style={styles.infoLabelText}>Playback Mode</Text>
+                        </View>
+                        <View style={[styles.infoBadge, playbackInfo.isDirectPlay ? styles.infoBadgeSuccess : styles.infoBadgeWarning]}>
+                          <Text style={styles.infoBadgeText}>
+                            {playbackInfo.isDirectPlay ? 'Direct Play' : 'Transcoding'}
+                          </Text>
+                        </View>
                       </View>
-                      {selectedQuality === option.value && (
-                        <Ionicons name="checkmark" size={24} color="#4a9eff" />
+
+                      {/* Player Backend */}
+                      {playbackInfo.playerBackend && (
+                        <View style={styles.infoRow}>
+                          <View style={styles.infoLabel}>
+                            <Ionicons name="hardware-chip" size={18} color="#888" />
+                            <Text style={styles.infoLabelText}>Player Backend</Text>
+                          </View>
+                          <Text style={styles.infoValue}>{playbackInfo.playerBackend}</Text>
+                        </View>
                       )}
-                    </TouchableOpacity>
-                  ))}
+
+                      {/* Container */}
+                      {playbackInfo.container && (
+                        <View style={styles.infoRow}>
+                          <View style={styles.infoLabel}>
+                            <Ionicons name="folder" size={18} color="#888" />
+                            <Text style={styles.infoLabelText}>Container</Text>
+                          </View>
+                          <Text style={styles.infoValue}>{playbackInfo.container.toUpperCase()}</Text>
+                        </View>
+                      )}
+
+                      {/* Video Codec */}
+                      {playbackInfo.videoCodec && (
+                        <View style={styles.infoRow}>
+                          <View style={styles.infoLabel}>
+                            <Ionicons name="videocam" size={18} color="#888" />
+                            <Text style={styles.infoLabelText}>Video Codec</Text>
+                          </View>
+                          <Text style={styles.infoValue}>{playbackInfo.videoCodec.toUpperCase()}</Text>
+                        </View>
+                      )}
+
+                      {/* Video Resolution */}
+                      {playbackInfo.videoResolution && (
+                        <View style={styles.infoRow}>
+                          <View style={styles.infoLabel}>
+                            <Ionicons name="resize" size={18} color="#888" />
+                            <Text style={styles.infoLabelText}>Resolution</Text>
+                          </View>
+                          <Text style={styles.infoValue}>{playbackInfo.videoResolution}</Text>
+                        </View>
+                      )}
+
+                      {/* HDR Type */}
+                      {playbackInfo.hdrType && (
+                        <View style={styles.infoRow}>
+                          <View style={styles.infoLabel}>
+                            <Ionicons name="sunny" size={18} color="#888" />
+                            <Text style={styles.infoLabelText}>Dynamic Range</Text>
+                          </View>
+                          <View style={[styles.infoBadge, styles.infoBadgeHdr]}>
+                            <Text style={styles.infoBadgeText}>{playbackInfo.hdrType}</Text>
+                          </View>
+                        </View>
+                      )}
+
+                      {/* Color Space */}
+                      {playbackInfo.colorSpace && (
+                        <View style={styles.infoRow}>
+                          <View style={styles.infoLabel}>
+                            <Ionicons name="color-palette" size={18} color="#888" />
+                            <Text style={styles.infoLabelText}>Color Space</Text>
+                          </View>
+                          <Text style={styles.infoValue}>{playbackInfo.colorSpace}</Text>
+                        </View>
+                      )}
+
+                      {/* Video Bitrate */}
+                      {playbackInfo.videoBitrate && (
+                        <View style={styles.infoRow}>
+                          <View style={styles.infoLabel}>
+                            <Ionicons name="speedometer" size={18} color="#888" />
+                            <Text style={styles.infoLabelText}>Video Bitrate</Text>
+                          </View>
+                          <Text style={styles.infoValue}>
+                            {playbackInfo.videoBitrate >= 1000
+                              ? `${(playbackInfo.videoBitrate / 1000).toFixed(1)} Mbps`
+                              : `${playbackInfo.videoBitrate} Kbps`}
+                          </Text>
+                        </View>
+                      )}
+
+                      {/* Audio Codec */}
+                      {playbackInfo.audioCodec && (
+                        <View style={styles.infoRow}>
+                          <View style={styles.infoLabel}>
+                            <Ionicons name="volume-high" size={18} color="#888" />
+                            <Text style={styles.infoLabelText}>Audio Codec</Text>
+                          </View>
+                          <Text style={styles.infoValue}>{playbackInfo.audioCodec.toUpperCase()}</Text>
+                        </View>
+                      )}
+
+                      {/* Audio Channels */}
+                      {playbackInfo.audioChannels && (
+                        <View style={styles.infoRow}>
+                          <View style={styles.infoLabel}>
+                            <Ionicons name="headset" size={18} color="#888" />
+                            <Text style={styles.infoLabelText}>Audio Channels</Text>
+                          </View>
+                          <Text style={styles.infoValue}>{playbackInfo.audioChannels}</Text>
+                        </View>
+                      )}
+                    </>
+                  )}
                 </View>
               )}
             </ScrollView>
@@ -211,6 +469,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.7)',
     justifyContent: 'flex-end',
+  },
+  backdropDisabled: {
+    backgroundColor: 'transparent',
   },
   backdropTouchable: {
     flex: 1,
@@ -301,5 +562,48 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingVertical: 32,
     fontSize: 15,
+  },
+  // Info tab styles
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.05)',
+  },
+  infoLabel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  infoLabelText: {
+    fontSize: 15,
+    color: '#888',
+  },
+  infoValue: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  infoBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  infoBadgeSuccess: {
+    backgroundColor: 'rgba(46, 204, 113, 0.2)',
+  },
+  infoBadgeWarning: {
+    backgroundColor: 'rgba(241, 196, 15, 0.2)',
+  },
+  infoBadgeHdr: {
+    backgroundColor: 'rgba(155, 89, 182, 0.3)', // Purple for HDR
+  },
+  infoBadgeText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#fff',
   },
 });

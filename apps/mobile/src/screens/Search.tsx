@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, TextInput, Pressable, ActivityIndicator, ScrollView, StyleSheet, Animated, Keyboard } from 'react-native';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { View, Text, TextInput, Pressable, ActivityIndicator, ScrollView, StyleSheet, Animated, Keyboard, InteractionManager } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Image as ExpoImage } from 'expo-image';
+import FastImage from '@d11/react-native-fast-image';
 import Row from '../components/Row';
 import { useNavigation } from '@react-navigation/native';
 import { TopBarStore } from '../components/TopBarStore';
@@ -12,6 +12,7 @@ import {
   searchPlex,
   searchTmdb,
   getTrendingForSearch,
+  fetchPreferredBackdropsForSearch,
   discoverByGenre,
   SearchResult,
   RowItem,
@@ -23,6 +24,16 @@ type GenreRow = {
   items: SearchResult[];
 };
 
+// Persistent store for trending data - survives component unmounts
+const persistentStore = {
+  trending: null as RowItem[] | null,
+  lastFetchTime: 0,
+  CACHE_TTL: 5 * 60 * 1000, // 5 minutes
+};
+
+// Image preload cap - limit concurrent preloads
+const IMAGE_PRELOAD_CAP = 6;
+
 export default function Search() {
   const nav: any = useNavigation();
   const { isConnected } = useFlixor();
@@ -30,39 +41,103 @@ export default function Search() {
   const [plexResults, setPlexResults] = useState<SearchResult[]>([]);
   const [tmdbMovies, setTmdbMovies] = useState<SearchResult[]>([]);
   const [tmdbShows, setTmdbShows] = useState<SearchResult[]>([]);
-  const [trending, setTrending] = useState<RowItem[]>([]);
+  // Initialize from persistent store for instant render
+  const [trending, setTrending] = useState<RowItem[]>(() => persistentStore.trending || []);
   const [genreRows, setGenreRows] = useState<GenreRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchMode, setSearchMode] = useState<'idle' | 'results'>('idle');
-  const searchTimeout = useRef<ReturnType<typeof setTimeout>>();
+  const [trendingLoaded, setTrendingLoaded] = useState(!!persistentStore.trending);
+  const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<TextInput>(null);
-  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const fadeAnim = useRef(new Animated.Value(persistentStore.trending ? 1 : 0)).current;
+  const isMounted = useRef(true);
 
   useEffect(() => {
+    isMounted.current = true;
+
     // Hide TopBar when Search is opened
     TopBarStore.setVisible(false);
 
+    const now = Date.now();
+    const cacheValid = persistentStore.trending && (now - persistentStore.lastFetchTime < persistentStore.CACHE_TTL);
+
     // Load recommended/trending for empty state
-    if (isConnected) {
-      (async () => {
-        try {
-          const combined = await getTrendingForSearch();
-          setTrending(combined);
-        } catch (e) {
-          console.log('[Search] Failed to load trending:', e);
-        }
-      })();
+    if (isConnected && !cacheValid) {
+      // Defer data fetch to avoid blocking UI
+      InteractionManager.runAfterInteractions(() => {
+        if (!isMounted.current) return;
+
+        (async () => {
+          try {
+            const combined = await getTrendingForSearch();
+            if (!isMounted.current) return;
+
+            // Update persistent store
+            persistentStore.trending = combined;
+            persistentStore.lastFetchTime = Date.now();
+
+            setTrending(combined);
+            setTrendingLoaded(true);
+
+            // Preload first N images for instant display
+            const imagesToPreload = combined
+              .slice(0, IMAGE_PRELOAD_CAP)
+              .filter(item => item.image)
+              .map(item => ({ uri: item.image! }));
+
+            if (imagesToPreload.length > 0) {
+              FastImage.preload(imagesToPreload);
+            }
+
+            // Fetch preferred backdrops with titles asynchronously (lower priority)
+            fetchPreferredBackdropsForSearch(combined).then((backdrops) => {
+              if (!isMounted.current) return;
+              if (Object.keys(backdrops).length > 0) {
+                const updatedTrending = combined.map((item) => ({
+                  ...item,
+                  image: backdrops[item.id] || item.image,
+                }));
+
+                // Update persistent store with new backdrops
+                persistentStore.trending = updatedTrending;
+                setTrending(updatedTrending);
+
+                // Preload new backdrop images
+                const newImagesToPreload = updatedTrending
+                  .slice(0, IMAGE_PRELOAD_CAP)
+                  .filter(item => item.image && backdrops[item.id])
+                  .map(item => ({ uri: item.image! }));
+
+                if (newImagesToPreload.length > 0) {
+                  FastImage.preload(newImagesToPreload);
+                }
+              }
+            });
+          } catch (e) {
+            console.log('[Search] Failed to load trending:', e);
+          }
+        })();
+      });
+    } else if (persistentStore.trending) {
+      setTrendingLoaded(true);
     }
 
     // Fade in animation
-    Animated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+    if (!persistentStore.trending) {
+      Animated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+    }
 
     // Auto-focus input
     setTimeout(() => inputRef.current?.focus(), 100);
 
-    // Restore TopBar when Search is unmounted (navigated back)
+    // Cleanup on unmount
     return () => {
+      isMounted.current = false;
       TopBarStore.setVisible(true);
+      // Clear search timeout
+      if (searchTimeout.current) {
+        clearTimeout(searchTimeout.current);
+      }
     };
   }, [isConnected]);
 
@@ -200,13 +275,29 @@ export default function Search() {
             {searchMode === 'idle' ? (
               <View style={{ paddingTop: 24 }}>
                 <Text style={{ color: '#fff', fontSize: 20, fontWeight: '800', marginHorizontal: 16, marginBottom: 16 }}>Recommended TV Shows & Movies</Text>
-                {/* Vertical list of recommended items */}
+                {/* Loading skeleton when trending not loaded */}
+                {!trendingLoaded && trending.length === 0 ? (
+                  <View style={{ alignItems: 'center', paddingTop: 20 }}>
+                    <ActivityIndicator color="#fff" size="small" />
+                  </View>
+                ) : null}
+                {/* Vertical list of recommended items - progressive loading */}
                 {trending.map((item, i) => (
-                  <Pressable key={i} onPress={() => handleResultPress(item)} style={styles.recommendCard}>
+                  <Pressable key={item.id} onPress={() => handleResultPress(item)} style={styles.recommendCard}>
                     <View style={styles.recommendImage}>
                       {item.image ? (
-                        <ExpoImage source={{ uri: item.image }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
-                      ) : null}
+                        <FastImage
+                          source={{
+                            uri: item.image,
+                            priority: i < 3 ? FastImage.priority.high : FastImage.priority.normal,
+                            cache: FastImage.cacheControl.immutable,
+                          }}
+                          style={{ width: '100%', height: '100%' }}
+                          resizeMode={FastImage.resizeMode.cover}
+                        />
+                      ) : (
+                        <View style={{ width: '100%', height: '100%', backgroundColor: '#1a1a1a' }} />
+                      )}
                       {/* "Recently added" badge for some items */}
                       {i < 3 ? (
                         <View style={{ position: 'absolute', bottom: 8, left: 8, backgroundColor: '#E50914', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 }}>
@@ -251,10 +342,18 @@ export default function Search() {
                         {plexResults
                           .slice(0, 4)
                           .map((result, i) => (
-                            <Pressable key={i} onPress={() => handleResultPress(result)} style={styles.topResultCard}>
+                            <Pressable key={result.id} onPress={() => handleResultPress(result)} style={styles.topResultCard}>
                               <View style={styles.topResultImage}>
                                 {result.image ? (
-                                  <ExpoImage source={{ uri: result.image }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+                                  <FastImage
+                                    source={{
+                                      uri: result.image,
+                                      priority: FastImage.priority.high,
+                                      cache: FastImage.cacheControl.immutable,
+                                    }}
+                                    style={{ width: '100%', height: '100%' }}
+                                    resizeMode={FastImage.resizeMode.cover}
+                                  />
                                 ) : (
                                   <View style={{ width: '100%', height: '100%', backgroundColor: '#1a1a1a' }} />
                                 )}
@@ -265,7 +364,7 @@ export default function Search() {
 
                       {/* Additional Plex results as horizontal row */}
                       {plexResults.length > 4 ? (
-                        <View style={{ marginTop: 8, marginHorizontal: 16}}>
+                        <View style={{ marginTop: 8 }}>
                           <Row
                             title="More from Your Plex"
                             items={plexResults.slice(4).map(r => ({ id: r.id, title: r.title, image: r.image }))}
@@ -376,4 +475,3 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
 });
-

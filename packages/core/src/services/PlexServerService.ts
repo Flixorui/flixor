@@ -6,6 +6,8 @@ import type {
   PlexMarker,
   PlexLibraryOptions,
   PlexMediaContainer,
+  PlexUltraBlurColors,
+  PlexUltraBlurResponse,
 } from '../models/plex';
 
 /**
@@ -153,10 +155,10 @@ export class PlexServerService {
   /**
    * Get metadata for a specific item
    */
-  async getMetadata(ratingKey: string): Promise<PlexMediaItem | null> {
+  async getMetadata(ratingKey: string, includeGuids = false): Promise<PlexMediaItem | null> {
     const data = await this.get<PlexMediaContainer<PlexMediaItem>>(
       `/library/metadata/${ratingKey}`,
-      undefined,
+      includeGuids ? { includeGuids: '1' } : undefined,
       CacheTTL.TRENDING
     );
     return data.MediaContainer?.Metadata?.[0] || null;
@@ -196,7 +198,7 @@ export class PlexServerService {
   async getContinueWatching(): Promise<PlexMediaItem[]> {
     const data = await this.get<PlexMediaContainer<PlexMediaItem>>(
       '/hubs/continueWatching/items',
-      undefined,
+      { includeGuids: '1' }, // Include external GUIDs (TMDB, IMDB, etc.)
       CacheTTL.SHORT
     );
     return data.MediaContainer?.Metadata || [];
@@ -345,6 +347,158 @@ export class PlexServerService {
   }
 
   // ============================================
+  // Collections
+  // ============================================
+
+  /**
+   * Get all collections in a library section
+   */
+  async getCollections(libraryKey: string): Promise<PlexMediaItem[]> {
+    try {
+      const data = await this.get<PlexMediaContainer<PlexMediaItem>>(
+        `/library/sections/${libraryKey}/collections`,
+        {},
+        CacheTTL.TRENDING
+      );
+      return data.MediaContainer?.Metadata || [];
+    } catch (e) {
+      console.log('[PlexServerService] getCollections error:', e);
+      return [];
+    }
+  }
+
+  /**
+   * Get all collections across all libraries
+   */
+  async getAllCollections(type?: 'movie' | 'show'): Promise<PlexMediaItem[]> {
+    const libraries = await this.getLibraries();
+    const targetLibraries = libraries.filter((lib) => {
+      if (!type) return true;
+      return lib.type === type;
+    });
+
+    const allCollections: PlexMediaItem[] = [];
+
+    for (const lib of targetLibraries) {
+      try {
+        const collections = await this.getCollections(lib.key);
+        allCollections.push(...collections);
+      } catch {
+        // Continue on error
+      }
+    }
+
+    return allCollections;
+  }
+
+  /**
+   * Get items in a collection
+   */
+  async getCollectionItems(
+    collectionRatingKey: string,
+    options?: {
+      start?: number;
+      size?: number;
+    }
+  ): Promise<PlexMediaItem[]> {
+    const params: Record<string, string> = {};
+
+    if (options?.start !== undefined) params['X-Plex-Container-Start'] = String(options.start);
+    if (options?.size !== undefined) params['X-Plex-Container-Size'] = String(options.size);
+
+    try {
+      const data = await this.get<PlexMediaContainer<PlexMediaItem>>(
+        `/library/collections/${collectionRatingKey}/children`,
+        params,
+        CacheTTL.DYNAMIC
+      );
+      return data.MediaContainer?.Metadata || [];
+    } catch (e) {
+      console.log('[PlexServerService] getCollectionItems error:', e);
+      return [];
+    }
+  }
+
+  // ============================================
+  // Genres / Filters
+  // ============================================
+
+  /**
+   * Get available genres for a library section
+   */
+  async getGenres(libraryKey: string): Promise<Array<{ key: string; title: string }>> {
+    try {
+      const data = await this.get<PlexMediaContainer<{ key: string; title: string }>>(
+        `/library/sections/${libraryKey}/genre`,
+        {},
+        CacheTTL.TRENDING
+      );
+      return data.MediaContainer?.Directory || [];
+    } catch (e) {
+      console.log('[PlexServerService] getGenres error:', e);
+      return [];
+    }
+  }
+
+  /**
+   * Get all genres across all libraries of a given type
+   */
+  async getAllGenres(type?: 'movie' | 'show'): Promise<Array<{ key: string; title: string }>> {
+    const libraries = await this.getLibraries();
+    const targetLibraries = libraries.filter((lib) => {
+      if (!type) return true;
+      return lib.type === type;
+    });
+
+    const allGenres = new Map<string, { key: string; title: string }>();
+
+    for (const lib of targetLibraries) {
+      try {
+        const genres = await this.getGenres(lib.key);
+        for (const genre of genres) {
+          // Use title as key for deduplication
+          if (!allGenres.has(genre.title)) {
+            allGenres.set(genre.title, genre);
+          }
+        }
+      } catch {
+        // Continue on error
+      }
+    }
+
+    // Sort genres alphabetically
+    return Array.from(allGenres.values()).sort((a, b) => a.title.localeCompare(b.title));
+  }
+
+  /**
+   * Get items by genre
+   */
+  async getItemsByGenre(
+    libraryKey: string,
+    genreKey: string,
+    options?: {
+      start?: number;
+      size?: number;
+      sort?: string;
+    }
+  ): Promise<PlexMediaItem[]> {
+    const params: Record<string, string> = {
+      genre: genreKey,
+    };
+
+    if (options?.sort) params.sort = options.sort;
+    if (options?.start !== undefined) params['X-Plex-Container-Start'] = String(options.start);
+    if (options?.size !== undefined) params['X-Plex-Container-Size'] = String(options.size);
+
+    const data = await this.get<PlexMediaContainer<PlexMediaItem>>(
+      `/library/sections/${libraryKey}/all`,
+      params,
+      CacheTTL.DYNAMIC
+    );
+    return data.MediaContainer?.Metadata || [];
+  }
+
+  // ============================================
   // Markers (Skip Intro/Credits)
   // ============================================
 
@@ -393,15 +547,33 @@ export class PlexServerService {
       protocol?: 'hls' | 'dash';
       sessionId?: string;
       directStream?: boolean;
+      audioStreamID?: string;
+      subtitleStreamID?: string;
+      offset?: number; // Start offset in ms for seeking
     }
   ): { url: string; startUrl: string; sessionUrl: string; sessionId: string } {
+    // Always generate a fresh session ID to avoid Plex caching issues
+    const freshSessionId = `${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
+
     const {
       maxVideoBitrate = 20000,
       videoResolution = '1920x1080',
       protocol = 'hls',
-      sessionId = Math.random().toString(36).substring(2, 15),
+      sessionId = freshSessionId,
       directStream = false,
+      audioStreamID,
+      subtitleStreamID,
+      offset,
     } = options || {};
+
+    console.log('[PlexServerService] getTranscodeUrl called with:', {
+      ratingKey,
+      maxVideoBitrate,
+      videoResolution,
+      audioStreamID,
+      subtitleStreamID,
+      sessionId,
+    });
 
     const params = new URLSearchParams({
       hasMDE: '1',
@@ -425,11 +597,43 @@ export class PlexServerService {
       session: sessionId,
       copyts: '1',
       'X-Plex-Token': this.token,
-      'X-Plex-Client-Identifier': sessionId,
+      'X-Plex-Client-Identifier': this.clientId,
       'X-Plex-Product': 'Flixor Mobile',
       'X-Plex-Platform': 'iOS',
       'X-Plex-Device': 'iPhone',
     });
+
+    // Add audio stream selection if specified
+    if (audioStreamID) {
+      params.set('audioStreamID', audioStreamID);
+      console.log('[PlexServerService] Added audioStreamID to transcode URL:', audioStreamID);
+    }
+
+    // Handle subtitle stream selection
+    // Special case: 'burn' = just burn subtitles using Plex's default selection
+    // '0' = disable subtitles
+    // Other values = enable that specific subtitle track
+    if (subtitleStreamID !== undefined) {
+      if (subtitleStreamID === 'burn') {
+        // Just enable subtitle burning, let Plex use the default selected subtitle
+        params.set('subtitles', 'burn');
+        console.log('[PlexServerService] Added subtitles=burn (using Plex default subtitle)');
+      } else if (subtitleStreamID === '0') {
+        // Explicitly disable subtitles
+        params.set('subtitleStreamID', '0');
+        console.log('[PlexServerService] Subtitle disabled (ID=0)');
+      } else {
+        // Enable specific subtitle track and burn it
+        params.set('subtitleStreamID', subtitleStreamID);
+        params.set('subtitles', 'burn');
+        console.log('[PlexServerService] Added subtitleStreamID:', subtitleStreamID, 'with burn');
+      }
+    }
+
+    // Add offset for seeking on transcode restart
+    if (offset && offset > 0) {
+      params.set('offset', String(Math.floor(offset / 1000))); // Plex uses seconds
+    }
 
     const startUrl = `${this.baseUrl}/video/:/transcode/universal/start.m3u8?${params.toString()}`;
     const sessionUrl = `${this.baseUrl}/video/:/transcode/universal/session/${sessionId}/base/index.m3u8?X-Plex-Token=${this.token}`;
@@ -443,12 +647,80 @@ export class PlexServerService {
   }
 
   /**
+   * Make a transcode decision - tells Plex which streams to use
+   * This should be called BEFORE requesting the transcode stream
+   */
+  async makeTranscodeDecision(
+    ratingKey: string,
+    options?: {
+      audioStreamID?: string;
+      subtitleStreamID?: string;
+    }
+  ): Promise<void> {
+    const params = new URLSearchParams({
+      path: `/library/metadata/${ratingKey}`,
+      mediaIndex: '0',
+      partIndex: '0',
+      protocol: 'hls',
+      directPlay: '0',
+      directStream: '0',
+      directStreamAudio: '0',
+      'X-Plex-Token': this.token,
+      'X-Plex-Client-Identifier': this.clientId,
+      'X-Plex-Product': 'Flixor Mobile',
+      'X-Plex-Platform': 'iOS',
+    });
+
+    if (options?.audioStreamID) {
+      params.set('audioStreamID', options.audioStreamID);
+    }
+    if (options?.subtitleStreamID) {
+      params.set('subtitleStreamID', options.subtitleStreamID);
+      if (options.subtitleStreamID !== '0') {
+        params.set('subtitles', 'burn');
+      }
+    }
+
+    const url = `${this.baseUrl}/video/:/transcode/universal/decision?${params.toString()}`;
+    console.log('[PlexServerService] Making transcode decision:', url.substring(0, 200) + '...');
+
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: this.getHeaders(),
+      });
+
+      if (!response.ok) {
+        console.warn('[PlexServerService] Decision API returned:', response.status);
+      } else {
+        console.log('[PlexServerService] Transcode decision made successfully');
+      }
+    } catch (e) {
+      console.warn('[PlexServerService] Failed to make transcode decision:', e);
+    }
+  }
+
+  /**
    * Start a transcode session (must be called before using sessionUrl)
    */
   async startTranscodeSession(startUrl: string): Promise<void> {
     try {
-      await fetch(startUrl);
-      console.log('[PlexServerService] Transcode session started');
+      console.log('[PlexServerService] Starting transcode session...');
+      console.log('[PlexServerService] URL:', startUrl.substring(0, 200) + '...');
+
+      const response = await fetch(startUrl, {
+        headers: this.getHeaders(),
+      });
+
+      console.log('[PlexServerService] Transcode response status:', response.status);
+
+      if (!response.ok) {
+        const text = await response.text();
+        console.error('[PlexServerService] Transcode error response:', text.substring(0, 500));
+        throw new Error(`Transcode failed with status ${response.status}`);
+      }
+
+      console.log('[PlexServerService] Transcode session started successfully');
     } catch (e) {
       console.error('[PlexServerService] Failed to start transcode session:', e);
       throw e;
@@ -502,6 +774,56 @@ export class PlexServerService {
     }
   }
 
+  /**
+   * Change audio/subtitle stream selection for a media part
+   * This tells Plex which streams to use - requires player to reload stream
+   */
+  async setStreamSelection(
+    partId: string,
+    options: {
+      audioStreamID?: string;
+      subtitleStreamID?: string; // Stream ID to enable, undefined to disable
+    }
+  ): Promise<void> {
+    const params = new URLSearchParams({
+      'X-Plex-Token': this.token,
+      'allParts': '1', // Apply to all parts of the media
+    });
+
+    if (options.audioStreamID) {
+      params.set('audioStreamID', options.audioStreamID);
+      console.log('[PlexServerService] setStreamSelection - audioStreamID:', options.audioStreamID);
+    }
+
+    // Only set subtitleStreamID if it's a valid stream ID (not undefined)
+    // To disable subtitles, we simply don't set this parameter
+    if (options.subtitleStreamID) {
+      params.set('subtitleStreamID', options.subtitleStreamID);
+      console.log('[PlexServerService] setStreamSelection - subtitleStreamID:', options.subtitleStreamID);
+    } else {
+      console.log('[PlexServerService] setStreamSelection - subtitles disabled (no ID)');
+    }
+
+    const url = `${this.baseUrl}/library/parts/${partId}?${params.toString()}`;
+    console.log('[PlexServerService] Setting stream selection:', url);
+
+    try {
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers: this.getHeaders(),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to set stream selection: ${response.status}`);
+      }
+
+      console.log('[PlexServerService] Stream selection updated successfully');
+    } catch (e) {
+      console.error('[PlexServerService] Failed to set stream selection:', e);
+      throw e;
+    }
+  }
+
   // ============================================
   // Images
   // ============================================
@@ -546,6 +868,107 @@ export class PlexServerService {
     });
 
     return `${this.baseUrl}/photo/:/transcode?${params.toString()}`;
+  }
+
+  // ============================================
+  // UltraBlur Colors
+  // ============================================
+
+  /**
+   * Get UltraBlur colors from an image URL
+   * Returns gradient colors extracted from the image
+   */
+  async getUltraBlurColors(imageUrl: string): Promise<PlexUltraBlurColors | null> {
+    try {
+      // Create a cache key based on the image URL
+      const cacheKey = `ultrablur:${imageUrl}`;
+
+      // Check cache first
+      const cached = await this.cache.get<PlexUltraBlurColors>(cacheKey);
+      if (cached) {
+        return cached;
+      }
+
+      const params = new URLSearchParams({
+        url: imageUrl,
+        'X-Plex-Token': this.token,
+      });
+
+      const url = `${this.baseUrl}/services/ultrablur/colors?${params.toString()}`;
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+          'X-Plex-Client-Identifier': this.clientId,
+        },
+      });
+
+      if (!response.ok) {
+        return null;
+      }
+
+      const data: PlexUltraBlurResponse = await response.json();
+      const colors = data.MediaContainer?.UltraBlurColors?.[0];
+
+      // Cache the result (24 hours - colors don't change for a given image)
+      if (colors) {
+        await this.cache.set(cacheKey, colors, CacheTTL.STATIC);
+      }
+
+      return colors || null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /**
+   * Get UltraBlur gradient image URL
+   * Generates a gradient image from the given colors
+   */
+  getUltraBlurImageUrl(colors: PlexUltraBlurColors, noise: number = 1): string {
+    const params = new URLSearchParams({
+      topLeft: colors.topLeft,
+      topRight: colors.topRight,
+      bottomRight: colors.bottomRight,
+      bottomLeft: colors.bottomLeft,
+      noise: String(noise),
+      'X-Plex-Token': this.token,
+    });
+
+    return `${this.baseUrl}/services/ultrablur/image?${params.toString()}`;
+  }
+
+  // ============================================
+  // Generic Directory Fetch
+  // ============================================
+
+  /**
+   * Fetch any Plex directory path and return the MediaContainer
+   * Useful for browsing arbitrary paths like genres, hubs, etc.
+   */
+  async fetchDirectory(path: string): Promise<{
+    Metadata?: PlexMediaItem[];
+    Directory?: any[];
+    size?: number;
+    totalSize?: number;
+    offset?: number;
+  }> {
+    // Ensure path starts with /
+    const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+    const separator = normalizedPath.includes('?') ? '&' : '?';
+    const url = `${this.baseUrl}${normalizedPath}${separator}X-Plex-Token=${this.token}`;
+
+    const response = await fetch(url, {
+      headers: { Accept: 'application/json' },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Plex fetchDirectory failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.MediaContainer || {};
   }
 
   // ============================================

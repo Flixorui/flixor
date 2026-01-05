@@ -371,6 +371,75 @@ function extractGuidsFromItem(item: PlexMediaItem): string[] {
 }
 
 // ============================================
+// TMDB Videos/Trailers
+// ============================================
+
+// Supported video types (ordered by priority)
+const VIDEO_TYPES = ['Trailer', 'Teaser', 'Clip', 'Featurette', 'Behind the Scenes'];
+
+export interface TrailerInfo {
+  key: string;
+  name: string;
+  site: string;
+  type: string;
+  official?: boolean;
+  publishedAt?: string;
+}
+
+export async function fetchTmdbTrailers(
+  mediaType: 'movie' | 'tv',
+  tmdbId: number
+): Promise<TrailerInfo[]> {
+  try {
+    const core = getFlixorCore();
+    const videos = mediaType === 'movie'
+      ? await core.tmdb.getMovieVideos(tmdbId)
+      : await core.tmdb.getTVVideos(tmdbId);
+
+    const results = videos.results || [];
+
+    // Filter for YouTube videos of supported types
+    const trailers = results
+      .filter((v: any) => v.site === 'YouTube' && VIDEO_TYPES.includes(v.type))
+      .sort((a: any, b: any) => {
+        // Prioritize official videos
+        if (a.official && !b.official) return -1;
+        if (!a.official && b.official) return 1;
+        // Then by type priority
+        const aTypeIndex = VIDEO_TYPES.indexOf(a.type);
+        const bTypeIndex = VIDEO_TYPES.indexOf(b.type);
+        if (aTypeIndex !== bTypeIndex) return aTypeIndex - bTypeIndex;
+        // Then by publish date (newest first)
+        if (a.published_at && b.published_at) {
+          return new Date(b.published_at).getTime() - new Date(a.published_at).getTime();
+        }
+        return 0;
+      })
+      .map((v: any) => ({
+        key: v.key,
+        name: v.name,
+        site: v.site,
+        type: v.type,
+        official: v.official,
+        publishedAt: v.published_at,
+      }));
+
+    return trailers;
+  } catch (e) {
+    console.log('[DetailsData] fetchTmdbTrailers error:', e);
+    return [];
+  }
+}
+
+export function getYouTubeUrl(videoKey: string): string {
+  return `https://www.youtube.com/watch?v=${videoKey}`;
+}
+
+export function getYouTubeThumbnailUrl(videoKey: string): string {
+  return `https://img.youtube.com/vi/${videoKey}/hqdefault.jpg`;
+}
+
+// ============================================
 // Image URLs
 // ============================================
 
@@ -417,4 +486,496 @@ export function extractTmdbIdFromGuids(guids: any[]): string | null {
     }
   }
   return null;
+}
+
+// ============================================
+// Helper: Extract IMDB ID from Plex Guids
+// ============================================
+
+export function extractImdbIdFromGuids(guids: any[]): string | null {
+  if (!Array.isArray(guids)) return null;
+  for (const g of guids) {
+    const id = String(g.id || '');
+    if (id.includes('imdb://')) {
+      return id.split('://')[1];
+    }
+  }
+  return null;
+}
+
+// ============================================
+// Person Data
+// ============================================
+
+export interface PersonInfo {
+  id: number;
+  name: string;
+  biography?: string;
+  birthday?: string;
+  deathday?: string;
+  placeOfBirth?: string;
+  profilePath?: string;
+  knownFor?: string;
+}
+
+export interface PersonCredit {
+  id: number;
+  title: string;
+  posterPath?: string;
+  mediaType: 'movie' | 'tv';
+  character?: string;
+  job?: string;
+  year?: string;
+  voteAverage?: number;
+}
+
+export async function fetchPersonDetails(personId: number): Promise<PersonInfo | null> {
+  try {
+    const core = getFlixorCore();
+    const person = await core.tmdb.getPersonDetails(personId);
+
+    return {
+      id: person.id,
+      name: person.name,
+      biography: person.biography,
+      birthday: person.birthday,
+      deathday: person.deathday,
+      placeOfBirth: person.place_of_birth,
+      profilePath: person.profile_path,
+      knownFor: person.known_for_department,
+    };
+  } catch (e) {
+    console.log('[DetailsData] fetchPersonDetails error:', e);
+    return null;
+  }
+}
+
+export async function fetchPersonCredits(personId: number): Promise<PersonCredit[]> {
+  try {
+    const core = getFlixorCore();
+    const credits = await core.tmdb.getPersonCredits(personId);
+
+    // Combine cast and crew, dedupe by id+media_type
+    const allCredits: PersonCredit[] = [];
+    const seen = new Set<string>();
+
+    // Process cast credits
+    for (const item of credits.cast || []) {
+      const key = `${item.media_type}:${item.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      allCredits.push({
+        id: item.id,
+        title: item.title || item.name || 'Untitled',
+        posterPath: item.poster_path,
+        mediaType: item.media_type,
+        character: item.character,
+        year: (item.release_date || item.first_air_date || '').slice(0, 4),
+        voteAverage: item.vote_average,
+      });
+    }
+
+    // Process crew credits (if not already added as cast)
+    for (const item of credits.crew || []) {
+      const key = `${item.media_type}:${item.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      allCredits.push({
+        id: item.id,
+        title: item.title || item.name || 'Untitled',
+        posterPath: item.poster_path,
+        mediaType: item.media_type,
+        job: item.job,
+        year: (item.release_date || item.first_air_date || '').slice(0, 4),
+        voteAverage: item.vote_average,
+      });
+    }
+
+    // Sort by popularity (vote_average as proxy)
+    allCredits.sort((a, b) => (b.voteAverage || 0) - (a.voteAverage || 0));
+
+    return allCredits.slice(0, 20); // Top 20 credits
+  } catch (e) {
+    console.log('[DetailsData] fetchPersonCredits error:', e);
+    return [];
+  }
+}
+
+export function getPersonProfileUrl(profilePath: string | undefined, size: string = 'w185'): string {
+  if (!profilePath) return '';
+  try {
+    const core = getFlixorCore();
+    return core.tmdb.getProfileUrl(profilePath, size);
+  } catch {
+    return '';
+  }
+}
+
+// ============================================
+// Next Up Episode for TV Shows
+// ============================================
+
+export interface NextUpEpisode {
+  ratingKey: string;
+  title: string;
+  seasonNumber: number;
+  episodeNumber: number;
+  thumb?: string;
+  progress: number; // 0-100
+  status: 'in-progress' | 'next-unwatched' | 'all-watched';
+}
+
+/**
+ * Get the next episode to watch for a TV show
+ * Priority:
+ * 1. Episode currently in progress (has viewOffset but not completed)
+ * 2. First unwatched episode
+ * 3. If all watched, returns first episode for "Rewatch"
+ */
+export async function getNextUpEpisode(
+  showRatingKey: string,
+  allSeasons: any[]
+): Promise<NextUpEpisode | null> {
+  try {
+    const core = getFlixorCore();
+
+    // First, check Plex on-deck for this show
+    try {
+      const onDeck = await core.plexServer.getOnDeck();
+      const showOnDeck = onDeck.find(
+        (item: any) =>
+          item.type === 'episode' &&
+          (item.grandparentRatingKey === showRatingKey ||
+            String(item.grandparentRatingKey) === String(showRatingKey))
+      );
+
+      if (showOnDeck) {
+        const progress = showOnDeck.viewOffset && showOnDeck.duration
+          ? Math.round((showOnDeck.viewOffset / showOnDeck.duration) * 100)
+          : 0;
+        return {
+          ratingKey: String(showOnDeck.ratingKey),
+          title: showOnDeck.title || 'Episode',
+          seasonNumber: showOnDeck.parentIndex || 1,
+          episodeNumber: showOnDeck.index || 1,
+          thumb: showOnDeck.thumb,
+          progress,
+          status: 'in-progress',
+        };
+      }
+    } catch (e) {
+      console.log('[DetailsData] getOnDeck failed, falling back to episode scan:', e);
+    }
+
+    // Fallback: scan through all seasons/episodes to find next up
+    let firstEpisode: NextUpEpisode | null = null;
+    let firstUnwatched: NextUpEpisode | null = null;
+    let inProgress: NextUpEpisode | null = null;
+
+    for (const season of allSeasons) {
+      const seasonRk = season.ratingKey || season.key;
+      if (!seasonRk) continue;
+
+      // Skip specials (season 0)
+      const seasonNum = season.index || season.parentIndex || parseInt(season.key) || 0;
+      if (seasonNum === 0) continue;
+
+      try {
+        const episodes = await core.plexServer.getChildren(String(seasonRk));
+
+        for (const ep of episodes) {
+          const epNum = ep.index || 1;
+          const viewOffset = ep.viewOffset || 0;
+          const duration = ep.duration || 1;
+          const viewCount = ep.viewCount || 0;
+          const progress = Math.round((viewOffset / duration) * 100);
+          const isCompleted = viewCount > 0 || progress >= 95;
+
+          const epInfo: NextUpEpisode = {
+            ratingKey: String(ep.ratingKey),
+            title: ep.title || `Episode ${epNum}`,
+            seasonNumber: seasonNum,
+            episodeNumber: epNum,
+            thumb: ep.thumb,
+            progress,
+            status: 'next-unwatched',
+          };
+
+          // Track first episode for rewatch
+          if (!firstEpisode) {
+            firstEpisode = { ...epInfo, status: 'all-watched' };
+          }
+
+          // Check for in-progress episode (has progress but not completed)
+          if (viewOffset > 0 && !isCompleted && !inProgress) {
+            inProgress = { ...epInfo, status: 'in-progress' };
+          }
+
+          // Check for first unwatched episode
+          if (!isCompleted && !firstUnwatched) {
+            firstUnwatched = epInfo;
+          }
+
+          // If we found an in-progress episode, we can stop
+          if (inProgress) break;
+        }
+
+        if (inProgress) break;
+      } catch (e) {
+        console.log(`[DetailsData] Failed to fetch episodes for season ${seasonRk}:`, e);
+      }
+    }
+
+    // Return in priority order
+    if (inProgress) return inProgress;
+    if (firstUnwatched) return firstUnwatched;
+    if (firstEpisode) return firstEpisode; // All watched - offer rewatch
+
+    return null;
+  } catch (e) {
+    console.log('[DetailsData] getNextUpEpisode error:', e);
+    return null;
+  }
+}
+
+// ============================================
+// Watchlist Functions
+// ============================================
+
+export interface WatchlistIds {
+  tmdbId?: number;
+  imdbId?: string;
+  plexRatingKey?: string;
+  mediaType: 'movie' | 'tv';
+}
+
+/**
+ * Check if item is in Plex watchlist
+ */
+export async function isInPlexWatchlist(ratingKey: string): Promise<boolean> {
+  try {
+    const core = getFlixorCore();
+    return await core.plexTv.isInWatchlist(ratingKey);
+  } catch (e) {
+    console.log('[DetailsData] isInPlexWatchlist error:', e);
+    return false;
+  }
+}
+
+/**
+ * Check if item is in Trakt watchlist
+ */
+export async function isInTraktWatchlist(ids: WatchlistIds): Promise<boolean> {
+  try {
+    const core = getFlixorCore();
+    if (!core.isTraktAuthenticated) return false;
+
+    const type = ids.mediaType === 'movie' ? 'movies' : 'shows';
+    const watchlist = await core.trakt.getWatchlist(type);
+
+    return watchlist.some((item: any) => {
+      const mediaItem = ids.mediaType === 'movie' ? item.movie : item.show;
+      if (!mediaItem?.ids) return false;
+
+      if (ids.tmdbId && mediaItem.ids.tmdb === ids.tmdbId) return true;
+      if (ids.imdbId && mediaItem.ids.imdb === ids.imdbId) return true;
+      return false;
+    });
+  } catch (e) {
+    console.log('[DetailsData] isInTraktWatchlist error:', e);
+    return false;
+  }
+}
+
+/**
+ * Add item to Plex watchlist
+ */
+export async function addToPlexWatchlist(ratingKey: string): Promise<boolean> {
+  try {
+    const core = getFlixorCore();
+    await core.plexTv.addToWatchlist(ratingKey);
+    return true;
+  } catch (e) {
+    console.log('[DetailsData] addToPlexWatchlist error:', e);
+    return false;
+  }
+}
+
+/**
+ * Remove item from Plex watchlist
+ */
+export async function removeFromPlexWatchlist(ratingKey: string): Promise<boolean> {
+  try {
+    const core = getFlixorCore();
+    await core.plexTv.removeFromWatchlist(ratingKey);
+    return true;
+  } catch (e) {
+    console.log('[DetailsData] removeFromPlexWatchlist error:', e);
+    return false;
+  }
+}
+
+/**
+ * Add item to Trakt watchlist
+ */
+export async function addToTraktWatchlist(ids: WatchlistIds): Promise<boolean> {
+  try {
+    const core = getFlixorCore();
+    if (!core.isTraktAuthenticated) return false;
+
+    const idsObj: { tmdb?: number; imdb?: string } = {};
+    if (ids.tmdbId) idsObj.tmdb = ids.tmdbId;
+    if (ids.imdbId) idsObj.imdb = ids.imdbId;
+
+    if (ids.mediaType === 'movie') {
+      await core.trakt.addMovieToWatchlist({ ids: idsObj });
+    } else {
+      await core.trakt.addShowToWatchlist({ ids: idsObj });
+    }
+    return true;
+  } catch (e) {
+    console.log('[DetailsData] addToTraktWatchlist error:', e);
+    return false;
+  }
+}
+
+/**
+ * Remove item from Trakt watchlist
+ */
+export async function removeFromTraktWatchlist(ids: WatchlistIds): Promise<boolean> {
+  try {
+    const core = getFlixorCore();
+    if (!core.isTraktAuthenticated) return false;
+
+    const idsObj: { tmdb?: number; imdb?: string } = {};
+    if (ids.tmdbId) idsObj.tmdb = ids.tmdbId;
+    if (ids.imdbId) idsObj.imdb = ids.imdbId;
+
+    if (ids.mediaType === 'movie') {
+      await core.trakt.removeMovieFromWatchlist({ ids: idsObj });
+    } else {
+      await core.trakt.removeShowFromWatchlist({ ids: idsObj });
+    }
+    return true;
+  } catch (e) {
+    console.log('[DetailsData] removeFromTraktWatchlist error:', e);
+    return false;
+  }
+}
+
+/**
+ * Toggle watchlist status (add or remove based on current state)
+ *
+ * ADD behavior (respects user preference):
+ * - If Trakt is NOT authenticated → always saves to Plex
+ * - If Trakt IS authenticated → uses watchlistProvider setting (default: 'trakt')
+ *
+ * REMOVE behavior (keeps providers in sync):
+ * - Always removes from BOTH Plex and Trakt to prevent orphaned entries
+ */
+export async function toggleWatchlist(
+  ids: WatchlistIds,
+  _provider: 'plex' | 'trakt' | 'both' = 'both'
+): Promise<{ inWatchlist: boolean; success: boolean }> {
+  try {
+    const core = getFlixorCore();
+    const { getAppSettings } = await import('./SettingsData');
+    const settings = getAppSettings();
+
+    let isInWatchlist = false;
+
+    // Check current watchlist status from BOTH providers
+    if (ids.plexRatingKey) {
+      isInWatchlist = await isInPlexWatchlist(ids.plexRatingKey);
+    }
+
+    if (!isInWatchlist && core.isTraktAuthenticated && (ids.tmdbId || ids.imdbId)) {
+      isInWatchlist = await isInTraktWatchlist(ids);
+    }
+
+    // Toggle
+    if (isInWatchlist) {
+      // REMOVE: Always remove from BOTH providers to keep them in sync
+      let success = true;
+
+      if (ids.plexRatingKey) {
+        success = await removeFromPlexWatchlist(ids.plexRatingKey) && success;
+      }
+
+      if (core.isTraktAuthenticated && (ids.tmdbId || ids.imdbId)) {
+        success = await removeFromTraktWatchlist(ids) && success;
+      }
+
+      return { inWatchlist: false, success };
+    } else {
+      // ADD: Save to determined provider only based on settings
+      let targetProvider: 'plex' | 'trakt';
+
+      if (!core.isTraktAuthenticated) {
+        // Trakt not enabled, always use Plex
+        targetProvider = 'plex';
+      } else {
+        // Trakt is enabled - use user preference (default: 'trakt')
+        targetProvider = settings.watchlistProvider || 'trakt';
+      }
+
+      let success = false;
+
+      if (targetProvider === 'trakt') {
+        if (ids.tmdbId || ids.imdbId) {
+          success = await addToTraktWatchlist(ids);
+        } else {
+          // Fallback to Plex if we don't have TMDB/IMDB IDs for Trakt
+          console.log('[DetailsData] No TMDB/IMDB IDs for Trakt, falling back to Plex');
+          if (ids.plexRatingKey) {
+            success = await addToPlexWatchlist(ids.plexRatingKey);
+          }
+        }
+      } else {
+        // targetProvider === 'plex'
+        if (ids.plexRatingKey) {
+          success = await addToPlexWatchlist(ids.plexRatingKey);
+        } else {
+          // Fallback to Trakt if we don't have Plex rating key
+          console.log('[DetailsData] No Plex rating key, falling back to Trakt');
+          if (core.isTraktAuthenticated && (ids.tmdbId || ids.imdbId)) {
+            success = await addToTraktWatchlist(ids);
+          }
+        }
+      }
+
+      return { inWatchlist: success, success };
+    }
+  } catch (e) {
+    console.log('[DetailsData] toggleWatchlist error:', e);
+    return { inWatchlist: false, success: false };
+  }
+}
+
+/**
+ * Check if item is in watchlist (either Plex or Trakt)
+ */
+export async function checkWatchlistStatus(ids: WatchlistIds): Promise<boolean> {
+  try {
+    const core = getFlixorCore();
+
+    // Check Plex first
+    if (ids.plexRatingKey) {
+      const inPlex = await isInPlexWatchlist(ids.plexRatingKey);
+      if (inPlex) return true;
+    }
+
+    // Check Trakt
+    if (core.isTraktAuthenticated && (ids.tmdbId || ids.imdbId)) {
+      const inTrakt = await isInTraktWatchlist(ids);
+      if (inTrakt) return true;
+    }
+
+    return false;
+  } catch (e) {
+    console.log('[DetailsData] checkWatchlistStatus error:', e);
+    return false;
+  }
 }

@@ -4,7 +4,8 @@
  */
 
 import { getFlixorCore } from './index';
-import type { PlexMediaItem, TMDBMedia } from '@flixor/core';
+import { loadAppSettings } from './SettingsData';
+import type { PlexMediaItem, TMDBMedia, PlexUltraBlurColors } from '@flixor/core';
 
 export type RowItem = {
   id: string;
@@ -474,6 +475,193 @@ export async function getTmdbLogo(
   }
 }
 
+/**
+ * Fetch textless poster from TMDB (iso_639_1 is null)
+ * These are clean posters without any text overlay
+ */
+export async function getTmdbTextlessPoster(
+  tmdbId: number,
+  mediaType: 'movie' | 'tv'
+): Promise<string | undefined> {
+  try {
+    const core = getFlixorCore();
+    const images =
+      mediaType === 'movie'
+        ? await core.tmdb.getMovieImages(tmdbId)
+        : await core.tmdb.getTVImages(tmdbId);
+
+    const posters = images.posters || [];
+    console.log('[HomeData] getTmdbTextlessPoster - found', posters.length, 'posters for', mediaType, tmdbId);
+
+    // Find a textless poster (iso_639_1 is null means no language/text)
+    const textless = posters.find(
+      (p) => p.iso_639_1 === null || p.iso_639_1 === undefined
+    );
+
+    // Fallback to any poster if no textless found
+    const poster = textless || posters[0];
+
+    if (poster?.file_path) {
+      console.log('[HomeData] Using poster:', poster.file_path, 'iso_639_1:', poster.iso_639_1);
+      return core.tmdb.getPosterUrl(poster.file_path, 'w780');
+    }
+    return undefined;
+  } catch (e) {
+    console.log('[HomeData] getTmdbTextlessPoster error:', e);
+    return undefined;
+  }
+}
+
+/**
+ * Fetch textless backdrop from TMDB (iso_639_1 is null and iso_3166_1 is null)
+ */
+export async function getTmdbTextlessBackdrop(
+  tmdbId: number,
+  mediaType: 'movie' | 'tv'
+): Promise<string | undefined> {
+  try {
+    const core = getFlixorCore();
+    const images =
+      mediaType === 'movie'
+        ? await core.tmdb.getMovieImages(tmdbId)
+        : await core.tmdb.getTVImages(tmdbId);
+
+    const backdrops = images.backdrops || [];
+    console.log('[HomeData] getTmdbTextlessBackdrop - found', backdrops.length, 'backdrops for', mediaType, tmdbId);
+
+    const textless = backdrops.find(
+      (b: any) => (b.iso_639_1 == null) && (b.iso_3166_1 == null)
+    );
+    const backdrop = textless || backdrops[0];
+
+    if (backdrop?.file_path) {
+      return core.tmdb.getBackdropUrl(backdrop.file_path, 'w780');
+    }
+    return undefined;
+  } catch (e) {
+    console.log('[HomeData] getTmdbTextlessBackdrop error:', e);
+    return undefined;
+  }
+}
+
+/**
+ * Fetch backdrop with title from TMDB
+ * Priority:
+ * 1. iso_639_1 = 'en' (English title burned in)
+ * 2. Highest rated backdrop with iso_639_1 != null (any language with title)
+ * 3. Fallback to iso_639_1 = null (textless) if no titled backdrops available
+ */
+export async function getTmdbBackdropWithTitle(
+  tmdbId: number,
+  mediaType: 'movie' | 'tv'
+): Promise<string | undefined> {
+  try {
+    const core = getFlixorCore();
+    const images =
+      mediaType === 'movie'
+        ? await core.tmdb.getMovieImages(tmdbId)
+        : await core.tmdb.getTVImages(tmdbId);
+
+    const backdrops = images.backdrops || [];
+    let backdrop: any = null;
+
+    // 1. Prefer English backdrop (has title text burned in)
+    backdrop = backdrops.find((b: any) => b.iso_639_1 === 'en');
+
+    // 2. If no English, get highest rated backdrop with any language (iso_639_1 != null)
+    if (!backdrop) {
+      const withLanguage = backdrops
+        .filter((b: any) => b.iso_639_1 != null)
+        .sort((a: any, b: any) => (b.vote_average || 0) - (a.vote_average || 0));
+      backdrop = withLanguage[0];
+    }
+
+    // 3. Fallback to textless (iso_639_1 = null) - highest rated
+    if (!backdrop) {
+      const textless = backdrops
+        .filter((b: any) => b.iso_639_1 == null)
+        .sort((a: any, b: any) => (b.vote_average || 0) - (a.vote_average || 0));
+      backdrop = textless[0];
+    }
+
+    if (backdrop?.file_path) {
+      return core.tmdb.getBackdropUrl(backdrop.file_path, 'w780');
+    }
+    return undefined;
+  } catch (e) {
+    return undefined;
+  }
+}
+
+/**
+ * Get show's TMDB ID from its rating key (for episodes that need parent show ID)
+ */
+export async function getShowTmdbId(showRatingKey: string): Promise<string | null> {
+  try {
+    const core = getFlixorCore();
+    const showMeta = await core.plexServer.getMetadata(showRatingKey, true);
+    if (!showMeta?.Guid) return null;
+
+    for (const g of showMeta.Guid) {
+      const id = String(g.id || '');
+      if (id.includes('tmdb://') || id.includes('themoviedb://')) {
+        return id.split('://')[1];
+      }
+    }
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * Get TMDB overview/description for a movie or TV show
+ */
+export async function getTmdbOverview(
+  tmdbId: number,
+  mediaType: 'movie' | 'tv'
+): Promise<string | undefined> {
+  try {
+    const core = getFlixorCore();
+    if (mediaType === 'movie') {
+      const details = await core.tmdb.getMovieDetails(tmdbId);
+      return details.overview || undefined;
+    } else {
+      const details = await core.tmdb.getTVDetails(tmdbId);
+      return details.overview || undefined;
+    }
+  } catch (e) {
+    console.log('[HomeData] getTmdbOverview error:', e);
+    return undefined;
+  }
+}
+
+// ============================================
+// UltraBlur Colors
+// ============================================
+
+export type { PlexUltraBlurColors };
+
+/**
+ * Get UltraBlur gradient colors from an image URL
+ * Uses Plex's color extraction service
+ */
+export async function getUltraBlurColors(
+  imageUrl: string
+): Promise<PlexUltraBlurColors | null> {
+  try {
+    const core = getFlixorCore();
+    const colors = await core.plexServer.getUltraBlurColors(imageUrl);
+    if (colors) {
+      console.log('[HomeData] UltraBlur colors:', colors);
+    }
+    return colors;
+  } catch (e) {
+    console.log('[HomeData] getUltraBlurColors error:', e);
+    return null;
+  }
+}
+
 // ============================================
 // User Info
 // ============================================
@@ -489,5 +677,91 @@ export async function getUsername(): Promise<string> {
     return 'User';
   } catch {
     return 'User';
+  }
+}
+
+// ============================================
+// Genres / Categories
+// ============================================
+
+export type GenreItem = {
+  key: string;
+  title: string;
+};
+
+/**
+ * Fetch all available genres for movies
+ */
+export async function fetchMovieGenres(): Promise<GenreItem[]> {
+  try {
+    const core = getFlixorCore();
+    return await core.plexServer.getAllGenres('movie');
+  } catch (e) {
+    console.log('[HomeData] fetchMovieGenres error:', e);
+    return [];
+  }
+}
+
+/**
+ * Fetch all available genres for TV shows
+ */
+export async function fetchTvGenres(): Promise<GenreItem[]> {
+  try {
+    const core = getFlixorCore();
+    return await core.plexServer.getAllGenres('show');
+  } catch (e) {
+    console.log('[HomeData] fetchTvGenres error:', e);
+    return [];
+  }
+}
+
+/**
+ * Fetch all available genres (movies + TV combined)
+ */
+export async function fetchAllGenres(): Promise<GenreItem[]> {
+  try {
+    const core = getFlixorCore();
+    return await core.plexServer.getAllGenres();
+  } catch (e) {
+    console.log('[HomeData] fetchAllGenres error:', e);
+    return [];
+  }
+}
+
+/**
+ * Fetch libraries (for browse modal)
+ */
+export async function fetchLibraries(): Promise<Array<{ key: string; title: string; type: string }>> {
+  try {
+    const core = getFlixorCore();
+    const libraries = await core.plexServer.getLibraries();
+    const settings = await loadAppSettings();
+    const enabledKeys = settings.enabledLibraryKeys;
+    const filtered = enabledKeys && enabledKeys.length > 0
+      ? libraries.filter((lib) => enabledKeys.includes(String(lib.key)))
+      : libraries;
+    return filtered.map((lib) => ({
+      key: lib.key,
+      title: lib.title,
+      type: lib.type,
+    }));
+  } catch (e) {
+    console.log('[HomeData] fetchLibraries error:', e);
+    return [];
+  }
+}
+
+export async function fetchAllLibraries(): Promise<Array<{ key: string; title: string; type: string }>> {
+  try {
+    const core = getFlixorCore();
+    const libraries = await core.plexServer.getLibraries();
+    return libraries.map((lib) => ({
+      key: lib.key,
+      title: lib.title,
+      type: lib.type,
+    }));
+  } catch (e) {
+    console.log('[HomeData] fetchAllLibraries error:', e);
+    return [];
   }
 }

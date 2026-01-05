@@ -1,85 +1,130 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, ScrollView, Pressable, ActivityIndicator, StyleSheet, Animated } from 'react-native';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { View, Text, ScrollView, Pressable, ActivityIndicator, StyleSheet, Animated, InteractionManager } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Image as ExpoImage } from 'expo-image';
+import FastImage from '@d11/react-native-fast-image';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, useIsFocused } from '@react-navigation/native';
-import { TopBarStore, useTopBarStore } from '../components/TopBarStore';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { TopBarStore } from '../components/TopBarStore';
+import { TOP_BAR_EXPANDED_CONTENT_HEIGHT } from '../components/topBarMetrics';
 import * as Haptics from 'expo-haptics';
 import { useFlixor } from '../core/FlixorContext';
+import { IMAGE_PRELOAD_CAP, CACHE_TTL, isCacheValid } from '../core/PerformanceConfig';
 import {
   getUpcomingMovies,
   getTrendingAll,
   getTop10Shows,
   getTop10Movies,
+  fetchPreferredBackdrops,
   ContentItem,
 } from '../core/NewHotData';
 
 type TabType = 'coming-soon' | 'everyones-watching' | 'top10-shows' | 'top10-movies';
 
+const TABS = [
+  { id: 'coming-soon' as const, label: '🎁 Coming Soon' },
+  { id: 'everyones-watching' as const, label: "🔥 Everyone's Watching" },
+  { id: 'top10-shows' as const, label: '🔝 Top 10 Shows' },
+  { id: 'top10-movies' as const, label: '🔝 Top 10 Movies' },
+];
+
+// Persistent store for caching content across mounts (like NuvioStreaming)
+const persistentStore: {
+  'coming-soon': ContentItem[] | null;
+  'everyones-watching': ContentItem[] | null;
+  'top10-shows': ContentItem[] | null;
+  'top10-movies': ContentItem[] | null;
+  lastFetchTime: Record<TabType, number>;
+} = {
+  'coming-soon': null,
+  'everyones-watching': null,
+  'top10-shows': null,
+  'top10-movies': null,
+  lastFetchTime: {
+    'coming-soon': 0,
+    'everyones-watching': 0,
+    'top10-shows': 0,
+    'top10-movies': 0,
+  },
+};
+
+// TabPill component - defined outside to be available in useMemo
+function TabPill({ active, label, onPress }: { active?: boolean; label: string; onPress?: () => void }) {
+  const handlePress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onPress?.();
+  };
+
+  return (
+    <Pressable onPress={handlePress} style={[styles.tabPill, active && styles.tabPillActive]}>
+      <Text style={[styles.tabPillText, { color: active ? '#000' : '#fff' }]}>{label}</Text>
+    </Pressable>
+  );
+}
+
 export default function NewHot() {
   const nav: any = useNavigation();
   const { isConnected } = useFlixor();
+  const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<TabType>('coming-soon');
   const [loading, setLoading] = useState(false);
-  const [content, setContent] = useState<ContentItem[]>([]);
+  // Initialize from persistent store for instant render
+  const [content, setContent] = useState<ContentItem[]>(() => persistentStore['coming-soon'] || []);
   const y = useRef(new Animated.Value(0)).current;
-  const barHeight = useTopBarStore(s => s.height || 60);
-  const isFocused = useIsFocused();
+  // Use stable local barHeight - calculate once based on typical safe area
+  const barHeight = insets.top + TOP_BAR_EXPANDED_CONTENT_HEIGHT;
 
-  // Set scrollY and configure TopBar when screen is focused
-  React.useLayoutEffect(() => {
-    if (isFocused) {
+  // Tab pills for TopAppBar customFilters
+  const tabPills = useMemo(() => (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={{ paddingHorizontal: 16, alignItems: 'center'}}
+      style={{ flexGrow: 0 }}
+    >
+      {TABS.map((tab) => (
+        <TabPill
+          key={tab.id}
+          active={activeTab === tab.id}
+          label={tab.label}
+          onPress={() => setActiveTab(tab.id)}
+        />
+      ))}
+    </ScrollView>
+  ), [activeTab]);
+
+  // Update TopBarStore with NewHot configuration when focused
+  useFocusEffect(
+    useCallback(() => {
+      TopBarStore.setState({
+        visible: true,
+        tabBarVisible: true,
+        showFilters: false,
+        compact: true,
+        customFilters: tabPills,
+        activeGenre: undefined,
+        onSearch: () => nav.navigate('HomeTab', { screen: 'Search' }),
+        onClearGenre: undefined,
+      });
       TopBarStore.setScrollY(y);
-    }
-  }, [isFocused, y]);
+    }, [tabPills, nav, y])
+  );
 
+  // When tab changes, load from persistent cache first for instant display
   useEffect(() => {
-    if (!isFocused) return;
-    
-    // Render tab pills inside TopAppBar
-    const tabPills = (
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 16, alignItems: 'center'}}
-        style={{ flexGrow: 0 }}
-      >
-        {tabs.map((tab) => (
-          <TabPill
-            key={tab.id}
-            active={activeTab === tab.id}
-            label={tab.label}
-            onPress={() => setActiveTab(tab.id)}
-          />
-        ))}
-      </ScrollView>
-    );
-    
-    TopBarStore.setVisible(true);
-    TopBarStore.setShowFilters(false); // No default pills
-    TopBarStore.setUsername('New & Hot');
-    TopBarStore.setSelected('all');
-    TopBarStore.setCompact(false); // Use compact mode for NewHot
-    TopBarStore.setCustomFilters(tabPills); // Pass custom tab pills
-    TopBarStore.setHandlers({ 
-      onNavigateLibrary: undefined,
-      onClose: undefined,
-      onSearch: () => {
-        // Navigate to HomeTab first, then to Search
-        nav.navigate('HomeTab', { screen: 'Search' });
-      }
-    });
-    
-    // Cleanup when leaving screen
-    return () => {
-      TopBarStore.setCustomFilters(undefined);
-      TopBarStore.setCompact(false);
-    };
-  }, [isFocused, nav, activeTab]);
+    const cached = persistentStore[activeTab];
+    if (cached && cached.length > 0) {
+      setContent(cached);
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     if (isConnected) {
+      // Check if cache is still valid
+      if (isCacheValid(persistentStore.lastFetchTime[activeTab], CACHE_TTL.NEW_HOT) && persistentStore[activeTab]) {
+        // Use cached data, no need to refetch
+        return;
+      }
       loadContent();
     }
   }, [isConnected, activeTab]);
@@ -104,11 +149,44 @@ export default function NewHot() {
           items = await getTop10Movies();
           break;
       }
-      setContent(items);
+      // Update persistent store
+      persistentStore[activeTab] = items;
+      persistentStore.lastFetchTime[activeTab] = Date.now();
+
+      // Preload images for smoother scrolling
+      const imagesToPreload = items
+        .slice(0, IMAGE_PRELOAD_CAP)
+        .filter((item) => item.backdropImage)
+        .map((item) => ({ uri: item.backdropImage! }));
+      if (imagesToPreload.length > 0) {
+        FastImage.preload(imagesToPreload);
+      }
+      // Use InteractionManager to defer state updates for smoother UI
+      InteractionManager.runAfterInteractions(() => {
+        setContent(items);
+      });
+
+      // Fetch preferred backdrops with titles asynchronously
+      fetchPreferredBackdrops(items).then((backdrops) => {
+        if (Object.keys(backdrops).length > 0) {
+          // Update persistent store with backdrops
+          const updatedItems = items.map((item) => ({
+            ...item,
+            backdropImage: backdrops[item.id] || item.backdropImage,
+          }));
+          persistentStore[activeTab] = updatedItems;
+
+          InteractionManager.runAfterInteractions(() => {
+            setContent(updatedItems);
+          });
+        }
+      });
     } catch (error) {
       console.error('[NewHot] Failed to load content:', error);
     } finally {
-      setLoading(false);
+      InteractionManager.runAfterInteractions(() => {
+        setLoading(false);
+      });
     }
   };
 
@@ -121,26 +199,6 @@ export default function NewHot() {
       nav.navigate('Details', { type: 'tmdb', mediaType: media, id: tmdbId });
     }
   };
-
-  const TabPill = ({ active, label, onPress }: { active?: boolean; label: string; onPress?: () => void }) => {
-    const handlePress = () => {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      onPress?.();
-    };
-
-    return (
-      <Pressable onPress={handlePress} style={[styles.tabPill, active && styles.tabPillActive]}>
-        <Text style={[styles.tabPillText, { color: active ? '#000' : '#fff' }]}>{label}</Text>
-      </Pressable>
-    );
-  };
-
-  const tabs = [
-    { id: 'coming-soon' as const, label: '🎁 Coming Soon' },
-    { id: 'everyones-watching' as const, label: "🔥 Everyone's Watching" },
-    { id: 'top10-shows' as const, label: '🔝 Top 10 Shows' },
-    { id: 'top10-movies' as const, label: '🔝 Top 10 Movies' },
-  ];
 
   return (
     <View style={{ flex: 1, backgroundColor: '#0a0a0a' }}>
@@ -179,10 +237,14 @@ export default function NewHot() {
                   {/* Backdrop Image */}
                   <View style={styles.backdropContainer}>
                     {item.backdropImage ? (
-                      <ExpoImage
-                        source={{ uri: item.backdropImage }}
+                      <FastImage
+                        source={{
+                          uri: item.backdropImage,
+                          priority: FastImage.priority.normal,
+                          cache: FastImage.cacheControl.immutable,
+                        }}
                         style={{ width: '100%', height: '100%' }}
-                        contentFit="cover"
+                        resizeMode={FastImage.resizeMode.cover}
                       />
                     ) : (
                       <View style={{ width: '100%', height: '100%', backgroundColor: '#1a1a1a' }} />
@@ -220,6 +282,7 @@ export default function NewHot() {
             </View>
           )}
         </Animated.ScrollView>
+
       </View>
     </View>
   );
