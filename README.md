@@ -1,3 +1,12 @@
+<a id="readme-top"></a>
+
+<!-- PROJECT SHIELDS -->
+[![Contributors][contributors-shield]][contributors-url]
+[![Forks][forks-shield]][forks-url]
+[![Stargazers][stars-shield]][stars-url]
+[![Issues][issues-shield]][issues-url]
+[![License][license-shield]][license-url]
+
 # Flixor (Cross Platform)
 
 ## Description
@@ -86,3 +95,20 @@ That’s it—no extra setup needed. The app uses the bundled backend by default
 ![Library 02:48](docs/screenshots/flixor-lib-02m48.png)
 ![Library 03:04](docs/screenshots/flixor-lib-03m04.png)
 ![Library 03:11](docs/screenshots/flixor-lib-03m11.png)
+
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=Flixorui/flixor&type=date&legend=top-left)](https://www.star-history.com/#Flixorui/flixor&type=date&legend=top-left)
+
+<!-- MARKDOWN LINKS & IMAGES -->
+[contributors-shield]: https://img.shields.io/github/contributors/Flixorui/flixor.svg?style=for-the-badge
+[contributors-url]: https://github.com/Flixorui/flixor/graphs/contributors
+[forks-shield]: https://img.shields.io/github/forks/Flixorui/flixor.svg?style=for-the-badge
+[forks-url]: https://github.com/Flixorui/flixor/network/members
+[stars-shield]: https://img.shields.io/github/stars/Flixorui/flixor.svg?style=for-the-badge
+[stars-url]: https://github.com/Flixorui/flixor/stargazers
+[issues-shield]: https://img.shields.io/github/issues/Flixorui/flixor.svg?style=for-the-badge
+[issues-url]: https://github.com/Flixorui/flixor/issues
+[license-shield]: https://img.shields.io/github/license/Flixorui/flixor.svg?style=for-the-badge
+[license-url]: http://www.gnu.org/licenses/gpl-3.0.en.html
