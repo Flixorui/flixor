@@ -18,6 +18,7 @@ import MDBListIcon from '../components/icons/MDBListIcon';
 import TMDBIcon from '../components/icons/TMDBIcon';
 import TraktIcon from '../components/icons/TraktIcon';
 import PlexIcon from '../components/icons/PlexIcon';
+import OverseerrIcon from '../components/icons/OverseerrIcon';
 
 const { width } = Dimensions.get('window');
 const isTablet = width >= 768;
@@ -208,6 +209,14 @@ export default function Settings({ onBack }: SettingsProps) {
         renderIcon={() => <TraktIcon size={18} color="#e5e7eb" />}
         renderRight={renderRightChevron}
         onPress={() => nav.navigate('TraktSettings')}
+        isLast={false}
+      />
+      <SettingItem
+        title="Overseerr"
+        description={settings.overseerrEnabled ? 'Enabled' : 'Disabled'}
+        renderIcon={() => <OverseerrIcon size={18} color="#e5e7eb" />}
+        renderRight={renderRightChevron}
+        onPress={() => nav.navigate('OverseerrSettings')}
         isLast={true}
       />
     </SettingsCard>

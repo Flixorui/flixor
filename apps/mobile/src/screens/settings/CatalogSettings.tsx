@@ -53,7 +53,7 @@ export default function CatalogSettings() {
   return (
     <View style={styles.container}>
       <SettingsHeader title="Catalogs" onBack={() => nav.goBack()} />
-      <ScrollView contentContainerStyle={[styles.content, { paddingTop: headerHeight }]}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingTop: headerHeight + 12, paddingBottom: insets.bottom + 100 }]}>
         <SettingsCard title="LIBRARIES">
           {loading && (
             <View style={styles.loadingRow}>

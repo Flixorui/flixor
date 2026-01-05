@@ -46,7 +46,7 @@ export default function MDBListSettings() {
   return (
     <View style={styles.container}>
       <SettingsHeader title="MDBList" onBack={() => nav.goBack()} />
-      <ScrollView contentContainerStyle={[styles.content, { paddingTop: headerHeight }]}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingTop: headerHeight + 12, paddingBottom: insets.bottom + 100 }]}>
         {/* Status Card */}
         <View style={[styles.statusCard, isReady ? styles.statusReady : styles.statusNotReady]}>
           <Ionicons

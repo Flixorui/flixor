@@ -272,6 +272,10 @@ export interface AppSettings {
   // MDBList settings
   mdblistEnabled: boolean; // Enable MDBList integration (disabled by default)
   mdblistApiKey?: string; // MDBList API key (required when enabled)
+  // Overseerr settings
+  overseerrEnabled: boolean; // Enable Overseerr integration (disabled by default)
+  overseerrUrl?: string; // Overseerr server URL (e.g., https://overseerr.example.com)
+  overseerrApiKey?: string; // Overseerr API key
   tmdbLanguagePreference: string;
   enrichMetadataWithTMDB: boolean;
   useTmdbLocalizedMetadata: boolean;
@@ -302,6 +306,10 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   // MDBList defaults
   mdblistEnabled: false,
   mdblistApiKey: undefined,
+  // Overseerr defaults
+  overseerrEnabled: false,
+  overseerrUrl: undefined,
+  overseerrApiKey: undefined,
   tmdbLanguagePreference: 'en',
   enrichMetadataWithTMDB: true,
   useTmdbLocalizedMetadata: false,
@@ -384,4 +392,29 @@ export function getMdblistApiKey(): string | undefined {
 
 export async function setMdblistApiKey(apiKey: string | undefined): Promise<void> {
   await setAppSettings({ mdblistApiKey: apiKey });
+}
+
+// Overseerr helpers
+export function isOverseerrEnabled(): boolean {
+  return cachedSettings.overseerrEnabled ?? false;
+}
+
+export function getOverseerrUrl(): string | undefined {
+  return cachedSettings.overseerrUrl;
+}
+
+export function getOverseerrApiKey(): string | undefined {
+  return cachedSettings.overseerrApiKey;
+}
+
+export async function setOverseerrEnabled(enabled: boolean): Promise<void> {
+  await setAppSettings({ overseerrEnabled: enabled });
+}
+
+export async function setOverseerrUrl(url: string | undefined): Promise<void> {
+  await setAppSettings({ overseerrUrl: url });
+}
+
+export async function setOverseerrApiKey(apiKey: string | undefined): Promise<void> {
+  await setAppSettings({ overseerrApiKey: apiKey });
 }

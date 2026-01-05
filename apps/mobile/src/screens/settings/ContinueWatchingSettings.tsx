@@ -25,7 +25,7 @@ export default function ContinueWatchingSettings() {
   return (
     <View style={styles.container}>
       <SettingsHeader title="Continue Watching" onBack={() => nav.goBack()} />
-      <ScrollView contentContainerStyle={[styles.content, { paddingTop: headerHeight }]}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingTop: headerHeight + 12, paddingBottom: insets.bottom + 100 }]}>
         <SettingsCard title="LAYOUT">
           <View style={styles.layoutGroup}>
             <Text style={styles.layoutLabel}>Card Style</Text>

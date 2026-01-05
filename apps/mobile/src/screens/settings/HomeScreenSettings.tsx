@@ -16,7 +16,7 @@ export default function HomeScreenSettings() {
   return (
     <View style={styles.container}>
       <SettingsHeader title="Home Screen" onBack={() => nav.goBack()} />
-      <ScrollView contentContainerStyle={[styles.content, { paddingTop: headerHeight }]}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingTop: headerHeight + 12, paddingBottom: insets.bottom + 100 }]}>
         <SettingsCard title="HERO">
           <SettingItem
             title="Show Hero"

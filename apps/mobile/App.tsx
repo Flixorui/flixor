@@ -46,6 +46,7 @@ import ContinueWatchingSettings from './src/screens/settings/ContinueWatchingSet
 import TMDBSettings from './src/screens/settings/TMDBSettings';
 import TraktSettings from './src/screens/settings/TraktSettings';
 import MDBListSettings from './src/screens/settings/MDBListSettings';
+import OverseerrSettings from './src/screens/settings/OverseerrSettings';
 import PlexSettings from './src/screens/settings/PlexSettings';
 import * as Haptics from 'expo-haptics';
 
@@ -158,6 +159,7 @@ const SettingsTabScreen = React.memo(() => (
     <SettingsStack.Screen name="TMDBSettings" component={TMDBSettings} />
     <SettingsStack.Screen name="TraktSettings" component={TraktSettings} />
     <SettingsStack.Screen name="MDBListSettings" component={MDBListSettings} />
+    <SettingsStack.Screen name="OverseerrSettings" component={OverseerrSettings} />
     <SettingsStack.Screen name="PlexSettings">
       {() => <PlexSettings onLogout={() => logoutHandlerRef?.()} />}
     </SettingsStack.Screen>

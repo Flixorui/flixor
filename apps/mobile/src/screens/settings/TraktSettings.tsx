@@ -58,7 +58,7 @@ export default function TraktSettings() {
   return (
     <View style={styles.container}>
       <SettingsHeader title="Trakt" onBack={() => nav.goBack()} />
-      <ScrollView contentContainerStyle={[styles.content, { paddingTop: headerHeight }]}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingTop: headerHeight + 12, paddingBottom: insets.bottom + 100 }]}>
         <SettingsCard title="ACCOUNT">
           {profile ? (
             <View style={styles.statusRow}>

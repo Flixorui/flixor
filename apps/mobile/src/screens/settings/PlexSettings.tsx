@@ -404,7 +404,7 @@ export default function PlexSettings({ onLogout }: PlexSettingsProps) {
     <View style={styles.container}>
       <SettingsHeader title="Plex" onBack={() => nav.goBack()} />
       <ScrollView
-        contentContainerStyle={[styles.content, { paddingTop: headerHeight }]}
+        contentContainerStyle={[styles.content, { paddingTop: headerHeight + 12, paddingBottom: insets.bottom + 100 }]}
         keyboardShouldPersistTaps="handled"
       >
         {/* Header with Plex logo */}
