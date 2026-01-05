@@ -352,7 +352,10 @@ export default function Settings({ onBack }: SettingsProps) {
             ))}
           </View>
           <Animated.ScrollView
-            contentContainerStyle={styles.tabletContent}
+            contentContainerStyle={[
+              styles.tabletContent,
+              { paddingBottom: insets.bottom + 100 }
+            ]}
             onScroll={Animated.event(
               [{ nativeEvent: { contentOffset: { y: scrollY } } }],
               { useNativeDriver: false }
@@ -370,7 +373,10 @@ export default function Settings({ onBack }: SettingsProps) {
     <View style={styles.container}>
       <SettingsHeader title="Settings" onBack={goBack} scrollY={scrollY} />
       <Animated.ScrollView
-        contentContainerStyle={[styles.content, { paddingTop: headerHeight + 12 }]}
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: headerHeight + 12, paddingBottom: insets.bottom + 100 }
+        ]}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
           { useNativeDriver: false }
@@ -396,7 +402,6 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 16,
-    paddingBottom: 40,
   },
   comingSoon: {
     color: '#9ca3af',
@@ -436,7 +441,6 @@ const styles = StyleSheet.create({
   },
   tabletContent: {
     paddingHorizontal: 20,
-    paddingBottom: 40,
     flexGrow: 1,
   },
 });
