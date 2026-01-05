@@ -9,6 +9,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import ConditionalBlurView from '../components/ConditionalBlurView';
 import BadgePill from '../components/BadgePill';
 import PersonModal from '../components/PersonModal';
+import RequestButton from '../components/RequestButton';
 import { useNavigation } from '@react-navigation/native';
 import { TopBarStore } from '../components/TopBarStore';
 import { useFlixor } from '../core/FlixorContext';
@@ -762,6 +763,14 @@ export default function Details({ route }: RouteParams) {
               }
             }}
           />
+          {noLocalSource && (
+            <RequestButton
+              tmdbId={watchlistIds?.tmdbId}
+              mediaType={meta?.type === 'movie' ? 'movie' : 'tv'}
+              title={meta?.title || 'this title'}
+              compact
+            />
+          )}
         </View>
 
         {/* Synopsis */}

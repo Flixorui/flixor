@@ -38,7 +38,7 @@ export default function TMDBSettings() {
   return (
     <View style={styles.container}>
       <SettingsHeader title="TMDB" onBack={() => nav.goBack()} />
-      <ScrollView contentContainerStyle={[styles.content, { paddingTop: headerHeight }]}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingTop: headerHeight + 12, paddingBottom: insets.bottom + 100 }]}>
         <SettingsCard title="API KEY">
           <View style={styles.inputWrap}>
             <TextInput
