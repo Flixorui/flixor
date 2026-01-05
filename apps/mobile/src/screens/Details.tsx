@@ -171,11 +171,8 @@ export default function Details({ route }: RouteParams) {
     // Hide TopBar and TabBar when Details screen is shown
     TopBarStore.setVisible(false);
     TopBarStore.setTabBarVisible(false);
-    return () => {
-      // Restore TopBar and TabBar when Details screen is closed
-      TopBarStore.setVisible(true);
-      TopBarStore.setTabBarVisible(true);
-    };
+    // No cleanup - let underlying screens (Home/Browse) manage their own TopBar state
+    // via useFocusEffect to avoid flash when returning
   }, []);
 
   useEffect(() => {

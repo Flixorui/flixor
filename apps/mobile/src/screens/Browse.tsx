@@ -11,7 +11,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import FastImage from '@d11/react-native-fast-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import type { BrowseContext, BrowseItem } from '@flixor/core';
@@ -64,23 +64,26 @@ export default function Browse() {
   const itemWidth = (screenWidth - horizontalPadding * 2 - gap * (numColumns - 1)) / numColumns;
   const itemHeight = itemWidth * 1.5; // 2:3 aspect ratio
 
-  // Hide top bar when this screen is focused + cleanup
-  useEffect(() => {
-    isMounted.current = true;
-    TopBarStore.setVisible(false);
-    TopBarStore.setTabBarVisible(false);
+  // Hide top bar when this screen is focused
+  // Using useFocusEffect so TopBar stays hidden when returning from Details
+  useFocusEffect(
+    useCallback(() => {
+      isMounted.current = true;
+      TopBarStore.setVisible(false);
+      TopBarStore.setTabBarVisible(false);
 
-    // Preload initial items if provided
-    if (initialItems.length > 0) {
-      preloadImages(initialItems);
-    }
+      // Preload initial items if provided
+      if (initialItems.length > 0) {
+        preloadImages(initialItems);
+      }
 
-    return () => {
-      isMounted.current = false;
-      TopBarStore.setVisible(true);
-      TopBarStore.setTabBarVisible(true);
-    };
-  }, []);
+      // No cleanup that restores visibility - let Home manage its own state
+      // This prevents flash when navigating to Details
+      return () => {
+        isMounted.current = false;
+      };
+    }, [initialItems, preloadImages])
+  );
 
   // Load initial data if none provided
   useEffect(() => {
