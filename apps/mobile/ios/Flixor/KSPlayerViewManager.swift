@@ -11,7 +11,7 @@ import React
 
 @objc(KSPlayerViewManager)
 class KSPlayerViewManager: RCTViewManager {
-    
+
     // Not needed for RCTViewManager-based views; events are exported via Objective-C externs in KSPlayerManager.m
     override func view() -> UIView! {
         let view = KSPlayerView()
@@ -94,7 +94,7 @@ class KSPlayerViewManager: RCTViewManager {
             }
         }
     }
-    
+
     @objc func getTracks(_ node: NSNumber, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
         DispatchQueue.main.async {
             if let view = self.bridge.uiManager.view(forReactTag: node) as? KSPlayerView {
@@ -105,7 +105,7 @@ class KSPlayerViewManager: RCTViewManager {
             }
         }
     }
-    
+
     // AirPlay methods
     @objc func setAllowsExternalPlayback(_ node: NSNumber, allows: Bool) {
         DispatchQueue.main.async {
@@ -114,7 +114,7 @@ class KSPlayerViewManager: RCTViewManager {
             }
         }
     }
-    
+
     @objc func setUsesExternalPlaybackWhileExternalScreenIsActive(_ node: NSNumber, uses: Bool) {
         DispatchQueue.main.async {
             if let view = self.bridge.uiManager.view(forReactTag: node) as? KSPlayerView {
@@ -122,7 +122,7 @@ class KSPlayerViewManager: RCTViewManager {
             }
         }
     }
-    
+
     @objc func getAirPlayState(_ node: NSNumber, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
         DispatchQueue.main.async {
             if let view = self.bridge.uiManager.view(forReactTag: node) as? KSPlayerView {
@@ -133,7 +133,7 @@ class KSPlayerViewManager: RCTViewManager {
             }
         }
     }
-    
+
     @objc func showAirPlayPicker(_ node: NSNumber) {
         print("[KSPlayerViewManager] showAirPlayPicker called for node: \(node)")
         DispatchQueue.main.async {

@@ -38,7 +38,7 @@ class KSPlayerModule: RCTEventEmitter {
             }
         }
     }
-    
+
     @objc func getAirPlayState(_ nodeTag: NSNumber?, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
         guard let nodeTag = nodeTag else {
             reject("INVALID_ARGUMENT", "nodeTag must not be nil", nil)
@@ -52,7 +52,7 @@ class KSPlayerModule: RCTEventEmitter {
             }
         }
     }
-    
+
     @objc func showAirPlayPicker(_ nodeTag: NSNumber?) {
         guard let nodeTag = nodeTag else {
              print("[KSPlayerModule] showAirPlayPicker called with nil nodeTag")

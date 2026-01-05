@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, Switch, Dimensions, Linking, Pressable, Animated, Platform } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFlixor } from '../core/FlixorContext';
@@ -24,9 +24,9 @@ const { width } = Dimensions.get('window');
 const isTablet = width >= 768;
 
 const ABOUT_LINKS = {
-  privacy: 'https://flixor.app/privacy',
-  reportIssue: 'https://github.com/flixor/flixor/issues',
-  contributors: 'https://github.com/flixor/flixor',
+  privacy: 'https://flixor.xyz/privacy',
+  reportIssue: 'https://github.com/Flixorui/flixor/issues',
+  contributors: 'https://github.com/Flixorui/flixor',
   discord: 'https://discord.gg/flixor',
   reddit: 'https://www.reddit.com/r/flixor/',
 };
@@ -67,15 +67,17 @@ export default function Settings({ onBack }: SettingsProps) {
   const [serverInfo, setServerInfo] = useState<{ name: string; url: string } | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<CategoryId>('account');
 
-  useEffect(() => {
-    if (flixorLoading || !isConnected) return;
+  useFocusEffect(
+    useCallback(() => {
+      if (flixorLoading || !isConnected) return;
 
-    (async () => {
-      setTraktProfile(await getTraktProfile());
-      setPlexUser(await getPlexUser());
-      setServerInfo(getConnectedServerInfo());
-    })();
-  }, [flixorLoading, isConnected]);
+      (async () => {
+        setTraktProfile(await getTraktProfile());
+        setPlexUser(await getPlexUser());
+        setServerInfo(getConnectedServerInfo());
+      })();
+    }, [flixorLoading, isConnected])
+  );
 
   // Only create goBack if onBack was provided (from sub-screen navigation)
   const goBack = onBack ? onBack : undefined;
@@ -90,10 +92,6 @@ export default function Settings({ onBack }: SettingsProps) {
     if (serverInfo) return `${plexUser?.username || plexUser?.title || 'Connected'} · ${serverInfo.name}`;
     return plexUser?.username || plexUser?.title || 'Connected';
   }, [plexUser, serverInfo]);
-
-  const traktDescription = traktProfile
-    ? `@${traktProfile?.username || traktProfile?.ids?.slug}`
-    : 'Sign in to sync';
 
   const renderAccount = () => (
     <SettingsCard title="ACCOUNT">

@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import SettingsHeader from '../../components/settings/SettingsHeader';
 import SettingsCard from '../../components/settings/SettingsCard';
 import SettingItem from '../../components/settings/SettingItem';
+import TMDBIcon from '../../components/icons/TMDBIcon';
 import { useAppSettings } from '../../hooks/useAppSettings';
 import { reinitializeFlixorCore } from '../../core';
 
@@ -39,6 +40,15 @@ export default function TMDBSettings() {
     <View style={styles.container}>
       <SettingsHeader title="TMDB" onBack={() => nav.goBack()} />
       <ScrollView contentContainerStyle={[styles.content, { paddingTop: headerHeight + 12, paddingBottom: insets.bottom + 100 }]}>
+        {/* Header with TMDB logo */}
+        <View style={styles.logoHeader}>
+          <View style={styles.logoContainer}>
+            <TMDBIcon size={32} color="#01b4e4" />
+          </View>
+          <Text style={styles.logoTitle}>The Movie Database</Text>
+          <Text style={styles.logoSubtitle}>Metadata and artwork provider</Text>
+        </View>
+
         <SettingsCard title="API KEY">
           <View style={styles.inputWrap}>
             <TextInput
@@ -116,6 +126,30 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 16,
     paddingBottom: 40,
+  },
+  logoHeader: {
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingVertical: 16,
+  },
+  logoContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 16,
+    backgroundColor: 'rgba(1, 180, 228, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  logoTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  logoSubtitle: {
+    color: '#9ca3af',
+    fontSize: 13,
+    marginTop: 4,
   },
   inputWrap: {
     padding: 14,

@@ -23,9 +23,6 @@ prepare_react_native_project!
 target 'Flixor' do
   use_expo_modules!
 
-  # KSPlayer is added via Swift Package Manager in withKSPlayer.js config plugin
-  # Do NOT add KSPlayer pods here - SPM handles the dependency
-
   if ENV['EXPO_USE_COMMUNITY_AUTOLINKING'] == '1'
     config_command = ['node', '-e', "process.argv=['', '', 'config'];require('@react-native-community/cli').run()"];
   else
