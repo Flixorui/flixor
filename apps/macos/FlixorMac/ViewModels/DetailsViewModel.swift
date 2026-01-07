@@ -66,8 +66,18 @@ class DetailsViewModel: ObservableObject {
 
     // Context
     @Published var tmdbId: String?
+    @Published var imdbId: String?
     @Published var mediaKind: String? // "movie" or "tv"
     @Published var playableId: String? // plex:... or mapped id
+
+    // MDBList ratings
+    @Published var mdblistRatings: MDBListRatings?
+
+    // TMDB Trailers (videos)
+    @Published var trailers: [Trailer] = []
+
+    // Overseerr request status
+    @Published var overseerrStatus: OverseerrMediaStatus?
 
     // Season-specific state
     @Published var isSeason: Bool = false           // Flag for season-only mode
@@ -113,6 +123,12 @@ class DetailsViewModel: ObservableObject {
         let language: String?
         let languageTag: String?
     }
+    struct PlexRating: Codable {
+        let image: String?
+        let value: Double?
+        let type: String?
+    }
+
     struct PlexMeta: Codable {
         let ratingKey: String?
         let type: String?
@@ -127,6 +143,11 @@ class DetailsViewModel: ObservableObject {
         let Genre: [PlexTag]?
         let Role: [PlexRole]?
         let Media: [PlexMedia]?
+
+        // Ratings from Plex metadata
+        let Rating: [PlexRating]?
+        let rating: Double?           // IMDb fallback
+        let audienceRating: Double?   // RT Audience fallback
 
         // Season-specific fields
         let parentRatingKey: String?     // Parent show
@@ -149,6 +170,8 @@ class DetailsViewModel: ObservableObject {
         externalRatings = nil
         lastFetchedRatingsKey = nil
         tmdbId = nil
+        imdbId = nil
+        mdblistRatings = nil
         mediaKind = nil
         playableId = nil
         logoURL = nil
@@ -166,6 +189,8 @@ class DetailsViewModel: ObservableObject {
         episodes = []
         onDeck = nil
         extras = []
+        trailers = []
+        overseerrStatus = nil
         versions = []
         activeVersionId = nil
         audioTracks = []
@@ -244,7 +269,10 @@ class DetailsViewModel: ObservableObject {
                     addBadge("Plex")
                     playableId = item.id // Set playableId FIRST
                     print("✅ [Details] Plex metadata loaded, playableId set to: \(playableId ?? "nil")")
-                    await fetchExternalRatings(ratingKey: rk)
+                    parseRatingsFromPlexMeta(meta)
+
+                    // Extract IMDB ID from Guids for MDBList lookup
+                    extractImdbId(from: meta.Guid)
 
                     // If we have a TMDB GUID, fetch TMDB enhancements (logo, recommendations)
                     // but DON'T try to map back to Plex (we already have it!)
@@ -254,6 +282,17 @@ class DetailsViewModel: ObservableObject {
                         plexGuid = tm
                         print("📺 [Details] Found TMDB GUID: \(tid), fetching enhancements (skip Plex mapping)")
                         try await fetchTMDBDetails(media: mediaKind ?? "movie", id: tid, skipPlexMapping: true)
+                    }
+
+                    // Load MDBList ratings (if enabled)
+                    await loadMDBListRatings()
+
+                    // Load TMDB trailers and Overseerr status (if not already loaded via fetchTMDBDetails)
+                    if trailers.isEmpty && tmdbId != nil {
+                        await loadTMDBTrailers()
+                    }
+                    if overseerrStatus == nil && tmdbId != nil {
+                        await loadOverseerrStatus()
                     }
 
                     // Load seasons/episodes for TV shows
@@ -314,7 +353,10 @@ class DetailsViewModel: ObservableObject {
                     addBadge("Plex")
                     playableId = "plex:\(rk)" // Set playableId with prefix
                     print("✅ [Details] Plex metadata loaded, playableId set to: \(playableId ?? "nil")")
-                    await fetchExternalRatings(ratingKey: rk)
+                    parseRatingsFromPlexMeta(meta)
+
+                    // Extract IMDB ID from Guids for MDBList lookup
+                    extractImdbId(from: meta.Guid)
 
                     // If we have a TMDB GUID, fetch TMDB enhancements (logo, recommendations)
                     if let tm = meta.Guid?.compactMap({ $0.id }).first(where: { s in s.contains("tmdb://") || s.contains("themoviedb://") }),
@@ -322,6 +364,17 @@ class DetailsViewModel: ObservableObject {
                         tmdbId = tid
                         print("📺 [Details] Found TMDB GUID: \(tid), fetching enhancements (skip Plex mapping)")
                         try await fetchTMDBDetails(media: mediaKind ?? "movie", id: tid, skipPlexMapping: true)
+                    }
+
+                    // Load MDBList ratings (if enabled)
+                    await loadMDBListRatings()
+
+                    // Load TMDB trailers and Overseerr status (if not already loaded via fetchTMDBDetails)
+                    if trailers.isEmpty && tmdbId != nil {
+                        await loadTMDBTrailers()
+                    }
+                    if overseerrStatus == nil && tmdbId != nil {
+                        await loadOverseerrStatus()
                     }
 
                     // Load seasons/episodes for TV shows
@@ -397,6 +450,7 @@ class DetailsViewModel: ObservableObject {
                 grandparentTitle: nil,
                 grandparentThumb: nil,
                 grandparentArt: nil,
+                grandparentRatingKey: nil,
                 parentIndex: nil,
                 index: nil,
                 parentRatingKey: nil,
@@ -420,6 +474,7 @@ class DetailsViewModel: ObservableObject {
                 grandparentTitle: nil,
                 grandparentThumb: nil,
                 grandparentArt: nil,
+                grandparentRatingKey: nil,
                 parentIndex: nil,
                 index: nil,
                 parentRatingKey: nil,
@@ -444,6 +499,12 @@ class DetailsViewModel: ObservableObject {
         } else {
             print("⏭️ [Details] Skipping Plex mapping (already have native Plex data)")
         }
+
+        // Load TMDB trailers
+        await loadTMDBTrailers()
+
+        // Load Overseerr status
+        await loadOverseerrStatus()
 
         // Load seasons/episodes
         if media == "tv" {
@@ -530,6 +591,10 @@ class DetailsViewModel: ObservableObject {
             let Guid: [PlexGuid]?
             let Media: [PlexMedia]?
             let Role: [PlexRole]?
+            // Ratings
+            let Rating: [PlexRating]?
+            let rating: Double?
+            let audienceRating: Double?
         }
 
         let t = (media == "movie") ? 1 : 2
@@ -676,7 +741,7 @@ class DetailsViewModel: ObservableObject {
         } else {
             print("⚠️ [mapToPlex] No media versions found in Plex match")
         }
-        await fetchExternalRatings(ratingKey: rk)
+        parseRatings(from: match.Rating, fallbackRating: match.rating, fallbackAudienceRating: match.audienceRating)
         await loadPlexExtras(ratingKey: rk)
         print("✅ [mapToPlex] TMDB → Plex mapping complete for '\(match.title ?? title)' (ratingKey: \(rk))")
     }
@@ -773,22 +838,111 @@ class DetailsViewModel: ObservableObject {
         }
     }
 
-    private func fetchExternalRatings(ratingKey: String) async {
-        guard ratingKey != lastFetchedRatingsKey else { return }
-        lastFetchedRatingsKey = ratingKey
-        struct RatingsResponse: Codable {
-            let imdb: IMDb?
-            let rottenTomatoes: RottenTomatoes?
-            struct IMDb: Codable { let rating: Double?; let votes: Int? }
-            struct RottenTomatoes: Codable { let critic: Int?; let audience: Int? }
+    /// Parse ratings directly from Plex metadata (like mobile app)
+    private func parseRatingsFromPlexMeta(_ meta: PlexMeta) {
+        parseRatings(from: meta.Rating, fallbackRating: meta.rating, fallbackAudienceRating: meta.audienceRating)
+    }
+
+    /// Parse ratings from any type with Rating, rating, audienceRating fields
+    private func parseRatings(from plexRatings: [PlexRating]?, fallbackRating: Double?, fallbackAudienceRating: Double?) {
+        var imdbRating: Double?
+        var rtCriticRating: Int?
+        var rtAudienceRating: Int?
+
+        // Parse from Rating array
+        if let ratings = plexRatings {
+            for r in ratings {
+                let img = (r.image ?? "").lowercased()
+                guard let value = r.value else { continue }
+
+                if img.contains("imdb://image.rating") {
+                    imdbRating = value
+                } else if img.contains("rottentomatoes://image.rating.ripe") || img.contains("rottentomatoes://image.rating.rotten") {
+                    rtCriticRating = Int(value * 10)
+                } else if img.contains("rottentomatoes://image.rating.upright") || img.contains("rottentomatoes://image.rating.spilled") {
+                    rtAudienceRating = Int(value * 10)
+                }
+            }
         }
-        do {
-            let res: RatingsResponse = try await api.get("/api/plex/ratings/\(ratingKey)")
-            let imdbModel = res.imdb.map { ExternalRatings.IMDb(score: $0.rating, votes: $0.votes) }
-            let rtModel = res.rottenTomatoes.map { ExternalRatings.RottenTomatoes(critic: $0.critic, audience: $0.audience) }
+
+        // Fallbacks from top-level fields
+        if imdbRating == nil, let topRating = fallbackRating {
+            imdbRating = topRating
+        }
+        if rtAudienceRating == nil, let audienceRating = fallbackAudienceRating {
+            rtAudienceRating = Int(audienceRating * 10)
+        }
+
+        // Set external ratings if any found
+        if imdbRating != nil || rtCriticRating != nil || rtAudienceRating != nil {
+            let imdbModel = imdbRating.map { ExternalRatings.IMDb(score: $0, votes: nil) }
+            let rtModel: ExternalRatings.RottenTomatoes?
+            if rtCriticRating != nil || rtAudienceRating != nil {
+                rtModel = ExternalRatings.RottenTomatoes(critic: rtCriticRating, audience: rtAudienceRating)
+            } else {
+                rtModel = nil
+            }
             externalRatings = ExternalRatings(imdb: imdbModel, rottenTomatoes: rtModel)
+            print("✅ [Details] Parsed ratings - IMDb: \(imdbRating ?? 0), RT Critic: \(rtCriticRating ?? 0)%, RT Audience: \(rtAudienceRating ?? 0)%")
+        }
+    }
+
+    // MARK: - MDBList Ratings
+
+    /// Extract IMDB ID from Plex Guids array
+    func extractImdbId(from guids: [PlexGuid]?) {
+        guard let guids = guids else { return }
+        for guid in guids {
+            if let id = guid.id, (id.contains("imdb://") || id.contains("imdb.com/title/")) {
+                if let imdb = id.components(separatedBy: "://").last {
+                    // Handle formats like "imdb://tt1234567" or "imdb.com/title/tt1234567"
+                    let cleaned = imdb.replacingOccurrences(of: "title/", with: "")
+                    if cleaned.hasPrefix("tt") {
+                        imdbId = cleaned
+                        print("🎬 [Details] Extracted IMDB ID: \(cleaned)")
+                        return
+                    }
+                }
+            }
+        }
+    }
+
+    /// Load ratings from MDBList (if enabled and IMDB ID available)
+    func loadMDBListRatings() async {
+        guard MDBListService.shared.isReady() else { return }
+        guard let imdb = imdbId, !imdb.isEmpty else {
+            // Try to get IMDB ID from TMDB external_ids if we have tmdbId
+            if let tid = tmdbId, let media = mediaKind {
+                await fetchImdbIdFromTMDB(tmdbId: tid, mediaType: media)
+            }
+            guard let imdb = imdbId, !imdb.isEmpty else {
+                print("⚠️ [Details] No IMDB ID available for MDBList lookup")
+                return
+            }
+            await fetchMDBListRatings(imdbId: imdb)
+            return
+        }
+        await fetchMDBListRatings(imdbId: imdb)
+    }
+
+    private func fetchImdbIdFromTMDB(tmdbId: String, mediaType: String) async {
+        struct ExtIds: Codable { let imdb_id: String? }
+        do {
+            let ext: ExtIds = try await api.get("/api/tmdb/\(mediaType)/\(tmdbId)/external_ids")
+            if let imdb = ext.imdb_id, !imdb.isEmpty {
+                self.imdbId = imdb
+                print("🎬 [Details] Got IMDB ID from TMDB: \(imdb)")
+            }
         } catch {
-            print("⚠️ [Details] Ratings fetch failed: \(error)")
+            print("⚠️ [Details] Failed to fetch IMDB ID from TMDB: \(error)")
+        }
+    }
+
+    private func fetchMDBListRatings(imdbId: String) async {
+        let mediaType = (mediaKind == "movie") ? "movie" : "show"
+        mdblistRatings = await MDBListService.shared.fetchRatings(imdbId: imdbId, mediaType: mediaType)
+        if mdblistRatings != nil {
+            print("✅ [Details] Loaded MDBList ratings for \(imdbId)")
         }
     }
 
@@ -1082,6 +1236,94 @@ class DetailsViewModel: ObservableObject {
         } catch {}
     }
 
+    // MARK: - TMDB Trailers
+
+    func loadTMDBTrailers() async {
+        guard let tid = tmdbId, let media = mediaKind else {
+            print("⚠️ [loadTMDBTrailers] No TMDB ID or media kind available")
+            return
+        }
+
+        do {
+            struct VideosResponse: Codable {
+                let results: [VideoResult]?
+            }
+            struct VideoResult: Codable {
+                let id: String?
+                let key: String?
+                let name: String?
+                let site: String?
+                let type: String?
+                let official: Bool?
+                let published_at: String?
+            }
+
+            print("📹 [loadTMDBTrailers] Fetching videos for \(media)/\(tid)")
+            let response: VideosResponse = try await api.get("/api/tmdb/\(media)/\(tid)/videos")
+
+            // Filter to YouTube videos and prioritize trailers
+            let videos = (response.results ?? [])
+                .filter { ($0.site?.lowercased() ?? "") == "youtube" && $0.key != nil }
+
+            // Sort: official trailers first, then by type
+            let sorted = videos.sorted { a, b in
+                let aIsTrailer = (a.type?.lowercased() ?? "") == "trailer"
+                let bIsTrailer = (b.type?.lowercased() ?? "") == "trailer"
+                let aOfficial = a.official ?? false
+                let bOfficial = b.official ?? false
+
+                if aIsTrailer != bIsTrailer { return aIsTrailer }
+                if aOfficial != bOfficial { return aOfficial }
+                return false
+            }
+
+            let mapped: [Trailer] = sorted.prefix(10).compactMap { v in
+                guard let key = v.key else { return nil }
+                return Trailer(
+                    id: v.id ?? key,
+                    name: v.name ?? "Video",
+                    key: key,
+                    site: v.site ?? "YouTube",
+                    type: v.type ?? "Video",
+                    official: v.official,
+                    publishedAt: v.published_at
+                )
+            }
+
+            await MainActor.run {
+                self.trailers = mapped
+                print("✅ [loadTMDBTrailers] Loaded \(mapped.count) trailer(s)")
+            }
+        } catch {
+            print("❌ [loadTMDBTrailers] Failed: \(error)")
+        }
+    }
+
+    // MARK: - Overseerr Status
+
+    func loadOverseerrStatus() async {
+        guard OverseerrService.shared.isReady() else {
+            print("⚠️ [loadOverseerrStatus] Overseerr not configured")
+            return
+        }
+        guard let tid = tmdbId, let media = mediaKind else {
+            print("⚠️ [loadOverseerrStatus] No TMDB ID or media kind available")
+            return
+        }
+
+        guard let tmdbIdInt = Int(tid) else {
+            print("⚠️ [loadOverseerrStatus] Invalid TMDB ID: \(tid)")
+            return
+        }
+
+        print("📡 [loadOverseerrStatus] Fetching Overseerr status for \(media)/\(tid)")
+        let status = await OverseerrService.shared.getMediaStatus(tmdbId: tmdbIdInt, mediaType: media)
+        await MainActor.run {
+            self.overseerrStatus = status
+            print("✅ [loadOverseerrStatus] Status: \(status.status.rawValue)")
+        }
+    }
+
     // MARK: - Mood tags mapping (port of web deriveTags)
     private func deriveTags(from genres: [String]) -> [String] {
         let lower = Set(genres.map { $0.lowercased() })
@@ -1145,6 +1387,9 @@ class DetailsViewModel: ObservableObject {
                     }
                 )
             },
+            Rating: item.ratings.map { PlexRating(image: $0.image, value: $0.value, type: $0.type) },
+            rating: item.rating,
+            audienceRating: item.audienceRating,
             parentRatingKey: item.parentRatingKey,
             parentTitle: item.parentTitle,
             index: item.index,

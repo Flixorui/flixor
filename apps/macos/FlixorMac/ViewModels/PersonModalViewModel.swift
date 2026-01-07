@@ -162,12 +162,13 @@ class PersonModalViewModel: ObservableObject {
             grandparentTitle: nil,
             grandparentThumb: nil,
             grandparentArt: nil,
+            grandparentRatingKey: nil,
             parentIndex: nil,
             index: nil,
-                parentRatingKey: nil,
-                parentTitle: nil,
-                leafCount: nil,
-                viewedLeafCount: nil
+            parentRatingKey: nil,
+            parentTitle: nil,
+            leafCount: nil,
+            viewedLeafCount: nil
         )
     }
 

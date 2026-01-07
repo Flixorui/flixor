@@ -81,6 +81,24 @@
 		A202 /* BrowseModalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B082 /* BrowseModalView.swift */; };
 		A203 /* PersonModalViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B083 /* PersonModalViewModel.swift */; };
 		A204 /* PersonModalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B084 /* PersonModalView.swift */; };
+		A205 /* TMDBSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B165 /* TMDBSettingsView.swift */; };
+		A206 /* MDBListSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B166 /* MDBListSettingsView.swift */; };
+		A207 /* OverseerrSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B167 /* OverseerrSettingsView.swift */; };
+		A208 /* HomeScreenSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B168 /* HomeScreenSettingsView.swift */; };
+		A209 /* CatalogSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B169 /* CatalogSettingsView.swift */; };
+		A210 /* MDBListRatings.swift in Sources */ = {isa = PBXBuildFile; fileRef = B170 /* MDBListRatings.swift */; };
+		A211 /* OverseerrModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B171 /* OverseerrModels.swift */; };
+		A212 /* MDBListService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B172 /* MDBListService.swift */; };
+		A213 /* OverseerrService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B173 /* OverseerrService.swift */; };
+		A214 /* RequestButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = B174 /* RequestButton.swift */; };
+		A215 /* RatingsDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = B175 /* RatingsDisplay.swift */; };
+		A216 /* ContinueWatchingSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B176 /* ContinueWatchingSettingsView.swift */; };
+		A217 /* HeroCarousel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B177 /* HeroCarousel.swift */; };
+		A218 /* ContinueWatchingLandscapeRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B178 /* ContinueWatchingLandscapeRow.swift */; };
+		A219 /* ContinueWatchingPosterRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B179 /* ContinueWatchingPosterRow.swift */; };
+		A220 /* PosterSectionRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B180 /* PosterSectionRow.swift */; };
+		A221 /* TrailersRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B181 /* TrailersRow.swift */; };
+		A222 /* TrailerModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = B182 /* TrailerModal.swift */; };
 		C8BA62692E9C5ABE00CFE44C /* NewPopularData.swift in Resources */ = {isa = PBXBuildFile; fileRef = B065 /* NewPopularData.swift */; };
 		C8BA626A2E9C5ABE00CFE44C /* NewPopularViewModel.swift in Resources */ = {isa = PBXBuildFile; fileRef = B066 /* NewPopularViewModel.swift */; };
 		C8BA626B2E9C5ABE00CFE44C /* NewPopularHero.swift in Resources */ = {isa = PBXBuildFile; fileRef = B067 /* NewPopularHero.swift */; };
@@ -320,6 +338,24 @@
 		B085 /* TraktScrobbler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraktScrobbler.swift; sourceTree = "<group>"; };
 		B163 /* PlexServersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlexServersView.swift; sourceTree = "<group>"; };
 		B164 /* ServerConnectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerConnectionView.swift; sourceTree = "<group>"; };
+		B165 /* TMDBSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TMDBSettingsView.swift; sourceTree = "<group>"; };
+		B166 /* MDBListSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MDBListSettingsView.swift; sourceTree = "<group>"; };
+		B167 /* OverseerrSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverseerrSettingsView.swift; sourceTree = "<group>"; };
+		B168 /* HomeScreenSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeScreenSettingsView.swift; sourceTree = "<group>"; };
+		B169 /* CatalogSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogSettingsView.swift; sourceTree = "<group>"; };
+		B170 /* MDBListRatings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MDBListRatings.swift; sourceTree = "<group>"; };
+		B171 /* OverseerrModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverseerrModels.swift; sourceTree = "<group>"; };
+		B172 /* MDBListService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MDBListService.swift; sourceTree = "<group>"; };
+		B173 /* OverseerrService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverseerrService.swift; sourceTree = "<group>"; };
+		B174 /* RequestButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestButton.swift; sourceTree = "<group>"; };
+		B175 /* RatingsDisplay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RatingsDisplay.swift; sourceTree = "<group>"; };
+		B176 /* ContinueWatchingSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContinueWatchingSettingsView.swift; sourceTree = "<group>"; };
+		B177 /* HeroCarousel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeroCarousel.swift; sourceTree = "<group>"; };
+		B178 /* ContinueWatchingLandscapeRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContinueWatchingLandscapeRow.swift; sourceTree = "<group>"; };
+		B179 /* ContinueWatchingPosterRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContinueWatchingPosterRow.swift; sourceTree = "<group>"; };
+		B180 /* PosterSectionRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PosterSectionRow.swift; sourceTree = "<group>"; };
+		B181 /* TrailersRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrailersRow.swift; sourceTree = "<group>"; };
+		B182 /* TrailerModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrailerModal.swift; sourceTree = "<group>"; };
 		B999 /* FlixorMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FlixorMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C8D602152E97EBB4002C9348 /* libsoxr.0.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libsoxr.0.dylib; path = deps/lib/libsoxr.0.dylib; sourceTree = "<group>"; };
 		C8D602162E97EBB4002C9348 /* libswscale.8.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libswscale.8.dylib; path = deps/lib/libswscale.8.dylib; sourceTree = "<group>"; };
@@ -536,6 +572,8 @@
 				B065 /* NewPopularData.swift */,
 				B042 /* PlexServer.swift */,
 				B051 /* PlayerBackend.swift */,
+				B170 /* MDBListRatings.swift */,
+				B171 /* OverseerrModels.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -581,9 +619,27 @@
 				C8D602AA2E990749002C9348 /* Thumbnail */,
 				D016 /* API */,
 				D017 /* Auth */,
+				D021 /* MDBList */,
+				D022 /* Overseerr */,
 				B085 /* TraktScrobbler.swift */,
 			);
 			path = Services;
+			sourceTree = "<group>";
+		};
+		D021 /* MDBList */ = {
+			isa = PBXGroup;
+			children = (
+				B172 /* MDBListService.swift */,
+			);
+			path = MDBList;
+			sourceTree = "<group>";
+		};
+		D022 /* Overseerr */ = {
+			isa = PBXGroup;
+			children = (
+				B173 /* OverseerrService.swift */,
+			);
+			path = Overseerr;
 			sourceTree = "<group>";
 		};
 		D008 /* Extensions */ = {
@@ -623,6 +679,14 @@
 				B027 /* ToastView.swift */,
 				B044 /* LibraryFilterBarView.swift */,
 				B049 /* WatchlistButton.swift */,
+				B174 /* RequestButton.swift */,
+				B175 /* RatingsDisplay.swift */,
+				B177 /* HeroCarousel.swift */,
+				B178 /* ContinueWatchingLandscapeRow.swift */,
+				B179 /* ContinueWatchingPosterRow.swift */,
+				B180 /* PosterSectionRow.swift */,
+				B181 /* TrailersRow.swift */,
+				B182 /* TrailerModal.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -658,6 +722,12 @@
 				B015 /* SettingsView.swift */,
 				B163 /* PlexServersView.swift */,
 				B164 /* ServerConnectionView.swift */,
+				B165 /* TMDBSettingsView.swift */,
+				B166 /* MDBListSettingsView.swift */,
+				B167 /* OverseerrSettingsView.swift */,
+				B168 /* HomeScreenSettingsView.swift */,
+				B169 /* CatalogSettingsView.swift */,
+				B176 /* ContinueWatchingSettingsView.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -756,6 +826,7 @@
 			name = FlixorMac;
 			packageProductDependencies = (
 				FKPD0001 /* FlixorKit */,
+				YTPD0001 /* YouTubePlayerKit */,
 			);
 			productName = FlixorMac;
 			productReference = B999 /* FlixorMac.app */;
@@ -787,6 +858,7 @@
 			mainGroup = D001;
 			packageReferences = (
 				FKPR0001 /* XCLocalSwiftPackageReference "../../shared/FlixorKit" */,
+				YTPK0001 /* XCRemoteSwiftPackageReference "YouTubePlayerKit" */,
 			);
 			productRefGroup = D099 /* Products */;
 			projectDirPath = "";
@@ -894,6 +966,24 @@
 				A066 /* NewPopularViewModel.swift in Sources */,
 				A067 /* NewPopularHero.swift in Sources */,
 				A085 /* TraktScrobbler.swift in Sources */,
+				A205 /* TMDBSettingsView.swift in Sources */,
+				A206 /* MDBListSettingsView.swift in Sources */,
+				A207 /* OverseerrSettingsView.swift in Sources */,
+				A208 /* HomeScreenSettingsView.swift in Sources */,
+				A209 /* CatalogSettingsView.swift in Sources */,
+				A210 /* MDBListRatings.swift in Sources */,
+				A211 /* OverseerrModels.swift in Sources */,
+				A212 /* MDBListService.swift in Sources */,
+				A213 /* OverseerrService.swift in Sources */,
+				A214 /* RequestButton.swift in Sources */,
+				A215 /* RatingsDisplay.swift in Sources */,
+				A216 /* ContinueWatchingSettingsView.swift in Sources */,
+				A217 /* HeroCarousel.swift in Sources */,
+				A218 /* ContinueWatchingLandscapeRow.swift in Sources */,
+				A219 /* ContinueWatchingPosterRow.swift in Sources */,
+				A220 /* PosterSectionRow.swift in Sources */,
+				A221 /* TrailersRow.swift in Sources */,
+				A222 /* TrailerModal.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1150,10 +1240,26 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		YTPK0001 /* XCRemoteSwiftPackageReference "YouTubePlayerKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/SvenTiigi/YouTubePlayerKit.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
 		FKPD0001 /* FlixorKit */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = FlixorKit;
+		};
+		YTPD0001 /* YouTubePlayerKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = YTPK0001 /* XCRemoteSwiftPackageReference "YouTubePlayerKit" */;
+			productName = YouTubePlayerKit;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

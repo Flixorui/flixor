@@ -428,6 +428,7 @@ final class LibraryViewModel: ObservableObject {
                 grandparentTitle: media.grandparentTitle,
                 grandparentThumb: media.grandparentThumb,
                 grandparentArt: media.grandparentArt,
+                grandparentRatingKey: media.grandparentRatingKey,
                 parentIndex: media.parentIndex,
                 index: media.index,
                 parentRatingKey: media.parentRatingKey,

@@ -12,10 +12,10 @@ private struct DetailsLayoutMetrics {
 
     var heroHeight: CGFloat {
         switch width {
-        case ..<900: return 600
-        case ..<1200: return 660
-        case ..<1500: return 720
-        default: return 1200
+        case ..<900: return 900
+        case ..<1200: return 1200
+        case ..<1500: return 1520
+        default: return 2000
         }
     }
 
@@ -30,9 +30,9 @@ private struct DetailsLayoutMetrics {
 
     var heroTopPadding: CGFloat {
         switch width {
-        case ..<900: return 68
-        case ..<1200: return 88
-        default: return 216
+        case ..<900: return 108
+        case ..<1200: return 128
+        default: return 416
         }
     }
 
@@ -117,6 +117,10 @@ struct DetailsView: View {
     @EnvironmentObject private var router: NavigationRouter
     @EnvironmentObject private var mainView: MainViewState
 
+    private var hasPlexSource: Bool {
+        vm.playableId != nil || vm.plexRatingKey != nil
+    }
+
     var body: some View {
         ZStack {
             GeometryReader { proxy in
@@ -128,6 +132,7 @@ struct DetailsView: View {
                         VStack(spacing: 0) {
                             DetailsHeroSection(
                                 vm: vm,
+                                trailers: vm.trailers,
                                 onPlay: playContent,
                                 layout: layout
                             )
@@ -146,9 +151,7 @@ struct DetailsView: View {
                                     presentPerson(person)
                                 })
                             case "EPISODES":
-                                EpisodesTabContent(vm: vm, layout: layout, onPlayEpisode: playEpisode)
-                            case "EXTRAS":
-                                ExtrasTabContent(vm: vm, layout: layout)
+                                EpisodesTabContent(vm: vm, layout: layout, onPlayEpisode: playEpisode, hasPlexSource: hasPlexSource)
                             default:
                                 SuggestedSections(vm: vm, layout: layout, onBrowse: { context in
                                     presentBrowse(context)
@@ -250,12 +253,13 @@ struct DetailsView: View {
                 grandparentTitle: item.grandparentTitle,
                 grandparentThumb: item.grandparentThumb,
                 grandparentArt: item.grandparentArt,
+                grandparentRatingKey: item.grandparentRatingKey,
                 parentIndex: item.parentIndex,
                 index: item.index,
-                parentRatingKey: nil,
-                parentTitle: nil,
-                leafCount: nil,
-                viewedLeafCount: nil
+                parentRatingKey: item.parentRatingKey,
+                parentTitle: item.parentTitle,
+                leafCount: item.leafCount,
+                viewedLeafCount: item.viewedLeafCount
             )
             appendToCurrentTabPath(playerItem)
         } else {
@@ -306,6 +310,7 @@ struct DetailsView: View {
             grandparentTitle: vm.title.isEmpty ? nil : vm.title,
             grandparentThumb: nil,
             grandparentArt: nil,
+            grandparentRatingKey: vm.plexRatingKey,
             parentIndex: nil,
             index: nil,
             parentRatingKey: nil,
@@ -321,17 +326,71 @@ struct DetailsView: View {
 
 private struct DetailsHeroSection: View {
     @ObservedObject var vm: DetailsViewModel
+    let trailers: [Trailer]
     let onPlay: () -> Void
     let layout: DetailsLayoutMetrics
 
     @State private var isOverviewExpanded = false
+    @State private var selectedTrailer: Trailer?
+
+    private var hasTrailers: Bool { !trailers.isEmpty }
 
     private var metaItems: [String] {
         var parts: [String] = []
         if let y = vm.year, !y.isEmpty { parts.append(y) }
         if let runtime = formattedRuntime(vm.runtime) { parts.append(runtime) }
-        if let rating = vm.rating, !rating.isEmpty { parts.append(rating) }
         return parts
+    }
+
+    // Audio channels badge label
+    private var audioBadgeLabel: String? {
+        guard let channels = vm.activeVersionDetail?.technical.audioChannels else { return nil }
+        let codec = (vm.activeVersionDetail?.technical.audioCodec ?? "").lowercased()
+        if codec.contains("atmos") || codec.contains("truehd") {
+            return "Atmos"
+        }
+        switch channels {
+        case 8: return "7.1"
+        case 6: return "5.1"
+        case 2: return "Stereo"
+        default: return channels > 2 ? "\(channels)CH" : nil
+        }
+    }
+
+    // Check if has Plex source
+    private var hasPlexSource: Bool {
+        vm.playableId != nil || vm.plexRatingKey != nil
+    }
+
+    // HDR/DV badge from technical info
+    private var hdrBadge: String? {
+        let profile = (vm.activeVersionDetail?.technical.videoProfile ?? "").lowercased()
+        if profile.contains("dv") || profile.contains("dolby vision") {
+            return "DV"
+        }
+        if profile.contains("hdr10+") {
+            return "HDR10+"
+        }
+        if profile.contains("hdr") || profile.contains("pq") || profile.contains("smpte2084") {
+            return "HDR"
+        }
+        if profile.contains("hlg") {
+            return "HLG"
+        }
+        return nil
+    }
+
+    // Resolution badge (4K, 1080p, etc)
+    private var resolutionBadge: String? {
+        guard let resolution = vm.activeVersionDetail?.technical.resolution else { return nil }
+        let parts = resolution.split(separator: "x")
+        guard parts.count == 2,
+              let width = Int(parts[0]),
+              let height = Int(parts[1]) else { return nil }
+        if width >= 3800 || height >= 2100 { return "4K" }
+        if width >= 1900 || height >= 1000 { return "1080p" }
+        if width >= 1260 || height >= 700 { return "720p" }
+        return nil
     }
 
     private func formattedRuntime(_ minutes: Int?) -> String? {
@@ -353,31 +412,34 @@ private struct DetailsHeroSection: View {
     }
 
     var body: some View {
-        ZStack(alignment: .bottomLeading) {
-            ZStack {
-                CachedAsyncImage(url: vm.backdropURL)
-                    .aspectRatio(contentMode: .fill)
-                    .frame(maxWidth: .infinity, minHeight: layout.heroHeight, alignment: .center)
-                LinearGradient(
-                    colors: [Color.black.opacity(0.55), Color.black.opacity(0.05)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                LinearGradient(
-                    colors: [Color.black.opacity(0.78), Color.black.opacity(0.35), Color.black.opacity(0.08)],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
-                RadialGradient(
-                    gradient: Gradient(colors: [Color.black.opacity(0.6), .clear]),
-                    center: .init(x: -0.1, y: 0.4),
-                    startRadius: 10,
-                    endRadius: 900
-                )
+        ZStack(alignment: .topLeading) {
+            // Backdrop - matches content height
+            GeometryReader { geo in
+                ZStack {
+                    CachedAsyncImage(url: vm.backdropURL)
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: geo.size.width, height: geo.size.height)
+                    LinearGradient(
+                        colors: [Color.black.opacity(0.55), Color.black.opacity(0.05)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    LinearGradient(
+                        colors: [Color.black.opacity(0.78), Color.black.opacity(0.35), Color.black.opacity(0.08)],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                    RadialGradient(
+                        gradient: Gradient(colors: [Color.black.opacity(0.6), .clear]),
+                        center: .init(x: -0.1, y: 0.4),
+                        startRadius: 10,
+                        endRadius: 900
+                    )
+                }
             }
-            .frame(height: layout.heroHeight)
             .clipped()
 
+            // Content - determines the overall height
             VStack(alignment: .leading, spacing: heroSpacing) {
                 if let logo = vm.logoURL {
                     CachedAsyncImage(url: logo, contentMode: .fit)
@@ -390,12 +452,16 @@ private struct DetailsHeroSection: View {
                         .shadow(color: .black.opacity(0.6), radius: 12)
                 }
 
-                if !(metaItems.isEmpty && vm.badges.isEmpty && !(vm.externalRatings.map(hasRatings) ?? false)) {
+                // Badges row (pills + ratings) - like mobile app
+                if !(vm.badges.isEmpty && vm.rating == nil && !(vm.externalRatings.map(hasRatings) ?? false)) {
                     ViewThatFits {
-                        HStack(spacing: 12) { metaRow }
-                        VStack(alignment: .leading, spacing: 10) { metaRow }
+                        HStack(spacing: 10) { badgesRow }
+                        VStack(alignment: .leading, spacing: 8) { badgesRow }
                     }
                 }
+
+                // Meta line (year • runtime • genres) - below badges, like mobile app
+                metaLine
 
                 if !vm.overview.isEmpty {
                     CollapsibleOverview(
@@ -414,14 +480,46 @@ private struct DetailsHeroSection: View {
                     HStack(spacing: actionSpacing) { actionButtons }
                     VStack(alignment: .leading, spacing: 12) { actionButtons }
                 }
+
+                // Trailers section
+                if hasTrailers {
+                    VStack(alignment: .leading, spacing: 12) {
+                        // Header - styled like DetailsSectionHeader
+                        Text("Trailer & Videos".uppercased())
+                            .font(.system(size: 12, weight: .semibold))
+                            .tracking(0.6)
+                            .foregroundStyle(.white.opacity(0.72))
+
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            LazyHStack(spacing: 10) {
+                                ForEach(trailers) { trailer in
+                                    HeroTrailerCard(
+                                        trailer: trailer,
+                                        width: 180,
+                                        onPlay: {
+                                            selectedTrailer = trailer
+                                        }
+                                    )
+                                }
+                            }
+                            .padding(.leading, 4)
+                            .padding(.trailing, 60)
+                        }
+                    }
+                }
             }
             .padding(.leading, layout.heroHorizontalPadding)
             .padding(.trailing, heroTrailingPadding)
             .padding(.top, layout.heroTopPadding)
-            .padding(.bottom, layout.heroBottomPadding)
+            .padding(.bottom, 20)
         }
         .frame(maxWidth: .infinity)
-        .frame(height: layout.heroHeight)
+        .sheet(item: $selectedTrailer) { trailer in
+            TrailerModal(
+                trailer: trailer,
+                onClose: { selectedTrailer = nil }
+            )
+        }
     }
 
     private var canonicalWatchlistId: String? {
@@ -493,18 +591,72 @@ private struct DetailsHeroSection: View {
         width < 1100 ? layout.heroHorizontalPadding : 48
     }
 
-    @ViewBuilder private var metaRow: some View {
-        if !metaItems.isEmpty {
-            Text(metaItems.joined(separator: " • "))
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.9))
+    // Badges row - pills and ratings (like mobile app)
+    @ViewBuilder private var badgesRow: some View {
+        // Age Rating pill (content rating like PG-13, R, TV-MA)
+        if let contentRating = vm.rating, !contentRating.isEmpty {
+            HeroMetaPill(text: contentRating)
         }
-        ForEach(vm.badges, id: \.self) { badge in
-            HeroMetaPill(text: badge)
+
+        // Technical badges from ViewModel (4K, HDR, Dolby Vision, Atmos)
+        ForEach(vm.badges.filter { $0.lowercased() != "plex" }, id: \.self) { badge in
+            let style: HeroMetaPill.Style = {
+                let lower = badge.lowercased()
+                if lower.contains("hdr") || lower.contains("dolby") || lower == "dv" || lower.contains("hlg") {
+                    return .highlighted
+                }
+                return .default
+            }()
+            HeroMetaPill(text: badge, style: style)
         }
+
+        // Audio pill (5.1, 7.1, Atmos, Stereo) - if not already in badges
+        if let audio = audioBadgeLabel, !vm.badges.contains(where: { $0.lowercased().contains(audio.lowercased()) }) {
+            HeroMetaPill(text: audio)
+        }
+
+        // Plex SOURCE pill - only show once
+        if hasPlexSource {
+            HeroMetaPill(text: "Plex", style: .source)
+        } else if vm.tmdbId != nil {
+            HeroMetaPill(text: "No local source", style: .warning)
+        }
+
+        // External ratings (IMDb, Rotten Tomatoes)
         if let ratings = vm.externalRatings, hasRatings(ratings) {
             RatingsStrip(ratings: ratings)
         }
+
+        // MDBList ratings (additional sources)
+        if let mdbRatings = vm.mdblistRatings, mdbRatings.hasAnyRating {
+            RatingsDisplay(ratings: mdbRatings)
+        }
+    }
+
+    // Meta line - year, runtime, genres as text (below badges, like mobile app)
+    @ViewBuilder private var metaLine: some View {
+        if !metaItems.isEmpty || !vm.genres.isEmpty {
+            HStack(spacing: 0) {
+                // Year and runtime
+                if !metaItems.isEmpty {
+                    Text(metaItems.joined(separator: " • "))
+                }
+                // Genres
+                if !vm.genres.isEmpty {
+                    if !metaItems.isEmpty {
+                        Text(" • ")
+                    }
+                    Text(vm.genres.prefix(3).joined(separator: ", "))
+                }
+            }
+            .font(.system(size: 14, weight: .medium))
+            .foregroundStyle(.white.opacity(0.7))
+        }
+    }
+
+    // Legacy metaRow for compatibility - now combines badges and meta
+    @ViewBuilder private var metaRow: some View {
+        badgesRow
     }
 
     @ViewBuilder private var heroFacts: some View {
@@ -547,6 +699,7 @@ private struct DetailsHeroSection: View {
                         grandparentTitle: nil,
                         grandparentThumb: nil,
                         grandparentArt: nil,
+                        grandparentRatingKey: nil,
                         parentIndex: nil,
                         index: nil,
                         parentRatingKey: nil,
@@ -579,13 +732,14 @@ private struct DetailsHeroSection: View {
                     Text("Play").fontWeight(.semibold)
                 }
                 .font(.system(size: 16))
-                .foregroundStyle(.black)
+                .foregroundStyle(hasPlexSource ? .black : .gray)
                 .padding(.horizontal, 26)
                 .padding(.vertical, 12)
-                .background(Color.white)
+                .background(hasPlexSource ? Color.white : Color.white.opacity(0.5))
                 .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
             }
             .buttonStyle(.plain)
+            .disabled(!hasPlexSource)
 
             if let watchlistId = canonicalWatchlistId,
                let mediaType = watchlistMediaType {
@@ -598,6 +752,17 @@ private struct DetailsHeroSection: View {
                     imdbId: nil,
                     title: vm.title,
                     year: vm.year.flatMap { Int($0) },
+                    style: .pill
+                )
+            }
+
+            // Overseerr request button
+            if let tmdbIdStr = vm.tmdbId, let tmdbIdInt = Int(tmdbIdStr) {
+                let overseerrMediaType = vm.mediaKind == "tv" ? "tv" : "movie"
+                RequestButton(
+                    tmdbId: tmdbIdInt,
+                    mediaType: overseerrMediaType,
+                    title: vm.title,
                     style: .pill
                 )
             }
@@ -806,161 +971,463 @@ private struct EpisodesTabContent: View {
     @ObservedObject var vm: DetailsViewModel
     let layout: DetailsLayoutMetrics
     let onPlayEpisode: (DetailsViewModel.Episode) -> Void
+    var hasPlexSource: Bool = true
+
+    @AppStorage("episodeLayout") private var episodeLayout: String = "horizontal"
+
+    private let cardWidth: CGFloat = 340
+    private var cardHeight: CGFloat { 180 }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            // Hide season picker in season-only mode
+        VStack(alignment: .leading, spacing: 20) {
+            // Season selector (hide in season-only mode)
             if !vm.isSeason && vm.seasons.count > 1 {
-                HStack {
-                    Picker("Season", selection: Binding<String>(
-                        get: { vm.selectedSeasonKey ?? "" },
-                        set: { newVal in Task { await vm.selectSeason(newVal) } }
-                    )) {
-                        ForEach(vm.seasons) { s in
-                            Text(s.title).tag(s.id)
-                        }
+                SeasonSelector(
+                    seasons: vm.seasons,
+                    selectedKey: vm.selectedSeasonKey ?? "",
+                    onSelect: { key in
+                        Task { await vm.selectSeason(key) }
                     }
-                    .labelsHidden()
-                    .pickerStyle(.menu)
-                    .frame(width: seasonPickerWidth, alignment: .leading)
-                    Spacer()
-                }
+                )
+            } else if let season = vm.seasons.first(where: { $0.id == vm.selectedSeasonKey }) {
+                Text(season.title)
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(.white)
             }
 
             if vm.episodesLoading {
-                ProgressView().progressViewStyle(.circular)
-            }
-
-            if vm.episodes.isEmpty && !vm.episodesLoading {
+                HStack {
+                    Spacer()
+                    ProgressView().progressViewStyle(.circular)
+                    Spacer()
+                }
+                .padding(.vertical, 40)
+            } else if vm.episodes.isEmpty {
                 Text("No episodes found").foregroundStyle(.secondary)
+            } else if episodeLayout == "horizontal" {
+                // Horizontal scroll of episode cards (like mobile)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(spacing: 14) {
+                        ForEach(Array(vm.episodes.enumerated()), id: \.element.id) { index, episode in
+                            HorizontalEpisodeCard(
+                                episode: episode,
+                                episodeNumber: index + 1,
+                                width: cardWidth,
+                                height: cardHeight,
+                                isDisabled: !hasPlexSource,
+                                onPlay: { onPlayEpisode(episode) }
+                            )
+                        }
+                    }
+                    .padding(.leading, 24)
+                    .padding(.trailing, 60)
+                }
             } else {
-                VStack(alignment: .leading, spacing: 12) {
-                    ForEach(vm.episodes) { e in
-                        EpisodeRow(
-                            episode: e,
-                            thumbnailWidth: layout.episodeThumbnailWidth,
-                            onPlay: { onPlayEpisode(e) }
+                // Vertical list layout (original)
+                VStack(spacing: 12) {
+                    ForEach(Array(vm.episodes.enumerated()), id: \.element.id) { index, episode in
+                        VerticalEpisodeRow(
+                            episode: episode,
+                            episodeNumber: index + 1,
+                            layout: layout,
+                            isDisabled: !hasPlexSource,
+                            onPlay: { onPlayEpisode(episode) }
                         )
                     }
                 }
             }
         }
     }
+}
 
-    private var seasonPickerWidth: CGFloat {
-        let base = layout.episodeThumbnailWidth
-        return min(260, max(160, base * 0.85))
+// MARK: - Season Selector
+
+private struct SeasonSelector: View {
+    let seasons: [DetailsViewModel.Season]
+    let selectedKey: String
+    let onSelect: (String) -> Void
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                ForEach(seasons) { season in
+                    Button(action: { onSelect(season.id) }) {
+                        Text(season.title)
+                            .font(.system(size: 14, weight: selectedKey == season.id ? .bold : .medium))
+                            .foregroundStyle(selectedKey == season.id ? .black : .white)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(selectedKey == season.id ? Color.white : Color.white.opacity(0.1))
+                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
     }
 }
 
-// MARK: - Episode Row Component
-private struct EpisodeRow: View {
+// MARK: - Horizontal Episode Card (like mobile)
+
+private struct HorizontalEpisodeCard: View {
     let episode: DetailsViewModel.Episode
-    let thumbnailWidth: CGFloat
+    let episodeNumber: Int
+    let width: CGFloat
+    let height: CGFloat
+    var isDisabled: Bool = false
     let onPlay: () -> Void
+
     @State private var isHovered = false
+
+    private var progressPct: Double {
+        Double(episode.progressPct ?? 0)
+    }
+
+    private var showProgress: Bool {
+        progressPct > 0 && progressPct < 85
+    }
+
+    private var isCompleted: Bool {
+        progressPct >= 85
+    }
 
     var body: some View {
         Button(action: onPlay) {
-            HStack(alignment: .top, spacing: 12) {
-                // Episode thumbnail with progress bar and hover overlay
-                if let u = episode.image {
+            ZStack(alignment: .bottomLeading) {
+                // Thumbnail background
+                if let imgURL = episode.image {
+                    CachedAsyncImage(url: imgURL)
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: width, height: height)
+                        .clipped()
+                } else {
+                    Rectangle()
+                        .fill(Color(white: 0.15))
+                        .frame(width: width, height: height)
+                }
+
+                // Gradient overlay
+                LinearGradient(
+                    stops: [
+                        .init(color: .black.opacity(0.05), location: 0),
+                        .init(color: .black.opacity(0.2), location: 0.25),
+                        .init(color: .black.opacity(0.6), location: 0.6),
+                        .init(color: .black.opacity(0.9), location: 1)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+
+                // Hover play overlay
+                if isHovered {
                     ZStack {
-                        // Thumbnail
-                        CachedAsyncImage(url: u)
-                            .frame(width: thumbnailWidth, height: thumbnailHeight)
+                        Color.black.opacity(0.3)
+                        Image(systemName: "play.circle.fill")
+                            .font(.system(size: 48))
+                            .foregroundStyle(.white)
+                            .shadow(color: .black.opacity(0.5), radius: 8)
+                    }
+                }
 
-                        // Hover overlay
-                        if isHovered {
-                            Rectangle()
-                                .fill(Color.black.opacity(0.25))
-                                .frame(width: thumbnailWidth, height: thumbnailHeight)
+                // Content
+                VStack(alignment: .leading, spacing: 6) {
+                    // Episode badge
+                    Text("EPISODE \(episodeNumber)")
+                        .font(.system(size: 10, weight: .bold))
+                        .tracking(0.8)
+                        .foregroundStyle(Color(white: 0.9))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.black.opacity(0.5))
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
 
-                            // Play button
-                            Text("Play")
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundStyle(.black)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
-                                .background(Color.white)
-                                .clipShape(Capsule())
+                    // Title
+                    Text(episode.title)
+                        .font(.system(size: 15, weight: .heavy))
+                        .foregroundStyle(.white)
+                        .lineLimit(2)
+
+                    // Overview
+                    if let overview = episode.overview, !overview.isEmpty {
+                        Text(overview)
+                            .font(.system(size: 12))
+                            .foregroundStyle(.white.opacity(0.82))
+                            .lineLimit(3)
+                    }
+
+                    // Meta info
+                    if let duration = episode.durationMin {
+                        HStack(spacing: 4) {
+                            Image(systemName: "clock")
+                                .font(.system(size: 11))
+                            Text("\(duration)m")
+                                .font(.system(size: 11))
                         }
+                        .foregroundStyle(Color(white: 0.6))
+                    }
+                }
+                .padding(12)
 
-                        // Progress bar (matching web implementation)
-                        if let progress = episode.progressPct, progress > 0 {
-                            VStack {
-                                Spacer()
-                                GeometryReader { geometry in
-                                    ZStack(alignment: .leading) {
-                                        Rectangle()
-                                            .fill(Color.white.opacity(0.2))
-                                            .frame(height: 6)
+                // Progress bar
+                if showProgress {
+                    VStack {
+                        Spacer()
+                        GeometryReader { geo in
+                            ZStack(alignment: .leading) {
+                                Rectangle()
+                                    .fill(Color.white.opacity(0.33))
+                                    .frame(height: 4)
 
-                                        Rectangle()
-                                            .fill(Color(red: 229/255, green: 9/255, blue: 20/255))
-                                            .frame(width: geometry.size.width * CGFloat(min(100, max(0, progress))) / 100.0, height: 6)
-                                    }
-                                }
-                                .frame(height: 6)
+                                Rectangle()
+                                    .fill(Color.white)
+                                    .frame(width: geo.size.width * CGFloat(min(100, max(0, progressPct))) / 100.0, height: 4)
                             }
                         }
+                        .frame(height: 4)
                     }
-                    .frame(width: thumbnailWidth, height: thumbnailHeight)
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.white.opacity(0.15), lineWidth: 1))
                 }
 
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(episode.title).font(.headline)
-                    if let o = episode.overview { Text(o).foregroundStyle(.secondary).lineLimit(2) }
-                    HStack(spacing: 10) {
-                        if let d = episode.durationMin { Text("\(d)m").foregroundStyle(.secondary) }
+                // Completed checkmark
+                if isCompleted {
+                    VStack {
+                        HStack {
+                            Spacer()
+                            ZStack {
+                                Circle()
+                                    .fill(Color.white)
+                                    .frame(width: 22, height: 22)
+
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundStyle(.black)
+                            }
+                            .padding(10)
+                        }
+                        Spacer()
                     }
                 }
-                Spacer()
             }
-            .padding(8)
-            .background(Color.white.opacity(0.04))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(width: width, height: height)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .strokeBorder(Color.white.opacity(isHovered ? 0.5 : 0.12), lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.4), radius: isHovered ? 12 : 6, y: isHovered ? 6 : 3)
         }
         .buttonStyle(.plain)
+        .disabled(isDisabled)
+        .opacity(isDisabled ? 0.5 : 1.0)
+        .animation(.easeOut(duration: 0.2), value: isHovered)
         .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.2)) {
+            if !isDisabled {
                 isHovered = hovering
             }
         }
     }
+}
 
-    private var thumbnailHeight: CGFloat {
-        thumbnailWidth * (9.0 / 16.0)
+// MARK: - Vertical Episode Row (original list layout)
+
+private struct VerticalEpisodeRow: View {
+    let episode: DetailsViewModel.Episode
+    let episodeNumber: Int
+    let layout: DetailsLayoutMetrics
+    var isDisabled: Bool = false
+    let onPlay: () -> Void
+
+    @State private var isHovered = false
+
+    private var progressPct: Double {
+        Double(episode.progressPct ?? 0)
+    }
+
+    private var showProgress: Bool {
+        progressPct > 0 && progressPct < 85
+    }
+
+    private var isCompleted: Bool {
+        progressPct >= 85
+    }
+
+    var body: some View {
+        Button(action: onPlay) {
+            HStack(alignment: .top, spacing: 16) {
+                // Thumbnail
+                ZStack(alignment: .bottomLeading) {
+                    if let imgURL = episode.image {
+                        CachedAsyncImage(url: imgURL)
+                            .aspectRatio(16/9, contentMode: .fill)
+                            .frame(width: layout.episodeThumbnailWidth)
+                            .clipped()
+                    } else {
+                        Rectangle()
+                            .fill(Color(white: 0.15))
+                            .aspectRatio(16/9, contentMode: .fill)
+                            .frame(width: layout.episodeThumbnailWidth)
+                    }
+
+                    // Progress bar
+                    if showProgress {
+                        GeometryReader { geo in
+                            VStack {
+                                Spacer()
+                                ZStack(alignment: .leading) {
+                                    Rectangle()
+                                        .fill(Color.white.opacity(0.33))
+                                        .frame(height: 4)
+
+                                    Rectangle()
+                                        .fill(Color.white)
+                                        .frame(width: geo.size.width * CGFloat(min(100, max(0, progressPct))) / 100.0, height: 4)
+                                }
+                            }
+                        }
+                    }
+
+                    // Hover play overlay
+                    if isHovered {
+                        ZStack {
+                            Color.black.opacity(0.4)
+                            Image(systemName: "play.circle.fill")
+                                .font(.system(size: 36))
+                                .foregroundStyle(.white)
+                        }
+                    }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(Color.white.opacity(isHovered ? 0.4 : 0.12), lineWidth: 1)
+                )
+
+                // Info
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("\(episodeNumber). \(episode.title)")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .lineLimit(2)
+
+                        Spacer()
+
+                        if isCompleted {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 18))
+                                .foregroundStyle(.green)
+                        }
+                    }
+
+                    if let overview = episode.overview, !overview.isEmpty {
+                        Text(overview)
+                            .font(.system(size: 13))
+                            .foregroundStyle(.white.opacity(0.7))
+                            .lineLimit(3)
+                    }
+
+                    if let duration = episode.durationMin {
+                        Text("\(duration) min")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.white.opacity(0.5))
+                    }
+                }
+            }
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color.white.opacity(isHovered ? 0.06 : 0.03))
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(isDisabled)
+        .opacity(isDisabled ? 0.5 : 1.0)
+        .onHover { hovering in
+            if !isDisabled {
+                isHovered = hovering
+            }
+        }
     }
 }
 
-private struct ExtrasTabContent: View {
-    @ObservedObject var vm: DetailsViewModel
-    let layout: DetailsLayoutMetrics
+private struct HeroTrailerCard: View {
+    let trailer: Trailer
+    let width: CGFloat
+    var onPlay: (() -> Void)?
+
+    @State private var isHovered = false
+
+    private var height: CGFloat { width * 0.5625 }
 
     var body: some View {
-        if vm.extras.isEmpty {
-            Text("No extras available").foregroundStyle(.secondary)
-        } else {
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: layout.extraCardMinimum), spacing: 16)], spacing: 16) {
-                ForEach(vm.extras) { ex in
-                    VStack(alignment: .leading, spacing: 8) {
-                        if let u = ex.image {
-                            CachedAsyncImage(url: u)
-                                .aspectRatio(16/9, contentMode: .fill)
-                                .frame(maxWidth: .infinity)
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
-                                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.white.opacity(0.15), lineWidth: 1))
-                        }
-                        Text(ex.title).font(.headline)
-                        if let d = ex.durationMin { Text("\(d)m").foregroundStyle(.secondary) }
-                    }
-                    .padding(4)
+        Button(action: { onPlay?() }) {
+            ZStack(alignment: .bottomLeading) {
+                // Thumbnail
+                CachedAsyncImage(url: trailer.thumbnailURL)
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: width, height: height)
+                    .clipped()
+                    .background(Color.gray.opacity(0.2))
+
+                // Play overlay
+                ZStack {
+                    Color.black.opacity(isHovered ? 0.5 : 0.3)
+
+                    Image(systemName: "play.circle.fill")
+                        .font(.system(size: isHovered ? 48 : 42))
+                        .foregroundStyle(.white)
+                        .shadow(color: .black.opacity(0.5), radius: 8)
                 }
+
+                // Gradient for text
+                LinearGradient(
+                    colors: [.clear, .black.opacity(0.8)],
+                    startPoint: .center,
+                    endPoint: .bottom
+                )
+
+                // Info
+                VStack(alignment: .leading, spacing: 4) {
+                    Spacer()
+
+                    // Type badge
+                    Text(trailer.type.uppercased())
+                        .font(.system(size: 9, weight: .bold))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(trailerBadgeColor)
+                        .clipShape(RoundedRectangle(cornerRadius: 3))
+                        .foregroundStyle(.white)
+
+                    // Title
+                    Text(trailer.name)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                }
+                .padding(10)
             }
+            .frame(width: width, height: height)
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(Color.white.opacity(isHovered ? 0.5 : 0.1), lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.4), radius: isHovered ? 12 : 6)
+        }
+        .buttonStyle(.plain)
+        .animation(.easeOut(duration: 0.2), value: isHovered)
+        .onHover { hovering in
+            isHovered = hovering
+        }
+    }
+
+    private var trailerBadgeColor: Color {
+        switch trailer.type.lowercased() {
+        case "trailer": return Color.red.opacity(0.85)
+        case "teaser": return Color.orange.opacity(0.85)
+        case "featurette": return Color.purple.opacity(0.85)
+        case "clip": return Color.green.opacity(0.85)
+        default: return Color.gray.opacity(0.85)
         }
     }
 }
@@ -972,10 +1439,9 @@ private extension DetailsView {
         var t: [DetailsTab] = []
         // Show EPISODES tab for TV shows and seasons
         if vm.mediaKind == "tv" || vm.isSeason { t.append(DetailsTab(id: "EPISODES", label: "Episodes", count: nil)) }
-        // Hide SUGGESTED and EXTRAS tabs for season-only mode
+        // Hide SUGGESTED tab for season-only mode
         if !vm.isSeason {
             t.append(DetailsTab(id: "SUGGESTED", label: "Suggested", count: nil))
-            t.append(DetailsTab(id: "EXTRAS", label: "Extras", count: nil))
         }
         t.append(DetailsTab(id: "DETAILS", label: "Details", count: nil))
         return t
@@ -985,16 +1451,29 @@ private extension DetailsView {
 // MARK: - Badge helper
 
 private struct HeroMetaPill: View {
+    enum Style {
+        case `default`
+        case highlighted  // For HDR/DV - purple background
+        case source       // For Plex - subtle white
+        case warning      // For "No local source" - red background
+    }
+
     let text: String
+    var style: Style = .default
 
     private var palette: (background: Color, foreground: Color, border: Color?) {
-        switch text.lowercased() {
-        case "plex":
-            return (Color.white.opacity(0.18), Color.white, nil)
-        case "no local source":
+        switch style {
+        case .highlighted:
+            // Purple for HDR/DV badges
+            return (Color(red: 0.6, green: 0.35, blue: 0.71).opacity(0.85), Color.white, nil)
+        case .source:
+            // Subtle white for Plex source
+            return (Color.white.opacity(0.18), Color.white, Color.white.opacity(0.25))
+        case .warning:
+            // Red for no local source
             return (Color.red.opacity(0.7), Color.white, nil)
-        default:
-            return (Color.white.opacity(0.18), Color.white, Color.white.opacity(0.2))
+        case .default:
+            return (Color.white.opacity(0.12), Color.white, Color.white.opacity(0.2))
         }
     }
 
@@ -1046,9 +1525,6 @@ private struct RatingsStrip: View {
                         Text("\(critic)%")
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(scoreColor(critic))
-                        Text("Critics")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.7))
                     }
                 }
             }
@@ -1059,9 +1535,6 @@ private struct RatingsStrip: View {
                         Text("\(audience)%")
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(scoreColor(audience))
-                        Text("Audience")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.7))
                     }
                 }
             }
@@ -1109,64 +1582,10 @@ private struct RatingsPill<Content: View>: View {
 
 private struct IMDbMark: View {
     var body: some View {
-        Canvas { context, size in
-            // Scale to fit in 16pt height (4x ratio from 289.83)
-            let scale = 16.0 / 289.83
-
-            context.scaleBy(x: scale, y: scale)
-
-            // Background
-            var bgPath = Path()
-            bgPath.move(to: CGPoint(x: 575, y: 24.91))
-            bgPath.addCurve(to: CGPoint(x: 551.91, y: 0), control1: CGPoint(x: 573.44, y: 12.15), control2: CGPoint(x: 563.97, y: 1.98))
-            bgPath.addLine(to: CGPoint(x: 23.32, y: 0))
-            bgPath.addCurve(to: CGPoint(x: 0, y: 28.61), control1: CGPoint(x: 10.11, y: 2.17), control2: CGPoint(x: 0, y: 14.16))
-            bgPath.addLine(to: CGPoint(x: 0, y: 260.86))
-            bgPath.addCurve(to: CGPoint(x: 27.64, y: 289.83), control1: CGPoint(x: 0, y: 276.86), control2: CGPoint(x: 12.37, y: 289.83))
-            bgPath.addLine(to: CGPoint(x: 547.59, y: 289.83))
-            bgPath.addCurve(to: CGPoint(x: 575, y: 264.57), control1: CGPoint(x: 561.65, y: 289.83), control2: CGPoint(x: 573.26, y: 278.82))
-            bgPath.addLine(to: CGPoint(x: 575, y: 24.91))
-            bgPath.closeSubpath()
-            context.fill(bgPath, with: .color(Color(red: 0.965, green: 0.78, blue: 0.0)))
-
-            // I letter
-            var iPath = Path()
-            iPath.addRect(CGRect(x: 69.35, y: 58.24, width: 45.63, height: 175.65))
-            context.fill(iPath, with: .color(.black))
-
-            // M letter
-            var mPath = Path()
-            mPath.move(to: CGPoint(x: 201.2, y: 139.15))
-            mPath.addCurve(to: CGPoint(x: 194.67, y: 94.53), control1: CGPoint(x: 197.28, y: 112.38), control2: CGPoint(x: 195.1, y: 97.5))
-            mPath.addCurve(to: CGPoint(x: 189.2, y: 57.09), control1: CGPoint(x: 192.76, y: 80.2), control2: CGPoint(x: 190.94, y: 67.73))
-            mPath.addLine(to: CGPoint(x: 130.04, y: 57.09))
-            mPath.addLine(to: CGPoint(x: 130.04, y: 232.74))
-            mPath.addLine(to: CGPoint(x: 170.01, y: 232.74))
-            mPath.addLine(to: CGPoint(x: 170.15, y: 116.76))
-            mPath.addLine(to: CGPoint(x: 186.97, y: 232.74))
-            mPath.addLine(to: CGPoint(x: 215.44, y: 232.74))
-            mPath.addLine(to: CGPoint(x: 231.39, y: 114.18))
-            mPath.addLine(to: CGPoint(x: 231.54, y: 232.74))
-            mPath.addLine(to: CGPoint(x: 271.38, y: 232.74))
-            mPath.addLine(to: CGPoint(x: 271.38, y: 57.09))
-            mPath.addLine(to: CGPoint(x: 211.77, y: 57.09))
-            mPath.addLine(to: CGPoint(x: 201.2, y: 139.15))
-            mPath.closeSubpath()
-            context.fill(mPath, with: .color(.black))
-
-            // D letter (simplified)
-            var dPath = Path()
-            dPath.addRect(CGRect(x: 287.5, y: 57.09, width: 55.28, height: 175.65))
-            dPath.addEllipse(in: CGRect(x: 333.09, y: 87.13, width: 58.05, height: 115.3))
-            context.fill(dPath, with: .color(.black), style: FillStyle(eoFill: true))
-
-            // b letter (simplified)
-            var bPath = Path()
-            bPath.addRect(CGRect(x: 406.68, y: 55.56, width: 43.96, height: 175.65))
-            bPath.addEllipse(in: CGRect(x: 450.64, y: 125.63, width: 59.41, height: 82.47))
-            context.fill(bPath, with: .color(.black), style: FillStyle(eoFill: true))
-        }
-        .frame(width: 32, height: 16)
+        Image("imdb")
+            .resizable()
+            .aspectRatio(contentMode: .fit)
+            .frame(height: 16)
     }
 }
 
@@ -1174,103 +1593,10 @@ private struct TomatoIcon: View {
     let score: Int
 
     var body: some View {
-        if score >= 60 {
-            // Fresh tomato
-            Canvas { context, size in
-                let scale = 16.0 / 48.0
-                context.scaleBy(x: scale, y: scale)
-
-                // Tomato body
-                var tomatoPath = Path()
-                tomatoPath.move(to: CGPoint(x: 40.9963, y: 25.4551))
-                tomatoPath.addCurve(to: CGPoint(x: 33.6705, y: 13.5769), control1: CGPoint(x: 40.6543, y: 19.9723), control2: CGPoint(x: 37.866, y: 15.8702))
-                tomatoPath.addLine(to: CGPoint(x: 33.44, y: 13.8184))
-                tomatoPath.addCurve(to: CGPoint(x: 22.7873, y: 14.4685), control1: CGPoint(x: 30.6959, y: 12.6179), control2: CGPoint(x: 26.0405, y: 16.503))
-                tomatoPath.addCurve(to: CGPoint(x: 17.6518, y: 18.967), control1: CGPoint(x: 22.8118, y: 15.1986), control2: CGPoint(x: 22.6692, y: 18.7604))
-                tomatoPath.addLine(to: CGPoint(x: 17.5431, y: 18.7652))
-                tomatoPath.addCurve(to: CGPoint(x: 17.9174, y: 15.0293), control1: CGPoint(x: 18.2141, y: 17.9999), control2: CGPoint(x: 18.8916, y: 16.0623))
-                tomatoPath.addCurve(to: CGPoint(x: 10.6199, y: 16.6738), control1: CGPoint(x: 15.8313, y: 16.8986), control2: CGPoint(x: 14.6198, y: 17.6022))
-                tomatoPath.addCurve(to: CGPoint(x: 6.89259, y: 27.5823), control1: CGPoint(x: 8.0589, y: 19.3516), control2: CGPoint(x: 6.60771, y: 23.0167))
-                tomatoPath.addCurve(to: CGPoint(x: 24.9949, y: 41.6813), control1: CGPoint(x: 7.47383, y: 36.9024), control2: CGPoint(x: 16.2037, y: 42.2299))
-                tomatoPath.addCurve(to: CGPoint(x: 40.9963, y: 25.4551), control1: CGPoint(x: 33.7854, y: 41.1332), control2: CGPoint(x: 41.5777, y: 34.7752))
-                tomatoPath.closeSubpath()
-                context.fill(tomatoPath, with: .color(Color(red: 0.98, green: 0.196, blue: 0.039)))
-
-                // Stem/leaf
-                var stemPath = Path()
-                stemPath.move(to: CGPoint(x: 24.975, y: 11.3394))
-                stemPath.addCurve(to: CGPoint(x: 33.6419, y: 13.5058), control1: CGPoint(x: 26.7814, y: 10.9089), control2: CGPoint(x: 31.9772, y: 11.2975))
-                stemPath.addLine(to: CGPoint(x: 33.44, y: 13.8185))
-                stemPath.addCurve(to: CGPoint(x: 22.7873, y: 14.4686), control1: CGPoint(x: 30.6958, y: 12.618), control2: CGPoint(x: 26.0405, y: 16.503))
-                stemPath.addCurve(to: CGPoint(x: 17.6518, y: 18.9671), control1: CGPoint(x: 22.8117, y: 15.1987), control2: CGPoint(x: 22.6691, y: 18.7605))
-                stemPath.addLine(to: CGPoint(x: 17.5431, y: 18.7653))
-                stemPath.addCurve(to: CGPoint(x: 17.9174, y: 15.0294), control1: CGPoint(x: 18.2141, y: 18), control2: CGPoint(x: 18.8914, y: 16.0623))
-                stemPath.addCurve(to: CGPoint(x: 9.48091, y: 16.3869), control1: CGPoint(x: 15.645, y: 17.0657), control2: CGPoint(x: 14.4131, y: 17.7201))
-                stemPath.addLine(to: CGPoint(x: 9.54625, y: 16.0185))
-                stemPath.addCurve(to: CGPoint(x: 14.5883, y: 13.4141), control1: CGPoint(x: 10.4784, y: 15.6622), control2: CGPoint(x: 12.5903, y: 14.1019))
-                stemPath.addCurve(to: CGPoint(x: 15.718, y: 13.1227), control1: CGPoint(x: 14.9687, y: 13.2833), control2: CGPoint(x: 15.3479, y: 13.1817))
-                stemPath.addCurve(to: CGPoint(x: 11.1272, y: 12.8312), control1: CGPoint(x: 13.5181, y: 12.9261), control2: CGPoint(x: 12.5265, y: 12.6202))
-                stemPath.addLine(to: CGPoint(x: 10.9648, y: 12.5534))
-                stemPath.addCurve(to: CGPoint(x: 18.4658, y: 10.6817), control1: CGPoint(x: 12.85, y: 10.125), control2: CGPoint(x: 16.323, y: 9.39163))
-                stemPath.addCurve(to: CGPoint(x: 16.1104, y: 7.73988), control1: CGPoint(x: 17.145, y: 9.04509), control2: CGPoint(x: 16.1104, y: 7.73988))
-                stemPath.addLine(to: CGPoint(x: 18.5619, y: 6.34741))
-                stemPath.addCurve(to: CGPoint(x: 20.3117, y: 10.2572), control1: CGPoint(x: 19.5747, y: 8.61027), control2: CGPoint(x: 18.5619, y: 6.34741))
-                stemPath.addCurve(to: CGPoint(x: 26.9618, y: 9.22579), control1: CGPoint(x: 22.1353, y: 7.56272), control2: CGPoint(x: 25.5282, y: 7.31403))
-                stemPath.addLine(to: CGPoint(x: 26.8159, y: 9.49758))
-                stemPath.addCurve(to: CGPoint(x: 24.958, y: 11.3375), control1: CGPoint(x: 25.6492, y: 9.46918), control2: CGPoint(x: 25.0067, y: 10.5304))
-                stemPath.addLine(to: CGPoint(x: 24.975, y: 11.3394))
-                stemPath.closeSubpath()
-                context.fill(stemPath, with: .color(Color(red: 0, green: 0.569, blue: 0.176)))
-            }
-            .frame(width: 16, height: 16)
-        } else {
-            // Rotten tomato
-            Canvas { context, size in
-                let scale = 16.0 / 48.0
-                context.scaleBy(x: scale, y: scale)
-
-                var rottenPath = Path()
-                rottenPath.move(to: CGPoint(x: 38.1588, y: 38.1158))
-                rottenPath.addCurve(to: CGPoint(x: 27.2966, y: 30.7439), control1: CGPoint(x: 31.3557, y: 38.473), control2: CGPoint(x: 29.9656, y: 30.6884))
-                rottenPath.addCurve(to: CGPoint(x: 25.6565, y: 33.3426), control1: CGPoint(x: 26.1592, y: 30.7677), control2: CGPoint(x: 25.2629, y: 31.9568))
-                rottenPath.addCurve(to: CGPoint(x: 26.8518, y: 35.9151), control1: CGPoint(x: 25.873, y: 34.1045), control2: CGPoint(x: 26.4735, y: 35.2218))
-                rottenPath.addCurve(to: CGPoint(x: 23.9047, y: 41.3645), control1: CGPoint(x: 28.1863, y: 38.3616), control2: CGPoint(x: 26.2134, y: 41.1303))
-                rottenPath.addCurve(to: CGPoint(x: 18.5666, y: 37.2496), control1: CGPoint(x: 20.068, y: 41.7537), control2: CGPoint(x: 18.4676, y: 39.528))
-                rottenPath.addCurve(to: CGPoint(x: 18.6223, y: 30.9663), control1: CGPoint(x: 18.6779, y: 34.6919), control2: CGPoint(x: 20.8466, y: 32.0784))
-                rottenPath.addCurve(to: CGPoint(x: 12.1658, y: 35.3754), control1: CGPoint(x: 16.2913, y: 29.8009), control2: CGPoint(x: 14.3964, y: 34.3582))
-                rottenPath.addCurve(to: CGPoint(x: 6.34819, y: 33.3404), control1: CGPoint(x: 10.147, y: 36.2961), control2: CGPoint(x: 7.34451, y: 35.5822))
-                rottenPath.addCurve(to: CGPoint(x: 8.8914, y: 27.5744), control1: CGPoint(x: 5.6484, y: 31.7651), control2: CGPoint(x: 5.77566, y: 28.7318))
-                rottenPath.addCurve(to: CGPoint(x: 15.3971, y: 26.4068), control1: CGPoint(x: 10.8376, y: 26.8516), control2: CGPoint(x: 15.1747, y: 28.5198))
-                rottenPath.addCurve(to: CGPoint(x: 9.39193, y: 23.1816), control1: CGPoint(x: 15.6536, y: 23.9711), control2: CGPoint(x: 10.8409, y: 23.7657))
-                rottenPath.addCurve(to: CGPoint(x: 6.5004, y: 17.5655), control1: CGPoint(x: 6.82803, y: 22.1484), control2: CGPoint(x: 5.31477, y: 19.9374))
-                rottenPath.addCurve(to: CGPoint(x: 12.0052, y: 15.8418), control1: CGPoint(x: 7.38998, y: 15.7863), control2: CGPoint(x: 10.0074, y: 15.0624))
-                rottenPath.addCurve(to: CGPoint(x: 16.009, y: 20.2901), control1: CGPoint(x: 14.3986, y: 16.7754), control2: CGPoint(x: 14.7828, y: 19.2578))
-                rottenPath.addCurve(to: CGPoint(x: 19.4565, y: 20.6795), control1: CGPoint(x: 17.0653, y: 21.1799), control2: CGPoint(x: 18.511, y: 21.2912))
-                rottenPath.addCurve(to: CGPoint(x: 20.1228, y: 18.3318), control1: CGPoint(x: 20.1537, y: 20.2282), control2: CGPoint(x: 20.3858, y: 19.2371))
-                rottenPath.addCurve(to: CGPoint(x: 17.9443, y: 15.645), control1: CGPoint(x: 19.7738, y: 17.1299), control2: CGPoint(x: 18.8478, y: 16.3799))
-                rottenPath.addCurve(to: CGPoint(x: 15.4396, y: 9.64644), control1: CGPoint(x: 16.3365, y: 14.338), control2: CGPoint(x: 14.0666, y: 13.2141))
-                rottenPath.addCurve(to: CGPoint(x: 19.866, y: 6.61739), control1: CGPoint(x: 16.5651, y: 6.7227), control2: CGPoint(x: 19.866, y: 6.61739))
-                rottenPath.addCurve(to: CGPoint(x: 23.3089, y: 7.72091), control1: CGPoint(x: 21.1775, y: 6.46991), control2: CGPoint(x: 22.3519, y: 6.86591))
-                rottenPath.addCurve(to: CGPoint(x: 24.6234, y: 12.0216), control1: CGPoint(x: 24.5883, y: 8.86391), control2: CGPoint(x: 24.8375, y: 10.3917))
-                rottenPath.addCurve(to: CGPoint(x: 23.6266, y: 16.2867), control1: CGPoint(x: 24.4278, y: 13.5095), control2: CGPoint(x: 23.9012, y: 14.8126))
-                rottenPath.addCurve(to: CGPoint(x: 25.9622, y: 19.7898), control1: CGPoint(x: 23.308, y: 17.9981), control2: CGPoint(x: 24.2227, y: 19.7226))
-                rottenPath.addCurve(to: CGPoint(x: 29.2162, y: 17.0048), control1: CGPoint(x: 28.2502, y: 19.8782), control2: CGPoint(x: 28.9363, y: 18.1195))
-                rottenPath.addCurve(to: CGPoint(x: 31.6778, y: 12.9059), control1: CGPoint(x: 29.6261, y: 15.3738), control2: CGPoint(x: 30.1641, y: 13.8595))
-                rottenPath.addCurve(to: CGPoint(x: 38.268, y: 14.4678), control1: CGPoint(x: 33.8503, y: 11.5371), control2: CGPoint(x: 36.868, y: 11.8371))
-                rottenPath.addCurve(to: CGPoint(x: 37.3211, y: 20.9795), control1: CGPoint(x: 39.3755, y: 16.5493), control2: CGPoint(x: 39.0199, y: 19.4148))
-                rottenPath.addCurve(to: CGPoint(x: 34.6513, y: 21.9357), control1: CGPoint(x: 36.559, y: 21.6813), control2: CGPoint(x: 35.6426, y: 21.9288))
-                rottenPath.addCurve(to: CGPoint(x: 30.4893, y: 22.5761), control1: CGPoint(x: 33.2298, y: 21.9458), control2: CGPoint(x: 31.8089, y: 21.9109))
-                rottenPath.addCurve(to: CGPoint(x: 29.1998, y: 24.7552), control1: CGPoint(x: 29.5911, y: 23.0288), control2: CGPoint(x: 29.1997, y: 23.7665))
-                rottenPath.addCurve(to: CGPoint(x: 30.5143, y: 26.7578), control1: CGPoint(x: 29.1998, y: 25.7189), control2: CGPoint(x: 29.7015, y: 26.3482))
-                rottenPath.addCurve(to: CGPoint(x: 35.389, y: 27.9768), control1: CGPoint(x: 32.0452, y: 27.5294), control2: CGPoint(x: 33.7352, y: 27.6872))
-                rottenPath.addCurve(to: CGPoint(x: 41.2497, y: 31.467), control1: CGPoint(x: 37.7872, y: 28.3968), control2: CGPoint(x: 39.8959, y: 29.2415))
-                rottenPath.addLine(to: CGPoint(x: 41.2852, y: 31.5262))
-                rottenPath.addCurve(to: CGPoint(x: 38.1588, y: 38.1158), control1: CGPoint(x: 42.84, y: 34.1612), control2: CGPoint(x: 41.214, y: 37.9552))
-                rottenPath.closeSubpath()
-                context.fill(rottenPath, with: .color(Color(red: 0.039, green: 0.784, blue: 0.333)))
-            }
-            .frame(width: 16, height: 16)
-        }
+        Image(score >= 60 ? "tomato-fresh" : "tomato-rotten")
+            .resizable()
+            .aspectRatio(contentMode: .fit)
+            .frame(width: 18, height: 18)
     }
 }
 
@@ -1278,10 +1604,10 @@ private struct PopcornIcon: View {
     let score: Int
 
     var body: some View {
-        Image(systemName: score >= 60 ? "popcorn.fill" : "popcorn")
-            .foregroundStyle(score >= 60 ? Color(red: 0.98, green: 0.196, blue: 0.039) : Color(red: 0.039, green: 0.784, blue: 0.333))
-            .font(.system(size: 14))
-            .frame(width: 16, height: 16)
+        Image(score >= 60 ? "popcorn-full" : "popcorn-fallen")
+            .resizable()
+            .aspectRatio(contentMode: .fit)
+            .frame(width: 18, height: 18)
     }
 }
 

@@ -241,12 +241,13 @@ class HomeViewModel: ObservableObject {
                 grandparentTitle: m.grandparentTitle,
                 grandparentThumb: m.grandparentThumb,
                 grandparentArt: m.grandparentArt,
+                grandparentRatingKey: m.grandparentRatingKey,
                 parentIndex: m.parentIndex,
                 index: m.index,
-                parentRatingKey: nil,
-                parentTitle: nil,
-                leafCount: nil,
-                viewedLeafCount: nil
+                parentRatingKey: m.parentRatingKey,
+                parentTitle: m.parentTitle,
+                leafCount: m.leafCount,
+                viewedLeafCount: m.viewedLeafCount
             )
         }
     }
@@ -268,6 +269,7 @@ class HomeViewModel: ObservableObject {
             grandparentTitle: plex.grandparentTitle,
             grandparentThumb: plex.grandparentThumb,
             grandparentArt: plex.grandparentArt,
+            grandparentRatingKey: plex.grandparentRatingKey,
             parentIndex: plex.parentIndex,
             index: plex.index,
             parentRatingKey: plex.parentRatingKey,
@@ -303,6 +305,7 @@ class HomeViewModel: ObservableObject {
                 grandparentTitle: nil,
                 grandparentThumb: nil,
                 grandparentArt: nil,
+                grandparentRatingKey: nil,
                 parentIndex: nil,
                 index: nil,
                 parentRatingKey: nil,
@@ -358,6 +361,7 @@ class HomeViewModel: ObservableObject {
                     grandparentTitle: m.grandparentTitle,
                     grandparentThumb: m.grandparentThumb,
                     grandparentArt: m.grandparentArt,
+                    grandparentRatingKey: m.grandparentRatingKey,
                     parentIndex: m.parentIndex,
                     index: m.index,
                     parentRatingKey: m.parentRatingKey,
@@ -604,6 +608,7 @@ class HomeViewModel: ObservableObject {
             grandparentTitle: nil,
             grandparentThumb: nil,
             grandparentArt: nil,
+            grandparentRatingKey: nil,
             parentIndex: nil,
             index: nil,
             parentRatingKey: nil,
@@ -645,6 +650,7 @@ class HomeViewModel: ObservableObject {
             grandparentTitle: nil,
             grandparentThumb: nil,
             grandparentArt: nil,
+            grandparentRatingKey: nil,
             parentIndex: nil,
             index: nil,
             parentRatingKey: nil,
@@ -712,12 +718,13 @@ class HomeViewModel: ObservableObject {
                             grandparentTitle: item.grandparentTitle,
                             grandparentThumb: item.grandparentThumb,
                             grandparentArt: item.grandparentArt,
+                            grandparentRatingKey: item.grandparentRatingKey,
                             parentIndex: item.parentIndex,
                             index: item.index,
-                            parentRatingKey: nil,
-                            parentTitle: nil,
-                            leafCount: nil,
-                            viewedLeafCount: nil
+                            parentRatingKey: item.parentRatingKey,
+                            parentTitle: item.parentTitle,
+                            leafCount: item.leafCount,
+                            viewedLeafCount: item.viewedLeafCount
                         )
                         return (index, enriched)
                     }

@@ -35,9 +35,66 @@ struct BillboardView: View {
     @State private var isHovered = false
     @State private var altURL: URL? = nil
     @State private var logoURL: URL? = nil
+    @State private var seriesData: SeriesMetadata?
+
+    // Data structure for fetched series metadata
+    private struct SeriesMetadata {
+        let title: String
+        let summary: String?
+        let year: Int?
+    }
 
     // Fixed height to prevent overflow
     private let billboardHeight: CGFloat = 1000
+
+    // Check if this is an episode or season that should show series data
+    private var isEpisode: Bool { item.type == "episode" }
+    private var isSeason: Bool { item.type == "season" }
+    private var isEpisodeOrSeason: Bool { isEpisode || isSeason }
+
+    // Get the series rating key - different for episodes vs seasons
+    private var seriesRatingKey: String? {
+        if isEpisode {
+            return item.grandparentRatingKey
+        } else if isSeason {
+            return item.parentRatingKey
+        }
+        return nil
+    }
+
+    // Get fallback series title - different for episodes vs seasons
+    private var fallbackSeriesTitle: String? {
+        if isEpisode {
+            return item.grandparentTitle
+        } else if isSeason {
+            return item.parentTitle ?? item.grandparentTitle
+        }
+        return nil
+    }
+
+    // Display title - use series title for episodes/seasons
+    private var displayTitle: String {
+        if isEpisodeOrSeason {
+            return seriesData?.title ?? fallbackSeriesTitle ?? item.title
+        }
+        return item.title
+    }
+
+    // Display summary - use series summary for episodes/seasons
+    private var displaySummary: String? {
+        if isEpisodeOrSeason {
+            return seriesData?.summary ?? item.summary
+        }
+        return item.summary
+    }
+
+    // Display year - use series year for episodes/seasons
+    private var displayYear: Int? {
+        if isEpisodeOrSeason {
+            return seriesData?.year ?? item.year
+        }
+        return item.year
+    }
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
@@ -89,7 +146,7 @@ struct BillboardView: View {
                             .frame(maxWidth: 520)
                             .shadow(color: .black.opacity(0.6), radius: 12)
                     } else {
-                        Text(item.title)
+                        Text(displayTitle)
                             .font(.system(size: 48, weight: .bold))
                             .foregroundStyle(.white)
                             .shadow(color: .black.opacity(0.6), radius: 12)
@@ -107,7 +164,7 @@ struct BillboardView: View {
                         }
                     }
 
-                    if let year = item.year {
+                    if let year = displayYear {
                         Text(String(year))
                     }
 
@@ -115,14 +172,15 @@ struct BillboardView: View {
                         Text(formatDuration(duration))
                     }
 
-                    Text(item.type.capitalized)
+                    // Type badge - always show "Series" for episodes/seasons
+                    Text(item.type == "movie" ? "Movie" : "Series")
                 }
                 .font(.headline)
                 .foregroundStyle(.white.opacity(0.95))
                 .shadow(color: .black.opacity(0.6), radius: 6)
 
                 // Summary (truncated)
-                if let summary = item.summary {
+                if let summary = displaySummary {
                     Text(summary)
                         .font(.body)
                         .foregroundStyle(.white.opacity(0.92))
@@ -205,12 +263,22 @@ struct BillboardView: View {
             isHovered = hovering
         }
         .task(id: item.id) {
+            // For episodes/seasons, fetch series data first
+            if isEpisodeOrSeason {
+                await loadSeriesData()
+            }
+
+            // Use series rating key for cache if available
+            let cacheKey = isEpisodeOrSeason && seriesRatingKey != nil
+                ? "series:\(seriesRatingKey!)"
+                : item.id
+
             // Check cache first
-            if let cached = BillboardImageCache.shared.get(itemId: item.id) {
+            if let cached = BillboardImageCache.shared.get(itemId: cacheKey) {
                 self.altURL = cached.0
                 self.logoURL = cached.1
             } else {
-                await loadTMDBHeroImages()
+                await loadTMDBHeroImages(cacheKey: cacheKey)
             }
         }
     }
@@ -228,26 +296,71 @@ struct BillboardView: View {
     }
 }
 
+// MARK: - Series Data Loading
+
+extension BillboardView {
+    private func loadSeriesData() async {
+        guard let seriesKey = seriesRatingKey else { return }
+
+        do {
+            struct PlexMeta: Codable {
+                let title: String?
+                let summary: String?
+                let year: Int?
+            }
+            let meta: PlexMeta = try await APIClient.shared.get("/api/plex/metadata/\(seriesKey)")
+            await MainActor.run {
+                self.seriesData = SeriesMetadata(
+                    title: meta.title ?? fallbackSeriesTitle ?? item.title,
+                    summary: meta.summary,
+                    year: meta.year
+                )
+            }
+        } catch {
+            // Silent fallback - use fallback title
+            await MainActor.run {
+                self.seriesData = SeriesMetadata(
+                    title: fallbackSeriesTitle ?? item.title,
+                    summary: nil,
+                    year: nil
+                )
+            }
+        }
+    }
+}
+
 // MARK: - TMDB Title Backdrop Resolution
 
 extension BillboardView {
-    private func loadTMDBHeroImages() async {
+    private func loadTMDBHeroImages(cacheKey: String) async {
         do {
             if let (backdrop, logo) = try await resolveTMDBSelectedImages(for: item) {
                 await MainActor.run {
                     self.altURL = backdrop
                     self.logoURL = logo
                     // Cache the result
-                    BillboardImageCache.shared.set(itemId: item.id, backdrop: backdrop, logo: logo)
+                    BillboardImageCache.shared.set(itemId: cacheKey, backdrop: backdrop, logo: logo)
                 }
             }
         } catch {
             // Silent fallback to Plex art - cache empty result to avoid retrying
-            BillboardImageCache.shared.set(itemId: item.id, backdrop: nil, logo: nil)
+            BillboardImageCache.shared.set(itemId: cacheKey, backdrop: nil, logo: nil)
         }
     }
 
     private func resolveTMDBSelectedImages(for item: MediaItem) async throws -> (URL?, URL?)? {
+        // For episodes/seasons, use seriesRatingKey to get series images
+        if isEpisodeOrSeason, let seriesKey = seriesRatingKey {
+            struct PlexMeta: Codable { let type: String?; let Guid: [PlexGuid]? }
+            struct PlexGuid: Codable { let id: String? }
+            let meta: PlexMeta = try await APIClient.shared.get("/api/plex/metadata/\(seriesKey)")
+            if let guid = meta.Guid?.compactMap({ $0.id }).first(where: { $0.contains("tmdb://") || $0.contains("themoviedb://") }),
+               let tid = guid.components(separatedBy: "://").last {
+                return try await fetchTMDBBackdropAndLogo(mediaType: "tv", id: tid)
+            }
+            return nil
+        }
+
         if item.id.hasPrefix("tmdb:") {
             let parts = item.id.split(separator: ":")
             if parts.count == 3 {

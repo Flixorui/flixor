@@ -52,9 +52,7 @@ struct PosterCard: View {
                             .stroke(Color.white.opacity(isSelected ? 1.0 : (isHovered ? 0.9 : 0.15)),
                                    lineWidth: isSelected ? 2 : (isHovered ? 2 : 1))
                     )
-                    .shadow(color: .black.opacity(isSelected ? 0.6 : (isHovered ? 0.5 : 0.2)),
-                           radius: isSelected ? 10 : (isHovered ? 12 : 6),
-                           y: isSelected ? 6 : (isHovered ? 6 : 3))
+                    .shadow(color: .black.opacity(0.3), radius: 6, y: 3)
                     .overlay(alignment: .topLeading) {
                         // Badge overlay (e.g., source badges)
                         if let badge = badge {
@@ -89,10 +87,10 @@ struct PosterCard: View {
                 }
             }
             .buttonStyle(.plain)
-            .scaleEffect(isHovered ? 1.05 : 1.0)
-            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isHovered)
             .onHover { hovering in
-                isHovered = hovering
+                withAnimation(.easeOut(duration: 0.15)) {
+                    isHovered = hovering
+                }
             }
 
             // Title

@@ -207,6 +207,7 @@ class BrowseModalViewModel: ObservableObject {
                 grandparentTitle: m.grandparentTitle,
                 grandparentThumb: m.grandparentThumb,
                 grandparentArt: m.grandparentArt,
+                grandparentRatingKey: m.grandparentRatingKey,
                 parentIndex: m.parentIndex,
                 index: m.index,
                 parentRatingKey: m.parentRatingKey,
@@ -284,12 +285,13 @@ class BrowseModalViewModel: ObservableObject {
             grandparentTitle: nil,
             grandparentThumb: nil,
             grandparentArt: nil,
+            grandparentRatingKey: nil,
             parentIndex: nil,
             index: nil,
-                parentRatingKey: nil,
-                parentTitle: nil,
-                leafCount: nil,
-                viewedLeafCount: nil
+            parentRatingKey: nil,
+            parentTitle: nil,
+            leafCount: nil,
+            viewedLeafCount: nil
         )
     }
 
@@ -370,12 +372,13 @@ class BrowseModalViewModel: ObservableObject {
                             grandparentTitle: nil,
                             grandparentThumb: nil,
                             grandparentArt: nil,
+                            grandparentRatingKey: nil,
                             parentIndex: nil,
                             index: nil,
-                parentRatingKey: nil,
-                parentTitle: nil,
-                leafCount: nil,
-                viewedLeafCount: nil
+                            parentRatingKey: nil,
+                            parentTitle: nil,
+                            leafCount: nil,
+                            viewedLeafCount: nil
                         )
                     } catch {
                         return nil

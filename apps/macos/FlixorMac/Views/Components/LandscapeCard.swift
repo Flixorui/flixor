@@ -100,13 +100,13 @@ struct LandscapeCard: View {
                 RoundedRectangle(cornerRadius: 14)
                     .stroke(Color.white.opacity(isHovered ? 0.9 : 0.15), lineWidth: isHovered ? 2 : 1)
             )
-            .shadow(color: .black.opacity(isHovered ? 0.5 : 0.3), radius: isHovered ? 15 : 8, y: isHovered ? 8 : 4)
+            .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
         }
         .buttonStyle(.plain)
-        .scaleEffect(isHovered ? 1.03 : 1.0)
-        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isHovered)
         .onHover { hovering in
-            isHovered = hovering
+            withAnimation(.easeOut(duration: 0.15)) {
+                isHovered = hovering
+            }
         }
         .task(id: item.id) {
             await fetchTMDBBackdrop()

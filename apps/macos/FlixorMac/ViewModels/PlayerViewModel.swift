@@ -1533,6 +1533,7 @@ class PlayerViewModel: ObservableObject {
             grandparentTitle: item.grandparentTitle,
             grandparentThumb: item.grandparentThumb,
             grandparentArt: item.grandparentArt,
+            grandparentRatingKey: item.grandparentRatingKey,
             parentIndex: next.parentIndex,
             index: next.index,
             parentRatingKey: nil,

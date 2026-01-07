@@ -136,11 +136,12 @@ struct MediaItem: Identifiable, Codable {
     let grandparentTitle: String?
     let grandparentThumb: String?
     let grandparentArt: String?
+    let grandparentRatingKey: String? // Parent show ID (for episodes)
     let parentIndex: Int?
     let index: Int?
 
     // Season specific fields
-    let parentRatingKey: String?     // Parent show ID
+    let parentRatingKey: String?     // Parent show/season ID
     let parentTitle: String?          // Parent show name
     let leafCount: Int?               // Episode count
     let viewedLeafCount: Int?         // Watched episode count
@@ -159,6 +160,7 @@ struct MediaItem: Identifiable, Codable {
         case grandparentTitle
         case grandparentThumb
         case grandparentArt
+        case grandparentRatingKey
         case parentIndex
         case index
         case parentRatingKey

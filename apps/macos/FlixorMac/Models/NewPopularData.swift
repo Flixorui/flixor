@@ -175,6 +175,7 @@ struct DisplayMediaItem: Identifiable {
             grandparentTitle: nil,
             grandparentThumb: nil,
             grandparentArt: nil,
+            grandparentRatingKey: nil,
             parentIndex: nil,
             index: nil,
             parentRatingKey: nil,

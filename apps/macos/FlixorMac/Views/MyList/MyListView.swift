@@ -285,11 +285,7 @@ private struct WatchlistCard: View {
                                         lineWidth: isSelected ? 2 : (isHovered ? 2 : 1)
                                     )
                             )
-                            .shadow(
-                                color: .black.opacity(isSelected ? 0.6 : (isHovered ? 0.5 : 0.2)),
-                                radius: isSelected ? 10 : (isHovered ? 12 : 6),
-                                y: isSelected ? 6 : (isHovered ? 6 : 3)
-                            )
+                            .shadow(color: .black.opacity(0.3), radius: 6, y: 3)
                             .overlay(alignment: .topLeading) {
                                 // Source badge overlay
                                 SourceBadge(source: item.source)
@@ -309,8 +305,6 @@ private struct WatchlistCard: View {
                         )
                         .padding(10)
                     }
-                    .scaleEffect(isHovered ? 1.05 : 1.0)
-                    .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isHovered)
 
                     VStack(alignment: .leading, spacing: 4) {
                         Text(item.title)
@@ -353,7 +347,9 @@ private struct WatchlistCard: View {
         }
         .buttonStyle(.plain)
         .onHover { hovering in
-            isHovered = hovering
+            withAnimation(.easeOut(duration: 0.15)) {
+                isHovered = hovering
+            }
         }
         .contextMenu {
             Button("View Details") {

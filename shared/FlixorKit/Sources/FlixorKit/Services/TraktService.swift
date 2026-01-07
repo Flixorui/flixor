@@ -170,6 +170,58 @@ public struct TraktTrendingShow: Codable {
     public let show: TraktShow
 }
 
+// MARK: - Most Watched Models
+
+public struct TraktMostWatchedMovie: Codable {
+    public let watcherCount: Int
+    public let playCount: Int
+    public let collectedCount: Int
+    public let movie: TraktMovie
+
+    enum CodingKeys: String, CodingKey {
+        case watcherCount = "watcher_count"
+        case playCount = "play_count"
+        case collectedCount = "collected_count"
+        case movie
+    }
+}
+
+public struct TraktMostWatchedShow: Codable {
+    public let watcherCount: Int
+    public let playCount: Int
+    public let collectedCount: Int
+    public let show: TraktShow
+
+    enum CodingKeys: String, CodingKey {
+        case watcherCount = "watcher_count"
+        case playCount = "play_count"
+        case collectedCount = "collected_count"
+        case show
+    }
+}
+
+// MARK: - Anticipated Models
+
+public struct TraktAnticipatedMovie: Codable {
+    public let listCount: Int
+    public let movie: TraktMovie
+
+    enum CodingKeys: String, CodingKey {
+        case listCount = "list_count"
+        case movie
+    }
+}
+
+public struct TraktAnticipatedShow: Codable {
+    public let listCount: Int
+    public let show: TraktShow
+
+    enum CodingKeys: String, CodingKey {
+        case listCount = "list_count"
+        case show
+    }
+}
+
 public struct TraktWatchlistItem: Codable {
     public let rank: Int?
     public let listedAt: String
@@ -788,6 +840,44 @@ public class TraktService {
             path: "/recommendations/shows",
             params: ["page": String(page), "limit": String(limit), "extended": "full"],
             auth: true
+        )
+    }
+
+    // MARK: - Most Watched
+
+    /// Get most watched movies for a period
+    /// Period: "weekly", "monthly", "yearly", "all"
+    public func getMostWatchedMovies(period: String = "weekly", page: Int = 1, limit: Int = 10) async throws -> [TraktMostWatchedMovie] {
+        return try await get(
+            path: "/movies/watched/\(period)",
+            params: ["page": String(page), "limit": String(limit), "extended": "full"]
+        )
+    }
+
+    /// Get most watched shows for a period
+    /// Period: "weekly", "monthly", "yearly", "all"
+    public func getMostWatchedShows(period: String = "weekly", page: Int = 1, limit: Int = 10) async throws -> [TraktMostWatchedShow] {
+        return try await get(
+            path: "/shows/watched/\(period)",
+            params: ["page": String(page), "limit": String(limit), "extended": "full"]
+        )
+    }
+
+    // MARK: - Anticipated
+
+    /// Get most anticipated movies
+    public func getAnticipatedMovies(page: Int = 1, limit: Int = 20) async throws -> [TraktAnticipatedMovie] {
+        return try await get(
+            path: "/movies/anticipated",
+            params: ["page": String(page), "limit": String(limit), "extended": "full"]
+        )
+    }
+
+    /// Get most anticipated shows
+    public func getAnticipatedShows(page: Int = 1, limit: Int = 20) async throws -> [TraktAnticipatedShow] {
+        return try await get(
+            path: "/shows/anticipated",
+            params: ["page": String(page), "limit": String(limit), "extended": "full"]
         )
     }
 

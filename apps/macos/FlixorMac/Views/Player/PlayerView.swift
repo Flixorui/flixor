@@ -1123,6 +1123,7 @@ struct PlayerControlsView: View {
                             grandparentTitle: viewModel.item.grandparentTitle,
                             grandparentThumb: viewModel.item.grandparentThumb,
                             grandparentArt: viewModel.item.grandparentArt,
+                            grandparentRatingKey: viewModel.item.grandparentRatingKey,
                             parentIndex: episode.parentIndex,
                             index: episode.index,
                             parentRatingKey: nil,

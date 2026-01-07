@@ -149,6 +149,11 @@ public class TMDBService {
         )
     }
 
+    /// Get movie videos (trailers, teasers, etc.)
+    public func getMovieVideos(id: Int) async throws -> TMDBVideosResponse {
+        return try await get(path: "/movie/\(id)/videos", ttl: CacheTTL.trending)
+    }
+
     // MARK: - TV Shows
 
     /// Get TV show details
@@ -195,6 +200,11 @@ public class TMDBService {
             params: ["page": String(page)],
             ttl: CacheTTL.trending
         )
+    }
+
+    /// Get TV videos (trailers, teasers, etc.)
+    public func getTVVideos(id: Int) async throws -> TMDBVideosResponse {
+        return try await get(path: "/tv/\(id)/videos", ttl: CacheTTL.trending)
     }
 
     /// Get season details
@@ -265,6 +275,15 @@ public class TMDBService {
     /// Get top rated TV shows
     public func getTopRatedTV(page: Int = 1) async throws -> TMDBResultsResponse {
         return try await get(path: "/tv/top_rated", params: ["page": String(page)], ttl: CacheTTL.trending)
+    }
+
+    /// Get upcoming movies
+    public func getUpcomingMovies(region: String? = nil, page: Int = 1) async throws -> TMDBResultsResponse {
+        var params: [String: String] = ["page": String(page)]
+        if let region = region {
+            params["region"] = region
+        }
+        return try await get(path: "/movie/upcoming", params: params, ttl: CacheTTL.trending)
     }
 
     // MARK: - Discover
@@ -590,6 +609,28 @@ public struct TMDBPersonCredits: Codable {
     public let id: Int
     public let cast: [TMDBMedia]
     public let crew: [TMDBMedia]
+}
+
+// MARK: - Videos
+
+public struct TMDBVideosResponse: Codable {
+    public let id: Int?
+    public let results: [TMDBVideo]
+}
+
+public struct TMDBVideo: Codable, Identifiable {
+    public let id: String
+    public let key: String?
+    public let name: String?
+    public let site: String?
+    public let type: String?
+    public let official: Bool?
+    public let publishedAt: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case id, key, name, site, type, official
+        case publishedAt = "published_at"
+    }
 }
 
 // MARK: - Errors

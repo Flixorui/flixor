@@ -585,6 +585,11 @@ public struct PlexMediaItem: Codable, Identifiable {
     public let contentRating: String?
     public let originallyAvailableAt: String?
 
+    // Ratings from Plex (IMDb, Rotten Tomatoes)
+    public let Rating: [PlexRatingEntry]?
+    public let rating: Double?           // IMDb rating (fallback)
+    public let audienceRating: Double?   // RT Audience rating (fallback)
+
     // TV specific
     public let grandparentTitle: String?
     public let grandparentThumb: String?
@@ -621,6 +626,16 @@ public struct PlexMediaItem: Codable, Identifiable {
     public var media: [PlexMedia] {
         Media ?? []
     }
+
+    public var ratings: [PlexRatingEntry] {
+        Rating ?? []
+    }
+}
+
+public struct PlexRatingEntry: Codable {
+    public let image: String?
+    public let value: Double?
+    public let type: String?
 }
 
 public struct PlexMedia: Codable {

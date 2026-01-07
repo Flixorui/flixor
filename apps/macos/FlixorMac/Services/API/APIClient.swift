@@ -118,6 +118,22 @@ class APIClient: ObservableObject {
         // /api/plex/dir/{path}
         if subpath.hasPrefix("dir/") {
             let dirPath = String(subpath.dropFirst("dir/".count))
+
+            // dir/library/sections/{key}/all - library items by section
+            if dirPath.hasPrefix("library/sections/") && dirPath.contains("/all") {
+                // Extract section key from path like "library/sections/2/all"
+                let afterSections = String(dirPath.dropFirst("library/sections/".count))
+                let key = String(afterSections.prefix(while: { $0 != "/" }))
+                let type = params["type"].flatMap { Int($0) }
+                let sort = params["sort"]
+                let limit = params["limit"].flatMap { Int($0) } ?? params["X-Plex-Container-Size"].flatMap { Int($0) }
+                let offset = params["offset"].flatMap { Int($0) } ?? params["X-Plex-Container-Start"].flatMap { Int($0) }
+                let genre = params["genre"]
+                let result = try await plexServer.getLibraryItemsWithPagination(key: key, type: type, sort: sort, limit: limit, offset: offset, genre: genre)
+                let response = PlexDirResponse(MediaContainer: PlexDirContainer(Metadata: result.items))
+                return try encodeAndDecode(response)
+            }
+
             // Generic directory fetch - use children or library items
             if dirPath.hasPrefix("library/metadata/") {
                 let key = String(dirPath.dropFirst("library/metadata/".count).prefix(while: { $0 != "/" }))
@@ -295,6 +311,14 @@ class APIClient: ObservableObject {
             }
         }
 
+        // /api/tmdb/movie/upcoming - MUST be before movie/{id} handler
+        if subpath == "movie/upcoming" {
+            let page = params["page"].flatMap { Int($0) } ?? 1
+            let region = params["region"]
+            let result = try await tmdb.getUpcomingMovies(region: region, page: page)
+            return try encodeAndDecode(result)
+        }
+
         // /api/tmdb/movie/{id} or /api/tmdb/tv/{id}
         if subpath.hasPrefix("movie/") || subpath.hasPrefix("tv/") {
             let isMovie = subpath.hasPrefix("movie/")
@@ -342,10 +366,10 @@ class APIClient: ObservableObject {
                     return try encodeAndDecode(result)
                 }
 
-                // /videos - return empty for now (not implemented in TMDBService)
+                // /videos - get videos/trailers
                 if endpoint == "videos" {
-                    let emptyVideos = TMDBVideosResult(results: [])
-                    return try encodeAndDecode(emptyVideos)
+                    let result = isMovie ? try await tmdb.getMovieVideos(id: tmdbId) : try await tmdb.getTVVideos(id: tmdbId)
+                    return try encodeAndDecode(result)
                 }
 
                 // /season/{num}
@@ -390,13 +414,6 @@ class APIClient: ObservableObject {
                 let result = try await tmdb.getPersonCredits(id: personId)
                 return try encodeAndDecode(result)
             }
-        }
-
-        // /api/tmdb/movie/upcoming - use popular as fallback
-        if subpath == "movie/upcoming" {
-            let page = params["page"].flatMap { Int($0) } ?? 1
-            let result = try await tmdb.getPopularMovies(page: page)
-            return try encodeAndDecode(result)
         }
 
         // /api/tmdb/discover/movie
@@ -546,19 +563,105 @@ class APIClient: ObservableObject {
             return try encodeAndDecode(result)
         }
 
-        // /api/trakt/{media}/watched/{period}
+        // /api/trakt/{media}/watched/{period} - Most watched movies/shows
         if subpath.contains("/watched/") {
-            // This is a different format - most watched
-            // Not directly available, return empty
-            let empty: [String] = []
-            return try encodeAndDecode(empty)
+            // Format: movies/watched/weekly or shows/watched/weekly
+            let parts = subpath.components(separatedBy: "/")
+            if parts.count >= 3 {
+                let media = parts[0]  // "movies" or "shows"
+                let period = parts[2]  // "weekly", "monthly", "yearly", "all"
+                let limit = params["limit"].flatMap { Int($0) } ?? 10
+
+                if media == "movies" {
+                    let result = try await trakt.getMostWatchedMovies(period: period, limit: limit)
+                    // Map to wrapper types
+                    let mapped = result.map { item -> TraktMostWatchedMovieWrapper in
+                        TraktMostWatchedMovieWrapper(
+                            watcher_count: item.watcherCount,
+                            play_count: item.playCount,
+                            collected_count: item.collectedCount,
+                            movie: TraktMovieWrapper(
+                                title: item.movie.title,
+                                year: item.movie.year,
+                                overview: item.movie.overview,
+                                runtime: item.movie.runtime,
+                                genres: item.movie.genres,
+                                rating: item.movie.rating,
+                                ids: TraktIDsWrapper(trakt: item.movie.ids.trakt, imdb: item.movie.ids.imdb, tmdb: item.movie.ids.tmdb)
+                            )
+                        )
+                    }
+                    return try encodeAndDecode(mapped)
+                } else if media == "shows" {
+                    let result = try await trakt.getMostWatchedShows(period: period, limit: limit)
+                    // Map to wrapper types
+                    let mapped = result.map { item -> TraktMostWatchedShowWrapper in
+                        TraktMostWatchedShowWrapper(
+                            watcher_count: item.watcherCount,
+                            play_count: item.playCount,
+                            collected_count: item.collectedCount,
+                            show: TraktShowWrapper(
+                                title: item.show.title,
+                                year: item.show.year,
+                                overview: item.show.overview,
+                                runtime: item.show.runtime,
+                                genres: item.show.genres,
+                                rating: item.show.rating,
+                                ids: TraktIDsWrapper(trakt: item.show.ids.trakt, imdb: item.show.ids.imdb, tmdb: item.show.ids.tmdb)
+                            )
+                        )
+                    }
+                    return try encodeAndDecode(mapped)
+                }
+            }
         }
 
-        // /api/trakt/{media}/anticipated
+        // /api/trakt/{media}/anticipated - Anticipated movies/shows
         if subpath.contains("/anticipated") {
-            // Not directly available
-            let empty: [String] = []
-            return try encodeAndDecode(empty)
+            // Format: movies/anticipated or shows/anticipated
+            let parts = subpath.components(separatedBy: "/")
+            if parts.count >= 2 {
+                let media = parts[0]  // "movies" or "shows"
+                let limit = params["limit"].flatMap { Int($0) } ?? 20
+
+                if media == "movies" {
+                    let result = try await trakt.getAnticipatedMovies(limit: limit)
+                    // Map to wrapper types
+                    let mapped = result.map { item -> TraktAnticipatedMovieWrapper in
+                        TraktAnticipatedMovieWrapper(
+                            list_count: item.listCount,
+                            movie: TraktMovieWrapper(
+                                title: item.movie.title,
+                                year: item.movie.year,
+                                overview: item.movie.overview,
+                                runtime: item.movie.runtime,
+                                genres: item.movie.genres,
+                                rating: item.movie.rating,
+                                ids: TraktIDsWrapper(trakt: item.movie.ids.trakt, imdb: item.movie.ids.imdb, tmdb: item.movie.ids.tmdb)
+                            )
+                        )
+                    }
+                    return try encodeAndDecode(mapped)
+                } else if media == "shows" {
+                    let result = try await trakt.getAnticipatedShows(limit: limit)
+                    // Map to wrapper types
+                    let mapped = result.map { item -> TraktAnticipatedShowWrapper in
+                        TraktAnticipatedShowWrapper(
+                            list_count: item.listCount,
+                            show: TraktShowWrapper(
+                                title: item.show.title,
+                                year: item.show.year,
+                                overview: item.show.overview,
+                                runtime: item.show.runtime,
+                                genres: item.show.genres,
+                                rating: item.show.rating,
+                                ids: TraktIDsWrapper(trakt: item.show.ids.trakt, imdb: item.show.ids.imdb, tmdb: item.show.ids.tmdb)
+                            )
+                        )
+                    }
+                    return try encodeAndDecode(mapped)
+                }
+            }
         }
 
         print("❌ [APIClient] Unhandled Trakt route: \(subpath)")
@@ -1071,6 +1174,34 @@ struct TraktIDsWrapper: Codable {
     let trakt: Int?
     let imdb: String?
     let tmdb: Int?
+}
+
+// MARK: - Trakt Most Watched Wrappers
+
+struct TraktMostWatchedMovieWrapper: Codable {
+    let watcher_count: Int?
+    let play_count: Int?
+    let collected_count: Int?
+    let movie: TraktMovieWrapper?
+}
+
+struct TraktMostWatchedShowWrapper: Codable {
+    let watcher_count: Int?
+    let play_count: Int?
+    let collected_count: Int?
+    let show: TraktShowWrapper?
+}
+
+// MARK: - Trakt Anticipated Wrappers
+
+struct TraktAnticipatedMovieWrapper: Codable {
+    let list_count: Int?
+    let movie: TraktMovieWrapper?
+}
+
+struct TraktAnticipatedShowWrapper: Codable {
+    let list_count: Int?
+    let show: TraktShowWrapper?
 }
 
 struct TMDBVideosResult: Codable {

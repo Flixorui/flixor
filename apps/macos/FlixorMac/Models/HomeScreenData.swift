@@ -190,6 +190,7 @@ struct MediaItemFull: Identifiable, Codable {
             grandparentTitle: grandparentTitle,
             grandparentThumb: grandparentThumb,
             grandparentArt: grandparentArt,
+            grandparentRatingKey: grandparentRatingKey,
             parentIndex: parentIndex,
             index: index,
             parentRatingKey: parentRatingKey,

@@ -14,6 +14,13 @@ struct HomeView: View {
     @State private var showBrowseModal = false
     @State private var activeBrowseContext: BrowseContext?
 
+    // Home Screen Settings
+    @AppStorage("heroLayout") private var heroLayout: String = "billboard"
+    @AppStorage("showHeroSection") private var showHeroSection: Bool = true
+    @AppStorage("showContinueWatching") private var showContinueWatching: Bool = true
+    @AppStorage("continueWatchingLayout") private var continueWatchingLayout: String = "landscape"
+    @AppStorage("rowLayout") private var rowLayout: String = "landscape"
+
     var body: some View {
         ZStack {
             Group {
@@ -27,53 +34,99 @@ struct HomeView: View {
                     ScrollView {
                         VStack(spacing: 0) {
 
-                            // Billboard Hero or skeleton
-                            Group {
-                                if !viewModel.billboardItems.isEmpty {
-                                    BillboardSection(viewModel: viewModel)
-                                } else {
-                                    HeroSkeleton()
+                            // Hero Section (Billboard or Carousel based on settings)
+                            if showHeroSection {
+                                Group {
+                                    if !viewModel.billboardItems.isEmpty {
+                                        switch heroLayout {
+                                        case "carousel":
+                                            HeroCarousel(
+                                                items: viewModel.billboardItems,
+                                                currentIndex: $viewModel.currentBillboardIndex,
+                                                onPlay: { item in viewModel.playItem(item) },
+                                                onInfo: { item in viewModel.showItemDetails(item) },
+                                                onMyList: { item in viewModel.toggleMyList(item) }
+                                            )
+                                        default: // "billboard"
+                                            BillboardSection(viewModel: viewModel)
+                                        }
+                                    } else {
+                                        HeroSkeleton()
+                                    }
                                 }
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 16)
                             }
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 16)
 
                             // Spacing below hero
                             Color.clear.frame(height: 24)
 
                             // Content sections with modular skeleton loading
                             VStack(spacing: 40) {
-                                // Continue Watching - shows skeleton until loaded
-                                SectionContainer(
-                                    state: viewModel.continueWatchingState,
-                                    content: {
-                                        ContinueWatchingSection(viewModel: viewModel, onTap: { item in
-                                            viewModel.showItemDetails(item)
-                                        })
-                                    },
-                                    skeleton: {
-                                        SkeletonCarouselRow(itemWidth: 420, itemCount: 4, cardType: .landscape)
-                                    }
-                                )
+                                // Continue Watching - shows skeleton until loaded (if enabled)
+                                if showContinueWatching {
+                                    SectionContainer(
+                                        state: viewModel.continueWatchingState,
+                                        content: {
+                                            switch continueWatchingLayout {
+                                            case "poster":
+                                                ContinueWatchingPosterRow(
+                                                    items: viewModel.continueWatchingItems,
+                                                    onTap: { item in viewModel.showItemDetails(item) }
+                                                )
+                                            default: // "landscape"
+                                                ContinueWatchingLandscapeRow(
+                                                    items: viewModel.continueWatchingItems,
+                                                    onTap: { item in viewModel.showItemDetails(item) }
+                                                )
+                                            }
+                                        },
+                                        skeleton: {
+                                            SkeletonCarouselRow(
+                                                itemWidth: continueWatchingLayout == "poster" ? 160 : 380,
+                                                itemCount: continueWatchingLayout == "poster" ? 6 : 4,
+                                                cardType: continueWatchingLayout == "poster" ? .poster : .landscape
+                                            )
+                                        }
+                                    )
+                                }
 
                                 // Extra sections (Popular on Plex, Trending Now, Watchlist, Genres, Trakt)
                                 // Show skeleton placeholders while loading, then fade in actual content
                                 if viewModel.extraSectionsState.isLoading {
                                     // Show expected number of skeleton rows
                                     ForEach(0..<viewModel.expectedExtraSectionCount, id: \.self) { _ in
-                                        SkeletonCarouselRow(itemWidth: 420, itemCount: 6, cardType: .landscape)
+                                        SkeletonCarouselRow(
+                                            itemWidth: rowLayout == "poster" ? 160 : 420,
+                                            itemCount: rowLayout == "poster" ? 6 : 4,
+                                            cardType: rowLayout == "poster" ? .poster : .landscape
+                                        )
                                     }
                                 } else {
                                     ForEach(viewModel.extraSections) { section in
-                                        LandscapeSectionView(
-                                            section: section,
-                                            onTap: { item in
-                                                viewModel.showItemDetails(item)
-                                            },
-                                            onBrowse: { context in
-                                                presentBrowse(context)
+                                        Group {
+                                            if rowLayout == "poster" {
+                                                PosterSectionRow(
+                                                    section: section,
+                                                    onTap: { item in
+                                                        viewModel.showItemDetails(item)
+                                                    },
+                                                    onBrowse: { context in
+                                                        presentBrowse(context)
+                                                    }
+                                                )
+                                            } else {
+                                                LandscapeSectionView(
+                                                    section: section,
+                                                    onTap: { item in
+                                                        viewModel.showItemDetails(item)
+                                                    },
+                                                    onBrowse: { context in
+                                                        presentBrowse(context)
+                                                    }
+                                                )
                                             }
-                                        )
+                                        }
                                         .transition(.opacity)
                                     }
                                 }

@@ -74,12 +74,13 @@ struct SearchView: View {
             grandparentTitle: nil,
             grandparentThumb: nil,
             grandparentArt: nil,
+            grandparentRatingKey: nil,
             parentIndex: nil,
             index: nil,
-                parentRatingKey: nil,
-                parentTitle: nil,
-                leafCount: nil,
-                viewedLeafCount: nil
+            parentRatingKey: nil,
+            parentTitle: nil,
+            leafCount: nil,
+            viewedLeafCount: nil
         )
         router.searchPath.append(DetailsNavigationItem(item: mediaItem))
     }
@@ -264,12 +265,13 @@ extension SearchViewModel.SearchResult {
             grandparentTitle: nil,
             grandparentThumb: nil,
             grandparentArt: nil,
+            grandparentRatingKey: nil,
             parentIndex: nil,
             index: nil,
-                parentRatingKey: nil,
-                parentTitle: nil,
-                leafCount: nil,
-                viewedLeafCount: nil
+            parentRatingKey: nil,
+            parentTitle: nil,
+            leafCount: nil,
+            viewedLeafCount: nil
         )
     }
 }

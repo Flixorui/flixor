@@ -153,12 +153,12 @@ struct NewPopularView: View {
         VStack(alignment: .leading, spacing: 40) {
             // New on Plex
             if !viewModel.recentlyAdded.isEmpty {
-                contentRow(title: "New on Plex", items: viewModel.recentlyAdded)
+                contentRow(title: "New on Your Plex", items: viewModel.recentlyAdded)
             }
 
             // Popular on Plex
             if !viewModel.popularPlex.isEmpty {
-                contentRow(title: "Popular on Plex", items: viewModel.popularPlex)
+                contentRow(title: "Popular on Your Plex", items: viewModel.popularPlex)
             }
 
             // Trending Movies
@@ -316,12 +316,13 @@ struct NewPopularView: View {
             grandparentTitle: nil,
             grandparentThumb: nil,
             grandparentArt: nil,
+            grandparentRatingKey: nil,
             parentIndex: nil,
             index: nil,
-                parentRatingKey: nil,
-                parentTitle: nil,
-                leafCount: nil,
-                viewedLeafCount: nil
+            parentRatingKey: nil,
+            parentTitle: nil,
+            leafCount: nil,
+            viewedLeafCount: nil
         )
         router.newPopularPath.append(DetailsNavigationItem(item: item))
     }
@@ -341,12 +342,13 @@ struct NewPopularView: View {
             grandparentTitle: nil,
             grandparentThumb: nil,
             grandparentArt: nil,
+            grandparentRatingKey: nil,
             parentIndex: nil,
             index: nil,
-                parentRatingKey: nil,
-                parentTitle: nil,
-                leafCount: nil,
-                viewedLeafCount: nil
+            parentRatingKey: nil,
+            parentTitle: nil,
+            leafCount: nil,
+            viewedLeafCount: nil
         )
         router.newPopularPath.append(item)
     }

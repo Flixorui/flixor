@@ -69,6 +69,7 @@ export interface PlexMediaItem {
   rating?: number;
   audienceRating?: number;
   contentRating?: string;
+  Rating?: Array<{ image?: string; value?: number; type?: string }>;
 
   // TV Show specific
   grandparentRatingKey?: string;
