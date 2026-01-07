@@ -410,15 +410,24 @@ public struct TMDBMovieDetails: Codable {
     public let adult: Bool?
     public let genres: [TMDBGenre]
     public let externalIds: TMDBExternalIds?
+    // Extended fields
+    public let tagline: String?
+    public let status: String?
+    public let budget: Int?
+    public let revenue: Int?
+    public let originalLanguage: String?
+    public let productionCompanies: [TMDBProductionCompany]?
 
     private enum CodingKeys: String, CodingKey {
-        case id, title, overview, runtime, adult, genres
+        case id, title, overview, runtime, adult, genres, tagline, status, budget, revenue
         case posterPath = "poster_path"
         case backdropPath = "backdrop_path"
         case releaseDate = "release_date"
         case voteAverage = "vote_average"
         case voteCount = "vote_count"
         case externalIds = "external_ids"
+        case originalLanguage = "original_language"
+        case productionCompanies = "production_companies"
     }
 }
 
@@ -438,9 +447,16 @@ public struct TMDBTVDetails: Codable {
     public let genres: [TMDBGenre]
     public let seasons: [TMDBSeasonSummary]
     public let externalIds: TMDBExternalIds?
+    // Extended fields
+    public let tagline: String?
+    public let status: String?
+    public let originalLanguage: String?
+    public let networks: [TMDBProductionCompany]?
+    public let productionCompanies: [TMDBProductionCompany]?
+    public let createdBy: [TMDBCreator]?
 
     private enum CodingKeys: String, CodingKey {
-        case id, name, overview, genres, seasons
+        case id, name, overview, genres, seasons, tagline, status
         case posterPath = "poster_path"
         case backdropPath = "backdrop_path"
         case firstAirDate = "first_air_date"
@@ -451,12 +467,40 @@ public struct TMDBTVDetails: Codable {
         case voteAverage = "vote_average"
         case voteCount = "vote_count"
         case externalIds = "external_ids"
+        case originalLanguage = "original_language"
+        case networks
+        case productionCompanies = "production_companies"
+        case createdBy = "created_by"
     }
 }
 
 public struct TMDBGenre: Codable {
     public let id: Int
     public let name: String
+}
+
+public struct TMDBProductionCompany: Codable {
+    public let id: Int?
+    public let name: String?
+    public let logoPath: String?
+    public let originCountry: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case id, name
+        case logoPath = "logo_path"
+        case originCountry = "origin_country"
+    }
+}
+
+public struct TMDBCreator: Codable {
+    public let id: Int?
+    public let name: String?
+    public let profilePath: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case id, name
+        case profilePath = "profile_path"
+    }
 }
 
 public struct TMDBSeasonSummary: Codable {

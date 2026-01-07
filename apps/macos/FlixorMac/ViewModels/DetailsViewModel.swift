@@ -9,6 +9,14 @@ import Foundation
 import SwiftUI
 import FlixorKit
 
+// MARK: - Array Extension for deduplication
+private extension Array where Element: Hashable {
+    func removingDuplicates() -> [Element] {
+        var seen = Set<Element>()
+        return filter { seen.insert($0).inserted }
+    }
+}
+
 @MainActor
 class DetailsViewModel: ObservableObject {
     // API Client
@@ -34,10 +42,12 @@ class DetailsViewModel: ObservableObject {
     @Published var posterURL: URL?
 
     // Cast
-    struct Person: Identifiable { let id: String; let name: String; let profile: URL? }
+    struct Person: Identifiable { let id: String; let name: String; let role: String?; let profile: URL? }
     struct CrewPerson: Identifiable { let id: String; let name: String; let job: String?; let profile: URL? }
     @Published var cast: [Person] = []
     @Published var crew: [CrewPerson] = []
+    @Published var directors: [String] = []
+    @Published var writers: [String] = []
     @Published var showAllCast: Bool = false
     var castShort: [Person] { Array(cast.prefix(4)) }
     var castMoreCount: Int { max(0, cast.count - 4) }
@@ -76,6 +86,34 @@ class DetailsViewModel: ObservableObject {
     // TMDB Trailers (videos)
     @Published var trailers: [Trailer] = []
 
+    // Extended TMDB Info (for Details tab - matching mobile app)
+    @Published var tagline: String?
+    @Published var status: String?
+    @Published var releaseDate: String?
+    @Published var firstAirDate: String?
+    @Published var lastAirDate: String?
+    @Published var budget: Int?
+    @Published var revenue: Int?
+    @Published var originalLanguage: String?
+    @Published var numberOfSeasons: Int?
+    @Published var numberOfEpisodes: Int?
+    @Published var creators: [String] = []
+
+    // Production Companies / Networks
+    struct ProductionCompany: Identifiable {
+        let id: Int
+        let name: String
+        let logoURL: URL?
+    }
+    @Published var productionCompanies: [ProductionCompany] = []
+    @Published var networks: [ProductionCompany] = []
+
+    // Plex Collections
+    @Published var collections: [String] = []
+
+    // Studio
+    @Published var studio: String?
+
     // Overseerr request status
     @Published var overseerrStatus: OverseerrMediaStatus?
 
@@ -108,6 +146,7 @@ class DetailsViewModel: ObservableObject {
         let audioChannels: Int?
         let audioCodec: String?
         let audioProfile: String?
+        let container: String?
         let Part: [PlexPart]?
     }
     struct PlexPart: Codable {
@@ -143,6 +182,8 @@ class DetailsViewModel: ObservableObject {
         let Genre: [PlexTag]?
         let Role: [PlexRole]?
         let Media: [PlexMedia]?
+        let Collection: [PlexTag]?       // Plex collections
+        let studio: String?              // Studio name
 
         // Ratings from Plex metadata
         let Rating: [PlexRating]?
@@ -179,6 +220,8 @@ class DetailsViewModel: ObservableObject {
         backdropURL = nil
         cast = []
         crew = []
+        directors = []
+        writers = []
         moodTags = []
         related = []
         similar = []
@@ -191,6 +234,21 @@ class DetailsViewModel: ObservableObject {
         extras = []
         trailers = []
         overseerrStatus = nil
+        tagline = nil
+        status = nil
+        releaseDate = nil
+        firstAirDate = nil
+        lastAirDate = nil
+        budget = nil
+        revenue = nil
+        originalLanguage = nil
+        numberOfSeasons = nil
+        numberOfEpisodes = nil
+        creators = []
+        productionCompanies = []
+        networks = []
+        collections = []
+        studio = nil
         versions = []
         activeVersionId = nil
         audioTracks = []
@@ -251,7 +309,7 @@ class DetailsViewModel: ObservableObject {
                     if let roles = meta.Role, !roles.isEmpty {
                         cast = roles.prefix(12).map { r in
                             let name = r.tag ?? ""
-                            return Person(id: name, name: name, profile: ImageService.shared.plexImageURL(path: r.thumb, width: 200, height: 200))
+                            return Person(id: name, name: name, role: nil, profile: ImageService.shared.plexImageURL(path: r.thumb, width: 200, height: 200))
                         }
                     }
                     if let art = meta.art,
@@ -266,6 +324,11 @@ class DetailsViewModel: ObservableObject {
                         appendTechnicalBadges(from: media)
                         hydrateVersions(from: media)
                     }
+                    // Extract collections
+                    collections = (meta.Collection ?? []).compactMap { $0.tag }.filter { !$0.isEmpty }
+                    // Extract studio
+                    studio = meta.studio
+
                     addBadge("Plex")
                     playableId = item.id // Set playableId FIRST
                     print("✅ [Details] Plex metadata loaded, playableId set to: \(playableId ?? "nil")")
@@ -335,7 +398,7 @@ class DetailsViewModel: ObservableObject {
                     if let roles = meta.Role, !roles.isEmpty {
                         cast = roles.prefix(12).map { r in
                             let name = r.tag ?? ""
-                            return Person(id: name, name: name, profile: ImageService.shared.plexImageURL(path: r.thumb, width: 200, height: 200))
+                            return Person(id: name, name: name, role: nil, profile: ImageService.shared.plexImageURL(path: r.thumb, width: 200, height: 200))
                         }
                     }
                     if let art = meta.art,
@@ -350,6 +413,11 @@ class DetailsViewModel: ObservableObject {
                         appendTechnicalBadges(from: media)
                         hydrateVersions(from: media)
                     }
+                    // Extract collections
+                    collections = (meta.Collection ?? []).compactMap { $0.tag }.filter { !$0.isEmpty }
+                    // Extract studio
+                    studio = meta.studio
+
                     addBadge("Plex")
                     playableId = "plex:\(rk)" // Set playableId with prefix
                     print("✅ [Details] Plex metadata loaded, playableId set to: \(playableId ?? "nil")")
@@ -394,9 +462,36 @@ class DetailsViewModel: ObservableObject {
     }
 
     private func fetchTMDBDetails(media: String, id: String, skipPlexMapping: Bool = false) async throws {
-        // Details
-        struct TDetails: Codable { let title: String?; let name: String?; let overview: String?; let backdrop_path: String?; let poster_path: String?; let release_date: String?; let first_air_date: String?; let genres: [TGenre]?; let runtime: Int?; let episode_run_time: [Int]?; let adult: Bool? }
+        // Details - expanded struct for all the info we need
+        struct TDetails: Codable {
+            let title: String?
+            let name: String?
+            let overview: String?
+            let backdrop_path: String?
+            let poster_path: String?
+            let release_date: String?
+            let first_air_date: String?
+            let last_air_date: String?
+            let genres: [TGenre]?
+            let runtime: Int?
+            let episode_run_time: [Int]?
+            let adult: Bool?
+            // Extended info
+            let tagline: String?
+            let status: String?
+            let budget: Int?
+            let revenue: Int?
+            let original_language: String?
+            let number_of_seasons: Int?
+            let number_of_episodes: Int?
+            let production_companies: [TProductionCompany]?
+            let networks: [TProductionCompany]?
+            let created_by: [TCreator]?
+        }
         struct TGenre: Codable { let name: String }
+        struct TProductionCompany: Codable { let id: Int?; let name: String?; let logo_path: String? }
+        struct TCreator: Codable { let name: String? }
+
         let d: TDetails = try await api.get("/api/tmdb/\(media)/\(id)")
         self.title = d.title ?? d.name ?? self.title
         self.overview = d.overview ?? self.overview
@@ -409,6 +504,43 @@ class DetailsViewModel: ObservableObject {
         self.runtime = rt
         self.rating = (d.adult ?? false) ? "18+" : self.rating
 
+        // Extended TMDB info
+        self.tagline = d.tagline?.isEmpty == false ? d.tagline : nil
+        self.status = d.status
+        self.releaseDate = d.release_date
+        self.firstAirDate = d.first_air_date
+        self.lastAirDate = d.last_air_date
+        self.budget = (d.budget ?? 0) > 0 ? d.budget : nil
+        self.revenue = (d.revenue ?? 0) > 0 ? d.revenue : nil
+        self.originalLanguage = d.original_language
+        self.numberOfSeasons = d.number_of_seasons
+        self.numberOfEpisodes = d.number_of_episodes
+        self.creators = (d.created_by ?? []).compactMap { $0.name }
+
+        print("📊 [TMDB Details] Extended info loaded:")
+        print("   - tagline: \(self.tagline ?? "nil")")
+        print("   - budget: \(self.budget.map { String($0) } ?? "nil")")
+        print("   - revenue: \(self.revenue.map { String($0) } ?? "nil")")
+        print("   - originalLanguage: \(self.originalLanguage ?? "nil")")
+        print("   - status: \(self.status ?? "nil")")
+        print("   - mediaKind: \(self.mediaKind ?? "nil")")
+        print("   - production_companies count: \(d.production_companies?.count ?? 0)")
+        print("   - networks count: \(d.networks?.count ?? 0)")
+
+        // Production companies (for movies)
+        self.productionCompanies = (d.production_companies ?? []).compactMap { pc in
+            guard let id = pc.id, let name = pc.name, !name.isEmpty else { return nil }
+            let logoURL = pc.logo_path.flatMap { ImageService.shared.proxyImageURL(url: "https://image.tmdb.org/t/p/w185\($0)") }
+            return ProductionCompany(id: id, name: name, logoURL: logoURL)
+        }
+
+        // Networks (for TV shows)
+        self.networks = (d.networks ?? []).compactMap { n in
+            guard let id = n.id, let name = n.name, !name.isEmpty else { return nil }
+            let logoURL = n.logo_path.flatMap { ImageService.shared.proxyImageURL(url: "https://image.tmdb.org/t/p/w185\($0)") }
+            return ProductionCompany(id: id, name: name, logoURL: logoURL)
+        }
+
         // Images (logo preferred en)
         struct TImage: Codable { let file_path: String?; let iso_639_1: String?; let vote_average: Double? }
         struct TImages: Codable { let logos: [TImage]?; let backdrops: [TImage]? }
@@ -418,17 +550,29 @@ class DetailsViewModel: ObservableObject {
             self.logoURL = ImageService.shared.proxyImageURL(url: "https://image.tmdb.org/t/p/w500\(p)")
         }
 
-        // Credits (cast top 12)
-        struct TCast: Codable { let id: Int?; let name: String?; let profile_path: String? }
-        struct TCrew: Codable { let id: Int?; let name: String?; let job: String?; let profile_path: String? }
+        // Credits (cast top 12 with character names, crew with directors/writers)
+        struct TCast: Codable { let id: Int?; let name: String?; let character: String?; let profile_path: String? }
+        struct TCrew: Codable { let id: Int?; let name: String?; let job: String?; let department: String?; let profile_path: String? }
         struct TCredits: Codable { let cast: [TCast]?; let crew: [TCrew]? }
         let cr: TCredits = try await api.get("/api/tmdb/\(media)/\(id)/credits")
         self.cast = (cr.cast ?? []).prefix(12).map { c in
-            Person(id: String(c.id ?? 0), name: c.name ?? "", profile: ImageService.shared.proxyImageURL(url: c.profile_path.flatMap { "https://image.tmdb.org/t/p/w500\($0)" }))
+            Person(id: String(c.id ?? 0), name: c.name ?? "", role: c.character, profile: ImageService.shared.proxyImageURL(url: c.profile_path.flatMap { "https://image.tmdb.org/t/p/w500\($0)" }))
         }
         self.crew = (cr.crew ?? []).prefix(12).map { x in
             CrewPerson(id: String(x.id ?? 0), name: x.name ?? "", job: x.job, profile: ImageService.shared.proxyImageURL(url: x.profile_path.flatMap { "https://image.tmdb.org/t/p/w500\($0)" }))
         }
+
+        // Extract Directors and Writers from crew
+        let allCrew = cr.crew ?? []
+        self.directors = allCrew.filter { ($0.job?.lowercased() ?? "").contains("director") && $0.department?.lowercased() == "directing" }
+            .compactMap { $0.name }
+            .removingDuplicates()
+        self.writers = allCrew.filter {
+            let job = ($0.job?.lowercased() ?? "")
+            return job.contains("writer") || job.contains("screenplay") || job.contains("story")
+        }
+            .compactMap { $0.name }
+            .removingDuplicates()
 
         // Recommendations + Similar (rows)
         struct TRes: Codable { let results: [TResItem]? }
@@ -730,7 +874,7 @@ class DetailsViewModel: ObservableObject {
         if let roles = match.Role, !roles.isEmpty {
             self.cast = roles.prefix(12).map { r in
                 let name = r.tag ?? ""
-                return Person(id: name, name: name, profile: ImageService.shared.plexImageURL(path: r.thumb, width: 200, height: 200))
+                return Person(id: name, name: name, role: nil, profile: ImageService.shared.plexImageURL(path: r.thumb, width: 200, height: 200))
             }
         }
         // Versions
@@ -819,7 +963,8 @@ class DetailsViewModel: ObservableObject {
                 bitrate: mm.bitrate,
                 fileSizeMB: sizeMB,
                 durationMin: mm.duration.map { Int($0 / 60000) },
-                subtitleCount: subs.count
+                subtitleCount: subs.count,
+                container: mm.container
             )
             let label = labelParts.isEmpty ? "Version \(idx + 1)" : labelParts.joined(separator: " ")
             vds.append(VersionDetail(id: id, label: label, technical: tech, audioTracks: audio, subtitleTracks: subs))
@@ -1054,6 +1199,25 @@ class DetailsViewModel: ObservableObject {
             let fileSizeMB: Double?
             let durationMin: Int?
             let subtitleCount: Int?
+            let container: String?
+
+            /// Detects HDR format from video profile
+            var hdrFormat: String? {
+                guard let profile = videoProfile?.lowercased() else { return nil }
+                if profile.contains("dolby vision") || profile.contains("dovi") {
+                    return "Dolby Vision"
+                } else if profile.contains("hdr10+") {
+                    return "HDR10+"
+                } else if profile.contains("hdr10") || profile.contains("hdr 10") {
+                    return "HDR10"
+                } else if profile.contains("main 10") || profile.contains("main10") {
+                    // Main 10 profile often indicates HDR capability
+                    return "HDR"
+                } else if profile.contains("hlg") {
+                    return "HLG"
+                }
+                return nil
+            }
         }
         let id: String
         let label: String
@@ -1369,6 +1533,7 @@ class DetailsViewModel: ObservableObject {
                     audioChannels: m.audioChannels,
                     audioCodec: m.audioCodec,
                     audioProfile: m.audioProfile,
+                    container: m.container,
                     Part: m.parts.map { p in
                         PlexPart(
                             id: p.id,
@@ -1387,6 +1552,8 @@ class DetailsViewModel: ObservableObject {
                     }
                 )
             },
+            Collection: item.collections.map { PlexTag(tag: $0.tag) },
+            studio: item.studio,
             Rating: item.ratings.map { PlexRating(image: $0.image, value: $0.value, type: $0.type) },
             rating: item.rating,
             audienceRating: item.audienceRating,

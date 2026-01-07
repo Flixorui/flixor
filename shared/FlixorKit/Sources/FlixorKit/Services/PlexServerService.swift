@@ -608,6 +608,8 @@ public struct PlexMediaItem: Codable, Identifiable {
     public let Genre: [PlexTag]?
     public let Role: [PlexRole]?
     public let Marker: [PlexMarker]?
+    public let Collection: [PlexTag]?
+    public let studio: String?
 
     public var id: String { ratingKey ?? key ?? UUID().uuidString }
 
@@ -629,6 +631,10 @@ public struct PlexMediaItem: Codable, Identifiable {
 
     public var ratings: [PlexRatingEntry] {
         Rating ?? []
+    }
+
+    public var collections: [PlexTag] {
+        Collection ?? []
     }
 }
 

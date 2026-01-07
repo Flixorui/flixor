@@ -336,53 +336,181 @@ class HomeViewModel: ObservableObject {
         return ([popular], [trending])
     }
 
-    // MARK: - Plex.tv Watchlist
+    // MARK: - Combined Watchlist (Plex + Trakt)
 
     private func fetchPlexTvWatchlistSection() async -> LibrarySection? {
-        guard let plexTv = FlixorCore.shared.plexTv else { return nil }
+        var allItems: [String: MediaItem] = [:] // Use dict to dedupe by ID
 
-        do {
-            print("📦 [Home] Fetching Plex.tv watchlist...")
-            let meta = try await plexTv.getWatchlist()
+        // Fetch Plex.tv watchlist
+        if let plexTv = FlixorCore.shared.plexTv {
+            do {
+                print("📦 [Home] Fetching Plex.tv watchlist...")
+                let meta = try await plexTv.getWatchlist()
 
-            var items: [MediaItem] = []
-            for m in meta.prefix(20) {
-                let item = MediaItem(
-                    id: m.ratingKey ?? m.key ?? "",
-                    title: m.title ?? "Unknown",
-                    type: (m.type ?? "show") == "movie" ? "movie" : "show",
-                    thumb: m.thumb,
-                    art: m.art,
-                    year: m.year,
-                    rating: nil,
-                    duration: m.duration,
-                    viewOffset: m.viewOffset,
-                    summary: m.summary,
-                    grandparentTitle: m.grandparentTitle,
-                    grandparentThumb: m.grandparentThumb,
-                    grandparentArt: m.grandparentArt,
-                    grandparentRatingKey: m.grandparentRatingKey,
-                    parentIndex: m.parentIndex,
-                    index: m.index,
-                    parentRatingKey: m.parentRatingKey,
-                    parentTitle: m.parentTitle,
-                    leafCount: m.leafCount,
-                    viewedLeafCount: m.viewedLeafCount
-                )
-                items.append(item)
+                for m in meta.prefix(20) {
+                    let mediaType = (m.type ?? "show") == "movie" ? "movie" : "show"
+
+                    // Try to extract TMDB ID from Plex GUIDs array
+                    var itemId: String
+                    var tmdbIdFound: String?
+                    for guidStr in m.guids {
+                        if let tmdbId = extractTMDBId(from: guidStr) {
+                            tmdbIdFound = tmdbId
+                            break
+                        }
+                    }
+
+                    if let tmdbId = tmdbIdFound {
+                        itemId = "tmdb:\(mediaType):\(tmdbId)"
+                        print("✅ [Home Watchlist] Plex item \(m.title ?? "Unknown") using TMDB ID: \(itemId)")
+                    } else if m.key != nil {
+                        // Fallback: try to resolve TMDB ID via PlexTv metadata lookup
+                        // Note: getTMDBIdForWatchlistItem returns full ID like "tmdb:movie:123"
+                        if let fullTmdbId = await plexTv.getTMDBIdForWatchlistItem(m) {
+                            itemId = fullTmdbId
+                            print("✅ [Home Watchlist] Plex item \(m.title ?? "Unknown") resolved TMDB ID via metadata: \(itemId)")
+                        } else if let ratingKey = m.ratingKey {
+                            itemId = "plex:\(ratingKey)"
+                            print("⚠️ [Home Watchlist] Plex item \(m.title ?? "Unknown") using Plex rating key")
+                        } else {
+                            continue
+                        }
+                    } else if let ratingKey = m.ratingKey {
+                        itemId = "plex:\(ratingKey)"
+                        print("⚠️ [Home Watchlist] Plex item \(m.title ?? "Unknown") using Plex rating key (no key)")
+                    } else {
+                        continue
+                    }
+
+                    let item = MediaItem(
+                        id: itemId,
+                        title: m.title ?? "Unknown",
+                        type: mediaType,
+                        thumb: m.thumb,
+                        art: m.art,
+                        year: m.year,
+                        rating: nil,
+                        duration: m.duration,
+                        viewOffset: m.viewOffset,
+                        summary: m.summary,
+                        grandparentTitle: m.grandparentTitle,
+                        grandparentThumb: m.grandparentThumb,
+                        grandparentArt: m.grandparentArt,
+                        grandparentRatingKey: m.grandparentRatingKey,
+                        parentIndex: m.parentIndex,
+                        index: m.index,
+                        parentRatingKey: m.parentRatingKey,
+                        parentTitle: m.parentTitle,
+                        leafCount: m.leafCount,
+                        viewedLeafCount: m.viewedLeafCount
+                    )
+                    allItems[itemId] = item
+                }
+                print("✅ [Home] Plex watchlist loaded: \(meta.count) items")
+            } catch {
+                print("⚠️ [Home] Plex.tv watchlist failed: \(error)")
             }
+        }
 
-            if items.isEmpty { return nil }
-            return LibrarySection(
-                id: "plextv-watchlist",
-                title: "Watchlist",
-                items: Array(items.prefix(12)),
-                totalCount: items.count,
-                libraryKey: nil,
-                browseContext: .plexWatchlist
-            )
+        // Fetch Trakt watchlist if authenticated
+        let trakt = FlixorCore.shared.trakt
+        if trakt.isAuthenticated {
+            do {
+                print("📦 [Home] Fetching Trakt watchlist...")
+                let watchlist = try await trakt.getWatchlist()
+
+                for wlItem in watchlist.prefix(20) {
+                    if let movie = wlItem.movie, let tmdbId = movie.ids.tmdb {
+                        let itemId = "tmdb:movie:\(tmdbId)"
+                        if allItems[itemId] == nil { // Don't overwrite Plex items (they may have more metadata)
+                            let backdrop = await fetchTMDBBackdrop(mediaType: "movie", id: tmdbId)
+                            let poster = await fetchTMDBPoster(mediaType: "movie", id: tmdbId)
+                            let item = MediaItem(
+                                id: itemId,
+                                title: movie.title,
+                                type: "movie",
+                                thumb: poster,
+                                art: backdrop,
+                                year: movie.year,
+                                rating: nil,
+                                duration: nil,
+                                viewOffset: nil,
+                                summary: nil,
+                                grandparentTitle: nil,
+                                grandparentThumb: nil,
+                                grandparentArt: nil,
+                                grandparentRatingKey: nil,
+                                parentIndex: nil,
+                                index: nil,
+                                parentRatingKey: nil,
+                                parentTitle: nil,
+                                leafCount: nil,
+                                viewedLeafCount: nil
+                            )
+                            allItems[itemId] = item
+                            print("✅ [Home Watchlist] Trakt movie \(movie.title) added: \(itemId)")
+                        }
+                    } else if let show = wlItem.show, let tmdbId = show.ids.tmdb {
+                        let itemId = "tmdb:tv:\(tmdbId)"
+                        if allItems[itemId] == nil {
+                            let backdrop = await fetchTMDBBackdrop(mediaType: "tv", id: tmdbId)
+                            let poster = await fetchTMDBPoster(mediaType: "tv", id: tmdbId)
+                            let item = MediaItem(
+                                id: itemId,
+                                title: show.title,
+                                type: "show",
+                                thumb: poster,
+                                art: backdrop,
+                                year: show.year,
+                                rating: nil,
+                                duration: nil,
+                                viewOffset: nil,
+                                summary: nil,
+                                grandparentTitle: nil,
+                                grandparentThumb: nil,
+                                grandparentArt: nil,
+                                grandparentRatingKey: nil,
+                                parentIndex: nil,
+                                index: nil,
+                                parentRatingKey: nil,
+                                parentTitle: nil,
+                                leafCount: nil,
+                                viewedLeafCount: nil
+                            )
+                            allItems[itemId] = item
+                            print("✅ [Home Watchlist] Trakt show \(show.title) added: \(itemId)")
+                        }
+                    }
+                }
+                print("✅ [Home] Trakt watchlist loaded")
+            } catch {
+                print("⚠️ [Home] Trakt watchlist failed: \(error)")
+            }
+        }
+
+        let items = Array(allItems.values)
+        if items.isEmpty { return nil }
+
+        return LibrarySection(
+            id: "combined-watchlist",
+            title: "Watchlist",
+            items: Array(items.prefix(12)),
+            totalCount: items.count,
+            libraryKey: nil,
+            browseContext: .plexWatchlist
+        )
+    }
+
+    private func fetchTMDBPoster(mediaType: String, id: Int) async -> String? {
+        do {
+            if mediaType == "movie" {
+                let detail = try await FlixorCore.shared.tmdb.getMovieDetails(id: id)
+                return FlixorCore.shared.tmdb.getPosterUrl(path: detail.posterPath, size: "w500")
+            } else {
+                let detail = try await FlixorCore.shared.tmdb.getTVDetails(id: id)
+                return FlixorCore.shared.tmdb.getPosterUrl(path: detail.posterPath, size: "w500")
+            }
         } catch {
-            print("⚠️ [Home] Plex.tv watchlist failed: \(error)")
             return nil
         }
     }
