@@ -132,8 +132,10 @@ struct DetailsView: View {
                         VStack(spacing: 0) {
                             DetailsHeroSection(
                                 vm: vm,
+                                item: item,
                                 trailers: vm.trailers,
                                 onPlay: playContent,
+                                onViewShow: viewParentShow,
                                 layout: layout
                             )
 
@@ -277,6 +279,42 @@ struct DetailsView: View {
         }
     }
 
+    private func viewParentShow() {
+        // Navigate to the parent TV show for episodes
+        guard item.type == "episode", let showKey = item.grandparentRatingKey else { return }
+        let showItem = MediaItem(
+            id: "plex:\(showKey)",
+            title: item.grandparentTitle ?? "TV Show",
+            type: "show",
+            thumb: item.grandparentThumb,
+            art: item.grandparentArt,
+            year: nil,
+            rating: nil,
+            duration: nil,
+            viewOffset: nil,
+            summary: nil,
+            grandparentTitle: nil,
+            grandparentThumb: nil,
+            grandparentArt: nil,
+            grandparentRatingKey: nil,
+            parentIndex: nil,
+            index: nil,
+            parentRatingKey: nil,
+            parentTitle: nil,
+            leafCount: nil,
+            viewedLeafCount: nil
+        )
+        // Use DetailsNavigationItem to navigate to details screen, not player
+        let navItem = DetailsNavigationItem(item: showItem)
+        switch mainView.selectedTab {
+        case .home: router.homePath.append(navItem)
+        case .search: router.searchPath.append(navItem)
+        case .library: router.libraryPath.append(navItem)
+        case .myList: router.myListPath.append(navItem)
+        case .newPopular: router.newPopularPath.append(navItem)
+        }
+    }
+
     private func presentBrowse(_ context: BrowseContext) {
         activeBrowseContext = context
         showBrowseModal = true
@@ -326,12 +364,23 @@ struct DetailsView: View {
 
 private struct DetailsHeroSection: View {
     @ObservedObject var vm: DetailsViewModel
+    let item: MediaItem
     let trailers: [Trailer]
     let onPlay: () -> Void
+    let onViewShow: () -> Void
     let layout: DetailsLayoutMetrics
+
+    private var isEpisode: Bool { item.type == "episode" }
+    private var seasonNumber: Int? { item.parentIndex }
+    private var episodeNumber: Int? { item.index }
 
     @State private var isOverviewExpanded = false
     @State private var selectedTrailer: Trailer?
+
+    // Rating visibility settings
+    @AppStorage("showIMDbRating") private var showIMDbRating: Bool = true
+    @AppStorage("showRottenTomatoesCritic") private var showRottenTomatoesCritic: Bool = true
+    @AppStorage("showRottenTomatoesAudience") private var showRottenTomatoesAudience: Bool = true
 
     private var hasTrailers: Bool { !trailers.isEmpty }
 
@@ -484,11 +533,8 @@ private struct DetailsHeroSection: View {
                         descriptionSection
                     }
 
-                    // Technical metadata row
+                    // Technical metadata row (includes ratings at end)
                     technicalMetadataRow
-
-                    // Ratings row (IMDb, RT, etc.)
-                    ratingsRow
 
                     // Action buttons (Play + circle buttons)
                     actionButtonsRow
@@ -534,11 +580,24 @@ private struct DetailsHeroSection: View {
         HStack(spacing: 8) {
             // Media type with icon
             HStack(spacing: 4) {
-                Image(systemName: vm.mediaKind == "movie" ? "film" : "tv")
+                Image(systemName: isEpisode ? "tv" : (vm.mediaKind == "movie" ? "film" : "tv"))
                     .font(.system(size: 11))
-                Text(vm.mediaKind == "movie" ? "Movie" : (vm.isSeason ? "Season" : "Series"))
+                Text(isEpisode ? "Episode" : (vm.mediaKind == "movie" ? "Movie" : (vm.isSeason ? "Season" : "Series")))
             }
             .font(.system(size: 13, weight: .medium))
+
+            // Episode/Season info for episodes
+            if isEpisode {
+                Text("·")
+                    .foregroundStyle(.white.opacity(0.5))
+                if let season = seasonNumber, let episode = episodeNumber {
+                    Text("S\(season) E\(episode)")
+                        .font(.system(size: 13, weight: .semibold))
+                } else if let episode = episodeNumber {
+                    Text("E\(episode)")
+                        .font(.system(size: 13, weight: .semibold))
+                }
+            }
 
             // Separator
             if !vm.genres.isEmpty {
@@ -602,17 +661,31 @@ private struct DetailsHeroSection: View {
                 Text(runtime)
             }
 
-            // Technical badges from vm.badges (4K, HDR, Dolby Vision, Atmos, etc.)
-            // Filter out "Plex" and "No local source" - those are shown separately
+            // Resolution badge from technical details (4K, HD, 720p)
+            if let resBadge = resolutionBadge {
+                TechnicalBadge(text: resBadge, isHighlighted: false)
+            }
+
+            // HDR/DV badge from technical details
+            if let hdr = hdrBadge {
+                TechnicalBadge(text: hdr, isHighlighted: true)
+            }
+
+            // Technical badges from vm.badges (Atmos, etc.)
+            // Filter out resolution, HDR, Plex, and "No local source" - those are shown separately
             ForEach(vm.badges.filter { badge in
                 let lower = badge.lowercased()
-                return lower != "plex" && !lower.contains("no local")
+                return lower != "plex" &&
+                       !lower.contains("no local") &&
+                       !lower.contains("4k") &&
+                       !lower.contains("hd") &&
+                       !lower.contains("1080") &&
+                       !lower.contains("720") &&
+                       !lower.contains("hdr") &&
+                       !lower.contains("dolby vision") &&
+                       lower != "dv"
             }, id: \.self) { badge in
-                let isHDR = {
-                    let lower = badge.lowercased()
-                    return lower.contains("hdr") || lower.contains("dolby") || lower == "dv" || lower.contains("hlg")
-                }()
-                TechnicalBadge(text: badge, isHighlighted: isHDR)
+                TechnicalBadge(text: badge, isHighlighted: false)
             }
 
             // Source indicator - check if "Plex" badge is present
@@ -633,6 +706,31 @@ private struct DetailsHeroSection: View {
                 }
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.orange.opacity(0.9))
+            }
+
+            // Ratings at the end (with individual visibility settings)
+            if let ratings = vm.externalRatings {
+                if showIMDbRating, let imdbScore = ratings.imdb?.score, imdbScore > 0 {
+                    HStack(spacing: 4) {
+                        IMDbMark()
+                        Text(String(format: "%.1f", imdbScore))
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                }
+                if showRottenTomatoesCritic, let critic = ratings.rottenTomatoes?.critic, critic > 0 {
+                    HStack(spacing: 4) {
+                        TomatoIcon(score: critic)
+                        Text("\(critic)%")
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                }
+                if showRottenTomatoesAudience, let audience = ratings.rottenTomatoes?.audience, audience > 0 {
+                    HStack(spacing: 4) {
+                        PopcornIcon(score: audience)
+                        Text("\(audience)%")
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                }
             }
         }
         .font(.system(size: 12, weight: .medium))
@@ -718,6 +816,24 @@ private struct DetailsHeroSection: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(!hasPlexSource)
+
+                // View Show button for episodes
+                if isEpisode, item.grandparentRatingKey != nil {
+                    Button(action: onViewShow) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "tv.fill")
+                                .font(.system(size: 16, weight: .semibold))
+                            Text("View Show")
+                                .font(.system(size: 16, weight: .semibold))
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 12)
+                        .background(Color.white.opacity(0.2))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                    }
+                    .buttonStyle(.plain)
+                }
 
                 // Watchlist button - circular (Apple TV+ style)
                 if let watchlistId = canonicalWatchlistId,
@@ -896,8 +1012,11 @@ private struct TechnicalBadge: View {
         if lower == "4k" || lower == "uhd" || lower == "2160p" {
             return "4K"
         }
-        if lower == "hd" || lower == "1080p" || lower == "1080i" {
+        if lower == "hd" || lower == "1080p" || lower == "1080i" || lower == "fhd" {
             return "hd"
+        }
+        if lower == "720p" || lower == "hd ready" {
+            return "hd" // Use HD icon for 720p as well
         }
         if lower.contains("dolby vision") || lower == "dv" || lower.contains("dovi") {
             return "dolbyVision"
@@ -2271,39 +2390,26 @@ private struct RatingsStrip: View {
     let ratings: DetailsViewModel.ExternalRatings
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 12) {
             if let imdbScore = ratings.imdb?.score {
-                RatingsPill {
-                    HStack(spacing: 8) {
-                        IMDbMark()
-                        Text(String(format: "%.1f", imdbScore))
-                            .font(.system(size: 12, weight: .semibold))
-                        if let votes = ratings.imdb?.votes, let display = formattedVotes(votes) {
-                            Text(display)
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(.white.opacity(0.7))
-                        }
-                    }
+                HStack(spacing: 4) {
+                    IMDbMark()
+                    Text(String(format: "%.1f", imdbScore))
+                        .font(.system(size: 12, weight: .semibold))
                 }
             }
             if let critic = ratings.rottenTomatoes?.critic {
-                RatingsPill {
-                    HStack(spacing: 8) {
-                        TomatoIcon(score: critic)
-                        Text("\(critic)%")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(scoreColor(critic))
-                    }
+                HStack(spacing: 4) {
+                    TomatoIcon(score: critic)
+                    Text("\(critic)%")
+                        .font(.system(size: 12, weight: .semibold))
                 }
             }
             if let audience = ratings.rottenTomatoes?.audience {
-                RatingsPill {
-                    HStack(spacing: 8) {
-                        PopcornIcon(score: audience)
-                        Text("\(audience)%")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(scoreColor(audience))
-                    }
+                HStack(spacing: 4) {
+                    PopcornIcon(score: audience)
+                    Text("\(audience)%")
+                        .font(.system(size: 12, weight: .semibold))
                 }
             }
         }

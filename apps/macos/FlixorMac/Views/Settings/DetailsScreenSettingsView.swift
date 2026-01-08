@@ -13,6 +13,11 @@ struct DetailsScreenSettingsView: View {
     @AppStorage("showRelatedContent") private var showRelatedContent: Bool = true
     @AppStorage("showCastCrew") private var showCastCrew: Bool = true
 
+    // Rating visibility settings
+    @AppStorage("showIMDbRating") private var showIMDbRating: Bool = true
+    @AppStorage("showRottenTomatoesCritic") private var showRottenTomatoesCritic: Bool = true
+    @AppStorage("showRottenTomatoesAudience") private var showRottenTomatoesAudience: Bool = true
+
     @State private var showEpisodePreview: Bool = false
     @State private var showSuggestedPreview: Bool = false
 
@@ -116,6 +121,20 @@ struct DetailsScreenSettingsView: View {
                 }
                 SettingsRow(icon: "person.2.fill", iconColor: .purple, title: "Show Cast & Crew", showDivider: false) {
                     Toggle("", isOn: $showCastCrew).labelsHidden()
+                }
+            }
+
+            // Ratings Display
+            SettingsSectionHeader(title: "Ratings Display")
+            SettingsGroupCard {
+                SettingsRow(icon: "star.fill", iconColor: .yellow, title: "IMDb Rating", subtitle: "Show IMDb score") {
+                    Toggle("", isOn: $showIMDbRating).labelsHidden()
+                }
+                SettingsRow(icon: "leaf.fill", iconColor: .red, title: "Rotten Tomatoes (Critics)", subtitle: "Tomatometer score") {
+                    Toggle("", isOn: $showRottenTomatoesCritic).labelsHidden()
+                }
+                SettingsRow(icon: "popcorn.fill", iconColor: .orange, title: "Rotten Tomatoes (Audience)", subtitle: "Audience score", showDivider: false) {
+                    Toggle("", isOn: $showRottenTomatoesAudience).labelsHidden()
                 }
             }
 

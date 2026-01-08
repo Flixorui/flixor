@@ -80,15 +80,8 @@ struct RatingBadge: View {
                 .foregroundStyle(providerInfo?.color ?? .gray)
 
             Text(displayScore)
-                .font(.caption)
-                .fontWeight(.semibold)
+                .font(.system(size: 12, weight: .semibold))
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(
-            (providerInfo?.color ?? .gray).opacity(0.15),
-            in: RoundedRectangle(cornerRadius: 6, style: .continuous)
-        )
         .help(providerInfo?.name ?? provider.capitalized)
     }
 }
