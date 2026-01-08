@@ -2,7 +2,7 @@
 //  CatalogSettingsView.swift
 //  FlixorMac
 //
-//  Catalog settings for managing which Plex libraries appear in the app
+//  Catalog settings - macOS System Settings style
 //
 
 import SwiftUI
@@ -16,15 +16,11 @@ struct CatalogSettingsView: View {
     @State private var errorMessage: String?
 
     private var enabledLibraryKeys: Set<String> {
-        get {
-            Set(enabledLibraryKeysString.split(separator: ",").map { String($0) })
-        }
+        Set(enabledLibraryKeysString.split(separator: ",").map { String($0) })
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            headerSection
-
+        VStack(alignment: .leading, spacing: 24) {
             if isLoading {
                 loadingSection
             } else if let error = errorMessage {
@@ -38,128 +34,125 @@ struct CatalogSettingsView: View {
         .task { await loadLibraries() }
     }
 
-    private var headerSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 12) {
-                ZStack {
-                    Circle()
-                        .fill(Color.purple.opacity(0.15))
-                        .frame(width: 48, height: 48)
-                    Image(systemName: "folder.fill")
-                        .font(.system(size: 22))
-                        .foregroundStyle(.purple)
-                }
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Catalog")
-                        .font(.headline)
-                    Text("Choose which Plex libraries appear in the app")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
-        .padding(18)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.06), lineWidth: 1)
-        )
-    }
-
     private var loadingSection: some View {
-        HStack {
-            ProgressView()
-                .scaleEffect(0.8)
-            Text("Loading libraries...")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+        SettingsGroupCard {
+            HStack(spacing: 12) {
+                ProgressView()
+                    .scaleEffect(0.7)
+                Text("Loading libraries...")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+                Spacer()
+            }
+            .padding(16)
         }
-        .frame(maxWidth: .infinity)
-        .padding(40)
     }
 
     private func errorSection(_ error: String) -> some View {
-        VStack(spacing: 12) {
-            Image(systemName: "exclamationmark.triangle")
-                .font(.largeTitle)
-                .foregroundStyle(.orange)
+        VStack(spacing: 16) {
+            SettingsGroupCard {
+                VStack(spacing: 12) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 32))
+                        .foregroundStyle(.orange)
 
-            Text("Failed to load libraries")
-                .font(.headline)
+                    Text("Failed to load libraries")
+                        .font(.system(size: 15, weight: .semibold))
 
-            Text(error)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
+                    Text(error)
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
 
-            Button("Retry") {
-                Task { await loadLibraries() }
+                    Button("Retry") {
+                        Task { await loadLibraries() }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.regular)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(24)
             }
         }
-        .frame(maxWidth: .infinity)
-        .padding(40)
     }
 
     private var emptySection: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "folder.badge.questionmark")
-                .font(.largeTitle)
-                .foregroundStyle(.secondary)
+        SettingsGroupCard {
+            VStack(spacing: 12) {
+                Image(systemName: "folder.badge.questionmark")
+                    .font(.system(size: 32))
+                    .foregroundStyle(.secondary)
 
-            Text("No libraries found")
-                .font(.headline)
+                Text("No libraries found")
+                    .font(.system(size: 15, weight: .semibold))
 
-            Text("Connect to a Plex server to see your libraries.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                Text("Connect to a Plex server to see your libraries.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(24)
         }
-        .frame(maxWidth: .infinity)
-        .padding(40)
     }
 
     private var librariesSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Libraries")
-                .font(.headline)
-
-            ForEach(libraries, id: \.key) { library in
-                libraryRow(library)
-            }
-
-            Text("Disabled libraries will be hidden from the sidebar and home screen.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.top, 8)
-        }
-        .padding(18)
-        .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.06), lineWidth: 1)
-        )
-    }
-
-    private func libraryRow(_ library: PlexLibrary) -> some View {
-        let isEnabled = enabledLibraryKeys.isEmpty || enabledLibraryKeys.contains(library.key)
-
-        return Toggle(isOn: Binding(
-            get: { isEnabled },
-            set: { enabled in toggleLibrary(library.key, enabled: enabled) }
-        )) {
-            HStack(spacing: 10) {
-                Image(systemName: libraryIcon(for: library.type))
-                    .foregroundStyle(libraryColor(for: library.type))
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(library.title ?? "Unknown Library")
-                        .font(.subheadline)
-                    Text(library.type.capitalized)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 24) {
+            // Movies
+            let movieLibraries = libraries.filter { $0.type.lowercased() == "movie" }
+            if !movieLibraries.isEmpty {
+                SettingsSectionHeader(title: "Movie Libraries")
+                SettingsGroupCard {
+                    ForEach(Array(movieLibraries.enumerated()), id: \.element.key) { index, library in
+                        libraryRow(library, showDivider: index < movieLibraries.count - 1)
+                    }
                 }
             }
+
+            // TV Shows
+            let showLibraries = libraries.filter { $0.type.lowercased() == "show" }
+            if !showLibraries.isEmpty {
+                SettingsSectionHeader(title: "TV Show Libraries")
+                SettingsGroupCard {
+                    ForEach(Array(showLibraries.enumerated()), id: \.element.key) { index, library in
+                        libraryRow(library, showDivider: index < showLibraries.count - 1)
+                    }
+                }
+            }
+
+            // Other
+            let otherLibraries = libraries.filter { !["movie", "show"].contains($0.type.lowercased()) }
+            if !otherLibraries.isEmpty {
+                SettingsSectionHeader(title: "Other Libraries")
+                SettingsGroupCard {
+                    ForEach(Array(otherLibraries.enumerated()), id: \.element.key) { index, library in
+                        libraryRow(library, showDivider: index < otherLibraries.count - 1)
+                    }
+                }
+            }
+
+            // Info
+            Text("Disabled libraries will be hidden from the sidebar and home screen.")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 4)
+        }
+    }
+
+    private func libraryRow(_ library: PlexLibrary, showDivider: Bool) -> some View {
+        let isEnabled = enabledLibraryKeys.isEmpty || enabledLibraryKeys.contains(library.key)
+
+        return SettingsRow(
+            icon: libraryIcon(for: library.type),
+            iconColor: libraryColor(for: library.type),
+            title: library.title ?? "Unknown Library",
+            subtitle: library.type.capitalized,
+            showDivider: showDivider
+        ) {
+            Toggle("", isOn: Binding(
+                get: { isEnabled },
+                set: { enabled in toggleLibrary(library.key, enabled: enabled) }
+            ))
+            .labelsHidden()
         }
     }
 
@@ -187,23 +180,17 @@ struct CatalogSettingsView: View {
         var keys = enabledLibraryKeys
 
         if enabled {
-            // If enabling and we have keys set, add this one
-            // If enabling and no keys set (all enabled), keep it empty
             if !keys.isEmpty {
                 keys.insert(key)
             }
         } else {
-            // If disabling, we need to set explicit keys
             if keys.isEmpty {
-                // All were enabled, now set all except this one
                 keys = Set(libraries.map { $0.key })
             }
             keys.remove(key)
         }
 
-        // Convert to string
         if keys.count == libraries.count {
-            // All enabled - use empty string
             enabledLibraryKeysString = ""
         } else {
             enabledLibraryKeysString = keys.sorted().joined(separator: ",")

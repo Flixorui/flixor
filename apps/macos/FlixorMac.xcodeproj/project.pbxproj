@@ -84,7 +84,9 @@
 		A205 /* TMDBSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B165 /* TMDBSettingsView.swift */; };
 		A206 /* MDBListSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B166 /* MDBListSettingsView.swift */; };
 		A207 /* OverseerrSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B167 /* OverseerrSettingsView.swift */; };
-		A208 /* HomeScreenSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B168 /* HomeScreenSettingsView.swift */; };
+		A208 /* RowsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B168 /* RowsSettingsView.swift */; };
+		A250 /* HomeScreenAppearanceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B250 /* HomeScreenAppearanceView.swift */; };
+		A251 /* DetailsScreenSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B251 /* DetailsScreenSettingsView.swift */; };
 		A209 /* CatalogSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B169 /* CatalogSettingsView.swift */; };
 		A210 /* MDBListRatings.swift in Sources */ = {isa = PBXBuildFile; fileRef = B170 /* MDBListRatings.swift */; };
 		A211 /* OverseerrModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B171 /* OverseerrModels.swift */; };
@@ -341,7 +343,9 @@
 		B165 /* TMDBSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TMDBSettingsView.swift; sourceTree = "<group>"; };
 		B166 /* MDBListSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MDBListSettingsView.swift; sourceTree = "<group>"; };
 		B167 /* OverseerrSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverseerrSettingsView.swift; sourceTree = "<group>"; };
-		B168 /* HomeScreenSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeScreenSettingsView.swift; sourceTree = "<group>"; };
+		B168 /* RowsSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RowsSettingsView.swift; sourceTree = "<group>"; };
+		B250 /* HomeScreenAppearanceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeScreenAppearanceView.swift; sourceTree = "<group>"; };
+		B251 /* DetailsScreenSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailsScreenSettingsView.swift; sourceTree = "<group>"; };
 		B169 /* CatalogSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CatalogSettingsView.swift; sourceTree = "<group>"; };
 		B170 /* MDBListRatings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MDBListRatings.swift; sourceTree = "<group>"; };
 		B171 /* OverseerrModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverseerrModels.swift; sourceTree = "<group>"; };
@@ -725,7 +729,9 @@
 				B165 /* TMDBSettingsView.swift */,
 				B166 /* MDBListSettingsView.swift */,
 				B167 /* OverseerrSettingsView.swift */,
-				B168 /* HomeScreenSettingsView.swift */,
+				B168 /* RowsSettingsView.swift */,
+				B250 /* HomeScreenAppearanceView.swift */,
+				B251 /* DetailsScreenSettingsView.swift */,
 				B169 /* CatalogSettingsView.swift */,
 				B176 /* ContinueWatchingSettingsView.swift */,
 			);
@@ -969,7 +975,9 @@
 				A205 /* TMDBSettingsView.swift in Sources */,
 				A206 /* MDBListSettingsView.swift in Sources */,
 				A207 /* OverseerrSettingsView.swift in Sources */,
-				A208 /* HomeScreenSettingsView.swift in Sources */,
+				A208 /* RowsSettingsView.swift in Sources */,
+				A250 /* HomeScreenAppearanceView.swift in Sources */,
+				A251 /* DetailsScreenSettingsView.swift in Sources */,
 				A209 /* CatalogSettingsView.swift in Sources */,
 				A210 /* MDBListRatings.swift in Sources */,
 				A211 /* OverseerrModels.swift in Sources */,

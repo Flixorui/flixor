@@ -28,6 +28,19 @@ enum SectionLoadState: Equatable {
 
 @MainActor
 class HomeViewModel: ObservableObject {
+    // MARK: - Settings
+    @AppStorage("enabledLibraryKeys") private var enabledLibraryKeysString: String = ""
+
+    private var enabledLibraryKeys: Set<String> {
+        let keys = enabledLibraryKeysString.split(separator: ",").map { String($0) }
+        return Set(keys)
+    }
+
+    private func isLibraryEnabled(_ key: String) -> Bool {
+        // Empty means all libraries are enabled
+        return enabledLibraryKeys.isEmpty || enabledLibraryKeys.contains(key)
+    }
+
     // MARK: - Global State
     @Published var isLoading = false  // Initial full-page loading
     @Published var error: String?
@@ -546,8 +559,11 @@ class HomeViewModel: ObservableObject {
 
         print("📦 [Home] Fetching libraries for genre rows...")
         let libraries = try await plexServer.getLibraries()
-        let movieLib = libraries.first { $0.type == "movie" }
-        let showLib = libraries.first { $0.type == "show" }
+
+        // Only use libraries that are enabled in settings
+        let enabledLibs = libraries.filter { isLibraryEnabled($0.key) }
+        let movieLib = enabledLibs.first { $0.type == "movie" }
+        let showLib = enabledLibs.first { $0.type == "show" }
 
         var out: [LibrarySection] = []
         for spec in genreRows {
@@ -981,10 +997,14 @@ class HomeViewModel: ObservableObject {
         let libraries = try await plexServer.getLibraries()
         print("✅ [Home] Received \(libraries.count) libraries")
 
-        // Fetch items for each library (limit to first 20)
+        // Filter libraries based on enabled settings
+        let filteredLibraries = libraries.filter { isLibraryEnabled($0.key) }
+        print("📋 [Home] Enabled libraries: \(filteredLibraries.count) of \(libraries.count)")
+
+        // Fetch items for each enabled library (limit to first 20)
         var sections: [LibrarySection] = []
 
-        for library in libraries {
+        for library in filteredLibraries {
             do {
                 print("📦 [Home] Fetching items for library: \(library.title)")
                 let items = try await plexServer.getLibraryItems(key: library.key, limit: 20)

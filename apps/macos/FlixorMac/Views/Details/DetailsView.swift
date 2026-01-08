@@ -777,10 +777,13 @@ private struct SuggestedSections: View {
     let layout: DetailsLayoutMetrics
     var onBrowse: ((BrowseContext) -> Void)?
 
+    @AppStorage("showRelatedContent") private var showRelatedContent: Bool = true
+    @AppStorage("suggestedLayout") private var suggestedLayout: String = "landscape"
+
     var body: some View {
         VStack(alignment: .leading, spacing: layout.width < 1100 ? 24 : 28) {
-            if !vm.related.isEmpty {
-                LandscapeSectionView(
+            if showRelatedContent && !vm.related.isEmpty {
+                suggestedRow(
                     section: LibrarySection(
                         id: "rel",
                         title: "Related",
@@ -788,18 +791,11 @@ private struct SuggestedSections: View {
                         totalCount: vm.related.count,
                         libraryKey: nil,
                         browseContext: vm.relatedBrowseContext
-                    ),
-                    onTap: { media in
-                    Task { await vm.load(for: media) }
-                },
-                    onBrowse: { context in
-                        onBrowse?(context)
-                    }
+                    )
                 )
-                .padding(.trailing, 60)
             }
-            if !vm.similar.isEmpty {
-                LandscapeSectionView(
+            if showRelatedContent && !vm.similar.isEmpty {
+                suggestedRow(
                     section: LibrarySection(
                         id: "sim",
                         title: "Similar",
@@ -807,16 +803,36 @@ private struct SuggestedSections: View {
                         totalCount: vm.similar.count,
                         libraryKey: nil,
                         browseContext: vm.similarBrowseContext
-                    ),
-                    onTap: { media in
+                    )
+                )
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func suggestedRow(section: LibrarySection) -> some View {
+        if suggestedLayout == "poster" {
+            PosterSectionRow(
+                section: section,
+                onTap: { media in
                     Task { await vm.load(for: media) }
                 },
-                    onBrowse: { context in
-                        onBrowse?(context)
-                    }
-                )
-                .padding(.trailing, 60)
-            }
+                onBrowse: { context in
+                    onBrowse?(context)
+                }
+            )
+            .padding(.trailing, 60)
+        } else {
+            LandscapeSectionView(
+                section: section,
+                onTap: { media in
+                    Task { await vm.load(for: media) }
+                },
+                onBrowse: { context in
+                    onBrowse?(context)
+                }
+            )
+            .padding(.trailing, 60)
         }
     }
 }
@@ -825,6 +841,8 @@ private struct DetailsTabContent: View {
     @ObservedObject var vm: DetailsViewModel
     let layout: DetailsLayoutMetrics
     var onPersonTap: (CastCrewCard.Person) -> Void
+
+    @AppStorage("showCastCrew") private var showCastCrew: Bool = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 40) {
@@ -901,7 +919,7 @@ private struct DetailsTabContent: View {
             }
 
             // Cast & Crew Section (Apple TV+ style)
-            if !vm.cast.isEmpty || !vm.crew.isEmpty {
+            if showCastCrew && (!vm.cast.isEmpty || !vm.crew.isEmpty) {
                 VStack(alignment: .leading, spacing: 16) {
                     HStack {
                         Text("Cast & Crew")

@@ -8,186 +8,116 @@
 import SwiftUI
 
 struct ContinueWatchingSettingsView: View {
+    @Environment(\.dismiss) private var dismiss
     @AppStorage("continueWatchingLayout") private var layout: String = "landscape"
     @AppStorage("useCachedStreams") private var useCachedStreams: Bool = false
     @AppStorage("streamCacheTTL") private var cacheTTL: Int = 3600
+    @State private var showPreview: Bool = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            headerSection
-            layoutSection
-            cacheSection
-            previewSection
-        }
-    }
-
-    private var headerSection: some View {
-        HStack(alignment: .top, spacing: 12) {
-            ZStack {
-                Circle()
-                    .fill(Color.blue.opacity(0.15))
-                    .frame(width: 48, height: 48)
-                Image(systemName: "play.circle.fill")
-                    .font(.system(size: 22))
-                    .foregroundStyle(.blue)
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
+        VStack(spacing: 0) {
+            // Header with close button
+            HStack {
                 Text("Continue Watching")
-                    .font(.headline)
-                Text("Customize how your watch progress is displayed")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(18)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.06), lineWidth: 1)
-        )
-    }
-
-    private var layoutSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Display Layout")
-                .font(.headline)
-
-            HStack(spacing: 12) {
-                layoutOption(
-                    title: "Landscape",
-                    icon: "rectangle.fill",
-                    description: "16:9 thumbnails with progress bar",
-                    value: "landscape"
-                )
-
-                layoutOption(
-                    title: "Poster",
-                    icon: "rectangle.portrait.fill",
-                    description: "Portrait posters with progress ring",
-                    value: "poster"
-                )
-            }
-
-            Text("Choose how continue watching items appear on your home screen.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.top, 4)
-        }
-        .padding(18)
-        .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.06), lineWidth: 1)
-        )
-    }
-
-    private func layoutOption(title: String, icon: String, description: String, value: String) -> some View {
-        let isSelected = layout == value
-
-        return Button(action: { layout = value }) {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Image(systemName: icon)
-                        .font(.system(size: 24))
-                        .foregroundStyle(isSelected ? .blue : .secondary)
-
-                    Spacer()
-
-                    if isSelected {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(.blue)
-                    }
-                }
-
-                Text(title)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(.primary)
-
-                Text(description)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-            }
-            .padding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                isSelected ? Color.blue.opacity(0.15) : Color.white.opacity(0.03),
-                in: RoundedRectangle(cornerRadius: 12, style: .continuous)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(isSelected ? Color.blue.opacity(0.4) : Color.white.opacity(0.08), lineWidth: 1)
-            )
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var cacheSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Stream Caching")
-                .font(.headline)
-
-            VStack(alignment: .leading, spacing: 12) {
-                Toggle("Cache Stream URLs", isOn: $useCachedStreams)
-
-                Text("Store stream URLs locally for faster playback resume. Disable if you experience playback issues.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .padding(.leading, 20)
-            }
-
-            if useCachedStreams {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Cache Duration")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-
-                    Picker("Cache TTL", selection: $cacheTTL) {
-                        Text("15 minutes").tag(900)
-                        Text("30 minutes").tag(1800)
-                        Text("1 hour").tag(3600)
-                        Text("6 hours").tag(21600)
-                        Text("12 hours").tag(43200)
-                        Text("24 hours").tag(86400)
-                    }
-                    .pickerStyle(.segmented)
-
-                    Text("How long to keep cached stream URLs before refreshing. Shorter times are more reliable but slower to resume.")
-                        .font(.caption)
+                    .font(.system(size: 16, weight: .semibold))
+                Spacer()
+                Button(action: { dismiss() }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 20))
                         .foregroundStyle(.secondary)
                 }
-                .padding(.top, 8)
+                .buttonStyle(.plain)
+                .help("Close")
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 20)
+            .padding(.bottom, 16)
+
+            Divider()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    // Layout Section
+                    SettingsSectionHeader(title: "Display Layout")
+                    SettingsGroupCard {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Choose how continue watching items appear")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 12)
+                                .padding(.top, 12)
+
+                            HStack(spacing: 12) {
+                                LayoutOptionButton(
+                                    title: "Landscape",
+                                    icon: "rectangle.fill",
+                                    isSelected: layout == "landscape"
+                                ) {
+                                    layout = "landscape"
+                                }
+
+                                LayoutOptionButton(
+                                    title: "Poster",
+                                    icon: "rectangle.portrait.fill",
+                                    isSelected: layout == "poster"
+                                ) {
+                                    layout = "poster"
+                                }
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.bottom, 12)
+                        }
+                    }
+
+                    // Collapsible Preview Section
+                    CollapsiblePreviewSection(title: "Preview", isExpanded: $showPreview) {
+                        if layout == "landscape" {
+                            landscapePreview
+                        } else {
+                            posterPreview
+                        }
+                    }
+
+                    // Cache Section
+                    SettingsSectionHeader(title: "Stream Caching")
+                    SettingsGroupCard {
+                        SettingsRow(icon: "arrow.triangle.2.circlepath.circle.fill", iconColor: .blue, title: "Cache Stream URLs", showDivider: !useCachedStreams) {
+                            Toggle("", isOn: $useCachedStreams).labelsHidden()
+                        }
+
+                        if useCachedStreams {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Cache Duration")
+                                    .font(.system(size: 12, weight: .medium))
+                                    .padding(.horizontal, 12)
+
+                                Picker("", selection: $cacheTTL) {
+                                    Text("15 min").tag(900)
+                                    Text("30 min").tag(1800)
+                                    Text("1 hour").tag(3600)
+                                    Text("6 hours").tag(21600)
+                                    Text("12 hours").tag(43200)
+                                    Text("24 hours").tag(86400)
+                                }
+                                .pickerStyle(.segmented)
+                                .padding(.horizontal, 12)
+                                .padding(.bottom, 12)
+                            }
+                        }
+                    }
+
+                    Text("Stream caching stores URLs locally for faster playback resume. Disable if you experience playback issues.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 4)
+                }
+                .padding(24)
             }
         }
-        .padding(18)
-        .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.06), lineWidth: 1)
-        )
+        .background(Color(NSColor.windowBackgroundColor))
     }
 
-    private var previewSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Preview")
-                .font(.headline)
-
-            if layout == "landscape" {
-                landscapePreview
-            } else {
-                posterPreview
-            }
-        }
-        .padding(18)
-        .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.06), lineWidth: 1)
-        )
-    }
+    // MARK: - Previews
 
     private var landscapePreview: some View {
         HStack(spacing: 12) {
@@ -216,7 +146,7 @@ struct ContinueWatchingSettingsView: View {
 
                         // Play icon
                         Image(systemName: "play.circle.fill")
-                            .font(.system(size: 28))
+                            .font(.system(size: 24))
                             .foregroundStyle(.white.opacity(0.9))
                     }
 
@@ -229,7 +159,7 @@ struct ContinueWatchingSettingsView: View {
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
-                .frame(width: 140)
+                .frame(width: 120)
             }
         }
     }
@@ -246,25 +176,25 @@ struct ContinueWatchingSettingsView: View {
                         // Progress ring
                         Circle()
                             .stroke(Color.white.opacity(0.2), lineWidth: 3)
-                            .frame(width: 36, height: 36)
+                            .frame(width: 32, height: 32)
 
                         Circle()
                             .trim(from: 0, to: CGFloat([0.3, 0.65, 0.45, 0.8][index]))
                             .stroke(Color.blue, style: StrokeStyle(lineWidth: 3, lineCap: .round))
-                            .frame(width: 36, height: 36)
+                            .frame(width: 32, height: 32)
                             .rotationEffect(.degrees(-90))
 
                         Image(systemName: "play.fill")
-                            .font(.system(size: 12))
+                            .font(.system(size: 10))
                             .foregroundStyle(.white)
                     }
 
-                    Text(["Breaking Bad", "The Office", "Stranger Things", "Dark"][index])
+                    Text(["Breaking Bad", "The Office", "Stranger", "Dark"][index])
                         .font(.caption2)
                         .fontWeight(.medium)
                         .lineLimit(1)
                 }
-                .frame(width: 80)
+                .frame(width: 70)
             }
         }
     }

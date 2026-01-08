@@ -59,7 +59,7 @@ struct WatchlistButton: View {
                     Image(systemName: isInWatchlist ? "checkmark" : "plus")
                         .font(.system(size: 14, weight: .bold))
                 }
-                Text(isInWatchlist ? "In My List" : "Add to My List")
+                Text(isInWatchlist ? "My List" : "Watchlist")
                     .font(.system(size: 15, weight: .semibold))
             }
             .padding(.horizontal, 22)
