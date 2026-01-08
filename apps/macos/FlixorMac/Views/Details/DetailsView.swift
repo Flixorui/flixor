@@ -557,12 +557,7 @@ private struct DetailsHeroSection: View {
 
             // Content rating badge
             if let rating = vm.rating, !rating.isEmpty {
-                Text(rating)
-                    .font(.system(size: 11, weight: .semibold))
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-                    .background(Color.white.opacity(0.2))
-                    .clipShape(RoundedRectangle(cornerRadius: 4))
+                ContentRatingBadge(rating: rating)
             }
         }
         .font(.system(size: 13))
@@ -895,16 +890,98 @@ private struct TechnicalBadge: View {
     let text: String
     var isHighlighted: Bool = false
 
+    /// Maps badge text to image asset name
+    private var imageAssetName: String? {
+        let lower = text.lowercased()
+        if lower == "4k" || lower == "uhd" || lower == "2160p" {
+            return "4K"
+        }
+        if lower == "hd" || lower == "1080p" || lower == "1080i" {
+            return "hd"
+        }
+        if lower.contains("dolby vision") || lower == "dv" || lower.contains("dovi") {
+            return "dolbyVision"
+        }
+        if lower.contains("dolby atmos") || lower.contains("atmos") || lower.contains("truehd") {
+            return "dolbyatmos"
+        }
+        if lower == "cc" || lower.contains("closed caption") {
+            return "cc"
+        }
+        if lower == "sdh" || lower.contains("deaf") || lower.contains("hard of hearing") {
+            return "sdh"
+        }
+        if lower == "ad" || lower.contains("audio desc") {
+            return "ad"
+        }
+        return nil
+    }
+
     var body: some View {
-        Text(text)
-            .font(.system(size: 10, weight: .semibold))
-            .foregroundStyle(.white.opacity(0.8))
-            .padding(.horizontal, 6)
-            .padding(.vertical, 3)
-            .background(
-                Color.white.opacity(0.15)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 4))
+        if let assetName = imageAssetName {
+            Image(assetName)
+                .resizable()
+                .scaledToFit()
+                .frame(height: 12)
+        } else {
+            Text(text)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.8))
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(
+                    Color.white.opacity(0.15)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 4))
+        }
+    }
+}
+
+// MARK: - Content Rating Badge Component
+private struct ContentRatingBadge: View {
+    let rating: String
+
+    /// Maps content rating to image asset name
+    private var imageAssetName: String? {
+        let lower = rating.lowercased().trimmingCharacters(in: .whitespaces)
+        switch lower {
+        case "g":
+            return "g"
+        case "pg-13", "pg13":
+            return "pg13"
+        case "r", "rated r":
+            return "r_rated"
+        case "pg":
+            return "pg"
+        case "tv-14", "tv14":
+            return "tv14"
+        case "tv-g", "tvg":
+            return "tvg"
+        case "tv-ma", "tvma":
+            return "tvma"
+        case "tv-pg", "tvpg":
+            return "tvpg"
+        case "unrated", "nr", "not rated":
+            return "unrated"
+        default:
+            return nil
+        }
+    }
+
+    var body: some View {
+        if let assetName = imageAssetName {
+            Image(assetName)
+                .resizable()
+                .scaledToFit()
+                .frame(height: 12)
+        } else {
+            Text(rating)
+                .font(.system(size: 11, weight: .semibold))
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(Color.white.opacity(0.2))
+                .clipShape(RoundedRectangle(cornerRadius: 4))
+        }
     }
 }
 

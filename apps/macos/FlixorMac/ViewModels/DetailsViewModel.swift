@@ -1008,6 +1008,17 @@ class DetailsViewModel: ObservableObject {
             }
             audioTracks = vds.first?.audioTracks ?? []
             subtitleTracks = vds.first?.subtitleTracks ?? []
+
+            // Add CC badge if there are any subtitles
+            if !subtitleTracks.isEmpty {
+                addBadges(["CC"])
+            }
+
+            // Add SDH badge if any subtitle contains "SDH" in its name
+            if subtitleTracks.contains(where: { $0.name.uppercased().contains("SDH") }) {
+                addBadges(["SDH"])
+            }
+
             print("✅ [hydrateVersions] Successfully populated \(vds.count) version(s): \(vds.map { $0.label }.joined(separator: ", "))")
             print("   Active version: \(activeVersionId ?? "nil"), \(audioTracks.count) audio track(s), \(subtitleTracks.count) subtitle(s)")
         } else {
