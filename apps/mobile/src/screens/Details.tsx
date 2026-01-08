@@ -723,10 +723,38 @@ export default function Details({ route }: RouteParams) {
 
         {/* Meta line */}
         <Text style={{ color:'#bbb', marginHorizontal:16, marginTop:8 }}>
+          {/* Episode: Show S#E# first */}
+          {meta?.type === 'episode' && meta?.parentIndex && meta?.index ? `S${meta.parentIndex} E${meta.index} • ` : ''}
           {meta?.year ? `${meta.year} • ` : ''}
           {meta?.type === 'show' ? `${meta?.leafCount || 0} Episodes` : (meta?.duration ? `${Math.round(meta.duration/60000)}m` : '')}
           {meta?.Genre?.length ? ` • ${meta.Genre.map((g:any)=>g.tag).slice(0,3).join(', ')}` : ''}
         </Text>
+
+        {/* View Show button for episodes */}
+        {meta?.type === 'episode' && meta?.grandparentRatingKey && (
+          <Pressable
+            onPress={() => {
+              console.log('[Details] Navigating to parent show:', meta.grandparentRatingKey);
+              nav.push('Details', { type: 'plex', ratingKey: String(meta.grandparentRatingKey) });
+            }}
+            style={{
+              marginHorizontal: 16,
+              marginTop: 12,
+              backgroundColor: 'rgba(255,255,255,0.1)',
+              paddingVertical: 10,
+              borderRadius: 10,
+              alignItems: 'center',
+              flexDirection: 'row',
+              justifyContent: 'center',
+              gap: 8,
+            }}
+          >
+            <Ionicons name="tv-outline" size={18} color="#fff" />
+            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>
+              View Show
+            </Text>
+          </Pressable>
+        )}
 
         {/* Play / Continue */}
         <Pressable
