@@ -59,8 +59,8 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         switch self {
         case .plex: return "server.rack"
         case .catalog: return "rectangle.stack"
-        case .rowsSettings: return "house"
-        case .homeScreenAppearance: return "square.grid.2x2"
+        case .rowsSettings: return "square.grid.3x1.below.line.grid.1x2"
+        case .homeScreenAppearance: return "house"
         case .detailsScreen: return "play.rectangle"
         case .tmdb: return "film"
         case .mdblist: return "star"
@@ -70,28 +70,107 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         }
     }
 
-    /// Image asset name for content header (branding)
-    var imageAsset: String? {
+    /// Whether this category uses a custom service icon
+    var hasCustomIcon: Bool {
         switch self {
-        case .plex: return "plex"
-        case .tmdb: return "tmdb"
-        case .mdblist: return "mdblist"
-        case .overseerr: return "overseerr"
-        case .trakt: return "trakt"
-        default: return nil
+        case .plex, .tmdb, .mdblist, .overseerr, .trakt:
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Custom service icon view for sidebar (28pt)
+    @ViewBuilder
+    var sidebarIcon: some View {
+        switch self {
+        case .plex:
+            PlexServiceIcon(size: 24)
+        case .tmdb:
+            TMDBServiceIcon(size: 24)
+        case .mdblist:
+            MDBListServiceIcon(size: 24)
+        case .overseerr:
+            OverseerrServiceIcon(size: 24)
+        case .trakt:
+            TraktServiceIcon(size: 24)
+        default:
+            EmptyView()
+        }
+    }
+
+    /// Custom service icon view for header (64pt) - colorful version
+    @ViewBuilder
+    var headerIcon: some View {
+        let size: CGFloat = 64
+        switch self {
+        case .plex:
+            ZStack {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(color)
+                    .frame(width: size, height: size)
+                Image("plexcolor")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: size * 0.65, height: size * 0.65)
+            }
+        case .tmdb:
+            ZStack {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(color)
+                    .frame(width: size, height: size)
+                Image("tmdbcolor")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: size * 0.65, height: size * 0.65)
+            }
+        case .mdblist:
+            ZStack {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(color)
+                    .frame(width: size, height: size)
+                Image("mdblistcolor")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: size * 0.65, height: size * 0.65)
+            }
+        case .overseerr:
+            ZStack {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(color)
+                    .frame(width: size, height: size)
+                Image("overseerr")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: size * 0.65, height: size * 0.65)
+            }
+        case .trakt:
+            ZStack {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(color)
+                    .frame(width: size, height: size)
+                Image("trakt")
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .foregroundColor(.white)
+                    .frame(width: size * 0.65, height: size * 0.65)
+            }
+        default:
+            EmptyView()
         }
     }
 
     var color: Color {
         switch self {
-        case .plex: return Color(hex: "E5A00D")
+        case .plex: return Color(hex: "272A2D")
         case .catalog: return .purple
         case .rowsSettings: return .blue
         case .homeScreenAppearance: return .indigo
         case .detailsScreen: return .teal
-        case .tmdb: return Color(hex: "01B4E4")
-        case .mdblist: return Color(hex: "F5C518")
-        case .overseerr: return Color(hex: "6366F1")
+        case .tmdb: return Color(hex: "042541")
+        case .mdblist: return Color(hex: "4284CA")
+        case .overseerr: return Color(hex: "0B1223")
         case .trakt: return Color(hex: "ED1C24")
         case .about: return .orange
         }
@@ -233,16 +312,19 @@ struct SettingsView: View {
         VStack(spacing: 0) {
             ScrollView {
                 VStack(spacing: 0) {
-                    // Header
-                    contentHeader
-                        .padding(.top, 32)
-                        .padding(.bottom, 24)
+                    // Header (hide for About screen)
+                    if selectedCategory != .about {
+                        contentHeader
+                            .padding(.top, 32)
+                            .padding(.bottom, 24)
+                    }
 
                     // Content
                     VStack(alignment: .leading, spacing: 16) {
                         categoryContent(for: selectedCategory)
                     }
                     .padding(.horizontal, 40)
+                    .padding(.top, selectedCategory == .about ? 32 : 0)
                     .padding(.bottom, 40)
                 }
             }
@@ -252,21 +334,17 @@ struct SettingsView: View {
 
     private var contentHeader: some View {
         VStack(spacing: 12) {
-            // Icon - use image asset for branding (integrations), SF Symbol otherwise
-            if let imageAsset = selectedCategory.imageAsset {
-                Image(imageAsset)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 64, height: 64)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            // Icon - use custom service icon or SF Symbol
+            if selectedCategory.hasCustomIcon {
+                selectedCategory.headerIcon
             } else {
                 ZStack {
-                    Circle()
-                        .fill(selectedCategory.color.opacity(0.15))
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(selectedCategory.color.gradient)
                         .frame(width: 64, height: 64)
                     Image(systemName: selectedCategory.icon)
                         .font(.system(size: 28, weight: .medium))
-                        .foregroundStyle(selectedCategory.color)
+                        .foregroundStyle(.white)
                 }
             }
 
@@ -320,11 +398,20 @@ private struct SettingsSidebarRow: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 12) {
-                // Simple outline icon (monotonic like mobile)
-                Image(systemName: category.icon)
-                    .font(.system(size: 16, weight: .regular))
-                    .foregroundStyle(isSelected ? .white : .secondary)
-                    .frame(width: 24, height: 24)
+                // Use custom service icon or SF Symbol
+                if category.hasCustomIcon {
+                    category.sidebarIcon
+                } else {
+                    // SF Symbol with grey background
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 5, style: .continuous)
+                            .fill(Color.gray.opacity(0.3))
+                            .frame(width: 24, height: 24)
+                        Image(systemName: category.icon)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.white)
+                    }
+                }
 
                 Text(category.title)
                     .font(.system(size: 13))
@@ -417,7 +504,7 @@ struct SettingsRow<Trailing: View>: View {
                             .frame(width: 28, height: 28)
                             .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                     } else {
-                        // Use SF Symbol
+                        // Use SF Symbol with colored background
                         ZStack {
                             RoundedRectangle(cornerRadius: 6, style: .continuous)
                                 .fill(iconColor.gradient)
@@ -848,21 +935,12 @@ private struct AboutSettingsContent: View {
     var body: some View {
         SettingsGroupCard {
             VStack(spacing: 20) {
-                // App Icon
-                ZStack {
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .fill(
-                            LinearGradient(
-                                colors: [Color.orange, Color.red],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: 80, height: 80)
-                    Image(systemName: "play.rectangle.fill")
-                        .font(.system(size: 36, weight: .semibold))
-                        .foregroundStyle(.white)
-                }
+                // App Icon from assets
+                Image(nsImage: NSApp.applicationIconImage)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 80, height: 80)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
 
                 VStack(spacing: 4) {
                     Text("Flixor")
@@ -883,21 +961,43 @@ private struct AboutSettingsContent: View {
         SettingsGroupCard {
             SettingsNavigationRow(
                 icon: "globe",
-                iconColor: .blue,
+                iconColor: .gray,
                 title: "Website",
-                subtitle: "flixor.app"
+                subtitle: "flixor.xyz"
             ) {
-                if let url = URL(string: "https://flixor.app") {
+                if let url = URL(string: "https://flixor.xyz") {
                     NSWorkspace.shared.open(url)
                 }
             }
             SettingsNavigationRow(
                 icon: "star.fill",
-                iconColor: .yellow,
-                title: "Rate on App Store",
+                iconColor: .gray,
+                title: "Star on Github",
+                subtitle: "github.com/Flixorui/flixor"
+            ) {
+                if let url = URL(string: "https://github.com/Flixorui/flixor") {
+                    NSWorkspace.shared.open(url)
+                }
+            }
+            SettingsNavigationRow(
+                icon: "exclamationmark.bubble.fill",
+                iconColor: .gray,
+                title: "Report Issue"
+            ) {
+                if let url = URL(string: "https://github.com/Flixorui/flixor/issues/new") {
+                    NSWorkspace.shared.open(url)
+                }
+            }
+            SettingsNavigationRow(
+                icon: "bubble.left.and.bubble.right.fill",
+                iconColor: .gray,
+                title: "Reddit",
+                subtitle: "r/Flixor",
                 showDivider: false
             ) {
-                // Open App Store
+                if let url = URL(string: "https://www.reddit.com/r/Flixor/") {
+                    NSWorkspace.shared.open(url)
+                }
             }
         }
 

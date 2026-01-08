@@ -44,6 +44,7 @@ struct RequestButton: View {
     enum Style {
         case icon
         case pill
+        case circle  // Apple TV+ style large circle
     }
 
     let tmdbId: Int
@@ -71,6 +72,8 @@ struct RequestButton: View {
                     iconButton
                 case .pill:
                     pillButton
+                case .circle:
+                    circleButton
                 }
             }
         }
@@ -212,6 +215,35 @@ struct RequestButton: View {
         }
         .buttonStyle(.plain)
         .disabled(isLoading || isRequesting || !canRequest)
+    }
+
+    // Apple TV+ style large circle button
+    private var circleButton: some View {
+        Button {
+            if canRequest {
+                showConfirmation = true
+            }
+        } label: {
+            Group {
+                if isLoading || isRequesting {
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                        .controlSize(.small)
+                } else if canRequest {
+                    OverseerrIcon(size: 24)
+                } else {
+                    Image(systemName: buttonIcon)
+                        .font(.system(size: 20, weight: .medium))
+                }
+            }
+            .frame(width: 44, height: 44)
+            .background(canRequest ? buttonColor.opacity(0.6) : buttonColor.opacity(0.3))
+            .foregroundStyle(.white)
+            .clipShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .disabled(isLoading || isRequesting || !canRequest)
+        .help(canRequest ? "Request via Overseerr" : buttonLabel)
     }
 
     @MainActor

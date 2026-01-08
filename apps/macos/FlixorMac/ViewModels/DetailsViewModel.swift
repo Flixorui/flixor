@@ -911,13 +911,42 @@ class DetailsViewModel: ObservableObject {
         if width >= 3800 || height >= 2100 {
             extra.append("4K")
         }
+
+        // Check videoProfile for HDR info
         let profile = (first.videoProfile ?? "").lowercased()
-        if profile.contains("hdr") || profile.contains("hlg") {
+        var hasHDR = false
+        var hasDV = false
+
+        // Dolby Vision detection
+        if profile.contains("dv") || profile.contains("dolby vision") || profile.contains("dovi") {
+            hasDV = true
+        }
+        // HDR detection - include "main 10" which indicates HDR capability
+        if profile.contains("hdr") || profile.contains("hlg") || profile.contains("pq") ||
+           profile.contains("smpte2084") || profile.contains("main 10") || profile.contains("main10") {
+            hasHDR = true
+        }
+
+        // Also check video stream's displayTitle (streamType == 1) which often has HDR info
+        if let part = first.Part?.first, let streams = part.Stream {
+            for stream in streams where stream.streamType == 1 {
+                let displayTitle = (stream.displayTitle ?? "").lowercased()
+                if displayTitle.contains("dolby vision") || displayTitle.contains("dovi") || displayTitle.contains(" dv") {
+                    hasDV = true
+                }
+                if displayTitle.contains("hdr") || displayTitle.contains("hlg") {
+                    hasHDR = true
+                }
+            }
+        }
+
+        // Add badges - DV implies HDR so only add one
+        if hasDV {
+            extra.append("Dolby Vision")
+        } else if hasHDR {
             extra.append("HDR")
         }
-        if profile.contains("dv") || profile.contains("dolby vision") {
-            extra.append("Dolby Vision")
-        }
+
         let audioProfile = (first.audioProfile ?? "").lowercased()
         let audioCodec = (first.audioCodec ?? "").lowercased()
         if audioProfile.contains("atmos") || audioCodec.contains("atmos") || audioCodec.contains("truehd") {
@@ -953,11 +982,14 @@ class DetailsViewModel: ObservableObject {
                 let name = stream.displayTitle ?? stream.languageTag ?? stream.language ?? "Sub \(offset + 1)"
                 return Track(id: stream.id ?? String(offset), name: name, language: stream.languageTag ?? stream.language)
             }
+            // Get video stream displayTitle (streamType == 1) for HDR detection
+            let videoDisplayTitle = streams.first { $0.streamType == 1 }?.displayTitle
             let sizeMB = part?.size.map { Double($0) / (1024.0 * 1024.0) }
             let tech = VersionDetail.TechnicalInfo(
                 resolution: (width > 0 && height > 0) ? "\(width)x\(height)" : nil,
                 videoCodec: mm.videoCodec,
                 videoProfile: mm.videoProfile,
+                videoDisplayTitle: videoDisplayTitle,
                 audioCodec: mm.audioCodec,
                 audioChannels: mm.audioChannels,
                 bitrate: mm.bitrate,
@@ -1193,6 +1225,7 @@ class DetailsViewModel: ObservableObject {
             let resolution: String?
             let videoCodec: String?
             let videoProfile: String?
+            let videoDisplayTitle: String?  // From video stream displayTitle
             let audioCodec: String?
             let audioChannels: Int?
             let bitrate: Int?
@@ -1201,20 +1234,33 @@ class DetailsViewModel: ObservableObject {
             let subtitleCount: Int?
             let container: String?
 
-            /// Detects HDR format from video profile
+            /// Detects HDR format from video profile and displayTitle
             var hdrFormat: String? {
-                guard let profile = videoProfile?.lowercased() else { return nil }
-                if profile.contains("dolby vision") || profile.contains("dovi") {
+                let profile = (videoProfile ?? "").lowercased()
+                let displayTitle = (videoDisplayTitle ?? "").lowercased()
+
+                // Check both profile and displayTitle for Dolby Vision
+                if profile.contains("dolby vision") || profile.contains("dovi") ||
+                   displayTitle.contains("dolby vision") || displayTitle.contains("dovi") || displayTitle.contains(" dv") {
                     return "Dolby Vision"
-                } else if profile.contains("hdr10+") {
+                }
+
+                // Check for HDR variants
+                if profile.contains("hdr10+") || displayTitle.contains("hdr10+") {
                     return "HDR10+"
-                } else if profile.contains("hdr10") || profile.contains("hdr 10") {
+                }
+                if profile.contains("hdr10") || profile.contains("hdr 10") ||
+                   displayTitle.contains("hdr10") || displayTitle.contains("hdr 10") {
                     return "HDR10"
-                } else if profile.contains("main 10") || profile.contains("main10") {
-                    // Main 10 profile often indicates HDR capability
-                    return "HDR"
-                } else if profile.contains("hlg") {
+                }
+                if profile.contains("hlg") || displayTitle.contains("hlg") {
                     return "HLG"
+                }
+                // Generic HDR detection
+                if profile.contains("hdr") || displayTitle.contains("hdr") ||
+                   profile.contains("main 10") || profile.contains("main10") ||
+                   profile.contains("pq") || profile.contains("smpte2084") {
+                    return "HDR"
                 }
                 return nil
             }

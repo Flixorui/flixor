@@ -11,6 +11,7 @@ struct WatchlistButton: View {
     enum Style {
         case icon
         case pill
+        case circle  // Apple TV+ style large circle
     }
 
     let canonicalId: String
@@ -34,6 +35,8 @@ struct WatchlistButton: View {
                 iconButton
             case .pill:
                 pillButton
+            case .circle:
+                circleButton
             }
         }
         .task(id: canonicalId) {
@@ -94,6 +97,31 @@ struct WatchlistButton: View {
         }
         .buttonStyle(.plain)
         .disabled(isLoading)
+    }
+
+    // Apple TV+ style large circle button
+    private var circleButton: some View {
+        Button {
+            Task { await toggle() }
+        } label: {
+            Group {
+                if isLoading {
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                        .controlSize(.small)
+                } else {
+                    Image(systemName: isInWatchlist ? "checkmark" : "plus")
+                        .font(.system(size: 20, weight: .medium))
+                }
+            }
+            .frame(width: 44, height: 44)
+            .background(Color.white.opacity(0.2))
+            .foregroundStyle(Color.white)
+            .clipShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .disabled(isLoading)
+        .help(isInWatchlist ? "Remove from My List" : "Add to My List")
     }
 
     private func toggle() async {

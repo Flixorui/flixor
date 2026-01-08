@@ -411,107 +411,107 @@ private struct DetailsHeroSection: View {
         return false
     }
 
+    @State private var showFullOverview = false
+
     var body: some View {
         ZStack(alignment: .topLeading) {
-            // Backdrop - matches content height
+            // Backdrop with enhanced gradients for two-column layout
             GeometryReader { geo in
                 ZStack {
                     CachedAsyncImage(url: vm.backdropURL)
                         .aspectRatio(contentMode: .fill)
                         .frame(width: geo.size.width, height: geo.size.height)
+
+                    // Top fade for navigation clarity
                     LinearGradient(
-                        colors: [Color.black.opacity(0.55), Color.black.opacity(0.05)],
+                        colors: [Color.black.opacity(0.6), Color.black.opacity(0.1), .clear],
                         startPoint: .top,
-                        endPoint: .bottom
+                        endPoint: .center
                     )
+
+                    // Left fade for text readability (stronger)
                     LinearGradient(
-                        colors: [Color.black.opacity(0.78), Color.black.opacity(0.35), Color.black.opacity(0.08)],
+                        colors: [
+                            Color.black.opacity(0.85),
+                            Color.black.opacity(0.65),
+                            Color.black.opacity(0.35),
+                            Color.black.opacity(0.1),
+                            .clear
+                        ],
                         startPoint: .leading,
                         endPoint: .trailing
                     )
+
+                    // Bottom fade for depth
+                    LinearGradient(
+                        colors: [.clear, Color.black.opacity(0.3), Color.black.opacity(0.7)],
+                        startPoint: .center,
+                        endPoint: .bottom
+                    )
+
+                    // Subtle vignette for focus
                     RadialGradient(
-                        gradient: Gradient(colors: [Color.black.opacity(0.6), .clear]),
-                        center: .init(x: -0.1, y: 0.4),
-                        startRadius: 10,
-                        endRadius: 900
+                        gradient: Gradient(colors: [.clear, Color.black.opacity(0.4)]),
+                        center: .center,
+                        startRadius: geo.size.width * 0.3,
+                        endRadius: geo.size.width * 0.8
                     )
                 }
             }
             .clipped()
 
-            // Content - determines the overall height
-            VStack(alignment: .leading, spacing: heroSpacing) {
-                if let logo = vm.logoURL {
-                    CachedAsyncImage(url: logo, contentMode: .fit)
-                        .frame(maxWidth: logoWidth)
-                        .shadow(color: .black.opacity(0.7), radius: 16, y: 6)
-                } else {
-                    Text(vm.title)
-                        .font(.system(size: titleFontSize, weight: .heavy))
-                        .kerning(0.4)
-                        .shadow(color: .black.opacity(0.6), radius: 12)
-                }
+            // Two-column layout: content left, credits right
+            HStack(alignment: .bottom, spacing: 40) {
+                // LEFT COLUMN - Primary Content
+                VStack(alignment: .leading, spacing: 16) {
+                    // Logo or Title
+                    if let logo = vm.logoURL {
+                        CachedAsyncImage(url: logo, contentMode: .fit)
+                            .frame(maxWidth: logoWidth)
+                            .shadow(color: .black.opacity(0.7), radius: 16, y: 6)
+                    } else {
+                        Text(vm.title)
+                            .font(.system(size: titleFontSize, weight: .heavy))
+                            .kerning(0.4)
+                            .shadow(color: .black.opacity(0.6), radius: 12)
+                    }
 
-                // Badges row (pills + ratings) - like mobile app
-                if !(vm.badges.isEmpty && vm.rating == nil && !(vm.externalRatings.map(hasRatings) ?? false)) {
-                    ViewThatFits {
-                        HStack(spacing: 10) { badgesRow }
-                        VStack(alignment: .leading, spacing: 8) { badgesRow }
+                    // Type · Genres · Rating row
+                    typeGenreRatingRow
+
+                    // Description with MORE button
+                    if !vm.overview.isEmpty {
+                        descriptionSection
+                    }
+
+                    // Technical metadata row
+                    technicalMetadataRow
+
+                    // Ratings row (IMDb, RT, etc.)
+                    ratingsRow
+
+                    // Action buttons (Play + circle buttons)
+                    actionButtonsRow
+
+                    // Trailers section
+                    if hasTrailers {
+                        trailersSection
                     }
                 }
+                .frame(maxWidth: contentColumnMaxWidth, alignment: .leading)
 
-                // Meta line (year • runtime • genres) - below badges, like mobile app
-                metaLine
+                Spacer(minLength: 20)
 
-                if !vm.overview.isEmpty {
-                    CollapsibleOverview(
-                        text: vm.overview,
-                        maxWidth: layout.heroTextMaxWidth,
-                        isExpanded: $isOverviewExpanded
-                    )
-                }
-
-                ViewThatFits {
-                    HStack(alignment: .top, spacing: heroFactSpacing) { heroFacts }
-                    VStack(alignment: .leading, spacing: 16) { heroFacts }
-                }
-
-                ViewThatFits {
-                    HStack(spacing: actionSpacing) { actionButtons }
-                    VStack(alignment: .leading, spacing: 12) { actionButtons }
-                }
-
-                // Trailers section
-                if hasTrailers {
-                    VStack(alignment: .leading, spacing: 12) {
-                        // Header - styled like DetailsSectionHeader
-                        Text("Trailer & Videos".uppercased())
-                            .font(.system(size: 12, weight: .semibold))
-                            .tracking(0.6)
-                            .foregroundStyle(.white.opacity(0.72))
-
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            LazyHStack(spacing: 10) {
-                                ForEach(trailers) { trailer in
-                                    HeroTrailerCard(
-                                        trailer: trailer,
-                                        width: 180,
-                                        onPlay: {
-                                            selectedTrailer = trailer
-                                        }
-                                    )
-                                }
-                            }
-                            .padding(.leading, 4)
-                            .padding(.trailing, 60)
-                        }
-                    }
+                // RIGHT COLUMN - Credits (only on wider screens)
+                if width >= 900 {
+                    creditsSection
+                        .frame(maxWidth: creditsColumnWidth, alignment: .trailing)
                 }
             }
             .padding(.leading, layout.heroHorizontalPadding)
-            .padding(.trailing, heroTrailingPadding)
+            .padding(.trailing, layout.heroHorizontalPadding)
             .padding(.top, layout.heroTopPadding)
-            .padding(.bottom, 20)
+            .padding(.bottom, 24)
         }
         .frame(maxWidth: .infinity)
         .sheet(item: $selectedTrailer) { trailer in
@@ -520,6 +520,306 @@ private struct DetailsHeroSection: View {
                 onClose: { selectedTrailer = nil }
             )
         }
+        .sheet(isPresented: $showFullOverview) {
+            OverviewModal(
+                title: vm.title,
+                overview: vm.overview,
+                onClose: { showFullOverview = false }
+            )
+        }
+    }
+
+    // MARK: - Type/Genre/Rating Row (Apple TV+ style)
+    @ViewBuilder private var typeGenreRatingRow: some View {
+        HStack(spacing: 8) {
+            // Media type with icon
+            HStack(spacing: 4) {
+                Image(systemName: vm.mediaKind == "movie" ? "film" : "tv")
+                    .font(.system(size: 11))
+                Text(vm.mediaKind == "movie" ? "Movie" : (vm.isSeason ? "Season" : "Series"))
+            }
+            .font(.system(size: 13, weight: .medium))
+
+            // Separator
+            if !vm.genres.isEmpty {
+                Text("·")
+                    .foregroundStyle(.white.opacity(0.5))
+            }
+
+            // Genres (up to 3)
+            ForEach(Array(vm.genres.prefix(3).enumerated()), id: \.offset) { index, genre in
+                Text(genre)
+                if index < min(vm.genres.count, 3) - 1 {
+                    Text("·")
+                        .foregroundStyle(.white.opacity(0.5))
+                }
+            }
+
+            // Content rating badge
+            if let rating = vm.rating, !rating.isEmpty {
+                Text(rating)
+                    .font(.system(size: 11, weight: .semibold))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(Color.white.opacity(0.2))
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
+            }
+        }
+        .font(.system(size: 13))
+        .foregroundStyle(.white.opacity(0.9))
+    }
+
+    // MARK: - Description with MORE button
+    @ViewBuilder private var descriptionSection: some View {
+        HStack(alignment: .bottom, spacing: 8) {
+            Text(vm.overview)
+                .font(.system(size: 14))
+                .foregroundStyle(.white.opacity(0.85))
+                .lineLimit(2)
+                .frame(maxWidth: layout.heroTextMaxWidth, alignment: .leading)
+
+            if vm.overview.count > 100 {
+                Button(action: { showFullOverview = true }) {
+                    Text("MORE")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.8))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(Color.white.opacity(0.15))
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    // MARK: - Technical Metadata Row
+    @ViewBuilder private var technicalMetadataRow: some View {
+        HStack(spacing: 10) {
+            // Year
+            if let year = vm.year, !year.isEmpty {
+                Text(year)
+            }
+
+            // Runtime
+            if let runtime = formattedRuntime(vm.runtime) {
+                Text("·").foregroundStyle(.white.opacity(0.5))
+                Text(runtime)
+            }
+
+            // Technical badges from vm.badges (4K, HDR, Dolby Vision, Atmos, etc.)
+            // Filter out "Plex" and "No local source" - those are shown separately
+            ForEach(vm.badges.filter { badge in
+                let lower = badge.lowercased()
+                return lower != "plex" && !lower.contains("no local")
+            }, id: \.self) { badge in
+                let isHDR = {
+                    let lower = badge.lowercased()
+                    return lower.contains("hdr") || lower.contains("dolby") || lower == "dv" || lower.contains("hlg")
+                }()
+                TechnicalBadge(text: badge, isHighlighted: isHDR)
+            }
+
+            // Source indicator - check if "Plex" badge is present
+            let hasPlexBadge = vm.badges.contains(where: { $0.lowercased() == "plex" })
+            if hasPlexBadge {
+                HStack(spacing: 3) {
+                    Image(systemName: "checkmark.seal.fill")
+                        .font(.system(size: 9))
+                    Text("Available")
+                }
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.green.opacity(0.9))
+            } else if vm.tmdbId != nil {
+                HStack(spacing: 3) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 9))
+                    Text("Not available")
+                }
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.orange.opacity(0.9))
+            }
+        }
+        .font(.system(size: 12, weight: .medium))
+        .foregroundStyle(.white.opacity(0.7))
+    }
+
+    // MARK: - Ratings Row
+    @ViewBuilder private var ratingsRow: some View {
+        let hasExternalRatings = vm.externalRatings.map(hasRatings) ?? false
+        let hasMdbRatings = vm.mdblistRatings?.hasAnyRating ?? false
+
+        if hasExternalRatings || hasMdbRatings {
+            HStack(spacing: 12) {
+                if let ratings = vm.externalRatings, hasRatings(ratings) {
+                    RatingsStrip(ratings: ratings)
+                }
+                if let mdbRatings = vm.mdblistRatings, mdbRatings.hasAnyRating {
+                    RatingsDisplay(ratings: mdbRatings)
+                }
+            }
+        }
+    }
+
+    // MARK: - Action Buttons (Apple TV+ style)
+    @ViewBuilder private var actionButtonsRow: some View {
+        HStack(spacing: 16) {
+            // For seasons, show "View Show" button
+            if vm.isSeason {
+                if let parentKey = vm.parentShowKey {
+                    Button(action: {
+                        let showItem = MediaItem(
+                            id: "plex:\(parentKey)",
+                            title: vm.title,
+                            type: "show",
+                            thumb: nil,
+                            art: nil,
+                            year: nil,
+                            rating: nil,
+                            duration: nil,
+                            viewOffset: nil,
+                            summary: nil,
+                            grandparentTitle: nil,
+                            grandparentThumb: nil,
+                            grandparentArt: nil,
+                            grandparentRatingKey: nil,
+                            parentIndex: nil,
+                            index: nil,
+                            parentRatingKey: nil,
+                            parentTitle: nil,
+                            leafCount: nil,
+                            viewedLeafCount: nil
+                        )
+                        Task { await vm.load(for: showItem) }
+                    }) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "tv.fill")
+                                .font(.system(size: 16, weight: .semibold))
+                            Text("View Show")
+                                .font(.system(size: 16, weight: .semibold))
+                        }
+                        .foregroundStyle(.black)
+                        .padding(.horizontal, 32)
+                        .padding(.vertical, 12)
+                        .background(Color.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                    }
+                    .buttonStyle(.plain)
+                }
+            } else {
+                // Play button - large, white (Apple TV+ style)
+                Button(action: onPlay) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "play.fill")
+                            .font(.system(size: 16, weight: .semibold))
+                        Text("Play")
+                            .font(.system(size: 16, weight: .semibold))
+                    }
+                    .foregroundStyle(hasPlexSource ? .black : .gray)
+                    .padding(.horizontal, 32)
+                    .padding(.vertical, 12)
+                    .background(hasPlexSource ? Color.white : Color.white.opacity(0.5))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+                .buttonStyle(.plain)
+                .disabled(!hasPlexSource)
+
+                // Watchlist button - circular (Apple TV+ style)
+                if let watchlistId = canonicalWatchlistId,
+                   let mediaType = watchlistMediaType {
+                    WatchlistButton(
+                        canonicalId: watchlistId,
+                        mediaType: mediaType,
+                        plexRatingKey: vm.plexRatingKey,
+                        plexGuid: vm.plexGuid,
+                        tmdbId: vm.tmdbId,
+                        imdbId: nil,
+                        title: vm.title,
+                        year: vm.year.flatMap { Int($0) },
+                        style: .circle
+                    )
+                }
+
+                // Overseerr request button - circular (Apple TV+ style)
+                if let tmdbIdStr = vm.tmdbId, let tmdbIdInt = Int(tmdbIdStr) {
+                    let overseerrMediaType = vm.mediaKind == "tv" ? "tv" : "movie"
+                    RequestButton(
+                        tmdbId: tmdbIdInt,
+                        mediaType: overseerrMediaType,
+                        title: vm.title,
+                        style: .circle
+                    )
+                }
+            }
+        }
+    }
+
+    // MARK: - Trailers Section
+    @ViewBuilder private var trailersSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Trailers & Videos".uppercased())
+                .font(.system(size: 11, weight: .semibold))
+                .tracking(0.5)
+                .foregroundStyle(.white.opacity(0.6))
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: 10) {
+                    ForEach(trailers.prefix(5)) { trailer in
+                        HeroTrailerCard(
+                            trailer: trailer,
+                            width: 160,
+                            onPlay: { selectedTrailer = trailer }
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Credits Section (Right Column)
+    @ViewBuilder private var creditsSection: some View {
+        VStack(alignment: .trailing, spacing: 20) {
+            // Starring
+            if !vm.castShort.isEmpty {
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text("Starring")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.white.opacity(0.5))
+                    Text(vm.castShort.prefix(4).map { $0.name }.joined(separator: ", "))
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.9))
+                        .multilineTextAlignment(.trailing)
+                        .lineLimit(2)
+                }
+            }
+
+            // Director(s) - directors is [String]
+            if !vm.directors.isEmpty {
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text(vm.directors.count > 1 ? "Directors" : "Director")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.white.opacity(0.5))
+                    Text(vm.directors.prefix(2).joined(separator: ", "))
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.9))
+                        .multilineTextAlignment(.trailing)
+                }
+            }
+
+            // Creator(s) for TV shows - creators is [String]
+            if vm.mediaKind == "tv", !vm.creators.isEmpty {
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text(vm.creators.count > 1 ? "Creators" : "Creator")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.white.opacity(0.5))
+                    Text(vm.creators.prefix(2).joined(separator: ", "))
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.9))
+                        .multilineTextAlignment(.trailing)
+                }
+            }
+        }
+        .padding(.bottom, 60)
     }
 
     private var canonicalWatchlistId: String? {
@@ -563,18 +863,6 @@ private struct DetailsHeroSection: View {
 
     private var width: CGFloat { layout.width }
 
-    private var heroSpacing: CGFloat {
-        width < 1100 ? 20 : 26
-    }
-
-    private var heroFactSpacing: CGFloat {
-        width < 1100 ? 20 : 26
-    }
-
-    private var actionSpacing: CGFloat {
-        width < 820 ? 12 : 16
-    }
-
     private var titleFontSize: CGFloat {
         if width < 820 { return 36 }
         if width < 1100 { return 42 }
@@ -587,186 +875,70 @@ private struct DetailsHeroSection: View {
         return 480
     }
 
-    private var heroTrailingPadding: CGFloat {
-        width < 1100 ? layout.heroHorizontalPadding : 48
+    // Content column max width for two-column layout
+    private var contentColumnMaxWidth: CGFloat {
+        if width < 900 { return .infinity }
+        if width < 1200 { return 500 }
+        return 600
     }
 
-    // Badges row - pills and ratings (like mobile app)
-    @ViewBuilder private var badgesRow: some View {
-        // Age Rating pill (content rating like PG-13, R, TV-MA)
-        if let contentRating = vm.rating, !contentRating.isEmpty {
-            HeroMetaPill(text: contentRating)
-        }
-
-        // Technical badges from ViewModel (4K, HDR, Dolby Vision, Atmos)
-        ForEach(vm.badges.filter { $0.lowercased() != "plex" }, id: \.self) { badge in
-            let style: HeroMetaPill.Style = {
-                let lower = badge.lowercased()
-                if lower.contains("hdr") || lower.contains("dolby") || lower == "dv" || lower.contains("hlg") {
-                    return .highlighted
-                }
-                return .default
-            }()
-            HeroMetaPill(text: badge, style: style)
-        }
-
-        // Audio pill (5.1, 7.1, Atmos, Stereo) - if not already in badges
-        if let audio = audioBadgeLabel, !vm.badges.contains(where: { $0.lowercased().contains(audio.lowercased()) }) {
-            HeroMetaPill(text: audio)
-        }
-
-        // Plex SOURCE pill - only show once
-        if hasPlexSource {
-            HeroMetaPill(text: "Plex", style: .source)
-        } else if vm.tmdbId != nil {
-            HeroMetaPill(text: "No local source", style: .warning)
-        }
-
-        // External ratings (IMDb, Rotten Tomatoes)
-        if let ratings = vm.externalRatings, hasRatings(ratings) {
-            RatingsStrip(ratings: ratings)
-        }
-
-        // MDBList ratings (additional sources)
-        if let mdbRatings = vm.mdblistRatings, mdbRatings.hasAnyRating {
-            RatingsDisplay(ratings: mdbRatings)
-        }
+    // Credits column width for right side
+    private var creditsColumnWidth: CGFloat {
+        if width < 900 { return 200 }
+        if width < 1200 { return 240 }
+        return 280
     }
+}
 
-    // Meta line - year, runtime, genres as text (below badges, like mobile app)
-    @ViewBuilder private var metaLine: some View {
-        if !metaItems.isEmpty || !vm.genres.isEmpty {
-            HStack(spacing: 0) {
-                // Year and runtime
-                if !metaItems.isEmpty {
-                    Text(metaItems.joined(separator: " • "))
-                }
-                // Genres
-                if !vm.genres.isEmpty {
-                    if !metaItems.isEmpty {
-                        Text(" • ")
-                    }
-                    Text(vm.genres.prefix(3).joined(separator: ", "))
-                }
-            }
-            .font(.system(size: 14, weight: .medium))
-            .foregroundStyle(.white.opacity(0.7))
-        }
+// MARK: - Technical Badge Component
+private struct TechnicalBadge: View {
+    let text: String
+    var isHighlighted: Bool = false
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundStyle(.white.opacity(0.8))
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(
+                Color.white.opacity(0.15)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 4))
     }
+}
 
-    // Legacy metaRow for compatibility - now combines badges and meta
-    @ViewBuilder private var metaRow: some View {
-        badgesRow
-    }
+// MARK: - Overview Modal
+private struct OverviewModal: View {
+    let title: String
+    let overview: String
+    let onClose: () -> Void
 
-    @ViewBuilder private var heroFacts: some View {
-        // Show episodes count for seasons instead of cast
-        if vm.isSeason {
-            if let episodeCount = vm.episodeCount {
-                let watchedCount = vm.watchedCount ?? 0
-                heroFactBlock(title: "Episodes", value: "\(episodeCount) episodes • \(watchedCount) watched")
-            }
-        } else {
-            heroFactBlock(title: "Cast", value: castSummary)
-        }
-
-        if !vm.genres.isEmpty {
-            heroFactBlock(title: "Genres", value: vm.genres.joined(separator: ", "))
-        }
-
-        if !vm.moodTags.isEmpty {
-            let title = vm.isSeason ? "This Season Is" : (vm.mediaKind == "tv" ? "This Show Is" : "This Movie Is")
-            heroFactBlock(title: title, value: vm.moodTags.joined(separator: ", "))
-        }
-    }
-
-    @ViewBuilder private var actionButtons: some View {
-        // For seasons, show "View Show" button instead of "Play"
-        if vm.isSeason {
-            if let parentKey = vm.parentShowKey {
-                Button(action: {
-                    let showItem = MediaItem(
-                        id: "plex:\(parentKey)",
-                        title: vm.title,
-                        type: "show",
-                        thumb: nil,
-                        art: nil,
-                        year: nil,
-                        rating: nil,
-                        duration: nil,
-                        viewOffset: nil,
-                        summary: nil,
-                        grandparentTitle: nil,
-                        grandparentThumb: nil,
-                        grandparentArt: nil,
-                        grandparentRatingKey: nil,
-                        parentIndex: nil,
-                        index: nil,
-                        parentRatingKey: nil,
-                        parentTitle: nil,
-                        leafCount: nil,
-                        viewedLeafCount: nil
-                    )
-                    // Navigate to show details using parent key
-                    Task {
-                        await vm.load(for: showItem)
-                    }
-                }) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "tv.fill")
-                        Text("View Show").fontWeight(.semibold)
-                    }
-                    .font(.system(size: 16))
-                    .foregroundStyle(.black)
-                    .padding(.horizontal, 26)
-                    .padding(.vertical, 12)
-                    .background(Color.white)
-                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            HStack {
+                Text(title)
+                    .font(.system(size: 18, weight: .semibold))
+                Spacer()
+                Button(action: onClose) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 22))
+                        .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
             }
-        } else {
-            Button(action: onPlay) {
-                HStack(spacing: 8) {
-                    Image(systemName: "play.fill")
-                    Text("Play").fontWeight(.semibold)
-                }
-                .font(.system(size: 16))
-                .foregroundStyle(hasPlexSource ? .black : .gray)
-                .padding(.horizontal, 26)
-                .padding(.vertical, 12)
-                .background(hasPlexSource ? Color.white : Color.white.opacity(0.5))
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-            }
-            .buttonStyle(.plain)
-            .disabled(!hasPlexSource)
 
-            if let watchlistId = canonicalWatchlistId,
-               let mediaType = watchlistMediaType {
-                WatchlistButton(
-                    canonicalId: watchlistId,
-                    mediaType: mediaType,
-                    plexRatingKey: vm.plexRatingKey,
-                    plexGuid: vm.plexGuid,
-                    tmdbId: vm.tmdbId,
-                    imdbId: nil,
-                    title: vm.title,
-                    year: vm.year.flatMap { Int($0) },
-                    style: .pill
-                )
-            }
-
-            // Overseerr request button
-            if let tmdbIdStr = vm.tmdbId, let tmdbIdInt = Int(tmdbIdStr) {
-                let overseerrMediaType = vm.mediaKind == "tv" ? "tv" : "movie"
-                RequestButton(
-                    tmdbId: tmdbIdInt,
-                    mediaType: overseerrMediaType,
-                    title: vm.title,
-                    style: .pill
-                )
+            ScrollView {
+                Text(overview)
+                    .font(.system(size: 14))
+                    .foregroundStyle(.primary.opacity(0.9))
+                    .lineSpacing(4)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
+        .padding(24)
+        .frame(width: 500, height: 400)
+        .background(Color(NSColor.windowBackgroundColor))
     }
 }
 

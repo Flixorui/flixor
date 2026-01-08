@@ -101,6 +101,7 @@
 		A220 /* PosterSectionRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B180 /* PosterSectionRow.swift */; };
 		A221 /* TrailersRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B181 /* TrailersRow.swift */; };
 		A222 /* TrailerModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = B182 /* TrailerModal.swift */; };
+		A300 /* ServiceIcons.swift in Sources */ = {isa = PBXBuildFile; fileRef = B300 /* ServiceIcons.swift */; };
 		C8BA62692E9C5ABE00CFE44C /* NewPopularData.swift in Resources */ = {isa = PBXBuildFile; fileRef = B065 /* NewPopularData.swift */; };
 		C8BA626A2E9C5ABE00CFE44C /* NewPopularViewModel.swift in Resources */ = {isa = PBXBuildFile; fileRef = B066 /* NewPopularViewModel.swift */; };
 		C8BA626B2E9C5ABE00CFE44C /* NewPopularHero.swift in Resources */ = {isa = PBXBuildFile; fileRef = B067 /* NewPopularHero.swift */; };
@@ -360,6 +361,7 @@
 		B180 /* PosterSectionRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PosterSectionRow.swift; sourceTree = "<group>"; };
 		B181 /* TrailersRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrailersRow.swift; sourceTree = "<group>"; };
 		B182 /* TrailerModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrailerModal.swift; sourceTree = "<group>"; };
+		B300 /* ServiceIcons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServiceIcons.swift; sourceTree = "<group>"; };
 		B999 /* FlixorMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FlixorMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C8D602152E97EBB4002C9348 /* libsoxr.0.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libsoxr.0.dylib; path = deps/lib/libsoxr.0.dylib; sourceTree = "<group>"; };
 		C8D602162E97EBB4002C9348 /* libswscale.8.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libswscale.8.dylib; path = deps/lib/libswscale.8.dylib; sourceTree = "<group>"; };
@@ -668,6 +670,7 @@
 		D011 /* Components */ = {
 			isa = PBXGroup;
 			children = (
+				D300 /* Icons */,
 				B003 /* SidebarView.swift */,
 				B014 /* NewPopularView.swift */,
 				B017 /* CachedAsyncImage.swift */,
@@ -693,6 +696,14 @@
 				B182 /* TrailerModal.swift */,
 			);
 			path = Components;
+			sourceTree = "<group>";
+		};
+		D300 /* Icons */ = {
+			isa = PBXGroup;
+			children = (
+				B300 /* ServiceIcons.swift */,
+			);
+			path = Icons;
 			sourceTree = "<group>";
 		};
 		D012 /* Home */ = {
@@ -992,6 +1003,7 @@
 				A220 /* PosterSectionRow.swift in Sources */,
 				A221 /* TrailersRow.swift in Sources */,
 				A222 /* TrailerModal.swift in Sources */,
+				A300 /* ServiceIcons.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
