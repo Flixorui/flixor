@@ -298,6 +298,10 @@ export interface AppSettings {
   enabledLibraryKeys?: string[];
   // Android-specific settings
   enableAndroidBlurView: boolean; // Enable blur effects on Android (may impact performance)
+  // Details screen rating visibility settings
+  showIMDbRating: boolean;
+  showRottenTomatoesCritic: boolean;
+  showRottenTomatoesAudience: boolean;
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -332,6 +336,10 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   enabledLibraryKeys: undefined,
   // Android-specific defaults
   enableAndroidBlurView: false, // Disabled by default for performance
+  // Details screen rating visibility defaults
+  showIMDbRating: true,
+  showRottenTomatoesCritic: true,
+  showRottenTomatoesAudience: true,
 };
 
 let cachedSettings: AppSettings = { ...DEFAULT_APP_SETTINGS };

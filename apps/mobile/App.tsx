@@ -42,6 +42,7 @@ import MyList from './src/screens/MyList';
 import Settings from './src/screens/Settings';
 import CatalogSettings from './src/screens/settings/CatalogSettings';
 import HomeScreenSettings from './src/screens/settings/HomeScreenSettings';
+import DetailsScreenSettings from './src/screens/settings/DetailsScreenSettings';
 import ContinueWatchingSettings from './src/screens/settings/ContinueWatchingSettings';
 import TMDBSettings from './src/screens/settings/TMDBSettings';
 import TraktSettings from './src/screens/settings/TraktSettings';
@@ -155,6 +156,7 @@ const SettingsTabScreen = React.memo(() => (
     </SettingsStack.Screen>
     <SettingsStack.Screen name="CatalogSettings" component={CatalogSettings} />
     <SettingsStack.Screen name="HomeScreenSettings" component={HomeScreenSettings} />
+    <SettingsStack.Screen name="DetailsScreenSettings" component={DetailsScreenSettings} />
     <SettingsStack.Screen name="ContinueWatchingSettings" component={ContinueWatchingSettings} />
     <SettingsStack.Screen name="TMDBSettings" component={TMDBSettings} />
     <SettingsStack.Screen name="TraktSettings" component={TraktSettings} />

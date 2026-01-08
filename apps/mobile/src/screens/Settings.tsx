@@ -125,6 +125,14 @@ export default function Settings({ onBack }: SettingsProps) {
         isLast={false}
       />
       <SettingItem
+        title="Details Screen"
+        description="Ratings and badges display"
+        icon="information-circle-outline"
+        renderRight={renderRightChevron}
+        onPress={() => nav.navigate('DetailsScreenSettings')}
+        isLast={false}
+      />
+      <SettingItem
         title="Continue Watching"
         description="Playback and cache behavior"
         icon="play-outline"

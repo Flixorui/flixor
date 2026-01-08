@@ -8,6 +8,7 @@ import Feather from '@expo/vector-icons/Feather';
 import { LinearGradient } from 'expo-linear-gradient';
 import ConditionalBlurView from '../components/ConditionalBlurView';
 import BadgePill from '../components/BadgePill';
+import { TechBadge, ContentRatingBadge } from '../components/badges';
 import PersonModal from '../components/PersonModal';
 import RequestButton from '../components/RequestButton';
 import { useNavigation } from '@react-navigation/native';
@@ -61,7 +62,15 @@ type RouteParams = {
 export default function Details({ route }: RouteParams) {
   const params: Partial<DetailsParams> = route?.params || {};
   const { isLoading: flixorLoading, isConnected } = useFlixor();
+  const { settings } = useAppSettings();
   const insets = useSafeAreaInsets();
+
+  // Rating visibility settings with defaults
+  const detailsSettings = {
+    showIMDbRating: settings.showIMDbRating ?? true,
+    showRottenTomatoesCritic: settings.showRottenTomatoesCritic ?? true,
+    showRottenTomatoesAudience: settings.showRottenTomatoesAudience ?? true,
+  };
   const [loading, setLoading] = useState(true);
   const [meta, setMeta] = useState<any>(null);
   const [episodes, setEpisodes] = useState<any[]>([]);
@@ -549,19 +558,54 @@ export default function Details({ route }: RouteParams) {
   };
   const title = meta?.title || meta?.grandparentTitle || 'Title';
   const contentRating = meta?.contentRating || 'PG';
-  // Badges parsing from Plex streams
+  // Badges parsing from Plex streams (matching macOS logic)
   const media = (meta?.Media || [])[0] || {};
-  const videoRes = media?.videoResolution;
-  const isHD = videoRes && Number(videoRes) >= 720;
-  const audioChannels = media?.audioChannels || 2;
   const streams = ((media?.Part || [])[0]?.Stream || []) as any[];
-  const subtitleStreams = streams.filter(s => s.streamType === 3);
+  const videoStreams = streams.filter(s => s.streamType === 1);
   const audioStreams = streams.filter(s => s.streamType === 2);
-  const hasCC = subtitleStreams.some(s => String(s?.displayTitle || '').toLowerCase().includes('cc'));
-  const hasAD = audioStreams.some(s => String(s?.displayTitle || '').toLowerCase().includes('description'));
-  const hasDV = streams.some(s =>
-    /dolby.?vision|dovi/i.test(String(s?.displayTitle || '')) ||
-    /smpte2084|pq|hdr10/i.test(String(s?.colorTrc || ''))
+  const subtitleStreams = streams.filter(s => s.streamType === 3);
+
+  // Resolution detection from width/height (like macOS)
+  const width = media?.width || 0;
+  const height = media?.height || 0;
+  const videoRes = media?.videoResolution;
+  const is4K = width >= 3800 || height >= 2100 || String(videoRes).toLowerCase() === '4k' || Number(videoRes) >= 2160;
+  const isHD = !is4K && (width >= 1260 || height >= 700 || (Number(videoRes) >= 720 && Number(videoRes) < 2160));
+
+  // Dolby Vision detection from video stream profile (like macOS)
+  const hasDV = videoStreams.some(s => {
+    const profile = String(s?.displayTitle || '').toLowerCase();
+    const colorTrc = String(s?.colorTrc || '').toLowerCase();
+    return /dolby.?vision|dovi/i.test(profile) ||
+           profile.includes('dv') ||
+           /smpte2084|pq/i.test(colorTrc);
+  });
+
+  // Dolby Atmos detection from audio streams (like macOS)
+  const hasAtmos = audioStreams.some(s => {
+    const displayTitle = String(s?.displayTitle || '').toLowerCase();
+    const codec = String(s?.codec || '').toLowerCase();
+    const profile = String(s?.audioProfile || '').toLowerCase();
+    return displayTitle.includes('atmos') ||
+           displayTitle.includes('truehd') ||
+           codec.includes('atmos') ||
+           codec.includes('truehd') ||
+           profile.includes('atmos');
+  });
+
+  // CC badge - show if any subtitles exist (like macOS)
+  const hasCC = subtitleStreams.length > 0;
+
+  // SDH badge - show if any subtitle contains "SDH" in name (like macOS)
+  const hasSDH = subtitleStreams.some(s =>
+    String(s?.displayTitle || '').toUpperCase().includes('SDH') ||
+    String(s?.title || '').toUpperCase().includes('SDH')
+  );
+
+  // AD (Audio Description) badge
+  const hasAD = audioStreams.some(s =>
+    String(s?.displayTitle || '').toLowerCase().includes('description') ||
+    String(s?.title || '').toLowerCase().includes('description')
   );
 
   // Parse ratings for inline display
@@ -643,32 +687,35 @@ export default function Details({ route }: RouteParams) {
         )}
 
         {/* Badges & Ratings */}
-        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8, marginTop:12, marginHorizontal:16, alignItems:'center' }}>
-          {/* Other badges */}
-          <BadgePill label={contentRating} />
-          {isHD ? <BadgePill icon="hd" /> : null}
-          <BadgePill icon="5.1" />
-          {hasDV ? <BadgePill icon="dolby" /> : null}
-          {hasCC ? <BadgePill icon="cc" /> : null}
-          {hasAD ? <BadgePill icon="ad" /> : null}
+        <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8, marginTop:12, marginHorizontal:16, alignItems:'center', justifyContent:'center' }}>
+          {/* Content Rating Badge */}
+          <ContentRatingBadge rating={contentRating} size={20} />
+          {/* Tech Badges */}
+          {is4K ? <TechBadge type="4k" size={10} /> : null}
+          {isHD ? <TechBadge type="hd" size={10} /> : null}
+          {hasDV ? <TechBadge type="dolby-vision" size={10} /> : null}
+          {hasAtmos ? <TechBadge type="dolby-atmos" size={10} /> : null}
+          {hasCC ? <TechBadge type="cc" size={10} /> : null}
+          {hasSDH ? <TechBadge type="sdh" size={10} /> : null}
+          {hasAD ? <TechBadge type="ad" size={10} /> : null}
           {matchedPlex ? <BadgePill label="Plex" /> : null}
           {!matchedPlex && params.type === 'tmdb' ? <BadgePill label="No local source" /> : null}
-          {/* Ratings */}
-          {typeof imdbRating === 'number' ? (
+          {/* Ratings - controlled by settings */}
+          {detailsSettings.showIMDbRating && typeof imdbRating === 'number' ? (
             <View style={{ flexDirection:'row', alignItems:'center', backgroundColor:'rgba(255,255,255,0.1)', paddingHorizontal:8, paddingVertical:4, borderRadius:6 }}>
-              <Image source={RATING_IMAGES.imdb} style={{ width: 28, height: 14 }} resizeMode="contain" />
+              <Image source={RATING_IMAGES.imdb} style={{ width: 20, height: 10 }} resizeMode="contain" />
               <Text style={{ color:'#fff', fontWeight:'700', marginLeft:4, fontSize: 12 }}>{imdbRating.toFixed(1)}</Text>
             </View>
           ) : null}
-          {typeof rtCriticRating === 'number' ? (
+          {detailsSettings.showRottenTomatoesCritic && typeof rtCriticRating === 'number' ? (
             <View style={{ flexDirection:'row', alignItems:'center', backgroundColor:'rgba(255,255,255,0.1)', paddingHorizontal:8, paddingVertical:4, borderRadius:6 }}>
-              <Image source={rtCriticRating >= 60 ? RATING_IMAGES.tomatoFresh : RATING_IMAGES.tomatoRotten} style={{ width: 16, height: 16 }} resizeMode="contain" />
+              <Image source={rtCriticRating >= 60 ? RATING_IMAGES.tomatoFresh : RATING_IMAGES.tomatoRotten} style={{ width: 10, height: 10 }} resizeMode="contain" />
               <Text style={{ color:'#fff', fontWeight:'700', marginLeft:4, fontSize: 12 }}>{rtCriticRating}%</Text>
             </View>
           ) : null}
-          {typeof rtAudienceRating === 'number' ? (
+          {detailsSettings.showRottenTomatoesAudience && typeof rtAudienceRating === 'number' ? (
             <View style={{ flexDirection:'row', alignItems:'center', backgroundColor:'rgba(255,255,255,0.1)', paddingHorizontal:8, paddingVertical:4, borderRadius:6 }}>
-              <Image source={rtAudienceRating >= 60 ? RATING_IMAGES.popcornFull : RATING_IMAGES.popcornFallen} style={{ width: 16, height: 16 }} resizeMode="contain" />
+              <Image source={rtAudienceRating >= 60 ? RATING_IMAGES.popcornFull : RATING_IMAGES.popcornFallen} style={{ width: 10, height: 10 }} resizeMode="contain" />
               <Text style={{ color:'#fff', fontWeight:'700', marginLeft:4, fontSize: 12 }}>{rtAudienceRating}%</Text>
             </View>
           ) : null}
