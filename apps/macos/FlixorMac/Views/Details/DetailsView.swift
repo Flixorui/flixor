@@ -117,6 +117,9 @@ struct DetailsView: View {
     @EnvironmentObject private var router: NavigationRouter
     @EnvironmentObject private var mainView: MainViewState
 
+    // Layout preference setting
+    @AppStorage("detailsScreenLayout") private var detailsScreenLayout: String = "tabbed"
+
     private var hasPlexSource: Bool {
         vm.playableId != nil || vm.plexRatingKey != nil
     }
@@ -139,30 +142,69 @@ struct DetailsView: View {
                                 layout: layout
                             )
 
-                            DetailsTabsBar(tabs: tabsData, activeTab: $activeTab)
-                        }
-
-                        VStack(spacing: 32) {
-                            switch activeTab {
-                            case "SUGGESTED":
-                                SuggestedSections(vm: vm, layout: layout, onBrowse: { context in
-                                    presentBrowse(context)
-                                })
-                            case "DETAILS":
-                                DetailsTabContent(vm: vm, layout: layout, onPersonTap: { person in
-                                    presentPerson(person)
-                                })
-                            case "EPISODES":
-                                EpisodesTabContent(vm: vm, layout: layout, onPlayEpisode: playEpisode, hasPlexSource: hasPlexSource)
-                            default:
-                                SuggestedSections(vm: vm, layout: layout, onBrowse: { context in
-                                    presentBrowse(context)
-                                })
+                            // Only show tabs bar in tabbed layout
+                            if detailsScreenLayout == "tabbed" {
+                                DetailsTabsBar(tabs: tabsData, activeTab: $activeTab)
                             }
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, layout.contentPadding)
-                        .padding(.bottom, 32)
+
+                        // Tabbed Layout: Show one section at a time based on selected tab
+                        if detailsScreenLayout == "tabbed" {
+                            VStack(spacing: 32) {
+                                switch activeTab {
+                                case "SUGGESTED":
+                                    SuggestedSections(vm: vm, layout: layout, onBrowse: { context in
+                                        presentBrowse(context)
+                                    })
+                                case "DETAILS":
+                                    DetailsTabContent(vm: vm, layout: layout, onPersonTap: { person in
+                                        presentPerson(person)
+                                    })
+                                case "EPISODES":
+                                    EpisodesTabContent(vm: vm, layout: layout, onPlayEpisode: playEpisode, hasPlexSource: hasPlexSource)
+                                default:
+                                    SuggestedSections(vm: vm, layout: layout, onBrowse: { context in
+                                        presentBrowse(context)
+                                    })
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, layout.contentPadding)
+                            .padding(.bottom, 32)
+                        } else {
+                            // Unified Layout: Stack all sections vertically
+                            // Order: Episodes (for TV) → Suggested → Details
+                            VStack(spacing: 48) {
+                                // Episodes section (only for TV shows/seasons)
+                                if vm.mediaKind == "tv" || vm.isSeason {
+                                    VStack(alignment: .leading, spacing: 16) {
+                                        Text("Episodes")
+                                            .font(.system(size: 20, weight: .bold))
+                                            .foregroundStyle(.white)
+                                        EpisodesTabContent(vm: vm, layout: layout, onPlayEpisode: playEpisode, hasPlexSource: hasPlexSource)
+                                    }
+                                }
+
+                                // Suggested section
+                                if !vm.isSeason {
+                                    VStack(alignment: .leading, spacing: 16) {
+                                        SuggestedSections(vm: vm, layout: layout, onBrowse: { context in
+                                            presentBrowse(context)
+                                        })
+                                    }
+                                }
+
+                                // Details section
+                                VStack(alignment: .leading, spacing: 16) {
+                                    DetailsTabContent(vm: vm, layout: layout, onPersonTap: { person in
+                                        presentPerson(person)
+                                    })
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, layout.contentPadding)
+                            .padding(.bottom, 32)
+                        }
                     }
                 }
             }

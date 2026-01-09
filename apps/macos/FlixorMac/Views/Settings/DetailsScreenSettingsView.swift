@@ -8,6 +8,7 @@
 import SwiftUI
 
 struct DetailsScreenSettingsView: View {
+    @AppStorage("detailsScreenLayout") private var detailsScreenLayout: String = "tabbed"
     @AppStorage("episodeLayout") private var episodeLayout: String = "horizontal"
     @AppStorage("suggestedLayout") private var suggestedLayout: String = "landscape"
     @AppStorage("showRelatedContent") private var showRelatedContent: Bool = true
@@ -23,6 +24,42 @@ struct DetailsScreenSettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
+            // Screen Layout
+            SettingsSectionHeader(title: "Screen Layout")
+            SettingsGroupCard {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Details Page Style")
+                        .font(.system(size: 13, weight: .medium))
+                        .padding(.horizontal, 12)
+                        .padding(.top, 12)
+
+                    Text("Choose between tabbed navigation or a unified scrollable page")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 12)
+
+                    HStack(spacing: 12) {
+                        LayoutOptionButton(
+                            title: "Tabbed",
+                            icon: "rectangle.split.3x1",
+                            isSelected: detailsScreenLayout == "tabbed"
+                        ) {
+                            detailsScreenLayout = "tabbed"
+                        }
+
+                        LayoutOptionButton(
+                            title: "Unified",
+                            icon: "rectangle.portrait",
+                            isSelected: detailsScreenLayout == "unified"
+                        ) {
+                            detailsScreenLayout = "unified"
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 12)
+                }
+            }
+
             // Episode Layout
             SettingsSectionHeader(title: "Episode Display")
             SettingsGroupCard {

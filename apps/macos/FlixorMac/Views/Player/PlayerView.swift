@@ -697,6 +697,20 @@ struct PlayerControlsView: View {
     @State private var isPiPHovered = false
     @State private var isFullscreenHovered = false
 
+    // Computed property for formatted player title
+    // For episodes: "Show Name - S#E# - Episode Title"
+    // For other content: just the title
+    private var formattedPlayerTitle: String {
+        let item = viewModel.item
+        if item.type == "episode",
+           let showName = item.grandparentTitle,
+           let seasonNum = item.parentIndex,
+           let episodeNum = item.index {
+            return "\(showName) - S\(seasonNum)E\(episodeNum) - \(item.title)"
+        }
+        return item.title
+    }
+
     var body: some View {
         VStack {
             // Top Bar
@@ -716,7 +730,8 @@ struct PlayerControlsView: View {
 
                 Spacer()
 
-                Text(viewModel.item.title)
+                // Display formatted title: "Show : S#E# : Episode Title" for episodes
+                Text(formattedPlayerTitle)
                     .font(.headline)
                     .foregroundStyle(.white)
 
