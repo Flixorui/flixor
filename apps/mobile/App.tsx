@@ -149,6 +149,12 @@ const MyListScreen = React.memo(() => (
   </View>
 ));
 
+const SearchTabScreen = React.memo(() => (
+  <View style={{ flex: 1 }}>
+    <Search isTab />
+  </View>
+));
+
 const SettingsTabScreen = React.memo(() => (
   <SettingsStack.Navigator screenOptions={{ headerShown: false }}>
     <SettingsStack.Screen name="SettingsMain">
@@ -196,6 +202,14 @@ const Tabs = React.memo(() => {
             options={{
               title: 'Home',
               tabBarIcon: () => ({ sfSymbol: 'house' }),
+            }}
+          />
+          <IOSTab.Screen
+            name="SearchTab"
+            component={SearchTabScreen}
+            options={{
+              title: 'Search',
+              tabBarIcon: () => ({ sfSymbol: 'magnifyingglass' }),
             }}
           />
           <IOSTab.Screen
@@ -255,6 +269,7 @@ const Tabs = React.memo(() => {
         ),
         tabBarIcon: ({ color, focused }) => {
           const name = route.name === 'HomeTab' ? (focused ? 'home' : 'home-outline')
+            : route.name === 'SearchTab' ? (focused ? 'search' : 'search-outline')
             : route.name === 'NewHotTab' ? (focused ? 'play-circle' : 'play-circle-outline')
             : route.name === 'SettingsTab' ? (focused ? 'settings' : 'settings-outline')
             : route.name === 'MyTab' ? (focused ? 'bookmark' : 'bookmark-outline')
@@ -269,6 +284,7 @@ const Tabs = React.memo(() => {
       }}
     >
       <Tab.Screen name="HomeTab" options={{ title: 'Home' }} component={HomeStackNavigator} />
+      <Tab.Screen name="SearchTab" options={{ title: 'Search' }} component={SearchTabScreen} />
       <Tab.Screen name="NewHotTab" options={{ title: 'New & Hot' }} component={NewHotScreen} />
       <Tab.Screen name="MyTab" options={{ title: 'My List' }} component={MyListScreen} />
       <Tab.Screen name="SettingsTab" options={{ title: 'Settings' }} component={SettingsTabScreen} />

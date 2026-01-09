@@ -34,7 +34,11 @@ const persistentStore = {
 // Image preload cap - limit concurrent preloads
 const IMAGE_PRELOAD_CAP = 6;
 
-export default function Search() {
+interface SearchProps {
+  isTab?: boolean;
+}
+
+export default function Search({ isTab = false }: SearchProps) {
   const nav: any = useNavigation();
   const { isConnected } = useFlixor();
   const [query, setQuery] = useState('');
@@ -55,8 +59,10 @@ export default function Search() {
   useEffect(() => {
     isMounted.current = true;
 
-    // Hide TopBar when Search is opened
-    TopBarStore.setVisible(false);
+    // Hide TopBar when Search is opened as modal (not tab)
+    if (!isTab) {
+      TopBarStore.setVisible(false);
+    }
 
     const now = Date.now();
     const cacheValid = persistentStore.trending && (now - persistentStore.lastFetchTime < persistentStore.CACHE_TTL);
@@ -133,13 +139,16 @@ export default function Search() {
     // Cleanup on unmount
     return () => {
       isMounted.current = false;
-      TopBarStore.setVisible(true);
+      // Restore TopBar only when used as modal
+      if (!isTab) {
+        TopBarStore.setVisible(true);
+      }
       // Clear search timeout
       if (searchTimeout.current) {
         clearTimeout(searchTimeout.current);
       }
     };
-  }, [isConnected]);
+  }, [isConnected, isTab]);
 
   const performSearch = useCallback(async (q: string) => {
     if (!isConnected || !q.trim()) return;
@@ -211,10 +220,19 @@ export default function Search() {
     const id = result.id;
     if (id.startsWith('plex:')) {
       const rk = id.split(':')[1];
-      nav.navigate('Details', { type: 'plex', ratingKey: rk });
+      if (isTab) {
+        // Navigate to HomeTab then Details when in tab mode
+        nav.navigate('HomeTab', { screen: 'Details', params: { type: 'plex', ratingKey: rk } });
+      } else {
+        nav.navigate('Details', { type: 'plex', ratingKey: rk });
+      }
     } else if (id.startsWith('tmdb:')) {
       const [, media, tmdbId] = id.split(':');
-      nav.navigate('Details', { type: 'tmdb', mediaType: media, id: tmdbId });
+      if (isTab) {
+        nav.navigate('HomeTab', { screen: 'Details', params: { type: 'tmdb', mediaType: media, id: tmdbId } });
+      } else {
+        nav.navigate('Details', { type: 'tmdb', mediaType: media, id: tmdbId });
+      }
     }
   };
 
@@ -260,9 +278,11 @@ export default function Search() {
                 <Ionicons name="close-circle" size={20} color="#888" />
               </Pressable>
             ) : null}
-            <Pressable onPress={() => nav.goBack()} style={{ marginLeft: 12 }}>
-              <Text style={{ color: '#fff', fontWeight: '600' }}>Cancel</Text>
-            </Pressable>
+            {!isTab && (
+              <Pressable onPress={() => nav.goBack()} style={{ marginLeft: 12 }}>
+                <Text style={{ color: '#fff', fontWeight: '600' }}>Cancel</Text>
+              </Pressable>
+            )}
           </View>
 
           {/* Results/Empty State */}
