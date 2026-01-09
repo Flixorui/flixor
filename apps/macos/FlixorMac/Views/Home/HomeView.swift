@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import FlixorKit
 
 struct HomeView: View {
     @StateObject private var viewModel = HomeViewModel()
@@ -150,7 +151,7 @@ struct HomeView: View {
                 .zIndex(2)
             }
         }
-        .background(HomeBackground())
+        .background(HomeBackground(heroColors: viewModel.heroColors))
         .navigationTitle("")
         .task {
             print("📱 [HomeView] .task triggered - billboardItems.isEmpty: \(viewModel.billboardItems.isEmpty), isLoading: \(viewModel.isLoading)")
@@ -193,6 +194,9 @@ struct HomeView: View {
 
 struct BillboardSection: View {
     @ObservedObject var viewModel: HomeViewModel
+    @AppStorage("heroAutoRotate") private var heroAutoRotate: Bool = true
+
+    @State private var isHovered = false
 
     var currentItem: MediaItem? {
         guard viewModel.currentBillboardIndex < viewModel.billboardItems.count else {
@@ -202,24 +206,133 @@ struct BillboardSection: View {
     }
 
     var body: some View {
-        Group {
-            if let item = currentItem {
-                BillboardView(
-                    item: item,
-                    onPlay: {
-                        viewModel.playItem(item)
-                    },
-                    onInfo: {
-                        viewModel.showItemDetails(item)
-                    },
-                    onMyList: {
-                        viewModel.toggleMyList(item)
+        ZStack {
+            // Billboard content
+            Group {
+                if let item = currentItem {
+                    BillboardView(
+                        item: item,
+                        onPlay: {
+                            viewModel.playItem(item)
+                        },
+                        onInfo: {
+                            viewModel.showItemDetails(item)
+                        },
+                        onMyList: {
+                            viewModel.toggleMyList(item)
+                        }
+                    )
+                    .id(item.id) // Force recreation on item change
+                    .transition(.opacity)
+                }
+            }
+
+            // Navigation controls overlay (only if multiple items)
+            if viewModel.billboardItems.count > 1 {
+                // Left/Right arrows in the middle
+                HStack {
+                    // Left arrow
+                    Button(action: previousItem) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 24, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 48, height: 48)
+                            .background(.ultraThinMaterial.opacity(0.6))
+                            .clipShape(Circle())
                     }
-                )
-                .id(item.id) // Force recreation on item change
-                .transition(.opacity)
+                    .buttonStyle(.plain)
+                    .opacity(isHovered ? 1 : 0)
+
+                    Spacer()
+
+                    // Right arrow
+                    Button(action: nextItem) {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 24, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 48, height: 48)
+                            .background(.ultraThinMaterial.opacity(0.6))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .opacity(isHovered ? 1 : 0)
+                }
+                .padding(.horizontal, 24)
+
+                // Page indicators at the bottom
+                VStack {
+                    Spacer()
+
+                    HStack(spacing: 6) {
+                        ForEach(0..<viewModel.billboardItems.count, id: \.self) { index in
+                            Button(action: { goToIndex(index) }) {
+                                Circle()
+                                    .fill(index == viewModel.currentBillboardIndex ? Color.white : Color.white.opacity(0.4))
+                                    .frame(width: index == viewModel.currentBillboardIndex ? 10 : 8, height: index == viewModel.currentBillboardIndex ? 10 : 8)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(.ultraThinMaterial.opacity(0.4))
+                    .clipShape(Capsule())
+                    .padding(.bottom, 40)
+                }
             }
         }
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isHovered = hovering
+            }
+            // Pause/resume auto-rotation on hover
+            if heroAutoRotate {
+                if hovering {
+                    viewModel.stopBillboardRotation()
+                } else {
+                    viewModel.resumeBillboardRotation()
+                }
+            }
+        }
+        .animation(.easeInOut(duration: 0.5), value: viewModel.currentBillboardIndex)
+        .onChange(of: heroAutoRotate) { newValue in
+            if newValue {
+                viewModel.resumeBillboardRotation()
+            } else {
+                viewModel.stopBillboardRotation()
+            }
+        }
+    }
+
+    // MARK: - Navigation
+
+    private func previousItem() {
+        withAnimation(.easeInOut(duration: 0.5)) {
+            if viewModel.currentBillboardIndex > 0 {
+                viewModel.currentBillboardIndex -= 1
+            } else {
+                viewModel.currentBillboardIndex = viewModel.billboardItems.count - 1
+            }
+        }
+        viewModel.updateHeroColorsForCurrentItem()
+    }
+
+    private func nextItem() {
+        withAnimation(.easeInOut(duration: 0.5)) {
+            if viewModel.currentBillboardIndex < viewModel.billboardItems.count - 1 {
+                viewModel.currentBillboardIndex += 1
+            } else {
+                viewModel.currentBillboardIndex = 0
+            }
+        }
+        viewModel.updateHeroColorsForCurrentItem()
+    }
+
+    private func goToIndex(_ index: Int) {
+        withAnimation(.easeInOut(duration: 0.5)) {
+            viewModel.currentBillboardIndex = index
+        }
+        viewModel.updateHeroColorsForCurrentItem()
     }
 }
 
@@ -350,32 +463,82 @@ struct LandscapeSectionView: View {
     }
 }
 
-// MARK: - Home Background Gradient (approximate web bg-home-gradient)
+// MARK: - Home Background Gradient (dynamic UltraBlur colors)
 
 struct HomeBackground: View {
+    var heroColors: PlexUltraBlurColors?
+
+    // Default fallback colors (teal/red theme)
+    private let defaultTopRight = "144c54"  // Teal
+    private let defaultBottomLeft = "7a1612" // Deep red
+
+    // Get colors with fallback
+    private var topRightColor: Color {
+        Color(hex: heroColors?.topRight ?? defaultTopRight)
+    }
+
+    private var bottomLeftColor: Color {
+        Color(hex: heroColors?.bottomLeft ?? defaultBottomLeft)
+    }
+
     var body: some View {
         ZStack {
+            // Base dark gradient
             LinearGradient(colors: [Color(hex: 0x0a0a0a), Color(hex: 0x0f0f10), Color(hex: 0x0b0c0d)], startPoint: .top, endPoint: .bottom)
 
-            // Muted teal glow (top-right)
-            RadialGradient(gradient: Gradient(colors: [Color(red: 20/255, green: 76/255, blue: 84/255, opacity: 0.42), Color(red: 20/255, green: 76/255, blue: 84/255, opacity: 0.20), .clear]),
-                            center: .init(x: 0.84, y: 0.06), startRadius: 0, endRadius: 800)
+            // Top-right glow (from hero colors)
+            RadialGradient(
+                gradient: Gradient(colors: [
+                    topRightColor.opacity(0.50),
+                    topRightColor.opacity(0.25),
+                    .clear
+                ]),
+                center: .init(x: 0.84, y: 0.06),
+                startRadius: 0,
+                endRadius: 800
+            )
 
-            // Deep red glow (bottom-left)
-            RadialGradient(gradient: Gradient(colors: [Color(red: 122/255, green: 22/255, blue: 18/255, opacity: 0.44), Color(red: 122/255, green: 22/255, blue: 18/255, opacity: 0.20), .clear]),
-                            center: .init(x: 0.10, y: 0.92), startRadius: 0, endRadius: 800)
+            // Bottom-left glow (from hero colors)
+            RadialGradient(
+                gradient: Gradient(colors: [
+                    bottomLeftColor.opacity(0.55),
+                    bottomLeftColor.opacity(0.25),
+                    .clear
+                ]),
+                center: .init(x: 0.10, y: 0.92),
+                startRadius: 0,
+                endRadius: 800
+            )
 
             // Subtle echoes
-            RadialGradient(gradient: Gradient(colors: [Color(red: 122/255, green: 22/255, blue: 18/255, opacity: 0.12), Color(red: 122/255, green: 22/255, blue: 18/255, opacity: 0.06), .clear]),
-                            center: .init(x: 0.08, y: 0.08), startRadius: 0, endRadius: 700)
+            RadialGradient(
+                gradient: Gradient(colors: [
+                    bottomLeftColor.opacity(0.12),
+                    bottomLeftColor.opacity(0.06),
+                    .clear
+                ]),
+                center: .init(x: 0.08, y: 0.08),
+                startRadius: 0,
+                endRadius: 700
+            )
 
-            RadialGradient(gradient: Gradient(colors: [Color(red: 20/255, green: 76/255, blue: 84/255, opacity: 0.12), Color(red: 20/255, green: 76/255, blue: 84/255, opacity: 0.06), .clear]),
-                            center: .init(x: 0.92, y: 0.92), startRadius: 0, endRadius: 700)
+            RadialGradient(
+                gradient: Gradient(colors: [
+                    topRightColor.opacity(0.12),
+                    topRightColor.opacity(0.06),
+                    .clear
+                ]),
+                center: .init(x: 0.92, y: 0.92),
+                startRadius: 0,
+                endRadius: 700
+            )
 
             // Soft vignette
             RadialGradient(gradient: Gradient(colors: [.clear, Color.black.opacity(0.22)]), center: .init(x: 0.5, y: 0.45), startRadius: 300, endRadius: 1200)
         }
         .ignoresSafeArea()
+        .animation(.easeInOut(duration: 0.8), value: heroColors?.topRight)
+        .animation(.easeInOut(duration: 0.8), value: heroColors?.bottomLeft)
     }
 }
 
@@ -388,6 +551,23 @@ extension Color {
             blue: Double(hex & 0xff) / 255,
             opacity: alpha
         )
+    }
+
+    /// Initialize from hex string (e.g., "144c54" or "#144c54")
+    init(hex: String, alpha: Double = 1.0) {
+        var hexString = hex.trimmingCharacters(in: .whitespacesAndNewlines)
+        if hexString.hasPrefix("#") {
+            hexString.removeFirst()
+        }
+
+        guard hexString.count == 6,
+              let hexValue = UInt(hexString, radix: 16) else {
+            // Fallback to black if invalid
+            self.init(.sRGB, red: 0, green: 0, blue: 0, opacity: alpha)
+            return
+        }
+
+        self.init(hex: hexValue, alpha: alpha)
     }
 }
 

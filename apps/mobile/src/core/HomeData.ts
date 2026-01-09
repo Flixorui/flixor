@@ -321,7 +321,21 @@ export async function fetchTraktWatchlist(): Promise<RowItem[]> {
 
     const items = [...movies, ...shows];
 
-    return withLimit(items.slice(0, 12), 5, async (item) => {
+    // Deduplicate by tmdb ID
+    const seenIds = new Set<string>();
+    const uniqueItems = items.filter((item) => {
+      const movie = item.movie;
+      const show = item.show;
+      const media = movie || show;
+      const type = movie ? 'movie' : 'tv';
+      const tmdbId = media?.ids?.tmdb;
+      const id = tmdbId ? `tmdb:${type}:${tmdbId}` : `trakt:${type}:${media?.ids?.trakt}`;
+      if (seenIds.has(id)) return false;
+      seenIds.add(id);
+      return true;
+    });
+
+    return withLimit(uniqueItems.slice(0, 12), 5, async (item) => {
       const movie = item.movie;
       const show = item.show;
       const media = movie || show;
@@ -366,7 +380,21 @@ export async function fetchTraktHistory(): Promise<RowItem[]> {
 
     const items = [...movies, ...shows];
 
-    return withLimit(items.slice(0, 12), 5, async (item) => {
+    // Deduplicate by tmdb ID (same movie/show watched multiple times)
+    const seenIds = new Set<string>();
+    const uniqueItems = items.filter((item) => {
+      const movie = item.movie;
+      const show = item.show;
+      const media = movie || show;
+      const type = movie ? 'movie' : 'tv';
+      const tmdbId = media?.ids?.tmdb;
+      const id = tmdbId ? `tmdb:${type}:${tmdbId}` : `trakt:${type}:${media?.ids?.trakt}`;
+      if (seenIds.has(id)) return false;
+      seenIds.add(id);
+      return true;
+    });
+
+    return withLimit(uniqueItems.slice(0, 12), 5, async (item) => {
       const movie = item.movie;
       const show = item.show;
       const media = movie || show;
@@ -414,7 +442,21 @@ export async function fetchTraktRecommendations(): Promise<RowItem[]> {
       ...shows.map((s) => ({ movie: undefined, show: s })),
     ];
 
-    return withLimit(items.slice(0, 12), 5, async (item) => {
+    // Deduplicate by tmdb ID
+    const seenIds = new Set<string>();
+    const uniqueItems = items.filter((item) => {
+      const movie = item.movie;
+      const show = item.show;
+      const media = movie || show;
+      const type = movie ? 'movie' : 'tv';
+      const tmdbId = media?.ids?.tmdb;
+      const id = tmdbId ? `tmdb:${type}:${tmdbId}` : `trakt:${type}:${media?.ids?.trakt}`;
+      if (seenIds.has(id)) return false;
+      seenIds.add(id);
+      return true;
+    });
+
+    return withLimit(uniqueItems.slice(0, 12), 5, async (item) => {
       const movie = item.movie;
       const show = item.show;
       const media = movie || show;

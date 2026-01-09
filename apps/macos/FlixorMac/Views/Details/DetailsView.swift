@@ -117,6 +117,12 @@ struct DetailsView: View {
     @EnvironmentObject private var router: NavigationRouter
     @EnvironmentObject private var mainView: MainViewState
 
+    // Version picker state
+    @State private var showVersionPicker = false
+    @State private var pendingPlayItem: MediaItem?
+    @State private var episodeVersions: [DetailsViewModel.VersionDetail] = []
+    @State private var isLoadingVersions = false
+
     // Layout preference setting
     @AppStorage("detailsScreenLayout") private var detailsScreenLayout: String = "tabbed"
 
@@ -175,8 +181,8 @@ struct DetailsView: View {
                             // Unified Layout: Stack all sections vertically
                             // Order: Episodes (for TV) → Suggested → Details
                             VStack(spacing: 48) {
-                                // Episodes section (only for TV shows/seasons)
-                                if vm.mediaKind == "tv" || vm.isSeason {
+                                // Episodes section (only for TV shows/seasons, NOT for single episodes)
+                                if (vm.mediaKind == "tv" || vm.isSeason) && !vm.isEpisode {
                                     VStack(alignment: .leading, spacing: 16) {
                                         Text("Episodes")
                                             .font(.system(size: 20, weight: .bold))
@@ -186,7 +192,7 @@ struct DetailsView: View {
                                 }
 
                                 // Suggested section
-                                if !vm.isSeason {
+                                if !vm.isSeason && !vm.isEpisode {
                                     VStack(alignment: .leading, spacing: 16) {
                                         SuggestedSections(vm: vm, layout: layout, onBrowse: { context in
                                             presentBrowse(context)
@@ -254,7 +260,12 @@ struct DetailsView: View {
         .navigationTitle("")
         .task {
             await vm.load(for: item)
-            if vm.mediaKind == "tv" || vm.isSeason { activeTab = "EPISODES" }
+            // Set initial tab - DETAILS for episodes, EPISODES for TV shows/seasons
+            if vm.isEpisode {
+                activeTab = "DETAILS"
+            } else if vm.mediaKind == "tv" || vm.isSeason {
+                activeTab = "EPISODES"
+            }
         }
         .onChange(of: showBrowseModal) { value in
             if !value {
@@ -267,6 +278,20 @@ struct DetailsView: View {
                 activePerson = nil
                 personViewModel.reset()
             }
+        }
+        .sheet(isPresented: $showVersionPicker) {
+            VersionPickerSheet(
+                versions: episodeVersions.isEmpty ? vm.versions : episodeVersions,
+                title: pendingPlayItem?.title ?? vm.title,
+                onSelect: { version in
+                    playWithVersion(version)
+                },
+                onCancel: {
+                    showVersionPicker = false
+                    pendingPlayItem = nil
+                    episodeVersions = []
+                }
+            )
         }
         // Destination for PlayerView is handled at root via NavigationStack(path:)
     }
@@ -305,10 +330,50 @@ struct DetailsView: View {
                 leafCount: item.leafCount,
                 viewedLeafCount: item.viewedLeafCount
             )
-            appendToCurrentTabPath(playerItem)
+
+            // For movies - use existing vm.versions
+            if vm.mediaKind == "movie" {
+                if vm.versions.count > 1 {
+                    pendingPlayItem = playerItem
+                    showVersionPicker = true
+                } else {
+                    appendToCurrentTabPath(playerItem)
+                }
+            }
+            // For episodes/TV shows - fetch versions for the specific playable item
+            else if item.type == "episode" || vm.mediaKind == "tv" {
+                Task {
+                    isLoadingVersions = true
+                    let versions = await vm.fetchVersionsForItem(ratingKey: playableId)
+                    isLoadingVersions = false
+
+                    if versions.count > 1 {
+                        episodeVersions = versions
+                        pendingPlayItem = playerItem
+                        showVersionPicker = true
+                    } else {
+                        appendToCurrentTabPath(playerItem)
+                    }
+                }
+            } else {
+                appendToCurrentTabPath(playerItem)
+            }
         } else {
             appendToCurrentTabPath(item)
         }
+    }
+
+    private func playWithVersion(_ version: DetailsViewModel.VersionDetail) {
+        guard var playerItem = pendingPlayItem else { return }
+        // Find the index of the selected version in the appropriate array
+        let versionsArray = episodeVersions.isEmpty ? vm.versions : episodeVersions
+        if let index = versionsArray.firstIndex(where: { $0.id == version.id }) {
+            playerItem.mediaIndex = index
+        }
+        showVersionPicker = false
+        pendingPlayItem = nil
+        episodeVersions = []
+        appendToCurrentTabPath(playerItem)
     }
 
     private func appendToCurrentTabPath(_ item: MediaItem) {
@@ -398,7 +463,21 @@ struct DetailsView: View {
             leafCount: nil,
             viewedLeafCount: nil
         )
-        appendToCurrentTabPath(playerItem)
+
+        // Fetch versions for this episode
+        Task {
+            isLoadingVersions = true
+            let versions = await vm.fetchVersionsForItem(ratingKey: episode.id)
+            isLoadingVersions = false
+
+            if versions.count > 1 {
+                episodeVersions = versions
+                pendingPlayItem = playerItem
+                showVersionPicker = true
+            } else {
+                appendToCurrentTabPath(playerItem)
+            }
+        }
     }
 }
 
@@ -1060,8 +1139,15 @@ private struct TechnicalBadge: View {
         if lower == "720p" || lower == "hd ready" {
             return "hd" // Use HD icon for 720p as well
         }
+        // HDR formats - check more specific first
+        if lower.contains("hdr10+") || lower.contains("hdr10 plus") {
+            return "hdr10+"
+        }
         if lower.contains("dolby vision") || lower == "dv" || lower.contains("dovi") {
             return "dolbyVision"
+        }
+        if lower.contains("hdr10") || lower.contains("hdr 10") || lower == "hdr" || lower.contains("hdr (") {
+            return "hdr"
         }
         if lower.contains("dolby atmos") || lower.contains("atmos") || lower.contains("truehd") {
             return "dolbyatmos"
@@ -1328,11 +1414,11 @@ private struct DetailsTabContent: View {
                 .fixedSize(horizontal: false, vertical: true)
             }
 
-            // Cast & Crew Section (Apple TV+ style)
-            if showCastCrew && (!vm.cast.isEmpty || !vm.crew.isEmpty) {
+            // Cast & Crew Section (Apple TV+ style) - also show for episodes with guest stars
+            if showCastCrew && (!vm.cast.isEmpty || !vm.crew.isEmpty || !vm.guestStars.isEmpty) {
                 VStack(alignment: .leading, spacing: 16) {
                     HStack {
-                        Text("Cast & Crew")
+                        Text(vm.isEpisode && !vm.guestStars.isEmpty ? "Guest Stars" : "Cast & Crew")
                             .font(.system(size: 22, weight: .semibold))
                             .foregroundStyle(.white)
                         Image(systemName: "chevron.right")
@@ -1431,6 +1517,33 @@ private struct DetailsTabContent: View {
                         .foregroundStyle(.white)
 
                     VStack(alignment: .leading, spacing: 16) {
+                        // Episode-specific info
+                        if vm.isEpisode {
+                            if let showTitle = vm.showTitle {
+                                InfoRow(label: "Show", value: showTitle)
+                            }
+
+                            if let sNum = vm.seasonNumber, let eNum = vm.episodeNumber {
+                                InfoRow(label: "Episode", value: "Season \(sNum), Episode \(eNum)")
+                            }
+
+                            if let airDate = vm.airDate, !airDate.isEmpty {
+                                InfoRow(label: "Air Date", value: formatAirDate(airDate))
+                            }
+
+                            if let rating = vm.tmdbRating, rating > 0 {
+                                InfoRow(label: "TMDB Rating", value: String(format: "%.1f/10", rating))
+                            }
+
+                            if let director = vm.episodeDirector {
+                                InfoRow(label: "Directed By", value: director)
+                            }
+
+                            if let writer = vm.episodeWriter {
+                                InfoRow(label: "Written By", value: writer)
+                            }
+                        }
+
                         if let year = vm.year {
                             InfoRow(label: "Released", value: year)
                         }
@@ -1443,11 +1556,11 @@ private struct DetailsTabContent: View {
                             InfoRow(label: "Rated", value: rating)
                         }
 
-                        if let status = vm.status {
+                        if let status = vm.status, !vm.isEpisode {
                             InfoRow(label: "Status", value: status)
                         }
 
-                        if vm.mediaKind == "tv" {
+                        if vm.mediaKind == "tv" && !vm.isEpisode {
                             if let seasons = vm.numberOfSeasons {
                                 InfoRow(label: "Seasons", value: "\(seasons)")
                             }
@@ -1465,25 +1578,25 @@ private struct DetailsTabContent: View {
                             }
                         }
 
-                        if let lang = vm.originalLanguage {
+                        if let lang = vm.originalLanguage, !vm.isEpisode {
                             InfoRow(label: "Original Language", value: languageName(for: lang))
                         }
 
-                        if let studio = vm.studio {
+                        if let studio = vm.studio, !vm.isEpisode {
                             InfoRow(label: "Studio", value: studio)
                         }
 
-                        if vm.mediaKind == "tv" && !vm.creators.isEmpty {
+                        if vm.mediaKind == "tv" && !vm.creators.isEmpty && !vm.isEpisode {
                             InfoRow(label: "Created By", value: vm.creators.joined(separator: ", "))
                         }
 
-                        // Directors
-                        if !vm.directors.isEmpty {
+                        // Directors (for non-episodes - episodes have episodeDirector above)
+                        if !vm.directors.isEmpty && !vm.isEpisode {
                             InfoRow(label: "Directed By", value: vm.directors.joined(separator: ", "))
                         }
 
-                        // Writers
-                        if !vm.writers.isEmpty {
+                        // Writers (for non-episodes)
+                        if !vm.writers.isEmpty && !vm.isEpisode {
                             InfoRow(label: "Written By", value: vm.writers.joined(separator: ", "))
                         }
                     }
@@ -1650,10 +1763,19 @@ private struct DetailsTabContent: View {
     // Combine cast and crew for display
     private var allCastCrew: [CastCrewCard.Person] {
         var people: [CastCrewCard.Person] = []
-        // Add cast (actors) with their character names
-        for c in vm.cast.prefix(12) {
-            people.append(CastCrewCard.Person(id: c.id, name: c.name, role: c.role, image: c.profile))
+
+        // For episodes, use guest stars
+        if vm.isEpisode && !vm.guestStars.isEmpty {
+            for g in vm.guestStars.prefix(12) {
+                people.append(CastCrewCard.Person(id: g.id, name: g.name, role: g.role, image: g.profile))
+            }
+        } else {
+            // Add cast (actors) with their character names
+            for c in vm.cast.prefix(12) {
+                people.append(CastCrewCard.Person(id: c.id, name: c.name, role: c.role, image: c.profile))
+            }
         }
+
         // Add key crew (directors, writers)
         for c in vm.crew.prefix(4) {
             people.append(CastCrewCard.Person(id: c.id, name: c.name, role: c.job, image: c.profile))
@@ -1682,6 +1804,21 @@ private struct DetailsTabContent: View {
     private func languageName(for code: String) -> String {
         let locale = Locale(identifier: "en")
         return locale.localizedString(forLanguageCode: code)?.capitalized ?? code.uppercased()
+    }
+
+    private func formatAirDate(_ dateString: String) -> String {
+        // Input format: "2026-01-08" (TMDB format)
+        let inputFormatter = DateFormatter()
+        inputFormatter.dateFormat = "yyyy-MM-dd"
+
+        let outputFormatter = DateFormatter()
+        outputFormatter.dateStyle = .long
+        outputFormatter.timeStyle = .none
+
+        if let date = inputFormatter.date(from: dateString) {
+            return outputFormatter.string(from: date)
+        }
+        return dateString // Return as-is if parsing fails
     }
 }
 
@@ -2366,10 +2503,12 @@ private struct HeroTrailerCard: View {
 private extension DetailsView {
     var tabsData: [DetailsTab] {
         var t: [DetailsTab] = []
-        // Show EPISODES tab for TV shows and seasons
-        if vm.mediaKind == "tv" || vm.isSeason { t.append(DetailsTab(id: "EPISODES", label: "Episodes", count: nil)) }
-        // Hide SUGGESTED tab for season-only mode
-        if !vm.isSeason {
+        // Show EPISODES tab for TV shows and seasons (but NOT single episodes)
+        if (vm.mediaKind == "tv" || vm.isSeason) && !vm.isEpisode {
+            t.append(DetailsTab(id: "EPISODES", label: "Episodes", count: nil))
+        }
+        // Hide SUGGESTED tab for season-only mode and episodes
+        if !vm.isSeason && !vm.isEpisode {
             t.append(DetailsTab(id: "SUGGESTED", label: "Suggested", count: nil))
         }
         t.append(DetailsTab(id: "DETAILS", label: "Details", count: nil))
@@ -2869,6 +3008,212 @@ private struct IntrinsicHeightPreferenceKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = nextValue()
+    }
+}
+
+// MARK: - Version Picker Sheet
+
+private struct VersionPickerSheet: View {
+    let versions: [DetailsViewModel.VersionDetail]
+    let title: String
+    let onSelect: (DetailsViewModel.VersionDetail) -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Text("Select Version")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+
+                Spacer()
+
+                Button(action: onCancel) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.title2)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(20)
+
+            Divider()
+
+            // Subtitle
+            Text("Multiple versions available for \"\(title)\"")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .padding(.top, 16)
+                .padding(.horizontal, 20)
+
+            // Version list
+            ScrollView {
+                VStack(spacing: 12) {
+                    ForEach(versions) { version in
+                        VersionRowButton(version: version) {
+                            onSelect(version)
+                        }
+                    }
+                }
+                .padding(20)
+            }
+        }
+        .frame(width: 500, height: min(CGFloat(versions.count) * 90 + 180, 500))
+        .background(.ultraThinMaterial)
+    }
+}
+
+private struct VersionRowButton: View {
+    let version: DetailsViewModel.VersionDetail
+    let onTap: () -> Void
+
+    @State private var isHovered = false
+
+    private var resolutionBadge: String? {
+        guard let res = version.technical.resolution else { return nil }
+        let width = Int(res.split(separator: "x").first ?? "0") ?? 0
+        if width >= 3800 { return "4K" }
+        if width >= 1900 { return "1080p" }
+        if width >= 1260 { return "720p" }
+        return nil
+    }
+
+    private var fileSizeText: String? {
+        guard let mb = version.technical.fileSizeMB else { return nil }
+        if mb >= 1024 {
+            return String(format: "%.1f GB", mb / 1024)
+        }
+        return String(format: "%.0f MB", mb)
+    }
+
+    private var hasAtmos: Bool {
+        guard let audioCodec = version.technical.audioCodec?.lowercased() else { return false }
+        return audioCodec.contains("truehd") || audioCodec.contains("atmos")
+    }
+
+    private var hasCC: Bool {
+        // Show CC badge if any subtitles are available
+        !version.subtitleTracks.isEmpty
+    }
+
+    private var hasSDH: Bool {
+        version.subtitleTracks.contains { track in
+            let name = track.name.uppercased()
+            return name.contains("SDH") || name.contains("DEAF") || name.contains("HARD OF HEARING")
+        }
+    }
+
+    private var hasAD: Bool {
+        version.audioTracks.contains { track in
+            let name = track.name.uppercased()
+            return name.contains("AUDIO DESC") || name.contains("DESCRIPTIVE") || name.contains(" AD")
+        }
+    }
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 16) {
+                // Play icon
+                Image(systemName: "play.circle.fill")
+                    .font(.system(size: 32))
+                    .foregroundStyle(.white)
+
+                // Version info
+                VStack(alignment: .leading, spacing: 6) {
+                    // Main label (e.g., "4K HEVC 8CH")
+                    Text(version.label)
+                        .font(.headline)
+                        .foregroundStyle(.white)
+
+                    // Technical badges row
+                    HStack(spacing: 6) {
+                        // Resolution badge (4K, HD, etc.)
+                        if let res = resolutionBadge {
+                            TechnicalBadge(text: res, isHighlighted: false)
+                        }
+
+                        // HDR/Dolby Vision badge
+                        if let hdr = version.technical.hdrFormat {
+                            TechnicalBadge(text: hdr, isHighlighted: true)
+                        }
+
+                        // Dolby Atmos badge
+                        if hasAtmos {
+                            TechnicalBadge(text: "Dolby Atmos", isHighlighted: false)
+                        }
+
+                        // CC badge
+                        if hasCC {
+                            TechnicalBadge(text: "CC", isHighlighted: false)
+                        }
+
+                        // SDH badge
+                        if hasSDH {
+                            TechnicalBadge(text: "SDH", isHighlighted: false)
+                        }
+
+                        // AD badge
+                        if hasAD {
+                            TechnicalBadge(text: "AD", isHighlighted: false)
+                        }
+                    }
+
+                    // Additional info row
+                    HStack(spacing: 8) {
+                        if let codec = version.technical.videoCodec?.uppercased() {
+                            Text(codec)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        if let channels = version.technical.audioChannels {
+                            Text("\(channels)CH")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        if let bitrate = version.technical.bitrate, bitrate > 0 {
+                            Text("·")
+                                .foregroundStyle(.secondary)
+                            Text(bitrate >= 1000 ? "\(bitrate / 1000) Mbps" : "\(bitrate) Kbps")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        if let size = fileSizeText {
+                            Text("·")
+                                .foregroundStyle(.secondary)
+                            Text(size)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                Spacer()
+
+                // Chevron
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(isHovered ? Color.white.opacity(0.15) : Color.white.opacity(0.08))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(Color.white.opacity(isHovered ? 0.3 : 0.1), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: 0.15)) {
+                isHovered = hovering
+            }
+        }
     }
 }
 

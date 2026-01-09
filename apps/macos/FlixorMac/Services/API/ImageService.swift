@@ -146,6 +146,56 @@ struct MediaItem: Identifiable, Codable {
     let leafCount: Int?               // Episode count
     let viewedLeafCount: Int?         // Watched episode count
 
+    // Version selection (for multi-version titles)
+    var mediaIndex: Int?              // Index of Media array to play (nil = first/default)
+
+    // Convenience initializer with default mediaIndex
+    init(
+        id: String,
+        title: String,
+        type: String,
+        thumb: String?,
+        art: String?,
+        year: Int?,
+        rating: Double?,
+        duration: Int?,
+        viewOffset: Int?,
+        summary: String?,
+        grandparentTitle: String?,
+        grandparentThumb: String?,
+        grandparentArt: String?,
+        grandparentRatingKey: String?,
+        parentIndex: Int?,
+        index: Int?,
+        parentRatingKey: String?,
+        parentTitle: String?,
+        leafCount: Int?,
+        viewedLeafCount: Int?,
+        mediaIndex: Int? = nil
+    ) {
+        self.id = id
+        self.title = title
+        self.type = type
+        self.thumb = thumb
+        self.art = art
+        self.year = year
+        self.rating = rating
+        self.duration = duration
+        self.viewOffset = viewOffset
+        self.summary = summary
+        self.grandparentTitle = grandparentTitle
+        self.grandparentThumb = grandparentThumb
+        self.grandparentArt = grandparentArt
+        self.grandparentRatingKey = grandparentRatingKey
+        self.parentIndex = parentIndex
+        self.index = index
+        self.parentRatingKey = parentRatingKey
+        self.parentTitle = parentTitle
+        self.leafCount = leafCount
+        self.viewedLeafCount = viewedLeafCount
+        self.mediaIndex = mediaIndex
+    }
+
     enum CodingKeys: String, CodingKey {
         case id = "ratingKey"
         case title
@@ -167,5 +217,6 @@ struct MediaItem: Identifiable, Codable {
         case parentTitle
         case leafCount
         case viewedLeafCount
+        case mediaIndex
     }
 }

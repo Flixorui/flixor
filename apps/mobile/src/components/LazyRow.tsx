@@ -19,6 +19,7 @@ interface LazyRowProps {
   onItemPress?: (item: any) => void;
   onTitlePress?: () => void;
   onBrowsePress?: () => void;
+  keyPrefix?: string;
 }
 
 function LazyRow({
@@ -31,6 +32,7 @@ function LazyRow({
   onItemPress,
   onTitlePress,
   onBrowsePress,
+  keyPrefix = '',
 }: LazyRowProps) {
   const [fetchedData, setFetchedData] = useState<any[]>([]);
   const [loading, setLoading] = useState(!preloadedItems);
@@ -116,6 +118,7 @@ function LazyRow({
         onItemPress={onItemPress}
         onTitlePress={onTitlePress}
         onBrowsePress={onBrowsePress}
+        keyPrefix={keyPrefix}
       />
     </View>
   );

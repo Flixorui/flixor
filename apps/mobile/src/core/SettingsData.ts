@@ -302,6 +302,8 @@ export interface AppSettings {
   showIMDbRating: boolean;
   showRottenTomatoesCritic: boolean;
   showRottenTomatoesAudience: boolean;
+  // Details screen layout setting
+  detailsScreenLayout: 'tabbed' | 'unified';
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -340,6 +342,8 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   showIMDbRating: true,
   showRottenTomatoesCritic: true,
   showRottenTomatoesAudience: true,
+  // Details screen layout default
+  detailsScreenLayout: 'tabbed',
 };
 
 let cachedSettings: AppSettings = { ...DEFAULT_APP_SETTINGS };

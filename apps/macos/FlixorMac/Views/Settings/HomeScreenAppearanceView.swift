@@ -10,6 +10,7 @@ import SwiftUI
 struct HomeScreenAppearanceView: View {
     @AppStorage("heroLayout") private var heroLayout: String = "billboard"
     @AppStorage("showHeroSection") private var showHeroSection: Bool = true
+    @AppStorage("heroAutoRotate") private var heroAutoRotate: Bool = true
     @AppStorage("continueWatchingLayout") private var continueWatchingLayout: String = "landscape"
     @AppStorage("rowLayout") private var rowLayout: String = "poster"
     @AppStorage("posterSize") private var posterSize: String = "medium"
@@ -57,6 +58,12 @@ struct HomeScreenAppearanceView: View {
                         }
                         .padding(.horizontal, 12)
                         .padding(.bottom, 12)
+                    }
+                }
+
+                SettingsGroupCard {
+                    SettingsRow(icon: "arrow.triangle.2.circlepath", iconColor: .orange, title: "Auto-Rotate Hero", showDivider: false) {
+                        Toggle("", isOn: $heroAutoRotate).labelsHidden()
                     }
                 }
 

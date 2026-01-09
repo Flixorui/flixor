@@ -212,6 +212,11 @@ public class TMDBService {
         return try await get(path: "/tv/\(tvId)/season/\(seasonNumber)", ttl: CacheTTL.dynamic)
     }
 
+    /// Get episode details (includes guest_stars and crew)
+    public func getEpisodeDetails(tvId: Int, seasonNumber: Int, episodeNumber: Int) async throws -> TMDBEpisodeDetails {
+        return try await get(path: "/tv/\(tvId)/season/\(seasonNumber)/episode/\(episodeNumber)", ttl: CacheTTL.dynamic)
+    }
+
     // MARK: - Generic Media
 
     /// Get images for movie or TV
@@ -556,6 +561,46 @@ public struct TMDBEpisode: Codable, Identifiable {
         case episodeNumber = "episode_number"
         case seasonNumber = "season_number"
         case voteAverage = "vote_average"
+    }
+}
+
+/// Full episode details including guest stars and crew
+public struct TMDBEpisodeDetails: Codable, Identifiable {
+    public let id: Int
+    public let name: String
+    public let overview: String?
+    public let stillPath: String?
+    public let airDate: String?
+    public let episodeNumber: Int?
+    public let seasonNumber: Int?
+    public let runtime: Int?
+    public let voteAverage: Double?
+    public let voteCount: Int?
+    public let guestStars: [TMDBGuestStar]?
+    public let crew: [TMDBCrewMember]?
+
+    private enum CodingKeys: String, CodingKey {
+        case id, name, overview, runtime, crew
+        case stillPath = "still_path"
+        case airDate = "air_date"
+        case episodeNumber = "episode_number"
+        case seasonNumber = "season_number"
+        case voteAverage = "vote_average"
+        case voteCount = "vote_count"
+        case guestStars = "guest_stars"
+    }
+}
+
+public struct TMDBGuestStar: Codable, Identifiable {
+    public let id: Int
+    public let name: String?
+    public let character: String?
+    public let profilePath: String?
+    public let order: Int?
+
+    private enum CodingKeys: String, CodingKey {
+        case id, name, character, order
+        case profilePath = "profile_path"
     }
 }
 

@@ -4,7 +4,7 @@ import Poster from './Poster';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 
-function Row({ title, items, getImageUri, getTitle, getSubtitle, authHeaders, onItemPress, onTitlePress, onBrowsePress }: {
+function Row({ title, items, getImageUri, getTitle, getSubtitle, authHeaders, onItemPress, onTitlePress, onBrowsePress, keyPrefix = '' }: {
   title: string;
   items: any[];
   getImageUri: (item: any) => string | undefined;
@@ -14,6 +14,7 @@ function Row({ title, items, getImageUri, getTitle, getSubtitle, authHeaders, on
   onItemPress?: (item: any) => void;
   onTitlePress?: () => void;
   onBrowsePress?: () => void;
+  keyPrefix?: string;
 }) {
   const handleTitlePress = () => {
     // Prefer onBrowsePress for chevron tap, fall back to onTitlePress
@@ -41,7 +42,7 @@ function Row({ title, items, getImageUri, getTitle, getSubtitle, authHeaders, on
       <FlatList
         horizontal
         data={items}
-        keyExtractor={(item, idx) => item.id || item.ratingKey || `${title}-${idx}`}
+        keyExtractor={(item, idx) => `${keyPrefix}${item.id || item.ratingKey || `${title}-${idx}`}`}
         renderItem={({ item }) => (
           <Poster uri={getImageUri(item)} title={getTitle(item)} subtitle={getSubtitle?.(item)} authHeaders={authHeaders} onPress={() => onItemPress && onItemPress(item)} />
         )}

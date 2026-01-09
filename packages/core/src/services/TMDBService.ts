@@ -5,6 +5,7 @@ import type {
   TMDBMovieDetails,
   TMDBTVDetails,
   TMDBSeason,
+  TMDBEpisodeDetails,
   TMDBCredits,
   TMDBExternalIds,
   TMDBVideosResponse,
@@ -285,6 +286,17 @@ export class TMDBService {
   async getSeasonDetails(tvId: number, seasonNumber: number): Promise<TMDBSeason> {
     return this.get<TMDBSeason>(
       `/tv/${tvId}/season/${seasonNumber}`,
+      undefined,
+      CacheTTL.DYNAMIC
+    );
+  }
+
+  /**
+   * Get episode details (includes guest_stars and crew)
+   */
+  async getEpisodeDetails(tvId: number, seasonNumber: number, episodeNumber: number): Promise<TMDBEpisodeDetails> {
+    return this.get<TMDBEpisodeDetails>(
+      `/tv/${tvId}/season/${seasonNumber}/episode/${episodeNumber}`,
       undefined,
       CacheTTL.DYNAMIC
     );

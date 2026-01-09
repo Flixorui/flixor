@@ -66,6 +66,11 @@ class HomeViewModel: ObservableObject {
     @Published var currentBillboardIndex = 0
     @Published var pendingAction: HomeAction?
 
+    // MARK: - UltraBlur Colors
+    @Published var heroColors: PlexUltraBlurColors?
+    private var ultraBlurCache: [String: PlexUltraBlurColors] = [:]
+    private var lastHeroColorKey: String?
+
     private var billboardTimer: Timer?
     private var loadTask: Task<Void, Never>?
 
@@ -971,14 +976,18 @@ class HomeViewModel: ObservableObject {
             return arr.sorted(by: { ($0.voteAverage ?? 0) > ($1.voteAverage ?? 0) }).first
         }
 
-        // Priority: en > hi > any non-null language > null (no text)
-        let en = pick(backs.filter { $0.iso6391 == "en" })
-        let hi = pick(backs.filter { $0.iso6391 == "hi" })
-        let withLang = pick(backs.filter { $0.iso6391 != nil && $0.iso6391 != "en" && $0.iso6391 != "hi" })
-        let nul = pick(backs.filter { $0.iso6391 == nil })
-        let sel = en ?? hi ?? withLang ?? nul
+        // Priority 1: English backdrops (with title text burned in)
+        if let en = pick(backs.filter { $0.iso6391 == "en" }), let path = en.filePath {
+            return FlixorCore.shared.tmdb.getBackdropUrl(path: path, size: "original")
+        }
 
-        guard let path = sel?.filePath else { return nil }
+        // Priority 2: Any language with title (iso_639_1 is not null)
+        if let withLang = pick(backs.filter { $0.iso6391 != nil }), let path = withLang.filePath {
+            return FlixorCore.shared.tmdb.getBackdropUrl(path: path, size: "original")
+        }
+
+        // Priority 3: Fallback to any backdrop (including textless)
+        guard let any = pick(backs), let path = any.filePath else { return nil }
         return FlixorCore.shared.tmdb.getBackdropUrl(path: path, size: "original")
     }
 
@@ -1031,16 +1040,28 @@ class HomeViewModel: ObservableObject {
 
     // MARK: - Billboard Rotation
 
+    @AppStorage("heroAutoRotate") private var heroAutoRotate: Bool = true
+
     private func startBillboardRotation() {
         guard !billboardItems.isEmpty else { return }
+
+        // Fetch colors for initial item
+        Task {
+            await fetchHeroColors(for: currentBillboardIndex)
+        }
+
+        // Only start timer if auto-rotate is enabled
+        guard heroAutoRotate else { return }
 
         billboardTimer?.invalidate()
         billboardTimer = Timer.scheduledTimer(withTimeInterval: 8.0, repeats: true) { [weak self] _ in
             guard let self = self else { return }
             Task { @MainActor in
+                let newIndex = (self.currentBillboardIndex + 1) % self.billboardItems.count
                 withAnimation {
-                    self.currentBillboardIndex = (self.currentBillboardIndex + 1) % self.billboardItems.count
+                    self.currentBillboardIndex = newIndex
                 }
+                await self.fetchHeroColors(for: newIndex)
             }
         }
     }
@@ -1048,6 +1069,111 @@ class HomeViewModel: ObservableObject {
     func stopBillboardRotation() {
         billboardTimer?.invalidate()
         billboardTimer = nil
+    }
+
+    func resumeBillboardRotation() {
+        guard heroAutoRotate, !billboardItems.isEmpty else { return }
+
+        billboardTimer?.invalidate()
+        billboardTimer = Timer.scheduledTimer(withTimeInterval: 8.0, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
+            Task { @MainActor in
+                let newIndex = (self.currentBillboardIndex + 1) % self.billboardItems.count
+                withAnimation {
+                    self.currentBillboardIndex = newIndex
+                }
+                await self.fetchHeroColors(for: newIndex)
+            }
+        }
+    }
+
+    // MARK: - UltraBlur Colors
+
+    /// Fetch UltraBlur colors for the current hero/billboard item
+    func fetchHeroColors(for index: Int) async {
+        guard index >= 0 && index < billboardItems.count else { return }
+        let item = billboardItems[index]
+
+        // Get the backdrop URL for this item
+        guard let backdropUrl = await resolveHeroBackdropURL(for: item) else {
+            print("⚠️ [Home] No backdrop URL for hero colors: \(item.title)")
+            return
+        }
+
+        let colorKey = "hero:\(backdropUrl)"
+
+        // Skip if already showing colors for this item
+        if colorKey == lastHeroColorKey && heroColors != nil {
+            return
+        }
+
+        // Check cache first
+        if let cached = ultraBlurCache[colorKey] {
+            lastHeroColorKey = colorKey
+            withAnimation(.easeInOut(duration: 0.8)) {
+                self.heroColors = cached
+            }
+            return
+        }
+
+        // Fetch from Plex server
+        guard let plexServer = FlixorCore.shared.plexServer else { return }
+
+        do {
+            if let colors = try await plexServer.getUltraBlurColors(imageUrl: backdropUrl) {
+                ultraBlurCache[colorKey] = colors
+                lastHeroColorKey = colorKey
+                withAnimation(.easeInOut(duration: 0.8)) {
+                    self.heroColors = colors
+                }
+                print("✅ [Home] UltraBlur colors fetched for: \(item.title)")
+            }
+        } catch {
+            print("❌ [Home] Failed to fetch UltraBlur colors: \(error)")
+        }
+    }
+
+    /// Manually trigger color update (e.g., when user changes billboard)
+    func updateHeroColorsForCurrentItem() {
+        Task {
+            await fetchHeroColors(for: currentBillboardIndex)
+        }
+    }
+
+    /// Resolve backdrop URL for hero/billboard item (for UltraBlur)
+    private func resolveHeroBackdropURL(for item: MediaItem) async -> String? {
+        // First try to get the Plex art URL
+        if let art = item.art {
+            if art.hasPrefix("http") {
+                return art
+            }
+            // Use Plex server to get full URL
+            if let plexServer = FlixorCore.shared.plexServer {
+                return plexServer.getImageUrl(path: art, width: 1920)
+            }
+        }
+
+        // For episodes, try grandparent art (show backdrop)
+        if item.type == "episode", let grandparentArt = item.grandparentArt {
+            if grandparentArt.hasPrefix("http") {
+                return grandparentArt
+            }
+            if let plexServer = FlixorCore.shared.plexServer {
+                return plexServer.getImageUrl(path: grandparentArt, width: 1920)
+            }
+        }
+
+        // Try thumb as fallback
+        if let thumb = item.thumb {
+            if thumb.hasPrefix("http") {
+                return thumb
+            }
+            if let plexServer = FlixorCore.shared.plexServer {
+                return plexServer.getImageUrl(path: thumb, width: 1920)
+            }
+        }
+
+        return nil
     }
 
     // MARK: - Navigation

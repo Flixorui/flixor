@@ -440,6 +440,84 @@ export function getYouTubeThumbnailUrl(videoKey: string): string {
 }
 
 // ============================================
+// TMDB Episode Stills (for Plex fallback)
+// ============================================
+
+export interface TMDBEpisodeData {
+  still_path?: string;
+  air_date?: string;
+  vote_average?: number;
+}
+
+/**
+ * Fetch TMDB episode data for a season (stills, air_date, vote_average)
+ * Returns a Map of episode_number -> episode data
+ */
+export async function fetchTmdbEpisodeStills(
+  tvId: number,
+  seasonNumber: number
+): Promise<Map<number, TMDBEpisodeData>> {
+  const episodeData = new Map<number, TMDBEpisodeData>();
+  try {
+    const core = getFlixorCore();
+    const season = await core.tmdb.getSeasonDetails(tvId, seasonNumber);
+    for (const ep of season.episodes || []) {
+      episodeData.set(ep.episode_number, {
+        still_path: ep.still_path ?? undefined,
+        air_date: ep.air_date,
+        vote_average: ep.vote_average,
+      });
+    }
+  } catch (e) {
+    console.log('[DetailsData] fetchTmdbEpisodeStills error:', e);
+  }
+  return episodeData;
+}
+
+// ============================================
+// TMDB Episode Details (for enrichment)
+// ============================================
+
+export interface EpisodeEnrichment {
+  air_date?: string;
+  vote_average?: number;
+  runtime?: number;
+  guest_stars?: Array<{ id: number; name: string; character?: string; profile_path?: string | null }>;
+  director?: string;
+  writer?: string;
+}
+
+/**
+ * Fetch TMDB episode details for enrichment (guest stars, crew, etc.)
+ */
+export async function fetchTmdbEpisodeDetails(
+  tvId: number,
+  seasonNumber: number,
+  episodeNumber: number
+): Promise<EpisodeEnrichment | null> {
+  try {
+    const core = getFlixorCore();
+    const details = await core.tmdb.getEpisodeDetails(tvId, seasonNumber, episodeNumber);
+
+    // Extract director and writer from crew
+    const director = details.crew?.find((c: any) => c.job === 'Director')?.name;
+    const writer = details.crew?.find((c: any) => c.job === 'Writer' || c.department === 'Writing')?.name;
+
+    return {
+      air_date: details.air_date,
+      vote_average: details.vote_average,
+      runtime: details.runtime,
+      guest_stars: details.guest_stars?.slice(0, 8), // Limit to 8 guest stars
+      director,
+      writer,
+    };
+  } catch (e) {
+    console.log('[DetailsData] fetchTmdbEpisodeDetails error:', e);
+    return null;
+  }
+}
+
+// ============================================
 // Image URLs
 // ============================================
 

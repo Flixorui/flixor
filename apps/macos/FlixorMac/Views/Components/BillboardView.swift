@@ -109,8 +109,8 @@ struct BillboardView: View {
                 )
                 .aspectRatio(contentMode: .fill)
                 .frame(width: geometry.size.width, height: billboardHeight)
-                .clipped()
                 .background(Color.black)
+                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
             }
 
             // Web-style gradient overlays
@@ -124,6 +124,8 @@ struct BillboardView: View {
                 startPoint: .top,
                 endPoint: .bottom
             )
+            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+
             // Left-to-right gradient for readability on left/center content
             LinearGradient(
                 colors: [
@@ -134,6 +136,7 @@ struct BillboardView: View {
                 startPoint: .leading,
                 endPoint: .trailing
             )
+            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
 
             // Content Overlay
             VStack(alignment: .leading, spacing: 20) {
@@ -257,7 +260,10 @@ struct BillboardView: View {
             RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .stroke(Color.white.opacity(0.10), lineWidth: 1)
         )
-        .background(Color.black.opacity(0.4))
+        .background(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(Color.black.opacity(0.4))
+        )
         .shadow(color: .black.opacity(0.65), radius: 40, y: 24)
         .onHover { hovering in
             isHovered = hovering
@@ -387,16 +393,17 @@ extension BillboardView {
     private func fetchTMDBBackdropAndLogo(mediaType: String, id: String) async throws -> (URL?, URL?) {
         struct TMDBImages: Codable { let backdrops: [TMDBImage]?; let logos: [TMDBImage]? }
         struct TMDBImage: Codable { let file_path: String?; let iso_639_1: String?; let vote_average: Double? }
-        let imgs: TMDBImages = try await APIClient.shared.get("/api/tmdb/\(mediaType)/\(id)/images", queryItems: [URLQueryItem(name: "language", value: "en,hi,null")])
-        // Pick backdrop
+        let imgs: TMDBImages = try await APIClient.shared.get("/api/tmdb/\(mediaType)/\(id)/images", queryItems: [URLQueryItem(name: "include_image_language", value: "en,null")])
+        // Pick backdrop with priority: textless first (hero has its own title overlay)
         let backs = imgs.backdrops ?? []
         let pick: ([TMDBImage]) -> TMDBImage? = { arr in
             return arr.sorted { ($0.vote_average ?? 0) > ($1.vote_average ?? 0) }.first
         }
-        let enB = pick(backs.filter { $0.iso_639_1 == "en" })
-        let nulB = pick(backs.filter { $0.iso_639_1 == nil })
+        // Priority 1: Textless backdrops (iso_639_1 is null) - clean for hero overlay
+        let textlessB = pick(backs.filter { $0.iso_639_1 == nil })
+        // Priority 2: Fallback to any backdrop
         let anyB = pick(backs)
-        let selB = anyB
+        let selB = textlessB ?? anyB
         let backdropURL: URL? = {
             guard let path = selB?.file_path else { return nil }
             let full = "https://image.tmdb.org/t/p/original\(path)"

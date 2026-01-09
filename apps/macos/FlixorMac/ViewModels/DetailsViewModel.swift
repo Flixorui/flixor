@@ -122,6 +122,19 @@ class DetailsViewModel: ObservableObject {
     @Published var parentShowKey: String?           // Link to parent show
     @Published var episodeCount: Int?               // Total episodes
     @Published var watchedCount: Int?               // Watched episodes
+    @Published var currentSeasonNumber: Int?        // Current season number for TMDB fallback
+
+    // Episode-specific state
+    @Published var isEpisode: Bool = false          // Flag for episode-only mode
+    @Published var episodeNumber: Int?              // Episode number in season
+    @Published var seasonNumber: Int?               // Season number
+    @Published var showTitle: String?               // Parent show title
+    @Published var showRatingKey: String?           // Parent show's Plex rating key
+    @Published var airDate: String?                 // Original air date
+    @Published var tmdbRating: Double?              // TMDB vote average
+    @Published var guestStars: [Person] = []        // Guest stars from TMDB
+    @Published var episodeDirector: String?         // Episode director
+    @Published var episodeWriter: String?           // Episode writer
 
     private var lastFetchedRatingsKey: String?
 
@@ -191,12 +204,20 @@ class DetailsViewModel: ObservableObject {
         let audienceRating: Double?   // RT Audience fallback
 
         // Season-specific fields
-        let parentRatingKey: String?     // Parent show
-        let parentTitle: String?          // Show name
-        let index: Int?                   // Season number
+        let parentRatingKey: String?     // Parent show/season
+        let parentTitle: String?          // Show/season name
+        let index: Int?                   // Season/episode number
         let leafCount: Int?               // Episode count
         let viewedLeafCount: Int?         // Watched count
         let key: String?                  // Children endpoint
+
+        // Episode-specific fields
+        let parentIndex: Int?             // Season number (for episodes)
+        let grandparentRatingKey: String? // Show's rating key (for episodes)
+        let grandparentTitle: String?     // Show title (for episodes)
+        let grandparentThumb: String?     // Show poster (for episodes)
+        let grandparentArt: String?       // Show backdrop (for episodes)
+        let originallyAvailableAt: String? // Air date
     }
 
     func load(for item: MediaItem) async {
@@ -259,6 +280,16 @@ class DetailsViewModel: ObservableObject {
         parentShowKey = nil
         episodeCount = nil
         watchedCount = nil
+        isEpisode = false
+        episodeNumber = nil
+        seasonNumber = nil
+        showTitle = nil
+        showRatingKey = nil
+        airDate = nil
+        tmdbRating = nil
+        guestStars = []
+        episodeDirector = nil
+        episodeWriter = nil
 
         print("🎬 [Details] Loading details for item: \(item.id), title: \(item.title)")
 
@@ -289,6 +320,12 @@ class DetailsViewModel: ObservableObject {
                     // Check if type is season
                     if meta.type == "season" {
                         await loadSeasonDirect(meta: meta, ratingKey: rk)
+                        return
+                    }
+
+                    // Check if type is episode
+                    if meta.type == "episode" {
+                        await loadEpisodeDirect(meta: meta, ratingKey: rk)
                         return
                     }
 
@@ -378,6 +415,12 @@ class DetailsViewModel: ObservableObject {
                     // Check if type is season
                     if meta.type == "season" {
                         await loadSeasonDirect(meta: meta, ratingKey: rk)
+                        return
+                    }
+
+                    // Check if type is episode
+                    if meta.type == "episode" {
+                        await loadEpisodeDirect(meta: meta, ratingKey: rk)
                         return
                     }
 
@@ -1026,6 +1069,67 @@ class DetailsViewModel: ObservableObject {
         }
     }
 
+    /// Fetch versions for a specific item (episode/movie) by ratingKey
+    /// Returns versions array for that item, or empty if only one version
+    func fetchVersionsForItem(ratingKey: String) async -> [VersionDetail] {
+        let cleanKey = ratingKey.replacingOccurrences(of: "plex:", with: "")
+        do {
+            let meta: PlexMeta = try await api.get("/api/plex/metadata/\(cleanKey)")
+            guard let media = meta.Media, media.count > 1 else {
+                print("📺 [fetchVersionsForItem] Item \(cleanKey) has \(meta.Media?.count ?? 0) version(s), no picker needed")
+                return []
+            }
+            // Build version details
+            var vds: [VersionDetail] = []
+            for (idx, mm) in media.enumerated() {
+                let id = mm.id ?? String(idx)
+                let width = mm.width ?? 0
+                let height = mm.height ?? 0
+                let resoLabel: String? = {
+                    if width >= 3800 || height >= 2100 { return "4K" }
+                    if width >= 1900 || height >= 1000 { return "1080p" }
+                    if width >= 1260 || height >= 700 { return "720p" }
+                    if width > 0 && height > 0 { return "\(width)x\(height)" }
+                    return nil
+                }()
+                let vcodec = (mm.videoCodec ?? "").uppercased()
+                let ach = mm.audioChannels.map { "\($0)CH" } ?? ""
+                let labelParts = [resoLabel, vcodec.isEmpty ? nil : vcodec, ach.isEmpty ? nil : ach].compactMap { $0 }
+                let part = mm.Part?.first
+                let streams = part?.Stream ?? []
+                let audio = streams.enumerated().filter { $0.element.streamType == 2 }.map { offset, stream -> Track in
+                    let name = stream.displayTitle ?? stream.languageTag ?? stream.language ?? "Audio \(offset + 1)"
+                    return Track(id: stream.id ?? String(offset), name: name, language: stream.languageTag ?? stream.language)
+                }
+                let subs = streams.enumerated().filter { $0.element.streamType == 3 }.map { offset, stream -> Track in
+                    let name = stream.displayTitle ?? stream.languageTag ?? stream.language ?? "Sub \(offset + 1)"
+                    return Track(id: stream.id ?? String(offset), name: name, language: stream.languageTag ?? stream.language)
+                }
+                let videoDisplayTitle = streams.first { $0.streamType == 1 }?.displayTitle
+                let sizeMB = part?.size.map { Double($0) / (1024.0 * 1024.0) }
+                let tech = VersionDetail.TechnicalInfo(
+                    resolution: (width > 0 && height > 0) ? "\(width)x\(height)" : nil,
+                    videoCodec: mm.videoCodec,
+                    videoProfile: mm.videoProfile,
+                    videoDisplayTitle: videoDisplayTitle,
+                    audioCodec: mm.audioCodec,
+                    audioChannels: mm.audioChannels,
+                    bitrate: mm.bitrate,
+                    fileSizeMB: sizeMB,
+                    durationMin: mm.duration.map { $0 / 60000 },
+                    subtitleCount: subs.count,
+                    container: mm.container
+                )
+                vds.append(VersionDetail(id: id, label: labelParts.joined(separator: " "), technical: tech, audioTracks: audio, subtitleTracks: subs))
+            }
+            print("📺 [fetchVersionsForItem] Found \(vds.count) versions for item \(cleanKey)")
+            return vds
+        } catch {
+            print("⚠️ [fetchVersionsForItem] Error fetching versions: \(error)")
+            return []
+        }
+    }
+
     /// Parse ratings directly from Plex metadata (like mobile app)
     private func parseRatingsFromPlexMeta(_ meta: PlexMeta) {
         parseRatings(from: meta.Rating, fallbackRating: meta.rating, fallbackAudienceRating: meta.audienceRating)
@@ -1189,6 +1293,190 @@ class DetailsViewModel: ObservableObject {
         print("✅ [loadSeasonDirect] Season-only view loaded successfully")
     }
 
+    // MARK: - Episode Direct Loading
+
+    private func loadEpisodeDirect(meta: PlexMeta, ratingKey: String) async {
+        print("🎬 [loadEpisodeDirect] Loading episode view for: \(meta.title ?? "Episode")")
+
+        isEpisode = true
+        mediaKind = "tv"
+
+        // Basic metadata from Plex
+        title = meta.title ?? "Episode"
+        overview = meta.summary ?? ""
+        episodeNumber = meta.index
+        seasonNumber = meta.parentIndex
+        showTitle = meta.grandparentTitle
+        showRatingKey = meta.grandparentRatingKey
+        rating = meta.contentRating
+        if let ms = meta.duration { runtime = Int(ms/60000) } else { runtime = nil }
+        airDate = meta.originallyAvailableAt
+
+        // Build episode title with context
+        if let showName = meta.grandparentTitle, let sNum = meta.parentIndex, let eNum = meta.index {
+            title = "\(showName) - S\(sNum)E\(eNum) - \(meta.title ?? "Episode")"
+        } else if let showName = meta.grandparentTitle {
+            title = "\(showName) - \(meta.title ?? "Episode")"
+        }
+
+        // Images - prefer episode art, fallback to show art
+        if let thumb = meta.thumb,
+           let u = ImageService.shared.plexImageURL(path: thumb, width: 600, height: 338) {
+            posterURL = u
+        } else if let grandparentThumb = meta.grandparentThumb,
+                  let u = ImageService.shared.plexImageURL(path: grandparentThumb, width: 600, height: 900) {
+            posterURL = u
+        }
+        if let art = meta.art,
+           let u = ImageService.shared.plexImageURL(path: art, width: 1920, height: 1080) {
+            backdropURL = u
+        } else if let grandparentArt = meta.grandparentArt,
+                  let u = ImageService.shared.plexImageURL(path: grandparentArt, width: 1920, height: 1080) {
+            backdropURL = u
+        }
+
+        // Technical details from media
+        if let media = meta.Media, !media.isEmpty {
+            appendTechnicalBadges(from: media)
+            hydrateVersions(from: media)
+        }
+
+        addBadge("Plex")
+        playableId = "plex:\(ratingKey)"
+        plexRatingKey = ratingKey
+
+        // Try to find TMDB ID from show's GUID for enhancement
+        // First check episode's own GUIDs, then try to get show data
+        var showTmdbId: String?
+        if let tm = meta.Guid?.compactMap({ $0.id }).first(where: { $0.contains("tmdb://") || $0.contains("themoviedb://") }),
+           let tid = tm.components(separatedBy: "://").last {
+            // Episode GUID format might be tmdb://tv/SHOWID/season/X/episode/Y or just the show ID
+            showTmdbId = tid.components(separatedBy: "/").first
+            tmdbId = showTmdbId
+            plexGuid = tm
+        }
+
+        // If no TMDB ID from episode, try to get from show metadata
+        if showTmdbId == nil, let showKey = meta.grandparentRatingKey {
+            do {
+                print("📡 [loadEpisodeDirect] Fetching show metadata for TMDB ID...")
+                guard let plexServer = FlixorCore.shared.plexServer else {
+                    throw NSError(domain: "DetailsVM", code: -1, userInfo: [NSLocalizedDescriptionKey: "No Plex server"])
+                }
+                let showItem = try await plexServer.getMetadata(ratingKey: showKey)
+                let showMeta = plexItemToMeta(showItem)
+                if let tm = showMeta.Guid?.compactMap({ $0.id }).first(where: { $0.contains("tmdb://") || $0.contains("themoviedb://") }),
+                   let tid = tm.components(separatedBy: "://").last {
+                    showTmdbId = tid
+                    tmdbId = tid
+                    print("✅ [loadEpisodeDirect] Found TMDB ID from show: \(tid)")
+                }
+            } catch {
+                print("⚠️ [loadEpisodeDirect] Failed to get show metadata: \(error)")
+            }
+        }
+
+        // Fetch TMDB episode enhancements
+        if let tid = showTmdbId, let sNum = seasonNumber, let eNum = episodeNumber {
+            await fetchTMDBEpisodeEnhancements(showTmdbId: tid, seasonNumber: sNum, episodeNumber: eNum)
+        }
+
+        print("✅ [loadEpisodeDirect] Episode view loaded successfully")
+    }
+
+    // MARK: - TMDB Episode Enhancements
+
+    private func fetchTMDBEpisodeEnhancements(showTmdbId: String, seasonNumber: Int, episodeNumber: Int) async {
+        print("📡 [fetchTMDBEpisodeEnhancements] Fetching TMDB episode S\(seasonNumber)E\(episodeNumber) for show \(showTmdbId)")
+
+        struct TMDBEpisodeDetail: Codable {
+            let id: Int?
+            let name: String?
+            let overview: String?
+            let air_date: String?
+            let still_path: String?
+            let vote_average: Double?
+            let vote_count: Int?
+            let runtime: Int?
+            let guest_stars: [GuestStar]?
+            let crew: [CrewMember]?
+
+            struct GuestStar: Codable {
+                let id: Int?
+                let name: String?
+                let character: String?
+                let profile_path: String?
+            }
+
+            struct CrewMember: Codable {
+                let id: Int?
+                let name: String?
+                let job: String?
+                let department: String?
+                let profile_path: String?
+            }
+        }
+
+        do {
+            let episode: TMDBEpisodeDetail = try await api.get("/api/tmdb/tv/\(showTmdbId)/season/\(seasonNumber)/episode/\(episodeNumber)")
+
+            // Update air date
+            if let date = episode.air_date, !date.isEmpty {
+                airDate = date
+                print("✅ [fetchTMDBEpisodeEnhancements] Air date: \(date)")
+            }
+
+            // Update rating
+            if let rating = episode.vote_average, rating > 0 {
+                tmdbRating = rating
+                print("✅ [fetchTMDBEpisodeEnhancements] TMDB rating: \(rating)")
+            }
+
+            // Update overview if Plex didn't have one
+            if (overview.isEmpty || overview.count < 50), let tmdbOverview = episode.overview, !tmdbOverview.isEmpty {
+                overview = tmdbOverview
+                print("✅ [fetchTMDBEpisodeEnhancements] Updated overview from TMDB")
+            }
+
+            // Update runtime if Plex didn't have one
+            if runtime == nil, let tmdbRuntime = episode.runtime {
+                runtime = tmdbRuntime
+                print("✅ [fetchTMDBEpisodeEnhancements] Runtime: \(tmdbRuntime) min")
+            }
+
+            // Update still image (prefer TMDB over Plex screen grab)
+            if let stillPath = episode.still_path {
+                posterURL = URL(string: "https://image.tmdb.org/t/p/w780\(stillPath)")
+                print("✅ [fetchTMDBEpisodeEnhancements] Updated still image from TMDB")
+            }
+
+            // Guest stars
+            if let guests = episode.guest_stars, !guests.isEmpty {
+                guestStars = guests.prefix(12).map { g in
+                    let profileURL: URL? = g.profile_path.flatMap { URL(string: "https://image.tmdb.org/t/p/w185\($0)") }
+                    return Person(id: "\(g.id ?? 0)", name: g.name ?? "", role: g.character, profile: profileURL)
+                }
+                print("✅ [fetchTMDBEpisodeEnhancements] Loaded \(guestStars.count) guest star(s)")
+            }
+
+            // Director and Writer from crew
+            if let crewList = episode.crew {
+                if let director = crewList.first(where: { $0.job?.lowercased() == "director" }) {
+                    episodeDirector = director.name
+                    print("✅ [fetchTMDBEpisodeEnhancements] Director: \(director.name ?? "?")")
+                }
+                if let writer = crewList.first(where: { $0.job?.lowercased() == "writer" || $0.department?.lowercased() == "writing" }) {
+                    episodeWriter = writer.name
+                    print("✅ [fetchTMDBEpisodeEnhancements] Writer: \(writer.name ?? "?")")
+                }
+            }
+
+            print("✅ [fetchTMDBEpisodeEnhancements] TMDB episode enhancements complete")
+        } catch {
+            print("⚠️ [fetchTMDBEpisodeEnhancements] Failed to fetch TMDB episode data: \(error)")
+        }
+    }
+
     // MARK: - TMDB Season Enhancements
 
     private func fetchTMDBSeasonEnhancements(tmdbId: String, seasonNumber: Int?) async throws {
@@ -1227,7 +1515,7 @@ class DetailsViewModel: ObservableObject {
     }
 
     // MARK: - Seasons / Episodes
-    struct Season: Identifiable { let id: String; let title: String; let source: String } // source: plex/tmdb
+    struct Season: Identifiable { let id: String; let title: String; let source: String; let number: Int? } // source: plex/tmdb
     struct Episode: Identifiable { let id: String; let title: String; let overview: String?; let image: URL?; let durationMin: Int?; let progressPct: Int?; let viewOffset: Int? }
     struct Extra: Identifiable { let id: String; let title: String; let image: URL?; let durationMin: Int? }
     struct Track: Identifiable { let id: String; let name: String; let language: String? }
@@ -1313,16 +1601,21 @@ class DetailsViewModel: ObservableObject {
                 let Metadata: [M]?
                 let size: Int?
             }
-            struct M: Codable { let ratingKey: String; let title: String }
+            struct M: Codable { let ratingKey: String; let title: String; let index: Int? }
             print("📡 [loadPlexSeasons] Fetching Plex seasons for show: \(showKey)")
             let ch: MC = try await api.get("/api/plex/dir/library/metadata/\(showKey)/children")
-            let ss = (ch.Metadata ?? []).map { Season(id: $0.ratingKey, title: $0.title, source: "plex") }
+            let ss = (ch.Metadata ?? []).map { m in
+                // Parse season number from title if index is missing (e.g., "Season 1" -> 1)
+                let seasonNum = m.index ?? Int(m.title.replacingOccurrences(of: "Season ", with: ""))
+                return Season(id: m.ratingKey, title: m.title, source: "plex", number: seasonNum)
+            }
             print("📺 [loadPlexSeasons] Found \(ss.count) season(s): \(ss.map { $0.title }.joined(separator: ", "))")
             await MainActor.run {
                 self.seasons = ss
                 self.selectedSeasonKey = ss.first?.id
+                self.currentSeasonNumber = ss.first?.number
             }
-            await loadPlexEpisodes(seasonKey: ss.first?.id)
+            await loadPlexEpisodes(seasonKey: ss.first?.id, seasonNumber: ss.first?.number)
             // On Deck
             do {
                 let od: MC = try await api.get("/api/plex/dir/library/metadata/\(showKey)/onDeck")
@@ -1338,7 +1631,7 @@ class DetailsViewModel: ObservableObject {
         }
     }
 
-    private func loadPlexEpisodes(seasonKey: String?) async {
+    private func loadPlexEpisodes(seasonKey: String?, seasonNumber: Int? = nil) async {
         guard let seasonKey = seasonKey else {
             print("⚠️ [loadPlexEpisodes] No season key provided")
             return
@@ -1349,11 +1642,44 @@ class DetailsViewModel: ObservableObject {
                 let Metadata: [ME]?
                 let size: Int?
             }
-            struct ME: Codable { let ratingKey: String; let title: String; let summary: String?; let thumb: String?; let parentThumb: String?; let duration: Int?; let viewOffset: Int?; let viewCount: Int? }
+            struct ME: Codable { let ratingKey: String; let title: String; let summary: String?; let thumb: String?; let parentThumb: String?; let duration: Int?; let viewOffset: Int?; let viewCount: Int?; let index: Int? }
             print("📡 [loadPlexEpisodes] Fetching episodes for season: \(seasonKey)")
             let ch: MC = try await api.get("/api/plex/dir/library/metadata/\(seasonKey)/children?nocache=\(Date().timeIntervalSince1970)")
+
+            // Fetch TMDB stills for fallback if we have a TMDB ID and season number
+            var tmdbStills: [Int: String] = [:] // episode_number -> still_path
+            if let tid = tmdbId, let sNum = seasonNumber {
+                do {
+                    struct TMDBSeasonData: Codable {
+                        struct TMDBEp: Codable { let episode_number: Int?; let still_path: String? }
+                        let episodes: [TMDBEp]?
+                    }
+                    print("📡 [loadPlexEpisodes] Fetching TMDB stills for season \(sNum) fallback...")
+                    let tmdbSeason: TMDBSeasonData = try await api.get("/api/tmdb/tv/\(tid)/season/\(sNum)")
+                    for ep in tmdbSeason.episodes ?? [] {
+                        if let epNum = ep.episode_number, let still = ep.still_path {
+                            tmdbStills[epNum] = still
+                        }
+                    }
+                    print("✅ [loadPlexEpisodes] Cached \(tmdbStills.count) TMDB episode stills for fallback")
+                } catch {
+                    print("⚠️ [loadPlexEpisodes] Failed to fetch TMDB stills: \(error)")
+                }
+            }
+
             let eps: [Episode] = (ch.Metadata ?? []).map { e in
-                let url = ImageService.shared.plexImageURL(path: e.thumb ?? e.parentThumb, width: 600, height: 338)
+                // Determine image URL: TMDB still (preferred) > Plex thumb > Plex parentThumb
+                // TMDB stills are typically official, curated images vs Plex auto-generated screen grabs
+                var url: URL?
+                if let epIndex = e.index, let stillPath = tmdbStills[epIndex] {
+                    // Prefer TMDB still_path when available
+                    url = URL(string: "https://image.tmdb.org/t/p/w780\(stillPath)")
+                } else if let thumb = e.thumb {
+                    url = ImageService.shared.plexImageURL(path: thumb, width: 600, height: 338)
+                } else if let parentThumb = e.parentThumb {
+                    url = ImageService.shared.plexImageURL(path: parentThumb, width: 600, height: 338)
+                }
+
                 let dur = e.duration.map { Int($0/60000) }
                 let pct: Int? = {
                     guard let d = e.duration, d > 0 else { return nil }
@@ -1398,10 +1724,11 @@ class DetailsViewModel: ObservableObject {
             struct TS: Codable { let season_number: Int? }
             let tv: TV = try await api.get("/api/tmdb/tv/\(tid)")
             let ss = (tv.seasons ?? []).compactMap { $0.season_number }.filter { $0 > 0 }
-            let mapped = ss.map { Season(id: "tmdb:season:\(tid):\($0)", title: "Season \($0)", source: "tmdb") }
+            let mapped = ss.map { Season(id: "tmdb:season:\(tid):\($0)", title: "Season \($0)", source: "tmdb", number: $0) }
             await MainActor.run {
                 self.seasons = mapped
                 self.selectedSeasonKey = mapped.first?.id
+                self.currentSeasonNumber = mapped.first?.number
             }
             if let first = mapped.first { await loadTMDBEpisodes(seasonId: first.id) }
         } catch {}
@@ -1409,11 +1736,17 @@ class DetailsViewModel: ObservableObject {
 
     // Public episode reload when UI changes season
     func selectSeason(_ key: String) async {
-        await MainActor.run { self.selectedSeasonKey = key; self.episodesLoading = true }
+        // Find the season number from our seasons array
+        let seasonNumber = seasons.first(where: { $0.id == key })?.number
+        await MainActor.run {
+            self.selectedSeasonKey = key
+            self.episodesLoading = true
+            self.currentSeasonNumber = seasonNumber
+        }
         if key.hasPrefix("tmdb:season:") {
             await loadTMDBEpisodes(seasonId: key)
         } else {
-            await loadPlexEpisodes(seasonKey: key)
+            await loadPlexEpisodes(seasonKey: key, seasonNumber: seasonNumber)
         }
         await MainActor.run { self.episodesLoading = false }
     }
@@ -1619,7 +1952,13 @@ class DetailsViewModel: ObservableObject {
             index: item.index,
             leafCount: item.leafCount,
             viewedLeafCount: item.viewedLeafCount,
-            key: item.key
+            key: item.key,
+            parentIndex: item.parentIndex,
+            grandparentRatingKey: item.grandparentRatingKey,
+            grandparentTitle: item.grandparentTitle,
+            grandparentThumb: item.grandparentThumb,
+            grandparentArt: item.grandparentArt,
+            originallyAvailableAt: item.originallyAvailableAt
         )
     }
 }

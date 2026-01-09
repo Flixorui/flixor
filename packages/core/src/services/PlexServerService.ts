@@ -520,24 +520,33 @@ export class PlexServerService {
 
   /**
    * Get direct stream URL for playback
+   * @param ratingKey - The Plex rating key
+   * @param mediaIndex - Index of the Media array (for multi-version support), defaults to 0
    */
-  async getStreamUrl(ratingKey: string): Promise<string> {
+  async getStreamUrl(ratingKey: string, mediaIndex: number = 0): Promise<string> {
+    console.log('[PlexServerService] getStreamUrl called:', { ratingKey, mediaIndex });
     const metadata = await this.getMetadata(ratingKey);
     if (!metadata) {
       throw new Error('Metadata not found');
     }
 
-    const part = metadata.Media?.[0]?.Part?.[0];
+    console.log('[PlexServerService] getStreamUrl - Media array length:', metadata.Media?.length);
+    const part = metadata.Media?.[mediaIndex]?.Part?.[0];
+    console.log('[PlexServerService] getStreamUrl - Selected part:', { mediaIndex, partId: part?.id, partKey: part?.key });
     if (!part?.key) {
       throw new Error('No playable media found');
     }
 
-    return `${this.baseUrl}${part.key}?X-Plex-Token=${this.token}`;
+    const url = `${this.baseUrl}${part.key}?X-Plex-Token=${this.token}`;
+    console.log('[PlexServerService] getStreamUrl - Final URL part ID:', part.id);
+    return url;
   }
 
   /**
    * Get transcode URL for HLS playback
    * Returns both the start URL and session URL along with the session ID
+   * @param ratingKey - The Plex rating key
+   * @param options.mediaIndex - Index of Media array for multi-version support (defaults to 0)
    */
   getTranscodeUrl(
     ratingKey: string,
@@ -550,6 +559,7 @@ export class PlexServerService {
       audioStreamID?: string;
       subtitleStreamID?: string;
       offset?: number; // Start offset in ms for seeking
+      mediaIndex?: number; // Index of Media array (for multi-version support)
     }
   ): { url: string; startUrl: string; sessionUrl: string; sessionId: string } {
     // Always generate a fresh session ID to avoid Plex caching issues
@@ -564,6 +574,7 @@ export class PlexServerService {
       audioStreamID,
       subtitleStreamID,
       offset,
+      mediaIndex = 0,
     } = options || {};
 
     console.log('[PlexServerService] getTranscodeUrl called with:', {
@@ -573,12 +584,13 @@ export class PlexServerService {
       audioStreamID,
       subtitleStreamID,
       sessionId,
+      mediaIndex,
     });
 
     const params = new URLSearchParams({
       hasMDE: '1',
       path: `/library/metadata/${ratingKey}`,
-      mediaIndex: '0',
+      mediaIndex: String(mediaIndex),
       partIndex: '0',
       protocol,
       fastSeek: '1',
@@ -655,11 +667,13 @@ export class PlexServerService {
     options?: {
       audioStreamID?: string;
       subtitleStreamID?: string;
+      mediaIndex?: number; // Index of Media array (for multi-version support)
     }
   ): Promise<void> {
+    const mediaIndex = options?.mediaIndex ?? 0;
     const params = new URLSearchParams({
       path: `/library/metadata/${ratingKey}`,
-      mediaIndex: '0',
+      mediaIndex: String(mediaIndex),
       partIndex: '0',
       protocol: 'hls',
       directPlay: '0',

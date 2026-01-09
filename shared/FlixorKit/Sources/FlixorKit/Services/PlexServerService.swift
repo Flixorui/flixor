@@ -429,6 +429,52 @@ public class PlexServerService {
         return urlString
     }
 
+    // MARK: - UltraBlur Colors
+
+    /// Get UltraBlur colors from an image URL
+    /// Returns gradient colors extracted from the image
+    public func getUltraBlurColors(imageUrl: String) async throws -> PlexUltraBlurColors? {
+        let cacheKey = "ultrablur:\(imageUrl)"
+
+        // Check cache first
+        if let cached: PlexUltraBlurColors = await cache.get(cacheKey) {
+            return cached
+        }
+
+        let encodedUrl = imageUrl.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? imageUrl
+        let urlString = "\(baseUrl)/services/ultrablur/colors?url=\(encodedUrl)&X-Plex-Token=\(token)"
+
+        guard let url = URL(string: urlString) else {
+            return nil
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(clientId, forHTTPHeaderField: "X-Plex-Client-Identifier")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            return nil
+        }
+
+        let result = try JSONDecoder().decode(PlexUltraBlurResponse.self, from: data)
+        let colors = result.MediaContainer.UltraBlurColors?.first
+
+        // Cache the result (24 hours - colors don't change for a given image)
+        if let colors = colors {
+            await cache.set(cacheKey, value: colors, ttl: CacheTTL.`static`)
+        }
+
+        return colors
+    }
+
+    /// Get UltraBlur gradient image URL
+    public func getUltraBlurImageUrl(colors: PlexUltraBlurColors, noise: Int = 1) -> String {
+        return "\(baseUrl)/services/ultrablur/image?topLeft=\(colors.topLeft)&topRight=\(colors.topRight)&bottomRight=\(colors.bottomRight)&bottomLeft=\(colors.bottomLeft)&noise=\(noise)&X-Plex-Token=\(token)"
+    }
+
     // MARK: - Library Filters
 
     /// Get genres for a library section
@@ -810,6 +856,23 @@ public struct TranscodeResult {
     public let startUrl: String
     public let sessionUrl: String
     public let sessionId: String
+}
+
+// MARK: - UltraBlur Models
+
+public struct PlexUltraBlurColors: Codable {
+    public let topLeft: String
+    public let topRight: String
+    public let bottomRight: String
+    public let bottomLeft: String
+}
+
+public struct PlexUltraBlurResponse: Codable {
+    public let MediaContainer: PlexUltraBlurMediaContainer
+}
+
+public struct PlexUltraBlurMediaContainer: Codable {
+    public let UltraBlurColors: [PlexUltraBlurColors]?
 }
 
 // MARK: - Errors

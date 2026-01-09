@@ -40,6 +40,7 @@ type PlayerParams = {
   initialSubtitleStreamId?: string;
   initialQuality?: number | 'original';
   resumePosition?: number; // Resume position in ms
+  mediaIndex?: number; // Index of Media array to play (for multi-version support)
 };
 
 type RouteParams = {
@@ -56,6 +57,9 @@ export default function Player({ route }: RouteParams) {
   const videoRef = useRef<Video>(null); // expo-av fallback (unused with MPV)
   const { isLoading: flixorLoading, isConnected } = useFlixor();
   const KSPlayerModule = Platform.OS === 'ios' ? NativeModules.KSPlayerModule : null;
+
+  // Multi-version support: which Media to use
+  const selectedMediaIndex = params.mediaIndex ?? 0;
 
   // Track selection state (iOS KSPlayer only)
   const [audioTracks, setAudioTracks] = useState<AudioTrack[]>([]);
@@ -202,10 +206,15 @@ export default function Player({ route }: RouteParams) {
       isReplacingRef.current = true;
       await cleanup();
       // Replace current route using stack action for compatibility
+      // Preserve mediaIndex to honor user's version choice for the watch session
       // @ts-ignore - navigation may not expose replace; use dispatch
-      nav.dispatch(StackActions.replace('Player', { type: 'plex', ratingKey: nextEpisode.ratingKey }));
+      nav.dispatch(StackActions.replace('Player', {
+        type: 'plex',
+        ratingKey: nextEpisode.ratingKey,
+        mediaIndex: selectedMediaIndex, // Keep same version for next episode
+      }));
     }
-  }, [nextEpisode, cleanup, nav]);
+  }, [nextEpisode, cleanup, nav, selectedMediaIndex]);
 
   useEffect(() => {
     // Hide TopBar and TabBar when Player is shown
@@ -249,8 +258,10 @@ export default function Player({ route }: RouteParams) {
           metadataRef.current = m;
           cleanupInfoRef.current.ratingKey = params.ratingKey;
 
-          // Extract Plex streams from metadata
-          const plexMedia = m?.Media?.[0];
+          // Extract Plex streams from metadata (use mediaIndex for multi-version support)
+          const mediaIdx = params.mediaIndex ?? 0;
+          console.log('[Player] params.mediaIndex:', params.mediaIndex, '-> mediaIdx:', mediaIdx);
+          const plexMedia = m?.Media?.[mediaIdx];
           const plexPart = plexMedia?.Part?.[0];
           const streams = plexPart?.Stream || [];
 
@@ -427,11 +438,12 @@ export default function Player({ route }: RouteParams) {
 
               if (shouldTranscode) {
                 console.log('[Player] iOS: Using HLS transcode', userRequestedTranscode ? '(user selected quality)' : '(audio requires transcode)');
-                await setupHlsTranscode(params.ratingKey);
+                await setupHlsTranscode(params.ratingKey, { mediaIndex: mediaIdx });
               } else {
                 try {
                   console.log('[Player] iOS: Trying Direct Play', userRequestedOriginal ? '(user requested original)' : '(compatible audio)');
-                  const directUrl = await getDirectStreamUrl(params.ratingKey);
+                  console.log('[Player] Calling getDirectStreamUrl with mediaIndex:', mediaIdx);
+                  const directUrl = await getDirectStreamUrl(params.ratingKey, mediaIdx);
                   console.log('[Player] ====== DIRECT PLAY ======');
                   console.log('[Player] Stream URL:', directUrl);
                   console.log('[Player] Mode: Direct Play (original file)');
@@ -446,7 +458,7 @@ export default function Player({ route }: RouteParams) {
                 } catch (e) {
                   console.log('[Player] Direct Play failed, falling back to HLS transcode:', e);
                   // Fall through to HLS transcode
-                  await setupHlsTranscode(params.ratingKey);
+                  await setupHlsTranscode(params.ratingKey, { mediaIndex: mediaIdx });
                 }
               }
             } else {
@@ -483,11 +495,11 @@ export default function Player({ route }: RouteParams) {
 
               if (shouldTranscode) {
                 console.log('[Player] Android: Using HLS transcode', userRequestedTranscode ? '(user selected quality)' : '(audio requires transcode)');
-                await setupHlsTranscode(params.ratingKey);
+                await setupHlsTranscode(params.ratingKey, { mediaIndex: mediaIdx });
               } else {
                 try {
                   console.log('[Player] Android: Trying Direct Play with MPV', userRequestedOriginal ? '(user requested original)' : '(compatible audio)');
-                  const directUrl = await getDirectStreamUrl(params.ratingKey);
+                  const directUrl = await getDirectStreamUrl(params.ratingKey, mediaIdx);
                   console.log('[Player] ====== DIRECT PLAY (MPV) ======');
                   console.log('[Player] Stream URL:', directUrl);
                   console.log('[Player] Mode: Direct Play (original file)');
@@ -501,12 +513,12 @@ export default function Player({ route }: RouteParams) {
                   setLoading(false);
                 } catch (e) {
                   console.log('[Player] Direct Play failed, falling back to HLS transcode:', e);
-                  await setupHlsTranscode(params.ratingKey);
+                  await setupHlsTranscode(params.ratingKey, { mediaIndex: mediaIdx });
                 }
               }
             }
 
-            async function setupHlsTranscode(ratingKey: string, options?: { bitrate?: number }) {
+            async function setupHlsTranscode(ratingKey: string, options?: { bitrate?: number; mediaIndex?: number }) {
               const bitrate = params.initialQuality && typeof params.initialQuality === 'number'
                 ? params.initialQuality
                 : (options?.bitrate || 20000);
@@ -517,12 +529,16 @@ export default function Player({ route }: RouteParams) {
               const audioStreamId = params.initialAudioStreamId;
               const subtitleStreamId = params.initialSubtitleStreamId;
 
+              // Use mediaIndex from options (for multi-version support)
+              const transcodeMediaIndex = options?.mediaIndex ?? 0;
+
               const { startUrl, sessionUrl, sessionId: sid } = getTranscodeStreamUrl(ratingKey, {
                 maxVideoBitrate: bitrate,
                 videoResolution: resolution,
                 protocol: 'hls',
                 audioStreamID: audioStreamId,
                 subtitleStreamID: subtitleStreamId,
+                mediaIndex: transcodeMediaIndex,
               });
 
               console.log('[Player] ====== HLS TRANSCODE ======');
@@ -1210,6 +1226,7 @@ export default function Player({ route }: RouteParams) {
     console.log('[Player] Audio ID:', audioId || 'default');
     console.log('[Player] Subtitle ID:', subtitleId || 'none');
     console.log('[Player] Quality:', newQuality);
+    console.log('[Player] Media Index:', selectedMediaIndex);
     console.log('[Player] ================================');
 
     // Stop current transcode session before restart
@@ -1236,6 +1253,7 @@ export default function Player({ route }: RouteParams) {
     }
 
     // Restart player by replacing the current screen with new params
+    // Preserve mediaIndex for multi-version support
     nav.dispatch(
       StackActions.replace('Player', {
         type: params.type,
@@ -1243,6 +1261,7 @@ export default function Player({ route }: RouteParams) {
         initialAudioStreamId: audioId,
         initialSubtitleStreamId: subtitleId,
         initialQuality: newQuality, // Pass 'original' or number as-is
+        mediaIndex: selectedMediaIndex, // Preserve selected media version
       })
     );
   };
@@ -1726,20 +1745,20 @@ export default function Player({ route }: RouteParams) {
         qualityOptions={qualityOptions}
         selectedQuality={selectedQuality}
         onQualityChange={handleQualityChange}
-        // Playback info
+        // Playback info (uses selectedMediaIndex for multi-version support)
         playbackInfo={{
           isDirectPlay,
-          videoCodec: metadata?.Media?.[0]?.videoCodec,
-          videoResolution: metadata?.Media?.[0]?.videoResolution,
-          videoBitrate: selectedQuality === 'original' ? metadata?.Media?.[0]?.bitrate : selectedQuality,
-          audioCodec: metadata?.Media?.[0]?.audioCodec,
-          audioChannels: metadata?.Media?.[0]?.audioChannels?.toString() + ' channels',
-          container: metadata?.Media?.[0]?.container,
+          videoCodec: metadata?.Media?.[selectedMediaIndex]?.videoCodec,
+          videoResolution: metadata?.Media?.[selectedMediaIndex]?.videoResolution,
+          videoBitrate: selectedQuality === 'original' ? metadata?.Media?.[selectedMediaIndex]?.bitrate : selectedQuality,
+          audioCodec: metadata?.Media?.[selectedMediaIndex]?.audioCodec,
+          audioChannels: metadata?.Media?.[selectedMediaIndex]?.audioChannels?.toString() + ' channels',
+          container: metadata?.Media?.[selectedMediaIndex]?.container,
           playerBackend: playerBackend || (Platform.OS === 'ios' ? 'KSPlayer' : 'expo-av'),
           // HDR info - prefer native detection, fallback to Plex metadata
           hdrType: (hdrType as PlaybackInfo['hdrType']) || (() => {
             // Fallback: detect HDR from Plex video stream metadata
-            const streams = metadata?.Media?.[0]?.Part?.[0]?.Stream || [];
+            const streams = metadata?.Media?.[selectedMediaIndex]?.Part?.[0]?.Stream || [];
             const videoStream = streams.find((s: any) => s.streamType === 1);
             if (!videoStream) return null;
             // Check for Dolby Vision
@@ -1756,7 +1775,7 @@ export default function Player({ route }: RouteParams) {
           })(),
           colorSpace: colorSpace || (() => {
             // Fallback: detect color space from Plex metadata
-            const streams = metadata?.Media?.[0]?.Part?.[0]?.Stream || [];
+            const streams = metadata?.Media?.[selectedMediaIndex]?.Part?.[0]?.Stream || [];
             const videoStream = streams.find((s: any) => s.streamType === 1);
             if (!videoStream) return undefined;
             // Check for BT.2020 color primaries

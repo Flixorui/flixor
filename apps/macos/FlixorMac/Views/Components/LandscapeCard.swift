@@ -127,6 +127,18 @@ struct LandscapeCard: View {
     }
 
     private func resolveTMDBBackdropURL(for item: MediaItem, width: Int, height: Int) async throws -> URL? {
+        // For episodes, use the parent show's backdrop (grandparentRatingKey)
+        if item.type == "episode", let showKey = item.grandparentRatingKey {
+            print("🎬 [LandscapeCard] Episode detected, fetching parent show backdrop (showKey: \(showKey))")
+            return try await fetchTMDBBackdropForPlexItem(ratingKey: showKey, width: width, height: height, forceMediaType: "tv")
+        }
+
+        // For seasons, use the parent show's backdrop (parentRatingKey)
+        if item.type == "season", let showKey = item.parentRatingKey {
+            print("🎬 [LandscapeCard] Season detected, fetching parent show backdrop (showKey: \(showKey))")
+            return try await fetchTMDBBackdropForPlexItem(ratingKey: showKey, width: width, height: height, forceMediaType: "tv")
+        }
+
         // Case 1: TMDB id already encoded in item.id (tmdb:movie:123 or tmdb:tv:123)
         if item.id.hasPrefix("tmdb:") {
             let parts = item.id.split(separator: ":")
@@ -156,18 +168,18 @@ struct LandscapeCard: View {
         return nil
     }
 
-    private func fetchTMDBBackdropForPlexItem(ratingKey: String, width: Int, height: Int) async throws -> URL? {
+    private func fetchTMDBBackdropForPlexItem(ratingKey: String, width: Int, height: Int, forceMediaType: String? = nil) async throws -> URL? {
         guard let plexServer = FlixorCore.shared.plexServer else { return nil }
 
         let meta = try await plexServer.getMetadata(ratingKey: ratingKey)
 
-        // For seasons, fetch the parent show's backdrop instead
+        // For seasons, fetch the parent show's backdrop instead (fallback if not caught earlier)
         if meta.type == "season", let parentKey = meta.parentRatingKey {
-            print("🎬 [LandscapeCard] Season detected, fetching parent show backdrop (parentKey: \(parentKey))")
-            return try await fetchTMDBBackdropForPlexItem(ratingKey: parentKey, width: width, height: height)
+            print("🎬 [LandscapeCard] Season detected in metadata, fetching parent show backdrop (parentKey: \(parentKey))")
+            return try await fetchTMDBBackdropForPlexItem(ratingKey: parentKey, width: width, height: height, forceMediaType: "tv")
         }
 
-        let mediaType = (meta.type == "movie") ? "movie" : "tv"
+        let mediaType = forceMediaType ?? ((meta.type == "movie") ? "movie" : "tv")
 
         // Extract TMDB ID from Guid array
         if let tmdbGuid = meta.guids.first(where: { $0.contains("tmdb://") || $0.contains("themoviedb://") }),
@@ -188,16 +200,22 @@ struct LandscapeCard: View {
             return arr.sorted { ($0.voteAverage ?? 0) > ($1.voteAverage ?? 0) }.first
         }
 
-        // Priority: en/hi with titles > null (no text) > any other language
+        // Priority 1: English backdrops (with title text burned in)
         let en = pick(backs.filter { $0.iso6391 == "en" })
-        let hi = pick(backs.filter { $0.iso6391 == "hi" })
-        let nul = pick(backs.filter { $0.iso6391 == nil })
-        let any = pick(backs)
-        let sel = en ?? hi ?? nul ?? any
+        if let path = en?.filePath {
+            return URL(string: "https://image.tmdb.org/t/p/original\(path)")
+        }
 
-        guard let path = sel?.filePath else { return nil }
-        let full = "https://image.tmdb.org/t/p/original\(path)"
-        return URL(string: full)
+        // Priority 2: Any language with title (iso_639_1 is not null)
+        let withLanguage = pick(backs.filter { $0.iso6391 != nil })
+        if let path = withLanguage?.filePath {
+            return URL(string: "https://image.tmdb.org/t/p/original\(path)")
+        }
+
+        // Priority 3: Fallback to any backdrop (including textless)
+        let any = pick(backs)
+        guard let path = any?.filePath else { return nil }
+        return URL(string: "https://image.tmdb.org/t/p/original\(path)")
     }
 }
 #if DEBUG && canImport(PreviewsMacros)

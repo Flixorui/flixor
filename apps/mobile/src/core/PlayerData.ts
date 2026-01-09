@@ -90,16 +90,27 @@ export async function fetchNextEpisode(
 // Playback URLs
 // ============================================
 
-export async function getDirectStreamUrl(ratingKey: string): Promise<string> {
+/**
+ * Get direct stream URL for playback
+ * @param ratingKey - The Plex rating key
+ * @param mediaIndex - Index of Media array for multi-version support (defaults to 0)
+ */
+export async function getDirectStreamUrl(ratingKey: string, mediaIndex: number = 0): Promise<string> {
+  console.log('[PlayerData] getDirectStreamUrl called:', { ratingKey, mediaIndex });
   try {
     const core = getFlixorCore();
-    return await core.plexServer.getStreamUrl(ratingKey);
+    return await core.plexServer.getStreamUrl(ratingKey, mediaIndex);
   } catch (e) {
     console.log('[PlayerData] getDirectStreamUrl error:', e);
     throw e;
   }
 }
 
+/**
+ * Get transcode stream URL for HLS playback
+ * @param ratingKey - The Plex rating key
+ * @param options.mediaIndex - Index of Media array for multi-version support (defaults to 0)
+ */
 export function getTranscodeStreamUrl(
   ratingKey: string,
   options?: {
@@ -111,6 +122,7 @@ export function getTranscodeStreamUrl(
     audioStreamID?: string;
     subtitleStreamID?: string;
     offset?: number;
+    mediaIndex?: number; // Index of Media array (for multi-version support)
   }
 ): { url: string; startUrl: string; sessionUrl: string; sessionId: string } {
   try {

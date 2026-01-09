@@ -94,6 +94,12 @@ export interface TMDBEpisode {
   runtime?: number;
 }
 
+// Extended episode details with guest stars and crew (from /tv/{id}/season/{num}/episode/{num})
+export interface TMDBEpisodeDetails extends TMDBEpisode {
+  guest_stars?: TMDBCastMember[];
+  crew?: TMDBCrewMember[];
+}
+
 // Supporting types
 export interface TMDBGenre {
   id: number;

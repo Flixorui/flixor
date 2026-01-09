@@ -593,7 +593,11 @@ class PlayerViewModel: ObservableObject {
             do {
                 // Bypass cache to get fresh part keys (they can change when Plex rescans)
                 let meta: MetaResponse = try await api.get("/api/plex/metadata/\(ratingKey)", bypassCache: true)
-                let m = meta.Media?.first
+                // Use mediaIndex from item if specified, otherwise use first version
+                let mediaArray = meta.Media ?? []
+                let selectedIndex = item.mediaIndex ?? 0
+                let m = selectedIndex < mediaArray.count ? mediaArray[selectedIndex] : mediaArray.first
+                print("📺 [Player] Using media version \(selectedIndex + 1) of \(mediaArray.count)")
 
                 // Store source resolution for quality filtering
                 if let width = m?.width {
@@ -1320,6 +1324,16 @@ class PlayerViewModel: ObservableObject {
             } catch {
                 print("⚠️ [Player] Failed to mark as watched: \(error)")
             }
+
+            // Auto-play next episode if available
+            if item.type == "episode" && nextEpisode != nil {
+                print("▶️ [Player] Auto-playing next episode...")
+                // Small delay to ensure scrobble completes
+                try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+                await MainActor.run {
+                    playNext()
+                }
+            }
         }
     }
 
@@ -1518,7 +1532,7 @@ class PlayerViewModel: ObservableObject {
     func playNext() {
         guard let next = nextEpisode else { return }
 
-        // Create MediaItem from next episode
+        // Create MediaItem from next episode, preserving mediaIndex for version consistency
         let nextItem = MediaItem(
             id: "plex:\(next.ratingKey)",
             title: next.title,
@@ -1539,16 +1553,52 @@ class PlayerViewModel: ObservableObject {
             parentRatingKey: nil,
             parentTitle: nil,
             leafCount: nil,
-            viewedLeafCount: nil
+            viewedLeafCount: nil,
+            mediaIndex: item.mediaIndex  // Preserve version selection
         )
 
-        print("▶️ [Player] Play next: \(next.title)")
+        print("▶️ [Player] Play next: \(next.title) (mediaIndex: \(item.mediaIndex ?? 0))")
 
         // Stop current playback
         stopPlayback()
 
         // Call navigation callback
         onPlayNext?(nextItem)
+    }
+
+    /// Play a specific episode from the season (e.g., from episode selector)
+    func playEpisode(_ episode: EpisodeMetadata) {
+        let episodeItem = MediaItem(
+            id: "plex:\(episode.ratingKey)",
+            title: episode.title,
+            type: "episode",
+            thumb: episode.thumb,
+            art: nil,
+            year: nil,
+            rating: nil,
+            duration: nil,
+            viewOffset: nil,
+            summary: episode.summary,
+            grandparentTitle: item.grandparentTitle,
+            grandparentThumb: item.grandparentThumb,
+            grandparentArt: item.grandparentArt,
+            grandparentRatingKey: item.grandparentRatingKey,
+            parentIndex: episode.parentIndex,
+            index: episode.index,
+            parentRatingKey: nil,
+            parentTitle: nil,
+            leafCount: nil,
+            viewedLeafCount: nil,
+            mediaIndex: item.mediaIndex  // Preserve version selection
+        )
+
+        print("▶️ [Player] Play episode: S\(episode.parentIndex ?? 0)E\(episode.index ?? 0) \(episode.title) (mediaIndex: \(item.mediaIndex ?? 0))")
+
+        // Stop current playback
+        stopPlayback()
+
+        // Call navigation callback
+        onPlayNext?(episodeItem)
     }
 
     func cancelCountdown() {

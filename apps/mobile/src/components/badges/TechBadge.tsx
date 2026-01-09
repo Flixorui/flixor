@@ -17,6 +17,8 @@ const badgeImages: Record<string, ImageSourcePropType> = {
   'cc': require('../../../assets/badges/cc.png'),
   'sdh': require('../../../assets/badges/sdh.png'),
   'ad': require('../../../assets/badges/ad.png'),
+  'hdr': require('../../../assets/badges/hdr.png'),
+  'hdr10plus': require('../../../assets/badges/hdr10plus.png'),
 };
 
 const TechBadge: React.FC<TechBadgeProps> = ({ type, size = 18 }) => {
@@ -29,10 +31,10 @@ const TechBadge: React.FC<TechBadgeProps> = ({ type, size = 18 }) => {
         return 'hd'; // Use HD badge for 720p
       case 'hdr':
       case 'hdr10':
-      case 'hdr10+':
       case 'hlg':
-        // HDR variants don't have custom images yet, return null to skip
-        return null;
+        return 'hdr'; // Use generic HDR badge for HDR10 and HLG
+      case 'hdr10+':
+        return 'hdr10plus'; // HDR10+ has its own badge
       case '5.1':
       case '7.1':
         // Audio channel badges don't have custom images yet

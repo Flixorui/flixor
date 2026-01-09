@@ -1132,6 +1132,7 @@ export default function Home({ onLogout }: HomeProps) {
               getTitle={getRowTitle}
               onItemPress={onRowPress}
               onBrowsePress={() => openRowBrowse({ type: 'tmdb', kind: 'trending', mediaType: 'tv', title: 'Trending Now' }, 'Trending Now', trendingNow)}
+              keyPrefix="tmdb-trending-now-"
             />
           )}
 
@@ -1143,6 +1144,7 @@ export default function Home({ onLogout }: HomeProps) {
               getTitle={getRowTitle}
               onItemPress={onRowPress}
               onBrowsePress={() => openRowBrowse({ type: 'tmdb', kind: 'trending', mediaType: 'movie', title: 'Trending Movies' }, 'Trending Movies', trendingMovies)}
+              keyPrefix="tmdb-trending-movies-"
             />
           )}
 
@@ -1154,6 +1156,7 @@ export default function Home({ onLogout }: HomeProps) {
               getTitle={getRowTitle}
               onItemPress={onRowPress}
               onBrowsePress={() => openRowBrowse({ type: 'tmdb', kind: 'trending', mediaType: 'movie', title: 'Trending This Week' }, 'Trending This Week', trendingAll)}
+              keyPrefix="tmdb-trending-week-"
             />
           )}
 
@@ -1165,32 +1168,33 @@ export default function Home({ onLogout }: HomeProps) {
               getTitle={getRowTitle}
               onItemPress={onRowPress}
               onBrowsePress={() => openRowBrowse({ type: 'plexWatchlist' }, 'Watchlist', watchlist)}
+              keyPrefix="plex-watchlist-"
             />
           )}
 
           {genres['TV Shows - Children']?.length ? (
-            <LazyRow title="TV Shows - Children" items={genres['TV Shows - Children']} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} onBrowsePress={() => openRowBrowse({ type: 'plexGenre', genre: 'Children', mediaType: 'tv' }, 'TV Shows - Children', genres['TV Shows - Children'])} />
+            <LazyRow title="TV Shows - Children" items={genres['TV Shows - Children']} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} onBrowsePress={() => openRowBrowse({ type: 'plexGenre', genre: 'Children', mediaType: 'tv' }, 'TV Shows - Children', genres['TV Shows - Children'])} keyPrefix="genre-tv-children-" />
           ) : null}
           {genres['Movie - Music']?.length ? (
-            <LazyRow title="Movie - Music" items={genres['Movie - Music']} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} onBrowsePress={() => openRowBrowse({ type: 'plexGenre', genre: 'Music', mediaType: 'movie' }, 'Movie - Music', genres['Movie - Music'])} />
+            <LazyRow title="Movie - Music" items={genres['Movie - Music']} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} onBrowsePress={() => openRowBrowse({ type: 'plexGenre', genre: 'Music', mediaType: 'movie' }, 'Movie - Music', genres['Movie - Music'])} keyPrefix="genre-movie-music-" />
           ) : null}
           {genres['Movies - Documentary']?.length ? (
-            <LazyRow title="Movies - Documentary" items={genres['Movies - Documentary']} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} onBrowsePress={() => openRowBrowse({ type: 'plexGenre', genre: 'Documentary', mediaType: 'movie' }, 'Movies - Documentary', genres['Movies - Documentary'])} />
+            <LazyRow title="Movies - Documentary" items={genres['Movies - Documentary']} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} onBrowsePress={() => openRowBrowse({ type: 'plexGenre', genre: 'Documentary', mediaType: 'movie' }, 'Movies - Documentary', genres['Movies - Documentary'])} keyPrefix="genre-movie-doc-" />
           ) : null}
           {genres['Movies - History']?.length ? (
-            <LazyRow title="Movies - History" items={genres['Movies - History']} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} onBrowsePress={() => openRowBrowse({ type: 'plexGenre', genre: 'History', mediaType: 'movie' }, 'Movies - History', genres['Movies - History'])} />
+            <LazyRow title="Movies - History" items={genres['Movies - History']} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} onBrowsePress={() => openRowBrowse({ type: 'plexGenre', genre: 'History', mediaType: 'movie' }, 'Movies - History', genres['Movies - History'])} keyPrefix="genre-movie-history-" />
           ) : null}
           {genres['TV Shows - Reality']?.length ? (
-            <LazyRow title="TV Shows - Reality" items={genres['TV Shows - Reality']} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} onBrowsePress={() => openRowBrowse({ type: 'plexGenre', genre: 'Reality', mediaType: 'tv' }, 'TV Shows - Reality', genres['TV Shows - Reality'])} />
+            <LazyRow title="TV Shows - Reality" items={genres['TV Shows - Reality']} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} onBrowsePress={() => openRowBrowse({ type: 'plexGenre', genre: 'Reality', mediaType: 'tv' }, 'TV Shows - Reality', genres['TV Shows - Reality'])} keyPrefix="genre-tv-reality-" />
           ) : null}
           {genres['Movies - Drama']?.length ? (
-            <LazyRow title="Movies - Drama" items={genres['Movies - Drama']} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} onBrowsePress={() => openRowBrowse({ type: 'plexGenre', genre: 'Drama', mediaType: 'movie' }, 'Movies - Drama', genres['Movies - Drama'])} />
+            <LazyRow title="Movies - Drama" items={genres['Movies - Drama']} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} onBrowsePress={() => openRowBrowse({ type: 'plexGenre', genre: 'Drama', mediaType: 'movie' }, 'Movies - Drama', genres['Movies - Drama'])} keyPrefix="genre-movie-drama-" />
           ) : null}
           {genres['TV Shows - Suspense']?.length ? (
-            <LazyRow title="TV Shows - Suspense" items={genres['TV Shows - Suspense']} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} onBrowsePress={() => openRowBrowse({ type: 'plexGenre', genre: 'Suspense', mediaType: 'tv' }, 'TV Shows - Suspense', genres['TV Shows - Suspense'])} />
+            <LazyRow title="TV Shows - Suspense" items={genres['TV Shows - Suspense']} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} onBrowsePress={() => openRowBrowse({ type: 'plexGenre', genre: 'Suspense', mediaType: 'tv' }, 'TV Shows - Suspense', genres['TV Shows - Suspense'])} keyPrefix="genre-tv-suspense-" />
           ) : null}
           {genres['Movies - Animation']?.length ? (
-            <LazyRow title="Movies - Animation" items={genres['Movies - Animation']} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} onBrowsePress={() => openRowBrowse({ type: 'plexGenre', genre: 'Animation', mediaType: 'movie' }, 'Movies - Animation', genres['Movies - Animation'])} />
+            <LazyRow title="Movies - Animation" items={genres['Movies - Animation']} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} onBrowsePress={() => openRowBrowse({ type: 'plexGenre', genre: 'Animation', mediaType: 'movie' }, 'Movies - Animation', genres['Movies - Animation'])} keyPrefix="genre-movie-animation-" />
           ) : null}
 
           {recent.length > 0 && (
@@ -1201,6 +1205,7 @@ export default function Home({ onLogout }: HomeProps) {
               getTitle={(it) => it.title || it.name}
               onItemPress={(it) => nav.navigate('Details', { type: 'plex', ratingKey: String(it.ratingKey || it.guid || '') })}
               onBrowsePress={() => openRowBrowse({ type: 'plexRecent' }, 'Recently Added', recent)}
+              keyPrefix="plex-recent-"
             />
           )}
 
@@ -1212,6 +1217,7 @@ export default function Home({ onLogout }: HomeProps) {
               getTitle={getRowTitle}
               onItemPress={onRowPress}
               onBrowsePress={() => openRowBrowse({ type: 'trakt', kind: 'trending', mediaType: 'movie', title: 'Trending Movies on Trakt' }, 'Trending Movies on Trakt', traktTrendMovies)}
+              keyPrefix="trakt-trend-movies-"
             />
           )}
 
@@ -1223,6 +1229,7 @@ export default function Home({ onLogout }: HomeProps) {
               getTitle={getRowTitle}
               onItemPress={onRowPress}
               onBrowsePress={() => openRowBrowse({ type: 'trakt', kind: 'trending', mediaType: 'tv', title: 'Trending TV Shows on Trakt' }, 'Trending TV Shows on Trakt', traktTrendShows)}
+              keyPrefix="trakt-trend-shows-"
             />
           )}
 
@@ -1234,6 +1241,7 @@ export default function Home({ onLogout }: HomeProps) {
               getTitle={getRowTitle}
               onItemPress={onRowPress}
               onBrowsePress={() => openRowBrowse({ type: 'trakt', kind: 'watchlist', mediaType: 'movie', title: 'Your Trakt Watchlist' }, 'Your Trakt Watchlist', traktMyWatchlist)}
+              keyPrefix="trakt-watchlist-"
             />
           )}
 
@@ -1245,6 +1253,7 @@ export default function Home({ onLogout }: HomeProps) {
               getTitle={getRowTitle}
               onItemPress={onRowPress}
               onBrowsePress={() => openRowBrowse({ type: 'trakt', kind: 'history', mediaType: 'movie', title: 'Recently Watched' }, 'Recently Watched', traktHistory)}
+              keyPrefix="trakt-history-"
             />
           )}
 
@@ -1256,6 +1265,7 @@ export default function Home({ onLogout }: HomeProps) {
               getTitle={getRowTitle}
               onItemPress={onRowPress}
               onBrowsePress={() => openRowBrowse({ type: 'trakt', kind: 'recommendations', mediaType: 'movie', title: 'Recommended for You' }, 'Recommended for You', traktRecommendations)}
+              keyPrefix="trakt-recommendations-"
             />
           )}
 
@@ -1267,6 +1277,7 @@ export default function Home({ onLogout }: HomeProps) {
               getTitle={getRowTitle}
               onItemPress={onRowPress}
               onBrowsePress={() => openRowBrowse({ type: 'trakt', kind: 'trending', mediaType: 'tv', title: 'Popular TV Shows on Trakt' }, 'Popular TV Shows on Trakt', traktPopularShows)}
+              keyPrefix="trakt-popular-shows-"
             />
           )}
         </View>

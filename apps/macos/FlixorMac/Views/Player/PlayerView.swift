@@ -1123,32 +1123,9 @@ struct PlayerControlsView: View {
                     episodes: viewModel.seasonEpisodes,
                     currentEpisodeKey: viewModel.item.id.replacingOccurrences(of: "plex:", with: ""),
                     onSelectEpisode: { episode in
-                        // Create MediaItem and navigate
-                        let episodeItem = MediaItem(
-                            id: "plex:\(episode.ratingKey)",
-                            title: episode.title,
-                            type: "episode",
-                            thumb: episode.thumb,
-                            art: nil,
-                            year: nil,
-                            rating: nil,
-                            duration: nil,
-                            viewOffset: nil,
-                            summary: episode.summary,
-                            grandparentTitle: viewModel.item.grandparentTitle,
-                            grandparentThumb: viewModel.item.grandparentThumb,
-                            grandparentArt: viewModel.item.grandparentArt,
-                            grandparentRatingKey: viewModel.item.grandparentRatingKey,
-                            parentIndex: episode.parentIndex,
-                            index: episode.index,
-                            parentRatingKey: nil,
-                            parentTitle: nil,
-                            leafCount: nil,
-                            viewedLeafCount: nil
-                        )
                         showEpisodesList = false
-                        viewModel.stopPlayback()
-                        viewModel.onPlayNext?(episodeItem)
+                        // Use playEpisode to preserve mediaIndex (version selection)
+                        viewModel.playEpisode(episode)
                     },
                     onClose: {
                         showEpisodesList = false

@@ -372,11 +372,21 @@ class APIClient: ObservableObject {
                     return try encodeAndDecode(result)
                 }
 
-                // /season/{num}
+                // /season/{num} or /season/{num}/episode/{num}
                 if endpoint.hasPrefix("season/") {
-                    let seasonNum = Int(endpoint.dropFirst("season/".count)) ?? 1
-                    let result = try await tmdb.getSeasonDetails(tvId: tmdbId, seasonNumber: seasonNum)
-                    return try encodeAndDecode(result)
+                    let seasonPart = String(endpoint.dropFirst("season/".count))
+                    // Check if it's an episode request: season/{num}/episode/{num}
+                    if seasonPart.contains("/episode/") {
+                        let parts = seasonPart.components(separatedBy: "/episode/")
+                        let seasonNum = Int(parts[0]) ?? 1
+                        let episodeNum = Int(parts.count > 1 ? parts[1] : "1") ?? 1
+                        let result = try await tmdb.getEpisodeDetails(tvId: tmdbId, seasonNumber: seasonNum, episodeNumber: episodeNum)
+                        return try encodeAndDecode(result)
+                    } else {
+                        let seasonNum = Int(seasonPart) ?? 1
+                        let result = try await tmdb.getSeasonDetails(tvId: tmdbId, seasonNumber: seasonNum)
+                        return try encodeAndDecode(result)
+                    }
                 }
             } else {
                 // Just movie/tv details

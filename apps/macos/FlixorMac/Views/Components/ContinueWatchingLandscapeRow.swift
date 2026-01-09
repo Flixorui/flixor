@@ -50,7 +50,6 @@ struct ContinueWatchingLandscapeCard: View {
     let width: CGFloat
     var onTap: (() -> Void)?
 
-    @State private var isHovered = false
     @State private var backdropURL: URL?
 
     private var height: CGFloat { width * 0.5625 } // 16:9
@@ -63,21 +62,49 @@ struct ContinueWatchingLandscapeCard: View {
         return (Double(viewOffset) / Double(duration)) * 100.0
     }
 
-    private var timeRemaining: String? {
-        guard let duration = item.duration,
-              let viewOffset = item.viewOffset else {
-            return nil
-        }
-        let remainingMs = max(0, duration - viewOffset)
-        let remainingMin = remainingMs / 60000
+    /// Format duration for display (e.g., "1h 11m" or "56m")
+    private var durationText: String {
+        guard let duration = item.duration else { return "" }
+        let totalMinutes = duration / 60000
 
-        if remainingMin < 60 {
-            return "\(remainingMin)m left"
+        if totalMinutes < 60 {
+            return "\(totalMinutes)m"
         } else {
-            let hours = remainingMin / 60
-            let mins = remainingMin % 60
-            return "\(hours)h \(mins)m left"
+            let hours = totalMinutes / 60
+            let mins = totalMinutes % 60
+            if mins == 0 {
+                return "\(hours)h"
+            }
+            return "\(hours)h \(mins)m"
         }
+    }
+
+    /// Episode info for TV shows (e.g., "S7, E8 · 40m")
+    private var episodeInfoText: String? {
+        guard item.type == "episode" else { return nil }
+
+        var parts: [String] = []
+
+        // Season and episode
+        if let season = item.parentIndex, let episode = item.index {
+            parts.append("S\(season), E\(episode)")
+        }
+
+        // Duration
+        if let duration = item.duration {
+            let mins = duration / 60000
+            parts.append("\(mins)m")
+        }
+
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    /// Text to show in bottom overlay - episode info for TV, duration for movies
+    private var bottomInfoText: String {
+        if let episodeInfo = episodeInfoText {
+            return episodeInfo
+        }
+        return durationText
     }
 
     var body: some View {
@@ -94,81 +121,88 @@ struct ContinueWatchingLandscapeCard: View {
                 .aspectRatio(contentMode: .fill)
                 .frame(width: width, height: height)
                 .clipped()
-                .background(Color.gray.opacity(0.2))
+                .background(Color(white: 0.15))
 
-                // Gradient Overlay
+                // Subtle bottom gradient for text readability
                 LinearGradient(
                     colors: [
-                        .black.opacity(0.0),
-                        .black.opacity(0.6),
-                        .black.opacity(0.85)
+                        .clear,
+                        .black.opacity(0.4),
+                        .black.opacity(0.7)
                     ],
-                    startPoint: .top,
+                    startPoint: .init(x: 0.5, y: 0.5),
                     endPoint: .bottom
                 )
 
-                // Content Overlay
-                VStack(alignment: .leading, spacing: 8) {
+                // Bottom Info Bar - single row: Play icon | Progress bar | Duration | Menu
+                VStack {
                     Spacer()
 
-                    // Title and Episode Info
-                    VStack(alignment: .leading, spacing: 4) {
-                        // Show title for episodes, movie title for movies
-                        Text(item.type == "episode" ? (item.grandparentTitle ?? item.title) : item.title)
-                            .font(.headline)
+                    HStack(spacing: 10) {
+                        // Play icon
+                        Image(systemName: "play.fill")
+                            .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(.white)
-                            .lineLimit(1)
 
-                        // Episode label (S1:E2 - Episode Title)
-                        if let label = item.episodeLabel {
-                            Text(label)
-                                .font(.subheadline)
-                                .foregroundStyle(.white.opacity(0.85))
-                                .lineLimit(1)
+                        // Progress bar - fixed width, rounded, thicker
+                        ZStack(alignment: .leading) {
+                            // Background track
+                            Capsule()
+                                .fill(Color.white.opacity(0.3))
+                                .frame(width: 50, height: 5)
+
+                            // Progress fill
+                            Capsule()
+                                .fill(Color.white)
+                                .frame(width: 50 * CGFloat(min(100, max(0, progressPercentage))) / 100.0, height: 5)
                         }
 
-                        // Time remaining
-                        if let remaining = timeRemaining {
-                            Text(remaining)
-                                .font(.caption)
-                                .foregroundStyle(.white.opacity(0.7))
+                        // Duration or episode info
+                        Text(bottomInfoText)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.white)
+
+                        Spacer()
+
+                        // Menu button (three dots)
+                        Button(action: {
+                            // TODO: Show context menu
+                        }) {
+                            Image(systemName: "ellipsis")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(.white.opacity(0.8))
                         }
+                        .buttonStyle(.plain)
                     }
                     .padding(.horizontal, 12)
-                    .padding(.bottom, 4)
+                    .padding(.vertical, 10)
+                    .background(
+                        Rectangle().fill(.ultraThinMaterial).opacity(0.3)
+                    )
+                    .mask(
+                        VStack(spacing: 0) {
+                            // Gradient mask for soft top edge
+                            LinearGradient(
+                                colors: [.clear, .black],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                            .frame(height: 12)
 
-                    // Progress Bar
-                    GeometryReader { geometry in
-                        ZStack(alignment: .leading) {
                             Rectangle()
-                                .fill(Color.white.opacity(0.3))
-                                .frame(height: 4)
-
-                            Rectangle()
-                                .fill(Color.red)
-                                .frame(
-                                    width: geometry.size.width * CGFloat(min(100, max(0, progressPercentage))) / 100.0,
-                                    height: 4
-                                )
                         }
-                    }
-                    .frame(height: 4)
+                    )
                 }
             }
             .frame(width: width, height: height)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(Color.white.opacity(isHovered ? 0.6 : 0.1), lineWidth: isHovered ? 2 : 1)
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
             )
-            .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
+            .shadow(color: .black.opacity(0.4), radius: 8, y: 4)
         }
         .buttonStyle(.plain)
-        .onHover { hovering in
-            withAnimation(.easeOut(duration: 0.15)) {
-                isHovered = hovering
-            }
-        }
         .task(id: item.id) {
             await loadBackdrop()
         }
@@ -188,6 +222,16 @@ struct ContinueWatchingLandscapeCard: View {
     }
 
     private func resolveTMDBBackdrop() async throws -> URL? {
+        // For episodes, use the parent show's backdrop (grandparentRatingKey)
+        if item.type == "episode", let showKey = item.grandparentRatingKey {
+            return try await fetchPlexTMDBBackdrop(ratingKey: showKey, forceMediaType: "tv")
+        }
+
+        // For seasons, use the parent show's backdrop (parentRatingKey)
+        if item.type == "season", let showKey = item.parentRatingKey {
+            return try await fetchPlexTMDBBackdrop(ratingKey: showKey, forceMediaType: "tv")
+        }
+
         // Handle tmdb: prefix
         if item.id.hasPrefix("tmdb:") {
             let parts = item.id.split(separator: ":")
@@ -213,12 +257,12 @@ struct ContinueWatchingLandscapeCard: View {
         return nil
     }
 
-    private func fetchPlexTMDBBackdrop(ratingKey: String) async throws -> URL? {
+    private func fetchPlexTMDBBackdrop(ratingKey: String, forceMediaType: String? = nil) async throws -> URL? {
         struct PlexMeta: Codable { let type: String?; let Guid: [PlexGuid]? }
         struct PlexGuid: Codable { let id: String? }
 
         let meta: PlexMeta = try await APIClient.shared.get("/api/plex/metadata/\(ratingKey)")
-        let mediaType = (meta.type == "movie") ? "movie" : "tv"
+        let mediaType = forceMediaType ?? ((meta.type == "movie") ? "movie" : "tv")
 
         if let guid = meta.Guid?.compactMap({ $0.id }).first(where: { $0.contains("tmdb://") || $0.contains("themoviedb://") }),
            let tid = guid.components(separatedBy: "://").last {
@@ -229,16 +273,31 @@ struct ContinueWatchingLandscapeCard: View {
 
     private func fetchTMDBBackdrop(mediaType: String, id: String) async throws -> URL? {
         struct TMDBImages: Codable { let backdrops: [TMDBImage]? }
-        struct TMDBImage: Codable { let file_path: String?; let vote_average: Double? }
+        struct TMDBImage: Codable { let file_path: String?; let vote_average: Double?; let iso_639_1: String? }
 
         let imgs: TMDBImages = try await APIClient.shared.get(
             "/api/tmdb/\(mediaType)/\(id)/images",
-            queryItems: [URLQueryItem(name: "language", value: "en,null")]
+            queryItems: [URLQueryItem(name: "include_image_language", value: "en,null")]
         )
 
         let backs = imgs.backdrops ?? []
-        let sorted = backs.sorted { ($0.vote_average ?? 0) > ($1.vote_average ?? 0) }
 
+        // Priority 1: English backdrops (with title text burned in)
+        let englishBackdrops = backs.filter { $0.iso_639_1 == "en" }
+            .sorted { ($0.vote_average ?? 0) > ($1.vote_average ?? 0) }
+        if let path = englishBackdrops.first?.file_path {
+            return URL(string: "https://image.tmdb.org/t/p/original\(path)")
+        }
+
+        // Priority 2: Any language with title (iso_639_1 is not null)
+        let withLanguage = backs.filter { $0.iso_639_1 != nil }
+            .sorted { ($0.vote_average ?? 0) > ($1.vote_average ?? 0) }
+        if let path = withLanguage.first?.file_path {
+            return URL(string: "https://image.tmdb.org/t/p/original\(path)")
+        }
+
+        // Priority 3: Fallback to any backdrop (including textless)
+        let sorted = backs.sorted { ($0.vote_average ?? 0) > ($1.vote_average ?? 0) }
         guard let path = sorted.first?.file_path else { return nil }
         return URL(string: "https://image.tmdb.org/t/p/original\(path)")
     }

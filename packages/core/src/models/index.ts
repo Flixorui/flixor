@@ -23,6 +23,7 @@ export type {
   TMDBTVDetails,
   TMDBSeason,
   TMDBEpisode,
+  TMDBEpisodeDetails,
   TMDBGenre,
   TMDBProductionCompany,
   TMDBProductionCountry,

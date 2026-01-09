@@ -264,7 +264,7 @@ class SearchViewModel: ObservableObject {
         struct TMDBImages: Codable { let backdrops: [TMDBImage]? }
         struct TMDBImage: Codable { let file_path: String?; let iso_639_1: String?; let vote_average: Double? }
 
-        let imgs: TMDBImages = try await api.get("/api/tmdb/\(mediaType)/\(id)/images", queryItems: [URLQueryItem(name: "language", value: "en,hi,null")])
+        let imgs: TMDBImages = try await api.get("/api/tmdb/\(mediaType)/\(id)/images", queryItems: [URLQueryItem(name: "include_image_language", value: "en,null")])
         let backdrops = imgs.backdrops ?? []
         if backdrops.isEmpty { return nil }
 
@@ -272,15 +272,19 @@ class SearchViewModel: ObservableObject {
             return arr.sorted { ($0.vote_average ?? 0) > ($1.vote_average ?? 0) }.first
         }
 
-        // Priority: en/hi with titles > null (no text) > any other language
-        let en = pick(backdrops.filter { $0.iso_639_1 == "en" })
-        let hi = pick(backdrops.filter { $0.iso_639_1 == "hi" })
-        let nul = pick(backdrops.filter { $0.iso_639_1 == nil })
-        let any = pick(backdrops)
-        let sel = en ?? hi ?? nul ?? any
-        guard let path = sel?.file_path else { return nil }
-        let full = "https://image.tmdb.org/t/p/original\(path)"
-        return ImageService.shared.proxyImageURL(url: full, width: width, height: height)
+        // Priority 1: English backdrops (with title text burned in)
+        if let en = pick(backdrops.filter { $0.iso_639_1 == "en" }), let path = en.file_path {
+            return ImageService.shared.proxyImageURL(url: "https://image.tmdb.org/t/p/original\(path)", width: width, height: height)
+        }
+
+        // Priority 2: Any language with title (iso_639_1 is not null)
+        if let withLang = pick(backdrops.filter { $0.iso_639_1 != nil }), let path = withLang.file_path {
+            return ImageService.shared.proxyImageURL(url: "https://image.tmdb.org/t/p/original\(path)", width: width, height: height)
+        }
+
+        // Priority 3: Fallback to any backdrop (including textless)
+        guard let any = pick(backdrops), let path = any.file_path else { return nil }
+        return ImageService.shared.proxyImageURL(url: "https://image.tmdb.org/t/p/original\(path)", width: width, height: height)
     }
 
     // MARK: - Search
