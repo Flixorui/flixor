@@ -36,8 +36,8 @@ export default function VersionPicker({ visible, onClose, onSelect, versions, ti
       onRequestClose={onClose}
     >
       <Pressable style={styles.backdrop} onPress={onClose}>
-        <BlurView intensity={40} tint="dark" style={styles.blurView}>
-          <Pressable style={styles.content} onPress={(e) => e.stopPropagation()}>
+        <Pressable style={styles.contentWrapper} onPress={(e) => e.stopPropagation()}>
+          <BlurView intensity={80} tint="dark" style={styles.blurView}>
             <View style={styles.header}>
               <Text style={styles.title}>{title || 'Select Version'}</Text>
               <Pressable onPress={onClose} style={styles.closeButton}>
@@ -59,24 +59,24 @@ export default function VersionPicker({ visible, onClose, onSelect, versions, ti
                     {/* Resolution, HDR, and accessibility badges */}
                     <View style={styles.badgeRow}>
                       {(version.resolution === '4K' || version.resolution === '2160p') && (
-                        <TechBadge type="4k" size={12} />
+                        <TechBadge type="4k" size={10} />
                       )}
                       {(version.resolution === '1080p' || version.resolution === 'HD') && (
-                        <TechBadge type="hd" size={12} />
+                        <TechBadge type="hd" size={10} />
                       )}
                       {version.hdrType && (
                         <View style={styles.badgeSpacing}>
-                          <TechBadge type={version.hdrType as any} size={12} />
+                          <TechBadge type={version.hdrType as any} size={10} />
                         </View>
                       )}
                       {version.hasSDH && (
                         <View style={styles.badgeSpacing}>
-                          <TechBadge type="sdh" size={12} />
+                          <TechBadge type="sdh" size={10} />
                         </View>
                       )}
                       {(version.hasSubtitles || version.hasSDH) && (
                         <View style={styles.badgeSpacing}>
-                          <TechBadge type="cc" size={12} />
+                          <TechBadge type="cc" size={10} />
                         </View>
                       )}
                     </View>
@@ -109,8 +109,8 @@ export default function VersionPicker({ visible, onClose, onSelect, versions, ti
                 </Pressable>
               ))}
             </ScrollView>
-          </Pressable>
-        </BlurView>
+          </BlurView>
+        </Pressable>
       </Pressable>
     </Modal>
   );
@@ -209,16 +209,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  blurView: {
+  contentWrapper: {
     width: '90%',
     maxWidth: 400,
+    maxHeight: '80%',
+  },
+  blurView: {
     borderRadius: 16,
     overflow: 'hidden',
-  },
-  content: {
-    backgroundColor: 'rgba(30,30,30,0.95)',
     padding: 20,
-    maxHeight: '80%',
   },
   header: {
     flexDirection: 'row',
