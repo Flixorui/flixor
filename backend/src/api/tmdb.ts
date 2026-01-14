@@ -302,7 +302,8 @@ router.get('/:mediaType/:id/images',
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { mediaType, id } = req.params;
-      const language = req.query.language as string || 'en,null';
+      // Accept both include_image_language (TMDB native) and language (legacy)
+      const language = (req.query.include_image_language || req.query.language) as string || 'en,null';
 
       if (!['movie', 'tv'].includes(mediaType)) {
         throw new AppError('Invalid media type', 400);

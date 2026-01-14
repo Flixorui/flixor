@@ -576,10 +576,14 @@ struct HeroCarouselCard: View {
             queryItems: [URLQueryItem(name: "language", value: "en,hi,null")]
         )
 
-        // Pick best backdrop
+        // Pick best backdrop - prefer textless (null language) for hero since we overlay title/logo
         let backs = imgs.backdrops ?? []
-        let sortedBackdrops = backs.sorted { ($0.vote_average ?? 0) > ($1.vote_average ?? 0) }
-        let selectedBackdrop = sortedBackdrops.first
+        func pickBest(_ arr: [TMDBImage]) -> TMDBImage? {
+            arr.sorted { ($0.vote_average ?? 0) > ($1.vote_average ?? 0) }.first
+        }
+        // Priority: textless (null) first, then any
+        let selectedBackdrop = pickBest(backs.filter { $0.iso_639_1 == nil })
+            ?? pickBest(backs)
 
         // Pick best logo - prefer English
         let logos = imgs.logos ?? []

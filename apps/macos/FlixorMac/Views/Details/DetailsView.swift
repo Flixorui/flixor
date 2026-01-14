@@ -256,7 +256,7 @@ struct DetailsView: View {
             }
         }
         .ignoresSafeArea(edges: .top)
-        .background(HomeBackground())
+        .background(HomeBackground(heroColors: vm.heroColors))
         .navigationTitle("")
         .task {
             await vm.load(for: item)
@@ -308,9 +308,29 @@ struct DetailsView: View {
                 return vm.mediaKind ?? item.type
             }()
 
+            // For episodes, use original episode title (not the formatted display title)
+            // and ensure grandparentTitle/parentIndex/index are properly set for player formatting
+            let playerTitle: String
+            let playerGrandparentTitle: String?
+            let playerParentIndex: Int?
+            let playerIndex: Int?
+
+            if vm.isEpisode {
+                // Use original episode title to avoid duplication in player
+                playerTitle = vm.episodeTitle ?? item.title
+                playerGrandparentTitle = vm.showTitle ?? item.grandparentTitle
+                playerParentIndex = vm.seasonNumber ?? item.parentIndex
+                playerIndex = vm.episodeNumber ?? item.index
+            } else {
+                playerTitle = vm.title.isEmpty ? item.title : vm.title
+                playerGrandparentTitle = item.grandparentTitle
+                playerParentIndex = item.parentIndex
+                playerIndex = item.index
+            }
+
             let playerItem = MediaItem(
                 id: playableId,
-                title: vm.title.isEmpty ? item.title : vm.title,
+                title: playerTitle,
                 type: mediaType,
                 thumb: item.thumb,
                 art: item.art,
@@ -319,12 +339,12 @@ struct DetailsView: View {
                 duration: vm.runtime.map { $0 * 60000 },
                 viewOffset: nil,
                 summary: vm.overview.isEmpty ? nil : vm.overview,
-                grandparentTitle: item.grandparentTitle,
+                grandparentTitle: playerGrandparentTitle,
                 grandparentThumb: item.grandparentThumb,
                 grandparentArt: item.grandparentArt,
-                grandparentRatingKey: item.grandparentRatingKey,
-                parentIndex: item.parentIndex,
-                index: item.index,
+                grandparentRatingKey: vm.showRatingKey ?? item.grandparentRatingKey,
+                parentIndex: playerParentIndex,
+                index: playerIndex,
                 parentRatingKey: item.parentRatingKey,
                 parentTitle: item.parentTitle,
                 leafCount: item.leafCount,
@@ -456,8 +476,8 @@ struct DetailsView: View {
             grandparentThumb: nil,
             grandparentArt: nil,
             grandparentRatingKey: vm.plexRatingKey,
-            parentIndex: nil,
-            index: nil,
+            parentIndex: episode.seasonNumber,
+            index: episode.episodeNumber,
             parentRatingKey: nil,
             parentTitle: nil,
             leafCount: nil,

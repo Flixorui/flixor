@@ -2373,12 +2373,12 @@ class MPVPiPWindowManager {
         mpvView.removeFromSuperview()
 
         // Reuse existing window or create new one
-        let window: NSWindow
-        if let existingWindow = self.pipWindow {
+        let window: NSPanel
+        if let existingWindow = self.pipWindow as? NSPanel {
             // Reuse the existing window
             window = existingWindow
         } else {
-            // Create PiP window (floating, 16:9 aspect ratio, borderless)
+            // Create PiP panel (floating, 16:9 aspect ratio, borderless, non-activating)
             let pipWidth: CGFloat = 480
             let pipHeight: CGFloat = 270
             let screenFrame = NSScreen.main?.visibleFrame ?? .zero
@@ -2386,9 +2386,10 @@ class MPVPiPWindowManager {
             let pipY = screenFrame.maxY - pipHeight - 20
             let pipFrame = NSRect(x: pipX, y: pipY, width: pipWidth, height: pipHeight)
 
-            window = NSWindow(
+            // Use NSPanel with nonActivatingPanel to prevent main window activation
+            window = NSPanel(
                 contentRect: pipFrame,
-                styleMask: [.borderless, .resizable],
+                styleMask: [.borderless, .resizable, .nonactivatingPanel],
                 backing: .buffered,
                 defer: false
             )
@@ -2401,6 +2402,8 @@ class MPVPiPWindowManager {
             window.minSize = NSSize(width: 320, height: 180)
             window.hasShadow = true
             window.isOpaque = false
+            window.hidesOnDeactivate = false  // Keep visible when app loses focus
+            window.becomesKeyOnlyIfNeeded = true  // Don't become key unless necessary
 
             // Style the content view with rounded corners
             if let contentView = window.contentView {
@@ -2490,7 +2493,8 @@ class MPVPiPWindowManager {
             self?.stateBinding?.wrappedValue = true
         }
 
-        window.makeKeyAndOrderFront(nil)
+        // Use orderFront instead of makeKeyAndOrderFront to avoid stealing focus
+        window.orderFront(nil)
 
         // Force redraw after transition (IINA pattern)
         DispatchQueue.main.async {

@@ -127,7 +127,8 @@ class NewPopularViewModel: ObservableObject {
                     subtitle: item.release_date?.split(separator: "-").first.map(String.init),
                     badge: item.vote_average.map { "⭐ \(String(format: "%.1f", $0))" },
                     rank: nil,
-                    mediaType: "movie"
+                    mediaType: "movie",
+                    artPath: nil  // TMDB items use API for backdrop
                 )
             }
 
@@ -140,7 +141,8 @@ class NewPopularViewModel: ObservableObject {
                     subtitle: item.first_air_date?.split(separator: "-").first.map(String.init),
                     badge: item.vote_average.map { "⭐ \(String(format: "%.1f", $0))" },
                     rank: nil,
-                    mediaType: "tv"
+                    mediaType: "tv",
+                    artPath: nil  // TMDB items use API for backdrop
                 )
             }
 
@@ -191,7 +193,8 @@ class NewPopularViewModel: ObservableObject {
                     subtitle: movie.year.map(String.init),
                     badge: "#\(index + 1)",
                     rank: index + 1,
-                    mediaType: "movie"
+                    mediaType: "movie",
+                    artPath: nil
                 ))
             }
 
@@ -216,7 +219,8 @@ class NewPopularViewModel: ObservableObject {
                     subtitle: show.year.map(String.init),
                     badge: "#\(index + 1 + items.count)",
                     rank: index + 1 + items.count,
-                    mediaType: "tv"
+                    mediaType: "tv",
+                    artPath: nil
                 ))
             }
 
@@ -241,7 +245,8 @@ class NewPopularViewModel: ObservableObject {
                     subtitle: item.release_date.map { formatReleaseDate($0) },
                     badge: "Coming Soon",
                     rank: nil,
-                    mediaType: "movie"
+                    mediaType: "movie",
+                    artPath: nil
                 )
             }
 
@@ -278,7 +283,8 @@ class NewPopularViewModel: ObservableObject {
                     subtitle: movie.year.map(String.init),
                     badge: "\(item.list_count) lists",
                     rank: nil,
-                    mediaType: "movie"
+                    mediaType: "movie",
+                    artPath: nil
                 ))
             }
 
@@ -301,8 +307,19 @@ class NewPopularViewModel: ObservableObject {
             // Find trailer
             let trailer = videos.results.first { $0.type == "Trailer" && $0.site == "YouTube" }
 
-            // Find English logo
-            let logo = images.logos?.first { $0.iso_639_1 == "en" || $0.iso_639_1 == nil }
+            // Find logo with priority: English > null language > any
+            let logos = images.logos ?? []
+            let logo = logos.first { $0.iso_639_1 == "en" }
+                ?? logos.first { $0.iso_639_1 == nil }
+                ?? logos.first
+
+            // Find backdrop with priority: Textless (null) preferred for hero since we overlay title/logo
+            let backdrops = images.backdrops ?? []
+            func pickBestBackdrop(_ arr: [TMDBImage]) -> TMDBImage? {
+                arr.sorted(by: { (a: TMDBImage, b: TMDBImage) in (a.vote_average ?? 0) > (b.vote_average ?? 0) }).first
+            }
+            let bestBackdrop = pickBestBackdrop(backdrops.filter { $0.iso_639_1 == nil })
+                ?? pickBestBackdrop(backdrops)
 
             // Get detailed info
             var runtime: Int?
@@ -322,11 +339,21 @@ class NewPopularViewModel: ObservableObject {
             let heroId = "tmdb:\(mediaType):\(tmdbId)"
             let canPlay = false // TODO: Implement Plex availability check
 
+            // Use best backdrop from images API, fallback to trending item backdrop
+            let backdropURL: URL?
+            if let backdropPath = bestBackdrop?.file_path {
+                backdropURL = URL(string: "\(imageBaseURL)original\(backdropPath)")
+            } else if let path = topItem.backdrop_path {
+                backdropURL = URL(string: "\(imageBaseURL)original\(path)")
+            } else {
+                backdropURL = nil
+            }
+
             hero = HeroData(
                 id: heroId,
                 title: topItem.title ?? topItem.name ?? "Unknown",
                 overview: topItem.overview ?? "",
-                backdropURL: topItem.backdrop_path != nil ? URL(string: "\(imageBaseURL)original\(topItem.backdrop_path!)") : nil,
+                backdropURL: backdropURL,
                 posterURL: topItem.poster_path != nil ? URL(string: "\(imageBaseURL)w500\(topItem.poster_path!)") : nil,
                 rating: topItem.vote_average.map { "⭐ \(String(format: "%.1f", $0))" },
                 year: (topItem.release_date ?? topItem.first_air_date)?.split(separator: "-").first.map(String.init),
@@ -350,14 +377,16 @@ class NewPopularViewModel: ObservableObject {
             let items = try await apiClient.getPlexRecentlyAdded(days: 7)
 
             return items.prefix(20).map { item in
-                DisplayMediaItem(
+                // Use art field for backdrop fallback
+                return DisplayMediaItem(
                     id: "plex:\(item.ratingKey)",
                     title: item.title ?? item.grandparentTitle ?? "Unknown",
                     imageURL: ImageService.shared.plexImageURL(path: item.thumb, width: 342),
                     subtitle: item.year.map(String.init),
                     badge: "New",
                     rank: nil,
-                    mediaType: item.type == "movie" ? "movie" : "tv"
+                    mediaType: item.type == "movie" ? "movie" : "tv",
+                    artPath: item.art
                 )
             }
         } catch {
@@ -441,7 +470,8 @@ class NewPopularViewModel: ObservableObject {
                     subtitle: item.year.map(String.init),
                     badge: "Popular",
                     rank: nil,
-                    mediaType: item.type == "movie" ? "movie" : "tv"
+                    mediaType: item.type == "movie" ? "movie" : "tv",
+                    artPath: item.art
                 )
             }
 

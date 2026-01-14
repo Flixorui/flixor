@@ -88,6 +88,7 @@ struct TMDBImage: Codable {
     let iso_639_1: String?
     let width: Int?
     let height: Int?
+    let vote_average: Double?
 }
 
 // MARK: - Trakt Models
@@ -158,6 +159,7 @@ struct DisplayMediaItem: Identifiable {
     let badge: String?
     let rank: Int?
     let mediaType: String // "movie" or "tv"
+    let artPath: String?  // Plex backdrop path for fallback when TMDB fetch fails
 
     // Convert to MediaItem for navigation
     func toMediaItem() -> MediaItem {
@@ -165,8 +167,8 @@ struct DisplayMediaItem: Identifiable {
             id: id,
             title: title,
             type: mediaType == "tv" ? "show" : "movie",
-            thumb: nil, // Image URL is handled separately
-            art: nil,
+            thumb: nil,
+            art: artPath,  // Pass Plex art path for fallback images
             year: nil,
             rating: nil,
             duration: nil,

@@ -77,7 +77,9 @@ struct RequestButton: View {
                 }
             }
         }
-        .task {
+        .task(id: tmdbId) {
+            // Reset status and reload when tmdbId changes (navigation to new item)
+            status = nil
             await loadStatus()
         }
         .alert("Request \(title)?", isPresented: $showConfirmation) {

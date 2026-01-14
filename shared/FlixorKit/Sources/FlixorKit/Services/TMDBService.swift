@@ -29,12 +29,16 @@ public class TMDBService {
     private func get<T: Codable>(
         path: String,
         params: [String: String]? = nil,
-        ttl: TimeInterval = CacheTTL.trending
+        ttl: TimeInterval = CacheTTL.trending,
+        skipLanguage: Bool = false
     ) async throws -> T {
         var queryParams: [String: String] = [
-            "api_key": apiKey,
-            "language": language
+            "api_key": apiKey
         ]
+        // Only add language param if not skipped (image endpoints need all languages)
+        if !skipLanguage {
+            queryParams["language"] = language
+        }
 
         if let params = params {
             for (key, value) in params {
@@ -123,11 +127,12 @@ public class TMDBService {
     }
 
     /// Get movie images
+    /// Returns all language variants to allow proper prioritization (en > any language > textless)
     public func getMovieImages(id: Int) async throws -> TMDBImages {
         return try await get(
             path: "/movie/\(id)/images",
-            params: ["include_image_language": "en,null"],
-            ttl: CacheTTL.trending
+            ttl: CacheTTL.trending,
+            skipLanguage: true
         )
     }
 
@@ -176,11 +181,12 @@ public class TMDBService {
     }
 
     /// Get TV images
+    /// Returns all language variants to allow proper prioritization (en > any language > textless)
     public func getTVImages(id: Int) async throws -> TMDBImages {
         return try await get(
             path: "/tv/\(id)/images",
-            params: ["include_image_language": "en,null"],
-            ttl: CacheTTL.trending
+            ttl: CacheTTL.trending,
+            skipLanguage: true
         )
     }
 
@@ -220,11 +226,12 @@ public class TMDBService {
     // MARK: - Generic Media
 
     /// Get images for movie or TV
+    /// Returns all language variants to allow proper prioritization (en > any language > textless)
     public func getImages(mediaType: String, id: Int) async throws -> TMDBImages {
         return try await get(
             path: "/\(mediaType)/\(id)/images",
-            params: ["include_image_language": "en,null"],
-            ttl: CacheTTL.trending
+            ttl: CacheTTL.trending,
+            skipLanguage: true
         )
     }
 

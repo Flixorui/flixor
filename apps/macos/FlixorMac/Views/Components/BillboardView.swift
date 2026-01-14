@@ -22,6 +22,10 @@ class BillboardImageCache {
         cache[itemId] = (backdrop, logo)
     }
 
+    func clear() {
+        cache.removeAll()
+    }
+
     private init() {}
 }
 
@@ -393,9 +397,11 @@ extension BillboardView {
     private func fetchTMDBBackdropAndLogo(mediaType: String, id: String) async throws -> (URL?, URL?) {
         struct TMDBImages: Codable { let backdrops: [TMDBImage]?; let logos: [TMDBImage]? }
         struct TMDBImage: Codable { let file_path: String?; let iso_639_1: String?; let vote_average: Double? }
-        let imgs: TMDBImages = try await APIClient.shared.get("/api/tmdb/\(mediaType)/\(id)/images", queryItems: [URLQueryItem(name: "include_image_language", value: "en,null")])
+        // Don't filter by language - get all images so we can properly prioritize textless
+        let imgs: TMDBImages = try await APIClient.shared.get("/api/tmdb/\(mediaType)/\(id)/images")
         // Pick backdrop with priority: textless first (hero has its own title overlay)
         let backs = imgs.backdrops ?? []
+
         let pick: ([TMDBImage]) -> TMDBImage? = { arr in
             return arr.sorted { ($0.vote_average ?? 0) > ($1.vote_average ?? 0) }.first
         }

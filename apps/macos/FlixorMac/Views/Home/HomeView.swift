@@ -155,6 +155,13 @@ struct HomeView: View {
         .navigationTitle("")
         .task {
             print("📱 [HomeView] .task triggered - billboardItems.isEmpty: \(viewModel.billboardItems.isEmpty), isLoading: \(viewModel.isLoading)")
+            // One-time clear of TMDB cache for textless backdrop priority fix
+            let cacheVersion = "tmdb_textless_v2"
+            if !UserDefaults.standard.bool(forKey: cacheVersion) {
+                BillboardImageCache.shared.clear()
+                await FlixorCore.shared.clearTmdbCache()
+                UserDefaults.standard.set(true, forKey: cacheVersion)
+            }
             if viewModel.billboardItems.isEmpty && !viewModel.isLoading {
                 await viewModel.loadHomeScreen()
             }

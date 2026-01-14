@@ -130,6 +130,12 @@ class PlayerViewModel: ObservableObject {
     @Published var currentAudioTrackId: Int? = nil
     @Published var currentSubtitleTrackId: Int? = nil
 
+    // Subtitle preference (persisted)
+    private var subtitlesEnabled: Bool {
+        get { UserDefaults.standard.bool(forKey: "playerSubtitlesEnabled") }
+        set { UserDefaults.standard.set(newValue, forKey: "playerSubtitlesEnabled") }
+    }
+
     // Markers (intro/credits) - no high-frequency updates
     @Published var markers: [PlayerMarker] = []
     @Published var currentMarker: PlayerMarker? = nil
@@ -1178,10 +1184,21 @@ class PlayerViewModel: ObservableObject {
         availableAudioTracks = mpv.getAudioTracks()
         availableSubtitleTracks = mpv.getSubtitleTracks()
         currentAudioTrackId = mpv.getCurrentAudioTrack()
-        currentSubtitleTrackId = mpv.getCurrentSubtitleTrack()
 
         print("🎵 [Player] Loaded \(availableAudioTracks.count) audio tracks")
         print("💬 [Player] Loaded \(availableSubtitleTracks.count) subtitle tracks")
+
+        // Apply user's subtitle preference
+        if subtitlesEnabled {
+            // User prefers subtitles on - keep MPV's auto-selected track
+            currentSubtitleTrackId = mpv.getCurrentSubtitleTrack()
+            print("💬 [Player] Subtitles enabled by preference, track: \(currentSubtitleTrackId ?? -1)")
+        } else {
+            // User prefers subtitles off - disable them
+            mpv.disableSubtitles()
+            currentSubtitleTrackId = nil
+            print("💬 [Player] Subtitles disabled by preference")
+        }
     }
 
     /// Set audio track (MPV only)
@@ -1204,6 +1221,8 @@ class PlayerViewModel: ObservableObject {
 
         mpv.setSubtitleTrack(trackId)
         currentSubtitleTrackId = trackId
+        subtitlesEnabled = true  // Remember that user wants subtitles
+        print("💬 [Player] Subtitle track set to \(trackId), preference saved: enabled")
     }
 
     /// Disable subtitles (MPV only)
@@ -1215,6 +1234,8 @@ class PlayerViewModel: ObservableObject {
 
         mpv.disableSubtitles()
         currentSubtitleTrackId = nil
+        subtitlesEnabled = false  // Remember that user wants subtitles off
+        print("💬 [Player] Subtitles disabled, preference saved: disabled")
     }
 
     // MARK: - Progress Tracking

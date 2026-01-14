@@ -117,6 +117,10 @@ class DetailsViewModel: ObservableObject {
     // Overseerr request status
     @Published var overseerrStatus: OverseerrMediaStatus?
 
+    // UltraBlur colors for dynamic background
+    @Published var heroColors: PlexUltraBlurColors?
+    private var plexArtPath: String?  // Store Plex art path for UltraBlur lookup
+
     // Season-specific state
     @Published var isSeason: Bool = false           // Flag for season-only mode
     @Published var parentShowKey: String?           // Link to parent show
@@ -130,6 +134,7 @@ class DetailsViewModel: ObservableObject {
     @Published var seasonNumber: Int?               // Season number
     @Published var showTitle: String?               // Parent show title
     @Published var showRatingKey: String?           // Parent show's Plex rating key
+    @Published var episodeTitle: String?            // Original episode title (without show context)
     @Published var airDate: String?                 // Original air date
     @Published var tmdbRating: Double?              // TMDB vote average
     @Published var guestStars: [Person] = []        // Guest stars from TMDB
@@ -255,6 +260,8 @@ class DetailsViewModel: ObservableObject {
         extras = []
         trailers = []
         overseerrStatus = nil
+        heroColors = nil
+        plexArtPath = nil
         tagline = nil
         status = nil
         releaseDate = nil
@@ -285,6 +292,7 @@ class DetailsViewModel: ObservableObject {
         seasonNumber = nil
         showTitle = nil
         showRatingKey = nil
+        episodeTitle = nil
         airDate = nil
         tmdbRating = nil
         guestStars = []
@@ -352,6 +360,7 @@ class DetailsViewModel: ObservableObject {
                     if let art = meta.art,
                        let u = ImageService.shared.plexImageURL(path: art, width: 1920, height: 1080) {
                         backdropURL = u
+                        plexArtPath = art
                     }
                     if let thumb = meta.thumb,
                        let u = ImageService.shared.plexImageURL(path: thumb, width: 600, height: 900) {
@@ -387,12 +396,9 @@ class DetailsViewModel: ObservableObject {
                     // Load MDBList ratings (if enabled)
                     await loadMDBListRatings()
 
-                    // Load TMDB trailers and Overseerr status (if not already loaded via fetchTMDBDetails)
+                    // Load TMDB trailers (if not already loaded via fetchTMDBDetails)
                     if trailers.isEmpty && tmdbId != nil {
                         await loadTMDBTrailers()
-                    }
-                    if overseerrStatus == nil && tmdbId != nil {
-                        await loadOverseerrStatus()
                     }
 
                     // Load seasons/episodes for TV shows
@@ -447,6 +453,7 @@ class DetailsViewModel: ObservableObject {
                     if let art = meta.art,
                        let u = ImageService.shared.plexImageURL(path: art, width: 1920, height: 1080) {
                         backdropURL = u
+                        plexArtPath = art
                     }
                     if let thumb = meta.thumb,
                        let u = ImageService.shared.plexImageURL(path: thumb, width: 600, height: 900) {
@@ -480,12 +487,9 @@ class DetailsViewModel: ObservableObject {
                     // Load MDBList ratings (if enabled)
                     await loadMDBListRatings()
 
-                    // Load TMDB trailers and Overseerr status (if not already loaded via fetchTMDBDetails)
+                    // Load TMDB trailers (if not already loaded via fetchTMDBDetails)
                     if trailers.isEmpty && tmdbId != nil {
                         await loadTMDBTrailers()
-                    }
-                    if overseerrStatus == nil && tmdbId != nil {
-                        await loadOverseerrStatus()
                     }
 
                     // Load seasons/episodes for TV shows
@@ -501,6 +505,42 @@ class DetailsViewModel: ObservableObject {
         } catch {
             print("❌ [Details] Load failed: \(error)")
             self.error = error.localizedDescription
+        }
+
+        // Fetch UltraBlur colors for dynamic background
+        await fetchUltraBlurColors()
+
+        // Always fetch Overseerr status at the end (ensures it's updated for new items)
+        await loadOverseerrStatus()
+    }
+
+    /// Fetch UltraBlur colors from Plex for dynamic background gradients
+    private func fetchUltraBlurColors() async {
+        guard let artPath = plexArtPath, !artPath.isEmpty else {
+            print("⚠️ [Details] No Plex art path available for UltraBlur")
+            return
+        }
+
+        guard let plexServer = FlixorCore.shared.plexServer else {
+            print("⚠️ [Details] No Plex server for UltraBlur colors")
+            return
+        }
+
+        do {
+            // Get full Plex image URL for the art
+            guard let imageUrl = ImageService.shared.plexImageURL(path: artPath, width: 1920, height: 1080)?.absoluteString else {
+                print("⚠️ [Details] Could not construct Plex image URL for UltraBlur")
+                return
+            }
+
+            if let colors = try await plexServer.getUltraBlurColors(imageUrl: imageUrl) {
+                withAnimation(.easeInOut(duration: 0.8)) {
+                    self.heroColors = colors
+                }
+                print("✅ [Details] UltraBlur colors fetched for: \(title)")
+            }
+        } catch {
+            print("❌ [Details] Failed to fetch UltraBlur colors: \(error)")
         }
     }
 
@@ -584,13 +624,27 @@ class DetailsViewModel: ObservableObject {
             return ProductionCompany(id: id, name: name, logoURL: logoURL)
         }
 
-        // Images (logo preferred en)
+        // Images (logo - prioritize English, then any other language)
         struct TImage: Codable { let file_path: String?; let iso_639_1: String?; let vote_average: Double? }
         struct TImages: Codable { let logos: [TImage]?; let backdrops: [TImage]? }
-        let imgs: TImages = try await api.get("/api/tmdb/\(media)/\(id)/images", queryItems: [URLQueryItem(name: "language", value: "en,hi,null")])
-        if let logo = (imgs.logos ?? []).first(where: { $0.iso_639_1 == "en" || $0.iso_639_1 == "hi" }) ?? imgs.logos?.first,
-           let p = logo.file_path {
+        // Fetch logos - include many languages for better coverage (Hindi, Japanese, Korean, Chinese, etc.)
+        let imgs: TImages = try await api.get("/api/tmdb/\(media)/\(id)/images", queryItems: [
+            URLQueryItem(name: "include_image_language", value: "en,hi,ja,ko,zh,es,fr,de,pt,it,ru,ar,null")
+        ])
+        // Priority: 1) English logo, 2) No language (null), 3) Any other language logo
+        let logos = imgs.logos ?? []
+        print("🖼️ [Details] Found \(logos.count) logos for \(media)/\(id)")
+        logos.prefix(5).forEach { logo in
+            print("   - Logo: \(logo.file_path ?? "nil"), lang: \(logo.iso_639_1 ?? "null")")
+        }
+        let englishLogo = logos.first(where: { $0.iso_639_1 == "en" })
+        let nullLogo = logos.first(where: { $0.iso_639_1 == nil || $0.iso_639_1 == "" })
+        let anyLogo = logos.first
+        if let logo = englishLogo ?? nullLogo ?? anyLogo, let p = logo.file_path {
+            print("✅ [Details] Selected logo: \(p), lang: \(logo.iso_639_1 ?? "null")")
             self.logoURL = ImageService.shared.proxyImageURL(url: "https://image.tmdb.org/t/p/w500\(p)")
+        } else {
+            print("⚠️ [Details] No logo found for \(media)/\(id)")
         }
 
         // Credits (cast top 12 with character names, crew with directors/writers)
@@ -899,7 +953,10 @@ class DetailsViewModel: ObservableObject {
         self.addBadge("Plex")
         // Prefer Plex backdrop
         let art = match.art ?? match.thumb ?? match.parentThumb ?? match.grandparentThumb ?? ""
-        if let u = ImageService.shared.plexImageURL(path: art, width: 1920, height: 1080) { self.backdropURL = u }
+        if let u = ImageService.shared.plexImageURL(path: art, width: 1920, height: 1080) {
+            self.backdropURL = u
+            self.plexArtPath = art
+        }
         if posterURL == nil {
             let poster = match.thumb ?? match.parentThumb ?? match.grandparentThumb
             if let poster = poster,
@@ -1266,6 +1323,7 @@ class DetailsViewModel: ObservableObject {
         if let art = meta.art,
            let u = ImageService.shared.plexImageURL(path: art, width: 1920, height: 1080) {
             backdropURL = u
+            plexArtPath = art
         }
 
         addBadge("Plex")
@@ -1302,7 +1360,9 @@ class DetailsViewModel: ObservableObject {
         mediaKind = "tv"
 
         // Basic metadata from Plex
-        title = meta.title ?? "Episode"
+        let originalEpisodeTitle = meta.title ?? "Episode"
+        episodeTitle = originalEpisodeTitle  // Store original title for player
+        title = originalEpisodeTitle
         overview = meta.summary ?? ""
         episodeNumber = meta.index
         seasonNumber = meta.parentIndex
@@ -1312,11 +1372,11 @@ class DetailsViewModel: ObservableObject {
         if let ms = meta.duration { runtime = Int(ms/60000) } else { runtime = nil }
         airDate = meta.originallyAvailableAt
 
-        // Build episode title with context
+        // Build episode title with context (for display in details view only)
         if let showName = meta.grandparentTitle, let sNum = meta.parentIndex, let eNum = meta.index {
-            title = "\(showName) - S\(sNum)E\(eNum) - \(meta.title ?? "Episode")"
+            title = "\(showName) - S\(sNum)E\(eNum) - \(originalEpisodeTitle)"
         } else if let showName = meta.grandparentTitle {
-            title = "\(showName) - \(meta.title ?? "Episode")"
+            title = "\(showName) - \(originalEpisodeTitle)"
         }
 
         // Images - prefer episode art, fallback to show art
@@ -1330,9 +1390,11 @@ class DetailsViewModel: ObservableObject {
         if let art = meta.art,
            let u = ImageService.shared.plexImageURL(path: art, width: 1920, height: 1080) {
             backdropURL = u
+            plexArtPath = art
         } else if let grandparentArt = meta.grandparentArt,
                   let u = ImageService.shared.plexImageURL(path: grandparentArt, width: 1920, height: 1080) {
             backdropURL = u
+            plexArtPath = grandparentArt
         }
 
         // Technical details from media
@@ -1516,7 +1578,7 @@ class DetailsViewModel: ObservableObject {
 
     // MARK: - Seasons / Episodes
     struct Season: Identifiable { let id: String; let title: String; let source: String; let number: Int? } // source: plex/tmdb
-    struct Episode: Identifiable { let id: String; let title: String; let overview: String?; let image: URL?; let durationMin: Int?; let progressPct: Int?; let viewOffset: Int? }
+    struct Episode: Identifiable { let id: String; let title: String; let overview: String?; let image: URL?; let durationMin: Int?; let progressPct: Int?; let viewOffset: Int?; let seasonNumber: Int?; let episodeNumber: Int? }
     struct Extra: Identifiable { let id: String; let title: String; let image: URL?; let durationMin: Int? }
     struct Track: Identifiable { let id: String; let name: String; let language: String? }
     struct VersionDetail: Identifiable {
@@ -1616,13 +1678,15 @@ class DetailsViewModel: ObservableObject {
                 self.currentSeasonNumber = ss.first?.number
             }
             await loadPlexEpisodes(seasonKey: ss.first?.id, seasonNumber: ss.first?.number)
+            // Fetch technical details from first episode of first season
+            await fetchTechnicalDetailsFromFirstEpisode()
             // On Deck
             do {
                 let od: MC = try await api.get("/api/plex/dir/library/metadata/\(showKey)/onDeck")
                 if let ep = od.Metadata?.first {
                     let image = ImageService.shared.plexImageURL(path: ep.ratingKey, width: 600, height: 338) // best-effort
                     await MainActor.run {
-                        self.onDeck = Episode(id: "plex:\(ep.ratingKey)", title: ep.title, overview: nil, image: image, durationMin: nil, progressPct: nil, viewOffset: nil)
+                        self.onDeck = Episode(id: "plex:\(ep.ratingKey)", title: ep.title, overview: nil, image: image, durationMin: nil, progressPct: nil, viewOffset: nil, seasonNumber: nil, episodeNumber: ep.index)
                     }
                 }
             } catch {}
@@ -1703,7 +1767,7 @@ class DetailsViewModel: ObservableObject {
                     guard let o = e.viewOffset else { return nil }
                     return Int(round((Double(o)/Double(d))*100))
                 }()
-                return Episode(id: "plex:\(e.ratingKey)", title: e.title, overview: e.summary, image: url, durationMin: dur, progressPct: pct, viewOffset: e.viewOffset)
+                return Episode(id: "plex:\(e.ratingKey)", title: e.title, overview: e.summary, image: url, durationMin: dur, progressPct: pct, viewOffset: e.viewOffset, seasonNumber: seasonNumber, episodeNumber: e.index)
             }
             print("✅ [loadPlexEpisodes] Loaded \(eps.count) episode(s) with Plex IDs")
             await MainActor.run {
@@ -1748,7 +1812,50 @@ class DetailsViewModel: ObservableObject {
         } else {
             await loadPlexEpisodes(seasonKey: key, seasonNumber: seasonNumber)
         }
+        // Fetch technical details from first episode of this season
+        await fetchTechnicalDetailsFromFirstEpisode()
         await MainActor.run { self.episodesLoading = false }
+    }
+
+    /// Fetch technical details (badges, versions) from the first episode of the current season
+    /// This is used for TV shows to display technical info like resolution, HDR, Atmos
+    private func fetchTechnicalDetailsFromFirstEpisode() async {
+        // Only for Plex TV shows
+        guard mediaKind == "tv", !episodes.isEmpty else {
+            print("⚠️ [fetchTechnicalDetailsFromFirstEpisode] Skipping - not a TV show or no episodes")
+            return
+        }
+
+        guard let firstEpisode = episodes.first,
+              firstEpisode.id.hasPrefix("plex:") else {
+            print("⚠️ [fetchTechnicalDetailsFromFirstEpisode] First episode is not from Plex")
+            return
+        }
+
+        let ratingKey = firstEpisode.id.replacingOccurrences(of: "plex:", with: "")
+        print("📺 [fetchTechnicalDetailsFromFirstEpisode] Fetching technical details from episode: \(ratingKey)")
+
+        do {
+            let meta: PlexMeta = try await api.get("/api/plex/metadata/\(ratingKey)")
+            guard let media = meta.Media, !media.isEmpty else {
+                print("⚠️ [fetchTechnicalDetailsFromFirstEpisode] No media found for episode")
+                return
+            }
+
+            await MainActor.run {
+                // Clear existing technical badges (keep non-technical ones like "Plex")
+                self.badges = self.badges.filter { badge in
+                    !["4K", "HDR", "Dolby Vision", "Atmos"].contains(badge)
+                }
+                // Add technical badges from episode
+                self.appendTechnicalBadges(from: media)
+                // Update versions
+                self.hydrateVersions(from: media)
+                print("✅ [fetchTechnicalDetailsFromFirstEpisode] Updated technical details from S\(self.currentSeasonNumber ?? 1)E1")
+            }
+        } catch {
+            print("❌ [fetchTechnicalDetailsFromFirstEpisode] Failed to fetch episode metadata: \(error)")
+        }
     }
 
     private func loadTMDBEpisodes(seasonId: String) async {
@@ -1759,11 +1866,11 @@ class DetailsViewModel: ObservableObject {
         guard let seasonNumber = Int(parts[3]) else { return }
         do {
             struct SD: Codable { let episodes: [SE]? }
-            struct SE: Codable { let id: Int?; let name: String?; let overview: String?; let still_path: String?; let runtime: Int? }
+            struct SE: Codable { let id: Int?; let name: String?; let overview: String?; let still_path: String?; let runtime: Int?; let episode_number: Int? }
             let data: SD = try await api.get("/api/tmdb/tv/\(tvId)/season/\(seasonNumber)")
             let eps: [Episode] = (data.episodes ?? []).map { e in
                 let url = ImageService.shared.proxyImageURL(url: e.still_path.flatMap { "https://image.tmdb.org/t/p/w780\($0)" }, width: 600, height: 338)
-                return Episode(id: "tmdb:tv:\(e.id ?? 0)", title: e.name ?? "Episode", overview: e.overview, image: url, durationMin: e.runtime, progressPct: nil, viewOffset: nil)
+                return Episode(id: "tmdb:tv:\(e.id ?? 0)", title: e.name ?? "Episode", overview: e.overview, image: url, durationMin: e.runtime, progressPct: nil, viewOffset: nil, seasonNumber: seasonNumber, episodeNumber: e.episode_number)
             }
             await MainActor.run {
                 self.episodes = eps
@@ -1856,6 +1963,11 @@ class DetailsViewModel: ObservableObject {
     // MARK: - Overseerr Status
 
     func loadOverseerrStatus() async {
+        // Always clear old status first to prevent stale data from previous item
+        await MainActor.run {
+            self.overseerrStatus = nil
+        }
+
         guard OverseerrService.shared.isReady() else {
             print("⚠️ [loadOverseerrStatus] Overseerr not configured")
             return
