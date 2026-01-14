@@ -281,6 +281,10 @@ class KSPlayerView: UIView {
         KSOptions.hardwareDecode = true
         #endif
         print("KSPlayerView: [PERF] Global settings: asyncDecomp=\(KSOptions.asynchronousDecompression), hwDecode=\(KSOptions.hardwareDecode)")
+
+        // Subtitle defaults for consistent rendering
+        SubtitleModel.textFontSize = 20.0
+        SubtitleModel.textBold = false
     }
 
     private func nativeLogFilePath() -> String {
@@ -418,8 +422,8 @@ class KSPlayerView: UIView {
         // preferredForwardBufferDuration = 5.0s: Increased to give decoder more headroom before playback starts
         // This prevents frame drops by ensuring sufficient decoded frames are available
         options.preferredForwardBufferDuration = 5.0
-        // maxBufferDuration = 120.0s: Increased to allow the player to cache more content ahead of time (2 minutes)
-        options.maxBufferDuration = 120.0
+        // maxBufferDuration = 300.0s: Increased to allow the player to cache more content ahead of time (5 minutes)
+        options.maxBufferDuration = 300.0
 
         // Enable "second open" to relax startup/seek buffering thresholds (already enabled)
         options.isSecondOpen = true
