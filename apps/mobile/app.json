@@ -4,9 +4,13 @@
     "slug": "flixor-mobile",
     "scheme": "flixor",
     "version": "0.1.8",
+    "runtimeVersion": "0.1.8",
     "orientation": "default",
     "updates": {
-      "fallbackToCacheTimeout": 0
+      "enabled": true,
+      "checkAutomatically": "NEVER",
+      "fallbackToCacheTimeout": 30000,
+      "url": "https://ota.flixor.xyz/api/manifest"
     },
     "assetBundlePatterns": [
       "**/*"
@@ -37,6 +41,7 @@
     },
     "owner": "deviprasad97",
     "plugins": [
+      "expo-updates",
       [
         "expo-build-properties",
         {

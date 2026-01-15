@@ -1,0 +1,111 @@
+name: Publish OTA Update
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_notes:
+        description: 'Release notes for this update'
+        required: true
+        type: string
+      runtime_version:
+        description: 'Runtime version (leave empty to use app.json version)'
+        required: false
+        type: string
+      platform:
+        description: 'Target platform'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - ios
+          - android
+
+jobs:
+  publish:
+    name: Build and Publish OTA Update
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: apps/mobile/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd apps/mobile
+          npm ci
+
+      - name: Setup Expo
+        uses: expo/expo-github-action@v8
+        with:
+          expo-version: latest
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Determine runtime version
+        id: version
+        run: |
+          if [ -n "${{ github.event.inputs.runtime_version }}" ]; then
+            echo "version=${{ github.event.inputs.runtime_version }}" >> $GITHUB_OUTPUT
+          else
+            VERSION=$(jq -r '.expo.runtimeVersion // .expo.version' apps/mobile/app.json)
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build OTA update
+        run: |
+          cd apps/mobile
+          PLATFORM="${{ github.event.inputs.platform }}"
+          if [ "$PLATFORM" = "all" ]; then
+            npx expo export --platform all --output-dir dist
+          else
+            npx expo export --platform "$PLATFORM" --output-dir dist
+          fi
+
+      - name: Create update package
+        run: |
+          cd apps/mobile/dist
+          zip -r ../update.zip . -x "*.DS_Store"
+          echo "Package created: $(ls -lh ../update.zip | awk '{print $5}')"
+
+      - name: Upload to OTA server
+        env:
+          FLIXOR_OTA_UPLOAD_KEY: ${{ secrets.FLIXOR_OTA_UPLOAD_KEY }}
+        run: |
+          cd apps/mobile
+          COMMIT_HASH=$(git rev-parse --short HEAD)
+          COMMIT_MSG=$(git log -1 --pretty=%B | head -1)
+
+          echo "Uploading OTA update..."
+          echo "Runtime Version: ${{ steps.version.outputs.version }}"
+          echo "Commit: $COMMIT_HASH"
+          echo "Release Notes: ${{ github.event.inputs.release_notes }}"
+
+          curl -f -X POST "https://ota.flixor.xyz/api/upload" \
+            -F "file=@update.zip" \
+            -F "runtimeVersion=${{ steps.version.outputs.version }}" \
+            -F "commitHash=$COMMIT_HASH" \
+            -F "commitMessage=$COMMIT_MSG" \
+            -F "releaseNotes=${{ github.event.inputs.release_notes }}" \
+            -F "uploadKey=$FLIXOR_OTA_UPLOAD_KEY"
+
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -rf apps/mobile/dist apps/mobile/update.zip
+
+      - name: Summary
+        run: |
+          echo "## OTA Update Published" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Runtime Version:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Platform:** ${{ github.event.inputs.platform }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** $(git rev-parse --short HEAD)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Release Notes:** ${{ github.event.inputs.release_notes }}" >> $GITHUB_STEP_SUMMARY

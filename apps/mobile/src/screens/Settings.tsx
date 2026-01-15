@@ -290,6 +290,14 @@ export default function Settings({ onBack }: SettingsProps) {
         isLast={false}
       />
       <SettingItem
+        title="App Updates"
+        description="Check for OTA updates"
+        icon="cloud-download-outline"
+        renderRight={renderRightChevron}
+        onPress={() => nav.navigate('UpdateSettings')}
+        isLast={false}
+      />
+      <SettingItem
         title="Discord"
         description="Join the community"
         icon="chatbubbles-outline"

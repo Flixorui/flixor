@@ -49,7 +49,10 @@ import TraktSettings from './src/screens/settings/TraktSettings';
 import MDBListSettings from './src/screens/settings/MDBListSettings';
 import OverseerrSettings from './src/screens/settings/OverseerrSettings';
 import PlexSettings from './src/screens/settings/PlexSettings';
+import UpdateSettings from './src/screens/settings/UpdateSettings';
 import * as Haptics from 'expo-haptics';
+import UpdatePopup from './src/components/UpdatePopup';
+import { useUpdateCheck } from './src/hooks/useUpdateCheck';
 
 let GlassViewComp: any = null;
 let liquidGlassAvailable = false;
@@ -171,6 +174,7 @@ const SettingsTabScreen = React.memo(() => (
     <SettingsStack.Screen name="PlexSettings">
       {() => <PlexSettings onLogout={() => logoutHandlerRef?.()} />}
     </SettingsStack.Screen>
+    <SettingsStack.Screen name="UpdateSettings" component={UpdateSettings} />
   </SettingsStack.Navigator>
 ));
 
@@ -294,6 +298,14 @@ const Tabs = React.memo(() => {
 
 function AppContent() {
   const { flixor, isLoading, error, isAuthenticated, isConnected, refresh } = useFlixor();
+  const {
+    isUpdateAvailable,
+    isDownloading,
+    updateInfo,
+    applyUpdate,
+    snoozeUpdate,
+    dismissUpdate,
+  } = useUpdateCheck();
 
   // Update the logout handler ref so memoized components can access it
   logoutHandlerRef = React.useCallback(async () => {
@@ -326,24 +338,34 @@ function AppContent() {
   }
 
   return (
-    <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {!isAuthenticated ? (
-          // Not logged in - show Plex login
-          <Stack.Screen name="PlexLogin">
-            {() => <PlexLogin onAuthenticated={refresh} />}
-          </Stack.Screen>
-        ) : !isConnected ? (
-          // Logged in but no server selected - show server selection
-          <Stack.Screen name="ServerSelect">
-            {() => <ServerSelect onConnected={refresh} />}
-          </Stack.Screen>
-        ) : (
-          // Fully authenticated and connected - show main app
-          <Stack.Screen name="Main" component={Tabs} />
-        )}
-      </Stack.Navigator>
-    </NavigationContainer>
+    <>
+      <NavigationContainer>
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          {!isAuthenticated ? (
+            // Not logged in - show Plex login
+            <Stack.Screen name="PlexLogin">
+              {() => <PlexLogin onAuthenticated={refresh} />}
+            </Stack.Screen>
+          ) : !isConnected ? (
+            // Logged in but no server selected - show server selection
+            <Stack.Screen name="ServerSelect">
+              {() => <ServerSelect onConnected={refresh} />}
+            </Stack.Screen>
+          ) : (
+            // Fully authenticated and connected - show main app
+            <Stack.Screen name="Main" component={Tabs} />
+          )}
+        </Stack.Navigator>
+      </NavigationContainer>
+      <UpdatePopup
+        visible={isUpdateAvailable}
+        updateInfo={updateInfo}
+        isDownloading={isDownloading}
+        onUpdateNow={applyUpdate}
+        onUpdateLater={snoozeUpdate}
+        onDismiss={dismissUpdate}
+      />
+    </>
   );
 }
 
