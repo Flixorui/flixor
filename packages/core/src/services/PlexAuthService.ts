@@ -85,13 +85,19 @@ export class PlexAuthService {
 
   /**
    * Create a new PIN for authentication
-   * User should visit plex.tv/link and enter the code
+   * User should visit app.plex.tv/auth with the code pre-filled
    */
   async createPin(): Promise<PlexPin> {
-    const response = await fetch(`${PLEX_TV_URL}/api/v2/pins`, {
+    // Use X-Plex-Model: hosted for web-based auth flow (app.plex.tv/auth)
+    const headers = {
+      ...this.getHeaders(),
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'X-Plex-Model': 'hosted',
+    };
+
+    const response = await fetch(`${PLEX_TV_URL}/api/v2/pins?strong=true`, {
       method: 'POST',
-      headers: this.getHeaders(),
-      body: JSON.stringify({}),
+      headers,
     });
 
     if (!response.ok) {

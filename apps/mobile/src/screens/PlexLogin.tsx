@@ -11,8 +11,13 @@ import {
 } from 'react-native';
 import { getFlixorCore } from '../core';
 
-// The URL where users enter their PIN code
-const PLEX_LINK_URL = 'https://plex.tv/link';
+/**
+ * Build the Plex auth URL with clientId and PIN code pre-filled
+ * This opens directly to the auth page without requiring manual PIN entry
+ */
+function buildPlexAuthUrl(clientId: string, pinCode: string): string {
+  return `https://app.plex.tv/auth#?clientID=${clientId}&code=${pinCode}&context%5Bdevice%5D%5Bproduct%5D=Flixor`;
+}
 
 interface PlexLoginProps {
   onAuthenticated: () => void;
@@ -49,17 +54,22 @@ export default function PlexLogin({ onAuthenticated }: PlexLoginProps) {
 
       const core = getFlixorCore();
       const pinData = await core.createPlexPin();
+      const clientId = core.getClientId();
       setPin(pinData);
 
       console.log('[PlexLogin] PIN created:', pinData.code, 'ID:', pinData.id);
 
-      // Open plex.tv/link where user enters the code
+      // Build auth URL with clientId and PIN pre-filled (no manual entry needed)
+      const authUrl = buildPlexAuthUrl(clientId, pinData.code);
+      console.log('[PlexLogin] Opening auth URL:', authUrl);
+
+      // Open Plex auth page with code pre-filled
       try {
         const WebBrowser = await import('expo-web-browser');
-        await WebBrowser.openBrowserAsync(PLEX_LINK_URL);
+        await WebBrowser.openBrowserAsync(authUrl);
         console.log('[PlexLogin] Browser closed');
       } catch {
-        await RNLinking.openURL(PLEX_LINK_URL);
+        await RNLinking.openURL(authUrl);
         console.log('[PlexLogin] Opened external browser');
       }
 
@@ -98,10 +108,6 @@ export default function PlexLogin({ onAuthenticated }: PlexLoginProps) {
     }
   };
 
-  const openPlexLink = () => {
-    RNLinking.openURL(PLEX_LINK_URL);
-  };
-
   return (
     <View style={{ flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       <Text style={{ color: '#fff', fontSize: 28, fontWeight: '800', marginBottom: 12 }}>
@@ -112,57 +118,44 @@ export default function PlexLogin({ onAuthenticated }: PlexLoginProps) {
         Connect your Plex account to access your media libraries
       </Text>
 
-      {pin && (
+      {polling && (
         <View style={{ marginBottom: 24, alignItems: 'center' }}>
-          <Text style={{ color: '#bbb', fontSize: 14, marginBottom: 4 }}>
-            Go to plex.tv/link and enter:
+          <ActivityIndicator color="#e50914" size="large" />
+          <Text style={{ color: '#999', marginTop: 12, fontSize: 14 }}>
+            Waiting for authorization...
           </Text>
-          <Text style={{ color: '#fff', fontSize: 36, fontWeight: '800', letterSpacing: 6, marginVertical: 12 }}>
-            {pin.code.toUpperCase()}
+          <Text style={{ color: '#666', marginTop: 4, fontSize: 12 }}>
+            Complete sign-in in your browser
           </Text>
-          {polling && (
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
-              <ActivityIndicator color="#e50914" size="small" />
-              <Text style={{ color: '#999', marginLeft: 8, fontSize: 12 }}>
-                Waiting for authorization...
-              </Text>
-            </View>
-          )}
         </View>
       )}
 
-      <Pressable
-        onPress={startAuth}
-        disabled={busy || polling}
-        style={{
-          backgroundColor: busy || polling ? '#666' : '#e50914',
-          paddingHorizontal: 24,
-          paddingVertical: 14,
-          borderRadius: 8,
-          minWidth: 200,
-          alignItems: 'center',
-        }}
-      >
-        {busy ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>
-            {pin ? 'Get New Code' : 'Continue with Plex'}
-          </Text>
-        )}
-      </Pressable>
-
-      {pin && (
-        <Pressable onPress={openPlexLink} style={{ marginTop: 16 }}>
-          <Text style={{ color: '#e50914', textDecorationLine: 'underline', fontWeight: '600' }}>
-            Open plex.tv/link
-          </Text>
+      {!polling && (
+        <Pressable
+          onPress={startAuth}
+          disabled={busy}
+          style={{
+            backgroundColor: busy ? '#666' : '#e50914',
+            paddingHorizontal: 24,
+            paddingVertical: 14,
+            borderRadius: 8,
+            minWidth: 200,
+            alignItems: 'center',
+          }}
+        >
+          {busy ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>
+              Sign in with Plex
+            </Text>
+          )}
         </Pressable>
       )}
 
-      {!pin && (
+      {!polling && (
         <Text style={{ color: '#666', fontSize: 12, marginTop: 24, textAlign: 'center', maxWidth: 280 }}>
-          You'll be asked to enter a code at plex.tv/link to authorize this app.
+          You'll be redirected to Plex to authorize this app.
         </Text>
       )}
     </View>
