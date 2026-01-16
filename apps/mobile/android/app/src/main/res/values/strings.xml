@@ -1,3 +1,4 @@
 <resources>
   <string name="app_name">Flixor</string>
+  <string name="expo_runtime_version">0.1.8</string>
 </resources>

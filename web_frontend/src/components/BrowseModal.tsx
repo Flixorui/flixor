@@ -2,10 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { loadSettings } from '@/state/settings';
 import { plexImage } from '@/services/plex';
-import { plexBackendDir } from '@/services/plex_backend';
+import { plexBackendDir, plexBackendLibraryAll } from '@/services/plex_backend';
 import { apiClient } from '@/services/api';
 import { plexTvWatchlist } from '@/services/plextv';
-import { tmdbRecommendations, tmdbSimilar, tmdbImage } from '@/services/tmdb';
+import { tmdbRecommendations, tmdbSimilar, tmdbImage, tmdbBestBackdropUrl } from '@/services/tmdb';
+import { traktTrending, traktPopular, traktGetWatchlist, traktGetHistory, traktGetRecommendations, ensureValidToken, isTraktAuthenticated } from '@/services/trakt';
 import SmartImage from './SmartImage';
 
 type Item = { id: string; title: string; image?: string };
@@ -38,6 +39,80 @@ export default function BrowseModal() {
             title: m.title || m.grandparentTitle || 'Title',
             image: m.thumb || m.parentThumb || m.grandparentThumb,
           }));
+          setItems(rows);
+          return;
+        }
+
+        // Trakt browse: trakt:<type>:<mediaType>
+        if (bkey.startsWith('trakt:')) {
+          const parts = bkey.split(':');
+          const type = parts[1] as 'trending' | 'popular' | 'watchlist' | 'history' | 'recommendations';
+          const mediaType = parts[2] as 'movies' | 'shows';
+
+          const titleMap: Record<string, string> = {
+            trending: `Trending ${mediaType === 'movies' ? 'Movies' : 'TV Shows'}`,
+            popular: `Popular ${mediaType === 'movies' ? 'Movies' : 'TV Shows'}`,
+            watchlist: 'Your Trakt Watchlist',
+            history: 'Recently Watched',
+            recommendations: 'Recommended for You',
+          };
+          setTitle(titleMap[type] || 'Trakt');
+
+          let data: any[] = [];
+          if (type === 'trending') {
+            data = await traktTrending(mediaType, 50);
+          } else if (type === 'popular') {
+            data = await traktPopular(mediaType, 50);
+          } else if (isTraktAuthenticated()) {
+            const token = await ensureValidToken();
+            if (token) {
+              if (type === 'watchlist') {
+                const [movies, shows] = await Promise.all([
+                  traktGetWatchlist(token, 'movies'),
+                  traktGetWatchlist(token, 'shows')
+                ]);
+                data = [...movies, ...shows];
+              } else if (type === 'history') {
+                data = await traktGetHistory(token, mediaType, 50);
+              } else if (type === 'recommendations') {
+                data = await traktGetRecommendations(token, mediaType, 50);
+              }
+            }
+          }
+
+          // Map Trakt items to browse items
+          const rows: Item[] = [];
+          for (const it of data) {
+            const media = it.movie || it.show || it;
+            const ids = media?.ids || {};
+            const title = media?.title || '';
+            const tmdbId = ids?.tmdb;
+            const isMovie = !!it.movie;
+            const mediaKey = isMovie ? 'movie' : 'tv';
+
+            if (tmdbId) {
+              let img = '';
+              if (s.tmdbBearer) {
+                try { img = (await tmdbBestBackdropUrl(s.tmdbBearer, mediaKey, tmdbId, 'en')) || ''; } catch {}
+              }
+              rows.push({ id: `tmdb:${mediaKey}:${tmdbId}`, title, image: img || undefined });
+            }
+          }
+          setItems(rows.slice(0, 50));
+          return;
+        }
+
+        // Plex library recent: plex:library:<key>:recent
+        if (bkey.startsWith('plex:library:') && bkey.endsWith(':recent')) {
+          const parts = bkey.split(':');
+          const libKey = parts[2];
+          setTitle('Recently Added');
+          const recent: any = await plexBackendLibraryAll(libKey, { sort: 'addedAt:desc', offset: 0, limit: 50 });
+          const meta = recent?.MediaContainer?.Metadata || [];
+          const rows: Item[] = meta.map((m: any) => {
+            const p = m.thumb || m.parentThumb || m.grandparentThumb || m.art;
+            return { id: `plex:${m.ratingKey}`, title: m.title || 'Title', image: apiClient.getPlexImageNoToken(p || '') };
+          });
           setItems(rows);
           return;
         }

@@ -189,4 +189,20 @@ export class TraktClient {
     const res = await this.axios.post('/sync/watchlist/remove', items, { headers: await this.authHeaders() });
     return res.data;
   }
+
+  // Scrobbling
+  async scrobbleStart(item: any) {
+    const res = await this.axios.post('/scrobble/start', item, { headers: await this.authHeaders() });
+    return res.data;
+  }
+
+  async scrobblePause(item: any) {
+    const res = await this.axios.post('/scrobble/pause', item, { headers: await this.authHeaders() });
+    return res.data;
+  }
+
+  async scrobbleStop(item: any) {
+    const res = await this.axios.post('/scrobble/stop', item, { headers: await this.authHeaders() });
+    return res.data;
+  }
 }

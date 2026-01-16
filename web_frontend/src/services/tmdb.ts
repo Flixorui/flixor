@@ -141,6 +141,15 @@ export async function tmdbTvSeasonEpisodes(key: string, tvId: string | number, s
 }
 
 /**
+ * Get TV season details with full episode data including stills
+ */
+export async function tmdbTvSeasonDetails(key: string, tvId: string | number, seasonNumber: number) {
+  return cached(`tmdb:tv:seasonDetails:${tvId}:${seasonNumber}`, 24 * 60 * 60 * 1000, async () => {
+    return tmdbBackendFetch(`/tv/${tvId}/season/${seasonNumber}`);
+  });
+}
+
+/**
  * Search for person
  */
 export async function tmdbSearchPerson(key: string, name: string) {
@@ -155,6 +164,15 @@ export async function tmdbSearchPerson(key: string, name: string) {
 export async function tmdbPersonCombined(key: string, personId: string | number) {
   return cached(`tmdb:personCombined:${personId}`, 6 * 60 * 60 * 1000, async () => {
     return tmdbBackendFetch(`/person/${personId}/combined_credits`);
+  });
+}
+
+/**
+ * Get person details (biography, birthday, etc.)
+ */
+export async function tmdbPersonDetails(key: string, personId: string | number) {
+  return cached(`tmdb:personDetails:${personId}`, 6 * 60 * 60 * 1000, async () => {
+    return tmdbBackendFetch(`/person/${personId}`);
   });
 }
 

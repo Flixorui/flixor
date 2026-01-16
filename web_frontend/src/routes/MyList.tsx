@@ -38,10 +38,17 @@ export default function MyList() {
   const [filterType, setFilterType] = useState<FilterType>('all');
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [bulkMode, setBulkMode] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
     loadWatchlist();
   }, []);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await loadWatchlist();
+    setIsRefreshing(false);
+  };
 
   async function loadWatchlist() {
     setLoading(true);
@@ -280,7 +287,28 @@ export default function MyList() {
   };
 
   return (
-    <div className="min-h-screen pb-12">
+    <div className="min-h-screen pb-12 relative">
+      {/* Floating Refresh Button */}
+      <button
+        onClick={handleRefresh}
+        disabled={isRefreshing || loading}
+        className="fixed top-20 right-4 z-40 p-3 rounded-full bg-white/10 backdrop-blur-md hover:bg-white/20 transition-all disabled:opacity-50"
+        title="Refresh watchlist"
+      >
+        <svg
+          className={`w-5 h-5 text-white ${isRefreshing ? 'animate-spin' : ''}`}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+          />
+        </svg>
+      </button>
       <div className="px-4 md:px-8 lg:px-12 xl:px-16 py-8">
         {/* Header */}
         <div className="mb-8">

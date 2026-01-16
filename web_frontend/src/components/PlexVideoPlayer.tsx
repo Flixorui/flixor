@@ -4,6 +4,17 @@ import * as dashjs from 'dashjs';
 import { VideoSeekSlider } from 'react-video-seek-slider';
 import '../styles/player.css';
 
+// Real-time stats from player libraries
+export interface PlayerStats {
+  videoBitrate?: number; // bps
+  audioBitrate?: number; // bps
+  downloadSpeed?: number; // bps
+  bufferLength?: number; // seconds
+  latency?: number; // ms
+  qualityLevel?: number;
+  autoQuality?: boolean;
+}
+
 interface PlexVideoPlayerProps {
   src: string;
   poster?: string;
@@ -21,6 +32,7 @@ interface PlexVideoPlayerProps {
   onPlayingChange?: (playing: boolean) => void;
   onCodecError?: (error: string) => void; // Callback for codec-specific errors
   onUserSeek?: () => void;
+  onStatsUpdate?: (stats: PlayerStats) => void; // Real-time stats callback
 }
 
 export default function PlexVideoPlayer({
@@ -40,12 +52,138 @@ export default function PlexVideoPlayer({
   onPlayingChange,
   onCodecError,
   onUserSeek,
+  onStatsUpdate,
 }: PlexVideoPlayerProps) {
   const internalVideoRef = useRef<HTMLVideoElement>(null);
   const videoRef = externalVideoRef || internalVideoRef;
   const hlsRef = useRef<Hls | null>(null);
   const dashRef = useRef<dashjs.MediaPlayerClass | null>(null);
   const [isReady, setIsReady] = useState(false);
+  // Track if we've already performed the initial seek (to avoid re-seeking on prop changes)
+  const initialSeekDoneRef = useRef(false);
+  // Store the initial start time in a ref so it persists across renders
+  const startTimeRef = useRef(startTime);
+
+  // Store callbacks in refs so we always call the latest version without re-running the effect
+  const onTimeUpdateRef = useRef(onTimeUpdate);
+  const onEndedRef = useRef(onEnded);
+  const onErrorRef = useRef(onError);
+  const onReadyRef = useRef(onReady);
+  const onBufferingRef = useRef(onBuffering);
+  const onPlayingChangeRef = useRef(onPlayingChange);
+  const onCodecErrorRef = useRef(onCodecError);
+  const onUserSeekRef = useRef(onUserSeek);
+  const onStatsUpdateRef = useRef(onStatsUpdate);
+
+  // Keep refs in sync with props
+  useEffect(() => { onTimeUpdateRef.current = onTimeUpdate; }, [onTimeUpdate]);
+  useEffect(() => { onEndedRef.current = onEnded; }, [onEnded]);
+  useEffect(() => { onErrorRef.current = onError; }, [onError]);
+  useEffect(() => { onReadyRef.current = onReady; }, [onReady]);
+  useEffect(() => { onBufferingRef.current = onBuffering; }, [onBuffering]);
+  useEffect(() => { onPlayingChangeRef.current = onPlayingChange; }, [onPlayingChange]);
+  useEffect(() => { onCodecErrorRef.current = onCodecError; }, [onCodecError]);
+  useEffect(() => { onUserSeekRef.current = onUserSeek; }, [onUserSeek]);
+  useEffect(() => { onStatsUpdateRef.current = onStatsUpdate; }, [onStatsUpdate]);
+
+  // Stats collection effect - collect real-time stats from dash.js/hls.js
+  // Only collects when onStatsUpdate callback is provided
+  useEffect(() => {
+    const collectStats = () => {
+      // Skip if no callback provided (stats HUD not visible)
+      if (!onStatsUpdateRef.current) return;
+      const stats: PlayerStats = {};
+
+      // Collect DASH.js stats
+      if (dashRef.current) {
+        try {
+          // Cast to any to access dash.js methods not in type definitions
+          const dash = dashRef.current as any;
+          const dashMetrics = dash.getDashMetrics?.();
+
+          // Get current video quality
+          const videoQuality = dash.getQualityFor?.('video');
+          const videoRepresentation = dash.getBitrateInfoListFor?.('video')?.[videoQuality];
+          if (videoRepresentation) {
+            stats.videoBitrate = videoRepresentation.bitrate;
+          }
+
+          // Get current audio quality
+          const audioQuality = dash.getQualityFor?.('audio');
+          const audioRepresentation = dash.getBitrateInfoListFor?.('audio')?.[audioQuality];
+          if (audioRepresentation) {
+            stats.audioBitrate = audioRepresentation.bitrate;
+          }
+
+          // Get buffer length
+          const bufferLevel = dash.getBufferLength?.('video');
+          if (bufferLevel !== undefined) {
+            stats.bufferLength = bufferLevel;
+          }
+
+          // Get download throughput
+          const dashAdapter = dash.getDashAdapter?.();
+          if (dashAdapter && dashMetrics) {
+            const httpRequests = dashMetrics.getHttpRequests?.('video');
+            if (httpRequests && httpRequests.length > 0) {
+              const lastRequest = httpRequests[httpRequests.length - 1] as any;
+              if (lastRequest?.tresponse && lastRequest?.trequest) {
+                const latency = lastRequest.tresponse.getTime() - lastRequest.trequest.getTime();
+                stats.latency = latency;
+              }
+            }
+          }
+
+          stats.qualityLevel = videoQuality;
+          stats.autoQuality = dash.getSettings?.()?.streaming?.abr?.autoSwitchBitrate?.video ?? false;
+        } catch (e) {
+          // Silently fail if stats collection fails
+        }
+      }
+
+      // Collect HLS.js stats
+      if (hlsRef.current) {
+        try {
+          const hls = hlsRef.current;
+
+          // Get current level bitrate
+          const currentLevel = hls.levels[hls.currentLevel];
+          if (currentLevel) {
+            stats.videoBitrate = currentLevel.bitrate;
+            if (currentLevel.audioCodec) {
+              // HLS.js doesn't expose audio bitrate directly
+            }
+          }
+
+          // Get buffer length from video element
+          const video = videoRef.current;
+          if (video && video.buffered.length > 0) {
+            const bufferedEnd = video.buffered.end(video.buffered.length - 1);
+            stats.bufferLength = bufferedEnd - video.currentTime;
+          }
+
+          // Get bandwidth estimate
+          if (hls.bandwidthEstimate) {
+            stats.downloadSpeed = hls.bandwidthEstimate;
+          }
+
+          stats.qualityLevel = hls.currentLevel;
+          stats.autoQuality = hls.autoLevelEnabled;
+        } catch (e) {
+          // Silently fail if stats collection fails
+        }
+      }
+
+      // Only call callback if we have some stats
+      if (Object.keys(stats).length > 0) {
+        onStatsUpdateRef.current?.(stats);
+      }
+    };
+
+    // Collect stats every 1 second to reduce CPU overhead
+    const interval = setInterval(collectStats, 1000);
+    return () => clearInterval(interval);
+  }, [videoRef]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -56,6 +194,11 @@ export default function PlexVideoPlayer({
     const setupPlayer = () => {
       // Reset ready state when setting up new player
       setIsReady(false);
+      // Reset initial seek flag for new source
+      initialSeekDoneRef.current = false;
+      // Update start time ref with current prop value
+      startTimeRef.current = startTime;
+      console.log('[Resume Debug] PlexVideoPlayer setupPlayer - startTime prop:', startTime, 'startTimeRef.current:', startTimeRef.current);
 
       // Clean up previous HLS instance
       if (hlsRef.current) {
@@ -90,44 +233,66 @@ export default function PlexVideoPlayer({
       const isDash = src.includes('.mpd');
       const isHls = src.includes('.m3u8');
 
-      // console.log('Stream type:', isDash ? 'DASH' : isHls ? 'HLS' : 'Direct');
+      console.log('[Player] Stream type:', isDash ? 'DASH' : isHls ? 'HLS' : 'Direct', 'URL:', src.substring(0, 100));
 
       if (isDash) {
         // Use DASH.js for DASH streams
         // console.log('Using DASH.js for:', src);
         const dash = dashjs.MediaPlayer().create();
 
-        // Configure DASH player with more aggressive buffer management
+        // Configure DASH player for optimized buffer management and smooth playback
+        // Balance between preventing QuotaExceededError and ensuring smooth playback
+        // Cast to any to include settings not in dash.js type definitions
+        // Use simpler DASH.js configuration - closer to defaults
         dash.updateSettings({
           streaming: {
             buffer: {
-              bufferTimeAtTopQuality: 20,
-              bufferPruningInterval: 10,
-              bufferToKeep: 10,
-              fastSwitchEnabled: true,
-              stallThreshold: 0.5,
+              bufferTimeAtTopQuality: 30,
+              bufferTimeAtTopQualityLongForm: 60,
+              fastSwitchEnabled: false,
             },
             abr: {
               autoSwitchBitrate: {
-                video: false,
+                video: false, // Manual quality control
+                audio: true,
               },
             },
-            retryIntervals: { MPD: 500 },
-            retryAttempts: { MPD: 3 },
-            gaps: { jumpGaps: true, jumpLargeGaps: true },
+            scheduling: {
+              scheduleWhilePaused: true,
+            },
+            gaps: {
+              jumpGaps: true,
+              jumpLargeGaps: true,
+            },
           },
-          debug: { logLevel: 1 },
-        });
+          debug: { logLevel: 0 },
+        } as any);
 
-        // Initialize DASH player
-        dash.initialize(video, src, autoPlay);
+        console.log('[Player] DASH.js initialized');
+
+        // Initialize DASH player with start time if available
+        // Pass startTime as 4th parameter to initialize for proper initial seek
+        const initialStartTime = startTimeRef.current && startTimeRef.current > 0 ? startTimeRef.current : undefined;
+        console.log('[Resume Debug] DASH initializing with startTime:', initialStartTime);
+        dash.initialize(video, src, autoPlay, initialStartTime);
 
         // Handle DASH events
         dash.on(dashjs.MediaPlayer.events.MANIFEST_LOADED, () => {
           // console.log('DASH manifest loaded');
           if (!isReady) {
             setIsReady(true);
-            onReady?.();
+            onReadyRef.current?.();
+          }
+        });
+
+        // Seek on CAN_PLAY for more reliable positioning (fallback if initialize didn't seek)
+        dash.on(dashjs.MediaPlayer.events.CAN_PLAY, () => {
+          console.log('[Resume Debug] DASH CAN_PLAY - initialSeekDoneRef:', initialSeekDoneRef.current, 'startTimeRef:', startTimeRef.current, 'currentTime:', video.currentTime);
+          // Only seek if we haven't already and current position is near 0
+          if (!initialSeekDoneRef.current && startTimeRef.current && startTimeRef.current > 0 && video.currentTime < 5) {
+            console.log('[Resume Debug] DASH CAN_PLAY seeking to:', startTimeRef.current);
+            dash.seek(startTimeRef.current);
+            initialSeekDoneRef.current = true;
           }
         });
 
@@ -140,45 +305,69 @@ export default function PlexVideoPlayer({
               errorMsg.includes('codec') ||
               errorMsg.includes('CHUNK_DEMUXER_ERROR_APPEND_FAILED')) {
             console.warn('Dolby Vision codec error detected, triggering fallback');
-            onCodecError?.(errorMsg);
+            onCodecErrorRef.current?.(errorMsg);
           } else {
-            onError?.(`DASH Error: ${errorMsg}`);
+            onErrorRef.current?.(`DASH Error: ${errorMsg}`);
           }
         });
 
         dash.on(dashjs.MediaPlayer.events.BUFFER_EMPTY, () => {
-          onBuffering?.(true);
+          onBufferingRef.current?.(true);
         });
 
         dash.on(dashjs.MediaPlayer.events.BUFFER_LOADED, () => {
-          onBuffering?.(false);
+          onBufferingRef.current?.(false);
         });
 
         dashRef.current = dash;
       } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
         // Safari native HLS support
         // console.log('Using native HLS support');
-        try { (video as any).crossOrigin = 'use-credentials'; } catch {}
+        // Don't use credentials for direct Plex URLs (token is in URL params)
+        const isDirectPlexUrl = src.includes('X-Plex-Token') || src.includes('plex.direct');
+        try { (video as any).crossOrigin = isDirectPlexUrl ? 'anonymous' : 'use-credentials'; } catch {}
         video.src = src;
         video.load();
       } else if (Hls.isSupported()) {
         // Use HLS.js for other browsers
         // console.log('Using HLS.js for:', src);
+
+        // Check if this is a direct Plex URL (token in URL) vs proxied URL
+        const isDirectPlexUrl = src.includes('X-Plex-Token') || src.includes('plex.direct');
+
+        // Use simple HLS.js configuration optimized for smooth playback
         const hls = new Hls({
           debug: false,
           enableWorker: true,
           lowLatencyMode: false,
-          maxBufferLength: 20, // Reduced from 30
-          maxMaxBufferLength: 120, // Reduced from 600
-          maxBufferSize: 30 * 1000 * 1000, // Reduced from 60 MB to 30 MB
+          // Buffer settings for smooth high-bitrate playback
+          maxBufferLength: 60,
+          maxMaxBufferLength: 600,
+          maxBufferSize: 120 * 1000 * 1000, // 120 MB for high bitrate content
+          backBufferLength: 60,
+          // Let HLS.js handle ABR
+          startLevel: -1,
+          // Relaxed loading timeouts
+          fragLoadingTimeOut: 60000,
+          fragLoadingMaxRetry: 6,
+          manifestLoadingTimeOut: 30000,
+          levelLoadingTimeOut: 30000,
+          // Reduce append frequency to minimize main thread work
+          appendErrorMaxRetry: 3,
+          // Bigger buffer hole tolerance
           maxBufferHole: 0.5,
-          startLevel: -1, // Auto
-          backBufferLength: 30, // Clear back buffer to free memory
+          // Smooth playback settings
+          highBufferWatchdogPeriod: 3,
+          nudgeMaxRetry: 5,
           xhrSetup: (xhr: XMLHttpRequest, url: string) => {
-            // Add credentials for CORS to include session cookie for proxy auth
-            xhr.withCredentials = true;
+            // Only send credentials for proxied URLs, not direct Plex URLs
+            if (!isDirectPlexUrl && !url.includes('X-Plex-Token') && !url.includes('plex.direct')) {
+              xhr.withCredentials = true;
+            }
           },
         });
+
+        console.log('[Player] HLS.js initialized');
 
         hls.loadSource(src);
         hls.attachMedia(video);
@@ -187,7 +376,15 @@ export default function PlexVideoPlayer({
           // console.log('HLS manifest parsed');
           if (!isReady) {
             setIsReady(true);
-            onReady?.();
+            onReadyRef.current?.();
+          }
+          // Seek to start position for HLS streams (must be after manifest parsed)
+          // Use ref to ensure we only seek once per source
+          console.log('[Resume Debug] HLS MANIFEST_PARSED - initialSeekDoneRef:', initialSeekDoneRef.current, 'startTimeRef:', startTimeRef.current);
+          if (!initialSeekDoneRef.current && startTimeRef.current && startTimeRef.current > 0) {
+            console.log('[Resume Debug] HLS seeking to:', startTimeRef.current);
+            video.currentTime = startTimeRef.current;
+            initialSeekDoneRef.current = true;
           }
           if (autoPlay) {
             video.play().catch(e => console.warn('Autoplay failed:', e));
@@ -196,10 +393,10 @@ export default function PlexVideoPlayer({
 
         hls.on(Hls.Events.ERROR, (event, data) => {
           // Don't log non-fatal errors unless they're important
-          if (data.fatal || data.details === 'bufferStalledError') {
+          if (data.fatal || data.details === 'bufferStalledError' || data.details === 'bufferAppendError') {
             console.error('HLS error:', event, data);
           }
-          
+
           if (data.fatal) {
             switch (data.type) {
               case Hls.ErrorTypes.NETWORK_ERROR:
@@ -212,14 +409,37 @@ export default function PlexVideoPlayer({
                 break;
               default:
                 console.error('Fatal error, cannot recover');
-                onError?.(`HLS Error: ${data.details}`);
+                onErrorRef.current?.(`HLS Error: ${data.details}`);
                 hls.destroy();
                 break;
             }
-          } else if (data.details === 'bufferStalledError') {
-            // Handle buffer stall
-            // console.log('Buffer stalled, attempting recovery');
-            hls.startLoad();
+          } else {
+            // Handle non-fatal errors
+            switch (data.details) {
+              case 'bufferStalledError':
+                // Buffer stalled, restart loading
+                hls.startLoad();
+                break;
+              case 'bufferAppendError':
+                // Buffer append failed (often QuotaExceededError), try to recover
+                // This can happen when the browser's media buffer is full
+                console.warn('Buffer append error, attempting recovery by clearing buffer');
+                try {
+                  // Trigger buffer flush by seeking slightly
+                  const currentTime = video.currentTime;
+                  if (currentTime > 1) {
+                    video.currentTime = currentTime - 0.1;
+                  }
+                  hls.startLoad();
+                } catch (e) {
+                  console.error('Failed to recover from buffer append error:', e);
+                }
+                break;
+              case 'bufferNudgeOnStall':
+                // Playback stalled, try nudging
+                hls.startLoad();
+                break;
+            }
           }
         });
 
@@ -227,7 +447,9 @@ export default function PlexVideoPlayer({
       } else {
         // Fallback to direct playback
         // console.log('HLS not supported, trying direct playback');
-        try { (video as any).crossOrigin = 'use-credentials'; } catch {}
+        // Don't use credentials for direct Plex URLs (token is in URL params)
+        const isDirectPlexUrl = src.includes('X-Plex-Token') || src.includes('plex.direct');
+        try { (video as any).crossOrigin = isDirectPlexUrl ? 'anonymous' : 'use-credentials'; } catch {}
         video.src = src;
         video.load();
       }
@@ -240,10 +462,13 @@ export default function PlexVideoPlayer({
       // console.log('Video metadata loaded');
       if (!isReady) {
         setIsReady(true);
-        onReady?.();
+        onReadyRef.current?.();
       }
-      if (startTime && startTime > 0) {
-        video.currentTime = startTime;
+      // Seek to start position (for native HLS/direct playback)
+      // Use ref to ensure we only seek once per source
+      if (!initialSeekDoneRef.current && startTimeRef.current && startTimeRef.current > 0) {
+        video.currentTime = startTimeRef.current;
+        initialSeekDoneRef.current = true;
       }
       if (autoPlay) {
         video.play().catch(e => console.warn('Autoplay failed:', e));
@@ -251,11 +476,11 @@ export default function PlexVideoPlayer({
     };
 
     const handleTimeUpdate = () => {
-      onTimeUpdate?.(video.currentTime, video.duration);
+      onTimeUpdateRef.current?.(video.currentTime, video.duration);
     };
 
     const handleEnded = () => {
-      onEnded?.();
+      onEndedRef.current?.();
     };
 
     const handleError = (e: Event) => {
@@ -269,32 +494,42 @@ export default function PlexVideoPlayer({
           errorMsg.includes('CHUNK_DEMUXER_ERROR_APPEND_FAILED') ||
           errorMsg.includes('MEDIA_ERR_SRC_NOT_SUPPORTED')) {
         console.warn('Dolby Vision or codec error detected, triggering fallback');
-        onCodecError?.(errorMsg);
+        onCodecErrorRef.current?.(errorMsg);
       } else {
-        onError?.(errorMsg);
+        onErrorRef.current?.(errorMsg);
       }
     };
 
     const handleWaiting = () => {
-      onBuffering?.(true);
+      onBufferingRef.current?.(true);
     };
 
     const handlePlaying = () => {
-      onBuffering?.(false);
-      onPlayingChange?.(true);
+      onBufferingRef.current?.(false);
+      onPlayingChangeRef.current?.(true);
     };
 
     const handlePause = () => {
-      onPlayingChange?.(false);
+      onPlayingChangeRef.current?.(false);
     };
 
     const handleSeeking = () => {
-      onBuffering?.(true);
-      onUserSeek?.();
+      onBufferingRef.current?.(true);
+      onUserSeekRef.current?.();
     };
 
     const handleSeeked = () => {
-      onBuffering?.(false);
+      onBufferingRef.current?.(false);
+    };
+
+    // Universal fallback: seek on canplay if we still haven't seeked and position is near 0
+    const handleCanPlay = () => {
+      console.log('[Resume Debug] canplay event - initialSeekDoneRef:', initialSeekDoneRef.current, 'startTimeRef:', startTimeRef.current, 'currentTime:', video.currentTime);
+      if (!initialSeekDoneRef.current && startTimeRef.current && startTimeRef.current > 0 && video.currentTime < 5) {
+        console.log('[Resume Debug] canplay fallback seeking to:', startTimeRef.current);
+        video.currentTime = startTimeRef.current;
+        initialSeekDoneRef.current = true;
+      }
     };
 
     video.addEventListener('loadedmetadata', handleLoadedMetadata);
@@ -306,6 +541,7 @@ export default function PlexVideoPlayer({
     video.addEventListener('pause', handlePause);
     video.addEventListener('seeking', handleSeeking);
     video.addEventListener('seeked', handleSeeked);
+    video.addEventListener('canplay', handleCanPlay);
 
     return () => {
       video.removeEventListener('loadedmetadata', handleLoadedMetadata);
@@ -317,6 +553,7 @@ export default function PlexVideoPlayer({
       video.removeEventListener('pause', handlePause);
       video.removeEventListener('seeking', handleSeeking);
       video.removeEventListener('seeked', handleSeeked);
+      video.removeEventListener('canplay', handleCanPlay);
 
       if (hlsRef.current) {
         try {
@@ -343,7 +580,11 @@ export default function PlexVideoPlayer({
       video.removeAttribute('src');
       video.load();
     };
-  }, [src, autoPlay, startTime, onTimeUpdate, onEnded, onError, onReady, onBuffering, onPlayingChange]);
+  // Note: startTime and callback props are intentionally not in deps
+  // - startTime: we use startTimeRef to avoid re-mounting on prop changes
+  // - callbacks: they may change due to parent re-renders, but we don't want to destroy/recreate the player
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [src, autoPlay]);
 
   // Handle play/pause
   useEffect(() => {

@@ -11,11 +11,11 @@ export type Episode = {
   index?: number; // episode number shown at left
 };
 
-export default function EpisodeItem({ ep, onClick }: { ep: Episode; onClick?: (id: string) => void }) {
+export default function EpisodeItem({ ep, onClick, disabled = false }: { ep: Episode; onClick?: (id: string) => void; disabled?: boolean }) {
   const nav = useNavigate();
-  const go = () => (onClick ? onClick(ep.id) : nav(`/player/${encodeURIComponent(ep.id)}`));
+  const go = () => !disabled && (onClick ? onClick(ep.id) : nav(`/player/${encodeURIComponent(ep.id)}`));
   return (
-    <button onClick={go} className="group w-full text-left">
+    <button onClick={go} disabled={disabled} className={`group w-full text-left ${disabled ? 'opacity-60 cursor-default' : ''}`}>
       <div className="flex gap-4 items-start py-2">
         <div className="w-8 text-right pt-1 text-neutral-400 tabular-nums">{ep.index ?? ''}</div>
         <div className="relative w-44 h-24 rounded-xl overflow-hidden ring-1 ring-white/10 bg-neutral-800">

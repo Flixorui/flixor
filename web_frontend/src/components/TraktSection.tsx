@@ -54,7 +54,12 @@ export function TraktSection({ type = 'trending', mediaType = 'movies', title }:
         }
 
         if (type === 'watchlist') {
-          data = await traktGetWatchlist(token, mediaType);
+          // Fetch both movies and shows for watchlist
+          const [movies, shows] = await Promise.all([
+            traktGetWatchlist(token, 'movies'),
+            traktGetWatchlist(token, 'shows')
+          ]);
+          data = [...movies, ...shows];
         } else if (type === 'recommendations') {
           data = await traktGetRecommendations(token, mediaType, 20);
         } else if (type === 'history') {
@@ -63,7 +68,8 @@ export function TraktSection({ type = 'trending', mediaType = 'movies', title }:
       }
 
       // Map Trakt results to unified Row items (Plex/TMDB IDs + landscape art)
-      const mapped = await mapTraktToRowItems(data, mediaType);
+      // For watchlist, pass 'mixed' since it contains both movies and shows
+      const mapped = await mapTraktToRowItems(data, type === 'watchlist' ? 'mixed' : mediaType);
       setItems(mapped);
     } catch (err: any) {
       console.error('Failed to load Trakt content:', err);
@@ -94,10 +100,14 @@ export function TraktSection({ type = 'trending', mediaType = 'movies', title }:
     }
   };
 
+  const getBrowseKey = () => {
+    const mediaKey = mediaType === 'movies' ? 'movies' : 'shows';
+    return `trakt:${type}:${mediaKey}`;
+  };
+
   // Convert Trakt payloads to Row items with best-effort ID mapping
-  async function mapTraktToRowItems(list: any[], mediaType: 'movies'|'shows') {
+  async function mapTraktToRowItems(list: any[], mediaType: 'movies'|'shows'|'mixed') {
     const s = loadSettings();
-    const typeNum = mediaType === 'movies' ? 1 : 2;
     const out: Array<{ id: string; title: string; image: string }> = [];
 
     // Helper: best-effort Plex GUID lookup by TMDB id
@@ -119,15 +129,20 @@ export function TraktSection({ type = 'trending', mediaType = 'movies', title }:
 
     // Map each item
     for (const it of list) {
+      const isMovie = !!it.movie;
       const media = it.movie || it.show || it; // normalize
       const ids = media?.ids || {};
       const title = media?.title || '';
       const year: number | undefined = media?.year;
       const tmdbId: number | undefined = ids?.tmdb;
 
+      // Determine type number (1=movie, 2=show) from item or mediaType
+      const typeNum: 1 | 2 = mediaType === 'mixed' ? (isMovie ? 1 : 2) : (mediaType === 'movies' ? 1 : 2);
+      const mediaKey: 'movie' | 'tv' = mediaType === 'mixed' ? (isMovie ? 'movie' : 'tv') : (mediaType === 'movies' ? 'movie' : 'tv');
+
       // Prefer Plex mapping when server available and TMDB id present
       if (tmdbId) {
-        const hit = await plexByTmdb(tmdbId, typeNum as 1|2);
+        const hit = await plexByTmdb(tmdbId, typeNum);
         if (hit) {
           const rk = String(hit.ratingKey);
           const p = hit.art || hit.thumb || hit.parentThumb || hit.grandparentThumb;
@@ -139,9 +154,8 @@ export function TraktSection({ type = 'trending', mediaType = 'movies', title }:
 
       // Fallback to TMDB-native IDs with landscape backdrop
       if (tmdbId && s.tmdbBearer) {
-        const mediaKey = mediaType === 'movies' ? 'movie' : 'tv';
         let img = '';
-        try { img = (await tmdbBestBackdropUrl(s.tmdbBearer!, mediaKey as any, tmdbId, 'en')) || ''; } catch {}
+        try { img = (await tmdbBestBackdropUrl(s.tmdbBearer!, mediaKey, tmdbId, 'en')) || ''; } catch {}
         out.push({ id: `tmdb:${mediaKey}:${tmdbId}`, title, image: img || placeholderImg() });
         continue;
       }
@@ -152,7 +166,7 @@ export function TraktSection({ type = 'trending', mediaType = 'movies', title }:
         const tvdb = ids?.tvdb as (number | undefined);
         if (imdb) {
           try {
-            const byImdb: any = await plexFindByGuid({ baseUrl: s.plexBaseUrl!, token: s.plexToken! }, `imdb://${imdb}`, typeNum as 1|2);
+            const byImdb: any = await plexFindByGuid({ baseUrl: s.plexBaseUrl!, token: s.plexToken! }, `imdb://${imdb}`, typeNum);
             const hit = (byImdb?.MediaContainer?.Metadata || [])[0];
             if (hit) {
               const rk = String(hit.ratingKey);
@@ -165,7 +179,7 @@ export function TraktSection({ type = 'trending', mediaType = 'movies', title }:
         }
         if (tvdb) {
           try {
-            const byTvdb: any = await plexFindByGuid({ baseUrl: s.plexBaseUrl!, token: s.plexToken! }, `tvdb://${tvdb}`, typeNum as 1|2);
+            const byTvdb: any = await plexFindByGuid({ baseUrl: s.plexBaseUrl!, token: s.plexToken! }, `tvdb://${tvdb}`, typeNum);
             const hit = (byTvdb?.MediaContainer?.Metadata || [])[0];
             if (hit) {
               const rk = String(hit.ratingKey);
@@ -238,12 +252,11 @@ export function TraktSection({ type = 'trending', mediaType = 'movies', title }:
   }
 
   return (
-    <div className="mb-2">
-      <Row
-        title={getSectionTitle()}
-        items={items}
-        onItemClick={(id) => nav(`/details/${encodeURIComponent(id)}`)}
-      />
-    </div>
+    <Row
+      title={getSectionTitle()}
+      items={items}
+      browseKey={getBrowseKey()}
+      onItemClick={(id) => nav(`/details/${encodeURIComponent(id)}`)}
+    />
   );
 }

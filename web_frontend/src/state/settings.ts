@@ -40,6 +40,56 @@ export type AppSettings = {
   traktScrobbleEnabled?: boolean;
   traktSyncEnabled?: boolean;
   watchlistProvider?: 'trakt' | 'plex';
+
+  // Home screen settings
+  showHeroSection?: boolean;
+  heroLayout?: 'legacy' | 'carousel' | 'appletv';
+  heroAutoRotate?: boolean;
+  showContinueWatchingRow?: boolean;
+  continueWatchingLayout?: 'landscape' | 'poster';
+  showTrendingRows?: boolean;
+  showTraktRows?: boolean;
+  showPlexPopularRow?: boolean;
+  showPosterTitles?: boolean;
+  showLibraryTitles?: boolean;
+  posterBorderRadius?: number; // 0, 12, or 20
+  rowsVisible?: {
+    trending?: boolean;
+    watchlist?: boolean;
+    popular?: boolean;
+    trakt?: boolean;
+  };
+
+  // Trakt settings
+  traktAccessToken?: string;
+
+  // Details screen settings
+  detailsLayout?: 'tabbed' | 'unified';
+  episodeLayout?: 'horizontal' | 'vertical';
+  ratingsVisible?: {
+    imdb?: boolean;
+    rtCritic?: boolean;
+    rtAudience?: boolean;
+    letterboxd?: boolean;
+    metacritic?: boolean;
+  };
+
+  // Appearance settings
+  posterSize?: 'small' | 'medium' | 'large';
+  cardCornerRadius?: 'none' | 'small' | 'medium' | 'large';
+  showCardTitles?: boolean;
+  rowLayout?: 'landscape' | 'poster'; // Layout for regular content rows
+
+  // Integration settings
+  mdblistApiKey?: string;
+  mdblistEnabled?: boolean;
+  overseerrUrl?: string;
+  overseerrApiKey?: string;
+  overseerrEnabled?: boolean;
+
+  // Player settings
+  subtitleFontSize?: number; // percentage 50-200
+  subtitleOffset?: number; // pixels
 };
 
 const KEY = 'app.settings.v1';

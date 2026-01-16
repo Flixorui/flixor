@@ -1,4 +1,4 @@
-export type Track = { id: string; label: string };
+export type Track = { id: string; label: string; forced?: boolean };
 
 export default function TrackPicker({
   audios,

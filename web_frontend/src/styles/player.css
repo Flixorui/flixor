@@ -67,3 +67,40 @@
   text-align: center;
   margin-top: 4px;
 }
+
+/* Subtitle Customization */
+:root {
+  --subtitle-font-size: 100%;
+  --subtitle-bottom-offset: 0px;
+}
+
+/* WebVTT subtitle styling */
+video::cue {
+  font-size: var(--subtitle-font-size);
+  background: rgba(0, 0, 0, 0.75);
+  color: white;
+  padding: 0.2em 0.4em;
+  border-radius: 4px;
+}
+
+/* Subtitle container positioning */
+.subtitle-container {
+  position: absolute;
+  bottom: calc(60px + var(--subtitle-bottom-offset));
+  left: 0;
+  right: 0;
+  text-align: center;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.subtitle-text {
+  display: inline-block;
+  font-size: var(--subtitle-font-size);
+  color: white;
+  background: rgba(0, 0, 0, 0.75);
+  padding: 0.2em 0.6em;
+  border-radius: 4px;
+  max-width: 80%;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+}

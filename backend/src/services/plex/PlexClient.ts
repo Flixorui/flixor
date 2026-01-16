@@ -428,7 +428,7 @@ export class PlexClient {
   /**
    * Update playback progress
    */
-  async updateProgress(ratingKey: string, timeMs: number, durationMs: number, stateOverride?: string) {
+  async updateProgress(ratingKey: string, timeMs: number, durationMs: number, stateOverride?: string, sessionId?: string, isTranscoding?: boolean) {
     const state = stateOverride || (timeMs >= durationMs * 0.9 ? 'stopped' : 'playing');
 
     const params: any = {
@@ -438,8 +438,13 @@ export class PlexClient {
       time: Math.floor(timeMs),
       duration: Math.floor(durationMs),
       state,
-      context: 'library',
+      context: isTranscoding ? 'streaming' : 'library',
     };
+
+    // Include session identifier for transcode sessions
+    if (sessionId) {
+      params['X-Plex-Session-Identifier'] = sessionId;
+    }
 
     await this.axiosClient.get('/:/timeline', { params });
 
@@ -500,8 +505,9 @@ export class PlexClient {
 
   /**
    * Get streaming URL
+   * Returns both the URL and the session ID used (for timeline sync)
    */
-  async getStreamingUrl(ratingKey: string, options: any = {}): Promise<string> {
+  async getStreamingUrl(ratingKey: string, options: any = {}): Promise<{ url: string; sessionId: string }> {
     // Detect client type - use HLS for native apps (iOS/macOS), DASH for web
     const protocol = options.protocol || 'hls'; // Default to HLS
     const extension = protocol === 'hls' ? 'm3u8' : 'mpd';
@@ -570,8 +576,8 @@ export class PlexClient {
       'X-Plex-Language': 'en',
       'X-Plex-Client-Profile-Extra': clientProfile,
     });
-    // Session identifier
-    const sessionId = `sess_${this.userId}_${ratingKey}_${Date.now()}`;
+    // Session identifier - use provided sessionId or generate a new one
+    const sessionId = options.sessionId || `sess_${this.userId}_${ratingKey}_${Date.now()}`;
     headerParams.set('session', sessionId);
 
     // Append token last
@@ -580,7 +586,7 @@ export class PlexClient {
     const url = urlBase.includes('?')
       ? `${urlBase}&${headerParams.toString()}`
       : `${urlBase}?${headerParams.toString()}`;
-    return url;
+    return { url, sessionId };
   }
 
   /**

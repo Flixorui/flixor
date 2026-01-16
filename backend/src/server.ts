@@ -23,6 +23,7 @@ import tmdbRoutes from './api/tmdb';
 import plexRoutes from './api/plex';
 import traktRoutes from './api/trakt';
 import plextvRoutes from './api/plextv';
+import overseerrRoutes from './api/overseerr';
 import { errorHandler } from './middleware/errorHandler';
 import { requestLogger } from './middleware/requestLogger';
 
@@ -119,6 +120,7 @@ async function startServer() {
     app.use('/api/plex', plexRoutes);
     app.use('/api/trakt', traktRoutes);
     app.use('/api/plextv', plextvRoutes);
+    app.use('/api/overseerr', overseerrRoutes);
 
     // 404 handler
     app.use((req, res) => {

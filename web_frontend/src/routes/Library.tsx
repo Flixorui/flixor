@@ -22,6 +22,21 @@ export default function Library() {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<'all' | 'movies' | 'shows'>('all');
   const [needsPlex, setNeedsPlex] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    setItems([]);
+    setStart(0);
+    setHasMore(true);
+    // Trigger re-fetch by updating active
+    const currentActive = active;
+    setActive('');
+    setTimeout(() => {
+      setActive(currentActive);
+      setIsRefreshing(false);
+    }, 100);
+  };
 
   useEffect(() => {
     const s = loadSettings();
@@ -103,7 +118,28 @@ export default function Library() {
   const filtered = useMemo(() => items.filter((it) => it.title.toLowerCase().includes(query.toLowerCase())), [items, query]);
 
   return (
-    <div className="pb-8">
+    <div className="pb-8 relative">
+      {/* Floating Refresh Button */}
+      <button
+        onClick={handleRefresh}
+        disabled={isRefreshing || needsPlex}
+        className="fixed top-20 right-4 z-40 p-3 rounded-full bg-white/10 backdrop-blur-md hover:bg-white/20 transition-all disabled:opacity-50"
+        title="Refresh library"
+      >
+        <svg
+          className={`w-5 h-5 text-white ${isRefreshing ? 'animate-spin' : ''}`}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+          />
+        </svg>
+      </button>
       {!needsPlex && sections.length>0 ? (
         <div className="page-gutter pt-6 space-y-3">
           <div className="flex flex-wrap gap-2">
@@ -160,7 +196,7 @@ export default function Library() {
                   setHasMore(newStart < total);
                 })();
               }}
-              render={(it) => <PosterCard title={it.title} image={it.image} onClick={() => nav(`/details/plex:${it.id}`)} />}
+              render={(it) => <PosterCard id={`plex:${it.id}`} title={it.title} image={it.image} onClick={() => nav(`/details/plex:${it.id}`)} />}
             />
           </div>
         </div>

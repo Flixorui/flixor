@@ -197,7 +197,7 @@ export default function WatchlistButton({
       ref={btnRef}
       onClick={handleToggle}
       disabled={loading}
-      className={`w-10 h-10 flex items-center justify-center bg-black/60 rounded-full hover:bg-black/80 transition-all ${
+      className={`w-10 h-10 flex items-center justify-center bg-white/10 border border-white/30 rounded-full hover:bg-white/20 transition-all ${
         loading ? 'opacity-50 cursor-not-allowed' : ''
       } ${className}`}
       title={isInList ? 'Remove from My List' : 'Add to My List'}

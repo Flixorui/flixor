@@ -225,11 +225,52 @@ export async function traktGetUserSettings(accessToken: string): Promise<any> {
 }
 
 // Scrobbling
-export async function traktScrobbleStart(accessToken: string, item: TraktScrobble): Promise<any> { throw new Error('Trakt scrobble not supported via backend'); }
+export async function traktScrobbleStart(accessToken: string, item: TraktScrobble): Promise<any> {
+  const response = await fetch(`${TRAKT}/scrobble/start`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(item)
+  });
 
-export async function traktScrobblePause(accessToken: string, item: TraktScrobble): Promise<any> { throw new Error('Trakt scrobble not supported via backend'); }
+  if (!response.ok) {
+    // 409 = already scrobbling, which is fine
+    if (response.status === 409) return { action: 'scrobbling' };
+    throw new Error(`Failed to start scrobble: ${response.status}`);
+  }
 
-export async function traktScrobbleStop(accessToken: string, item: TraktScrobble): Promise<any> { throw new Error('Trakt scrobble not supported via backend'); }
+  return response.json();
+}
+
+export async function traktScrobblePause(accessToken: string, item: TraktScrobble): Promise<any> {
+  const response = await fetch(`${TRAKT}/scrobble/pause`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(item)
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to pause scrobble: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function traktScrobbleStop(accessToken: string, item: TraktScrobble): Promise<any> {
+  const response = await fetch(`${TRAKT}/scrobble/stop`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(item)
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to stop scrobble: ${response.status}`);
+  }
+
+  return response.json();
+}
 
 // History
 export async function traktGetHistory(accessToken: string, type?: 'movies' | 'shows', limit?: number): Promise<any[]> {

@@ -1,314 +1,407 @@
-import { useEffect, useState } from 'react';
-import { loadSettings, saveSettings } from '@/state/settings';
-import { forget } from '@/services/cache';
-import { apiClient } from '@/services/api';
-import { TraktAuth } from '@/components/TraktAuth';
-import { getTraktTokens } from '@/services/trakt';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { loadSettings, saveSettings, type AppSettings } from '@/state/settings';
+import SettingsCard from '@/components/SettingsCard';
+import SettingItem, { SettingToggle } from '@/components/SettingItem';
+import HomeScreenSettings from '@/components/settings/HomeScreenSettings';
+import DetailsScreenSettings from '@/components/settings/DetailsScreenSettings';
+import MDBListSettings from '@/components/settings/MDBListSettings';
+import OverseerrSettings from '@/components/settings/OverseerrSettings';
+import CatalogSettings from '@/components/settings/CatalogSettings';
+import ContinueWatchingSettings from '@/components/settings/ContinueWatchingSettings';
+import TMDBSettings from '@/components/settings/TMDBSettings';
+import TraktSettings from '@/components/settings/TraktSettings';
+import PlexSettings from '@/components/settings/PlexSettings';
+import {
+  PlexIcon,
+  TMDBIcon,
+  TraktIcon,
+  MDBListIcon,
+  OverseerrIcon,
+  AlbumsIcon,
+  HomeIcon,
+  InformationCircleIcon,
+  PlayIcon,
+  GridIcon,
+  ImageIcon,
+  ShieldIcon,
+  BugIcon,
+  PeopleIcon,
+  CloudDownloadIcon,
+  ChatbubblesIcon,
+  ChatboxEllipsesIcon,
+  FlashIcon,
+  RefreshIcon,
+  PlayCircleIcon,
+  ChevronForwardIcon,
+} from '@/components/ServiceIcons';
 
-export default function Settings() {
-  const initial = loadSettings();
-  const [plexUrl, setPlexUrl] = useState(initial.plexBaseUrl || '');
-  const [plexToken, setPlexToken] = useState(initial.plexToken || '');
-  const [tmdbKey, setTmdbKey] = useState(initial.tmdbBearer || '');
-  const [traktKey, setTraktKey] = useState(initial.traktClientId || '');
-  const [plexTvToken, setPlexTvToken] = useState(initial.plexTvToken || '');
-  const [watchlistProvider, setWatchlistProvider] = useState<'trakt'|'plex'>(initial.watchlistProvider || 'trakt');
-  const [traktConnected, setTraktConnected] = useState<boolean>(!!initial.traktTokens);
-  const [tmdbStatus, setTmdbStatus] = useState<string>('');
-  const [plexStatus, setPlexStatus] = useState<string>('');
-  const [auth, setAuth] = useState<{pinId?: number; code?: string}>({});
-  const [servers, setServers] = useState<any[]>([]);
-  const [selectedServer, setSelectedServer] = useState<any>(initial.plexServer);
-  const [showEndpointsFor, setShowEndpointsFor] = useState<string | null>(null);
-  const [endpoints, setEndpoints] = useState<Record<string, { uri: string; isCurrent: boolean; isPreferred: boolean }[]>>({});
-  const [backendServers, setBackendServers] = useState<any[]>([]);
+const APP_VERSION = '1.0.0';
 
-  useEffect(() => {
-    saveSettings({ plexBaseUrl: plexUrl, plexToken, tmdbBearer: tmdbKey, traktClientId: traktKey, plexTvToken, watchlistProvider });
-  }, [plexUrl, plexToken, tmdbKey, traktKey, plexTvToken, watchlistProvider]);
+const ABOUT_LINKS = {
+  privacy: 'https://flixor.xyz/privacy',
+  reportIssue: 'https://github.com/Flixorui/flixor/issues',
+  contributors: 'https://github.com/Flixorui/flixor',
+  discord: 'https://discord.gg/flixor',
+  reddit: 'https://www.reddit.com/r/flixor/',
+};
 
-  useEffect(() => {
-    const onTraktChanged = () => setTraktConnected(!!(getTraktTokens()));
-    window.addEventListener('trakt-auth-changed', onTraktChanged);
-    return () => window.removeEventListener('trakt-auth-changed', onTraktChanged);
-  }, []);
+// Possible sub-screens
+type SettingsScreen =
+  | 'main'
+  | 'plex'
+  | 'homeScreen'
+  | 'detailsScreen'
+  | 'mdblist'
+  | 'overseerr'
+  | 'catalogs'
+  | 'continueWatching'
+  | 'tmdb'
+  | 'trakt';
 
+// Icon wrapper - matches mobile's 34x34 icon container
+function IconWrap({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen">
-      <div className="max-w-3xl mx-auto p-6 space-y-8 pt-6">
-      <section>
-        <h2 className="text-xl font-semibold mb-2">Accounts</h2>
-        <div className="grid gap-3">
-          {/* Plex authentication via PIN */}
-          <div className="rounded-lg ring-1 ring-white/10 p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm text-neutral-300">Plex Account</div>
-                {selectedServer ? (
-                  <div className="text-neutral-200 text-sm">Connected to {selectedServer?.name}</div>
-                ) : initial.plexAccountToken ? (
-                  <div className="text-neutral-400 text-sm">Authenticated. Select a server below.</div>
-                ) : (
-                  <div className="text-neutral-400 text-sm">Not signed in</div>
-                )}
-              </div>
-              {!initial.plexAccountToken && !auth.pinId && (
-                <button className="btn" disabled={selectedServer} onClick={async()=>{
-                  const cid = initial.plexClientId || crypto.randomUUID();
-                  saveSettings({ plexClientId: cid });
-                  const pin:any = await apiClient.createPlexPin(cid);
-                  setAuth({ pinId: pin.id, code: pin.code, url: pin.authUrl } as any);
-                }}>Sign in with Plex</button>
-              )}
-              {initial.plexAccountToken && (
-                <button className="btn" onClick={async()=>{
-                  // Use backend to refresh and fetch servers
-                  const cid = loadSettings().plexClientId || 'web';
-                  try { await apiClient.syncPlexServers(cid); } catch {}
-                  const backendServers = await apiClient.getServers();
-                  setServers(backendServers || []);
-                }}>Refresh Servers</button>
-              )}
-            </div>
-            {auth.pinId && (
-              <div className="mt-3 text-sm">
-                <div className="mb-2">Enter this code at Plex: <span className="font-semibold text-white">{auth.code}</span></div>
-                <div className="flex gap-2">
-                  <button className="btn" onClick={()=> window.open((auth as any).url || '', '_blank')}>Open Plex</button>
-                  <button className="btn" onClick={async()=>{
-                    const cid = loadSettings().plexClientId!;
-                    const res:any = await apiClient.checkPlexPin(auth.pinId!, cid);
-                    if (res?.authenticated) {
-                      setAuth({});
-                      try { await apiClient.syncPlexServers(cid); } catch {}
-                      const backendServers = await apiClient.getServers();
-                      setServers(backendServers || []);
-                    }
-                  }}>Poll</button>
-                </div>
-              </div>
-            )}
-            {servers.length>0 && (
-              <div className="mt-3">
-                <div className="text-sm mb-2">Select a server</div>
-                <div className="grid gap-2">
-                  {servers.map((s:any, idx:number)=>{
-                    return (
-                      <div key={idx} className="flex items-center justify-between bg-white/5 rounded px-3 py-2">
-                        <div className="text-neutral-200">{s.name || s.clientIdentifier}</div>
-                        <div className="flex gap-2">
-                          <button className="btn" onClick={async()=>{
-                            saveSettings({ plexServer: { name: s.name, clientIdentifier: s.clientIdentifier, baseUrl: s.baseUrl, token: s.token }, plexBaseUrl: s.baseUrl, plexToken: s.token });
-                            setSelectedServer({ name: s.name, clientIdentifier: s.clientIdentifier, baseUrl: s.baseUrl, token: s.token });
-                            // Clear Plex caches and notify app to refresh
-                            forget('plex:');
-                            window.dispatchEvent(new CustomEvent('plex-server-changed', { detail: { name: s.name, baseUrl: s.baseUrl } }));
-                          }}>Use</button>
-                          <button className="btn" onClick={async()=>{
-                            // Fetch candidate endpoints and show chooser
-                            try {
-                              const sid = s.clientIdentifier;
-                              const data = await apiClient.plexServerConnections(sid);
-                              setEndpoints((prev)=> ({ ...prev, [sid]: (data.connections || data || []) }));
-                              setShowEndpointsFor(sid);
-                            } catch (e) {
-                              alert('Failed to load endpoints');
-                            }
-                          }}>Endpoints…</button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Trakt Authentication */}
-          <div className="mt-6">
-            <TraktAuth
-              onAuthComplete={() => {
-                // Refresh the page or update state as needed
-                window.dispatchEvent(new CustomEvent('trakt-auth-changed'));
-              }}
-              onAuthError={(error) => {
-                console.error('Trakt auth error:', error);
-              }}
-            />
-          </div>
-
-          <L label="Plex URL"><input value={plexUrl} onChange={(e) => setPlexUrl(e.target.value)} placeholder="https://app.plex.tv" className="input" /></L>
-          <L label="Plex Token"><input value={plexToken} onChange={(e) => setPlexToken(e.target.value)} placeholder="" className="input" /></L>
-          <L label="TMDB API Key"><input value={tmdbKey} onChange={(e) => setTmdbKey(e.target.value)} className="input" /></L>
-          <L label="Watchlist Provider">
-            <select
-              className="input"
-              value={watchlistProvider}
-              onChange={(e)=> {
-                const v = e.target.value as 'trakt'|'plex';
-                setWatchlistProvider(v);
-                try { window.dispatchEvent(new CustomEvent('app-toast', { detail: `Watchlist provider: ${v === 'trakt' ? 'Trakt' : 'Plex'}` })); } catch {}
-              }}
-            >
-              <option value="trakt">Trakt</option>
-              <option value="plex">Plex</option>
-            </select>
-            {watchlistProvider === 'trakt' && !traktConnected && (
-              <div className="text-xs text-yellow-300 mt-1">Trakt not connected — use the Trakt section above to sign in.</div>
-            )}
-          </L>
-          <div className="flex gap-3 pt-2">
-            <button className="btn" onClick={async () => {
-              setTmdbStatus('Testing…');
-              try {
-                const { tmdbTrending } = await import('@/services/tmdb');
-                await tmdbTrending(tmdbKey, 'tv', 'day');
-                setTmdbStatus('TMDB OK');
-              } catch (e: any) {
-                setTmdbStatus('TMDB failed: ' + (e?.message || 'error'));
-              }
-            }}>Test TMDB</button>
-            <span className="text-sm text-neutral-400">{tmdbStatus}</span>
-          </div>
-          <div className="flex gap-3">
-            <button className="btn" onClick={async () => {
-              setPlexStatus('Testing…');
-              try {
-                const { plexLibs } = await import('@/services/plex');
-                await plexLibs({ baseUrl: plexUrl, token: plexToken });
-                setPlexStatus('Plex OK');
-              } catch (e: any) {
-                setPlexStatus('Plex failed: ' + (e?.message || 'error'));
-              }
-            }}>Test Plex</button>
-            <span className="text-sm text-neutral-400">{plexStatus}</span>
-          </div>
-          <div className="flex gap-3">
-            <button className="btn" onClick={()=> { forget(''); alert('Cache cleared'); }}>Clear App Cache</button>
-            <button className="btn" onClick={()=> { saveSettings({ plexAccountToken: undefined, plexServer: undefined }); alert('Signed out from Plex'); }}>Sign out of Plex</button>
-          </div>
-        </div>
-      </section>
-      {/* Backend-managed servers section */}
-      <section>
-        <h2 className="text-xl font-semibold mb-2">Backend Servers</h2>
-        <div className="rounded-lg ring-1 ring-white/10 p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="text-sm text-neutral-300">Servers known to the backend (used for library/search).</div>
-            <button className="btn" onClick={async()=>{
-              try {
-                const sv = await apiClient.plexServers();
-                setBackendServers(sv || []);
-              } catch (e) {
-                alert('Failed to load backend servers');
-              }
-            }}>Refresh</button>
-          </div>
-          {backendServers.length === 0 ? (
-            <div className="text-neutral-400 text-sm">No servers loaded. Click Refresh.</div>
-          ) : (
-            <div className="grid gap-2">
-              {backendServers.map((s:any, idx:number)=> (
-                <div key={idx} className="flex items-center justify-between bg-white/5 rounded px-3 py-2">
-                  <div className="text-neutral-200 text-sm">
-                    <div className="font-medium">{s.name}</div>
-                    <div className="text-xs text-neutral-400">{s.protocol}://{s.host}:{s.port} {s.isActive ? '• active' : ''}</div>
-                    {s.preferredUri && (
-                      <div className="text-xs text-green-400">preferred: {s.preferredUri}</div>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    {!s.isActive && (
-                      <button className="btn" onClick={async()=>{
-                        try {
-                          await apiClient.plexSetCurrentServer(s.id);
-                          window.dispatchEvent(new CustomEvent('app-toast', { detail: 'Active server updated' }));
-                          const sv = await apiClient.plexServers();
-                          setBackendServers(sv || []);
-                        } catch (e) {
-                          alert('Failed to set current server');
-                        }
-                      }}>Make Current</button>
-                    )}
-                    <button className="btn" onClick={async()=>{
-                      try {
-                        const data = await apiClient.plexServerConnections(s.id);
-                        setEndpoints((prev)=> ({ ...prev, [s.id]: (data.connections || data || []) }));
-                        setShowEndpointsFor(s.id);
-                      } catch (e) {
-                        alert('Failed to load endpoints');
-                      }
-                    }}>Endpoints…</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </section>
-      {showEndpointsFor && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="bg-neutral-900 rounded-lg p-4 w-full max-w-lg ring-1 ring-white/10">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-white font-semibold">Select Endpoint</div>
-              <button className="text-white/70 hover:text-white" onClick={()=> setShowEndpointsFor(null)}>✕</button>
-            </div>
-            <div className="space-y-2 max-h-80 overflow-auto pr-1">
-              {(endpoints[showEndpointsFor] || []).map((c, i)=> (
-                <div key={i} className="flex items-center justify-between bg-white/5 rounded px-3 py-2">
-                  <div className="text-white/90 text-sm break-all">
-                    {c.uri}
-                    {c.isPreferred && <span className="ml-2 text-xs text-green-400">preferred</span>}
-                    {c.isCurrent && <span className="ml-2 text-xs text-blue-400">current</span>}
-                  </div>
-                  <button className="btn" onClick={async()=>{
-                    try {
-                      await apiClient.plexSetServerEndpoint(showEndpointsFor, c.uri, true);
-                      window.dispatchEvent(new CustomEvent('app-toast', { detail: 'Endpoint updated' }));
-                      // Refresh backend servers list to reflect change
-                      try { const sv = await apiClient.plexServers(); setBackendServers(sv || []); } catch {}
-                      setShowEndpointsFor(null);
-                    } catch (e:any) {
-                      alert('Endpoint unreachable');
-                    }
-                  }}>Use</button>
-                </div>
-              ))}
-            </div>
-            <div className="mt-3 text-xs text-white/60">These endpoints come from your Plex server's advertised addresses (local and public). Choose the one that works best from your network.</div>
-          </div>
-        </div>
-      )}
-      <section>
-        <h2 className="text-xl font-semibold mb-2">Playback</h2>
-        <div className="grid gap-3">
-          <L label="MPV Profile">
-            <select className="input">
-              <option>Direct Play</option>
-              <option>Transcode (H264/AAC)</option>
-            </select>
-          </L>
-          <L label="HDR to SDR Tone-map">
-            <select className="input">
-              <option>auto</option>
-              <option>bt.2390</option>
-              <option>hable</option>
-            </select>
-          </L>
-        </div>
-      </section>
-      </div>
+    <div
+      className="flex items-center justify-center w-[34px] h-[34px] rounded-[10px]"
+      style={{ backgroundColor: 'rgba(229,231,235,0.08)' }}
+    >
+      {children}
     </div>
   );
 }
 
-function L({ label, children }: { label: string; children: any }) {
-  return (
-    <label className="grid gap-1">
-      <span className="text-sm text-neutral-300">{label}</span>
-      {children}
-    </label>
-  );
+// Chevron right component matching mobile
+function ChevronRight() {
+  return <ChevronForwardIcon size={18} color="#9ca3af" />;
 }
 
-// (styled via Tailwind utility classes in src/styles/index.css)
+export default function Settings() {
+  const [settings, setSettings] = useState<AppSettings>(loadSettings);
+  const [currentScreen, setCurrentScreen] = useState<SettingsScreen>('main');
+
+  useEffect(() => {
+    setSettings(loadSettings());
+  }, []);
+
+  const updateSetting = useCallback(<K extends keyof AppSettings>(key: K, value: AppSettings[K]) => {
+    setSettings(prev => {
+      const next = { ...prev, [key]: value };
+      saveSettings(next);
+      return next;
+    });
+  }, []);
+
+  // Plex description
+  const plexDescription = useMemo(() => {
+    // Check for actual server connection (plexBaseUrl + plexToken or plexServer)
+    const isConnected = !!(settings.plexBaseUrl && settings.plexToken) || !!settings.plexServer;
+    if (!isConnected) return 'Not connected';
+    if (settings.plexServer) return `${settings.plexUserProfile?.username || 'Connected'} · ${settings.plexServer.name}`;
+    return settings.plexUserProfile?.username || 'Connected';
+  }, [settings.plexBaseUrl, settings.plexToken, settings.plexServer, settings.plexUserProfile]);
+
+  // Trakt description
+  const traktDescription = useMemo(() => {
+    if (settings.traktAccessToken || settings.traktTokens) return 'Connected';
+    return 'Sign in to sync';
+  }, [settings.traktAccessToken, settings.traktTokens]);
+
+  // Render chevron for navigation items
+  const renderChevron = useCallback(() => <ChevronRight />, []);
+
+  // Navigate back to main
+  const goBack = useCallback(() => setCurrentScreen('main'), []);
+
+  // Render sub-screens
+  if (currentScreen === 'plex') {
+    return (
+      <PlexSettings
+        settings={settings}
+        updateSetting={updateSetting}
+        onBack={goBack}
+      />
+    );
+  }
+
+  if (currentScreen === 'homeScreen') {
+    return (
+      <HomeScreenSettings
+        settings={settings}
+        updateSetting={updateSetting}
+        onBack={goBack}
+      />
+    );
+  }
+
+  if (currentScreen === 'detailsScreen') {
+    return (
+      <DetailsScreenSettings
+        settings={settings}
+        updateSetting={updateSetting}
+        onBack={goBack}
+      />
+    );
+  }
+
+  if (currentScreen === 'mdblist') {
+    return (
+      <MDBListSettings
+        settings={settings}
+        updateSetting={updateSetting}
+        onBack={goBack}
+      />
+    );
+  }
+
+  if (currentScreen === 'overseerr') {
+    return (
+      <OverseerrSettings
+        settings={settings}
+        updateSetting={updateSetting}
+        onBack={goBack}
+      />
+    );
+  }
+
+  if (currentScreen === 'catalogs') {
+    return (
+      <CatalogSettings
+        settings={settings}
+        updateSetting={updateSetting}
+        onBack={goBack}
+      />
+    );
+  }
+
+  if (currentScreen === 'continueWatching') {
+    return (
+      <ContinueWatchingSettings
+        settings={settings}
+        updateSetting={updateSetting}
+        onBack={goBack}
+      />
+    );
+  }
+
+  if (currentScreen === 'tmdb') {
+    return (
+      <TMDBSettings
+        settings={settings}
+        updateSetting={updateSetting}
+        onBack={goBack}
+      />
+    );
+  }
+
+  if (currentScreen === 'trakt') {
+    return (
+      <TraktSettings
+        settings={settings}
+        updateSetting={updateSetting}
+        onBack={goBack}
+      />
+    );
+  }
+
+  // Main settings screen - matches mobile exactly
+  return (
+    <div className="min-h-screen bg-[#0b0b0d] pb-20">
+      {/* Header */}
+      <div className="px-4 pt-6 pb-4">
+        <h1 className="text-white text-2xl font-bold">Settings</h1>
+      </div>
+
+      <div className="px-4 max-w-2xl mx-auto">
+        {/* ACCOUNT */}
+        <SettingsCard title="ACCOUNT">
+          <SettingItem
+            title="Plex"
+            description={plexDescription}
+            renderIcon={() => <IconWrap><PlexIcon size={18} color="#e5e7eb" /></IconWrap>}
+            renderRight={renderChevron}
+            onClick={() => setCurrentScreen('plex')}
+            isLast
+          />
+        </SettingsCard>
+
+        {/* CONTENT & DISCOVERY */}
+        <SettingsCard title="CONTENT & DISCOVERY">
+          <SettingItem
+            title="Catalogs"
+            description="Choose which libraries appear"
+            renderIcon={() => <IconWrap><AlbumsIcon size={18} color="#e5e7eb" /></IconWrap>}
+            renderRight={renderChevron}
+            onClick={() => setCurrentScreen('catalogs')}
+          />
+          <SettingItem
+            title="Home Screen"
+            description="Hero and row visibility"
+            renderIcon={() => <IconWrap><HomeIcon size={18} color="#e5e7eb" /></IconWrap>}
+            renderRight={renderChevron}
+            onClick={() => setCurrentScreen('homeScreen')}
+          />
+          <SettingItem
+            title="Details Screen"
+            description="Ratings and badges display"
+            renderIcon={() => <IconWrap><InformationCircleIcon size={18} color="#e5e7eb" /></IconWrap>}
+            renderRight={renderChevron}
+            onClick={() => setCurrentScreen('detailsScreen')}
+          />
+          <SettingItem
+            title="Continue Watching"
+            description="Playback and cache behavior"
+            renderIcon={() => <IconWrap><PlayIcon size={18} color="#e5e7eb" /></IconWrap>}
+            renderRight={renderChevron}
+            onClick={() => setCurrentScreen('continueWatching')}
+            isLast
+          />
+        </SettingsCard>
+
+        {/* APPEARANCE */}
+        <SettingsCard title="APPEARANCE">
+          <SettingItem
+            title="Episode Layout"
+            description={settings.episodeLayout === 'horizontal' ? 'Horizontal' : 'Vertical'}
+            renderIcon={() => <IconWrap><GridIcon size={18} color="#e5e7eb" /></IconWrap>}
+            renderRight={() => (
+              <SettingToggle
+                checked={settings.episodeLayout === 'horizontal'}
+                onChange={(v) => updateSetting('episodeLayout', v ? 'horizontal' : 'vertical')}
+              />
+            )}
+          />
+          <SettingItem
+            title="Streams Backdrop"
+            description="Show dimmed backdrop behind player settings"
+            renderIcon={() => <IconWrap><ImageIcon size={18} color="#e5e7eb" /></IconWrap>}
+            renderRight={() => (
+              <SettingToggle
+                checked={settings.showCardTitles !== false}
+                onChange={(v) => updateSetting('showCardTitles', v)}
+              />
+            )}
+            isLast
+          />
+        </SettingsCard>
+
+        {/* INTEGRATIONS */}
+        <SettingsCard title="INTEGRATIONS">
+          <SettingItem
+            title="TMDB"
+            description="Metadata and language (always enabled)"
+            renderIcon={() => <IconWrap><TMDBIcon size={18} color="#e5e7eb" /></IconWrap>}
+            renderRight={renderChevron}
+            onClick={() => setCurrentScreen('tmdb')}
+          />
+          <SettingItem
+            title="MDBList (Multi-source)"
+            description={settings.mdblistEnabled ? 'Enabled' : 'Disabled'}
+            renderIcon={() => <IconWrap><MDBListIcon size={18} color="#e5e7eb" /></IconWrap>}
+            renderRight={renderChevron}
+            onClick={() => setCurrentScreen('mdblist')}
+          />
+          <SettingItem
+            title="Trakt"
+            description={traktDescription}
+            renderIcon={() => <IconWrap><TraktIcon size={18} color="#e5e7eb" /></IconWrap>}
+            renderRight={renderChevron}
+            onClick={() => setCurrentScreen('trakt')}
+          />
+          <SettingItem
+            title="Overseerr"
+            description={settings.overseerrEnabled ? 'Enabled' : 'Disabled'}
+            renderIcon={() => <IconWrap><OverseerrIcon size={18} color="#e5e7eb" /></IconWrap>}
+            renderRight={renderChevron}
+            onClick={() => setCurrentScreen('overseerr')}
+            isLast
+          />
+        </SettingsCard>
+
+        {/* PLAYBACK */}
+        <SettingsCard title="PLAYBACK">
+          <SettingItem
+            title="Video Player"
+            description="Coming soon"
+            renderIcon={() => <IconWrap><PlayCircleIcon size={18} color="#e5e7eb" /></IconWrap>}
+            renderRight={() => <span className="text-[#9ca3af] text-xs font-semibold">Soon</span>}
+            disabled
+          />
+          <SettingItem
+            title="Auto-play Best Stream"
+            description="Coming soon"
+            renderIcon={() => <IconWrap><FlashIcon size={18} color="#e5e7eb" /></IconWrap>}
+            renderRight={() => <SettingToggle checked={false} onChange={() => {}} disabled />}
+            disabled
+          />
+          <SettingItem
+            title="Always Resume"
+            description="Coming soon"
+            renderIcon={() => <IconWrap><RefreshIcon size={18} color="#e5e7eb" /></IconWrap>}
+            renderRight={() => <SettingToggle checked={false} onChange={() => {}} disabled />}
+            disabled
+            isLast
+          />
+        </SettingsCard>
+
+        {/* ABOUT */}
+        <SettingsCard title="ABOUT">
+          <SettingItem
+            title="Privacy Policy"
+            description="Review how data is handled"
+            renderIcon={() => <IconWrap><ShieldIcon size={18} color="#e5e7eb" /></IconWrap>}
+            renderRight={renderChevron}
+            onClick={() => window.open(ABOUT_LINKS.privacy, '_blank')}
+          />
+          <SettingItem
+            title="Report Issue"
+            description="Open a GitHub issue"
+            renderIcon={() => <IconWrap><BugIcon size={18} color="#e5e7eb" /></IconWrap>}
+            renderRight={renderChevron}
+            onClick={() => window.open(ABOUT_LINKS.reportIssue, '_blank')}
+          />
+          <SettingItem
+            title="Contributors"
+            description="Project contributors"
+            renderIcon={() => <IconWrap><PeopleIcon size={18} color="#e5e7eb" /></IconWrap>}
+            renderRight={renderChevron}
+            onClick={() => window.open(ABOUT_LINKS.contributors, '_blank')}
+          />
+          <SettingItem
+            title="Version"
+            description={`v${APP_VERSION}`}
+            renderIcon={() => <IconWrap><InformationCircleIcon size={18} color="#e5e7eb" /></IconWrap>}
+          />
+          <SettingItem
+            title="App Updates"
+            description="Check for OTA updates"
+            renderIcon={() => <IconWrap><CloudDownloadIcon size={18} color="#e5e7eb" /></IconWrap>}
+            renderRight={renderChevron}
+            onClick={() => {/* TODO: UpdateSettings */}}
+          />
+          <SettingItem
+            title="Discord"
+            description="Join the community"
+            renderIcon={() => <IconWrap><ChatbubblesIcon size={18} color="#e5e7eb" /></IconWrap>}
+            renderRight={renderChevron}
+            onClick={() => window.open(ABOUT_LINKS.discord, '_blank')}
+          />
+          <SettingItem
+            title="Reddit"
+            description="Follow updates"
+            renderIcon={() => <IconWrap><ChatboxEllipsesIcon size={18} color="#e5e7eb" /></IconWrap>}
+            renderRight={renderChevron}
+            onClick={() => window.open(ABOUT_LINKS.reddit, '_blank')}
+            isLast
+          />
+        </SettingsCard>
+
+        {/* Footer */}
+        <div className="text-center py-8">
+          <p className="text-[#9ca3af] text-sm opacity-50">
+            Made with love by Flixor team
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}

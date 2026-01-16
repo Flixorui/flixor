@@ -194,4 +194,43 @@ router.post('/signout', requireAuth, async (req: AuthenticatedRequest, res: Resp
   }
 });
 
+// Scrobbling (auth)
+router.post('/scrobble/start', requireAuth, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const c = new TraktClient(req.user!.id);
+    const result = await c.scrobbleStart(req.body);
+    res.json(result);
+  } catch (e: any) {
+    const status = e?.response?.status;
+    // 409 = already scrobbling, which is fine
+    if (status === 409) {
+      return res.json({ action: 'scrobbling' });
+    }
+    logger.error('Trakt scrobble start failed', e);
+    next(new AppError('Failed to start scrobble', status && status >= 400 && status < 600 ? status : 500));
+  }
+});
+
+router.post('/scrobble/pause', requireAuth, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const c = new TraktClient(req.user!.id);
+    const result = await c.scrobblePause(req.body);
+    res.json(result);
+  } catch (e: any) {
+    logger.error('Trakt scrobble pause failed', e);
+    next(new AppError('Failed to pause scrobble', 500));
+  }
+});
+
+router.post('/scrobble/stop', requireAuth, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const c = new TraktClient(req.user!.id);
+    const result = await c.scrobbleStop(req.body);
+    res.json(result);
+  } catch (e: any) {
+    logger.error('Trakt scrobble stop failed', e);
+    next(new AppError('Failed to stop scrobble', 500));
+  }
+});
+
 export default router;

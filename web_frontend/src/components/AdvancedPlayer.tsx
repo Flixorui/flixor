@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { VideoSeekSlider } from 'react-video-seek-slider';
-import PlexVideoPlayer from './PlexVideoPlayer';
+import PlexVideoPlayer, { PlayerStats } from './PlexVideoPlayer';
 import { apiClient } from '@/services/api';
 import '../styles/player.css';
 import { Replay10Icon, Forward10Icon } from '@/components/icons/Replay10';
@@ -19,6 +19,7 @@ import {
   plexTranscodeImageUrl,
   plexKillAllTranscodeSessions,
   plexPartUrl,
+  resetPlexSessionId,
 } from '@/services/plex';
 import { backendStreamUrl, backendUpdateProgress } from '@/services/plex_backend_player';
 import {
@@ -31,6 +32,8 @@ import {
   getExternalSubtitleUrl,
   hasDolbyVision,
 } from '@/services/plex_decision';
+import { traktScrobbler } from '@/services/traktScrobble';
+import PlaybackStatsHUD, { usePlaybackStats } from '@/components/PlaybackStatsHUD';
 
 interface PlayerMarker {
   type: 'intro' | 'credits' | 'commercial';
@@ -52,6 +55,22 @@ interface Stream {
   forced?: boolean;
   displayTitle?: string;
   extendedDisplayTitle?: string;
+  // Video stream fields
+  bitDepth?: number;
+  chromaSubsampling?: string;
+  colorPrimaries?: string;
+  colorRange?: string;
+  colorSpace?: string;
+  colorTrc?: string;
+  frameRate?: number;
+  profile?: string;
+  bitrate?: number;
+  width?: number;
+  height?: number;
+  // Audio stream fields
+  channels?: number;
+  audioChannelLayout?: string;
+  samplingRate?: number;
 }
 
 interface Media {
@@ -62,8 +81,17 @@ interface Media {
   height: number;
   videoResolution: string;
   videoCodec: string;
+  videoProfile?: string;
+  videoFrameRate?: string;
   audioCodec: string;
+  audioChannels?: number;
   container: string;
+  // Extended video fields
+  bitDepth?: number;
+  colorPrimaries?: string;
+  colorSpace?: string;
+  colorTrc?: string;
+  chromaSubsampling?: string;
   Part: Array<{
     id: string;
     key: string;
@@ -71,7 +99,11 @@ interface Media {
     size: number;
     indexes?: boolean;
     Stream: Stream[];
+    // Decision info (when transcoding)
+    decision?: 'directplay' | 'transcode' | 'copy';
   }>;
+  // Playback decision info
+  selected?: boolean;
 }
 
 interface PlexMetadata {
@@ -147,7 +179,13 @@ export default function AdvancedPlayer({ plexConfig, itemId, onBack, onNext }: A
   const containerRef = useRef<HTMLDivElement | null>(null);
   const seekSliderRef = useRef<any>(null);
   const sessionId = useRef<string>(Math.random().toString(36).substring(2, 15));
-  
+  // Refs for cleanup effect (to access current values on unmount)
+  const metadataRef = useRef<PlexMetadata | null>(null);
+  const currentTimeRef = useRef<number>(0);
+  const durationRef = useRef<number>(0);
+  // Ref for throttling time updates to reduce React re-render overhead
+  const lastTimeUpdateRef = useRef<number>(0);
+
   const [metadata, setMetadata] = useState<PlexMetadata | null>(null);
   const [streamUrl, setStreamUrl] = useState<string>('');
   const [loading, setLoading] = useState(true);
@@ -223,10 +261,100 @@ export default function AdvancedPlayer({ plexConfig, itemId, onBack, onNext }: A
   const [codecErrorMessage, setCodecErrorMessage] = useState<string | null>(null);
   const [retryingWithTranscode, setRetryingWithTranscode] = useState(false);
   const hasRetriedWithTranscode = useRef(false);
-  
+
+  // Stats HUD
+  const [showStats, setShowStats] = useState(false);
+  // Real-time playback stats - only collect when HUD is visible to avoid React re-render overhead
+  const realTimeStats = usePlaybackStats(videoRef as React.RefObject<HTMLVideoElement>, undefined, showStats);
+  const [isTranscoding, setIsTranscoding] = useState(false);
+  const [videoDecision, setVideoDecision] = useState<'directplay' | 'copy' | 'transcode'>('directplay');
+  const [audioDecision, setAudioDecision] = useState<'directplay' | 'copy' | 'transcode'>('directplay');
+  const [playerStats, setPlayerStats] = useState<PlayerStats>({});
+
   // Timeline update interval
   const timelineIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Trakt scrobbling
+  const scrobbleStarted = useRef(false);
+  const lastScrobbleState = useRef<'playing' | 'paused' | null>(null);
+
+  // Start/update Trakt scrobble based on playback state
+  useEffect(() => {
+    if (!metadata || loading) return;
+
+    const progress = duration > 0 ? Math.round((currentTime / duration) * 100) : 0;
+
+    // Start scrobble when playback begins
+    if (playing && !scrobbleStarted.current) {
+      const mediaInfo = traktScrobbler.convertPlexToTraktMedia(metadata);
+      if (mediaInfo) {
+        traktScrobbler.startScrobble(mediaInfo, progress).then(success => {
+          if (success) {
+            scrobbleStarted.current = true;
+            lastScrobbleState.current = 'playing';
+          }
+        });
+      }
+    }
+
+    // Handle play/pause state changes after scrobble started
+    if (scrobbleStarted.current && lastScrobbleState.current !== (playing ? 'playing' : 'paused')) {
+      if (playing) {
+        traktScrobbler.resumeScrobble(progress);
+        lastScrobbleState.current = 'playing';
+      } else {
+        traktScrobbler.pauseScrobble(progress);
+        lastScrobbleState.current = 'paused';
+      }
+    }
+
+    // Update progress periodically (every 30 seconds approx)
+    if (scrobbleStarted.current && playing) {
+      traktScrobbler.updateProgress(progress);
+    }
+  }, [metadata, playing, loading, currentTime, duration]);
+
+  // Stop scrobble when component unmounts
+  useEffect(() => {
+    return () => {
+      if (scrobbleStarted.current && duration > 0) {
+        const progress = Math.round((currentTime / duration) * 100);
+        traktScrobbler.stopScrobble(progress);
+        scrobbleStarted.current = false;
+        lastScrobbleState.current = null;
+      }
+    };
+  }, []);
+
+  // Keep refs in sync with state for cleanup effect
+  useEffect(() => {
+    metadataRef.current = metadata;
+  }, [metadata]);
+  useEffect(() => {
+    currentTimeRef.current = currentTime;
+    durationRef.current = duration;
+  }, [currentTime, duration]);
+
+  // Cleanup: send stopped status and kill transcode session when component unmounts
+  useEffect(() => {
+    return () => {
+      const meta = metadataRef.current;
+      const time = currentTimeRef.current;
+      const dur = durationRef.current;
+      if (meta && dur > 0) {
+        // Send stopped timeline update to Plex
+        backendUpdateProgress(meta.ratingKey, time * 1000, dur * 1000, 'stopped').catch(() => {
+          // Fallback to direct Plex call
+          try {
+            plexTimelineUpdate(plexConfig, meta.ratingKey, time * 1000, dur * 1000, 'stopped');
+          } catch {}
+        });
+      }
+      // Kill any active transcode sessions
+      plexKillAllTranscodeSessions(plexConfig).catch(() => {});
+    };
+  }, [plexConfig]);
 
   // Persist volume and track last non-zero
   useEffect(() => {
@@ -393,6 +521,51 @@ export default function AdvancedPlayer({ plexConfig, itemId, onBack, onNext }: A
     try { localStorage.setItem('player_rate', String(playbackRate)); } catch {}
   }, [playbackRate]);
 
+  // Detect transcoding status from stream URL and quality setting
+  useEffect(() => {
+    if (!streamUrl || !metadata) {
+      setIsTranscoding(false);
+      setVideoDecision('directplay');
+      setAudioDecision('directplay');
+      return;
+    }
+
+    // Check for transcode indicators in URL
+    const isTranscodeUrl = streamUrl.includes('/transcode/') ||
+                           streamUrl.includes('directPlay=0') ||
+                           streamUrl.includes('directStream=0');
+
+    // Determine decisions based on URL pattern and quality setting
+    // If URL contains /transcode/ and quality is not 'original', it's transcoding
+    // If quality is 'original' but URL has transcode, it's likely direct stream (container remux)
+    const isOriginalQuality = quality === 'original';
+    const media = metadata.Media?.[0];
+    const videoCodec = media?.videoCodec?.toLowerCase() || '';
+
+    // Check if browser can play the codec directly
+    const canPlayCodec = ['h264', 'avc', 'vp8', 'vp9', 'av1'].some(c => videoCodec.includes(c));
+
+    if (!isTranscodeUrl) {
+      // Not using transcode path - likely direct play
+      setIsTranscoding(false);
+      setVideoDecision('directplay');
+      setAudioDecision('directplay');
+    } else if (isOriginalQuality) {
+      // Using transcode path but original quality - direct stream (container remux, video copied)
+      setIsTranscoding(false);
+      setVideoDecision('copy'); // Video is copied, not transcoded
+      // Audio might be transcoded if not a compatible format
+      const audioCodec = media?.audioCodec?.toLowerCase() || '';
+      const audioNeedsTranscode = ['dts', 'truehd', 'flac'].some(c => audioCodec.includes(c));
+      setAudioDecision(audioNeedsTranscode ? 'transcode' : 'copy');
+    } else {
+      // Using transcode path with specific quality - full transcode
+      setIsTranscoding(true);
+      setVideoDecision('transcode');
+      setAudioDecision('transcode');
+    }
+  }, [streamUrl, metadata, quality]);
+
   // Click anywhere on video to toggle play/pause (ignore controls)
   function handleBackdropClick(e: React.MouseEvent) {
     const el = e.target as HTMLElement;
@@ -422,6 +595,7 @@ export default function AdvancedPlayer({ plexConfig, itemId, onBack, onNext }: A
           const durSec = meta.duration ? Math.floor(meta.duration / 1000) : undefined;
           // If item was fully watched (>=95%), start from beginning
           const fromStart = (start !== undefined && durSec && durSec > 0 && start / durSec >= 0.95) ? 0 : start;
+          console.log('[Resume Debug] viewOffset from metadata:', meta.viewOffset, 'start (seconds):', start, 'fromStart:', fromStart);
           setInitialStartAt(fromStart);
         } catch {}
 
@@ -547,55 +721,111 @@ export default function AdvancedPlayer({ plexConfig, itemId, onBack, onNext }: A
   // Timeline updates
   useEffect(() => {
     if (!metadata || !duration) return;
-    
+
     const updateTimeline = () => {
       const state = buffering ? 'buffering' : playing ? 'playing' : 'paused';
-      // Keep backend for progress updates, but playback URL logic is direct
-      backendUpdateProgress(metadata.ratingKey, currentTime * 1000, duration * 1000, state as any).catch(console.warn);
+      // Keep backend for progress updates, pass isTranscoding for proper Plex dashboard reporting
+      backendUpdateProgress(metadata.ratingKey, currentTime * 1000, duration * 1000, state as any, isTranscoding).catch(console.warn);
     };
-    
+
     // Initial update
     updateTimeline();
-    
+
     // Set up interval
     timelineIntervalRef.current = setInterval(updateTimeline, 5000);
-    
+
     return () => {
       if (timelineIntervalRef.current) {
         clearInterval(timelineIntervalRef.current);
       }
     };
-  }, [metadata, currentTime, duration, playing, buffering, plexConfig]);
+  }, [metadata, currentTime, duration, playing, buffering, plexConfig, isTranscoding]);
 
   // Ping interval - removed as not needed based on NevuForPlex
 
   // Controls auto-hide
+  // Cursor auto-hide state
+  const [cursorHidden, setCursorHidden] = useState(false);
+
   useEffect(() => {
     let timeout: ReturnType<typeof setTimeout>;
-    
+
     const handleMouseMove = () => {
       setShowControls(true);
+      setCursorHidden(false);
       clearTimeout(timeout);
       if (playing && !showEpisodes && !showNextHover && nextEpisodeCountdown === null) {
-        timeout = setTimeout(() => setShowControls(false), 3000);
+        timeout = setTimeout(() => {
+          setShowControls(false);
+          setCursorHidden(true);
+        }, 3000);
       }
     };
-    
+
     const handleMouseLeave = () => {
       if (playing && !showEpisodes && !showNextHover && nextEpisodeCountdown === null) {
-        timeout = setTimeout(() => setShowControls(false), 1000);
+        timeout = setTimeout(() => {
+          setShowControls(false);
+          setCursorHidden(true);
+        }, 1000);
       }
     };
-    
+
     document.addEventListener('mousemove', handleMouseMove);
     containerRef.current?.addEventListener('mouseleave', handleMouseLeave);
-    
+
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
       containerRef.current?.removeEventListener('mouseleave', handleMouseLeave);
       clearTimeout(timeout);
     };
   }, [playing, showEpisodes, showNextHover, nextEpisodeCountdown]);
+
+  // Wake Lock to prevent screen sleep during playback
+  useEffect(() => {
+    let wakeLock: WakeLockSentinel | null = null;
+
+    const requestWakeLock = async () => {
+      if (!('wakeLock' in navigator)) return;
+      try {
+        wakeLock = await navigator.wakeLock.request('screen');
+        console.log('Wake Lock active');
+      } catch (err) {
+        console.warn('Wake Lock request failed:', err);
+      }
+    };
+
+    const releaseWakeLock = async () => {
+      if (wakeLock) {
+        try {
+          await wakeLock.release();
+          wakeLock = null;
+          console.log('Wake Lock released');
+        } catch {}
+      }
+    };
+
+    // Request wake lock when playing, release when paused
+    if (playing && !loading) {
+      requestWakeLock();
+    } else {
+      releaseWakeLock();
+    }
+
+    // Handle visibility change - re-request when tab becomes visible
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible' && playing && !loading) {
+        await requestWakeLock();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      releaseWakeLock();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [playing, loading]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -648,9 +878,13 @@ export default function AdvancedPlayer({ plexConfig, itemId, onBack, onNext }: A
         case 's':
           skipCurrentMarker();
           break;
+        case 'i':
+          e.preventDefault();
+          setShowStats(s => !s);
+          break;
       }
     };
-    
+
     document.addEventListener('keydown', handleKeyPress);
     return () => document.removeEventListener('keydown', handleKeyPress);
   }, [currentTime, duration, showEpisodes, showNextHover]);
@@ -660,38 +894,36 @@ export default function AdvancedPlayer({ plexConfig, itemId, onBack, onNext }: A
     localStorage.setItem('player_volume', volume.toString());
   }, [volume]);
 
-  // Quality change handler
+  // Quality change handler - cleanly recreates the player with new settings
   const handleQualityChange = useCallback(async (newQuality: string | number) => {
     if (!metadata || !itemId) return;
 
     try {
       const currentPos = currentTime;
+
+      // 1. Send "stopped" timeline update to clear session from Plex dashboard
+      try {
+        await backendUpdateProgress(metadata.ratingKey, currentPos * 1000, duration * 1000, 'stopped', isTranscoding);
+      } catch {
+        try { await plexTimelineUpdate(plexConfig, metadata.ratingKey, currentPos * 1000, duration * 1000, 'stopped'); } catch {}
+      }
+
+      // 2. Stop existing transcode session and reset session ID
+      await plexKillAllTranscodeSessions(plexConfig);
+      resetPlexSessionId();
+
+      // 3. Update quality setting
       setQuality(newQuality);
       localStorage.setItem('player_quality', newQuality.toString());
 
-      // Stop existing transcode session before starting new one
-      // console.log('Stopping existing transcode sessions before quality change...');
-      await plexKillAllTranscodeSessions(plexConfig);
+      // 4. Clear stream URL to unmount/reset player
+      setStreamUrl('');
+      setLoading(true);
 
-      // Backend path: generate stream URL server-side first, fallback to direct
-      try {
-        const qualityNum = (typeof newQuality === 'number') ? newQuality : undefined;
-        const url = await backendStreamUrl(itemId, {
-          quality: qualityNum,
-          audioStreamID: selectedAudioStream || undefined,
-          subtitleStreamID: selectedSubtitleStream || undefined,
-        });
-        setStreamUrl(url);
-        setTimeout(() => {
-          const video = videoRef.current;
-          if (video && currentPos > 0) video.currentTime = currentPos;
-        }, 250);
-        return;
-      } catch (e) {
-        console.warn('Backend quality change failed, falling back to direct:', e);
-      }
+      // 5. Small delay for cleanup
+      await new Promise(resolve => setTimeout(resolve, 300));
 
-      // Determine stream decision
+      // 6. Get Plex decision for new quality
       const decision = getStreamDecision(metadata, {
         quality: newQuality,
         directPlay: newQuality === 'original',
@@ -699,10 +931,9 @@ export default function AdvancedPlayer({ plexConfig, itemId, onBack, onNext }: A
         subtitleStreamId: selectedSubtitleStream || undefined,
       });
 
-      // First, call decision API to see what Plex will actually do
       const plexDecision = await plexUniversalDecision(plexConfig, itemId, {
         maxVideoBitrate: newQuality === 'original' ? undefined : Number(newQuality),
-        protocol: 'dash', // Use DASH for better codec support
+        protocol: 'dash',
         autoAdjustQuality: false,
         directPlay: decision.directPlay,
         directStream: decision.directStream,
@@ -710,134 +941,180 @@ export default function AdvancedPlayer({ plexConfig, itemId, onBack, onNext }: A
         subtitleStreamID: selectedSubtitleStream || undefined,
       });
 
-      // console.log('Plex actual decision:', plexDecision);
-
-      // Generate new stream URL based on actual Plex decision
+      // 7. Generate new stream URL and determine transcoding state
       let url: string;
+      let newIsTranscoding = false;
+      let newVideoDecision: 'directplay' | 'copy' | 'transcode' = 'directplay';
+      let newAudioDecision: 'directplay' | 'copy' | 'transcode' = 'directplay';
+
       if (plexDecision.canDirectPlay && metadata.Media?.[0]?.Part?.[0]?.key) {
         url = plexPartUrl(plexConfig.baseUrl, plexConfig.token, metadata.Media[0].Part[0].key);
-        // console.log('Using direct play based on Plex decision');
+        newIsTranscoding = false;
+        newVideoDecision = 'directplay';
+        newAudioDecision = 'directplay';
       } else {
-        const bitrateValue = newQuality === 'original' ? undefined : Number(newQuality);
-        // console.log('Quality change request:', {
-        //   newQuality,
-        //   bitrateValue,
-        //   plexDecision,
-        //   currentStreamUrl: streamUrl,
-        // });
-
-        // Use actual Plex decision values
         url = plexStreamUrl(plexConfig, itemId, {
-          maxVideoBitrate: bitrateValue,
-          protocol: 'dash', // Use DASH for better codec support
+          maxVideoBitrate: newQuality === 'original' ? undefined : Number(newQuality),
+          protocol: 'dash',
           autoAdjustQuality: false,
-          directPlay: false, // Plex already decided not to direct play
+          directPlay: false,
           directStream: plexDecision.willDirectStream || false,
           audioStreamID: selectedAudioStream || undefined,
           subtitleStreamID: selectedSubtitleStream || undefined,
-          forceReload: true,
         });
-        // console.log('Generated stream URL based on Plex decision:', url);
-      }
-      
-      setStreamUrl(url);
-      
-      // Store position to restore after reload
-      setTimeout(() => {
-        const video = videoRef.current;
-        if (video && currentPos > 0) {
-          video.currentTime = currentPos;
+
+        // Determine transcoding state based on quality
+        if (newQuality === 'original') {
+          // Direct stream - video copied, audio might transcode
+          newIsTranscoding = false;
+          newVideoDecision = 'copy';
+          const audioCodec = metadata.Media?.[0]?.audioCodec?.toLowerCase() || '';
+          const audioNeedsTranscode = ['dts', 'truehd', 'flac'].some(c => audioCodec.includes(c));
+          newAudioDecision = audioNeedsTranscode ? 'transcode' : 'copy';
+        } else {
+          // Full transcode
+          newIsTranscoding = true;
+          newVideoDecision = 'transcode';
+          newAudioDecision = 'transcode';
         }
-      }, 1000);
+      }
+
+      // 8. Set transcoding state BEFORE setting stream URL to ensure correct timeline reporting
+      setIsTranscoding(newIsTranscoding);
+      setVideoDecision(newVideoDecision);
+      setAudioDecision(newAudioDecision);
+
+      // 9. Set resume position and new stream URL to recreate player
+      setInitialStartAt(currentPos);
+      setStreamUrl(url);
+      setLoading(false);
+
     } catch (err) {
       console.error('Failed to change quality:', err);
+      setLoading(false);
     }
-  }, [metadata, currentTime, plexConfig, itemId, selectedAudioStream, selectedSubtitleStream]);
+  }, [metadata, itemId, currentTime, duration, isTranscoding, plexConfig, selectedAudioStream, selectedSubtitleStream]);
 
   // Audio stream change
   const handleAudioStreamChange = useCallback(async (streamId: string) => {
     if (!metadata?.Media?.[0]?.Part?.[0]) return;
-    
+
     try {
+      const currentPos = currentTime;
       const partId = metadata.Media[0].Part[0].id;
+
+      // 1. Send "stopped" timeline update to clear session from Plex dashboard
+      try {
+        await backendUpdateProgress(metadata.ratingKey, currentPos * 1000, duration * 1000, 'stopped', isTranscoding);
+      } catch {
+        try { await plexTimelineUpdate(plexConfig, metadata.ratingKey, currentPos * 1000, duration * 1000, 'stopped'); } catch {}
+      }
+
+      // 2. Stop existing transcode session and reset session ID
+      await plexKillAllTranscodeSessions(plexConfig);
+      resetPlexSessionId();
+
+      // 3. Update audio stream selection on the part
       await plexUpdateAudioStream(plexConfig, partId, streamId);
       setSelectedAudioStream(streamId);
-      
-      // Reload stream
-      const currentPos = currentTime;
+
+      // 4. Clear stream URL to unmount/reset player
+      setStreamUrl('');
+      setLoading(true);
+
+      // 5. Small delay for cleanup
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      // 6. Generate new stream URL with new audio
       const decision = getStreamDecision(metadata, {
         quality: quality,
         directPlay: quality === 'original',
         audioStreamId: streamId,
         subtitleStreamId: selectedSubtitleStream || undefined,
       });
-      
+
       const url = plexStreamUrl(plexConfig, itemId, {
         maxVideoBitrate: quality === 'original' ? undefined : Number(quality),
-        protocol: 'hls',
+        protocol: 'dash',
         autoAdjustQuality: false,
         directPlay: decision.directPlay,
         directStream: decision.directStream,
         audioStreamID: streamId,
         subtitleStreamID: selectedSubtitleStream || undefined,
-        forceReload: true,
       });
+
+      // 7. Set resume position and new stream URL to recreate player
+      setInitialStartAt(currentPos);
       setStreamUrl(url);
-      
-      setTimeout(() => {
-        const video = videoRef.current;
-        if (video && currentPos > 0) {
-          video.currentTime = currentPos;
-        }
-      }, 1000);
+      setLoading(false);
+
     } catch (err) {
       console.error('Failed to change audio stream:', err);
+      setLoading(false);
     }
-  }, [metadata, currentTime, quality, plexConfig, itemId]);
+  }, [metadata, itemId, currentTime, duration, isTranscoding, quality, plexConfig, selectedSubtitleStream]);
 
-  // Subtitle stream change
+  // Subtitle stream change - cleanly recreates the player with new settings
   const handleSubtitleStreamChange = useCallback(async (streamId: string) => {
     if (!metadata?.Media?.[0]?.Part?.[0]) return;
-    
+
     try {
+      const currentPos = currentTime;
       const partId = metadata.Media[0].Part[0].id;
+
+      // 1. Send "stopped" timeline update to clear session from Plex dashboard
+      try {
+        await backendUpdateProgress(metadata.ratingKey, currentPos * 1000, duration * 1000, 'stopped', isTranscoding);
+      } catch {
+        try { await plexTimelineUpdate(plexConfig, metadata.ratingKey, currentPos * 1000, duration * 1000, 'stopped'); } catch {}
+      }
+
+      // 2. Stop existing transcode session and reset session ID
+      await plexKillAllTranscodeSessions(plexConfig);
+      resetPlexSessionId();
+
+      // 3. Update subtitle stream selection on the part
       await plexUpdateSubtitleStream(plexConfig, partId, streamId);
       setSelectedSubtitleStream(streamId);
-      
-      // Reload stream
-      const currentPos = currentTime;
+
+      // 4. Clear stream URL to unmount/reset player
+      setStreamUrl('');
+      setLoading(true);
+
+      // 5. Small delay for cleanup
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      // 6. Generate new stream URL with new subtitle
       const decision = getStreamDecision(metadata, {
         quality: quality,
         directPlay: quality === 'original',
         audioStreamId: selectedAudioStream || undefined,
         subtitleStreamId: streamId,
       });
-      
+
       const url = plexStreamUrl(plexConfig, itemId, {
         maxVideoBitrate: quality === 'original' ? undefined : Number(quality),
-        protocol: 'hls',
+        protocol: 'dash',
         autoAdjustQuality: false,
         directPlay: decision.directPlay,
         directStream: decision.directStream,
         audioStreamID: selectedAudioStream || undefined,
         subtitleStreamID: streamId,
-        forceReload: true,
       });
+
+      // 7. Set resume position and new stream URL to recreate player
+      setInitialStartAt(currentPos);
       setStreamUrl(url);
-      
-      setTimeout(() => {
-        const video = videoRef.current;
-        if (video && currentPos > 0) {
-          video.currentTime = currentPos;
-        }
-      }, 1000);
+      setLoading(false);
+
     } catch (err) {
       console.error('Failed to change subtitle stream:', err);
+      setLoading(false);
     }
-  }, [metadata, currentTime, quality, plexConfig, itemId]);
+  }, [metadata, itemId, currentTime, duration, isTranscoding, quality, plexConfig, selectedAudioStream]);
 
   // Navigate to Details page for current item (declared early to avoid TDZ)
-  const goToDetails = useCallback(() => {
+  const goToDetails = useCallback(async () => {
     const m = metadata;
     if (!m) return;
     try {
@@ -845,9 +1122,20 @@ export default function AdvancedPlayer({ plexConfig, itemId, onBack, onNext }: A
       setPlaying(false);
       const v = videoRef.current; if (v) { try { v.pause(); } catch {} }
     } catch {}
+    // Send stopped timeline and cleanup BEFORE navigating to ensure Plex dashboard clears
+    const time = currentTimeRef.current;
+    const dur = durationRef.current;
+    if (dur > 0) {
+      try {
+        await backendUpdateProgress(m.ratingKey, time * 1000, dur * 1000, 'stopped', isTranscoding);
+      } catch {
+        try { await plexTimelineUpdate(plexConfig, m.ratingKey, time * 1000, dur * 1000, 'stopped'); } catch {}
+      }
+      try { await plexKillAllTranscodeSessions(plexConfig); } catch {}
+    }
     const target = m.type === 'episode' && m.grandparentRatingKey ? `plex:${m.grandparentRatingKey}` : `plex:${m.ratingKey}`;
     window.location.href = `/details/${encodeURIComponent(target)}`;
-  }, [metadata]);
+  }, [metadata, plexConfig, isTranscoding]);
 
   // Skip current marker
   const skipCurrentMarker = useCallback(() => {
@@ -933,19 +1221,27 @@ export default function AdvancedPlayer({ plexConfig, itemId, onBack, onNext }: A
   };
 
   // Memoized callbacks for player - must be defined before any conditional returns
+  // Note: We no longer clear initialStartAt here. PlexVideoPlayer uses initialSeekDoneRef
+  // to prevent double-seeking, so clearing initialStartAt is unnecessary and causes bugs
+  // when the component remounts (React Strict Mode) - the new mount would get undefined startTime.
   const handleTimeUpdate = useCallback((time: number, dur: number) => {
-    setCurrentTime(time);
-    if (dur && dur > 0) setDuration(dur);
-    // Clear initial start time after first time update to avoid any reload jumps
-    if (initialStartAt !== undefined) {
-      setInitialStartAt(undefined);
+    // Always update refs for accurate values (used for progress reporting, cleanup, etc.)
+    currentTimeRef.current = time;
+    if (dur && dur > 0) durationRef.current = dur;
+
+    // Throttle React state updates to reduce re-render overhead (update every 200ms max)
+    // This significantly reduces dropped frames by avoiding excessive React reconciliation
+    const now = performance.now();
+    if (now - lastTimeUpdateRef.current >= 200) {
+      lastTimeUpdateRef.current = now;
+      setCurrentTime(time);
+      if (dur && dur > 0) setDuration(dur);
     }
-  }, [initialStartAt]);
+  }, []);
 
   const handleUserSeek = useCallback(() => {
-    if (initialStartAt !== undefined) setInitialStartAt(undefined);
     endedRef.current = false; // user intent overrides pending end state
-  }, [initialStartAt]);
+  }, []);
 
   const handleReady = useCallback(() => {
     // console.log('Player ready');
@@ -998,6 +1294,12 @@ export default function AdvancedPlayer({ plexConfig, itemId, onBack, onNext }: A
     // If transcode session header is not available (stale PMS session), try one clean retry
     if (!headerRetryRef.current && (msg.includes('header is not available') || (msg.includes('mpd') && msg.includes('header')))) {
       headerRetryRef.current = true;
+      // Send stopped timeline update to clear session from Plex dashboard
+      try {
+        await backendUpdateProgress(metadata!.ratingKey, currentTime * 1000, duration * 1000, 'stopped', isTranscoding);
+      } catch {
+        try { await plexTimelineUpdate(plexConfig, metadata!.ratingKey, currentTime * 1000, duration * 1000, 'stopped'); } catch {}
+      }
       try {
         await plexKillAllTranscodeSessions(plexConfig);
       } catch {}
@@ -1041,8 +1343,18 @@ export default function AdvancedPlayer({ plexConfig, itemId, onBack, onNext }: A
     setRetryingWithTranscode(true);
 
     try {
+      // Send stopped timeline update to clear session from Plex dashboard
+      try {
+        await backendUpdateProgress(metadata.ratingKey, currentTime * 1000, duration * 1000, 'stopped', isTranscoding);
+      } catch {
+        try { await plexTimelineUpdate(plexConfig, metadata.ratingKey, currentTime * 1000, duration * 1000, 'stopped'); } catch {}
+      }
+
       // Kill existing transcode sessions
       await plexKillAllTranscodeSessions(plexConfig);
+
+      // Reset session ID for fresh session
+      resetPlexSessionId();
 
       // Get the highest available transcoded quality
       const transcodedOptions = qualityOptions.filter(opt => opt.value !== 'original');
@@ -1086,33 +1398,6 @@ export default function AdvancedPlayer({ plexConfig, itemId, onBack, onNext }: A
     setPlaying(isPlaying);
   }, []);
 
-  if (error) {
-    return (
-      <div className="fixed inset-0 bg-black flex items-center justify-center">
-        <div className="text-white text-center">
-          <div className="mb-4">Error: {error}</div>
-          <div className="mb-2 text-xs max-w-2xl break-all">
-            Stream URL: {streamUrl}
-          </div>
-          <div className="flex gap-2 justify-center">
-            <button
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded"
-              onClick={() => window.open(streamUrl, '_blank')}
-            >
-              Test URL
-            </button>
-            <button
-              className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded"
-              onClick={onBack}
-            >
-              Go Back
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   // Use the options from state that were set during metadata load
   const canPlayDirect = metadata ? canDirectPlay(metadata) : false;
   const canStreamDirect = metadata ? canDirectStream(metadata) : false;
@@ -1142,6 +1427,37 @@ export default function AdvancedPlayer({ plexConfig, itemId, onBack, onNext }: A
     }
   }, [metadata, creditsStartSec, currentTime, goToDetails, exiting]);
 
+  if (error) {
+    return (
+      <div className="fixed inset-0 bg-black flex items-center justify-center">
+        <div className="text-white text-center">
+          <div className="mb-4">Error: {error}</div>
+          <div className="mb-2 text-xs max-w-2xl break-all">
+            Stream URL: {streamUrl}
+          </div>
+          <div className="flex gap-2 justify-center">
+            <button
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded"
+              onClick={() => window.open(streamUrl, '_blank')}
+            >
+              Test URL
+            </button>
+            <button
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded"
+              onClick={async () => {
+                // Clean up before exiting
+                try { await plexKillAllTranscodeSessions(plexConfig); } catch {}
+                onBack?.();
+              }}
+            >
+              Go Back
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="fixed inset-0 bg-black flex items-center justify-center">
@@ -1151,9 +1467,22 @@ export default function AdvancedPlayer({ plexConfig, itemId, onBack, onNext }: A
   }
 
   return (
-    <div ref={containerRef} className="fixed inset-0 bg-black z-50" onClick={handleBackdropClick}>
+    <div
+      ref={containerRef}
+      className="fixed inset-0 bg-black z-50"
+      style={{ cursor: cursorHidden ? 'none' : 'auto' }}
+      onClick={handleBackdropClick}
+    >
       {streamUrl && (
-        <div className="absolute inset-0">
+        <div
+          className="absolute inset-0"
+          style={{
+            // Hardware acceleration hints for the video container
+            willChange: 'contents',
+            transform: 'translateZ(0)',
+            isolation: 'isolate',
+          }}
+        >
           <PlexVideoPlayer
             key={streamUrl} // Force remount when URL changes
             src={streamUrl}
@@ -1172,6 +1501,7 @@ export default function AdvancedPlayer({ plexConfig, itemId, onBack, onNext }: A
             onPlayingChange={handlePlayingChange}
             onCodecError={handleCodecError}
             onUserSeek={handleUserSeek}
+            onStatsUpdate={showStats ? setPlayerStats : undefined}
           />
         </div>
       )}
@@ -1196,6 +1526,81 @@ export default function AdvancedPlayer({ plexConfig, itemId, onBack, onNext }: A
           </div>
         </div>
       )}
+
+      {/* Stats HUD - toggle with 'i' key */}
+      <PlaybackStatsHUD
+        visible={showStats}
+        position="top-left"
+        stats={(() => {
+          const media = metadata?.Media?.[0];
+          const videoStream = media?.Part?.[0]?.Stream?.find(s => s.streamType === 1);
+          const audioStream = media?.Part?.[0]?.Stream?.find(s => s.streamType === 2 && s.selected);
+
+          // Determine dynamic range from video profile or stream info
+          const getDynamicRange = () => {
+            const profile = media?.videoProfile?.toLowerCase() || '';
+            const colorTrc = (media?.colorTrc || videoStream?.colorTrc || '').toLowerCase();
+            const colorSpace = (media?.colorSpace || videoStream?.colorSpace || '').toLowerCase();
+
+            if (profile.includes('dv') || profile.includes('dolby')) return 'Dolby Vision';
+            if (colorTrc.includes('smpte2084') || colorTrc.includes('pq')) {
+              if (colorSpace.includes('bt2020')) return 'HDR10';
+              return 'HDR';
+            }
+            if (colorTrc.includes('arib-std-b67') || colorTrc.includes('hlg')) return 'HLG';
+            if (profile.includes('hdr10+')) return 'HDR10+';
+            if (profile.includes('hdr')) return 'HDR10';
+            return 'SDR';
+          };
+
+          return {
+            // Video info
+            videoCodec: media?.videoCodec,
+            videoProfile: media?.videoProfile,
+            resolution: media?.width && media?.height
+              ? `${media.width}x${media.height}`
+              : undefined,
+            width: media?.width,
+            height: media?.height,
+            frameRate: media?.videoFrameRate
+              ? parseFloat(media.videoFrameRate)
+              : (videoStream?.frameRate || undefined),
+            bitrate: media?.bitrate,
+            bitDepth: media?.bitDepth || videoStream?.bitDepth,
+            colorSpace: media?.colorSpace || videoStream?.colorSpace,
+            container: media?.container,
+            dynamicRange: getDynamicRange(),
+
+            // Audio info
+            audioCodec: media?.audioCodec || audioStream?.codec,
+            audioChannels: media?.audioChannels || audioStream?.channels,
+            audioSampleRate: audioStream?.samplingRate,
+
+            // Playback info
+            currentTime,
+            duration,
+            bufferProgress: buffered,
+            playbackRate,
+
+            // Transcoding status - use actual Plex decision
+            isTranscoding: isTranscoding,
+            videoDecision: videoDecision,
+            audioDecision: audioDecision,
+
+            // Real-time stats from player libraries (dash.js/hls.js)
+            videoBitrate: playerStats.videoBitrate,
+            audioBitrate: playerStats.audioBitrate || (audioStream?.bitrate ? audioStream.bitrate * 1000 : undefined),
+            downloadSpeed: playerStats.downloadSpeed,
+            playableBufferSeconds: playerStats.bufferLength || realTimeStats.playableBufferSeconds,
+
+            // Real-time performance stats from video element
+            displayFPS: realTimeStats.displayFPS,
+            droppedFrames: realTimeStats.droppedFrames,
+            totalFrames: realTimeStats.totalFrames,
+            isHardwareAccelerated: realTimeStats.isHardwareAccelerated,
+          };
+        })()}
+      />
 
       {/* Skip marker button */}
       {currentMarker && (
@@ -1244,20 +1649,22 @@ export default function AdvancedPlayer({ plexConfig, itemId, onBack, onNext }: A
           <div className="flex items-center gap-4">
             <button
               className="p-2 rounded-full transition-colors"
-              onClick={() => {
-                backendUpdateProgress(metadata!.ratingKey, currentTime * 1000, duration * 1000, 'stopped')
-                  .catch(() => {
-                    try { plexTimelineUpdate(plexConfig, metadata!.ratingKey, currentTime * 1000, duration * 1000, 'stopped'); } catch {}
-                  })
-                  .finally(() => {
-                    if (metadata?.type === 'episode' && metadata.grandparentRatingKey) {
-                      window.location.href = `/details/${encodeURIComponent(`plex:${metadata.grandparentRatingKey}`)}`;
-                    } else if (metadata?.type === 'movie') {
-                      window.location.href = `/details/${encodeURIComponent(`plex:${metadata.ratingKey}`)}`;
-                    } else {
-                      onBack?.();
-                    }
-                  });
+              onClick={async () => {
+                // Send stopped timeline and cleanup BEFORE navigating
+                try {
+                  await backendUpdateProgress(metadata!.ratingKey, currentTime * 1000, duration * 1000, 'stopped', isTranscoding);
+                } catch {
+                  try { await plexTimelineUpdate(plexConfig, metadata!.ratingKey, currentTime * 1000, duration * 1000, 'stopped'); } catch {}
+                }
+                try { await plexKillAllTranscodeSessions(plexConfig); } catch {}
+                // Navigate after cleanup
+                if (metadata?.type === 'episode' && metadata.grandparentRatingKey) {
+                  window.location.href = `/details/${encodeURIComponent(`plex:${metadata.grandparentRatingKey}`)}`;
+                } else if (metadata?.type === 'movie') {
+                  window.location.href = `/details/${encodeURIComponent(`plex:${metadata.ratingKey}`)}`;
+                } else {
+                  onBack?.();
+                }
               }}
             >
               <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1589,7 +1996,7 @@ export default function AdvancedPlayer({ plexConfig, itemId, onBack, onNext }: A
                             )}
                             {qualityOptions.map((option) => (
                               <button
-                                key={option.value}
+                                key={option.label}
                                 className={`w-full text-left px-3 py-2 rounded hover:bg-white/10 transition-colors ${
                                   (quality === option.value || (typeof quality === 'number' && typeof option.value === 'number' && quality === option.value)) ? 'text-red-500' : 'text-white'
                                 }`}

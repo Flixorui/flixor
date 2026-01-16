@@ -1,6 +1,8 @@
 import Billboard from '@/components/Billboard';
 import HomeHero from '@/components/HomeHero';
+import HeroCarousel from '@/components/HeroCarousel';
 import Row from '@/components/Row';
+import UltraBlurBackground from '@/components/UltraBlurBackground';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { loadSettings, saveSettings } from '@/state/settings';
@@ -22,6 +24,8 @@ export default function Home() {
   const [rows, setRows] = useState<Array<{ title: string; items: Item[]; variant?: 'default'|'continue' }>>([]);
   const [needsPlex, setNeedsPlex] = useState(false);
   const [hero, setHero] = useState<{ title: string; overview?: string; poster?: string; backdrop?: string; rating?: string; videoUrl?: string; ytKey?: string; id?: string; year?: string; runtime?: number; genres?: string[]; logoUrl?: string } | null>(null);
+  const [heroItems, setHeroItems] = useState<Array<{ id: string; title: string; overview?: string; backdropUrl?: string; logoUrl?: string; year?: string; runtime?: number; rating?: string; genres?: string[] }>>([]);
+  const [activeBackdrop, setActiveBackdrop] = useState<string | undefined>(undefined);
   const genreRows: Array<{label: string; type: 'movie'|'show'; genre: string}> = [
     { label: 'TV Shows - Children', type: 'show', genre: 'Children' },
     { label: 'Movie - Music', type: 'movie', genre: 'Music' },
@@ -35,7 +39,7 @@ export default function Home() {
 
   const didInit = useRef(false);
   useEffect(() => {
-    if (didInit.current) return; // prevent StrictMode double-run flicker
+    if (didInit.current) return;
     didInit.current = true;
 
     // Check backend authentication first
@@ -82,6 +86,12 @@ export default function Home() {
           s = loadSettings();
         }
         const rowsData: Array<{ title: string; items: Item[]; variant?: 'default'|'continue' }> = [];
+        let continueWatchingRow: { title: string; items: any[]; variant: 'continue'; browseKey?: string } | null = null;
+        let popularRow: { title: string; items: Item[]; browseKey?: string } | null = null;
+        let trendingRows: { title: string; items: Item[]; browseKey?: string }[] = [];
+        let watchlistRow: { title: string; items: Item[]; browseKey?: string } | null = null;
+        let genreRowsList: { title: string; items: Item[]; browseKey?: string }[] = [];
+        let recentlyAddedRow: { title: string; items: Item[]; browseKey?: string } | null = null;
         let tmdbHero: any | null = null;
         let plexHero: any | null = null;
         let heroLogoUrl: string | undefined = undefined;
@@ -92,8 +102,8 @@ export default function Home() {
             title: r.name || r.title,
             image: tmdbImage(r.backdrop_path, 'w780') || tmdbImage(r.poster_path, 'w500'),
           })) || [];
-          rowsData.push({ title: 'Popular on Plex', items: items.slice(0, 8) });
-          rowsData.push({ title: 'Trending Now', items: items.slice(8, 16) });
+          popularRow = { title: 'Popular on Plex', items: items.slice(0, 8), browseKey: 'tmdb:popular:tv' };
+          trendingRows.push({ title: 'Trending Now', items: items.slice(8, 16), browseKey: 'tmdb:trending:tv:week' });
           // Prepare TMDB fallback hero (do not set yet)
           try {
             if ((tmdb as any).results?.length) {
@@ -129,13 +139,38 @@ export default function Home() {
                 const logo = (imgs?.logos||[]).find((l:any)=>l.iso_639_1==='en') || (imgs?.logos||[])[0];
                 if (logo?.file_path) heroLogoUrl = tmdbImage(logo.file_path, 'w500') || tmdbImage(logo.file_path, 'original');
               } catch {}
+
+              // Build carousel items from trending
+              const carouselItems: Array<{ id: string; title: string; overview?: string; backdropUrl?: string; logoUrl?: string; year?: string; runtime?: number; genres?: string[] }> = [];
+              for (const item of (tmdb as any).results?.slice(0, 5) || []) {
+                try {
+                  const itemDetails: any = await tmdbDetails(s.tmdbBearer!, 'tv', String(item.id));
+                  let itemLogo: string | undefined;
+                  try {
+                    const itemImgs: any = await tmdbImages(s.tmdbBearer!, 'tv', String(item.id), 'en,null');
+                    const logo = (itemImgs?.logos||[]).find((l:any)=>l.iso_639_1==='en') || (itemImgs?.logos||[])[0];
+                    if (logo?.file_path) itemLogo = tmdbImage(logo.file_path, 'w500');
+                  } catch {}
+                  carouselItems.push({
+                    id: `tmdb:tv:${String(item.id)}`,
+                    title: item.name || item.title,
+                    overview: item.overview,
+                    backdropUrl: tmdbImage(item.backdrop_path, 'w1280'),
+                    logoUrl: itemLogo,
+                    year: (itemDetails.first_air_date || '').slice(0, 4),
+                    runtime: itemDetails.episode_run_time?.[0],
+                    genres: (itemDetails.genres || []).map((g: any) => g.name),
+                  });
+                } catch {}
+              }
+              setHeroItems(carouselItems);
             }
           } catch {}
         } else {
           // Fallback placeholders (no TMDB key)
           const landscape = Array.from({ length: 16 }).map((_, i) => ({ id: 'ph'+i, title: `Sample ${i+1}`, image: `https://picsum.photos/seed/land${i}/800/400` }));
-          rowsData.push({ title: 'Popular on Plex', items: landscape.slice(0, 8) });
-          rowsData.push({ title: 'Trending Now', items: landscape.slice(8, 16) });
+          popularRow = { title: 'Popular on Plex', items: landscape.slice(0, 8), browseKey: 'tmdb:popular:tv' };
+          trendingRows.push({ title: 'Trending Now', items: landscape.slice(8, 16), browseKey: 'tmdb:trending:tv:week' });
         }
         // Trakt content will be handled by TraktSection components below
         // Continue Watching via Plex if configured
@@ -148,12 +183,36 @@ export default function Home() {
             const items: any[] = meta.slice(0, 10).map((m: any, i: number) => {
               const p = m.thumb || m.parentThumb || m.grandparentThumb || m.art;
               const img = apiClient.getPlexImageNoToken(p || '');
-              const duration = (m.duration || 0) / 1000;
-              const vo = (m.viewOffset || 0) / 1000;
+              const durationMs = m.duration || 0;
+              const viewOffsetMs = m.viewOffset || 0;
+              const duration = durationMs / 1000;
+              const vo = viewOffsetMs / 1000;
               const progress = duration > 0 ? Math.min(100, Math.max(1, Math.round((vo / duration) * 100))) : 0;
-              return { id: `plex:${String(m.ratingKey || i)}`, title: m.title || m.grandparentTitle || 'Continue', image: img, progress };
+
+              // Build episode info string for TV episodes
+              let episodeInfo: string | undefined;
+              let showTitle: string | undefined;
+              if (m.type === 'episode') {
+                const season = m.parentIndex ? String(m.parentIndex).padStart(2, '0') : '01';
+                const episode = m.index ? String(m.index).padStart(2, '0') : '01';
+                episodeInfo = `S${season}E${episode}`;
+                showTitle = m.grandparentTitle;
+              }
+
+              return {
+                id: `plex:${String(m.ratingKey || i)}`,
+                title: m.title || m.grandparentTitle || 'Continue',
+                image: img,
+                progress,
+                duration: durationMs,
+                viewOffset: viewOffsetMs,
+                episodeInfo,
+                showTitle
+              };
             });
-            rowsData.splice(1, 0, { title: 'Continue Watching', items: items as any, variant: 'continue' });
+            if (items.length > 0) {
+              continueWatchingRow = { title: 'Continue Watching', items: items as any, variant: 'continue', browseKey: '/plex/continue' };
+            }
           } catch (e) {
             setNeedsPlex(true);
           }
@@ -167,9 +226,9 @@ export default function Home() {
                 title: m.title || m.grandparentTitle || 'Title',
                 image: m.Image?.find((img: any) => img.type === 'coverArt' || img.type === 'background')?.url,
               }));
-              const row: any = { title: 'Watchlist', items: wlItems };
-              row.browseKey = '/plextv/watchlist';
-              rowsData.push(row);
+              if (wlItems.length > 0) {
+                watchlistRow = { title: 'Watchlist', items: wlItems, browseKey: '/plextv/watchlist' };
+              }
             } catch {}
           }
           // Genre-based rows from first matching library containing that genre
@@ -191,10 +250,28 @@ export default function Home() {
                   const img = apiClient.getPlexImageNoToken(p || '');
                   return { id: `plex:${m.ratingKey}`, title: m.title || m.grandparentTitle || 'Title', image: img };
                 });
-                const row: any = { title: gr.label, items };
-                row.browseKey = path;
-                rowsData.push(row);
+                if (items.length > 0) {
+                  genreRowsList.push({ title: gr.label, items, browseKey: path });
+                }
               } catch {}
+            }
+          } catch {}
+          // Recently Added Row
+          try {
+            const libs: any = await plexBackendLibraries();
+            const dirs = libs?.MediaContainer?.Directory || [];
+            const movieLib = dirs.find((d: any) => d.type === 'movie');
+            if (movieLib) {
+              const recent: any = await plexBackendLibraryAll(String(movieLib.key), { sort: 'addedAt:desc', offset: 0, limit: 12 });
+              const meta = recent?.MediaContainer?.Metadata || [];
+              const items: Item[] = meta.map((m: any) => {
+                const p = m.thumb || m.parentThumb || m.grandparentThumb || m.art;
+                const img = apiClient.getPlexImageNoToken(p || '');
+                return { id: `plex:${m.ratingKey}`, title: m.title || 'Title', image: img };
+              });
+              if (items.length > 0) {
+                recentlyAddedRow = { title: 'Recently Added', items, browseKey: `plex:library:${movieLib.key}:recent` };
+              }
             }
           } catch {}
           // Try to build a Plex-based hero like Nevu
@@ -255,6 +332,20 @@ export default function Home() {
         } else {
           setNeedsPlex(true);
         }
+        // Build final rows in mobile order:
+        // 1. Continue Watching
+        // 2. Popular on Plex
+        // 3. Trending Rows
+        // 4. Watchlist
+        // 5. Genre Rows
+        // 6. Recently Added
+        // (Trakt rows are rendered separately below)
+        if (continueWatchingRow) rowsData.push(continueWatchingRow as any);
+        if (popularRow) rowsData.push(popularRow);
+        trendingRows.forEach(r => rowsData.push(r));
+        if (watchlistRow) rowsData.push(watchlistRow as any);
+        genreRowsList.forEach(r => rowsData.push(r as any));
+        if (recentlyAddedRow) rowsData.push(recentlyAddedRow);
         setRows(rowsData);
         // Commit hero once with final choice (prefer Plex)
         const finalHero = plexHero || tmdbHero;
@@ -286,54 +377,90 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="pb-10">
+    <UltraBlurBackground imageUrl={activeBackdrop || hero?.backdrop} className="min-h-screen pb-10">
       {/* Spacer to separate hero from transparent nav */}
-      <div className="pt-24" />
-      {hero ? (
-        <HomeHero
-          title={hero.title}
-          overview={hero.overview}
-          posterUrl={hero.poster}
-          backdropUrl={hero.backdrop}
-          rating={hero.rating}
-          year={hero.year}
-          runtime={hero.runtime}
-          genres={hero.genres}
-          logoUrl={hero.logoUrl}
-          videoUrl={hero.videoUrl}
-          ytKey={hero.ytKey}
-          onPlay={() => { if (hero.id) nav(`/player/${encodeURIComponent(hero.id)}`); }}
-          onMoreInfo={() => { if (hero.id) nav(`/details/${encodeURIComponent(hero.id)}`); }}
-        />
-      ) : (
-        <div className="bleed" style={{ padding: '20px' }}>
-          <div className="rounded-2xl overflow-hidden ring-1 ring-white/10 bg-neutral-900/40 h-[56vh] md:h-[64vh] xl:h-[68vh] skeleton" />
-        </div>
-      )}
+      <div className="pt-20" />
+      {(() => {
+        const settings = loadSettings();
+        const heroLayout = settings.heroLayout || 'carousel';
+
+        // Respect showHeroSection setting
+        if (settings.showHeroSection === false) return null;
+        if (heroLayout === 'none') return null;
+
+        if (heroLayout === 'carousel' && heroItems.length > 0) {
+          return (
+            <HeroCarousel
+              items={heroItems}
+              autoRotate={false}
+              onPlay={(id) => nav(`/player/${encodeURIComponent(id)}`)}
+              onMoreInfo={(id) => nav(`/details/${encodeURIComponent(id)}`)}
+              onActiveChange={(item) => setActiveBackdrop(item.backdropUrl)}
+            />
+          );
+        }
+
+        if (hero) {
+          return (
+            <HomeHero
+              title={hero.title}
+              overview={hero.overview}
+              posterUrl={hero.poster}
+              backdropUrl={hero.backdrop}
+              rating={hero.rating}
+              year={hero.year}
+              runtime={hero.runtime}
+              genres={hero.genres}
+              logoUrl={hero.logoUrl}
+              videoUrl={hero.videoUrl}
+              ytKey={hero.ytKey}
+              onPlay={() => { if (hero.id) nav(`/player/${encodeURIComponent(hero.id)}`); }}
+              onMoreInfo={() => { if (hero.id) nav(`/details/${encodeURIComponent(hero.id)}`); }}
+            />
+          );
+        }
+
+        return (
+          <div className="bleed" style={{ padding: '20px' }}>
+            {/* Taller aspect ratio skeleton to match billboard */}
+            <div className="rounded-2xl overflow-hidden ring-1 ring-white/10 bg-neutral-900/40 aspect-[2/1] skeleton" />
+          </div>
+        );
+      })()}
       <div className="mt-6" />
       {needsPlex && (
         <SectionBanner title="Continue Watching" message="Connect your Plex account to see your in‑progress shows and movies here." cta="Open Settings" to="/settings" />
       )}
-      {!loading && rows.map((r: any) => (
-        <Row key={r.title} title={r.title} items={r.items as any} variant={r.variant} browseKey={r.browseKey} onItemClick={(id) => nav(`/details/${encodeURIComponent(id)}`)} />
-      ))}
+      {!loading && rows.map((r: any) => {
+        const settings = loadSettings();
+        // Filter rows based on settings
+        if (r.title === 'Continue Watching' && settings.showContinueWatchingRow === false) return null;
+        if ((r.title === 'Trending Now' || r.title.includes('Trending')) && settings.showTrendingRows === false) return null;
+        if (r.title === 'Popular on Plex' && settings.showPlexPopularRow === false) return null;
 
-      {/* Trakt Sections */}
-      <div className="mt-8 space-y-8">
-        <TraktSection type="trending" mediaType="movies" />
-        <TraktSection type="trending" mediaType="shows" />
-        {isTraktAuthenticated() && (
-          <>
-            <TraktSection type="watchlist" mediaType="movies" />
-            <TraktSection type="history" mediaType="shows" />
-            <TraktSection type="recommendations" mediaType="movies" />
-          </>
-        )}
-        <TraktSection type="popular" mediaType="shows" />
-      </div>
+        return (
+          <Row key={r.title} title={r.title} items={r.items as any} variant={r.variant} browseKey={r.browseKey} onItemClick={(id) => nav(`/details/${encodeURIComponent(id)}`)} />
+        );
+      })}
+
+      {/* Trakt Sections - respect showTraktRows setting */}
+      {loadSettings().showTraktRows !== false && (
+        <>
+          <TraktSection type="trending" mediaType="movies" />
+          <TraktSection type="trending" mediaType="shows" />
+          {isTraktAuthenticated() && (
+            <>
+              <TraktSection type="watchlist" mediaType="movies" />
+              <TraktSection type="history" mediaType="shows" />
+              <TraktSection type="recommendations" mediaType="movies" />
+            </>
+          )}
+          <TraktSection type="popular" mediaType="shows" />
+        </>
+      )}
 
       <BrowseModal />
-    </div>
+    </UltraBlurBackground>
   );
 }
 

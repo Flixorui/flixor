@@ -9,6 +9,7 @@ import { cached } from '@/services/cache';
 import HomeHero from '@/components/HomeHero';
 import WatchlistButton from '@/components/WatchlistButton';
 import Row from '@/components/Row';
+import UltraBlurBackground from '@/components/UltraBlurBackground';
 
 type TabType = 'trending' | 'top10' | 'coming-soon' | 'worth-wait';
 
@@ -301,7 +302,7 @@ export default function NewPopular() {
   };
 
   return (
-    <div className="pb-12">
+    <UltraBlurBackground imageUrl={hero?.backdrop} className="min-h-screen pb-12">
       {/* Hero Section */}
       {hero && !loading && (
         <HomeHero
@@ -513,6 +514,6 @@ export default function NewPopular() {
           </div>
         )}
       </div>
-    </div>
+    </UltraBlurBackground>
   );
 }

@@ -1,6 +1,16 @@
 import { useState, useEffect, useRef } from 'react';
 import RatingsBar from '@/components/RatingsBar';
+import ContentRatingBadge from '@/components/ContentRatingBadge';
+import { TechBadgeCompact, AccessibilityBadges } from '@/components/TechBadge';
+import RequestButton from '@/components/RequestButton';
 import { useNavigate } from 'react-router-dom';
+
+interface Trailer {
+  key: string;
+  name: string;
+  type?: string;
+  site?: string;
+}
 
 interface DetailsHeroProps {
   title: string;
@@ -15,8 +25,10 @@ interface DetailsHeroProps {
   badges?: string[];
   ratings?: { imdb?: { rating?: number; votes?: number } | null; rt?: { critic?: number; audience?: number } | null } | null;
   cast?: Array<{ id?: string; name: string; img?: string }>;
+  director?: string;
   moodTags?: string[];
   kind?: 'movie' | 'tv';
+  techInfo?: { resolution?: string; hdr?: string; videoCodec?: string; audioCodec?: string };
 
   // Media info
   hasMediaInfo?: boolean;
@@ -41,15 +53,31 @@ interface DetailsHeroProps {
   // Actions
   onAddToList?: () => void;
   watchlistProps?: { itemId: string; itemType: 'movie'|'show'; tmdbId?: string|number; imdbId?: string };
+  requestProps?: { tmdbId: number; mediaType: 'movie' | 'tv' };
   onMarkWatched?: () => void;
   onPersonClick?: (person: { id?: string; name: string }) => void;
 
-  // Trailer
+  // Trailer background
   trailerUrl?: string;
   trailerKey?: string;
   trailerMuted?: boolean;
   showTrailer?: boolean;
   onToggleMute?: () => void;
+
+  // Trailers row
+  trailers?: Trailer[];
+  onTrailerClick?: (trailer: Trailer) => void;
+
+  // Accessibility badges
+  hasCC?: boolean;
+  hasSDH?: boolean;
+  hasAD?: boolean;
+
+  // Episode-specific
+  isEpisode?: boolean;
+  showTitle?: string;
+  episodeInfo?: string;
+  onViewShow?: () => void;
 }
 
 export default function DetailsHero({
@@ -65,8 +93,10 @@ export default function DetailsHero({
   badges = [],
   ratings,
   cast = [],
+  director,
   moodTags = [],
   kind,
+  techInfo,
   hasMediaInfo,
   onToggleMediaInfo,
   showMediaInfo,
@@ -78,6 +108,7 @@ export default function DetailsHero({
   onAddToList,
   onMarkWatched,
   watchlistProps,
+  requestProps,
   onPersonClick,
   trailerUrl,
   trailerKey,
@@ -86,6 +117,15 @@ export default function DetailsHero({
   onToggleMute,
   continueLabel,
   onContinue,
+  trailers = [],
+  onTrailerClick,
+  hasCC = false,
+  hasSDH = false,
+  hasAD = false,
+  isEpisode = false,
+  showTitle,
+  episodeInfo,
+  onViewShow,
 }: DetailsHeroProps) {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [localShowTrailer, setLocalShowTrailer] = useState(showTrailer);
@@ -93,6 +133,7 @@ export default function DetailsHero({
 
   // Reset trailer state when title changes (detected by backdrop/trailer change)
   useEffect(() => {
+    console.log('[DetailsHero] Trailer props changed:', { showTrailer, trailerKey, trailerUrl });
     setLocalShowTrailer(showTrailer);
   }, [showTrailer, trailerUrl, trailerKey, backdrop]);
 
@@ -131,12 +172,6 @@ export default function DetailsHero({
     return () => window.removeEventListener('message', handleMessage);
   }, [localShowTrailer, trailerKey]);
 
-  // Metadata badges
-  const metaBadges = [];
-  if (year) metaBadges.push(year);
-  if (runtime) metaBadges.push(`${runtime} min`);
-  if (rating) metaBadges.push(rating);
-
   return (
     <div className="relative w-full min-h-[85vh] md:min-h-[90vh] overflow-hidden">
       {/* Background Image/Video Layer */}
@@ -159,26 +194,10 @@ export default function DetailsHero({
           </div>
         )}
 
-        {/* Trailer overlay */}
+        {/* Trailer overlay - prefer YouTube over Plex for reliability */}
         {localShowTrailer && (trailerUrl || trailerKey) && (
           <div className="absolute inset-0">
-            {trailerUrl ? (
-              <video
-                ref={videoRef}
-                id="hero-trailer-video"
-                className="w-full h-full object-cover"
-                style={{
-                  maskImage: 'linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 60%, rgba(0,0,0,0.8) 80%, rgba(0,0,0,0) 100%)',
-                  WebkitMaskImage: 'linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 60%, rgba(0,0,0,0.8) 80%, rgba(0,0,0,0) 100%)'
-                }}
-                src={trailerUrl}
-                autoPlay
-                muted={trailerMuted}
-                loop={false}
-                playsInline
-                onEnded={handleVideoEnded}
-              />
-            ) : trailerKey ? (
+            {trailerKey ? (
               <div
                 className="absolute inset-0 w-full h-full"
                 style={{
@@ -208,6 +227,26 @@ export default function DetailsHero({
                 }}
                 />
               </div>
+            ) : trailerUrl ? (
+              <video
+                ref={videoRef}
+                id="hero-trailer-video"
+                className="w-full h-full object-cover"
+                style={{
+                  maskImage: 'linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 60%, rgba(0,0,0,0.8) 80%, rgba(0,0,0,0) 100%)',
+                  WebkitMaskImage: 'linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 60%, rgba(0,0,0,0.8) 80%, rgba(0,0,0,0) 100%)'
+                }}
+                src={trailerUrl}
+                autoPlay
+                muted={trailerMuted}
+                loop={false}
+                playsInline
+                onEnded={handleVideoEnded}
+                onError={() => {
+                  console.error('[DetailsHero] Plex trailer failed to load');
+                  setLocalShowTrailer(false);
+                }}
+              />
             ) : null}
           </div>
         )}
@@ -224,132 +263,295 @@ export default function DetailsHero({
         </div>
       </div>
 
-      {/* Content Layer */}
+      {/* Content Layer - Two Column Layout like MacOS */}
       <div className="relative z-10 flex flex-col justify-end min-h-[85vh] md:min-h-[90vh]">
         <div className="px-4 md:px-8 lg:px-12 xl:px-16 pb-12 md:pb-16">
-          {/* Type Badge */}
-          {kind && (
-            <div className="mb-4">
-              <span className="inline-flex items-center px-3 py-1 text-xs font-medium tracking-wider text-white/80 bg-white/10 backdrop-blur-sm rounded">
-                {kind === 'movie' ? 'MOVIE' : 'TV SERIES'}
-              </span>
-            </div>
-          )}
+          <div className="flex justify-between items-end gap-8">
+            {/* Left Column - Main Content */}
+            <div className="flex-1 max-w-3xl">
+              {/* Episode info header (for episodes) */}
+              {isEpisode && showTitle && (
+                <div className="mb-2">
+                  <button
+                    onClick={onViewShow}
+                    className="text-sm text-white/70 hover:text-white transition-colors flex items-center gap-1"
+                  >
+                    <span className="font-medium">{showTitle}</span>
+                    {episodeInfo && (
+                      <>
+                        <span className="text-white/40">•</span>
+                        <span>{episodeInfo}</span>
+                      </>
+                    )}
+                    <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                </div>
+              )}
 
-          {/* Title/Logo */}
-          <div className="mb-6">
-            {logo ? (
-              <img
-                src={logo}
-                alt={title}
-                className="h-24 md:h-32 lg:h-40 max-w-[90vw] md:max-w-[60vw] object-contain drop-shadow-2xl"
-                style={{ filter: 'drop-shadow(0 10px 40px rgba(0,0,0,0.8))' }}
-              />
-            ) : (
-              <h1 className="text-5xl md:text-7xl lg:text-8xl font-black tracking-tight text-white max-w-4xl"
-                  style={{ textShadow: '0 10px 40px rgba(0,0,0,0.8)' }}>
-                {title}
-              </h1>
-            )}
-          </div>
-
-          {/* Metadata Row (inline ratings) */}
-          <div className="flex flex-wrap items-center gap-3 mb-6 text-sm md:text-base">
-            {metaBadges.map((badge, i) => (
-              <span key={i} className="text-white/90 font-medium">
-                {badge}
-              </span>
-            ))}
-            {metaBadges.length > 0 && badges.length > 0 && (
-              <span className="text-white/40">•</span>
-            )}
-            {badges.map((badge, i) => (
-              <span
-                key={i}
-                className="inline-flex items-center px-2 py-0.5 text-xs font-medium text-white bg-white/20 backdrop-blur-sm rounded"
-              >
-                {badge}
-              </span>
-            ))}
-            {ratings && (ratings.imdb || ratings.rt) && (
-              <div className="inline-flex items-center gap-3">
-                <RatingsBar imdb={ratings.imdb || undefined} rt={ratings.rt || undefined} />
+              {/* Title/Logo */}
+              <div className="mb-4">
+                {logo && !isEpisode ? (
+                  <img
+                    src={logo}
+                    alt={title}
+                    className="h-20 md:h-28 lg:h-36 max-w-[90vw] md:max-w-[50vw] object-contain drop-shadow-2xl"
+                    style={{ filter: 'drop-shadow(0 10px 40px rgba(0,0,0,0.8))' }}
+                  />
+                ) : (
+                  <h1 className={`font-black tracking-tight text-white ${isEpisode ? 'text-3xl md:text-4xl lg:text-5xl' : 'text-4xl md:text-6xl lg:text-7xl'}`}
+                      style={{ textShadow: '0 10px 40px rgba(0,0,0,0.8)' }}>
+                    {title}
+                  </h1>
+                )}
               </div>
-            )}
-          </div>
 
-          {/* Overview */}
-          {overview && (
-            <p className="max-w-3xl mb-8 text-base md:text-lg text-white/80 leading-relaxed">
-              {overview.length > 300 ? overview.substring(0, 300) + '...' : overview}
-            </p>
-          )}
+              {/* Type + Genres + Content Rating Row (like MacOS) */}
+              <div className="flex flex-wrap items-center gap-2 mb-4 text-sm text-white/80">
+                {kind && (
+                  <>
+                    <svg className="w-4 h-4 text-white/70" fill="currentColor" viewBox="0 0 24 24">
+                      {kind === 'movie' ? (
+                        <path d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z"/>
+                      ) : (
+                        <path d="M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 1.99-.9 1.99-2L23 5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z"/>
+                      )}
+                    </svg>
+                    <span>{kind === 'movie' ? 'Movie' : (isEpisode ? 'Episode' : 'TV Series')}</span>
+                  </>
+                )}
+                {genres.length > 0 && (
+                  <>
+                    {kind && <span className="text-white/40">•</span>}
+                    {genres.slice(0, 3).map((genre, i) => (
+                      <span key={i}>
+                        {genre}{i < Math.min(2, genres.length - 1) && <span className="text-white/40 mx-1">•</span>}
+                      </span>
+                    ))}
+                  </>
+                )}
+                {rating && (
+                  <>
+                    <span className="text-white/40">•</span>
+                    <ContentRatingBadge rating={rating} size="sm" />
+                  </>
+                )}
+              </div>
 
-          {/* Action Buttons */}
-          <div className="flex flex-wrap items-center gap-3 mb-8">
-            {onContinue ? (
-              <button
-                onClick={onContinue}
-                className="inline-flex items-center px-6 py-3 text-base font-medium rounded-lg transition-all bg-white/10 text-white hover:bg-white/20"
-              >
-                <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                  <path d="M5 2.69127C5 1.93067 5.81547 1.44851 6.48192 1.81506L23.4069 11.1238C24.0977 11.5037 24.0977 12.4963 23.4069 12.8762L6.48192 22.1849C5.81546 22.5515 5 22.0693 5 21.3087V2.69127Z" />
-                </svg>
-                {continueLabel || 'Continue Watching'}
-              </button>
-            ) : (
-              <button
-                onClick={onPlay}
-                disabled={!playable}
-                className={`inline-flex items-center px-6 py-3 text-base font-medium rounded-lg transition-all ${
-                  playable
-                    ? 'bg-white text-black hover:bg-white/90'
-                    : 'bg-white/20 text-white/60 cursor-not-allowed'
-                }`}
-              >
-                <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M8 5v14l11-7z" />
-                </svg>
-                Play
-              </button>
-            )}
+              {/* Overview with MORE button */}
+              {overview && (
+                <div className="mb-4">
+                  <p className="text-sm md:text-base text-white/80 leading-relaxed line-clamp-2">
+                    {overview}
+                  </p>
+                </div>
+              )}
 
-            {watchlistProps ? (
-              <WatchlistButton
-                itemId={watchlistProps.itemId}
-                itemType={watchlistProps.itemType}
-                tmdbId={watchlistProps.tmdbId}
-                imdbId={watchlistProps.imdbId}
-                variant="button"
-              />
-            ) : (
-              <button
-                onClick={onAddToList}
-                className="inline-flex items-center px-5 py-3 text-base font-medium text-white bg-white/20 backdrop-blur-sm rounded-lg hover:bg-white/30 transition-all"
-              >
-                <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
-                </svg>
-                My List
-              </button>
-            )}
+              {/* Year + Runtime + Tech Badges + Ratings Row */}
+              <div className="flex flex-wrap items-center gap-1.5 mb-5 text-xs">
+                {year && <span className="text-white/90 font-medium">{year}</span>}
+                {runtime && (
+                  <>
+                    <span className="text-white/40">•</span>
+                    <span className="text-white/90 font-medium">{Math.floor(runtime / 60)}h {runtime % 60}m</span>
+                  </>
+                )}
+                {techInfo && (techInfo.resolution || techInfo.hdr || techInfo.audioCodec) && (
+                  <TechBadgeCompact
+                    resolution={techInfo.resolution}
+                    hdr={techInfo.hdr}
+                    audioCodec={techInfo.audioCodec}
+                    size="sm"
+                    className="ml-0.5"
+                  />
+                )}
+                {/* CC/SDH/AD badges */}
+                {(hasCC || hasSDH || hasAD) && (
+                  <AccessibilityBadges hasCC={hasCC} hasSDH={hasSDH} hasAD={hasAD} size="sm" />
+                )}
+                {/* Availability badge */}
+                {(playable || !!onContinue) ? (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[11px] font-medium text-green-400/90 rounded">
+                    <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                    </svg>
+                    Available
+                  </span>
+                ) : requestProps && (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[11px] font-medium text-orange-400/90 rounded">
+                    <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+                    </svg>
+                    Not Available
+                  </span>
+                )}
+                {ratings && (ratings.imdb || ratings.rt) && (
+                  <RatingsBar imdb={ratings.imdb || undefined} rt={ratings.rt || undefined} size="sm" />
+                )}
+              </div>
 
-            {hasMediaInfo && (
-              <button
-                onClick={onToggleMediaInfo}
-                className="inline-flex items-center px-5 py-3 text-base font-medium text-white bg-white/20 backdrop-blur-sm rounded-lg hover:bg-white/30 transition-all"
-              >
-                <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" />
-                </svg>
-                Info
-              </button>
-            )}
+              {/* Action Buttons - Clean MacOS Style */}
+              <div className="flex items-center gap-3 mb-6">
+                {onContinue ? (
+                  <button
+                    onClick={onContinue}
+                    className="inline-flex items-center px-6 py-2.5 text-sm font-semibold rounded-md transition-all bg-white text-black hover:bg-white/90"
+                  >
+                    <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M8 5v14l11-7z" />
+                    </svg>
+                    {continueLabel || 'Continue'}
+                  </button>
+                ) : (
+                  <button
+                    onClick={onPlay}
+                    disabled={!playable}
+                    className={`inline-flex items-center px-6 py-2.5 text-sm font-semibold rounded-md transition-all ${
+                      playable
+                        ? 'bg-white text-black hover:bg-white/90'
+                        : 'bg-white/50 text-neutral-500 cursor-not-allowed'
+                    }`}
+                  >
+                    <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M8 5v14l11-7z" />
+                    </svg>
+                    Play
+                  </button>
+                )}
+
+                {/* Add to List - Circle Icon Button */}
+                {watchlistProps ? (
+                  <WatchlistButton
+                    itemId={watchlistProps.itemId}
+                    itemType={watchlistProps.itemType}
+                    tmdbId={watchlistProps.tmdbId}
+                    imdbId={watchlistProps.imdbId}
+                    variant="icon"
+                  />
+                ) : (
+                  <button
+                    onClick={onAddToList}
+                    className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 border border-white/30 text-white hover:bg-white/20 transition-all"
+                    title="Add to My List"
+                  >
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                    </svg>
+                  </button>
+                )}
+
+                {/* Mark Watched - Circle Icon Button */}
+                {onMarkWatched && (
+                  <button
+                    onClick={onMarkWatched}
+                    className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 border border-white/30 text-white hover:bg-white/20 transition-all"
+                    title="Mark as Watched"
+                  >
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                    </svg>
+                  </button>
+                )}
+
+                {requestProps && (
+                  <RequestButton
+                    tmdbId={requestProps.tmdbId}
+                    mediaType={requestProps.mediaType}
+                    title={title}
+                    variant="circle"
+                  />
+                )}
+
+                {/* View Show button for episodes */}
+                {isEpisode && onViewShow && (
+                  <button
+                    onClick={onViewShow}
+                    className="inline-flex items-center px-4 py-2.5 text-sm font-medium rounded-md transition-all bg-white/10 border border-white/30 text-white hover:bg-white/20"
+                  >
+                    <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 1.99-.9 1.99-2L23 5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z"/>
+                    </svg>
+                    View Show
+                  </button>
+                )}
+              </div>
+
+              {/* Trailers & Videos Row */}
+              {trailers.length > 0 && (
+                <div className="mb-6">
+                  <h3 className="text-xs font-medium text-white/50 mb-2 uppercase tracking-wider">Trailers & Videos</h3>
+                  <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2 -mx-1 px-1">
+                    {trailers.slice(0, 8).map((trailer) => (
+                      <button
+                        key={trailer.key}
+                        onClick={() => onTrailerClick?.(trailer)}
+                        className="flex-shrink-0 group relative rounded-lg overflow-hidden focus:outline-none focus:ring-2 focus:ring-white/50"
+                      >
+                        {/* Thumbnail */}
+                        <div className="relative w-[140px] md:w-[160px] aspect-video bg-black/40">
+                          <img
+                            src={`https://img.youtube.com/vi/${trailer.key}/mqdefault.jpg`}
+                            alt={trailer.name}
+                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                            loading="lazy"
+                          />
+                          {/* Type Badge */}
+                          {trailer.type && (
+                            <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 text-[10px] font-semibold bg-red-600 text-white rounded">
+                              {trailer.type === 'Trailer' ? 'TRAILER' : trailer.type.toUpperCase()}
+                            </span>
+                          )}
+                          {/* Play overlay */}
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/40 transition-colors">
+                            <div className="w-10 h-10 rounded-full bg-white/90 flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
+                              <svg className="w-4 h-4 text-black ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M8 5v14l11-7z" />
+                              </svg>
+                            </div>
+                          </div>
+                        </div>
+                        {/* Title */}
+                        <div className="absolute bottom-0 left-0 right-0 p-1.5 bg-gradient-to-t from-black/90 to-transparent">
+                          <p className="text-[11px] text-white font-medium truncate">{trailer.name}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Right Column - Starring & Director (Desktop only) */}
+            <div className="hidden lg:block w-64 text-right flex-shrink-0">
+              {cast.length > 0 && (
+                <div className="mb-4">
+                  <h3 className="text-xs font-medium text-white/50 mb-1">Starring</h3>
+                  <div className="text-sm text-white/90">
+                    {cast.slice(0, 4).map((person, i) => (
+                      <button
+                        key={i}
+                        onClick={() => onPersonClick?.(person)}
+                        className="hover:text-white transition-colors"
+                      >
+                        {person.name}{i < Math.min(3, cast.length - 1) && ', '}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {director && (
+                <div>
+                  <h3 className="text-xs font-medium text-white/50 mb-1">Director</h3>
+                  <p className="text-sm text-white/90">{director}</p>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Media Info Panel */}
           {showMediaInfo && versionDetails.length > 0 && (
-            <div className="max-w-4xl p-4 mb-8 bg-black/60 backdrop-blur-md rounded-lg border border-white/10">
+            <div className="max-w-4xl p-4 mt-6 bg-black/60 backdrop-blur-md rounded-lg border border-white/10">
               {/* Version Selector */}
               {versionDetails.length > 1 && (
                 <div className="flex flex-wrap gap-2 mb-4">
@@ -396,60 +598,6 @@ export default function DetailsHero({
               )}
             </div>
           )}
-
-          {/* Bottom Metadata Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl">
-            {/* Cast */}
-            {cast.length > 0 && (
-              <div>
-                <h3 className="text-sm font-medium text-white/50 mb-2">Cast</h3>
-                <div className="flex flex-wrap gap-2">
-                  {cast.slice(0, 4).map((person, i) => (
-                    <button
-                      key={i}
-                      onClick={() => onPersonClick?.(person)}
-                      className="text-white/80 hover:text-white transition-colors"
-                    >
-                      {person.name}{i < Math.min(3, cast.length - 1) && ','}
-                    </button>
-                  ))}
-                  {cast.length > 4 && (
-                    <span className="text-white/50">+{cast.length - 4} more</span>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Genres */}
-            {genres.length > 0 && (
-              <div>
-                <h3 className="text-sm font-medium text-white/50 mb-2">Genres</h3>
-                <div className="flex flex-wrap gap-2">
-                  {genres.map((genre, i) => (
-                    <span key={i} className="text-white/80">
-                      {genre}{i < genres.length - 1 && ','}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Mood Tags */}
-            {moodTags.length > 0 && (
-              <div>
-                <h3 className="text-sm font-medium text-white/50 mb-2">
-                  This {kind === 'tv' ? 'Series' : 'Movie'} Is
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  {moodTags.map((tag, i) => (
-                    <span key={i} className="text-white/80">
-                      {tag}{i < moodTags.length - 1 && ','}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
         </div>
       </div>
 

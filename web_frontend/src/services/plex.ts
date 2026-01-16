@@ -196,6 +196,15 @@ function getSessionId(): string {
   }
 }
 
+// Reset session ID to force a new transcode session (used when changing audio/subtitles)
+export function resetPlexSessionId(): string {
+  const newSessionId = Math.random().toString(36).substring(2, 15);
+  try {
+    sessionStorage.setItem('plex_session_id', newSessionId);
+  } catch {}
+  return newSessionId;
+}
+
 function getBrowserName(): string {
   const userAgent = navigator.userAgent;
   if (userAgent.includes('Chrome')) return 'Chrome';
@@ -336,7 +345,7 @@ export function plexStreamUrl(cfg: PlexConfig, itemId: string, options?: { maxVi
   return `${cfg.baseUrl}/video/:/transcode/universal/start.${ext}?${params}`;
 }
 
-export async function plexTimelineUpdate(cfg: PlexConfig, itemId: string, time: number, duration: number, state: 'playing'|'paused'|'stopped'|'buffering') {
+export async function plexTimelineUpdate(cfg: PlexConfig, itemId: string, time: number, duration: number, state: 'playing'|'paused'|'stopped'|'buffering', sessionId?: string) {
   const headers = getXPlexHeaders(cfg.token);
   const params = new URLSearchParams({
     ratingKey: itemId,
@@ -348,6 +357,11 @@ export async function plexTimelineUpdate(cfg: PlexConfig, itemId: string, time: 
     context: 'library',
     ...headers,
   });
+  // Override session ID if explicitly provided (important for cleanup after quality changes)
+  if (sessionId) {
+    params.set('X-Plex-Session-Identifier', sessionId);
+    params.set('X-Plex-Session-Id', sessionId);
+  }
   const url = `${cfg.baseUrl}/:/timeline?${params}`;
   const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
   if (!res.ok) console.warn('Timeline update failed:', res.status);

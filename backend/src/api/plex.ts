@@ -671,14 +671,14 @@ router.get('/recent',
 router.post('/progress',
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     try {
-      const { ratingKey, time, duration, state } = req.body as any;
+      const { ratingKey, time, duration, state, sessionId, isTranscoding } = req.body as any;
 
       if (!ratingKey || time === undefined || duration === undefined) {
         throw new AppError('Missing required parameters', 400);
       }
 
       const client = await getPlexClient(req.user!.id);
-      await client.updateProgress(String(ratingKey), Number(time), Number(duration), state);
+      await client.updateProgress(String(ratingKey), Number(time), Number(duration), state, sessionId, isTranscoding);
 
       res.json({
         message: 'Progress updated',
@@ -804,10 +804,11 @@ router.get('/stream/:ratingKey',
       };
 
       const client = await getPlexClient(req.user!.id);
-      const streamUrl = await client.getStreamingUrl(ratingKey, options);
+      const { url: streamUrl, sessionId } = await client.getStreamingUrl(ratingKey, options);
 
       res.json({
         url: streamUrl,
+        sessionId,
         ratingKey,
         options
       });

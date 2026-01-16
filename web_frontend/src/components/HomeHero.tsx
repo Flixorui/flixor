@@ -41,7 +41,7 @@ export default function HomeHero({
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
-    const t = setTimeout(() => setPlaying(true), 3000);
+    const t = setTimeout(() => setPlaying(true), 5000);
     scrollHandler.current = () => {
       const y = window.scrollY || document.documentElement.scrollTop;
       setPlaying(y < 120);
@@ -75,13 +75,14 @@ export default function HomeHero({
         paddingRight: 'var(--page-gutter)'
       }}
     >
-      <div className="rounded-2xl overflow-hidden shadow-billboard ring-1 ring-white/10 bg-neutral-900/40 relative h-[42vh] md:h-[50vh] xl:h-[54vh]">
+      {/* Taller aspect ratio to match macOS billboard */}
+      <div className="rounded-2xl overflow-hidden shadow-billboard ring-1 ring-white/10 bg-neutral-900/40 relative aspect-[2/1]">
         {/* Background Image/Video Layer */}
         <div className="absolute inset-0">
           {/* Backdrop image */}
           {backdropUrl && (
-            <div className={`absolute inset-0 transition-opacity duration-1000 ${imageLoaded && !playing ? 'opacity-100' : 'opacity-0'}`}>
-              <SmartImage url={backdropUrl} alt="" width={1280} className="w-full h-full" imgClassName="object-cover" priority />
+            <div className={`absolute inset-0 transition-opacity duration-1000 ${!playing ? 'opacity-100' : 'opacity-0'}`}>
+              <SmartImage url={backdropUrl} alt="" width={1280} className="w-full h-full" imgClassName="object-cover" priority onLoad={() => setImageLoaded(true)} />
             </div>
           )}
 
