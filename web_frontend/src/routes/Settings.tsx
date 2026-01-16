@@ -35,7 +35,7 @@ import {
   ChevronForwardIcon,
 } from '@/components/ServiceIcons';
 
-const APP_VERSION = '1.0.0';
+const APP_VERSION = 'Beta1.9.5';
 
 const ABOUT_LINKS = {
   privacy: 'https://flixor.xyz/privacy',

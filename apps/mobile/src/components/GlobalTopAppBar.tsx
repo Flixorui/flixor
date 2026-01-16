@@ -13,7 +13,6 @@ export default function GlobalTopAppBar({ screenContext }: Props) {
   const selected = useTopBarStore((st) => st.selected);
   const onClose = useTopBarStore((st) => st.onClose);
   const onNavigateLibrary = useTopBarStore((st) => st.onNavigateLibrary);
-  const onSearch = useTopBarStore((st) => st.onSearch);
   const onBrowse = useTopBarStore((st) => st.onBrowse);
   const onClearGenre = useTopBarStore((st) => st.onClearGenre);
   const compact = useTopBarStore((st) => st.compact === true);
@@ -50,7 +49,6 @@ export default function GlobalTopAppBar({ screenContext }: Props) {
       onOpenCategories={onBrowse || (()=>{})}
       onNavigateLibrary={onNavigateLibrary}
       onClose={onClose}
-      onSearch={onSearch}
       scrollY={scrollY}
       compact={isCompact}
       customFilters={customFilters}

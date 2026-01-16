@@ -13,7 +13,6 @@ type State = {
   scrollY?: Animated.Value;
   onNavigateLibrary?: (tab: 'movies'|'shows')=>void;
   onClose?: ()=>void;
-  onSearch?: ()=>void;
   onBrowse?: ()=>void;
   onClearGenre?: ()=>void;
   compact?: boolean;
@@ -34,7 +33,6 @@ const state: State = {
   scrollY: undefined,
   onNavigateLibrary: undefined,
   onClose: undefined,
-  onSearch: undefined,
   onBrowse: undefined,
   onClearGenre: undefined,
   compact: false,
@@ -76,11 +74,10 @@ export const TopBarStore = {
       emit();
     }
   },
-  setHandlers(h: { onNavigateLibrary?: (tab:'movies'|'shows')=>void; onClose?: ()=>void; onSearch?: ()=>void; onBrowse?: ()=>void; onClearGenre?: ()=>void }) {
+  setHandlers(h: { onNavigateLibrary?: (tab:'movies'|'shows')=>void; onClose?: ()=>void; onBrowse?: ()=>void; onClearGenre?: ()=>void }) {
     let changed = false;
     if (state.onNavigateLibrary !== h.onNavigateLibrary) { state.onNavigateLibrary = h.onNavigateLibrary; changed = true; }
     if (state.onClose !== h.onClose) { state.onClose = h.onClose; changed = true; }
-    if (state.onSearch !== h.onSearch) { state.onSearch = h.onSearch; changed = true; }
     if (state.onBrowse !== h.onBrowse) { state.onBrowse = h.onBrowse; changed = true; }
     if (state.onClearGenre !== h.onClearGenre) { state.onClearGenre = h.onClearGenre; changed = true; }
     if (changed) emit();

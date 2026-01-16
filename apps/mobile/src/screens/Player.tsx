@@ -1623,12 +1623,12 @@ export default function Player({ route }: RouteParams) {
                   thumbTintColor="#fff"
                   onSlidingStart={() => setIsScrubbing(true)}
                   onValueChange={(val: number) => setPosition(val)}
-                  onSlidingComplete={async (val: number) => {
+                  onSlidingComplete={(val: number) => {
                     const targetMs = Math.max(0, Math.min(duration, val));
                     if (Platform.OS === 'ios') {
                       playerRef.current?.seek(targetMs / 1000); // KSPlayer uses seconds
                     } else {
-                      await videoRef.current?.setPositionAsync(targetMs);
+                      mpvPlayerRef.current?.seek(targetMs / 1000); // MPV uses seconds
                     }
                     setIsScrubbing(false);
                   }}

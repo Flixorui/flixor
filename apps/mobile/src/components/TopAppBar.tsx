@@ -1,5 +1,5 @@
 import React from 'react';
-import { Animated, View, Text, StyleSheet, LayoutAnimation, UIManager, Platform, Pressable } from 'react-native';
+import { Animated, View, Text, StyleSheet, LayoutAnimation, UIManager, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import ConditionalBlurView from './ConditionalBlurView';
@@ -16,7 +16,7 @@ if (Platform.OS === 'android') {
   UIManager.setLayoutAnimationEnabledExperimental?.(true);
 }
 
-function TopAppBar({ visible, username, showFilters, selected, onChange, onOpenCategories, onNavigateLibrary, onClose, onSearch, scrollY, onHeightChange, compact, customFilters, activeGenre, onClearGenre }: {
+function TopAppBar({ visible, username, showFilters, selected, onChange, onOpenCategories, onNavigateLibrary, onClose, scrollY, onHeightChange, compact, customFilters, activeGenre, onClearGenre }: {
   visible: boolean;
   username?: string;
   showFilters?: boolean;
@@ -25,11 +25,9 @@ function TopAppBar({ visible, username, showFilters, selected, onChange, onOpenC
   onOpenCategories?: ()=>void;
   onNavigateLibrary?: (tab: 'movies'|'shows')=>void;
   onClose?: ()=>void;
-  onSearch?: ()=>void;
   scrollY?: Animated.Value;
   onHeightChange?: (h:number)=>void;
   compact?: boolean; // Smaller header for screens like NewHot
-  customTitle?: string;
   customFilters?: React.ReactNode; // Custom filter content (e.g., tab pills for NewHot)
   activeGenre?: string;
   onClearGenre?: ()=>void;
@@ -126,13 +124,7 @@ function TopAppBar({ visible, username, showFilters, selected, onChange, onOpenC
             <Text style={{ color: '#fff', fontSize: compact ? 20 : 25, fontWeight: compact ? '700' : '600'}}>
               {compact ? username : `For ${username || 'You'}`}
             </Text>
-            <View style={{ flexDirection: 'row' }}>
-              {/* {!compact && <Feather name="cast" size={20} color="#fff" style={{ marginHorizontal: 8 }} />}
-              {!compact && <Ionicons name="download-outline" size={20} color="#fff" style={{ marginHorizontal: 8 }} />} */}
-              <Pressable onPress={onSearch}>
-                <Ionicons name="search-outline" size={compact ? 22 : 20} color="#fff" style={{ marginHorizontal: compact ? 0 : 8 }} />
-              </Pressable>
-            </View>
+            {/* Search button removed - using bottom tab bar search instead */}
           </View>
           {/* Pills row – animated visibility with slide up/down OR custom filters */}
           {customFilters ? (

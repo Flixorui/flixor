@@ -7,6 +7,7 @@ import { View, ActivityIndicator, Text, Pressable, Platform } from 'react-native
 import { Ionicons } from '@expo/vector-icons';
 import ConditionalBlurView from './src/components/ConditionalBlurView';
 import { useTopBarStore } from './src/components/TopBarStore';
+import { useAppSettings } from './src/hooks/useAppSettings';
 import GlobalTopAppBar from './src/components/GlobalTopAppBar';
 import { useSafeAreaInsets, SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import { memoryManager } from './src/core/MemoryManager';
@@ -44,6 +45,8 @@ import CatalogSettings from './src/screens/settings/CatalogSettings';
 import HomeScreenSettings from './src/screens/settings/HomeScreenSettings';
 import DetailsScreenSettings from './src/screens/settings/DetailsScreenSettings';
 import ContinueWatchingSettings from './src/screens/settings/ContinueWatchingSettings';
+import BottomAppBarSettings from './src/screens/settings/BottomAppBarSettings';
+import SearchSettings from './src/screens/settings/SearchSettings';
 import TMDBSettings from './src/screens/settings/TMDBSettings';
 import TraktSettings from './src/screens/settings/TraktSettings';
 import MDBListSettings from './src/screens/settings/MDBListSettings';
@@ -85,6 +88,9 @@ type RootStackParamList = {
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator();
 const HomeStack = createNativeStackNavigator();
+const SearchStack = createNativeStackNavigator();
+const NewHotStack = createNativeStackNavigator();
+const MyListStack = createNativeStackNavigator();
 const SettingsStack = createNativeStackNavigator();
 
 // Store logout handler in a ref accessible to child components
@@ -138,23 +144,69 @@ const HomeStackNavigator = React.memo(() => {
   );
 });
 
-const NewHotScreen = React.memo(() => (
-  <View style={{ flex: 1 }}>
-    <NewHot />
-    <GlobalTopAppBar screenContext="NewHot" />
-  </View>
-));
+const NewHotStackNavigator = React.memo(() => {
+  const topBarVisible = useTopBarStore((s) => s.visible === true);
 
-const MyListScreen = React.memo(() => (
-  <View style={{ flex: 1 }}>
-    <MyList />
-    <GlobalTopAppBar screenContext="MyList" />
-  </View>
-));
+  return (
+    <View style={{ flex: 1 }}>
+      <NewHotStack.Navigator screenOptions={{ headerShown: false }}>
+        <NewHotStack.Screen name="NewHotScreen" component={NewHot} />
+        <NewHotStack.Screen
+          name="Details"
+          component={Details}
+          options={{ presentation: 'transparentModal', animation: 'fade', gestureEnabled: false }}
+        />
+        <NewHotStack.Screen
+          name="Player"
+          component={Player}
+          options={{ presentation: 'fullScreenModal', animation: 'fade' }}
+        />
+      </NewHotStack.Navigator>
+      {topBarVisible && <GlobalTopAppBar screenContext="NewHot" />}
+    </View>
+  );
+});
 
-const SearchTabScreen = React.memo(() => (
+const MyListStackNavigator = React.memo(() => {
+  const topBarVisible = useTopBarStore((s) => s.visible === true);
+
+  return (
+    <View style={{ flex: 1 }}>
+      <MyListStack.Navigator screenOptions={{ headerShown: false }}>
+        <MyListStack.Screen name="MyListScreen" component={MyList} />
+        <MyListStack.Screen
+          name="Details"
+          component={Details}
+          options={{ presentation: 'transparentModal', animation: 'fade', gestureEnabled: false }}
+        />
+        <MyListStack.Screen
+          name="Player"
+          component={Player}
+          options={{ presentation: 'fullScreenModal', animation: 'fade' }}
+        />
+      </MyListStack.Navigator>
+      {topBarVisible && <GlobalTopAppBar screenContext="MyList" />}
+    </View>
+  );
+});
+
+const SearchStackNavigator = React.memo(() => (
   <View style={{ flex: 1 }}>
-    <Search isTab />
+    <SearchStack.Navigator screenOptions={{ headerShown: false }}>
+      <SearchStack.Screen name="SearchScreen">
+        {() => <Search isTab />}
+      </SearchStack.Screen>
+      <SearchStack.Screen
+        name="Details"
+        component={Details}
+        options={{ presentation: 'transparentModal', animation: 'fade', gestureEnabled: false }}
+      />
+      <SearchStack.Screen
+        name="Player"
+        component={Player}
+        options={{ presentation: 'fullScreenModal', animation: 'fade' }}
+      />
+    </SearchStack.Navigator>
   </View>
 ));
 
@@ -167,6 +219,8 @@ const SettingsTabScreen = React.memo(() => (
     <SettingsStack.Screen name="HomeScreenSettings" component={HomeScreenSettings} />
     <SettingsStack.Screen name="DetailsScreenSettings" component={DetailsScreenSettings} />
     <SettingsStack.Screen name="ContinueWatchingSettings" component={ContinueWatchingSettings} />
+    <SettingsStack.Screen name="BottomAppBarSettings" component={BottomAppBarSettings} />
+    <SettingsStack.Screen name="SearchSettings" component={SearchSettings} />
     <SettingsStack.Screen name="TMDBSettings" component={TMDBSettings} />
     <SettingsStack.Screen name="TraktSettings" component={TraktSettings} />
     <SettingsStack.Screen name="MDBListSettings" component={MDBListSettings} />
@@ -182,6 +236,7 @@ const SettingsTabScreen = React.memo(() => (
 const Tabs = React.memo(() => {
   const tabBarVisible = useTopBarStore(s => s.tabBarVisible === true);
   const insets = useSafeAreaInsets();
+  const { settings } = useAppSettings();
 
   // Use native iOS tabs when available (iOS 18+ with @bottom-tabs)
   if (Platform.OS === 'ios' && createNativeBottomTabNavigator) {
@@ -210,23 +265,25 @@ const Tabs = React.memo(() => {
           />
           <IOSTab.Screen
             name="SearchTab"
-            component={SearchTabScreen}
+            component={SearchStackNavigator}
             options={{
               title: 'Search',
               tabBarIcon: () => ({ sfSymbol: 'magnifyingglass' }),
             }}
           />
-          <IOSTab.Screen
-            name="NewHotTab"
-            component={NewHotScreen}
-            options={{
-              title: 'New & Hot',
-              tabBarIcon: () => ({ sfSymbol: 'play.circle' }),
-            }}
-          />
+          {settings.showNewHotTab && (
+            <IOSTab.Screen
+              name="NewHotTab"
+              component={NewHotStackNavigator}
+              options={{
+                title: 'New & Hot',
+                tabBarIcon: () => ({ sfSymbol: 'play.circle' }),
+              }}
+            />
+          )}
           <IOSTab.Screen
             name="MyTab"
-            component={MyListScreen}
+            component={MyListStackNavigator}
             options={{
               title: 'My List',
               tabBarIcon: () => ({ sfSymbol: 'bookmark' }),
@@ -288,9 +345,11 @@ const Tabs = React.memo(() => {
       }}
     >
       <Tab.Screen name="HomeTab" options={{ title: 'Home' }} component={HomeStackNavigator} />
-      <Tab.Screen name="SearchTab" options={{ title: 'Search' }} component={SearchTabScreen} />
-      <Tab.Screen name="NewHotTab" options={{ title: 'New & Hot' }} component={NewHotScreen} />
-      <Tab.Screen name="MyTab" options={{ title: 'My List' }} component={MyListScreen} />
+      <Tab.Screen name="SearchTab" options={{ title: 'Search' }} component={SearchStackNavigator} />
+      {settings.showNewHotTab && (
+        <Tab.Screen name="NewHotTab" options={{ title: 'New & Hot' }} component={NewHotStackNavigator} />
+      )}
+      <Tab.Screen name="MyTab" options={{ title: 'My List' }} component={MyListStackNavigator} />
       <Tab.Screen name="SettingsTab" options={{ title: 'Settings' }} component={SettingsTabScreen} />
     </Tab.Navigator>
   );

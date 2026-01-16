@@ -165,9 +165,6 @@ export default function Library() {
           nav.goBack();
         }
       },
-      onSearch: () => {
-        nav.navigate('Search');
-      },
       onBrowse: () => {
         nav.navigate('Collections');
       },

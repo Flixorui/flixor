@@ -294,8 +294,10 @@ const styles = StyleSheet.create({
   headerTitle: {
     color: '#fff',
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: 'bold',
     letterSpacing: 0.3,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   categorySelector: {
     flexDirection: 'row',

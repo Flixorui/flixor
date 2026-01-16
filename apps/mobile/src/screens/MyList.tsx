@@ -197,17 +197,19 @@ export default function MyList() {
   }, []);
 
   const handleItemPress = useCallback((item: MyListItem) => {
-    // Navigate to details - prefer Plex if available
-    if (item.plexRatingKey) {
-      nav.navigate('HomeTab', {
-        screen: 'Details',
-        params: { type: 'plex', ratingKey: item.plexRatingKey },
-      });
+    // Check if plexRatingKey is a numeric library key (not a GUID)
+    // Plex watchlist items that aren't in library have GUID-style keys (e.g., "5d77682e6f4521001ea9ac27")
+    const isNumericRatingKey = item.plexRatingKey && /^\d+$/.test(item.plexRatingKey);
+
+    // Prefer Plex library navigation only if we have a numeric ratingKey
+    if (isNumericRatingKey) {
+      nav.navigate('Details', { type: 'plex', ratingKey: item.plexRatingKey });
     } else if (item.tmdbId) {
-      nav.navigate('HomeTab', {
-        screen: 'Details',
-        params: { type: 'tmdb', id: String(item.tmdbId), mediaType: item.type === 'movie' ? 'movie' : 'tv' },
-      });
+      // Use TMDB for watchlist items without library presence
+      nav.navigate('Details', { type: 'tmdb', id: String(item.tmdbId), mediaType: item.type === 'movie' ? 'movie' : 'tv' });
+    } else if (item.plexRatingKey) {
+      // Fallback to Plex if no TMDB ID (may fail for non-library items)
+      nav.navigate('Details', { type: 'plex', ratingKey: item.plexRatingKey });
     }
   }, [nav]);
 
@@ -235,7 +237,6 @@ export default function MyList() {
         compact: false,
         customFilters: filterPills,
         activeGenre: undefined,
-        onSearch: () => nav.navigate('HomeTab', { screen: 'Search' }),
         onClearGenre: undefined,
       });
       TopBarStore.setScrollY(y);

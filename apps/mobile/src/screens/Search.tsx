@@ -18,6 +18,7 @@ import {
   RowItem,
   GENRE_MAP,
 } from '../core/SearchData';
+import { useAppSettings } from '../hooks/useAppSettings';
 
 type GenreRow = {
   title: string;
@@ -41,6 +42,7 @@ interface SearchProps {
 export default function Search({ isTab = false }: SearchProps) {
   const nav: any = useNavigation();
   const { isConnected } = useFlixor();
+  const { settings } = useAppSettings();
   const [query, setQuery] = useState('');
   const [plexResults, setPlexResults] = useState<SearchResult[]>([]);
   const [tmdbMovies, setTmdbMovies] = useState<SearchResult[]>([]);
@@ -67,8 +69,8 @@ export default function Search({ isTab = false }: SearchProps) {
     const now = Date.now();
     const cacheValid = persistentStore.trending && (now - persistentStore.lastFetchTime < persistentStore.CACHE_TTL);
 
-    // Load recommended/trending for empty state
-    if (isConnected && !cacheValid) {
+    // Load recommended/trending for empty state (only if TMDB is enabled)
+    if (isConnected && !cacheValid && settings.includeTmdbInSearch) {
       // Defer data fetch to avoid blocking UI
       InteractionManager.runAfterInteractions(() => {
         if (!isMounted.current) return;
@@ -148,7 +150,7 @@ export default function Search({ isTab = false }: SearchProps) {
         clearTimeout(searchTimeout.current);
       }
     };
-  }, [isConnected, isTab]);
+  }, [isConnected, isTab, settings.includeTmdbInSearch]);
 
   const performSearch = useCallback(async (q: string) => {
     if (!isConnected || !q.trim()) return;
@@ -157,48 +159,53 @@ export default function Search({ isTab = false }: SearchProps) {
     setSearchMode('results');
 
     try {
-      // Search Plex and TMDB in parallel
-      const [plexRes, tmdbRes] = await Promise.all([
-        searchPlex(q),
-        searchTmdb(q),
-      ]);
-
+      // Search Plex always, TMDB only if enabled
+      const plexRes = await searchPlex(q);
       setPlexResults(plexRes);
-      setTmdbMovies(tmdbRes.movies);
-      setTmdbShows(tmdbRes.shows);
 
-      // Collect genre IDs from TMDB results
-      const allGenreIds = new Set<number>();
-      [...tmdbRes.movies, ...tmdbRes.shows].forEach((item) => {
-        (item.genreIds || []).forEach((gid: number) => allGenreIds.add(gid));
-      });
+      if (settings.includeTmdbInSearch) {
+        const tmdbRes = await searchTmdb(q);
+        setTmdbMovies(tmdbRes.movies);
+        setTmdbShows(tmdbRes.shows);
 
-      // Fetch genre-based recommendations
-      const genreRowsData: GenreRow[] = [];
-      const topGenres = Array.from(allGenreIds).slice(0, 3);
+        // Collect genre IDs from TMDB results
+        const allGenreIds = new Set<number>();
+        [...tmdbRes.movies, ...tmdbRes.shows].forEach((item) => {
+          (item.genreIds || []).forEach((gid: number) => allGenreIds.add(gid));
+        });
 
-      for (const genreId of topGenres) {
-        const genreName = GENRE_MAP[genreId];
-        if (!genreName) continue;
+        // Fetch genre-based recommendations
+        const genreRowsData: GenreRow[] = [];
+        const topGenres = Array.from(allGenreIds).slice(0, 3);
 
-        try {
-          const items = await discoverByGenre(genreId);
-          if (items.length > 0) {
-            genreRowsData.push({
-              title: genreName,
-              items,
-            });
+        for (const genreId of topGenres) {
+          const genreName = GENRE_MAP[genreId];
+          if (!genreName) continue;
+
+          try {
+            const items = await discoverByGenre(genreId);
+            if (items.length > 0) {
+              genreRowsData.push({
+                title: genreName,
+                items,
+              });
+            }
+          } catch (e) {
+            console.log(`[Search] Failed to fetch genre ${genreName}:`, e);
           }
-        } catch (e) {
-          console.log(`[Search] Failed to fetch genre ${genreName}:`, e);
         }
-      }
 
-      setGenreRows(genreRowsData);
+        setGenreRows(genreRowsData);
+      } else {
+        // Clear TMDB results when disabled
+        setTmdbMovies([]);
+        setTmdbShows([]);
+        setGenreRows([]);
+      }
     } finally {
       setLoading(false);
     }
-  }, [isConnected]);
+  }, [isConnected, settings.includeTmdbInSearch]);
 
   const handleQueryChange = (text: string) => {
     setQuery(text);
@@ -220,19 +227,10 @@ export default function Search({ isTab = false }: SearchProps) {
     const id = result.id;
     if (id.startsWith('plex:')) {
       const rk = id.split(':')[1];
-      if (isTab) {
-        // Navigate to HomeTab then Details when in tab mode
-        nav.navigate('HomeTab', { screen: 'Details', params: { type: 'plex', ratingKey: rk } });
-      } else {
-        nav.navigate('Details', { type: 'plex', ratingKey: rk });
-      }
+      nav.navigate('Details', { type: 'plex', ratingKey: rk });
     } else if (id.startsWith('tmdb:')) {
       const [, media, tmdbId] = id.split(':');
-      if (isTab) {
-        nav.navigate('HomeTab', { screen: 'Details', params: { type: 'tmdb', mediaType: media, id: tmdbId } });
-      } else {
-        nav.navigate('Details', { type: 'tmdb', mediaType: media, id: tmdbId });
-      }
+      nav.navigate('Details', { type: 'tmdb', mediaType: media, id: tmdbId });
     }
   };
 
@@ -292,7 +290,7 @@ export default function Search({ isTab = false }: SearchProps) {
             keyboardShouldPersistTaps="handled"
             onScrollBeginDrag={() => Keyboard.dismiss()}
           >
-            {searchMode === 'idle' ? (
+            {searchMode === 'idle' && settings.includeTmdbInSearch ? (
               <View style={{ paddingTop: 24 }}>
                 <Text style={{ color: '#fff', fontSize: 20, fontWeight: '800', marginHorizontal: 16, marginBottom: 16 }}>Recommended TV Shows & Movies</Text>
                 {/* Loading skeleton when trending not loaded */}

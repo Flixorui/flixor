@@ -42,6 +42,8 @@ import {
   toggleWatchlist,
   checkWatchlistStatus,
   getNextUpEpisode,
+  isPlexGuid,
+  lookupWatchlistByGuid,
   WatchlistIds,
   RowItem,
   TrailerInfo,
@@ -202,12 +204,30 @@ export default function Details({ route }: RouteParams) {
 
       // Handle Plex type (direct ratingKey)
       if (params.type === 'plex' && params.ratingKey) {
-        try {
-          const m = await fetchPlexMetadata(params.ratingKey);
-          if (!m) {
+        // Check if ratingKey is a GUID (non-numeric) - these are watchlist items not in library
+        if (isPlexGuid(params.ratingKey)) {
+          console.log('[Details] Detected GUID ratingKey, looking up in watchlist:', params.ratingKey);
+          const watchlistInfo = await lookupWatchlistByGuid(params.ratingKey);
+          if (watchlistInfo) {
+            console.log('[Details] Found watchlist item, redirecting to TMDB:', watchlistInfo.tmdbId);
+            // Redirect to TMDB flow by updating params (simulate TMDB navigation)
+            params.type = 'tmdb';
+            params.id = String(watchlistInfo.tmdbId);
+            params.mediaType = watchlistInfo.mediaType;
+            // Fall through to TMDB handling below
+          } else {
+            console.log('[Details] Watchlist item not found or no TMDB ID');
             setLoading(false);
             return;
           }
+        } else {
+          // Normal numeric ratingKey - fetch from Plex library
+          try {
+            const m = await fetchPlexMetadata(params.ratingKey);
+            if (!m) {
+              setLoading(false);
+              return;
+            }
           const next: any = { ...m };
           setMatchedPlex(true);
           setMappedRk(String(params.ratingKey));
@@ -303,10 +323,11 @@ export default function Details({ route }: RouteParams) {
           };
           setWatchlistIds(ids);
           checkWatchlistStatus(ids).then(setInWatchlist);
-        } catch (e) {
-          console.log('[Details] Plex metadata error:', e);
-        }
-      }
+          } catch (e) {
+            console.log('[Details] Plex metadata error:', e);
+          }
+        } // end else (numeric ratingKey)
+      } // end if (params.type === 'plex')
 
       // Handle TMDB type with Plex mapping fallback
       if (params.type === 'tmdb' && params.id && params.mediaType) {

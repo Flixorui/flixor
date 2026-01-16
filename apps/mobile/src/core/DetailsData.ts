@@ -54,6 +54,127 @@ export async function fetchPlexSeasonEpisodes(seasonRatingKey: string): Promise<
   }
 }
 
+/**
+ * Check if a ratingKey is a Plex GUID (non-numeric) vs a library ratingKey (numeric)
+ */
+export function isPlexGuid(ratingKey: string): boolean {
+  return !/^\d+$/.test(ratingKey);
+}
+
+/**
+ * Look up a watchlist item by its GUID and return TMDB info
+ * This is used when navigating to a watchlist item that isn't in the library
+ */
+export type WatchlistTmdbInfo = {
+  tmdbId: number;
+  mediaType: 'movie' | 'tv';
+  title: string;
+  thumb?: string;
+};
+
+export async function lookupWatchlistByGuid(guid: string): Promise<WatchlistTmdbInfo | null> {
+  try {
+    const core = getFlixorCore();
+
+    // First try to fetch full metadata directly using the GUID
+    // The Plex.tv metadata API can return detailed info including Guid array
+    console.log('[DetailsData] Fetching Plex.tv metadata for GUID:', guid);
+    const fullMeta = await core.plexTv.getMetadata(guid);
+
+    let item: PlexMediaItem | null = fullMeta;
+    let guids: any[] = [];
+
+    if (fullMeta) {
+      console.log('[DetailsData] Got full metadata for:', fullMeta.title);
+      guids = (fullMeta as any).Guid || (fullMeta as any).guid || [];
+    } else {
+      // Fallback: search in watchlist
+      console.log('[DetailsData] Full metadata not found, searching watchlist');
+      const watchlist = await core.plexTv.getWatchlist();
+      item = watchlist.find((w: PlexMediaItem) => String(w.ratingKey) === guid) || null;
+
+      if (!item) {
+        console.log('[DetailsData] Watchlist item not found for GUID:', guid);
+        return null;
+      }
+
+      console.log('[DetailsData] Found in watchlist:', item.title);
+      guids = (item as any).Guid || (item as any).guid || [];
+    }
+
+    if (!item) {
+      return null;
+    }
+
+    // Debug: log the structure
+    console.log('[DetailsData] Item keys:', Object.keys(item as any));
+    console.log('[DetailsData] Guid array:', JSON.stringify(guids));
+
+    let tmdbId: number | undefined;
+    let imdbId: string | undefined;
+
+    for (const g of guids) {
+      const gid = String(g.id || g || '');
+      if (gid.includes('tmdb://') || gid.includes('themoviedb://')) {
+        tmdbId = Number(gid.split('://')[1]);
+      }
+      if (gid.includes('imdb://')) {
+        imdbId = gid.split('://')[1];
+      }
+    }
+
+    // If no TMDB ID but we have IMDB ID, try to look up via TMDB find API
+    if (!tmdbId && imdbId) {
+      console.log('[DetailsData] No TMDB ID, trying IMDB lookup:', imdbId);
+      try {
+        const mediaType = item.type === 'movie' ? 'movie' : 'tv';
+        const findResult = await core.tmdb.findByImdbId(imdbId);
+        const results = mediaType === 'movie' ? findResult.movie_results : findResult.tv_results;
+        if (results && results.length > 0) {
+          tmdbId = results[0].id;
+          console.log('[DetailsData] Found TMDB ID via IMDB lookup:', tmdbId);
+        }
+      } catch (e) {
+        console.log('[DetailsData] IMDB to TMDB lookup failed:', e);
+      }
+    }
+
+    // Last resort: search TMDB by title and year
+    if (!tmdbId && item.title) {
+      console.log('[DetailsData] No IDs found, trying TMDB search for:', item.title);
+      try {
+        const mediaType = item.type === 'movie' ? 'movie' : 'tv';
+        const year = item.year;
+        const searchResults = mediaType === 'movie'
+          ? await core.tmdb.searchMovies(item.title, year)
+          : await core.tmdb.searchTV(item.title, year);
+
+        if (searchResults.results && searchResults.results.length > 0) {
+          tmdbId = searchResults.results[0].id;
+          console.log('[DetailsData] Found TMDB ID via search:', tmdbId);
+        }
+      } catch (e) {
+        console.log('[DetailsData] TMDB search failed:', e);
+      }
+    }
+
+    if (!tmdbId) {
+      console.log('[DetailsData] No TMDB ID found for watchlist item:', item.title);
+      return null;
+    }
+
+    return {
+      tmdbId,
+      mediaType: item.type === 'movie' ? 'movie' : 'tv',
+      title: item.title || 'Unknown',
+      thumb: item.thumb,
+    };
+  } catch (e) {
+    console.log('[DetailsData] lookupWatchlistByGuid error:', e);
+    return null;
+  }
+}
+
 // ============================================
 // TMDB Details and Images
 // ============================================

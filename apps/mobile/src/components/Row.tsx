@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, FlatList, Pressable } from 'react-native';
+import { View, Text, FlatList, Pressable, StyleSheet } from 'react-native';
 import Poster from './Poster';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
@@ -26,16 +26,16 @@ function Row({ title, items, getImageUri, getTitle, getSubtitle, authHeaders, on
   };
 
   return (
-    <View style={{ marginBottom: 16 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 15, marginTop: 15, paddingHorizontal: 16 }}>
+    <View style={styles.container}>
+      <View style={styles.header}>
         <Pressable
           onPress={handleTitlePress}
           disabled={!onBrowsePress && !onTitlePress}
-          style={{ flexDirection: 'row', alignItems: 'center' }}
+          style={styles.titlePressable}
         >
-          <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700', lineHeight: 22 }}>{title}</Text>
+          <Text style={styles.title}>{title}</Text>
           {(onBrowsePress || onTitlePress) && (
-            <Ionicons name="chevron-forward" size={18} color="#fff" style={{ marginLeft: 4, marginTop: 1 }} />
+            <Ionicons name="chevron-forward" size={18} color="#fff" style={styles.chevron} />
           )}
         </Pressable>
       </View>
@@ -60,5 +60,36 @@ function Row({ title, items, getImageUri, getTitle, getSubtitle, authHeaders, on
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    marginBottom: 16,
+    overflow: 'visible',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 15,
+    marginTop: 15,
+    paddingHorizontal: 16,
+    overflow: 'visible',
+  },
+  titlePressable: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    overflow: 'visible',
+  },
+  title: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+    includeFontPadding: false, // Android: prevents extra padding that can cause clipping
+    textAlignVertical: 'center', // Android: ensures proper vertical alignment
+  },
+  chevron: {
+    marginLeft: 4,
+    marginTop: 1,
+  },
+});
 
 export default React.memo(Row);

@@ -198,8 +198,9 @@ const styles = StyleSheet.create({
   rowTitle: {
     color: '#fff',
     fontSize: 18,
-    fontWeight: '700',
-    lineHeight: 22,
+    fontWeight: 'bold',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
   },
   chevron: {
     marginLeft: 4,

@@ -138,6 +138,22 @@ export default function Settings({ onBack }: SettingsProps) {
         icon="play-outline"
         renderRight={renderRightChevron}
         onPress={() => nav.navigate('ContinueWatchingSettings')}
+        isLast={false}
+      />
+      <SettingItem
+        title="Bottom App Bar"
+        description="Tab visibility settings"
+        icon="apps-outline"
+        renderRight={renderRightChevron}
+        onPress={() => nav.navigate('BottomAppBarSettings')}
+        isLast={false}
+      />
+      <SettingItem
+        title="Search"
+        description="Search sources and behavior"
+        icon="search-outline"
+        renderRight={renderRightChevron}
+        onPress={() => nav.navigate('SearchSettings')}
         isLast={true}
       />
     </SettingsCard>
@@ -285,7 +301,7 @@ export default function Settings({ onBack }: SettingsProps) {
       />
       <SettingItem
         title="Version"
-        description={`v${getAppVersion()}`}
+        description={`${getAppVersion()}`}
         icon="information-circle-outline"
         isLast={false}
       />

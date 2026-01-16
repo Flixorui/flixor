@@ -165,8 +165,25 @@ export async function fetchPlexWatchlist(): Promise<RowItem[]> {
     return items.slice(0, 12).map((item: PlexMediaItem) => {
       const mediaType: 'movie' | 'tv' = item.type === 'movie' ? 'movie' : 'tv';
 
+      // Extract TMDB ID from Plex watchlist item's Guid array
+      // Watchlist items use GUIDs not library ratingKeys, so we need TMDB ID for navigation
+      let tmdbId: number | undefined;
+      const guids = (item as any).Guid || [];
+      for (const g of guids) {
+        const gid = String(g.id || '');
+        if (gid.includes('tmdb://') || gid.includes('themoviedb://')) {
+          tmdbId = Number(gid.split('://')[1]);
+          break;
+        }
+      }
+
+      // Use TMDB ID if available, fallback to plex ratingKey (may fail for non-library items)
+      const id = tmdbId
+        ? `tmdb:${mediaType}:${tmdbId}`
+        : `plex:${item.ratingKey}`;
+
       return {
-        id: `plex:${item.ratingKey}`,
+        id,
         title: item.title || item.grandparentTitle || 'Untitled',
         image: item.thumb
           ? core.plexServer.getImageUrl(item.thumb, 300)

@@ -244,10 +244,6 @@ export default function Home({ onLogout }: HomeProps) {
     setTab('all');
   }, []);
 
-  const searchHandler = useCallback(() => {
-    nav.navigate('Search');
-  }, [nav]);
-
   const browseHandler = useCallback(() => {
     setBrowseModalVisible(true);
   }, []);
@@ -277,7 +273,6 @@ export default function Home({ onLogout }: HomeProps) {
         activeGenre: undefined,
         onNavigateLibrary: navigateToLibrary,
         onClose: closeHandler,
-        onSearch: searchHandler,
         onBrowse: browseHandler,
         onClearGenre: undefined,
       });
@@ -285,7 +280,7 @@ export default function Home({ onLogout }: HomeProps) {
       return () => {
         isFocusedRef.current = false;
       };
-    }, [tab, navigateToLibrary, closeHandler, searchHandler, browseHandler, y])
+    }, [tab, navigateToLibrary, closeHandler, browseHandler, y])
   );
 
   // Also update when tab changes while focused (for pill selection on Home)

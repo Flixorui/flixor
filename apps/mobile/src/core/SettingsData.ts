@@ -94,7 +94,7 @@ export async function getPlexUser(): Promise<any | null> {
 // ============================================
 
 export function getAppVersion(): string {
-  return '1.0.0';
+  return 'Beta1.9.5';
 }
 
 export function getConnectedServerInfo(): { name: string; url: string } | null {
@@ -304,6 +304,10 @@ export interface AppSettings {
   showRottenTomatoesAudience: boolean;
   // Details screen layout setting
   detailsScreenLayout: 'tabbed' | 'unified';
+  // Tab bar settings
+  showNewHotTab: boolean;
+  // Search settings
+  includeTmdbInSearch: boolean; // Include TMDB results in search
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -344,6 +348,10 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   showRottenTomatoesAudience: true,
   // Details screen layout default
   detailsScreenLayout: 'tabbed',
+  // Tab bar defaults
+  showNewHotTab: true,
+  // Search defaults
+  includeTmdbInSearch: true,
 };
 
 let cachedSettings: AppSettings = { ...DEFAULT_APP_SETTINGS };

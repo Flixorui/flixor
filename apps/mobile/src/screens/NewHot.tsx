@@ -103,7 +103,6 @@ export default function NewHot() {
         compact: true,
         customFilters: tabPills,
         activeGenre: undefined,
-        onSearch: () => nav.navigate('HomeTab', { screen: 'Search' }),
         onClearGenre: undefined,
       });
       TopBarStore.setScrollY(y);
