@@ -24,6 +24,7 @@ import plexRoutes from './api/plex';
 import traktRoutes from './api/trakt';
 import plextvRoutes from './api/plextv';
 import overseerrRoutes from './api/overseerr';
+import versionRoutes from './api/version';
 import { errorHandler } from './middleware/errorHandler';
 import { requestLogger } from './middleware/requestLogger';
 
@@ -121,6 +122,7 @@ async function startServer() {
     app.use('/api/trakt', traktRoutes);
     app.use('/api/plextv', plextvRoutes);
     app.use('/api/overseerr', overseerrRoutes);
+    app.use('/api/version', versionRoutes);
 
     // 404 handler
     app.use((req, res) => {

@@ -75,8 +75,8 @@ export default function HomeHero({
         paddingRight: 'var(--page-gutter)'
       }}
     >
-      {/* Taller aspect ratio to match macOS billboard */}
-      <div className="rounded-2xl overflow-hidden shadow-billboard ring-1 ring-white/10 bg-neutral-900/40 relative aspect-[2/1]">
+      {/* Taller aspect ratio to match macOS billboard, capped at max height and centered */}
+      <div className="rounded-2xl overflow-hidden shadow-billboard ring-1 ring-white/10 bg-neutral-900/40 relative aspect-[2/1] max-h-[1000px] max-w-[2000px] mx-auto">
         {/* Background Image/Video Layer */}
         <div className="absolute inset-0">
           {/* Backdrop image */}

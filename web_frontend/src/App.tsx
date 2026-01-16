@@ -2,6 +2,7 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
 import TopNav from '@/components/TopNav';
 import GlobalToast from '@/components/GlobalToast';
+import UpdateNotification from '@/components/UpdateNotification';
 
 export default function App() {
   const location = useLocation();
@@ -35,6 +36,7 @@ export default function App() {
       {/* Global fixed background layer */}
       <div className="app-bg-fixed bg-home-gradient" />
       <GlobalToast />
+      {!isPlayerRoute && <UpdateNotification />}
       {!isPlayerRoute && !isAuthRoute && <TopNav />}
       <main className={`flex-1 ${!isPlayerRoute && !isHome && !isDetailsRoute && !isAuthRoute ? 'pt-16' : ''}`}>
         <Outlet />

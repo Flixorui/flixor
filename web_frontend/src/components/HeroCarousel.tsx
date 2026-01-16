@@ -99,8 +99,8 @@ export default function HeroCarousel({
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
     >
-      {/* Taller aspect ratio to match macOS billboard */}
-      <div className="group rounded-2xl overflow-hidden shadow-billboard ring-1 ring-white/10 bg-neutral-900/40 relative aspect-[2/1]">
+      {/* Taller aspect ratio to match macOS billboard, capped at max height and centered */}
+      <div className="group rounded-2xl overflow-hidden shadow-billboard ring-1 ring-white/10 bg-neutral-900/40 relative aspect-[2/1] max-h-[1000px] max-w-[2000px] mx-auto">
         {/* Background Images */}
         <div className="absolute inset-0">
           {items.map((item, index) => (
