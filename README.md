@@ -7,24 +7,72 @@
 [![Issues][issues-shield]][issues-url]
 [![License][license-shield]][license-url]
 
-# Flixor (Cross Platform)
+<div align="center">
+  <h1>Flixor</h1>
+  <p><strong>A beautiful, Netflix-style client for your Plex library</strong></p>
+  <p>Available on Web, macOS, iOS, Android, and tvOS</p>
+</div>
 
-## Description
-A fast, Netflix‑style web app, Android, iOS, and MacOS for your Plex library. Browse beautiful rows, see rich details (IMDb/Rotten Tomatoes), and play instantly in your browser with built‑in DASH/HLS playback. Works on any modern desktop or mobile browser.
+---
+
+## About
+
+Flixor is a modern, cross-platform Plex client that brings a Netflix-like experience to your media library. Browse beautiful rows, see rich metadata with ratings from multiple sources, and enjoy powerful playback on any device.
+
+### Supported Platforms
+
+| Platform | Status | Player |
+|----------|--------|--------|
+| **Web** | Available | HLS.js / DASH.js |
+| **macOS** | Available | MPV (HDR, Dolby Vision) |
+| **iOS** | Available | KSPlayer |
+| **Android** | Available | MPV |
+| **tvOS** | In Development | - |
 
 ## Features
-- Netflix‑style home: Continue Watching, Trending, Collections, and more
-- Built‑in player: DASH/HLS, fullscreen, Picture‑in‑Picture, subtitles
-- Rich details: trailers/extras, cast, badges (4K/HDR/Atmos), IMDb/RT ratings
-- Smart search and filters; ultra‑fast grids optimized for large libraries
-- Recommendations from TMDB/Trakt plus Plex On Deck
-- Smooth, responsive UI with image optimization and caching
+
+### Core Experience
+- **Netflix-style UI** - Continue Watching, Trending, Collections, Watchlist, and more
+- **Rich metadata** - Trailers, cast info, tech badges (4K/HDR/Atmos/DTS-X)
+- **Smart search** - Search across Plex and TMDB with intelligent filtering
+- **Ultra-fast grids** - Optimized for libraries with thousands of items
+- **Cross-platform sync** - Watch progress syncs across all your devices
+
+### Playback
+- **Web**: Built-in DASH/HLS player with Picture-in-Picture and subtitle support
+- **macOS**: MPV-powered with HDR, Dolby Vision, and advanced audio passthrough
+- **Mobile**: Native players with background playback and streaming quality options
+
+### Integrations
+| Service | Description |
+|---------|-------------|
+| **TMDB** | Movie/TV metadata, posters, backdrops, trailers |
+| **Trakt** | Watch history sync, scrobbling, ratings, watchlists |
+| **MDBList** | Aggregated ratings from IMDb, RT, Letterboxd, Metacritic |
+| **Overseerr** | Request movies and shows directly from the app |
+
+### Mobile-Specific Features
+- OTA (Over-the-Air) updates without app store
+- Configurable bottom navigation tabs
+- Optional TMDB search integration
+- Landscape continue watching cards with progress indicators
+
+## Screenshots
+
+<details>
+<summary>Click to view screenshots</summary>
+
+![Home](docs/screenshots/flixor-01.jpg)
+![Details](docs/screenshots/flixor-02.jpg)
+![Library](docs/screenshots/flixor-lib-00m52.jpg)
+
+</details>
 
 ## Installation
 
-### Docker (recommended)
+### Web App (Docker)
 
-**Using published image:**
+**Using the published image:**
 ```bash
 docker run -d \
   --name flixor \
@@ -36,7 +84,7 @@ docker run -d \
   ghcr.io/flixorui/flixor:latest
 ```
 
-Or with Docker Compose, create a `docker-compose.yml`:
+**Using Docker Compose:**
 ```yaml
 services:
   flixor:
@@ -56,50 +104,117 @@ volumes:
   flixor-cache:
 ```
 
-Then run:
 ```bash
 docker compose up -d
 ```
 
 Open `http://localhost:8080` and sign in with Plex.
 
-**Build from source:**
+### macOS
+
+1. Download the latest `.dmg` from [Releases](https://github.com/Flixorui/flixor/releases)
+2. Drag Flixor to your Applications folder
+3. Open and sign in with Plex
+
+**Requirements:** macOS 13.0 (Ventura) or later
+
+### iOS / Android
+
+Download from the [Releases](https://github.com/Flixorui/flixor/releases) page or join the TestFlight/beta program.
+
+The mobile apps support OTA updates - you'll receive update notifications within the app.
+
+## Development
+
+### Prerequisites
+- Node.js 18+
+- npm or yarn
+
+### Web Frontend
 ```bash
-git clone https://github.com/flixorui/flixor.git
-cd flixor
-SESSION_SECRET=your-secret docker compose -f docker-compose.prod.yml up -d
+cd web_frontend
+npm install
+npm run dev
 ```
 
-### Local development
+### Mobile App
+```bash
+cd apps/mobile
+npm install
+npx expo start
+```
 
-1. Install Node.js 18+ and npm
-2. Run: `npm install` then `npm run dev:all`
-3. Open `http://localhost:5173` and sign in with Plex
+### macOS App
 
-### Notes
+Open `apps/macos/FlixorMac.xcodeproj` in Xcode and build.
 
-- The app calls the backend via relative `/api` so it works from any device on your network.
-- Vite dev server is reachable on your LAN. Visit `http://YOUR_COMPUTER_IP:5173` on your phone/another PC.
-- If you need to point dev proxy to a different backend, set `VITE_PROXY_TARGET` in `.env` (see `.env.example`).
+### Full Stack (Web + Backend)
+```bash
+npm install
+npm run dev:all
+```
 
-That’s it—no extra setup needed. The app uses the bundled backend by default; the database is created and migrations run automatically on first start.
+The dev server runs on `http://localhost:5173` and is accessible on your local network.
 
-## Screenshots
-![Home](docs/screenshots/flixor-01.jpg)
-![Details](docs/screenshots/flixor-02.jpg)
-![Library 00:52](docs/screenshots/flixor-lib-00m52.png)
-![Library 01:20](docs/screenshots/flixor-lib-01m20.png)
-![Library 02:14](docs/screenshots/flixor-lib-02m14.png)
-![Library 02:24](docs/screenshots/flixor-lib-02m24.png)
-![Library 02:34](docs/screenshots/flixor-lib-02m34.png)
-![Library 02:48](docs/screenshots/flixor-lib-02m48.png)
-![Library 03:04](docs/screenshots/flixor-lib-03m04.png)
-![Library 03:11](docs/screenshots/flixor-lib-03m11.png)
+## Configuration
 
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `SESSION_SECRET` | Secret for session encryption | Required |
+| `VITE_PROXY_TARGET` | Backend URL for dev proxy | `http://localhost:3000` |
+
+### App Settings
+
+Settings are available in-app under Settings:
+
+- **Catalogs** - Choose which Plex libraries appear
+- **Home Screen** - Configure hero and row visibility
+- **Integrations** - Set up TMDB, Trakt, MDBList, Overseerr
+- **Playback** - Video player preferences
+- **Appearance** - Episode layout, backdrop options
+
+## OTA Updates (Mobile)
+
+The mobile app supports self-hosted OTA updates. To publish an update:
+
+```bash
+export FLIXOR_OTA_UPLOAD_KEY=your-upload-key
+./scripts/publish-ota-update.sh
+```
+
+Users will receive update notifications on app launch.
+
+## Community
+
+- [Discord](https://discord.gg/flixor) - Join the community
+- [Reddit](https://www.reddit.com/r/flixor/) - Follow updates
+- [GitHub Issues](https://github.com/Flixorui/flixor/issues) - Report bugs
+
+## Contributing
+
+Contributions are welcome! Please read our contributing guidelines before submitting a PR.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+Distributed under the GPL-3.0 License. See `LICENSE` for more information.
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=Flixorui/flixor&type=date&legend=top-left)](https://www.star-history.com/#Flixorui/flixor&type=date&legend=top-left)
+[![Star History Chart](https://api.star-history.com/svg?repos=Flixorui/flixor&type=Date)](https://star-history.com/#Flixorui/flixor&Date)
+
+---
+
+<p align="center">
+  Made with care for the Plex community
+</p>
 
 <!-- MARKDOWN LINKS & IMAGES -->
 [contributors-shield]: https://img.shields.io/github/contributors/Flixorui/flixor.svg?style=for-the-badge

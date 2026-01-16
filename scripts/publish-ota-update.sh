@@ -43,9 +43,19 @@ fi
 COMMIT_HASH=$(git -C "$PROJECT_ROOT" rev-parse --short HEAD)
 COMMIT_MSG=$(git -C "$PROJECT_ROOT" log -1 --pretty=%B | head -1)
 
+# Truncate commit message to 250 chars (database limit is 255)
+if [ ${#COMMIT_MSG} -gt 250 ]; then
+  COMMIT_MSG="${COMMIT_MSG:0:247}..."
+fi
+
 # Use commit message as release notes if not provided
 if [ -z "$RELEASE_NOTES" ]; then
   RELEASE_NOTES="$COMMIT_MSG"
+fi
+
+# Truncate release notes to 250 chars
+if [ ${#RELEASE_NOTES} -gt 250 ]; then
+  RELEASE_NOTES="${RELEASE_NOTES:0:247}..."
 fi
 
 echo "======================================"
