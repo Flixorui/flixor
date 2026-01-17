@@ -1,7 +1,17 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { loadSettings, saveSettings, type AppSettings } from '@/state/settings';
+import { loadSettings, saveSettings, setDiscoveryDisabled, resetAllSettings, type AppSettings } from '@/state/settings';
 import SettingsCard from '@/components/SettingsCard';
 import SettingItem, { SettingToggle } from '@/components/SettingItem';
+
+// Eye Off Icon for Discovery Mode
+function EyeOffIcon({ size = 18, color = '#e5e7eb' }: { size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+      <line x1="1" y1="1" x2="23" y2="23" />
+    </svg>
+  );
+}
 import HomeScreenSettings from '@/components/settings/HomeScreenSettings';
 import DetailsScreenSettings from '@/components/settings/DetailsScreenSettings';
 import MDBListSettings from '@/components/settings/MDBListSettings';
@@ -87,6 +97,24 @@ export default function Settings() {
     setSettings(prev => {
       const next = { ...prev, [key]: value };
       saveSettings(next);
+      return next;
+    });
+  }, []);
+
+  const handleDiscoveryDisabledChange = useCallback((disabled: boolean) => {
+    setDiscoveryDisabled(disabled);
+    setSettings(prev => {
+      const next = {
+        ...prev,
+        discoveryDisabled: disabled,
+        ...(disabled ? {
+          showTrendingRows: false,
+          showTraktRows: false,
+          showPlexPopularRow: false,
+          showNewPopularTab: false,
+          includeTmdbInSearch: false,
+        } : {}),
+      };
       return next;
     });
   }, []);
@@ -220,6 +248,22 @@ export default function Settings() {
             renderIcon={() => <IconWrap><PlexIcon size={18} color="#e5e7eb" /></IconWrap>}
             renderRight={renderChevron}
             onClick={() => setCurrentScreen('plex')}
+            isLast
+          />
+        </SettingsCard>
+
+        {/* DISCOVERY MODE */}
+        <SettingsCard title="DISCOVERY MODE">
+          <SettingItem
+            title="Library Only Mode"
+            description="Turn off all discovery features"
+            renderIcon={() => <IconWrap><EyeOffIcon size={18} color="#e5e7eb" /></IconWrap>}
+            renderRight={() => (
+              <SettingToggle
+                checked={settings.discoveryDisabled === true}
+                onChange={handleDiscoveryDisabledChange}
+              />
+            )}
             isLast
           />
         </SettingsCard>

@@ -37,6 +37,7 @@ struct FlixorMacApp: App {
                 .environmentObject(apiClient)
                 .environmentObject(FlixorCore.shared)
                 .frame(minWidth: 1024, minHeight: 768)
+                .preferredColorScheme(.dark) // Force dark mode
                 .task {
                     // Initialize FlixorCore (restore sessions)
                     _ = await FlixorCore.shared.initialize()
@@ -54,6 +55,7 @@ struct FlixorMacApp: App {
                 .environmentObject(sessionManager)
                 .environmentObject(apiClient)
                 .environmentObject(FlixorCore.shared)
+                .preferredColorScheme(.dark) // Force dark mode
         }
         #endif
     }

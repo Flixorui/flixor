@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import TopNav from '@/components/TopNav';
 import GlobalToast from '@/components/GlobalToast';
 import UpdateNotification from '@/components/UpdateNotification';
+import { loadSettings } from '@/state/settings';
 
 export default function App() {
   const location = useLocation();
@@ -11,6 +12,18 @@ export default function App() {
   const isDetailsRoute = location.pathname.includes('/details/');
   const isHome = location.pathname === '/';
   const isAuthRoute = location.pathname.startsWith('/login');
+  const isOnboardingRoute = location.pathname === '/onboarding';
+
+  // Check onboarding status on mount
+  useEffect(() => {
+    const settings = loadSettings();
+    const isAuthenticated = !!(settings.plexBaseUrl && settings.plexToken) || !!settings.plexServer;
+
+    // If authenticated but hasn't completed onboarding, redirect to onboarding
+    if (isAuthenticated && !settings.hasCompletedOnboarding && !isOnboardingRoute && !isAuthRoute) {
+      navigate('/onboarding');
+    }
+  }, [navigate, isOnboardingRoute, isAuthRoute]);
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -36,9 +49,9 @@ export default function App() {
       {/* Global fixed background layer */}
       <div className="app-bg-fixed bg-home-gradient" />
       <GlobalToast />
-      {!isPlayerRoute && <UpdateNotification />}
-      {!isPlayerRoute && !isAuthRoute && <TopNav />}
-      <main className={`flex-1 ${!isPlayerRoute && !isHome && !isDetailsRoute && !isAuthRoute ? 'pt-16' : ''}`}>
+      {!isPlayerRoute && !isOnboardingRoute && <UpdateNotification />}
+      {!isPlayerRoute && !isAuthRoute && !isOnboardingRoute && <TopNav />}
+      <main className={`flex-1 ${!isPlayerRoute && !isHome && !isDetailsRoute && !isAuthRoute && !isOnboardingRoute ? 'pt-16' : ''}`}>
         <Outlet />
       </main>
     </div>

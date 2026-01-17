@@ -118,6 +118,16 @@ export async function fetchContinueWatching(): Promise<PlexMediaItem[]> {
   }
 }
 
+export async function fetchOnDeck(): Promise<PlexMediaItem[]> {
+  try {
+    const core = getFlixorCore();
+    return await core.plexServer.getOnDeck();
+  } catch (e) {
+    console.log('[HomeData] fetchOnDeck error:', e);
+    return [];
+  }
+}
+
 export async function fetchRecentlyAdded(): Promise<PlexMediaItem[]> {
   try {
     const core = getFlixorCore();
@@ -693,6 +703,136 @@ export async function getTmdbOverview(
     console.log('[HomeData] getTmdbOverview error:', e);
     return undefined;
   }
+}
+
+// ============================================
+// Plex to Hero Conversion (for Billboard/Carousel)
+// ============================================
+
+export type HeroItem = {
+  id: string;
+  title: string;
+  image?: string;
+  mediaType?: 'movie' | 'tv';
+  logo?: string;
+  backdrop?: string;
+  description?: string;
+  year?: string;
+  genres?: string[];
+};
+
+/**
+ * Extract TMDB ID from a PlexMediaItem's Guid array
+ * Returns { tmdbId, mediaType } or null if not found
+ */
+export function extractTmdbFromPlexItem(item: PlexMediaItem): { tmdbId: number; mediaType: 'movie' | 'tv' } | null {
+  const guids = (item as any).Guid || [];
+  for (const g of guids) {
+    const gid = String(g.id || '');
+    if (gid.includes('tmdb://') || gid.includes('themoviedb://')) {
+      const tmdbId = Number(gid.split('://')[1]);
+      if (!isNaN(tmdbId)) {
+        const mediaType: 'movie' | 'tv' = item.type === 'movie' ? 'movie' : 'tv';
+        return { tmdbId, mediaType };
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Convert PlexMediaItem array to hero carousel format
+ * Enriches with TMDB logos and backdrops
+ */
+export async function convertPlexItemsToHero(
+  items: PlexMediaItem[],
+  limit: number = 8
+): Promise<HeroItem[]> {
+  const core = getFlixorCore();
+  const limitedItems = items.slice(0, limit);
+
+  return withLimit(limitedItems, 3, async (item): Promise<HeroItem> => {
+    // For episodes, use series info
+    const isEpisode = item.type === 'episode';
+    const isSeason = item.type === 'season';
+    const isEpisodeOrSeason = isEpisode || isSeason;
+
+    // Get display title (series title for episodes/seasons)
+    const displayTitle = isEpisode
+      ? item.grandparentTitle || item.title
+      : isSeason
+        ? item.parentTitle || item.grandparentTitle || item.title
+        : item.title;
+
+    // Determine media type
+    const mediaType: 'movie' | 'tv' = item.type === 'movie' ? 'movie' : 'tv';
+
+    // Base hero item from Plex
+    const heroItem: HeroItem = {
+      id: `plex:${item.ratingKey}`,
+      title: displayTitle || 'Untitled',
+      mediaType,
+      year: item.year ? String(item.year) : undefined,
+      description: item.summary || undefined,
+    };
+
+    // Get Plex poster as fallback (prefer thumb/poster over art/backdrop)
+    const plexPoster = isEpisode
+      ? item.grandparentThumb || item.thumb
+      : item.thumb;
+    if (plexPoster) {
+      heroItem.image = core.plexServer.getImageUrl(plexPoster, 600);
+    }
+
+    // Get Plex backdrop as fallback for Apple TV layout
+    const plexBackdrop = isEpisode
+      ? item.grandparentArt || item.art
+      : item.art;
+    if (plexBackdrop) {
+      heroItem.backdrop = core.plexServer.getImageUrl(plexBackdrop, 1280);
+    }
+
+    // Try to get TMDB ID for enrichment
+    let tmdbId: number | null = null;
+
+    if (isEpisodeOrSeason) {
+      // For episodes/seasons, get the series TMDB ID
+      const seriesRatingKey = isEpisode ? item.grandparentRatingKey : item.parentRatingKey;
+      if (seriesRatingKey) {
+        const showTmdbId = await getShowTmdbId(seriesRatingKey);
+        if (showTmdbId) {
+          tmdbId = Number(showTmdbId);
+        }
+      }
+    } else {
+      // For movies/shows, extract from Guid
+      const tmdbInfo = extractTmdbFromPlexItem(item);
+      if (tmdbInfo) {
+        tmdbId = tmdbInfo.tmdbId;
+      }
+    }
+
+    // Enrich with TMDB data if we have an ID
+    if (tmdbId && !isNaN(tmdbId)) {
+      try {
+        const [poster, backdrop, logo, overview] = await Promise.all([
+          getTmdbTextlessPoster(tmdbId, mediaType), // Use textless poster (iso_639_1 is null) for Carousel/Netflix
+          getTmdbTextlessBackdrop(tmdbId, mediaType), // Use textless backdrop for Apple TV layout
+          getTmdbLogo(tmdbId, mediaType),
+          getTmdbOverview(tmdbId, mediaType),
+        ]);
+
+        if (poster) heroItem.image = poster; // Use poster for hero image (Carousel/Netflix)
+        if (backdrop) heroItem.backdrop = backdrop; // Use backdrop for Apple TV layout
+        if (logo) heroItem.logo = logo;
+        if (overview) heroItem.description = overview;
+      } catch (e) {
+        console.log('[HomeData] TMDB enrichment error for', displayTitle, e);
+      }
+    }
+
+    return heroItem;
+  });
 }
 
 // ============================================

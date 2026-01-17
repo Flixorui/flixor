@@ -552,22 +552,18 @@ private struct DetailsHeroSection: View {
         vm.playableId != nil || vm.plexRatingKey != nil
     }
 
-    // HDR/DV badge from technical info
+    // HDR/DV badge from technical info (uses hdrFormat which checks both videoProfile and displayTitle)
     private var hdrBadge: String? {
-        let profile = (vm.activeVersionDetail?.technical.videoProfile ?? "").lowercased()
-        if profile.contains("dv") || profile.contains("dolby vision") {
-            return "DV"
+        guard let hdrFormat = vm.activeVersionDetail?.technical.hdrFormat else { return nil }
+        // Convert full format name to short badge
+        switch hdrFormat {
+        case "Dolby Vision": return "DV"
+        case "HDR10+": return "HDR10+"
+        case "HDR10": return "HDR10"
+        case "HLG": return "HLG"
+        case "HDR": return "HDR"
+        default: return hdrFormat
         }
-        if profile.contains("hdr10+") {
-            return "HDR10+"
-        }
-        if profile.contains("hdr") || profile.contains("pq") || profile.contains("smpte2084") {
-            return "HDR"
-        }
-        if profile.contains("hlg") {
-            return "HLG"
-        }
-        return nil
     }
 
     // Resolution badge (4K, 1080p, etc)
@@ -740,6 +736,13 @@ private struct DetailsHeroSection: View {
                 }
             }
 
+            // Episode count for TV shows (not episodes, not movies)
+            if !isEpisode && vm.mediaKind != "movie", let count = vm.episodeCount, count > 0 {
+                Text("·")
+                    .foregroundStyle(.white.opacity(0.5))
+                Text("\(count) Episode\(count == 1 ? "" : "s")")
+            }
+
             // Separator
             if !vm.genres.isEmpty {
                 Text("·")
@@ -850,25 +853,56 @@ private struct DetailsHeroSection: View {
             }
 
             // Ratings at the end (with individual visibility settings)
-            if let ratings = vm.externalRatings {
-                if showIMDbRating, let imdbScore = ratings.imdb?.score, imdbScore > 0 {
+            // Fallback chain: Plex parsed -> Plex direct -> MDBList -> TMDB
+            let plexRatings = vm.externalRatings
+            let mdbRatings = vm.mdblistRatings
+
+            // IMDb: prefer Plex parsed, then Plex direct, then MDBList, then TMDB
+            if showIMDbRating {
+                let imdbScore: Double? = {
+                    if let score = plexRatings?.imdb?.score, score > 0 { return score }
+                    if let score = vm.plexImdbRating, score > 0 { return score }
+                    if let score = mdbRatings?.imdb, score > 0 { return score }
+                    if let score = vm.tmdbRating, score > 0 { return score }
+                    return nil
+                }()
+                if let score = imdbScore {
                     HStack(spacing: 4) {
                         IMDbMark()
-                        Text(String(format: "%.1f", imdbScore))
+                        Text(String(format: "%.1f", score))
                             .font(.system(size: 12, weight: .semibold))
                     }
                 }
-                if showRottenTomatoesCritic, let critic = ratings.rottenTomatoes?.critic, critic > 0 {
+            }
+
+            // RT Critic: prefer Plex, then MDBList
+            if showRottenTomatoesCritic {
+                let criticScore: Int? = {
+                    if let score = plexRatings?.rottenTomatoes?.critic, score > 0 { return score }
+                    if let score = mdbRatings?.tomatoes, score > 0 { return Int(score) }
+                    return nil
+                }()
+                if let score = criticScore {
                     HStack(spacing: 4) {
-                        TomatoIcon(score: critic)
-                        Text("\(critic)%")
+                        TomatoIcon(score: score)
+                        Text("\(score)%")
                             .font(.system(size: 12, weight: .semibold))
                     }
                 }
-                if showRottenTomatoesAudience, let audience = ratings.rottenTomatoes?.audience, audience > 0 {
+            }
+
+            // RT Audience: prefer Plex parsed, then Plex direct, then MDBList
+            if showRottenTomatoesAudience {
+                let audienceScore: Int? = {
+                    if let score = plexRatings?.rottenTomatoes?.audience, score > 0 { return score }
+                    if let score = vm.plexAudienceRating, score > 0 { return score }
+                    if let score = mdbRatings?.audience, score > 0 { return Int(score) }
+                    return nil
+                }()
+                if let score = audienceScore {
                     HStack(spacing: 4) {
-                        PopcornIcon(score: audience)
-                        Text("\(audience)%")
+                        PopcornIcon(score: score)
+                        Text("\(score)%")
                             .font(.system(size: 12, weight: .semibold))
                     }
                 }

@@ -210,3 +210,89 @@ extension UserDefaults {
         set { set(newValue, forKey: CatalogKeys.enabledLibraryKeys) }
     }
 }
+
+// MARK: - Sidebar Settings
+
+extension UserDefaults {
+    private enum SidebarKeys {
+        static let showNewPopularTab = "showNewPopularTab"
+    }
+
+    var showNewPopularTab: Bool {
+        get { object(forKey: SidebarKeys.showNewPopularTab) as? Bool ?? true }
+        set { set(newValue, forKey: SidebarKeys.showNewPopularTab) }
+    }
+}
+
+// MARK: - Search Settings
+
+extension UserDefaults {
+    private enum SearchKeys {
+        static let includeTmdbInSearch = "includeTmdbInSearch"
+    }
+
+    var includeTmdbInSearch: Bool {
+        get { object(forKey: SearchKeys.includeTmdbInSearch) as? Bool ?? true }
+        set { set(newValue, forKey: SearchKeys.includeTmdbInSearch) }
+    }
+}
+
+// MARK: - Discovery Mode Settings
+
+extension UserDefaults {
+    private enum DiscoveryKeys {
+        static let discoveryDisabled = "discoveryDisabled"
+    }
+
+    /// When true, disables all discovery features (Library Only Mode)
+    var discoveryDisabled: Bool {
+        get { bool(forKey: DiscoveryKeys.discoveryDisabled) }
+        set { set(newValue, forKey: DiscoveryKeys.discoveryDisabled) }
+    }
+
+    /// Sets discovery disabled mode and updates all related settings
+    func setDiscoveryDisabled(_ disabled: Bool) {
+        discoveryDisabled = disabled
+        if disabled {
+            showTrendingRows = false
+            showTraktRows = false
+            showPlexPopular = false
+            showNewPopularTab = false
+            includeTmdbInSearch = false
+        }
+    }
+}
+
+// MARK: - Onboarding Settings
+
+extension UserDefaults {
+    private enum OnboardingKeys {
+        static let hasCompletedOnboarding = "hasCompletedOnboarding"
+    }
+
+    var hasCompletedOnboarding: Bool {
+        get { bool(forKey: OnboardingKeys.hasCompletedOnboarding) }
+        set { set(newValue, forKey: OnboardingKeys.hasCompletedOnboarding) }
+    }
+
+    /// Resets all app settings to defaults (for logout)
+    func resetAllSettings() {
+        // Reset discovery settings
+        discoveryDisabled = false
+        showTrendingRows = true
+        showTraktRows = true
+        showPlexPopular = true
+        showNewPopularTab = true
+        includeTmdbInSearch = true
+
+        // Reset onboarding
+        hasCompletedOnboarding = false
+
+        // Reset home screen settings
+        heroLayout = "billboard"
+        showHeroSection = true
+        showContinueWatching = true
+        posterSize = "medium"
+        showPosterTitles = true
+    }
+}

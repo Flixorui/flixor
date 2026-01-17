@@ -13,6 +13,7 @@ import Login from './routes/Login';
 import NewPopular from './routes/NewPopular';
 import MyList from './routes/MyList';
 import Search from './routes/Search';
+import Onboarding from './routes/Onboarding';
 
 const router = createBrowserRouter([
   {
@@ -29,6 +30,7 @@ const router = createBrowserRouter([
       { path: 'new-popular', element: <NewPopular /> },
       { path: 'my-list', element: <MyList /> },
       { path: 'search', element: <Search /> },
+      { path: 'onboarding', element: <Onboarding /> },
     ],
   },
 ]);

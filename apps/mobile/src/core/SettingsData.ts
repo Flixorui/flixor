@@ -269,6 +269,8 @@ const SETTINGS_KEY = 'flixor_app_settings';
 export interface AppSettings {
   watchlistProvider: 'trakt' | 'plex';
   tmdbApiKey?: string; // Custom TMDB API key override
+  // Discovery mode - when true, disables all external data aggregation (TMDB, Trakt)
+  discoveryDisabled: boolean;
   // MDBList settings
   mdblistEnabled: boolean; // Enable MDBList integration (disabled by default)
   mdblistApiKey?: string; // MDBList API key (required when enabled)
@@ -313,6 +315,8 @@ export interface AppSettings {
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   watchlistProvider: 'trakt',
   tmdbApiKey: undefined,
+  // Discovery mode default (disabled = show discovery content)
+  discoveryDisabled: false,
   // MDBList defaults
   mdblistEnabled: false,
   mdblistApiKey: undefined,
@@ -386,6 +390,20 @@ export async function setAppSettings(settings: Partial<AppSettings>): Promise<vo
   }
 }
 
+/**
+ * Reset all settings to defaults and clear from storage.
+ * Called during logout to ensure fresh state on next login.
+ */
+export async function resetAppSettings(): Promise<void> {
+  cachedSettings = { ...DEFAULT_APP_SETTINGS };
+  settingsLoaded = false;
+  try {
+    await AsyncStorage.removeItem(SETTINGS_KEY);
+  } catch (e) {
+    console.log('[SettingsData] resetAppSettings error:', e);
+  }
+}
+
 export async function getTmdbApiKey(): Promise<string | undefined> {
   if (!settingsLoaded) {
     await loadAppSettings();
@@ -437,4 +455,34 @@ export async function setOverseerrUrl(url: string | undefined): Promise<void> {
 
 export async function setOverseerrApiKey(apiKey: string | undefined): Promise<void> {
   await setAppSettings({ overseerrApiKey: apiKey });
+}
+
+// Discovery mode helpers
+export function isDiscoveryDisabled(): boolean {
+  return cachedSettings.discoveryDisabled ?? false;
+}
+
+/**
+ * Set discovery disabled mode. When enabled, turns off all discovery-related settings:
+ * - showTrendingRows
+ * - showTraktRows
+ * - showPlexPopularRow
+ * - showNewHotTab
+ * - includeTmdbInSearch
+ */
+export async function setDiscoveryDisabled(disabled: boolean): Promise<void> {
+  if (disabled) {
+    // Turn off all discovery features
+    await setAppSettings({
+      discoveryDisabled: true,
+      showTrendingRows: false,
+      showTraktRows: false,
+      showPlexPopularRow: false,
+      showNewHotTab: false,
+      includeTmdbInSearch: false,
+    });
+  } else {
+    // Just update the master toggle, don't change individual settings
+    await setAppSettings({ discoveryDisabled: false });
+  }
 }

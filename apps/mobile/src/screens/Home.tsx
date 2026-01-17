@@ -23,6 +23,7 @@ import {
   fetchTmdbTrendingMoviesWeek,
   fetchTmdbTrendingAllWeek,
   fetchContinueWatching,
+  fetchOnDeck,
   fetchRecentlyAdded,
   fetchPlexWatchlist,
   fetchPlexGenreRow,
@@ -42,9 +43,11 @@ import {
   getTmdbOverview,
   getUltraBlurColors,
   getUsername,
+  convertPlexItemsToHero,
   RowItem,
   GenreItem,
   PlexUltraBlurColors,
+  HeroItem,
 } from '../core/HomeData';
 import {
   toggleWatchlist,
@@ -60,7 +63,8 @@ interface HomeProps {
 // Persistent store for hero content (like NuvioStreaming)
 // Cached at module scope to persist across mounts and reduce re-fetches
 const persistentStore = {
-  heroCarouselData: null as Array<{ id: string; title: string; image?: string; mediaType?: 'movie' | 'tv'; logo?: string; backdrop?: string; description?: string }> | null,
+  heroCarouselData: null as HeroItem[] | null,
+  heroSourceItems: null as PlexMediaItem[] | null, // Raw Plex items for hero (Continue Watching / On Deck / Recent)
   popularOnPlexTmdb: null as RowItem[] | null,
   lastFetchTime: 0,
   CACHE_TTL: 5 * 60 * 1000, // 5 minutes
@@ -81,17 +85,22 @@ export default function Home({ onLogout }: HomeProps) {
   const nav: any = useNavigation();
   const insets = useSafeAreaInsets();
   const { settings } = useAppSettings();
-  // Initialize loading based on cache - if we have cached data, skip loading screen
-  const [loading, setLoading] = useState(() => !persistentStore.popularOnPlexTmdb);
+  // Initialize loading based on cache - if we have cached hero data, skip loading screen
+  const [loading, setLoading] = useState(() => !persistentStore.heroSourceItems);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   const [welcome, setWelcome] = useState<string>('');
 
   // Plex data
   const [continueItems, setContinueItems] = useState<PlexMediaItem[]>([]);
+  const [onDeckItems, setOnDeckItems] = useState<PlexMediaItem[]>([]);
   const [recent, setRecent] = useState<PlexMediaItem[]>([]);
   // Cache for TMDB backdrop URLs with titles (ratingKey -> url)
   const [continueBackdrops, setContinueBackdrops] = useState<Record<string, string>>({});
+  // Hero source items (Plex items used for hero carousel)
+  const [heroSourceItems, setHeroSourceItems] = useState<PlexMediaItem[]>(
+    () => persistentStore.heroSourceItems || []
+  );
 
   // TMDB trending (split into multiple rows)
   // Initialize from persistent store for instant render (like NuvioStreaming)
@@ -122,22 +131,34 @@ export default function Home({ onLogout }: HomeProps) {
   const [heroWatchlistLoading, setHeroWatchlistLoading] = useState(false);
   const [heroColors, setHeroColors] = useState<PlexUltraBlurColors | null>(null);
   const [browseModalVisible, setBrowseModalVisible] = useState(false);
+  // Hero carousel uses Plex library items: Continue Watching → On Deck → Recently Added
+  // This matches macOS behavior
   const heroCarouselItems = useMemo(() => {
-    const base = popularOnPlexTmdb.length
-      ? popularOnPlexTmdb
-      : trendingNow.length
-        ? trendingNow
-        : trendingMovies.length
-          ? trendingMovies
-          : trendingAll;
-    return base.slice(0, ITEM_LIMITS.HERO).map((item) => ({
-      id: item.id,
-      title: item.title,
-      image: item.image,
-      mediaType: item.mediaType,
-    }));
-  }, [popularOnPlexTmdb, trendingNow, trendingMovies, trendingAll]);
-  const [heroCarouselData, setHeroCarouselData] = useState<Array<{ id: string; title: string; image?: string; mediaType?: 'movie' | 'tv'; logo?: string; backdrop?: string; description?: string }>>(
+    // Priority: Continue Watching → On Deck → Recently Added (like macOS)
+    const sourceItems = heroSourceItems.length > 0
+      ? heroSourceItems
+      : continueItems.length > 0
+        ? continueItems
+        : onDeckItems.length > 0
+          ? onDeckItems
+          : recent;
+
+    return sourceItems.slice(0, ITEM_LIMITS.HERO).map((item) => {
+      const isEpisode = item.type === 'episode';
+      const displayTitle = isEpisode
+        ? item.grandparentTitle || item.title
+        : item.title;
+      const mediaType: 'movie' | 'tv' = item.type === 'movie' ? 'movie' : 'tv';
+
+      return {
+        id: `plex:${item.ratingKey}`,
+        title: displayTitle || 'Untitled',
+        image: undefined, // Will be enriched later
+        mediaType,
+      };
+    });
+  }, [heroSourceItems, continueItems, onDeckItems, recent]);
+  const [heroCarouselData, setHeroCarouselData] = useState<HeroItem[]>(
     () => persistentStore.heroCarouselData || []
   );
   const [carouselIndex, setCarouselIndex] = useState(0);
@@ -178,6 +199,7 @@ export default function Home({ onLogout }: HomeProps) {
 
     // Clear module-level persistent store
     persistentStore.heroCarouselData = null;
+    persistentStore.heroSourceItems = null;
     persistentStore.popularOnPlexTmdb = null;
     persistentStore.lastFetchTime = 0;
 
@@ -195,7 +217,9 @@ export default function Home({ onLogout }: HomeProps) {
 
     // Reset all row states
     setContinueItems([]);
+    setOnDeckItems([]);
     setRecent([]);
+    setHeroSourceItems([]);
     setPopularOnPlexTmdb([]);
     setTrendingNow([]);
     setTrendingMovies([]);
@@ -384,47 +408,45 @@ export default function Home({ onLogout }: HomeProps) {
 
         // Start ALL fetches in parallel but don't wait for all
         const continuePromise = fetchContinueWatching();
+        const onDeckPromise = fetchOnDeck();
         const recentPromise = fetchRecentlyAdded();
         const trendingTVPromise = fetchTmdbTrendingTVWeek();
         const watchlistPromise = fetchPlexWatchlist();
         const trendingMoviesPromise = fetchTmdbTrendingMoviesWeek();
         const trendingAllPromise = fetchTmdbTrendingAllWeek();
 
-        // Exit loading as soon as trending TV (hero content) is ready
-        trendingTVPromise.then((tv) => {
-          // Use InteractionManager to defer state updates until animations complete
-          InteractionManager.runAfterInteractions(() => {
-            console.log('[Home] TMDB trending TV fetched:', tv.length, 'items (limit:', ITEM_LIMITS.HERO, ')');
-            const heroItems = tv.slice(0, ITEM_LIMITS.HERO);
-            setPopularOnPlexTmdb(heroItems);
-            setTrendingNow(tv.slice(ITEM_LIMITS.HERO, ITEM_LIMITS.HERO * 2));
+        // Exit loading as soon as Plex hero content (Continue Watching / On Deck / Recent) is ready
+        // Priority: Continue Watching → On Deck → Recently Added (matches macOS behavior)
+        continuePromise.then(async (continueData) => {
+          InteractionManager.runAfterInteractions(async () => {
+            setContinueItems(continueData);
 
-            // Update persistent store for instant render on next mount
-            persistentStore.popularOnPlexTmdb = heroItems;
-            persistentStore.lastFetchTime = Date.now();
+            // If we have continue watching items, use them for hero
+            if (continueData.length > 0) {
+              const heroItems = continueData.slice(0, ITEM_LIMITS.HERO);
+              setHeroSourceItems(heroItems);
+              persistentStore.heroSourceItems = heroItems;
+              persistentStore.lastFetchTime = Date.now();
+              exitLoading();
+              console.log(`[Home][perf] hero content ready (Continue Watching: ${heroItems.length} items) in ${Date.now() - loadStart}ms`);
 
-            // Exit loading screen - show content!
-            exitLoading();
-            console.log(`[Home][perf] first content ready in ${Date.now() - loadStart}ms`);
-          });
-        }).catch(() => {});
+              // Enrich hero items with TMDB data in background
+              convertPlexItemsToHero(heroItems, ITEM_LIMITS.HERO).then((enriched) => {
+                setHeroCarouselData(enriched);
+                persistentStore.heroCarouselData = enriched;
+              });
+            }
 
-        // Process other primary rows as they complete - defer updates to avoid jank
-        continuePromise.then((items) => {
-          InteractionManager.runAfterInteractions(() => {
-            setContinueItems(items);
-            // Fetch TMDB backdrops with titles for movies and episodes
-            items.forEach(async (item) => {
+            // Fetch TMDB backdrops for Continue Watching row
+            continueData.forEach(async (item) => {
               try {
                 let tmdbId: string | null = null;
                 let mediaType: 'movie' | 'tv' = 'movie';
 
                 if (item.type === 'movie') {
-                  // For movies, extract TMDB ID from Guid array
                   tmdbId = extractTmdbIdFromGuids(item.Guid || []);
                   mediaType = 'movie';
                 } else if (item.type === 'episode' && item.grandparentRatingKey) {
-                  // For episodes, fetch the show's TMDB ID using grandparentRatingKey
                   tmdbId = await getShowTmdbId(item.grandparentRatingKey);
                   mediaType = 'tv';
                 }
@@ -441,8 +463,63 @@ export default function Home({ onLogout }: HomeProps) {
             });
           });
         }).catch(() => setContinueItems([]));
-        recentPromise.then((items) => {
-          InteractionManager.runAfterInteractions(() => setRecent(items));
+
+        // On Deck fallback for hero
+        onDeckPromise.then((onDeckData) => {
+          InteractionManager.runAfterInteractions(async () => {
+            setOnDeckItems(onDeckData);
+
+            // If no continue watching but have on deck, use for hero
+            const currentHeroSource = persistentStore.heroSourceItems;
+            if ((!currentHeroSource || currentHeroSource.length === 0) && onDeckData.length > 0) {
+              const heroItems = onDeckData.slice(0, ITEM_LIMITS.HERO);
+              setHeroSourceItems(heroItems);
+              persistentStore.heroSourceItems = heroItems;
+              persistentStore.lastFetchTime = Date.now();
+              exitLoading();
+              console.log(`[Home][perf] hero content ready (On Deck: ${heroItems.length} items) in ${Date.now() - loadStart}ms`);
+
+              // Enrich hero items with TMDB data
+              convertPlexItemsToHero(heroItems, ITEM_LIMITS.HERO).then((enriched) => {
+                setHeroCarouselData(enriched);
+                persistentStore.heroCarouselData = enriched;
+              });
+            }
+          });
+        }).catch(() => setOnDeckItems([]));
+
+        // TMDB trending rows (not for hero, but for content rows)
+        trendingTVPromise.then((tv) => {
+          InteractionManager.runAfterInteractions(() => {
+            console.log('[Home] TMDB trending TV fetched:', tv.length, 'items');
+            setPopularOnPlexTmdb(tv.slice(0, ITEM_LIMITS.TRENDING));
+            setTrendingNow(tv.slice(ITEM_LIMITS.TRENDING, ITEM_LIMITS.TRENDING * 2));
+            persistentStore.popularOnPlexTmdb = tv.slice(0, ITEM_LIMITS.TRENDING);
+          });
+        }).catch(() => {});
+
+        // Recently Added - also serves as final hero fallback
+        recentPromise.then((recentData) => {
+          InteractionManager.runAfterInteractions(async () => {
+            setRecent(recentData);
+
+            // If no continue watching or on deck, use recently added for hero
+            const currentHeroSource = persistentStore.heroSourceItems;
+            if ((!currentHeroSource || currentHeroSource.length === 0) && recentData.length > 0) {
+              const heroItems = recentData.slice(0, ITEM_LIMITS.HERO);
+              setHeroSourceItems(heroItems);
+              persistentStore.heroSourceItems = heroItems;
+              persistentStore.lastFetchTime = Date.now();
+              exitLoading();
+              console.log(`[Home][perf] hero content ready (Recently Added: ${heroItems.length} items) in ${Date.now() - loadStart}ms`);
+
+              // Enrich hero items with TMDB data
+              convertPlexItemsToHero(heroItems, ITEM_LIMITS.HERO).then((enriched) => {
+                setHeroCarouselData(enriched);
+                persistentStore.heroCarouselData = enriched;
+              });
+            }
+          });
         }).catch(() => setRecent([]));
         watchlistPromise.then((items) => {
           InteractionManager.runAfterInteractions(() => setWatchlist(items));
@@ -553,64 +630,47 @@ export default function Home({ onLogout }: HomeProps) {
     };
   }, []);
 
-  // Fetch logo and textless backdrop for hero once popularOnPlexTmdb is loaded
+  // Fetch hero pick from enriched hero carousel data (Plex-based)
   useEffect(() => {
     if (!hasLoadedOnceRef.current) return;
-    console.log('[Home] Hero effect triggered, popularOnPlexTmdb length:', popularOnPlexTmdb.length);
-    if (popularOnPlexTmdb.length === 0) {
-      console.log('[Home] No popularOnPlexTmdb items yet, skipping hero');
+    if (heroCarouselData.length === 0) {
+      console.log('[Home] No heroCarouselData yet, skipping hero pick');
       return;
     }
 
-    const sourceKey = popularOnPlexTmdb[0]?.id || null;
+    const sourceKey = heroCarouselData[0]?.id || null;
     if (sourceKey && sourceKey === lastHeroSourceRef.current && heroPick) {
       return;
     }
     lastHeroSourceRef.current = sourceKey;
 
-    console.log('[Home] Starting hero selection async...');
+    console.log('[Home] Setting hero pick from Plex carousel data...');
     const cancel = scheduleIdleWork(async () => {
       try {
-        const hero = pickHero(popularOnPlexTmdb);
-        console.log('[Home] Picked hero:', hero.title, 'tmdbId:', hero.tmdbId, 'has image:', !!hero.image);
+        // Pick a random hero from the carousel data (already enriched with TMDB data)
+        const randomIndex = Math.floor(Math.random() * Math.min(heroCarouselData.length, 8));
+        const pick = heroCarouselData[randomIndex];
 
-        if (hero.tmdbId && hero.mediaType) {
-          // Fetch textless poster from TMDB
-          console.log('[Home] Fetching textless poster for:', hero.mediaType, hero.tmdbId);
-          const poster = await getTmdbTextlessPoster(hero.tmdbId, hero.mediaType);
-          if (poster) {
-            console.log('[Home] Setting hero poster from TMDB (textless)');
-            hero.image = poster;
-          }
+        const hero: HeroPick = {
+          title: pick.title,
+          image: pick.backdrop || pick.image,
+          subtitle: pick.year || undefined,
+          mediaType: pick.mediaType,
+        };
 
-          // Fetch logo
-          console.log('[Home] Fetching logo for:', hero.mediaType, hero.tmdbId);
-          const logo = await getTmdbLogo(hero.tmdbId, hero.mediaType);
-          if (logo) {
-            console.log('[Home] Setting hero logo:', logo);
-            setHeroLogo(logo);
-          } else {
-            console.log('[Home] No logo found for hero');
-          }
-
-          // Check watchlist status for hero
-          const heroIds: WatchlistIds = {
-            tmdbId: hero.tmdbId,
-            mediaType: hero.mediaType,
-          };
-          const inWatchlist = await checkWatchlistStatus(heroIds);
-          setHeroInWatchlist(inWatchlist);
-        } else {
-          console.log('[Home] No TMDB ID for hero, logo unavailable');
+        // Set logo if available
+        if (pick.logo) {
+          setHeroLogo(pick.logo);
         }
 
         setHeroPick(hero);
+        console.log('[Home] Hero pick set:', hero.title);
       } catch (e) {
         console.log('[Home] Error in hero selection:', e);
       }
     }, 500);
     return cancel;
-  }, [popularOnPlexTmdb, heroPick, scheduleIdleWork]);
+  }, [heroCarouselData, heroPick, scheduleIdleWork]);
 
   useEffect(() => {
     if (!isFocusedRef.current) return;
@@ -640,41 +700,25 @@ export default function Home({ onLogout }: HomeProps) {
     return cancel;
   }, [heroPick?.image, heroColors, scheduleIdleWork]);
 
+  // Hero enrichment is now handled in the data loading effect via convertPlexItemsToHero
+  // This effect only runs if heroCarouselData is empty but heroSourceItems changed
   useEffect(() => {
+    if (heroCarouselData.length > 0 || heroSourceItems.length === 0) return;
+
     let active = true;
     (async () => {
-      const enriched = await Promise.all(
-        heroCarouselItems.map(async (item) => {
-          if (!item.id.startsWith('tmdb:') || !item.mediaType) return item;
-          const parts = item.id.split(':');
-          const tmdbId = Number(parts[2]);
-          if (!tmdbId) return item;
-          const [poster, logo, backdrop, overview] = await Promise.all([
-            getTmdbTextlessPoster(tmdbId, item.mediaType),
-            getTmdbLogo(tmdbId, item.mediaType),
-            getTmdbTextlessBackdrop(tmdbId, item.mediaType),
-            getTmdbOverview(tmdbId, item.mediaType),
-          ]);
-          return {
-            ...item,
-            image: poster || item.image,
-            logo: logo || undefined,
-            backdrop: backdrop || undefined,
-            description: overview || undefined,
-          };
-        })
-      );
-      if (active) {
+      console.log('[Home] Enriching hero items from Plex source:', heroSourceItems.length);
+      const enriched = await convertPlexItemsToHero(heroSourceItems, ITEM_LIMITS.HERO);
+      if (active && enriched.length > 0) {
         setHeroCarouselData(enriched);
         setCarouselIndex(0);
-        // Update persistent store for instant render on next mount
         persistentStore.heroCarouselData = enriched;
       }
     })();
     return () => {
       active = false;
     };
-  }, [heroCarouselItems]);
+  }, [heroSourceItems, heroCarouselData.length]);
 
   // Precompute ultraBlur colors for all carousel items
   useEffect(() => {
@@ -927,7 +971,7 @@ export default function Home({ onLogout }: HomeProps) {
 
   // Only show loading screen if we have no cached content to display
   // This prevents blank screen flash when returning to Home with cached data
-  const hasContentToShow = popularOnPlexTmdb.length > 0 || heroCarouselData.length > 0 || continueItems.length > 0;
+  const hasContentToShow = heroSourceItems.length > 0 || heroCarouselData.length > 0 || continueItems.length > 0;
   if ((loading && !hasContentToShow) || error) {
     return (
       <View style={{ flex: 1, backgroundColor: '#1b0a10', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
@@ -1337,7 +1381,7 @@ function HeroAppleTV({
   if (!current) return null;
 
   return (
-    <View style={{ paddingHorizontal: 16, marginTop: -24 }}>
+    <View style={{ paddingHorizontal: 16, marginTop: 8 }}>
       <View
         style={{
           borderRadius: 18,

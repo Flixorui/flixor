@@ -72,6 +72,7 @@ struct RootView: View {
     @EnvironmentObject var flixorCore: FlixorCore
     @StateObject private var watchlistController = WatchlistController()
     @State private var isInitializing = true
+    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding: Bool = false
 
     var body: some View {
         Group {
@@ -87,8 +88,17 @@ struct RootView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color.black)
             } else if flixorCore.isPlexAuthenticated && flixorCore.isPlexServerConnected {
-                MainView()
+                if hasCompletedOnboarding {
+                    MainView()
+                        .transition(.opacity)
+                } else {
+                    OnboardingView {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            hasCompletedOnboarding = true
+                        }
+                    }
                     .transition(.opacity)
+                }
             } else {
                 PlexAuthView()
                     .transition(.opacity)
@@ -96,6 +106,7 @@ struct RootView: View {
         }
         .animation(.easeInOut(duration: 0.3), value: flixorCore.isPlexAuthenticated)
         .animation(.easeInOut(duration: 0.3), value: flixorCore.isPlexServerConnected)
+        .animation(.easeInOut(duration: 0.3), value: hasCompletedOnboarding)
         .environmentObject(watchlistController)
         .task {
             // Wait for FlixorCore to initialize
@@ -112,6 +123,17 @@ struct MainView: View {
     @EnvironmentObject var sessionManager: SessionManager
     @StateObject private var router = NavigationRouter()
     @StateObject private var mainViewState = MainViewState()
+    @AppStorage("showNewPopularTab") private var showNewPopularTab: Bool = true
+
+    /// Visible navigation items based on settings
+    private var visibleNavItems: [NavItem] {
+        NavItem.allCases.filter { item in
+            if item == .newPopular && !showNewPopularTab {
+                return false
+            }
+            return true
+        }
+    }
 
     var body: some View {
         NavigationStack(path: router.pathBinding(for: mainViewState.selectedTab)) {
@@ -146,7 +168,7 @@ struct MainView: View {
             // Navigation links in center
             ToolbarItemGroup(placement: .principal) {
                 HStack(spacing: 32) {
-                    ForEach(NavItem.allCases) { item in
+                    ForEach(visibleNavItems) { item in
                         ToolbarNavButton(
                             item: item,
                             isActive: mainViewState.selectedTab == item,
@@ -204,6 +226,12 @@ struct MainView: View {
         .toolbarBackground(.ultraThinMaterial, for: .windowToolbar)
         .sheet(isPresented: $showingSettings) {
             SettingsView()
+        }
+        .onChange(of: showNewPopularTab) { newValue in
+            // If New & Popular tab is hidden while on that tab, switch to Home
+            if !newValue && mainViewState.selectedTab == .newPopular {
+                mainViewState.selectedTab = .home
+            }
         }
     }
 

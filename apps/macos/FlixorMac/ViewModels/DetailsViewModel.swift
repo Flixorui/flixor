@@ -137,6 +137,8 @@ class DetailsViewModel: ObservableObject {
     @Published var episodeTitle: String?            // Original episode title (without show context)
     @Published var airDate: String?                 // Original air date
     @Published var tmdbRating: Double?              // TMDB vote average
+    @Published var plexImdbRating: Double?          // Direct IMDb rating from Plex (fallback)
+    @Published var plexAudienceRating: Int?         // Direct RT Audience rating from Plex (fallback)
     @Published var guestStars: [Person] = []        // Guest stars from TMDB
     @Published var episodeDirector: String?         // Episode director
     @Published var episodeWriter: String?           // Episode writer
@@ -235,6 +237,8 @@ class DetailsViewModel: ObservableObject {
         error = nil
         badges = []
         externalRatings = nil
+        plexImdbRating = nil
+        plexAudienceRating = nil
         lastFetchedRatingsKey = nil
         tmdbId = nil
         imdbId = nil
@@ -343,6 +347,10 @@ class DetailsViewModel: ObservableObject {
                     if let y = meta.year { year = String(y) } else { year = nil }
                     rating = meta.contentRating
                     if let ms = meta.duration { runtime = Int(ms/60000) } else { runtime = nil }
+                    // Episode count for TV shows
+                    if meta.type != "movie" {
+                        episodeCount = meta.leafCount
+                    }
                     let gs = (meta.Genre ?? []).compactMap { $0.tag }.filter { !$0.isEmpty }
                     if !gs.isEmpty {
                         genres = gs
@@ -436,6 +444,10 @@ class DetailsViewModel: ObservableObject {
                     if let y = meta.year { year = String(y) } else { year = nil }
                     rating = meta.contentRating
                     if let ms = meta.duration { runtime = Int(ms/60000) } else { runtime = nil }
+                    // Episode count for TV shows
+                    if meta.type != "movie" {
+                        episodeCount = meta.leafCount
+                    }
                     let gs = (meta.Genre ?? []).compactMap { $0.tag }.filter { !$0.isEmpty }
                     if !gs.isEmpty {
                         genres = gs
@@ -570,6 +582,9 @@ class DetailsViewModel: ObservableObject {
             let production_companies: [TProductionCompany]?
             let networks: [TProductionCompany]?
             let created_by: [TCreator]?
+            // Ratings
+            let vote_average: Double?
+            let vote_count: Int?
         }
         struct TGenre: Codable { let name: String }
         struct TProductionCompany: Codable { let id: Int?; let name: String?; let logo_path: String? }
@@ -599,6 +614,12 @@ class DetailsViewModel: ObservableObject {
         self.numberOfSeasons = d.number_of_seasons
         self.numberOfEpisodes = d.number_of_episodes
         self.creators = (d.created_by ?? []).compactMap { $0.name }
+
+        // TMDB Rating (used as fallback if Plex/MDBList don't have ratings)
+        if let rating = d.vote_average, rating > 0 {
+            self.tmdbRating = rating
+            print("✅ [TMDB Details] TMDB rating: \(rating)")
+        }
 
         print("📊 [TMDB Details] Extended info loaded:")
         print("   - tagline: \(self.tagline ?? "nil")")
@@ -985,7 +1006,23 @@ class DetailsViewModel: ObservableObject {
         } else {
             print("⚠️ [mapToPlex] No media versions found in Plex match")
         }
-        parseRatings(from: match.Rating, fallbackRating: match.rating, fallbackAudienceRating: match.audienceRating)
+
+        // Fetch full metadata to get Rating array (search results don't include ratings)
+        if let plexServer = FlixorCore.shared.plexServer {
+            do {
+                let fullMeta = try await plexServer.getMetadata(ratingKey: rk)
+                let meta = plexItemToMeta(fullMeta)
+                parseRatingsFromPlexMeta(meta)
+                print("✅ [mapToPlex] Fetched full metadata for ratings - Rating count: \(fullMeta.ratings.count)")
+            } catch {
+                print("⚠️ [mapToPlex] Failed to fetch full metadata for ratings: \(error)")
+                // Fallback to search results (likely empty for ratings)
+                parseRatings(from: match.Rating, fallbackRating: match.rating, fallbackAudienceRating: match.audienceRating)
+            }
+        } else {
+            parseRatings(from: match.Rating, fallbackRating: match.rating, fallbackAudienceRating: match.audienceRating)
+        }
+
         await loadPlexExtras(ratingKey: rk)
         print("✅ [mapToPlex] TMDB → Plex mapping complete for '\(match.title ?? title)' (ratingKey: \(rk))")
     }
@@ -1198,28 +1235,55 @@ class DetailsViewModel: ObservableObject {
         var rtCriticRating: Int?
         var rtAudienceRating: Int?
 
-        // Parse from Rating array
+        // Debug: log what we're receiving
+        print("🎬 [parseRatings] Input - Rating array count: \(plexRatings?.count ?? 0), fallbackRating: \(fallbackRating ?? 0), fallbackAudienceRating: \(fallbackAudienceRating ?? 0)")
+
+        // Parse from Rating array (matching mobile's exact approach)
         if let ratings = plexRatings {
             for r in ratings {
                 let img = (r.image ?? "").lowercased()
                 guard let value = r.value else { continue }
+                print("🔍 [parseRatings] Rating entry - image: '\(img)', value: \(value)")
 
-                if img.contains("imdb://image.rating") {
+                // IMDb rating - match mobile's 'imdb://image.rating' pattern
+                if img.contains("imdb://image.rating") || (img.contains("imdb") && img.contains("rating")) {
                     imdbRating = value
-                } else if img.contains("rottentomatoes://image.rating.ripe") || img.contains("rottentomatoes://image.rating.rotten") {
+                    print("✓ [parseRatings] Matched IMDb: \(value)")
+                }
+                // RT Critic - match mobile's 'rottentomatoes://image.rating.ripe' or 'rotten' patterns
+                else if img.contains("rottentomatoes://image.rating.ripe") ||
+                        img.contains("rottentomatoes://image.rating.rotten") ||
+                        img.contains("rottentomatoes://image.rating.certified") ||
+                        (img.contains("rottentomatoes") && (img.contains("ripe") || img.contains("rotten") || img.contains("certified"))) {
                     rtCriticRating = Int(value * 10)
-                } else if img.contains("rottentomatoes://image.rating.upright") || img.contains("rottentomatoes://image.rating.spilled") {
+                    print("✓ [parseRatings] Matched RT Critic: \(Int(value * 10))%")
+                }
+                // RT Audience - match mobile's 'rottentomatoes://image.rating.upright' or 'spilled' patterns
+                else if img.contains("rottentomatoes://image.rating.upright") ||
+                        img.contains("rottentomatoes://image.rating.spilled") ||
+                        (img.contains("rottentomatoes") && (img.contains("upright") || img.contains("spilled") || img.contains("audience"))) {
                     rtAudienceRating = Int(value * 10)
+                    print("✓ [parseRatings] Matched RT Audience: \(Int(value * 10))%")
+                } else {
+                    print("⚠️ [parseRatings] Unmatched rating image: '\(img)'")
                 }
             }
+        } else {
+            print("⚠️ [parseRatings] Rating array is nil")
         }
 
-        // Fallbacks from top-level fields
-        if imdbRating == nil, let topRating = fallbackRating {
-            imdbRating = topRating
+        // Fallbacks from top-level fields (always set these for direct access)
+        if let topRating = fallbackRating {
+            plexImdbRating = topRating
+            if imdbRating == nil {
+                imdbRating = topRating
+            }
         }
-        if rtAudienceRating == nil, let audienceRating = fallbackAudienceRating {
-            rtAudienceRating = Int(audienceRating * 10)
+        if let audienceRating = fallbackAudienceRating {
+            plexAudienceRating = Int(audienceRating * 10)
+            if rtAudienceRating == nil {
+                rtAudienceRating = Int(audienceRating * 10)
+            }
         }
 
         // Set external ratings if any found
@@ -1233,6 +1297,8 @@ class DetailsViewModel: ObservableObject {
             }
             externalRatings = ExternalRatings(imdb: imdbModel, rottenTomatoes: rtModel)
             print("✅ [Details] Parsed ratings - IMDb: \(imdbRating ?? 0), RT Critic: \(rtCriticRating ?? 0)%, RT Audience: \(rtAudienceRating ?? 0)%")
+        } else {
+            print("⚠️ [Details] No ratings parsed from Plex metadata")
         }
     }
 
@@ -2010,6 +2076,11 @@ class DetailsViewModel: ObservableObject {
     // MARK: - FlixorKit Helpers
 
     private func plexItemToMeta(_ item: FlixorKit.PlexMediaItem) -> PlexMeta {
+        // Debug: log ratings from FlixorKit item
+        print("🔄 [plexItemToMeta] Converting item '\(item.title ?? "unknown")' - ratings count: \(item.ratings.count), rating: \(item.rating ?? 0), audienceRating: \(item.audienceRating ?? 0)")
+        for r in item.ratings {
+            print("   📊 Rating entry - image: '\(r.image ?? "nil")', value: \(r.value ?? 0)")
+        }
         return PlexMeta(
             ratingKey: item.ratingKey,
             type: item.type,

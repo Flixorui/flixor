@@ -41,6 +41,12 @@ export type AppSettings = {
   traktSyncEnabled?: boolean;
   watchlistProvider?: 'trakt' | 'plex';
 
+  // Onboarding
+  hasCompletedOnboarding?: boolean;
+
+  // Discovery mode - when true, disables all external discovery features
+  discoveryDisabled?: boolean;
+
   // Home screen settings
   showHeroSection?: boolean;
   heroLayout?: 'legacy' | 'carousel' | 'appletv';
@@ -50,6 +56,8 @@ export type AppSettings = {
   showTrendingRows?: boolean;
   showTraktRows?: boolean;
   showPlexPopularRow?: boolean;
+  showNewPopularTab?: boolean;
+  includeTmdbInSearch?: boolean;
   showPosterTitles?: boolean;
   showLibraryTitles?: boolean;
   posterBorderRadius?: number; // 0, 12, or 20
@@ -108,4 +116,29 @@ export function saveSettings(patch: Partial<AppSettings>) {
   const next = { ...curr, ...patch };
   localStorage.setItem(KEY, JSON.stringify(next));
   return next;
+}
+
+/**
+ * Set discovery disabled mode. When enabled, turns off all discovery-related settings.
+ */
+export function setDiscoveryDisabled(disabled: boolean) {
+  if (disabled) {
+    return saveSettings({
+      discoveryDisabled: true,
+      showTrendingRows: false,
+      showTraktRows: false,
+      showPlexPopularRow: false,
+      showNewPopularTab: false,
+      includeTmdbInSearch: false,
+    });
+  } else {
+    return saveSettings({ discoveryDisabled: false });
+  }
+}
+
+/**
+ * Reset all app settings to defaults (for logout)
+ */
+export function resetAllSettings() {
+  localStorage.removeItem(KEY);
 }

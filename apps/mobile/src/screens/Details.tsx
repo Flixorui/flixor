@@ -125,6 +125,7 @@ export default function Details({ route }: RouteParams) {
   const [mediaVersions, setMediaVersions] = useState<MediaVersion[]>([]);
   const [pendingPlayRatingKey, setPendingPlayRatingKey] = useState<string | null>(null);
   const [imdbId, setImdbId] = useState<string | undefined>(undefined);
+  const [firstEpisodeMedia, setFirstEpisodeMedia] = useState<any[]>([]); // Technical info from first episode (for TV shows)
   const y = useRef(new Animated.Value(0)).current;
   const panY = useRef(new Animated.Value(0)).current;
   const appear = useRef(new Animated.Value(0)).current;
@@ -304,7 +305,20 @@ export default function Details({ route }: RouteParams) {
             setSeasonSource('plex');
             if (seas[0]?.ratingKey) {
               setSeasonKey(String(seas[0].ratingKey));
-              setEpisodes(await fetchPlexSeasonEpisodes(String(seas[0].ratingKey)));
+              const eps = await fetchPlexSeasonEpisodes(String(seas[0].ratingKey));
+              setEpisodes(eps);
+              // Fetch technical details from first episode (like macOS does)
+              if (eps[0]?.ratingKey) {
+                try {
+                  const firstEpMeta = await fetchPlexMetadata(String(eps[0].ratingKey));
+                  if (firstEpMeta?.Media) {
+                    setFirstEpisodeMedia(firstEpMeta.Media);
+                    console.log('[Details] Fetched technical info from first episode');
+                  }
+                } catch (e) {
+                  console.log('[Details] Error fetching first episode technical info:', e);
+                }
+              }
             }
             // Fetch next up episode for continue watching
             const nextUpEp = await getNextUpEpisode(params.ratingKey, seas);
@@ -406,7 +420,20 @@ export default function Details({ route }: RouteParams) {
               setSeasonSource('plex');
               if (seas[0]?.ratingKey) {
                 setSeasonKey(String(seas[0].ratingKey));
-                setEpisodes(await fetchPlexSeasonEpisodes(String(seas[0].ratingKey)));
+                const eps = await fetchPlexSeasonEpisodes(String(seas[0].ratingKey));
+                setEpisodes(eps);
+                // Fetch technical details from first episode (like macOS does)
+                if (eps[0]?.ratingKey) {
+                  try {
+                    const firstEpMeta = await fetchPlexMetadata(String(eps[0].ratingKey));
+                    if (firstEpMeta?.Media) {
+                      setFirstEpisodeMedia(firstEpMeta.Media);
+                      console.log('[Details] Fetched technical info from first episode (TMDB-mapped)');
+                    }
+                  } catch (e) {
+                    console.log('[Details] Error fetching first episode technical info:', e);
+                  }
+                }
               }
               // Fetch next up episode for continue watching
               const nextUpEp = await getNextUpEpisode(String(mapped.ratingKey), seas);
@@ -790,7 +817,7 @@ export default function Details({ route }: RouteParams) {
         {/* Badges & Ratings */}
         <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8, marginTop:12, marginHorizontal:16, alignItems:'center', justifyContent:'center' }}>
           {/* Content Rating Badge */}
-          <ContentRatingBadge rating={contentRating} size={20} />
+          <ContentRatingBadge rating={contentRating} size={10} />
           {/* Tech Badges */}
           {is4K ? <TechBadge type="4k" size={10} /> : null}
           {isHD ? <TechBadge type="hd" size={10} /> : null}
@@ -823,7 +850,7 @@ export default function Details({ route }: RouteParams) {
         </View>
 
         {/* Meta line */}
-        <Text style={{ color:'#bbb', marginHorizontal:16, marginTop:8 }}>
+        <Text style={{ color:'#bbb', marginHorizontal:16, marginTop:8, textAlign:'center' }}>
           {/* Episode: Show S#E# first */}
           {meta?.type === 'episode' && meta?.parentIndex && meta?.index ? `S${meta.parentIndex} E${meta.index} • ` : ''}
           {meta?.year ? `${meta.year} • ` : ''}
@@ -1042,6 +1069,7 @@ export default function Details({ route }: RouteParams) {
                     setPersonModalVisible(true);
                   }}
                   keyPrefix="unified-"
+                  firstEpisodeMedia={firstEpisodeMedia}
                 />
               </View>
             </View>
@@ -1097,6 +1125,7 @@ export default function Details({ route }: RouteParams) {
                     setSelectedPersonName(name);
                     setPersonModalVisible(true);
                   }}
+                  firstEpisodeMedia={firstEpisodeMedia}
                 />
               ) : null}
             </>
@@ -1786,8 +1815,10 @@ function CrewList({ meta, tmdbCrew, creators, isShow }: { meta:any; tmdbCrew?: A
   );
 }
 
-function TechSpecs({ meta }: { meta:any }) {
-  const m = (meta?.Media || [])[0] || {};
+function TechSpecs({ meta, firstEpisodeMedia }: { meta:any; firstEpisodeMedia?: any[] }) {
+  // Use meta.Media if available, otherwise fallback to firstEpisodeMedia (for TV shows)
+  const mediaArray = meta?.Media?.length ? meta.Media : (firstEpisodeMedia || []);
+  const m = mediaArray[0] || {};
   const container = m?.container;
   const vCodec = m?.videoCodec || (m as any)?.videoCodecTag;
   const aCodec = m?.audioCodec;
@@ -1915,7 +1946,7 @@ function formatDate(dateStr?: string): string | undefined {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-function DetailsTab({ meta, tmdbCast, tmdbCrew, productionInfo, tmdbExtraInfo, mdblistRatings, onPersonPress, keyPrefix = '' }: {
+function DetailsTab({ meta, tmdbCast, tmdbCrew, productionInfo, tmdbExtraInfo, mdblistRatings, onPersonPress, keyPrefix = '', firstEpisodeMedia }: {
   meta: any;
   tmdbCast?: Array<{ id: number; name: string; profile_path?: string }>;
   tmdbCrew?: Array<{ name: string; job?: string }>;
@@ -1940,6 +1971,7 @@ function DetailsTab({ meta, tmdbCast, tmdbCrew, productionInfo, tmdbExtraInfo, m
   mdblistRatings?: MDBListRatings | null;
   onPersonPress?: (id: number, name: string) => void;
   keyPrefix?: string;
+  firstEpisodeMedia?: any[];
 }) {
   const guids: string[] = Array.isArray(meta?.Guid) ? meta.Guid.map((g:any)=> String(g.id||'')) : [];
   const imdbId = guids.find(x=> x.startsWith('imdb://'))?.split('://')[1];
@@ -1966,7 +1998,7 @@ function DetailsTab({ meta, tmdbCast, tmdbCrew, productionInfo, tmdbExtraInfo, m
         <ProductionRow items={productionInfo} isMovie={isMovie} />
       )}
 
-      <TechSpecs meta={meta} />
+      <TechSpecs meta={meta} firstEpisodeMedia={firstEpisodeMedia} />
 
       <Collections meta={meta} />
 

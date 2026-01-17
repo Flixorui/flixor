@@ -98,6 +98,7 @@
 		A217 /* HeroCarousel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B177 /* HeroCarousel.swift */; };
 		A218 /* ContinueWatchingLandscapeRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B178 /* ContinueWatchingLandscapeRow.swift */; };
 		A219 /* ContinueWatchingPosterRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B179 /* ContinueWatchingPosterRow.swift */; };
+		A260 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B260 /* OnboardingView.swift */; };
 		A220 /* PosterSectionRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B180 /* PosterSectionRow.swift */; };
 		A221 /* TrailersRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B181 /* TrailersRow.swift */; };
 		A222 /* TrailerModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = B182 /* TrailerModal.swift */; };
@@ -359,6 +360,7 @@
 		B178 /* ContinueWatchingLandscapeRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContinueWatchingLandscapeRow.swift; sourceTree = "<group>"; };
 		B179 /* ContinueWatchingPosterRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContinueWatchingPosterRow.swift; sourceTree = "<group>"; };
 		B180 /* PosterSectionRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PosterSectionRow.swift; sourceTree = "<group>"; };
+		B260 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		B181 /* TrailersRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrailersRow.swift; sourceTree = "<group>"; };
 		B182 /* TrailerModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrailerModal.swift; sourceTree = "<group>"; };
 		B300 /* ServiceIcons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServiceIcons.swift; sourceTree = "<group>"; };
@@ -592,6 +594,7 @@
 				D012 /* Home */,
 				D013 /* Library */,
 				D020 /* MyList */,
+				D023 /* Onboarding */,
 				D014 /* Search */,
 				D015 /* Settings */,
 				D018 /* Details */,
@@ -793,6 +796,14 @@
 				B048 /* MyListView.swift */,
 			);
 			path = MyList;
+			sourceTree = "<group>";
+		};
+		D023 /* Onboarding */ = {
+			isa = PBXGroup;
+			children = (
+				B260 /* OnboardingView.swift */,
+			);
+			path = Onboarding;
 			sourceTree = "<group>";
 		};
 		D099 /* Products */ = {
@@ -1000,6 +1011,7 @@
 				A217 /* HeroCarousel.swift in Sources */,
 				A218 /* ContinueWatchingLandscapeRow.swift in Sources */,
 				A219 /* ContinueWatchingPosterRow.swift in Sources */,
+				A260 /* OnboardingView.swift in Sources */,
 				A220 /* PosterSectionRow.swift in Sources */,
 				A221 /* TrailersRow.swift in Sources */,
 				A222 /* TrailerModal.swift in Sources */,

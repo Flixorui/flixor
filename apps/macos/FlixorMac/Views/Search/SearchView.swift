@@ -11,6 +11,7 @@ struct SearchView: View {
     @StateObject private var viewModel = SearchViewModel()
     @EnvironmentObject private var router: NavigationRouter
     @EnvironmentObject private var mainViewState: MainViewState
+    @AppStorage("includeTmdbInSearch") private var includeTmdbInSearch: Bool = true
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -28,9 +29,13 @@ struct SearchView: View {
                     Group {
                         switch viewModel.searchMode {
                         case .idle:
-                            IdleStateView(viewModel: viewModel, onTap: { item in
-                                navigateToDetails(item: item)
-                            })
+                            if includeTmdbInSearch {
+                                IdleStateView(viewModel: viewModel, onTap: { item in
+                                    navigateToDetails(item: item)
+                                })
+                            } else {
+                                SearchPlaceholderView()
+                            }
                         case .searching:
                             LoadingView(message: "Searching...")
                         case .results:
@@ -52,7 +57,13 @@ struct SearchView: View {
         }
         .navigationTitle("")
         .task {
-            if viewModel.popularItems.isEmpty && viewModel.trendingItems.isEmpty {
+            if includeTmdbInSearch && viewModel.popularItems.isEmpty && viewModel.trendingItems.isEmpty {
+                await viewModel.loadInitialContent()
+            }
+        }
+        .onChange(of: includeTmdbInSearch) { newValue in
+            // Reload content when setting changes
+            Task {
                 await viewModel.loadInitialContent()
             }
         }
@@ -326,6 +337,29 @@ struct EmptyStateView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.top, 120)
+    }
+}
+
+// MARK: - Search Placeholder View (when TMDB is disabled)
+
+struct SearchPlaceholderView: View {
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 60))
+                .foregroundStyle(.secondary)
+
+            Text("Search Your Library")
+                .font(.title2.bold())
+
+            Text("Type to search for movies and TV shows in your Plex library")
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.top, 120)
+        .padding(.horizontal, 40)
     }
 }
 

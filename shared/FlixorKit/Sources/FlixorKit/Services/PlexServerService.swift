@@ -81,6 +81,24 @@ public class PlexServerService {
             throw PlexServerError.httpError(statusCode: httpResponse.statusCode)
         }
 
+        // Debug: log raw JSON for metadata requests to trace Rating array
+        if path.contains("/library/metadata/") && !path.contains("/children") {
+            if let jsonString = String(data: data, encoding: .utf8) {
+                // Check if Rating array exists in raw JSON
+                let hasRatingArray = jsonString.contains("\"Rating\"")
+                let hasRatingField = jsonString.contains("\"rating\"")
+                print("🔍 [FlixorKit] Metadata response for \(path):")
+                print("   - Has 'Rating' array: \(hasRatingArray)")
+                print("   - Has 'rating' field: \(hasRatingField)")
+                // Log a snippet around Rating if it exists
+                if hasRatingArray, let range = jsonString.range(of: "\"Rating\"") {
+                    let startIdx = jsonString.index(range.lowerBound, offsetBy: -20, limitedBy: jsonString.startIndex) ?? jsonString.startIndex
+                    let endIdx = jsonString.index(range.upperBound, offsetBy: 200, limitedBy: jsonString.endIndex) ?? jsonString.endIndex
+                    print("   - Rating snippet: ...\(jsonString[startIdx..<endIdx])...")
+                }
+            }
+        }
+
         let result = try JSONDecoder().decode(T.self, from: data)
 
         // Cache the response
@@ -167,6 +185,11 @@ public class PlexServerService {
         )
         guard let item = response.MediaContainer.Metadata?.first else {
             throw PlexServerError.notFound
+        }
+        // Debug: log decoded Rating array
+        print("📊 [FlixorKit] Decoded item '\(item.title ?? "unknown")' - Rating count: \(item.ratings.count), rating: \(item.rating ?? 0), audienceRating: \(item.audienceRating ?? 0)")
+        for r in item.ratings {
+            print("   🎬 Rating: image='\(r.image ?? "nil")', value=\(r.value ?? 0)")
         }
         return item
     }

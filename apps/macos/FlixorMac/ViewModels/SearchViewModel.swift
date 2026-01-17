@@ -64,6 +64,11 @@ class SearchViewModel: ObservableObject {
     private var searchTask: Task<Void, Never>?
     private var cancellables = Set<AnyCancellable>()
 
+    /// Whether to include TMDB results in search (from settings)
+    private var includeTmdbInSearch: Bool {
+        UserDefaults.standard.includeTmdbInSearch
+    }
+
     init() {
         setupSearchDebouncing()
     }
@@ -96,6 +101,13 @@ class SearchViewModel: ObservableObject {
     // MARK: - Load Initial Content
 
     func loadInitialContent() async {
+        // Only load TMDB content if the setting is enabled
+        guard includeTmdbInSearch else {
+            popularItems = []
+            trendingItems = []
+            return
+        }
+
         await withTaskGroup(of: Void.self) { group in
             // Load popular items
             group.addTask { await self.loadPopularItems() }
@@ -325,11 +337,13 @@ class SearchViewModel: ObservableObject {
                 }
             }
 
-            // Search TMDB
-            let (movies, shows, genres) = await searchTMDBSeparate(query: query)
-            tmdbMovieRes = movies
-            tmdbShowRes = shows
-            allGenreIds = genres
+            // Search TMDB (only if enabled in settings)
+            if self.includeTmdbInSearch {
+                let (movies, shows, genres) = await searchTMDBSeparate(query: query)
+                tmdbMovieRes = movies
+                tmdbShowRes = shows
+                allGenreIds = genres
+            }
 
             guard !Task.isCancelled else { return }
 
@@ -340,8 +354,10 @@ class SearchViewModel: ObservableObject {
 
             print("✅ [Search] Found \(plexRes.count) Plex, \(tmdbMovieRes.count) TMDB movies, \(tmdbShowRes.count) TMDB shows")
 
-            // Fetch genre-based recommendations (top 3 genres)
-            await loadGenreRecommendations(genreIds: Array(allGenreIds).prefix(3))
+            // Fetch genre-based recommendations (top 3 genres) - only if TMDB is enabled
+            if self.includeTmdbInSearch && !allGenreIds.isEmpty {
+                await loadGenreRecommendations(genreIds: Array(allGenreIds).prefix(3))
+            }
         }
     }
 

@@ -13,6 +13,7 @@ struct RowsSettingsView: View {
     @AppStorage("showTraktRows") private var showTraktRows: Bool = true
     @AppStorage("showPlexPopular") private var showPlexPopular: Bool = true
     @AppStorage("showWatchlist") private var showWatchlist: Bool = true
+    @AppStorage("discoveryDisabled") private var discoveryDisabled: Bool = false
 
     @State private var showContinueWatchingOptions = false
 
@@ -27,14 +28,36 @@ struct RowsSettingsView: View {
                 SettingsRow(icon: "bookmark.fill", iconColor: .blue, title: "Watchlist") {
                     Toggle("", isOn: $showWatchlist).labelsHidden()
                 }
-                SettingsRow(icon: "flame.fill", iconColor: .orange, title: "Trending") {
-                    Toggle("", isOn: $showTrendingRows).labelsHidden()
+                SettingsRow(
+                    icon: "flame.fill",
+                    iconColor: .orange,
+                    title: "Trending",
+                    subtitle: discoveryDisabled ? "Disabled by Library Only Mode" : nil
+                ) {
+                    Toggle("", isOn: $showTrendingRows)
+                        .labelsHidden()
+                        .disabled(discoveryDisabled)
                 }
-                SettingsRow(icon: "chart.bar.fill", iconColor: Color(hex: "ED1C24"), title: "Trakt Rows") {
-                    Toggle("", isOn: $showTraktRows).labelsHidden()
+                SettingsRow(
+                    icon: "chart.bar.fill",
+                    iconColor: Color(hex: "ED1C24"),
+                    title: "Trakt Rows",
+                    subtitle: discoveryDisabled ? "Disabled by Library Only Mode" : nil
+                ) {
+                    Toggle("", isOn: $showTraktRows)
+                        .labelsHidden()
+                        .disabled(discoveryDisabled)
                 }
-                SettingsRow(icon: "play.square.stack.fill", iconColor: Color(hex: "E5A00D"), title: "Popular on Plex", showDivider: false) {
-                    Toggle("", isOn: $showPlexPopular).labelsHidden()
+                SettingsRow(
+                    icon: "play.square.stack.fill",
+                    iconColor: Color(hex: "E5A00D"),
+                    title: "Popular on Plex",
+                    subtitle: discoveryDisabled ? "Disabled by Library Only Mode" : nil,
+                    showDivider: false
+                ) {
+                    Toggle("", isOn: $showPlexPopular)
+                        .labelsHidden()
+                        .disabled(discoveryDisabled)
                 }
             }
 

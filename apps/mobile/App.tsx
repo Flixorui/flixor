@@ -75,11 +75,17 @@ if (Platform.OS === 'ios') {
 import { FlixorProvider, useFlixor } from './src/core';
 import PlexLogin from './src/screens/PlexLogin';
 import ServerSelect from './src/screens/ServerSelect';
+import OnboardingScreen from './src/screens/Onboarding';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { resetAppSettings } from './src/core/SettingsData';
+
+const ONBOARDING_KEY = 'flixor:hasCompletedOnboarding';
 
 // Note: expo-image uses disk cache by default (cachePolicy="disk" or "memory-disk")
 // Cache limits are managed by the OS and expo-image internally
 
 type RootStackParamList = {
+  Onboarding: undefined;
   PlexLogin: undefined;
   ServerSelect: undefined;
   Main: undefined;
@@ -366,16 +372,41 @@ function AppContent() {
     dismissUpdate,
   } = useUpdateCheck();
 
+  // Onboarding state
+  const [hasCompletedOnboarding, setHasCompletedOnboarding] = React.useState<boolean | null>(null);
+
+  // Check onboarding status on mount
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const onboardingValue = await AsyncStorage.getItem(ONBOARDING_KEY);
+        setHasCompletedOnboarding(onboardingValue === 'true');
+      } catch {
+        setHasCompletedOnboarding(true); // Skip onboarding on error
+      }
+    })();
+  }, []);
+
+  const handleOnboardingComplete = React.useCallback(async () => {
+    await AsyncStorage.setItem(ONBOARDING_KEY, 'true');
+    setHasCompletedOnboarding(true);
+  }, []);
+
   // Update the logout handler ref so memoized components can access it
   logoutHandlerRef = React.useCallback(async () => {
     if (flixor) {
       await flixor.logout();
+      // Clear onboarding flag so it shows again on next login
+      await AsyncStorage.removeItem(ONBOARDING_KEY);
+      // Reset all app settings to defaults
+      await resetAppSettings();
+      setHasCompletedOnboarding(false);
       refresh();
     }
   }, [flixor, refresh]);
 
-  // Show loading screen during initialization
-  if (isLoading) {
+  // Show loading screen during initialization or onboarding check
+  if (isLoading || hasCompletedOnboarding === null) {
     return (
       <View style={{ flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' }}>
         <ActivityIndicator color="#fff" size="large" />
@@ -410,8 +441,13 @@ function AppContent() {
             <Stack.Screen name="ServerSelect">
               {() => <ServerSelect onConnected={refresh} />}
             </Stack.Screen>
+          ) : !hasCompletedOnboarding ? (
+            // Fully connected but first time - show onboarding (includes config as final slide)
+            <Stack.Screen name="Onboarding">
+              {() => <OnboardingScreen onComplete={handleOnboardingComplete} />}
+            </Stack.Screen>
           ) : (
-            // Fully authenticated and connected - show main app
+            // Fully authenticated, connected, and onboarded - show main app
             <Stack.Screen name="Main" component={Tabs} />
           )}
         </Stack.Navigator>

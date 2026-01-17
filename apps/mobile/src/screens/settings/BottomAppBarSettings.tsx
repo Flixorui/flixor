@@ -20,12 +20,13 @@ export default function BottomAppBarSettings() {
         <SettingsCard title="TABS">
           <SettingItem
             title="New & Hot Tab"
-            description="Show New & Hot tab in bottom navigation"
+            description={settings.discoveryDisabled ? "Disabled by Library Only Mode" : "Show New & Hot tab in bottom navigation"}
             icon="play-circle-outline"
             renderRight={() => (
               <Switch
                 value={settings.showNewHotTab}
                 onValueChange={(value) => updateSetting('showNewHotTab', value)}
+                disabled={settings.discoveryDisabled}
               />
             )}
             isLast={true}

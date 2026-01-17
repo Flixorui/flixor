@@ -12,8 +12,11 @@ import AppKit
 
 private enum SettingsCategory: String, CaseIterable, Identifiable {
     case plex
+    case discoveryMode
     case catalog
     case rowsSettings
+    case sidebar
+    case search
     case homeScreenAppearance
     case detailsScreen
     case tmdb
@@ -27,8 +30,11 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .plex: return "Plex"
+        case .discoveryMode: return "Discovery Mode"
         case .catalog: return "Catalogs"
         case .rowsSettings: return "Rows Settings"
+        case .sidebar: return "NavBar"
+        case .search: return "Search"
         case .homeScreenAppearance: return "Home Screen"
         case .detailsScreen: return "Details Screen"
         case .tmdb: return "TMDB"
@@ -42,8 +48,11 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
     var description: String {
         switch self {
         case .plex: return "Manage your Plex server connections"
+        case .discoveryMode: return "Control external content discovery features"
         case .catalog: return "Configure library visibility and filtering"
         case .rowsSettings: return "Choose which content rows to display"
+        case .sidebar: return "Configure navigation tabs visibility"
+        case .search: return "Configure search sources and behavior"
         case .homeScreenAppearance: return "Customize hero, posters and visual appearance"
         case .detailsScreen: return "Episode display and layout options"
         case .tmdb: return "The Movie Database metadata settings"
@@ -58,8 +67,11 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
     var icon: String {
         switch self {
         case .plex: return "server.rack"
+        case .discoveryMode: return "eye.slash"
         case .catalog: return "rectangle.stack"
         case .rowsSettings: return "square.grid.3x1.below.line.grid.1x2"
+        case .sidebar: return "sidebar.left"
+        case .search: return "magnifyingglass"
         case .homeScreenAppearance: return "house"
         case .detailsScreen: return "play.rectangle"
         case .tmdb: return "film"
@@ -164,8 +176,11 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
     var color: Color {
         switch self {
         case .plex: return Color(hex: "272A2D")
+        case .discoveryMode: return Color(hex: "FF6B6B")
         case .catalog: return .purple
         case .rowsSettings: return .blue
+        case .sidebar: return .cyan
+        case .search: return .mint
         case .homeScreenAppearance: return .indigo
         case .detailsScreen: return .teal
         case .tmdb: return Color(hex: "042541")
@@ -186,7 +201,7 @@ private struct SidebarSection {
     static var all: [SidebarSection] {
         [
             SidebarSection(title: "Account", categories: [.plex]),
-            SidebarSection(title: "Content & Discovery", categories: [.catalog, .rowsSettings]),
+            SidebarSection(title: "Content & Discovery", categories: [.discoveryMode, .catalog, .rowsSettings, .sidebar, .search]),
             SidebarSection(title: "Appearance", categories: [.homeScreenAppearance, .detailsScreen]),
             SidebarSection(title: "Integrations", categories: [.tmdb, .mdblist, .overseerr, .trakt]),
             SidebarSection(title: "About", categories: [.about])
@@ -366,10 +381,16 @@ struct SettingsView: View {
         switch category {
         case .plex:
             PlexServersView()
+        case .discoveryMode:
+            DiscoveryModeSettingsView()
         case .catalog:
             CatalogSettingsView()
         case .rowsSettings:
             RowsSettingsView()
+        case .sidebar:
+            SidebarSettingsView()
+        case .search:
+            SearchSettingsView()
         case .homeScreenAppearance:
             HomeScreenAppearanceView()
         case .detailsScreen:
@@ -588,6 +609,109 @@ struct SettingsNavigationRow: View {
             }
         }
         .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Discovery Mode Settings View
+
+private struct DiscoveryModeSettingsView: View {
+    @AppStorage("discoveryDisabled") private var discoveryDisabled: Bool = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            SettingsGroupCard {
+                SettingsRow(
+                    icon: "eye.slash.fill",
+                    iconColor: Color(hex: "FF6B6B"),
+                    title: "Library Only Mode",
+                    subtitle: "Turn off all discovery features",
+                    showDivider: false
+                ) {
+                    Toggle("", isOn: Binding(
+                        get: { discoveryDisabled },
+                        set: { newValue in
+                            UserDefaults.standard.setDiscoveryDisabled(newValue)
+                        }
+                    ))
+                    .labelsHidden()
+                }
+            }
+
+            Text("When enabled, this disables all external discovery features including trending rows, Trakt recommendations, Popular on Plex, New & Popular tab, and TMDB search results. Only content from your Plex library will be shown.")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 4)
+
+            if discoveryDisabled {
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                    Text("Library Only Mode is active")
+                        .font(.system(size: 12, weight: .medium))
+                }
+                .padding(.horizontal, 4)
+            }
+        }
+    }
+}
+
+// MARK: - Sidebar Settings View
+
+private struct SidebarSettingsView: View {
+    @AppStorage("showNewPopularTab") private var showNewPopularTab: Bool = true
+    @AppStorage("discoveryDisabled") private var discoveryDisabled: Bool = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            SettingsGroupCard {
+                SettingsRow(
+                    icon: "play.circle.fill",
+                    iconColor: .red,
+                    title: "New & Popular Tab",
+                    subtitle: discoveryDisabled ? "Disabled by Library Only Mode" : "Show New & Popular tab in navigation",
+                    showDivider: false
+                ) {
+                    Toggle("", isOn: $showNewPopularTab)
+                        .labelsHidden()
+                        .disabled(discoveryDisabled)
+                }
+            }
+
+            Text("The New & Popular tab shows trending content, top 10 lists, and upcoming releases.")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 4)
+        }
+    }
+}
+
+// MARK: - Search Settings View
+
+private struct SearchSettingsView: View {
+    @AppStorage("includeTmdbInSearch") private var includeTmdbInSearch: Bool = true
+    @AppStorage("discoveryDisabled") private var discoveryDisabled: Bool = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            SettingsGroupCard {
+                SettingsRow(
+                    icon: "film.fill",
+                    iconColor: .blue,
+                    title: "Include TMDB Results",
+                    subtitle: discoveryDisabled ? "Disabled by Library Only Mode" : "Show TMDB movies and shows in search",
+                    showDivider: false
+                ) {
+                    Toggle("", isOn: $includeTmdbInSearch)
+                        .labelsHidden()
+                        .disabled(discoveryDisabled)
+                }
+            }
+
+            Text("When enabled, search results will include content from The Movie Database (TMDB) in addition to your Plex library. Recommendations will also be shown when not searching.")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 4)
+        }
     }
 }
 

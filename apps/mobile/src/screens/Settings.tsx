@@ -9,6 +9,7 @@ import {
   getPlexUser,
   getConnectedServerInfo,
   getAppVersion,
+  setDiscoveryDisabled,
 } from '../core/SettingsData';
 import { useAppSettings } from '../hooks/useAppSettings';
 import SettingsCard from '../components/settings/SettingsCard';
@@ -107,15 +108,41 @@ export default function Settings({ onBack }: SettingsProps) {
   );
 
   const renderContent = () => (
-    <SettingsCard title="CONTENT & DISCOVERY">
-      <SettingItem
-        title="Catalogs"
-        description="Choose which libraries appear"
-        icon="albums-outline"
-        renderRight={renderRightChevron}
-        onPress={() => nav.navigate('CatalogSettings')}
-        isLast={false}
-      />
+    <>
+      <SettingsCard title="DISCOVERY MODE">
+        <SettingItem
+          title="Library Only Mode"
+          description="Turn off all discovery features. Only show content from your Plex library."
+          icon="eye-off-outline"
+          renderRight={() => (
+            <Switch
+              value={settings.discoveryDisabled}
+              onValueChange={async (value) => {
+                await setDiscoveryDisabled(value);
+                updateSetting('discoveryDisabled', value);
+                if (value) {
+                  updateSetting('showTrendingRows', false);
+                  updateSetting('showTraktRows', false);
+                  updateSetting('showPlexPopularRow', false);
+                  updateSetting('showNewHotTab', false);
+                  updateSetting('includeTmdbInSearch', false);
+                }
+              }}
+              trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#FF6B6B' }}
+            />
+          )}
+          isLast={true}
+        />
+      </SettingsCard>
+      <SettingsCard title="CONTENT & DISCOVERY">
+        <SettingItem
+          title="Catalogs"
+          description="Choose which libraries appear"
+          icon="albums-outline"
+          renderRight={renderRightChevron}
+          onPress={() => nav.navigate('CatalogSettings')}
+          isLast={false}
+        />
       <SettingItem
         title="Home Screen"
         description="Hero and row visibility"
@@ -157,6 +184,7 @@ export default function Settings({ onBack }: SettingsProps) {
         isLast={true}
       />
     </SettingsCard>
+    </>
   );
 
   const renderAppearance = () => (

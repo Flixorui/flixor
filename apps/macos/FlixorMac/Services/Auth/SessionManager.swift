@@ -66,6 +66,9 @@ class SessionManager: ObservableObject {
         await FlixorCore.shared.signOutPlex()
         currentUser = nil
         isAuthenticated = false
+
+        // Reset all settings and show onboarding on next login
+        UserDefaults.standard.resetAllSettings()
     }
 
     // MARK: - Sync with FlixorCore

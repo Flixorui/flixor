@@ -20,12 +20,13 @@ export default function SearchSettings() {
         <SettingsCard title="SOURCES">
           <SettingItem
             title="Include TMDB Results"
-            description="Show TMDB movies and shows in search"
+            description={settings.discoveryDisabled ? "Disabled by Library Only Mode" : "Show TMDB movies and shows in search"}
             icon="search-outline"
             renderRight={() => (
               <Switch
                 value={settings.includeTmdbInSearch}
                 onValueChange={(value) => updateSetting('includeTmdbInSearch', value)}
+                disabled={settings.discoveryDisabled}
               />
             )}
             isLast={true}
