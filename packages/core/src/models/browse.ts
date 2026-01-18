@@ -8,7 +8,8 @@ export type BrowseContext =
   | { type: 'plexLibrary'; libraryKey: string; title: string }
   | { type: 'plexWatchlist' }
   | { type: 'tmdb'; kind: TMDBBrowseKind; mediaType: 'movie' | 'tv'; id?: string; title: string }
-  | { type: 'trakt'; kind: TraktBrowseKind; mediaType: 'movie' | 'tv'; title: string };
+  | { type: 'trakt'; kind: TraktBrowseKind; mediaType: 'movie' | 'tv'; title: string }
+  | { type: 'static' };
 
 export interface BrowseItem {
   id: string;        // Format: "plex:12345" or "tmdb:movie:98765"

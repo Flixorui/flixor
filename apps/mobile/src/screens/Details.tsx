@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, ActivityIndicator, ScrollView, Pressable, Animated, PanResponder, Dimensions, StyleSheet, Linking, Alert, Easing, Image, FlatList } from 'react-native';
+import { View, Text, ActivityIndicator, ScrollView, Pressable, Dimensions, StyleSheet, Linking, Alert, Image, FlatList } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Row from '../components/Row';
 import TrailersRow from '../components/TrailersRow';
@@ -94,8 +94,6 @@ export default function Details({ route }: RouteParams) {
   const [tmdbEpisodeData, setTmdbEpisodeData] = useState<Map<number, TMDBEpisodeData>>(new Map());
   const [nextUp, setNextUp] = useState<NextUpEpisode | null>(null);
   const [parentShowMeta, setParentShowMeta] = useState<any>(null);
-  const [closing, setClosing] = useState(false);
-  const [dragging, setDragging] = useState(false);
   const [inWatchlist, setInWatchlist] = useState(false);
   const [watchlistLoading, setWatchlistLoading] = useState(false);
   const [watchlistIds, setWatchlistIds] = useState<WatchlistIds | null>(null);
@@ -126,61 +124,9 @@ export default function Details({ route }: RouteParams) {
   const [pendingPlayRatingKey, setPendingPlayRatingKey] = useState<string | null>(null);
   const [imdbId, setImdbId] = useState<string | undefined>(undefined);
   const [firstEpisodeMedia, setFirstEpisodeMedia] = useState<any[]>([]); // Technical info from first episode (for TV shows)
-  const y = useRef(new Animated.Value(0)).current;
-  const panY = useRef(new Animated.Value(0)).current;
-  const appear = useRef(new Animated.Value(0)).current;
   const scrollRef = useRef<ScrollView | null>(null);
   const nav: any = useNavigation();
-  const screenH = Dimensions.get('window').height;
   const scrollYRef = useRef(0);
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
-      onStartShouldSetPanResponderCapture: () => false,
-      onMoveShouldSetPanResponder: (_, g) => (!closing && scrollYRef.current <= 0 && Math.abs(g.dy) > 6),
-      onMoveShouldSetPanResponderCapture: () => false,
-      onPanResponderGrant: () => {
-        setDragging(true);
-      },
-      onPanResponderMove: (_, g) => {
-        if (closing) return;
-        if (g.dy > 0) panY.setValue(g.dy);
-      },
-      onPanResponderRelease: (_, g) => {
-        if (closing) return;
-        const shouldClose = g.dy > 120 || g.vy > 1.0;
-        if (shouldClose) {
-          setClosing(true);
-          // Smooth slide down animation with easing
-          Animated.timing(panY, {
-            toValue: screenH,
-            duration: 280,
-            easing: Easing.out(Easing.cubic),
-            useNativeDriver: true,
-          }).start(() => nav.goBack());
-        } else {
-          Animated.spring(panY, {
-            toValue: 0,
-            useNativeDriver: true,
-            stiffness: 220,
-            damping: 24,
-            mass: 1,
-          }).start(() => { setDragging(false); });
-        }
-      },
-      onPanResponderTerminationRequest: () => false,
-      onPanResponderTerminate: () => {
-        setDragging(false);
-        Animated.spring(panY, {
-          toValue: 0,
-          useNativeDriver: true,
-          stiffness: 220,
-          damping: 24,
-          mass: 1,
-        }).start();
-      },
-    })
-  ).current;
 
   // MDBList ratings hook - fetches from multiple sources (if enabled)
   const mdblistRating = useMDBListRatings(
@@ -189,7 +135,6 @@ export default function Details({ route }: RouteParams) {
   );
 
   useEffect(() => {
-    Animated.timing(appear, { toValue: 1, duration: 200, useNativeDriver: true }).start();
     // Hide TopBar and TabBar when Details screen is shown
     TopBarStore.setVisible(false);
     TopBarStore.setTabBarVisible(false);
@@ -754,46 +699,27 @@ export default function Details({ route }: RouteParams) {
   if (!imdbRating && typeof meta?.rating === 'number') imdbRating = meta.rating;
   if (!rtAudienceRating && typeof meta?.audienceRating === 'number') rtAudienceRating = Math.round(meta.audienceRating * 10);
 
-  // Keep overlay fully visible until the sheet is mostly offscreen, then fade.
-  const backdropOpacity = panY.interpolate({ inputRange: [0, screenH * 0.8, screenH], outputRange: [1, 1, 0], extrapolate: 'clamp' });
-
   return (
-    <View style={{ flex: 1, paddingTop: insets.top, backgroundColor: 'transparent' }}>
-      <Animated.View style={{ flex:1, transform:[{ translateY: panY }] }} {...panResponder.panHandlers}>
-        {/* Dim + blur backdrop under the modal so swiping reveals content behind, not black */}
-        <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFillObject, { opacity: backdropOpacity, borderTopLeftRadius: 32, borderTopRightRadius: 32, overflow: 'hidden' }]}>
-          <BlurOverlay />
-        </Animated.View>
-
-        {/* Shadow under the sheet so any reveal looks natural, not a black jump */}
-        <View style={{ position:'absolute', top:0, left:0, right:0, height:16, backgroundColor:'transparent', shadowColor:'#000', shadowOpacity:0.35, shadowRadius:14, shadowOffset:{ width:0, height:6 }, zIndex:1 }} />
-        <View style={{ flex:1, backgroundColor:'#0d0d0f', borderTopLeftRadius: 32, borderTopRightRadius: 32, overflow: 'hidden' }}>
+    <View style={{ flex: 1, backgroundColor: '#0d0d0f' }}>
       <ScrollView ref={ref => { scrollRef.current = ref; }}
         scrollEventThrottle={16}
         onScroll={(e:any) => { scrollYRef.current = e.nativeEvent.contentOffset.y; }}
-        scrollEnabled={!closing}
         bounces={false}
         contentContainerStyle={{ paddingBottom: 32 }}
       >
-        {/* Hero backdrop with rounded bottom corners */}
-        <View style={{
-          marginBottom: 12,
-          borderBottomLeftRadius: 28,
-          borderBottomRightRadius: 28,
-          overflow: 'hidden',
-        }}>
+        {/* Hero backdrop */}
+        <View style={{ marginBottom: 12 }}>
           <View style={{ width:'100%', aspectRatio: 16/9, backgroundColor:'#111' }}>
             {backdrop() && FastImage ? (
               <FastImage source={{ uri: backdrop() }} style={{ width:'100%', height:'100%' }} resizeMode="cover" />
             ) : null}
-            {/* Top-right actions over image */}
-            <View style={{ position:'absolute', right: 12, top: 12, flexDirection:'row' }}>
-              {/* <Feather name="cast" size={25} color="#fff" style={{ marginHorizontal: 20 }} /> */}
-              <Pressable onPress={() => { nav.goBack(); }} style={{ width: 32, height: 32, borderRadius: 16, overflow: 'hidden', marginRight: 8 }}>
+            {/* Top-left back button */}
+            <View style={{ position:'absolute', left: 12, top: insets.top + 8, flexDirection:'row' }}>
+              <Pressable onPress={() => { nav.goBack(); }} style={{ width: 36, height: 36, borderRadius: 18, overflow: 'hidden' }}>
                 <ConditionalBlurView intensity={60} tint="dark" style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                  <Ionicons name="close" color="#fff" size={18} />
+                  <Ionicons name="chevron-back" color="#fff" size={22} />
                 </ConditionalBlurView>
-                <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' }} pointerEvents="none" />
+                <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 18, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' }} pointerEvents="none" />
               </Pressable>
             </View>
             {/* Gradient from image into content */}
@@ -1132,8 +1058,6 @@ export default function Details({ route }: RouteParams) {
           )}
         </View>
       </ScrollView>
-        </View>
-      </Animated.View>
 
       {/* Person Modal */}
       <PersonModal
@@ -1174,19 +1098,6 @@ export default function Details({ route }: RouteParams) {
         }}
         versions={mediaVersions}
         title={meta?.title || meta?.name || 'Select Version'}
-      />
-    </View>
-  );
-}
-
-function BlurOverlay() {
-  return (
-    <View style={StyleSheet.absoluteFillObject}>
-      <ConditionalBlurView intensity={60} tint="dark" style={StyleSheet.absoluteFillObject} />
-      <LinearGradient
-        colors={[ 'rgba(10,10,10,0.22)', 'rgba(10,10,10,0.10)' ]}
-        start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }}
-        style={StyleSheet.absoluteFillObject}
       />
     </View>
   );
@@ -1546,6 +1457,20 @@ function SuggestedRows({ meta, routeParams, parentShowMeta, keyPrefix = '' }: { 
     }
   };
 
+  // Push Browse screen on top of Details modal with all items
+  const openBrowse = (title: string, items: RowItem[]) => {
+    const browseItems = items.map((item) => ({
+      id: item.id,
+      title: item.title,
+      image: item.image,
+    }));
+    nav.push('Browse', {
+      context: { type: 'static' },
+      title,
+      initialItems: browseItems,
+    });
+  };
+
   if (loading) return <Text style={{ color:'#888', marginHorizontal:16 }}>Loading…</Text>;
   if (!recs.length && !similar.length) return <Text style={{ color:'#888', marginHorizontal:16 }}>No suggestions</Text>;
   return (
@@ -1554,7 +1479,7 @@ function SuggestedRows({ meta, routeParams, parentShowMeta, keyPrefix = '' }: { 
         <Row title="Recommended" items={recs}
           getImageUri={getUri} getTitle={getTitle}
           onItemPress={onPress}
-          onTitlePress={() => recs[0] && onPress(recs[0])}
+          onTitlePress={() => openBrowse('Recommended', recs)}
           keyPrefix={keyPrefix}
         />
       )}
@@ -1562,7 +1487,7 @@ function SuggestedRows({ meta, routeParams, parentShowMeta, keyPrefix = '' }: { 
         <Row title="More Like This" items={similar}
           getImageUri={getUri} getTitle={getTitle}
           onItemPress={onPress}
-          onTitlePress={() => similar[0] && onPress(similar[0])}
+          onTitlePress={() => openBrowse('More Like This', similar)}
           keyPrefix={keyPrefix}
         />
       )}

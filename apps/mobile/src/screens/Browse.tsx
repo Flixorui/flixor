@@ -43,7 +43,8 @@ export default function Browse() {
   const [items, setItems] = useState<BrowseItem[]>(initialItems);
   const [loading, setLoading] = useState(initialItems.length === 0);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
+  // Static context with initial items has no more pages to load
+  const [hasMore, setHasMore] = useState(!(context?.type === 'static' && initialItems.length > 0));
   const [page, setPage] = useState(1);
 
   // Preload images for better UX

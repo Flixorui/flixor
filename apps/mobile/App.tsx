@@ -117,7 +117,7 @@ const HomeStackNavigator = React.memo(() => {
         <HomeStack.Screen
           name="Details"
           component={Details}
-          options={{ presentation: 'transparentModal', animation: 'fade', gestureEnabled: false }}
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
         />
         <HomeStack.Screen
           name="Player"
@@ -160,7 +160,7 @@ const NewHotStackNavigator = React.memo(() => {
         <NewHotStack.Screen
           name="Details"
           component={Details}
-          options={{ presentation: 'transparentModal', animation: 'fade', gestureEnabled: false }}
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
         />
         <NewHotStack.Screen
           name="Player"
@@ -183,7 +183,7 @@ const MyListStackNavigator = React.memo(() => {
         <MyListStack.Screen
           name="Details"
           component={Details}
-          options={{ presentation: 'transparentModal', animation: 'fade', gestureEnabled: false }}
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
         />
         <MyListStack.Screen
           name="Player"
@@ -205,7 +205,7 @@ const SearchStackNavigator = React.memo(() => (
       <SearchStack.Screen
         name="Details"
         component={Details}
-        options={{ presentation: 'transparentModal', animation: 'fade', gestureEnabled: false }}
+        options={{ presentation: 'card', animation: 'slide_from_right' }}
       />
       <SearchStack.Screen
         name="Player"
