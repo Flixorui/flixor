@@ -222,6 +222,7 @@ public class PlexServerService {
 
     /// Get continue watching items (deduplicated by GUID)
     /// Returns items grouped by TMDB/IMDB GUID, keeping only the most recently watched version
+    /// Sorted by lastViewedAt in descending order (most recently watched first)
     public func getContinueWatching() async throws -> ContinueWatchingResult {
         let response: PlexMediaContainerResponse<PlexMediaItem> = try await get(
             path: "/hubs/continueWatching/items",
@@ -229,7 +230,16 @@ public class PlexServerService {
             ttl: CacheTTL.short
         )
         let items = response.MediaContainer.Metadata ?? []
-        return deduplicateContinueWatching(items)
+        var result = deduplicateContinueWatching(items)
+
+        // Sort by lastViewedAt descending (most recently watched first)
+        result.items.sort { (a, b) -> Bool in
+            let aTime = a.lastViewedAt ?? 0
+            let bTime = b.lastViewedAt ?? 0
+            return aTime > bTime
+        }
+
+        return result
     }
 
     /// Deduplicate continue watching items by GUID
@@ -663,7 +673,7 @@ public class PlexServerService {
 // MARK: - Continue Watching Result
 
 public struct ContinueWatchingResult {
-    public let items: [PlexMediaItem]
+    public var items: [PlexMediaItem]  // mutable for sorting by lastViewedAt
     public let itemsWithMultipleVersions: Set<String>  // ratingKeys that had duplicates across libraries
 }
 
@@ -768,6 +778,7 @@ public struct PlexMediaItem: Codable, Identifiable {
     public let viewCount: Int?
     public let contentRating: String?
     public let originallyAvailableAt: String?
+    public let lastViewedAt: Int?  // Unix timestamp of when item was last watched
 
     // Ratings from Plex (IMDb, Rotten Tomatoes)
     public let Rating: [PlexRatingEntry]?
