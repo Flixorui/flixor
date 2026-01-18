@@ -2,7 +2,8 @@
 //  MPVVideoView.swift
 //  FlixorMac
 //
-//  MPV video rendering view using CAOpenGLLayer
+//  MPV video rendering view using CAMetalLayer for gpu-next
+//  Based on plezy implementation for Dolby Vision support
 //
 
 import SwiftUI
@@ -13,7 +14,7 @@ struct MPVVideoView: NSViewRepresentable {
 
     func makeNSView(context: Context) -> MPVNSView {
         let view = MPVNSView()
-        view.setupMPVRendering(controller: mpvController)
+        view.mpvController = mpvController
         return view
     }
 
@@ -28,45 +29,80 @@ struct MPVVideoView: NSViewRepresentable {
 }
 
 class MPVNSView: NSView {
-    private var displayLink: CVDisplayLink?
-    var videoLayer: MPVVideoLayer? // Internal access for PiP controls
-    var isPiPTransitioning = false // Flag to prevent display link stops during PiP
+    var metalLayer: MPVMetalLayer? // Internal access for PiP controls
+    weak var mpvController: MPVPlayerController?
+    var isPiPTransitioning = false // Flag to prevent issues during PiP
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
-        setupLayer()
+        setupView()
     }
 
     required init?(coder: NSCoder) {
         super.init(coder: coder)
-        setupLayer()
+        setupView()
     }
 
-    private func setupLayer() {
-        // Create and setup the video layer
-        let layer = MPVVideoLayer()
-        self.layer = layer
-        self.videoLayer = layer
-        self.wantsLayer = true
-
-        // Configure the view
+    private func setupView() {
+        // Ensure view has a layer (plezy pattern)
+        wantsLayer = true
         autoresizingMask = [.width, .height]
-        wantsBestResolutionOpenGLSurface = true
+    }
 
-        // CRITICAL: Enable EDR on the NSView (IINA approach)
-        if #available(macOS 10.15, *) {
-            wantsExtendedDynamicRangeOpenGLSurface = true
+    private func createMetalLayer() -> MPVMetalLayer {
+        let layer = MPVMetalLayer()
+        layer.frame = bounds
+        layer.framebufferOnly = true
+        layer.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
+
+        // Set contents scale from window's screen
+        if let screen = window?.screen ?? NSScreen.main {
+            layer.contentsScale = screen.backingScaleFactor
         }
+
+        return layer
     }
 
     func setupMPVRendering(controller: MPVPlayerController) {
-        guard let videoLayer = videoLayer else { return }
-        videoLayer.setupMPVRendering(controller: controller)
+        guard let window = window else {
+            print("❌ [MPVVideoView] No window available for MPV setup")
+            return
+        }
+
+        self.mpvController = controller
+
+        // Create Metal layer and add as sublayer (plezy pattern)
+        let layer = createMetalLayer()
+        self.metalLayer = layer
+
+        // Add Metal layer as sublayer to view's layer (NOT as backing layer)
+        self.layer?.addSublayer(layer)
+
+        print("✅ [MPVVideoView] Metal layer added as sublayer, frame: \(layer.frame)")
+
+        // Initialize MPV with our Metal layer
+        if !controller.initialize(in: window, layer: layer) {
+            print("❌ [MPVVideoView] Failed to initialize MPV")
+        }
     }
 
     func stopRendering() {
-        stopDisplayLink()
-        videoLayer?.mpvController = nil
+        mpvController?.shutdown()
+        mpvController = nil
+        metalLayer?.removeFromSuperlayer()
+        metalLayer = nil
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+
+        if window != nil {
+            // Initialize MPV when we have a window
+            if let controller = mpvController, !controller.isInitialized {
+                setupMPVRendering(controller: controller)
+            }
+            updateLayerSize()
+        }
     }
 
     override func layout() {
@@ -83,43 +119,23 @@ class MPVNSView: NSView {
 
     // Force update layer size to match view bounds
     func updateLayerSize() {
-        guard let videoLayer = videoLayer else { return }
+        guard let layer = metalLayer else { return }
 
         let newBounds = CGRect(origin: .zero, size: bounds.size)
-        if videoLayer.bounds != newBounds {
-            CATransaction.begin()
-            CATransaction.setDisableActions(true) // Disable implicit animations
-            videoLayer.bounds = newBounds
-            videoLayer.frame = newBounds
-            CATransaction.commit()
-        }
 
-        // Keep contentsScale aligned with current backing scale factor
-        if let scale = window?.backingScaleFactor {
-            videoLayer.contentsScale = scale
-        }
-    }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true) // Disable implicit animations
+        layer.frame = newBounds
+        CATransaction.commit()
 
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-
-        if window != nil {
-            // Update display link for new window (IINA pattern)
-            // This ensures the display link targets the correct screen
-            if displayLink != nil {
-                // Display link already exists, force a redraw in the new window
-                videoLayer?.setNeedsDisplay()
-                needsLayout = true
-                layout()
-            } else {
-                startDisplayLink()
-            }
-            updateLayerSize()
-        } else {
-            // Don't stop display link during PiP transitions
-            if !isPiPTransitioning {
-                stopDisplayLink()
-            }
+        // Update drawable size for Metal rendering
+        if let screen = window?.screen ?? NSScreen.main {
+            let scale = screen.backingScaleFactor
+            layer.contentsScale = scale
+            layer.drawableSize = CGSize(
+                width: bounds.width * scale,
+                height: bounds.height * scale
+            )
         }
     }
 
@@ -128,38 +144,34 @@ class MPVNSView: NSView {
         updateLayerSize()
     }
 
-    private func startDisplayLink() {
-        guard displayLink == nil else { return }
+    // MARK: - Legacy Compatibility (for PiP and other systems)
 
-        let displayLinkCallback: CVDisplayLinkOutputCallback = { _, _, _, _, _, context in
-            guard let context = context else { return kCVReturnSuccess }
-            let view = Unmanaged<MPVNSView>.fromOpaque(context).takeUnretainedValue()
-
-            DispatchQueue.main.async {
-                view.videoLayer?.setNeedsDisplay()
-            }
-
-            return kCVReturnSuccess
-        }
-
-        var link: CVDisplayLink?
-        CVDisplayLinkCreateWithActiveCGDisplays(&link)
-
-        if let link = link {
-            CVDisplayLinkSetOutputCallback(link, displayLinkCallback, Unmanaged.passUnretained(self).toOpaque())
-            CVDisplayLinkStart(link)
-            self.displayLink = link
-        }
+    /// Provides access to the video layer for PiP and other features
+    var videoLayer: CALayer? {
+        return metalLayer
     }
 
-    private func stopDisplayLink() {
-        if let link = displayLink {
-            CVDisplayLinkStop(link)
-            self.displayLink = nil
+    /// Force update for new bounds (used during PiP transitions)
+    func forceUpdateForNewBounds(_ newBounds: CGRect) {
+        guard let layer = metalLayer else { return }
+
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+
+        layer.frame = newBounds
+
+        if let screen = window?.screen ?? NSScreen.main {
+            let scale = screen.backingScaleFactor
+            layer.drawableSize = CGSize(
+                width: newBounds.width * scale,
+                height: newBounds.height * scale
+            )
         }
+
+        CATransaction.commit()
     }
 
     deinit {
-        stopDisplayLink()
+        // mpvController cleanup is handled by stopRendering()
     }
 }

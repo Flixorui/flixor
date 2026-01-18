@@ -7,6 +7,9 @@
 
 import Foundation
 import AppKit
+import OpenGL.GL
+import OpenGL.GL3
+import Libmpv
 
 /// Lightweight MPV instance dedicated to thumbnail generation
 class ThumbnailMPVPlayer {

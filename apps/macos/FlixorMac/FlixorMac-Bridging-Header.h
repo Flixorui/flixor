@@ -2,16 +2,13 @@
 //  FlixorMac-Bridging-Header.h
 //  FlixorMac
 //
-//  Bridging header for MPV integration
+//  Bridging header for external C/Objective-C integrations
 //
 
 #ifndef FlixorMac_Bridging_Header_h
 #define FlixorMac_Bridging_Header_h
 
-// MPV Headers
-#import <mpv/client.h>
-#import <mpv/render.h>
-#import <mpv/render_gl.h>
-#import <mpv/stream_cb.h>
+// MPVKit provides Libmpv module - no manual imports needed
+// Import "Libmpv" in Swift files instead
 
 #endif /* FlixorMac_Bridging_Header_h */

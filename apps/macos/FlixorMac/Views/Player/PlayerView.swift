@@ -148,6 +148,21 @@ struct PlayerView: View {
                 .transition(.opacity)
             }
 
+            // Performance Overlay (top-left corner)
+            if viewModel.showPerformanceOverlay, let stats = viewModel.performanceStats {
+                VStack {
+                    HStack {
+                        PerformanceOverlayView(stats: stats)
+                            .padding(.leading, 20)
+                            .padding(.top, 60)
+                        Spacer()
+                    }
+                    Spacer()
+                }
+                .transition(.opacity)
+                .allowsHitTesting(false)
+            }
+
             // Skip Intro/Credits Button - white pill, bottom-right; only for intro/credits
             if let marker = viewModel.currentMarker, ["intro","credits"].contains(marker.type.lowercased()) {
                 VStack {
@@ -337,14 +352,28 @@ struct PlayerView: View {
 
         default:
             // Handle character keys
-            if characters == "m" {
+            switch characters {
+            case "m":
                 viewModel.toggleMute()
                 return true
-            } else if characters == "f" {
+            case "f":
                 toggleFullScreen()
                 return true
+            case "i":
+                // Toggle performance stats overlay
+                viewModel.togglePerformanceOverlay()
+                return true
+            case "[":
+                // Previous chapter
+                viewModel.previousChapter()
+                return true
+            case "]":
+                // Next chapter
+                viewModel.nextChapter()
+                return true
+            default:
+                return false
             }
-            return false
         }
     }
 
@@ -675,6 +704,7 @@ struct PlayerControlsView: View {
     @State private var showPlaybackSpeed = false
     @State private var showVolumeSlider = false
     @State private var showAudioSubtitles = false
+    @State private var showChaptersPanel = false
 
     // Thumbnail preview states
     @State private var showThumbnailPreview = false
@@ -696,6 +726,8 @@ struct PlayerControlsView: View {
     @State private var isAudioSubtitlesHovered = false
     @State private var isPiPHovered = false
     @State private var isFullscreenHovered = false
+    @State private var isStatsHovered = false
+    @State private var isChaptersHovered = false
 
     // Computed property for formatted player title
     // For episodes: "Show Name - S#E# - Episode Title"
@@ -1047,6 +1079,46 @@ struct PlayerControlsView: View {
                     }
                     .help("Playback Speed")
 
+                    // Performance stats toggle (MPV only)
+                    if viewModel.mpvController != nil {
+                        Button(action: {
+                            viewModel.togglePerformanceOverlay()
+                        }) {
+                            Image(systemName: "chart.bar.fill")
+                                .font(.system(size: 16))
+                                .frame(width: 32, height: 32)
+                                .foregroundStyle(viewModel.showPerformanceOverlay ? Color.accentColor : .white)
+                        }
+                        .buttonStyle(.plain)
+                        .scaleEffect(isStatsHovered ? 1.1 : 1.0)
+                        .onHover { hovering in
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                isStatsHovered = hovering
+                            }
+                        }
+                        .help("Performance Stats (I)")
+                    }
+
+                    // Chapters button (MPV only, when chapters exist)
+                    if viewModel.mpvController != nil && !viewModel.chapters.isEmpty {
+                        Button(action: {
+                            showChaptersPanel.toggle()
+                        }) {
+                            Image(systemName: "list.bullet")
+                                .font(.system(size: 16))
+                                .frame(width: 32, height: 32)
+                                .foregroundStyle(showChaptersPanel ? Color.accentColor : .white)
+                        }
+                        .buttonStyle(.plain)
+                        .scaleEffect(isChaptersHovered ? 1.1 : 1.0)
+                        .onHover { hovering in
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                isChaptersHovered = hovering
+                            }
+                        }
+                        .help("Chapters")
+                    }
+
                     // Picture-in-Picture button (AVPlayer and MPV)
                     if (playerBackend == .avplayer && pipController != nil && AVPictureInPictureController.isPictureInPictureSupported()) ||
                        (playerBackend == .mpv && mpvPiPViewController != nil) {
@@ -1117,21 +1189,18 @@ struct PlayerControlsView: View {
             .frame(height: 120)
             .frame(maxHeight: .infinity, alignment: .top)
         )
-        .overlay(alignment: .trailing) {
+        .overlay {
             if showEpisodesList && !viewModel.seasonEpisodes.isEmpty {
                 EpisodesListPanel(
                     episodes: viewModel.seasonEpisodes,
                     currentEpisodeKey: viewModel.item.id.replacingOccurrences(of: "plex:", with: ""),
                     onSelectEpisode: { episode in
                         showEpisodesList = false
-                        // Use playEpisode to preserve mediaIndex (version selection)
                         viewModel.playEpisode(episode)
                     },
-                    onClose: {
-                        showEpisodesList = false
-                    }
+                    onClose: { showEpisodesList = false }
                 )
-                .transition(.move(edge: .trailing))
+                .transition(.opacity)
             }
         }
         .overlay {
@@ -1152,23 +1221,17 @@ struct PlayerControlsView: View {
         .overlay {
             if showAudioSubtitles {
                 AudioSubtitlesModal(
-                    audioTracks: viewModel.availableAudioTracks,
-                    subtitleTracks: viewModel.availableSubtitleTracks,
-                    currentAudioTrackId: viewModel.currentAudioTrackId,
-                    currentSubtitleTrackId: viewModel.currentSubtitleTrackId,
-                    onSelectAudioTrack: { trackId in
-                        viewModel.setAudioTrack(trackId)
-                    },
-                    onSelectSubtitleTrack: { trackId in
-                        if trackId == 0 {
-                            viewModel.disableSubtitles()
-                        } else {
-                            viewModel.setSubtitleTrack(trackId)
-                        }
-                    },
-                    onClose: {
-                        showAudioSubtitles = false
-                    }
+                    viewModel: viewModel,
+                    onClose: { showAudioSubtitles = false }
+                )
+                .transition(.opacity)
+            }
+        }
+        .overlay {
+            if showChaptersPanel && !viewModel.chapters.isEmpty {
+                ChaptersPanel(
+                    viewModel: viewModel,
+                    onClose: { showChaptersPanel = false }
                 )
                 .transition(.opacity)
             }
@@ -1241,214 +1304,501 @@ struct EpisodesListPanel: View {
     let onClose: () -> Void
 
     var body: some View {
+        ZStack {
+            Color.black.opacity(0.5)
+                .ignoresSafeArea()
+                .onTapGesture { onClose() }
+
+            VStack {
+                Spacer()
+                HStack {
+                    Spacer()
+                    panelContent
+                }
+            }
+        }
+    }
+
+    private var panelContent: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Header
             HStack {
                 Text("Episodes")
-                    .font(.headline)
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(.white)
 
                 Spacer()
 
                 Button(action: onClose) {
                     Image(systemName: "xmark")
-                        .font(.system(size: 14))
-                        .foregroundStyle(.white.opacity(0.8))
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.6))
                 }
                 .buttonStyle(.plain)
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 16)
-            .background(Color.black.opacity(0.9))
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
 
-            Divider()
-                .background(Color.white.opacity(0.2))
+            Divider().background(Color.white.opacity(0.1))
 
             // Episodes List
-            ScrollView {
-                LazyVStack(spacing: 8) {
-                    ForEach(episodes) { episode in
-                        PlayerEpisodeRow(
-                            episode: episode,
-                            isCurrentEpisode: episode.ratingKey == currentEpisodeKey,
-                            onSelect: { onSelectEpisode(episode) }
-                        )
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(spacing: 2) {
+                        ForEach(episodes) { episode in
+                            EpisodeListRow(
+                                episode: episode,
+                                isCurrentEpisode: episode.ratingKey == currentEpisodeKey,
+                                onSelect: { onSelectEpisode(episode) }
+                            )
+                            .id(episode.ratingKey)
+                        }
+                    }
+                    .padding(8)
+                }
+                .onAppear {
+                    proxy.scrollTo(currentEpisodeKey, anchor: .center)
+                }
+            }
+            .frame(maxHeight: 350)
+        }
+        .frame(width: 360)
+        .background(Color.black.opacity(0.95))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
+        .shadow(color: .black.opacity(0.5), radius: 30, y: 10)
+        .padding(.trailing, 32)
+        .padding(.bottom, 140)
+    }
+}
+
+private struct EpisodeListRow: View {
+    let episode: EpisodeMetadata
+    let isCurrentEpisode: Bool
+    let onSelect: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: onSelect) {
+            HStack(spacing: 12) {
+                // Episode number with progress indicator
+                ZStack {
+                    Circle()
+                        .fill(progressColor)
+                        .frame(width: 32, height: 32)
+
+                    if let progress = episode.progressPercent, progress > 0, progress < 95 {
+                        Circle()
+                            .trim(from: 0, to: CGFloat(progress) / 100.0)
+                            .stroke(Color.accentColor, lineWidth: 2)
+                            .frame(width: 32, height: 32)
+                            .rotationEffect(.degrees(-90))
+                    }
+
+                    if let index = episode.index {
+                        Text("\(index)")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(isCurrentEpisode ? .white : .white.opacity(0.8))
                     }
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 12)
+
+                // Thumbnail
+                ZStack {
+                    if let thumbPath = episode.thumb,
+                       let imageURL = ImageService.shared.plexImageURL(path: thumbPath, width: 200, height: 112) {
+                        CachedAsyncImage(url: imageURL)
+                            .frame(width: 100, height: 56)
+                    } else {
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color.white.opacity(0.1))
+                            .frame(width: 100, height: 56)
+                    }
+
+                    // Hover play overlay
+                    if isHovered {
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color.black.opacity(0.4))
+                            .frame(width: 100, height: 56)
+
+                        Image(systemName: "play.fill")
+                            .font(.system(size: 20))
+                            .foregroundStyle(.white)
+                    }
+                }
+                .frame(width: 100, height: 56)
+                .clipShape(RoundedRectangle(cornerRadius: 4))
+
+                // Episode info
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(episode.title)
+                        .font(.system(size: 13, weight: isCurrentEpisode ? .semibold : .regular))
+                        .foregroundStyle(isCurrentEpisode ? .white : .white.opacity(0.85))
+                        .lineLimit(1)
+
+                    HStack(spacing: 6) {
+                        if let duration = episode.duration {
+                            Text("\(duration / 60000) min")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.white.opacity(0.5))
+                        }
+
+                        if let progress = episode.progressPercent, progress >= 95 {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.green.opacity(0.8))
+                        }
+                    }
+                }
+
+                Spacer()
+
+                if isCurrentEpisode {
+                    Image(systemName: "play.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(Color.accentColor)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(isCurrentEpisode ? Color.white.opacity(0.1) : (isHovered ? Color.white.opacity(0.05) : Color.clear))
+            )
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+    }
+
+    private var progressColor: Color {
+        if let progress = episode.progressPercent {
+            if progress >= 95 {
+                return Color.accentColor.opacity(0.3)
+            } else if progress > 0 {
+                return Color.white.opacity(0.15)
             }
         }
-        .frame(width: 450)
-        .background(Color.black.opacity(0.95))
-        .clipShape(RoundedRectangle(cornerRadius: 0))
+        return Color.white.opacity(0.1)
     }
 }
 
 // MARK: - Audio & Subtitles Combined Modal
 
 private struct AudioSubtitlesModal: View {
-    let audioTracks: [MPVTrack]
-    let subtitleTracks: [MPVTrack]
-    let currentAudioTrackId: Int?
-    let currentSubtitleTrackId: Int?
-    let onSelectAudioTrack: (Int) -> Void
-    let onSelectSubtitleTrack: (Int) -> Void
+    @ObservedObject var viewModel: PlayerViewModel
     let onClose: () -> Void
+
+    @State private var selectedTab: Int = 0 // 0 = Audio, 1 = Subtitles
 
     var body: some View {
         ZStack {
-            // Semi-transparent background
             Color.black.opacity(0.5)
                 .ignoresSafeArea()
-                .onTapGesture {
-                    onClose()
-                }
+                .onTapGesture { onClose() }
 
-            // Combined track selector card - positioned bottom-right
             VStack {
                 Spacer()
                 HStack {
                     Spacer()
-
-                    combinedTrackSelectorCard
+                    modalContent
                 }
             }
         }
     }
 
-    private var combinedTrackSelectorCard: some View {
-        HStack(alignment: .top, spacing: 0) {
-            // Audio column
-            VStack(alignment: .leading, spacing: 0) {
-                Text("Audio")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .padding(.top, 12)
-                    .padding(.bottom, 8)
-                    .padding(.horizontal, 16)
-
-                ScrollView {
-                    VStack(spacing: 0) {
-                        ForEach(audioTracks, id: \.id) { track in
-                            Button(action: {
-                                onSelectAudioTrack(track.id)
-                            }) {
-                                HStack(spacing: 8) {
-                                    if track.id == currentAudioTrackId {
-                                        Image(systemName: "checkmark")
-                                            .font(.system(size: 12, weight: .semibold))
-                                            .foregroundStyle(Color.accentColor)
-                                            .frame(width: 12)
-                                    } else {
-                                        Color.clear
-                                            .frame(width: 12)
-                                    }
-
-                                    Text(track.displayName)
-                                        .font(.system(size: 13))
-                                        .foregroundStyle(track.id == currentAudioTrackId ? .white : .white.opacity(0.7))
-
-                                    Spacer()
-                                }
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 5)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-                .frame(maxHeight: 100)
-                .padding(.bottom, 10)
+    private var modalContent: some View {
+        VStack(spacing: 0) {
+            // Tab Header
+            HStack(spacing: 0) {
+                TabButton(title: "Audio", isSelected: selectedTab == 0) { selectedTab = 0 }
+                TabButton(title: "Subtitles", isSelected: selectedTab == 1) { selectedTab = 1 }
             }
-            .frame(width: 220)
+            .padding(.horizontal, 4)
+            .padding(.top, 4)
 
-            // Divider
-            Rectangle()
-                .fill(Color.white.opacity(0.15))
-                .frame(width: 1)
-                .padding(.vertical, 10)
+            Divider().background(Color.white.opacity(0.1)).padding(.top, 8)
 
-            // Subtitles column
-            VStack(alignment: .leading, spacing: 0) {
-                Text("Subtitles")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .padding(.top, 12)
-                    .padding(.bottom, 8)
-                    .padding(.horizontal, 16)
-
-                ScrollView {
-                    VStack(spacing: 0) {
-                        // "Off" option
-                        Button(action: {
-                            onSelectSubtitleTrack(0)
-                        }) {
-                            HStack(spacing: 8) {
-                                if currentSubtitleTrackId == nil {
-                                    Image(systemName: "checkmark")
-                                        .font(.system(size: 12, weight: .semibold))
-                                        .foregroundStyle(Color.accentColor)
-                                        .frame(width: 12)
-                                } else {
-                                    Color.clear
-                                        .frame(width: 12)
-                                }
-
-                                Text("Off")
-                                    .font(.system(size: 13))
-                                    .foregroundStyle(currentSubtitleTrackId == nil ? .white : .white.opacity(0.7))
-
-                                Spacer()
-                            }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 5)
-                        }
-                        .buttonStyle(.plain)
-
-                        // Subtitle tracks
-                        ForEach(subtitleTracks, id: \.id) { track in
-                            Button(action: {
-                                onSelectSubtitleTrack(track.id)
-                            }) {
-                                HStack(spacing: 8) {
-                                    if track.id == currentSubtitleTrackId {
-                                        Image(systemName: "checkmark")
-                                            .font(.system(size: 12, weight: .semibold))
-                                            .foregroundStyle(Color.accentColor)
-                                            .frame(width: 12)
-                                    } else {
-                                        Color.clear
-                                            .frame(width: 12)
-                                    }
-
-                                    Text(track.displayName)
-                                        .font(.system(size: 13))
-                                        .foregroundStyle(track.id == currentSubtitleTrackId ? .white : .white.opacity(0.7))
-
-                                    Spacer()
-                                }
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 5)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-                .frame(maxHeight: 100)
-                .padding(.bottom, 10)
+            // Tab Content
+            if selectedTab == 0 {
+                AudioTabContent(viewModel: viewModel)
+            } else {
+                SubtitlesTabContent(viewModel: viewModel)
             }
-            .frame(width: 220)
         }
+        .frame(width: 340)
         .background(Color.black.opacity(0.95))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .strokeBorder(Color.white.opacity(0.1), lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.4), radius: 20, y: 6)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
+        .shadow(color: .black.opacity(0.5), radius: 30, y: 10)
         .padding(.trailing, 32)
         .padding(.bottom, 140)
+    }
+}
+
+private struct TabButton: View {
+    let title: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 14, weight: isSelected ? .semibold : .regular))
+                .foregroundStyle(isSelected ? .white : .white.opacity(0.5))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .background(isSelected ? Color.white.opacity(0.1) : Color.clear)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct AudioTabContent: View {
+    @ObservedObject var viewModel: PlayerViewModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Track Selection
+            ScrollView {
+                VStack(spacing: 2) {
+                    ForEach(viewModel.availableAudioTracks, id: \.id) { track in
+                        TrackRow(
+                            title: track.displayName,
+                            isSelected: track.id == viewModel.currentAudioTrackId
+                        ) {
+                            viewModel.setAudioTrack(track.id)
+                        }
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+            }
+            .frame(maxHeight: 150)
+
+            Divider().background(Color.white.opacity(0.1))
+
+            // Audio Sync
+            SyncOffsetControl(
+                label: "Audio Sync",
+                value: viewModel.audioDelay,
+                onDecrement: { viewModel.setAudioDelay(max(-2.0, viewModel.audioDelay - 0.05)) },
+                onIncrement: { viewModel.setAudioDelay(min(2.0, viewModel.audioDelay + 0.05)) },
+                onReset: { viewModel.setAudioDelay(0) }
+            )
+            .padding(12)
+        }
+    }
+}
+
+private struct SubtitlesTabContent: View {
+    @ObservedObject var viewModel: PlayerViewModel
+    @State private var showStyling = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Track Selection
+            ScrollView {
+                VStack(spacing: 2) {
+                    // Off option
+                    TrackRow(title: "Off", isSelected: viewModel.currentSubtitleTrackId == nil) {
+                        viewModel.disableSubtitles()
+                    }
+
+                    ForEach(viewModel.availableSubtitleTracks, id: \.id) { track in
+                        TrackRow(
+                            title: track.displayName,
+                            isSelected: track.id == viewModel.currentSubtitleTrackId
+                        ) {
+                            viewModel.setSubtitleTrack(track.id)
+                        }
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+            }
+            .frame(maxHeight: 150)
+
+            Divider().background(Color.white.opacity(0.1))
+
+            // Subtitle Sync
+            SyncOffsetControl(
+                label: "Subtitle Sync",
+                value: viewModel.subtitleDelay,
+                onDecrement: { viewModel.setSubtitleDelay(max(-2.0, viewModel.subtitleDelay - 0.05)) },
+                onIncrement: { viewModel.setSubtitleDelay(min(2.0, viewModel.subtitleDelay + 0.05)) },
+                onReset: { viewModel.setSubtitleDelay(0) }
+            )
+            .padding(.horizontal, 12)
+            .padding(.top, 12)
+
+            // Styling Toggle
+            Button(action: { withAnimation(.easeInOut(duration: 0.2)) { showStyling.toggle() } }) {
+                HStack {
+                    Text("Subtitle Styling")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.white.opacity(0.8))
+                    Spacer()
+                    Image(systemName: showStyling ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.5))
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+            }
+            .buttonStyle(.plain)
+
+            if showStyling {
+                SubtitleStylingControls(viewModel: viewModel)
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 12)
+            }
+        }
+    }
+}
+
+private struct TrackRow: View {
+    let title: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 16))
+                    .foregroundStyle(isSelected ? Color.accentColor : .white.opacity(0.3))
+
+                Text(title)
+                    .font(.system(size: 13))
+                    .foregroundStyle(isSelected ? .white : .white.opacity(0.7))
+                    .lineLimit(1)
+
+                Spacer()
+            }
+            .padding(.vertical, 8)
+            .padding(.horizontal, 10)
+            .background(isSelected ? Color.white.opacity(0.08) : Color.clear)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct SyncOffsetControl: View {
+    let label: String
+    let value: Double
+    let onDecrement: () -> Void
+    let onIncrement: () -> Void
+    let onReset: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text(label)
+                .font(.system(size: 13))
+                .foregroundStyle(.white.opacity(0.8))
+
+            Spacer()
+
+            HStack(spacing: 8) {
+                // Decrement button
+                Button(action: onDecrement) {
+                    Image(systemName: "minus")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 28, height: 28)
+                        .background(Color.white.opacity(0.15))
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                }
+                .buttonStyle(.plain)
+
+                // Value display (tappable to reset)
+                Button(action: onReset) {
+                    Text(String(format: "%+.0fms", value * 1000))
+                        .font(.system(size: 13, weight: .medium, design: .monospaced))
+                        .foregroundStyle(value == 0 ? .white.opacity(0.6) : .orange)
+                        .frame(width: 70)
+                }
+                .buttonStyle(.plain)
+                .help("Click to reset")
+
+                // Increment button
+                Button(action: onIncrement) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 28, height: 28)
+                        .background(Color.white.opacity(0.15))
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+}
+
+private struct SubtitleStylingControls: View {
+    @ObservedObject var viewModel: PlayerViewModel
+
+    var body: some View {
+        VStack(spacing: 12) {
+            // Font Size
+            CompactSliderRow(
+                label: "Size",
+                value: "\(viewModel.subtitleFontSize)",
+                sliderValue: Double(viewModel.subtitleFontSize),
+                range: 30...80,
+                step: 5
+            ) { viewModel.setSubtitleFontSize(Int($0)) }
+
+            // Border
+            CompactSliderRow(
+                label: "Border",
+                value: String(format: "%.1f", viewModel.subtitleBorderSize),
+                sliderValue: viewModel.subtitleBorderSize,
+                range: 0...5,
+                step: 0.5
+            ) { viewModel.setSubtitleBorderSize($0) }
+
+            // Background
+            CompactSliderRow(
+                label: "Background",
+                value: "\(Int(viewModel.subtitleBackgroundOpacity * 100))%",
+                sliderValue: viewModel.subtitleBackgroundOpacity,
+                range: 0...1,
+                step: 0.1
+            ) { viewModel.setSubtitleBackgroundOpacity($0) }
+        }
+    }
+}
+
+private struct CompactSliderRow: View {
+    let label: String
+    let value: String
+    let sliderValue: Double
+    let range: ClosedRange<Double>
+    let step: Double
+    let onChange: (Double) -> Void
+
+    @State private var localValue: Double = 0
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text(label)
+                .font(.system(size: 12))
+                .foregroundStyle(.white.opacity(0.6))
+                .frame(width: 70, alignment: .leading)
+
+            Slider(value: $localValue, in: range, step: step)
+                .tint(Color.accentColor)
+                .onAppear { localValue = sliderValue }
+                .onChange(of: localValue) { newValue in onChange(newValue) }
+
+            Text(value)
+                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                .foregroundStyle(.white.opacity(0.7))
+                .frame(width: 40, alignment: .trailing)
+        }
     }
 }
 
@@ -2019,121 +2369,6 @@ private struct VolumeSliderPopover: View {
     }
 }
 
-// MARK: - Player Episode Row Component
-private struct PlayerEpisodeRow: View {
-    let episode: EpisodeMetadata
-    let isCurrentEpisode: Bool
-    let onSelect: () -> Void
-    @State private var isHovered = false
-
-    var body: some View {
-        Button(action: onSelect) {
-            HStack(spacing: 12) {
-                // Episode thumbnail with progress bar and hover overlay
-                ZStack {
-                    // Thumbnail image or number badge fallback
-                    if let thumbPath = episode.thumb,
-                       let imageURL = ImageService.shared.plexImageURL(path: thumbPath, width: 320, height: 180) {
-                        CachedAsyncImage(url: imageURL)
-                            .frame(width: 160, height: 90)
-                    } else if let index = episode.index {
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(isCurrentEpisode ? Color.orange.opacity(0.2) : Color.white.opacity(0.1))
-                            .frame(width: 160, height: 90)
-                            .overlay(
-                                Text("\(index)")
-                                    .font(.system(size: 24, weight: .bold))
-                                    .foregroundStyle(.white.opacity(0.6))
-                            )
-                    }
-
-                    // Hover overlay
-                    if isHovered {
-                        Rectangle()
-                            .fill(Color.black.opacity(0.25))
-                            .frame(width: 160, height: 90)
-
-                        // Play button
-                        Text("Play")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundStyle(.black)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(Color.white)
-                            .clipShape(Capsule())
-                    }
-
-                    // Progress bar (matching web implementation)
-                    // Don't show progress bar for currently playing episode
-                    if !isCurrentEpisode, let progress = episode.progressPercent, progress > 0 {
-                        VStack {
-                            Spacer()
-                            GeometryReader { geometry in
-                                ZStack(alignment: .leading) {
-                                    Rectangle()
-                                        .fill(Color.white.opacity(0.2))
-                                        .frame(height: 6)
-
-                                    Rectangle()
-                                        .fill(Color(red: 229/255, green: 9/255, blue: 20/255))
-                                        .frame(width: geometry.size.width * CGFloat(min(100, max(0, progress))) / 100.0, height: 6)
-                                }
-                            }
-                            .frame(height: 6)
-                        }
-                    }
-                }
-                .frame(width: 160, height: 90)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-
-                // Episode info
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 4) {
-                        Text(episode.title)
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundStyle(.white)
-                            .lineLimit(1)
-
-                        // Current indicator
-                        if isCurrentEpisode {
-                            Image(systemName: "play.fill")
-                                .font(.system(size: 10))
-                                .foregroundStyle(.orange)
-                        }
-                    }
-
-                    // Duration
-                    if let duration = episode.duration {
-                        Text("\(duration / 60000) min")
-                            .font(.system(size: 12))
-                            .foregroundStyle(.white.opacity(0.5))
-                    }
-
-                    if let summary = episode.summary {
-                        Text(summary)
-                            .font(.system(size: 12))
-                            .foregroundStyle(.white.opacity(0.6))
-                            .lineLimit(2)
-                    }
-                }
-
-                Spacer()
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 12)
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(isCurrentEpisode ? Color.white.opacity(0.05) : Color.clear)
-            )
-        }
-        .buttonStyle(.plain)
-        .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.2)) {
-                isHovered = hovering
-            }
-        }
-    }
-}
 
 // MARK: - Thumbnail Preview View
 
@@ -2308,6 +2543,171 @@ private struct NextEpisodeHoverCard: View {
     }
 }
 
+// MARK: - Chapters Panel
+
+private struct ChaptersPanel: View {
+    @ObservedObject var viewModel: PlayerViewModel
+    let onClose: () -> Void
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.5)
+                .ignoresSafeArea()
+                .onTapGesture { onClose() }
+
+            VStack {
+                Spacer()
+                HStack {
+                    Spacer()
+                    panelContent
+                }
+            }
+        }
+    }
+
+    private var panelContent: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Header
+            HStack {
+                Text("Chapters")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.white)
+                Spacer()
+                Button(action: onClose) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.6))
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+
+            Divider().background(Color.white.opacity(0.1))
+
+            // Chapters List
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(spacing: 2) {
+                        ForEach(viewModel.chapters) { chapter in
+                            ChapterListRow(
+                                chapter: chapter,
+                                isCurrent: chapter.index == viewModel.currentChapterIndex,
+                                progress: calculateProgress(for: chapter)
+                            ) {
+                                viewModel.seekToChapter(chapter.index)
+                            }
+                            .id(chapter.index)
+                        }
+                    }
+                    .padding(8)
+                }
+                .onAppear {
+                    if let currentIndex = viewModel.currentChapterIndex {
+                        proxy.scrollTo(currentIndex, anchor: .center)
+                    }
+                }
+            }
+            .frame(maxHeight: 350)
+        }
+        .frame(width: 320)
+        .background(Color.black.opacity(0.95))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
+        .shadow(color: .black.opacity(0.5), radius: 30, y: 10)
+        .padding(.trailing, 32)
+        .padding(.bottom, 140)
+    }
+
+    private func calculateProgress(for chapter: MPVChapter) -> Double? {
+        guard let currentIndex = viewModel.currentChapterIndex else { return nil }
+        if chapter.index < currentIndex {
+            return 1.0 // Completed
+        } else if chapter.index == currentIndex {
+            let chapterStart = chapter.time
+            let nextChapterStart = viewModel.chapters.count > chapter.index + 1
+                ? viewModel.chapters[chapter.index + 1].time
+                : viewModel.duration
+            let chapterDuration = nextChapterStart - chapterStart
+            guard chapterDuration > 0 else { return 0 }
+            return min(1.0, max(0, (viewModel.currentTime - chapterStart) / chapterDuration))
+        }
+        return nil
+    }
+}
+
+private struct ChapterListRow: View {
+    let chapter: MPVChapter
+    let isCurrent: Bool
+    let progress: Double?
+    let action: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                // Chapter number with progress indicator
+                ZStack {
+                    Circle()
+                        .fill(progressColor)
+                        .frame(width: 28, height: 28)
+
+                    if let progress = progress, progress < 1.0 && progress > 0 {
+                        Circle()
+                            .trim(from: 0, to: progress)
+                            .stroke(Color.accentColor, lineWidth: 2)
+                            .frame(width: 28, height: 28)
+                            .rotationEffect(.degrees(-90))
+                    }
+
+                    Text("\(chapter.index + 1)")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(isCurrent ? .white : .white.opacity(0.8))
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(chapter.displayName)
+                        .font(.system(size: 13, weight: isCurrent ? .semibold : .regular))
+                        .foregroundStyle(isCurrent ? .white : .white.opacity(0.85))
+                        .lineLimit(1)
+
+                    Text(chapter.formattedTime)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.5))
+                }
+
+                Spacer()
+
+                if isCurrent {
+                    Image(systemName: "play.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(Color.accentColor)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(isCurrent ? Color.white.opacity(0.1) : (isHovered ? Color.white.opacity(0.05) : Color.clear))
+            )
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+    }
+
+    private var progressColor: Color {
+        if let progress = progress {
+            if progress >= 1.0 {
+                return Color.accentColor.opacity(0.3)
+            } else if progress > 0 {
+                return Color.white.opacity(0.15)
+            }
+        }
+        return Color.white.opacity(0.1)
+    }
+}
+
 // MARK: - MPV PiP Window Manager
 
 #if os(macOS)
@@ -2439,7 +2839,7 @@ class MPVPiPWindowManager {
 
 
             // CRITICAL: Force layer to update for PiP bounds
-            if let layer = mpvView.layer as? MPVVideoLayer {
+            if let layer = mpvView.layer as? MPVMetalLayer {
                 layer.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
                 layer.contentsScale = window.backingScaleFactor
 
@@ -2558,7 +2958,7 @@ class MPVPiPWindowManager {
 
 
             // CRITICAL: Force layer to update for restored bounds
-            if let layer = mpvView.layer as? MPVVideoLayer,
+            if let layer = mpvView.layer as? MPVMetalLayer,
                let mainWindow = originalParent.window {
                 layer.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
                 layer.contentsScale = mainWindow.backingScaleFactor
@@ -2646,14 +3046,7 @@ class MPVPiPWindowManager {
 
         print("✅ [PiP] mpvView exists: \(mpvView)")
 
-        guard let videoLayer = mpvView.videoLayer else {
-            print("❌ [PiP] videoLayer is nil")
-            return
-        }
-
-        print("✅ [PiP] videoLayer exists: \(videoLayer)")
-
-        guard let mpvController = videoLayer.mpvController else {
+        guard let mpvController = mpvView.mpvController else {
             print("❌ [PiP] mpvController is nil")
             return
         }

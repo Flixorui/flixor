@@ -2,23 +2,25 @@
 //  MPVPlayerController.swift
 //  FlixorMac
 //
-//  MPV player controller for video playback
+//  MPV player controller with gpu-next rendering for Dolby Vision support
+//  Based on plezy implementation: https://github.com/edde746/plezy
 //
 
 import Foundation
 import AppKit
+import Libmpv
 
 class MPVPlayerController {
     // MARK: - Properties
 
     /// The mpv handle
-    private var mpv: OpaquePointer!
+    private var mpv: OpaquePointer?
 
-    /// Render context for video output
-    private var mpvRenderContext: OpaquePointer?
+    /// Reference to the Metal layer for EDR management
+    private weak var metalLayer: MPVMetalLayer?
 
-    /// OpenGL context
-    private var openGLContext: CGLContextObj?
+    /// Reference to the window for screen info
+    private weak var window: NSWindow?
 
     /// Dispatch queue for mpv events
     private lazy var queue = DispatchQueue(label: "com.flixor.mpv.controller", qos: .userInitiated)
@@ -32,8 +34,9 @@ class MPVPlayerController {
         return isShuttingDown
     }
 
-    /// Callback for when mpv requests a video redraw
-    var videoUpdateCallback: (() -> Void)?
+    /// HDR state
+    private var hdrEnabled = true
+    private var lastSigPeak: Double = 0.0
 
     /// Callback for property changes
     var onPropertyChange: ((String, Any?) -> Void)?
@@ -41,8 +44,8 @@ class MPVPlayerController {
     /// Callback for events
     var onEvent: ((String) -> Void)?
 
-    /// Callback for HDR detection
-    var onHDRDetected: ((Bool, String?, String?) -> Void)?
+    /// Callback for HDR detection (sig-peak based)
+    var onHDRDetected: ((Bool, Double) -> Void)?
 
     /// Callback for thumbnail info updates
     var onThumbnailInfo: ((ThumbnailInfo) -> Void)?
@@ -50,119 +53,118 @@ class MPVPlayerController {
     /// Current thumbnail information
     private(set) var thumbnailInfo: ThumbnailInfo?
 
+    /// Initialization state
+    private(set) var isInitialized = false
+
     // MARK: - Initialization
 
     init() {
-        setupMPV()
+        // Don't setup MPV here - wait for initialize(in:layer:)
     }
 
     deinit {
-        // Only shutdown if not already done
         if !isShuttingDown && mpv != nil {
             print("⚠️ [MPV] Cleanup in deinit (should have been called explicitly)")
             shutdown()
         }
     }
 
-    // MARK: - Setup
+    // MARK: - Setup with Metal Layer
 
-    private func setupMPV() {
+    /// Initialize MPV with a Metal layer for gpu-next rendering
+    /// This must be called before any playback
+    func initialize(in window: NSWindow, layer: MPVMetalLayer) -> Bool {
+        guard !isInitialized else {
+            print("[MPV] Already initialized")
+            return true
+        }
+
+        self.window = window
+        self.metalLayer = layer
+
         // Create mpv instance
         mpv = mpv_create()
         guard mpv != nil else {
             print("❌ [MPV] Failed to create mpv instance")
-            return
+            return false
         }
 
-        // Configure mpv options (including thumbfast script)
-        configureOptions()
+        // Configure logging - use debug level to see GPU initialization
+        #if DEBUG
+        checkError(mpv_request_log_messages(mpv, "v"))
+        #else
+        checkError(mpv_request_log_messages(mpv, "warn"))
+        #endif
 
-        // Set log level
-        mpv_request_log_messages(mpv, "warn")
+        // CRITICAL: Pass Metal layer as wid for gpu-next rendering
+        // Must use local var for & (plezy pattern)
+        var metalLayerRef = layer
+        setOptionWithLog("wid", layer: &metalLayerRef)
 
-        // Set wakeup callback for events
-        mpv_set_wakeup_callback(mpv, { ctx in
-            guard let ctx = ctx else { return }
-            let controller = Unmanaged<MPVPlayerController>.fromOpaque(ctx).takeUnretainedValue()
-            controller.readEvents()
-        }, Unmanaged.passUnretained(self).toOpaque())
+        // Video output settings for Metal/Vulkan (plezy pattern)
+        setOptionStringWithLog("vo", "gpu-next")
+        setOptionStringWithLog("gpu-api", "vulkan")
+        setOptionStringWithLog("gpu-context", "moltenvk")
+        setOptionStringWithLog("hwdec", "videotoolbox")
+        setOptionStringWithLog("target-colorspace-hint", "yes")
 
-        // Observe important properties (including thumbfast-info)
-        observeProperties()
+        // Store the Metal layer reference
+        self.metalLayer = layer
 
-        // Initialize mpv
+        // Initialize MPV (BEFORE wakeup callback - plezy pattern)
         let status = mpv_initialize(mpv)
         if status < 0 {
             print("❌ [MPV] Failed to initialize: \(String(cString: mpv_error_string(status)))")
-            return
+            mpv_terminate_destroy(mpv)
+            mpv = nil
+            return false
         }
 
-        print("✅ [MPV] Initialized successfully")
+        // Set wakeup callback AFTER mpv_initialize (plezy pattern)
+        mpv_set_wakeup_callback(mpv, { ctx in
+            let controller = Unmanaged<MPVPlayerController>.fromOpaque(ctx!).takeUnretainedValue()
+            controller.readEvents()
+        }, UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque()))
+
+        // Observe properties after initialization
+        observeProperties()
+
+        // Configure additional options after initialization
+        configureAdditionalOptions()
+
+        isInitialized = true
+        print("✅ [MPV] Initialized with gpu-next and Metal rendering")
+        return true
     }
 
-    private func configureOptions() {
-        // Video output - use libmpv for rendering
-        setOption("vo", value: "libmpv")
-
-        // Force OpenGL GPU API (align with IINA). This avoids odd render paths.
-        setOption("gpu-api", value: "opengl")
+    private func configureAdditionalOptions() {
+        // Additional properties set AFTER mpv_initialize
+        // Use mpv_set_property_string for post-init settings
 
         // Keep aspect ratio
-        setOption("keepaspect", value: "yes")
-
-        // Hardware decoding
-        setOption("hwdec", value: "auto")
-
-        // OpenGL interop
-        setOption("gpu-hwdec-interop", value: "auto")
+        mpv_set_property_string(mpv, "keepaspect", "yes")
 
         // Disable on-screen display
-        setOption("osd-level", value: "0")
-
-        // Cache settings for streaming - increased for HLS
-        setOption("cache", value: "yes")
-        setOption("demuxer-max-bytes", value: "400MiB")
-        setOption("demuxer-max-back-bytes", value: "150MiB")
-        setOption("demuxer-readahead-secs", value: "20")
-
-        // Network settings for HLS streaming
-        setOption("user-agent", value: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15")
-        setOption("http-header-fields", value: "Accept: */*")
-        setOption("tls-verify", value: "no")
-        setOption("stream-lavf-o", value: "reconnect=1,reconnect_streamed=1,reconnect_delay_max=5")
-
-        // Note: hls-bitrate removed - let Plex control quality via maxVideoBitrate parameter
-        // MPV's adaptive bitrate selection will respect the qualities in the manifest
+        mpv_set_property_string(mpv, "osd-level", "0")
 
         // Audio settings
-        setOption("audio-channels", value: "stereo")
-        setOption("volume-max", value: "100")
-
-        // macOS GPU acceleration
-        setOption("macos-force-dedicated-gpu", value: "yes")
-
-        // Debug logging (only in Debug builds)
-        #if DEBUG
-        setOption("msg-level", value: "all=v")
-        setOption("log-file", value: "/tmp/mpv-flixor.log")
-        #endif
+        mpv_set_property_string(mpv, "volume-max", "100")
 
         // Load thumbfast.lua script for thumbnails
         if let scriptPath = Bundle.main.path(forResource: "thumbfast", ofType: "lua") {
             print("📸 [MPV] Loading thumbfast script: \(scriptPath)")
-            // Use "scripts" (plural) option which takes semicolon-separated list
-            setOption("scripts", value: scriptPath)
+            // Scripts need to be loaded via command after init
+            command(.loadScript, args: [scriptPath])
         } else {
             print("⚠️ [MPV] thumbfast.lua not found in bundle")
         }
 
-        // Note: HDR options (target-trc, target-prim, target-peak, tone-mapping)
-        // will be set dynamically when HDR content is detected (IINA approach)
-
-        print("✅ [MPV] Options configured")
+        print("✅ [MPV] Additional options configured")
     }
 
     private func observeProperties() {
+        guard mpv != nil else { return }
+
         // Observe playback state
         mpv_observe_property(mpv, 0, "pause", MPV_FORMAT_FLAG)
         mpv_observe_property(mpv, 0, "time-pos", MPV_FORMAT_DOUBLE)
@@ -173,63 +175,47 @@ class MPVPlayerController {
         mpv_observe_property(mpv, 0, "seeking", MPV_FORMAT_FLAG)
         mpv_observe_property(mpv, 0, "paused-for-cache", MPV_FORMAT_FLAG)
 
-        // Observe video properties for HDR detection (IINA approach)
-        mpv_observe_property(mpv, 0, "video-params/primaries", MPV_FORMAT_STRING)
-        mpv_observe_property(mpv, 0, "video-params/gamma", MPV_FORMAT_STRING)
+        // CRITICAL: Observe sig-peak for HDR/EDR activation (plezy approach)
+        mpv_observe_property(mpv, 0, "video-params/sig-peak", MPV_FORMAT_DOUBLE)
 
         // Observe thumbfast-info property for thumbnail metadata
         mpv_observe_property(mpv, 0, "user-data/thumbfast-info", MPV_FORMAT_STRING)
     }
 
-    // MARK: - Rendering Setup
+    // MARK: - HDR/EDR Support
 
-    func initializeRendering(openGLContext: CGLContextObj) {
-        guard mpv != nil else {
-            print("❌ [MPV] Cannot initialize rendering: mpv not initialized")
-            return
+    /// Update EDR mode based on sig-peak (plezy approach)
+    private func updateEDRMode(sigPeak: Double) {
+        guard let layer = metalLayer else { return }
+
+        // Check if screen supports EDR
+        var edrHeadroom: CGFloat = 1.0
+        if let screen = window?.screen ?? NSScreen.main {
+            edrHeadroom = screen.maximumExtendedDynamicRangeColorComponentValue
         }
 
-        self.openGLContext = openGLContext
+        let isHDRContent = sigPeak > 1.0
+        let screenSupportsEDR = edrHeadroom > 1.0
+        let shouldEnableEDR = hdrEnabled && isHDRContent && screenSupportsEDR
 
-        // Setup OpenGL init params
-        var openGLInitParams = mpv_opengl_init_params(
-            get_proc_address: { ctx, name in
-                guard let name = name else { return nil }
-                let symbolName = CFStringCreateWithCString(kCFAllocatorDefault, name, kCFStringEncodingASCII)
-                let bundle = CFBundleGetBundleWithIdentifier("com.apple.opengl" as CFString)
-                return CFBundleGetFunctionPointerForName(bundle, symbolName)
-            },
-            get_proc_address_ctx: nil
-        )
+        layer.wantsExtendedDynamicRangeContent = shouldEnableEDR
 
-        // Setup render params
-        let apiType = UnsafeMutableRawPointer(mutating: (MPV_RENDER_API_TYPE_OPENGL as NSString).utf8String)
-        var advanced: CInt = 1
+        print("[MPV] EDR: \(shouldEnableEDR) (hdrEnabled: \(hdrEnabled), sigPeak: \(sigPeak), headroom: \(edrHeadroom))")
+    }
 
-        withUnsafeMutablePointer(to: &openGLInitParams) { glInitParams in
-            withUnsafeMutablePointer(to: &advanced) { advancedPtr in
-                var params = [
-                    mpv_render_param(type: MPV_RENDER_PARAM_API_TYPE, data: apiType),
-                    mpv_render_param(type: MPV_RENDER_PARAM_OPENGL_INIT_PARAMS, data: glInitParams),
-                    mpv_render_param(type: MPV_RENDER_PARAM_ADVANCED_CONTROL, data: advancedPtr),
-                    mpv_render_param()
-                ]
+    /// Enable or disable HDR mode
+    func setHDREnabled(_ enabled: Bool) {
+        hdrEnabled = enabled
+        print("[MPV] HDR enabled: \(enabled)")
 
-                let status = mpv_render_context_create(&mpvRenderContext, mpv, &params)
-                if status < 0 {
-                    print("❌ [MPV] Failed to create render context: \(String(cString: mpv_error_string(status)))")
-                    return
-                }
+        // Update MPV's target-colorspace-hint
+        if mpv != nil {
+            mpv_set_property_string(mpv, "target-colorspace-hint", enabled ? "yes" : "no")
+        }
 
-                // Set update callback
-                mpv_render_context_set_update_callback(mpvRenderContext, { ctx in
-                    guard let ctx = ctx else { return }
-                    let controller = Unmanaged<MPVPlayerController>.fromOpaque(ctx).takeUnretainedValue()
-                    controller.videoUpdateCallback?()
-                }, Unmanaged.passUnretained(self).toOpaque())
-
-                print("✅ [MPV] Rendering initialized")
-            }
+        // Re-evaluate EDR mode with current sig-peak
+        DispatchQueue.main.async {
+            self.updateEDRMode(sigPeak: self.lastSigPeak)
         }
     }
 
@@ -242,7 +228,6 @@ class MPVPlayerController {
         }
 
         print("📺 [MPV] Loading file: \(url)")
-        // Use mpv_command_string for simpler command execution
         let commandString = "loadfile \"\(url)\" replace"
         let status = mpv_command_string(mpv, commandString)
         if status < 0 {
@@ -259,13 +244,10 @@ class MPVPlayerController {
     }
 
     func togglePlayPause() {
-        // Get current pause state
         guard let isPaused: Bool = getProperty("pause", type: .flag) else {
             print("⚠️ [MPV] Could not get pause state")
             return
         }
-
-        // Toggle it
         setProperty("pause", value: !isPaused)
         print("✅ [MPV] Toggled pause: \(isPaused) -> \(!isPaused)")
     }
@@ -410,65 +392,6 @@ class MPVPlayerController {
         print("💬 [MPV] Subtitles disabled")
     }
 
-    // MARK: - Rendering
-
-    func render(width: Int, height: Int, fbo: GLint) {
-        guard let renderContext = mpvRenderContext else { return }
-
-        // Setup render parameters
-        var fboValue = fbo
-        var width = Int32(width)
-        var height = Int32(height)
-
-        withUnsafeMutablePointer(to: &fboValue) { fboPtr in
-            withUnsafeMutablePointer(to: &width) { widthPtr in
-                withUnsafeMutablePointer(to: &height) { heightPtr in
-                    var params = [
-                        mpv_render_param(type: MPV_RENDER_PARAM_OPENGL_FBO, data: fboPtr),
-                        mpv_render_param(type: MPV_RENDER_PARAM_FLIP_Y, data: nil),
-                        mpv_render_param()
-                    ]
-
-                    mpv_render_context_render(renderContext, &params)
-                }
-            }
-        }
-    }
-
-    func reportSwap() {
-        guard let renderContext = mpvRenderContext else { return }
-        mpv_render_context_report_swap(renderContext)
-    }
-
-    func shouldRenderUpdateFrame() -> Bool {
-        guard !isShuttingDown, let renderContext = mpvRenderContext else { return false }
-        let flags = mpv_render_context_update(renderContext)
-        return (flags & UInt64(MPV_RENDER_UPDATE_FRAME.rawValue)) != 0
-    }
-
-    func getRenderContext() -> OpaquePointer? {
-        guard !isShuttingDown else { return nil }
-        return mpvRenderContext
-    }
-
-    // Provide ICC profile to mpv render context (like IINA's MPV_RENDER_PARAM_ICC_PROFILE path).
-    func setRenderICCProfile(_ colorSpace: NSColorSpace) {
-        guard let renderContext = mpvRenderContext else { return }
-        guard var iccData = colorSpace.iccProfileData else {
-            let name = colorSpace.localizedName ?? "unnamed"
-            print("⚠️ [MPV] Color space \(name) has no ICC data")
-            return
-        }
-        iccData.withUnsafeMutableBytes { ptr in
-            guard let base = ptr.baseAddress, ptr.count > 0 else { return }
-            var byteArray = mpv_byte_array(data: base.assumingMemoryBound(to: UInt8.self), size: ptr.count)
-            withUnsafeMutableBytes(of: &byteArray) { bptr in
-                let param = mpv_render_param(type: MPV_RENDER_PARAM_ICC_PROFILE, data: bptr.baseAddress)
-                mpv_render_context_set_parameter(renderContext, param)
-            }
-        }
-    }
-
     // MARK: - Property Management
 
     func getProperty<T>(_ name: String, type: PropertyType) -> T? {
@@ -498,7 +421,7 @@ class MPVPlayerController {
         }
     }
 
-    private func setProperty(_ name: String, value: Any) {
+    func setProperty(_ name: String, value: Any) {
         guard mpv != nil else { return }
 
         if let boolValue = value as? Bool {
@@ -515,44 +438,6 @@ class MPVPlayerController {
         }
     }
 
-    /// Set HDR properties dynamically (IINA approach)
-    func setHDRProperties(primaries: String) {
-        guard mpv != nil else { return }
-
-        // Disable ICC profile for HDR
-        setProperty("icc-profile-auto", value: false)
-
-        // Set target color space to PQ (HDR)
-        // PQ videos will be displayed as-is, HLG videos will be converted to PQ
-        setProperty("target-trc", value: "pq")
-        setProperty("target-prim", value: primaries)
-
-        // CRITICAL: IINA's default is enableToneMapping=false
-        // This lets the display handle HDR natively via macOS EDR
-        // Disable tone mapping for native HDR display (IINA default)
-        setProperty("target-peak", value: "auto")
-        setProperty("tone-mapping", value: "")
-
-        // Tag screenshots with colorspace
-        setProperty("screenshot-tag-colorspace", value: true)
-
-        print("✅ [MPV] HDR properties set: target-trc=pq, target-prim=\(primaries), target-peak=auto, tone-mapping=disabled (native EDR)")
-    }
-
-    /// Set SDR properties dynamically (IINA approach)
-    func setSDRProperties() {
-        guard mpv != nil else { return }
-        // Enable ICC auto so mpv uses the provided ICC profile via render param
-        setOption("icc-profile-auto", value: "yes")
-        setProperty("target-trc", value: "auto")
-        setProperty("target-prim", value: "auto")
-        setProperty("target-peak", value: "auto")
-        setProperty("tone-mapping", value: "auto")
-        setProperty("screenshot-tag-colorspace", value: false)
-
-        print("✅ [MPV] SDR properties set")
-    }
-
     private func setOption(_ name: String, value: String) {
         guard mpv != nil else { return }
         let status = mpv_set_option_string(mpv, name, value)
@@ -561,19 +446,27 @@ class MPVPlayerController {
         }
     }
 
-    // MARK: - Color Management
+    private func checkError(_ status: CInt) {
+        if status < 0 {
+            print("[MPV] Error: \(String(cString: mpv_error_string(status)))")
+        }
+    }
 
-    /// Set ICC profile path for the current renderer and disable auto detection, like IINA.
-    /// Pass empty string to clear.
-    func setICCProfile(path: String?) {
-        guard mpv != nil else { return }
-        let profilePath = path ?? ""
-        _ = mpv_set_option_string(mpv, "icc-profile", profilePath)
-        _ = mpv_set_option_string(mpv, "icc-profile-auto", "no")
-        if profilePath.isEmpty {
-            print("🎨 [MPV] ICC profile cleared; auto=no")
+    private func setOptionWithLog(_ name: String, layer: inout MPVMetalLayer) {
+        let status = mpv_set_option(mpv, name, MPV_FORMAT_INT64, &layer)
+        if status < 0 {
+            print("⚠️ [MPV] Failed to set option \(name): \(String(cString: mpv_error_string(status)))")
         } else {
-            print("🎨 [MPV] ICC profile set: \(profilePath); auto=no")
+            print("✅ [MPV] Set option \(name)")
+        }
+    }
+
+    private func setOptionStringWithLog(_ name: String, _ value: String) {
+        let status = mpv_set_option_string(mpv, name, value)
+        if status < 0 {
+            print("⚠️ [MPV] Failed to set option \(name)=\(value): \(String(cString: mpv_error_string(status)))")
+        } else {
+            print("✅ [MPV] Set option \(name)=\(value)")
         }
     }
 
@@ -629,33 +522,38 @@ class MPVPlayerController {
 
     private func handleEvent(_ event: UnsafePointer<mpv_event>) {
         let eventId = event.pointee.event_id
-        let eventName = String(cString: mpv_event_name(eventId))
 
         switch eventId {
         case MPV_EVENT_PROPERTY_CHANGE:
-            let data = event.pointee.data.assumingMemoryBound(to: mpv_event_property.self)
-            let property = data.pointee
+            guard let data = event.pointee.data else { break }
+            let property = data.assumingMemoryBound(to: mpv_event_property.self).pointee
             let propertyName = String(cString: property.name)
 
             let value: Any? = {
+                guard let ptr = property.data else { return nil }
                 switch property.format {
                 case MPV_FORMAT_FLAG:
-                    return property.data.load(as: Bool.self)
+                    // Flags are Int32 in MPV, not Bool
+                    return ptr.assumingMemoryBound(to: Int32.self).pointee != 0
                 case MPV_FORMAT_INT64:
-                    return property.data.load(as: Int64.self)
+                    return ptr.assumingMemoryBound(to: Int64.self).pointee
                 case MPV_FORMAT_DOUBLE:
-                    return property.data.load(as: Double.self)
+                    return ptr.assumingMemoryBound(to: Double.self).pointee
                 case MPV_FORMAT_STRING:
-                    let str = property.data.load(as: UnsafePointer<CChar>.self)
-                    return String(cString: str)
+                    let cstr = ptr.assumingMemoryBound(to: UnsafePointer<CChar>?.self).pointee
+                    return cstr.map { String(cString: $0) }
                 default:
                     return nil
                 }
             }()
 
-            // Check for HDR detection (IINA approach)
-            if propertyName == "video-params/primaries" || propertyName == "video-params/gamma" {
-                self.detectHDR()
+            // Handle sig-peak for HDR/EDR activation (plezy approach)
+            if propertyName == "video-params/sig-peak", let sigPeak = value as? Double {
+                lastSigPeak = sigPeak
+                DispatchQueue.main.async {
+                    self.updateEDRMode(sigPeak: sigPeak)
+                    self.onHDRDetected?(sigPeak > 1.0, sigPeak)
+                }
             }
 
             // Check for thumbfast-info updates
@@ -721,35 +619,12 @@ class MPVPlayerController {
         }
     }
 
-    // MARK: - HDR Detection
-
-    private func detectHDR() {
-        // Get video properties (IINA approach)
-        guard let gamma: String = getProperty("video-params/gamma", type: .string),
-              let primaries: String = getProperty("video-params/primaries", type: .string) else {
-            return
-        }
-
-        // HDR videos use PQ (Perceptual Quantizer) or HLG (Hybrid Log-Gamma) transfer functions
-        let isHDR = gamma == "pq" || gamma == "hlg"
-
-        if isHDR {
-            print("🌈 [MPV] HDR detected! Gamma: \(gamma), Primaries: \(primaries)")
-        }
-
-        // Notify via callback
-        DispatchQueue.main.async { [weak self] in
-            self?.onHDRDetected?(isHDR, gamma, primaries)
-        }
-    }
-
     // MARK: - Shutdown
 
     func shutdown() {
         shutdownLock.lock()
         defer { shutdownLock.unlock() }
 
-        // Prevent double shutdown
         guard !isShuttingDown else {
             print("⚠️ [MPV] Already shutting down, skipping")
             return
@@ -763,38 +638,10 @@ class MPVPlayerController {
         isShuttingDown = true
         print("🛑 [MPV] Shutting down")
 
-        // Clear callbacks first to stop any new render requests
-        videoUpdateCallback = nil
+        // Clear callbacks
         onPropertyChange = nil
         onEvent = nil
-
-        // CRITICAL: Free render context BEFORE terminating mpv
-        // This must be done or mpv_terminate_destroy will abort
-        if let renderContext = mpvRenderContext {
-            print("🛑 [MPV] Freeing render context...")
-
-            // Clear update callback first to prevent any new render requests
-            mpv_render_context_set_update_callback(renderContext, nil, nil)
-
-            // Lock GL context if available
-            if let glContext = openGLContext {
-                CGLLockContext(glContext)
-                CGLSetCurrentContext(glContext)
-
-                // Free render context with GL context active
-                mpv_render_context_free(renderContext)
-
-                CGLSetCurrentContext(nil)
-                CGLUnlockContext(glContext)
-            } else {
-                // No GL context - this might cause issues, but try anyway
-                print("⚠️ [MPV] Freeing render context without GL context")
-                mpv_render_context_free(renderContext)
-            }
-
-            mpvRenderContext = nil
-            print("✅ [MPV] Render context freed")
-        }
+        onHDRDetected = nil
 
         // Clear wakeup callback before draining events
         if let mpv = mpv {
@@ -823,32 +670,27 @@ class MPVPlayerController {
             self.mpv = nil
         }
 
-        openGLContext = nil
+        metalLayer = nil
+        window = nil
+        isInitialized = false
         print("✅ [MPV] Shutdown complete")
     }
 
     // MARK: - Thumbnail Support
 
     /// Request a thumbnail at a specific timestamp
-    /// - Parameter time: Time in seconds
     func requestThumbnail(at time: Double) {
         guard mpv != nil else {
             print("❌ [MPV] Cannot request thumbnail: mpv not initialized")
             return
         }
 
-        // Send script-message-to thumbfast to request thumbnail
-        // Format: script-message-to thumbfast thumb <time> <x> <y> <script>
-        // We send empty strings for x/y since we're not using MPV's overlay system
-        // (we read the BGRA file directly)
         let commandString = "script-message-to thumbfast thumb \(time) \"\" \"\""
-        print("📸 [MPV] Requesting thumbnail at \(time)s: \(commandString)")
+        print("📸 [MPV] Requesting thumbnail at \(time)s")
         let status = mpv_command_string(mpv, commandString)
 
         if status < 0 {
             print("❌ [MPV] Failed to request thumbnail: \(String(cString: mpv_error_string(status)))")
-        } else {
-            print("✅ [MPV] Thumbnail request sent successfully")
         }
     }
 
@@ -857,11 +699,7 @@ class MPVPlayerController {
         guard mpv != nil else { return }
 
         let commandString = "script-message-to thumbfast clear"
-        let status = mpv_command_string(mpv, commandString)
-
-        if status < 0 {
-            print("⚠️ [MPV] Failed to clear thumbnail: \(String(cString: mpv_error_string(status)))")
-        }
+        let _ = mpv_command_string(mpv, commandString)
     }
 
     /// Parse thumbfast-info JSON
@@ -876,15 +714,11 @@ class MPVPlayerController {
         do {
             let decoder = JSONDecoder()
 
-            // The property comes as a double-encoded JSON string from mp.set_property
-            // First, decode it as a JSON string to get the actual JSON
             var actualJSON = json
             if let decodedString = try? decoder.decode(String.self, from: data) {
                 actualJSON = decodedString
-                print("📸 [MPV] Decoded outer JSON layer, actual JSON: \(actualJSON)")
             }
 
-            // Now decode the actual JSON as ThumbnailInfo
             guard let actualData = actualJSON.data(using: .utf8) else {
                 print("❌ [MPV] Failed to convert actual JSON to data")
                 return
@@ -893,13 +727,7 @@ class MPVPlayerController {
             let info = try decoder.decode(ThumbnailInfo.self, from: actualData)
             self.thumbnailInfo = info
 
-            print("📸 [MPV] Thumbnail info parsed successfully:")
-            print("   - Size: \(info.width)x\(info.height)")
-            print("   - Available: \(info.available)")
-            print("   - Disabled: \(info.disabled)")
-            print("   - Socket: \(info.socket ?? "nil")")
-            print("   - Thumbnail path: \(info.thumbnail ?? "nil")")
-            print("   - Overlay ID: \(info.overlay_id.map { String($0) } ?? "nil")")
+            print("📸 [MPV] Thumbnail info parsed: \(info.width)x\(info.height), available: \(info.available)")
 
             DispatchQueue.main.async { [weak self] in
                 if let info = self?.thumbnailInfo {
@@ -909,6 +737,247 @@ class MPVPlayerController {
         } catch {
             print("❌ [MPV] Failed to parse thumbfast-info: \(error)")
         }
+    }
+
+    // MARK: - Performance Stats
+
+    /// Fetch all performance statistics for the stats overlay
+    func getPerformanceStats() -> PerformanceStats {
+        var stats = PerformanceStats()
+
+        // Video properties
+        stats.videoCodec = getPropertyString("video-codec")
+        stats.videoFormat = getPropertyString("video-format")
+        stats.videoWidth = getPropertyAsInt("video-params/w")
+        stats.videoHeight = getPropertyAsInt("video-params/h")
+        stats.videoFps = getPropertyDouble("container-fps")
+        stats.videoBitrate = getPropertyDouble("video-bitrate")
+        stats.hwdecCurrent = getPropertyString("hwdec-current")
+
+        // HDR/Color properties
+        stats.videoParamsPrimaries = getPropertyString("video-params/primaries")
+        stats.videoParamsGamma = getPropertyString("video-params/gamma")
+        stats.sigPeak = getPropertyDouble("video-params/sig-peak")
+        stats.maxCll = getPropertyAsInt("video-params/max-cll")
+        stats.maxFall = getPropertyAsInt("video-params/max-fall")
+
+        // Audio properties
+        stats.audioCodec = getPropertyString("audio-codec-name")
+        stats.audioChannels = getPropertyAsInt("audio-params/channel-count")
+        stats.audioSampleRate = getPropertyAsInt("audio-params/samplerate")
+        stats.audioBitrate = getPropertyDouble("audio-bitrate")
+
+        // Playback properties
+        stats.decoderFrameDropCount = getPropertyAsInt("decoder-frame-drop-count")
+        stats.frameDropCount = getPropertyAsInt("frame-drop-count")
+        stats.avsync = getPropertyDouble("avsync")
+        stats.estimatedVfFps = getPropertyDouble("estimated-vf-fps")
+
+        // Cache properties
+        stats.cacheUsed = getPropertyAsInt("cache-used")
+        stats.demuxerCacheDuration = getPropertyDouble("demuxer-cache-duration")
+
+        return stats
+    }
+
+    /// Helper to get Int properties
+    private func getPropertyAsInt(_ name: String) -> Int? {
+        if let value: Int64 = getProperty(name, type: .int64) {
+            return Int(value)
+        }
+        return nil
+    }
+
+    /// Helper to get String properties
+    private func getPropertyString(_ name: String) -> String? {
+        return getProperty(name, type: .string)
+    }
+
+    /// Helper to get Double properties
+    private func getPropertyDouble(_ name: String) -> Double? {
+        return getProperty(name, type: .double)
+    }
+
+    // MARK: - Subtitle Styling
+
+    /// Set subtitle font size
+    func setSubtitleFontSize(_ size: Int) {
+        mpv_set_property_string(mpv, "sub-font-size", "\(size)")
+    }
+
+    /// Set subtitle text color (hex string like "FFFFFF")
+    func setSubtitleColor(_ color: String) {
+        mpv_set_property_string(mpv, "sub-color", "#\(color)")
+    }
+
+    /// Set subtitle border size
+    func setSubtitleBorderSize(_ size: Double) {
+        var value = size
+        mpv_set_property(mpv, "sub-border-size", MPV_FORMAT_DOUBLE, &value)
+    }
+
+    /// Set subtitle border color (hex string)
+    func setSubtitleBorderColor(_ color: String) {
+        mpv_set_property_string(mpv, "sub-border-color", "#\(color)")
+    }
+
+    /// Set subtitle background color with alpha (hex string with alpha like "00000080")
+    func setSubtitleBackgroundColor(_ color: String) {
+        mpv_set_property_string(mpv, "sub-back-color", "#\(color)")
+    }
+
+    // MARK: - Audio/Subtitle Sync
+
+    /// Set audio delay in seconds (positive delays audio, negative advances it)
+    func setAudioDelay(_ seconds: Double) {
+        var value = seconds
+        mpv_set_property(mpv, "audio-delay", MPV_FORMAT_DOUBLE, &value)
+    }
+
+    /// Get current audio delay
+    func getAudioDelay() -> Double {
+        return getProperty("audio-delay", type: .double) ?? 0.0
+    }
+
+    /// Set subtitle delay in seconds (positive delays subtitles, negative advances them)
+    func setSubtitleDelay(_ seconds: Double) {
+        var value = seconds
+        mpv_set_property(mpv, "sub-delay", MPV_FORMAT_DOUBLE, &value)
+    }
+
+    /// Get current subtitle delay
+    func getSubtitleDelay() -> Double {
+        return getProperty("sub-delay", type: .double) ?? 0.0
+    }
+
+    // MARK: - Chapter Navigation
+
+    /// Get list of chapters
+    func getChapters() -> [MPVChapter] {
+        guard mpv != nil else { return [] }
+
+        var chapters: [MPVChapter] = []
+        var node = mpv_node()
+
+        let status = mpv_get_property(mpv, "chapter-list", MPV_FORMAT_NODE, &node)
+        guard status >= 0 else { return [] }
+
+        defer { mpv_free_node_contents(&node) }
+
+        guard node.format == MPV_FORMAT_NODE_ARRAY else { return [] }
+
+        let list = node.u.list.pointee
+        let count = Int(list.num)
+
+        for i in 0..<count {
+            guard let values = list.values else { continue }
+            let chapterNode = values[i]
+
+            guard chapterNode.format == MPV_FORMAT_NODE_MAP else { continue }
+
+            let chapterMap = chapterNode.u.list.pointee
+            let chapterCount = Int(chapterMap.num)
+
+            var chapter = MPVChapter(index: i)
+
+            for j in 0..<chapterCount {
+                guard let keys = chapterMap.keys, let values = chapterMap.values else { continue }
+                let key = String(cString: keys[j]!)
+                let value = values[j]
+
+                switch key {
+                case "title":
+                    if value.format == MPV_FORMAT_STRING {
+                        chapter.title = String(cString: value.u.string!)
+                    }
+                case "time":
+                    if value.format == MPV_FORMAT_DOUBLE {
+                        chapter.time = value.u.double_
+                    }
+                default:
+                    break
+                }
+            }
+
+            chapters.append(chapter)
+        }
+
+        return chapters
+    }
+
+    /// Get current chapter index
+    func getCurrentChapter() -> Int? {
+        return getPropertyAsInt("chapter")
+    }
+
+    /// Seek to a specific chapter by index
+    func seekToChapter(_ index: Int) {
+        setProperty("chapter", value: Int64(index))
+    }
+
+    /// Go to previous chapter
+    func previousChapter() {
+        guard mpv != nil else { return }
+        mpv_command_string(mpv, "add chapter -1")
+    }
+
+    /// Go to next chapter
+    func nextChapter() {
+        guard mpv != nil else { return }
+        mpv_command_string(mpv, "add chapter 1")
+    }
+
+    // MARK: - Legacy Compatibility
+
+    // These methods are kept for backward compatibility but are no longer needed
+    // with gpu-next rendering (MPV handles rendering internally)
+
+    /// No longer needed - kept for API compatibility
+    var videoUpdateCallback: (() -> Void)?
+
+    /// No longer needed - MPV renders directly to Metal layer
+    func initializeRendering(openGLContext: CGLContextObj) {
+        print("⚠️ [MPV] initializeRendering(openGLContext:) is deprecated - using gpu-next Metal rendering")
+    }
+
+    /// No longer needed - MPV renders directly to Metal layer
+    func render(width: Int, height: Int, fbo: GLint) {
+        // No-op: gpu-next renders directly to the Metal layer
+    }
+
+    /// No longer needed
+    func reportSwap() {
+        // No-op: gpu-next handles this internally
+    }
+
+    /// No longer needed
+    func shouldRenderUpdateFrame() -> Bool {
+        return false
+    }
+
+    /// No longer needed
+    func getRenderContext() -> OpaquePointer? {
+        return nil
+    }
+
+    /// No longer needed
+    func setRenderICCProfile(_ colorSpace: NSColorSpace) {
+        // No-op: gpu-next handles color management
+    }
+
+    /// No longer needed with sig-peak based detection
+    func setHDRProperties(primaries: String) {
+        // No-op: target-colorspace-hint handles this
+    }
+
+    /// No longer needed with sig-peak based detection
+    func setSDRProperties() {
+        // No-op: target-colorspace-hint handles this
+    }
+
+    /// No longer needed
+    func setICCProfile(path: String?) {
+        // No-op: gpu-next handles color management
     }
 }
 
@@ -920,6 +989,8 @@ enum MPVCommand: String {
     case seek = "seek"
     case cycle = "cycle"
     case quit = "quit"
+    case loadScript = "load-script"
+    case addChapter = "add"
 }
 
 enum PropertyType {
@@ -969,5 +1040,35 @@ struct MPVTrack {
             return lang.uppercased()
         }
         return "Track \(id)"
+    }
+}
+
+/// MPV chapter information
+struct MPVChapter: Identifiable {
+    var id: Int { index }
+    var index: Int
+    var title: String?
+    var time: Double = 0
+
+    /// Display name for the chapter
+    var displayName: String {
+        if let title = title, !title.isEmpty {
+            return title
+        }
+        return "Chapter \(index + 1)"
+    }
+
+    /// Formatted time string
+    var formattedTime: String {
+        let totalSeconds = Int(time)
+        let hours = totalSeconds / 3600
+        let minutes = (totalSeconds % 3600) / 60
+        let secs = totalSeconds % 60
+
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, secs)
+        } else {
+            return String(format: "%d:%02d", minutes, secs)
+        }
     }
 }

@@ -2,12 +2,15 @@
 //  MPVVideoLayer.swift
 //  FlixorMac
 //
-//  CAOpenGLLayer for MPV video rendering
+//  DEPRECATED: CAOpenGLLayer for MPV video rendering
+//  This file is kept for reference but is no longer used.
+//  Use MPVMetalLayer.swift instead for gpu-next rendering.
 //
 
 import Cocoa
 import OpenGL.GL
 import OpenGL.GL3
+import Libmpv
 
 class MPVVideoLayer: CAOpenGLLayer {
     weak var mpvController: MPVPlayerController?
@@ -116,10 +119,8 @@ class MPVVideoLayer: CAOpenGLLayer {
             DispatchQueue.main.async { self?.setNeedsDisplay() }
         }
 
-        // Set HDR detection callback (IINA approach)
-        controller.onHDRDetected = { [weak self] isHDR, gamma, primaries in
-            self?.handleHDRDetection(isHDR: isHDR, gamma: gamma, primaries: primaries)
-        }
+        // DEPRECATED: HDR detection callback has changed signature
+        // This file is not used anymore - use MPVMetalLayer instead
 
         CGLUnlockContext(cglContext)
 

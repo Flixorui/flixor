@@ -136,6 +136,24 @@ class PlayerViewModel: ObservableObject {
         set { UserDefaults.standard.set(newValue, forKey: "playerSubtitlesEnabled") }
     }
 
+    // Performance overlay
+    @Published var showPerformanceOverlay = false
+    @Published var performanceStats: PerformanceStats?
+    private var performanceStatsTimer: Timer?
+
+    // Chapter navigation
+    @Published var chapters: [MPVChapter] = []
+    @Published var currentChapterIndex: Int?
+
+    // Subtitle styling (persisted)
+    @Published var subtitleFontSize: Int = UserDefaults.standard.integer(forKey: "subtitleFontSize") == 0 ? 55 : UserDefaults.standard.integer(forKey: "subtitleFontSize")
+    @Published var subtitleBorderSize: Double = UserDefaults.standard.double(forKey: "subtitleBorderSize") == 0 ? 3.0 : UserDefaults.standard.double(forKey: "subtitleBorderSize")
+    @Published var subtitleBackgroundOpacity: Double = UserDefaults.standard.double(forKey: "subtitleBackgroundOpacity")
+
+    // Audio/Subtitle sync offset
+    @Published var audioDelay: Double = 0.0
+    @Published var subtitleDelay: Double = 0.0
+
     // Markers (intro/credits) - no high-frequency updates
     @Published var markers: [PlayerMarker] = []
     @Published var currentMarker: PlayerMarker? = nil
@@ -294,6 +312,10 @@ class PlayerViewModel: ObservableObject {
                     self.applyInitialSeekIfNeeded()
                     // Load available tracks
                     self.loadTracks()
+                    // Load chapters
+                    self.loadChapters()
+                    // Apply subtitle styling from persisted settings
+                    self.applySubtitleStyling()
                     // Notify thumbnail generator
                     if let path: String = self.mpvController?.getProperty("path", type: .string) {
                         self.thumbnailGenerator?.onVideoLoaded(url: path)
@@ -1105,6 +1127,127 @@ class PlayerViewModel: ObservableObject {
         print("⚡ [Player] Playback speed set to \(speed)x")
     }
 
+    // MARK: - Performance Overlay
+
+    func togglePerformanceOverlay() {
+        showPerformanceOverlay.toggle()
+
+        if showPerformanceOverlay {
+            startPerformanceStatsPolling()
+        } else {
+            stopPerformanceStatsPolling()
+        }
+    }
+
+    private func startPerformanceStatsPolling() {
+        guard playerBackend == .mpv else { return }
+
+        // Initial fetch
+        updatePerformanceStats()
+
+        // Poll every 500ms
+        performanceStatsTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.updatePerformanceStats()
+            }
+        }
+    }
+
+    private func stopPerformanceStatsPolling() {
+        performanceStatsTimer?.invalidate()
+        performanceStatsTimer = nil
+    }
+
+    private func updatePerformanceStats() {
+        guard let mpv = mpvController else { return }
+        performanceStats = mpv.getPerformanceStats()
+    }
+
+    // MARK: - Chapter Navigation
+
+    func loadChapters() {
+        guard let mpv = mpvController else { return }
+        chapters = mpv.getChapters()
+        currentChapterIndex = mpv.getCurrentChapter()
+        print("📖 [Player] Loaded \(chapters.count) chapters")
+    }
+
+    func seekToChapter(_ index: Int) {
+        guard let mpv = mpvController, index >= 0, index < chapters.count else { return }
+        mpv.seekToChapter(index)
+        currentChapterIndex = index
+        print("📖 [Player] Seeking to chapter \(index + 1): \(chapters[index].displayName)")
+    }
+
+    func previousChapter() {
+        guard let mpv = mpvController else { return }
+        mpv.previousChapter()
+        // Update current chapter index after a short delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+            self?.currentChapterIndex = mpv.getCurrentChapter()
+        }
+    }
+
+    func nextChapter() {
+        guard let mpv = mpvController else { return }
+        mpv.nextChapter()
+        // Update current chapter index after a short delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+            self?.currentChapterIndex = mpv.getCurrentChapter()
+        }
+    }
+
+    // MARK: - Subtitle Styling
+
+    func setSubtitleFontSize(_ size: Int) {
+        subtitleFontSize = size
+        UserDefaults.standard.set(size, forKey: "subtitleFontSize")
+        mpvController?.setSubtitleFontSize(size)
+    }
+
+    func setSubtitleBorderSize(_ size: Double) {
+        subtitleBorderSize = size
+        UserDefaults.standard.set(size, forKey: "subtitleBorderSize")
+        mpvController?.setSubtitleBorderSize(size)
+    }
+
+    func setSubtitleBackgroundOpacity(_ opacity: Double) {
+        subtitleBackgroundOpacity = opacity
+        UserDefaults.standard.set(opacity, forKey: "subtitleBackgroundOpacity")
+        // Convert opacity (0-1) to hex alpha (00-FF) with black background
+        let alpha = Int(opacity * 255)
+        let hexColor = String(format: "000000%02X", alpha)
+        mpvController?.setSubtitleBackgroundColor(hexColor)
+    }
+
+    func applySubtitleStyling() {
+        guard let mpv = mpvController else { return }
+        mpv.setSubtitleFontSize(subtitleFontSize)
+        mpv.setSubtitleBorderSize(subtitleBorderSize)
+        let alpha = Int(subtitleBackgroundOpacity * 255)
+        let hexColor = String(format: "000000%02X", alpha)
+        mpv.setSubtitleBackgroundColor(hexColor)
+    }
+
+    // MARK: - Audio/Subtitle Sync
+
+    func setAudioDelay(_ seconds: Double) {
+        audioDelay = seconds
+        mpvController?.setAudioDelay(seconds)
+        print("🔊 [Player] Audio delay set to \(seconds)s")
+    }
+
+    func setSubtitleDelay(_ seconds: Double) {
+        subtitleDelay = seconds
+        mpvController?.setSubtitleDelay(seconds)
+        print("💬 [Player] Subtitle delay set to \(seconds)s")
+    }
+
+    func resetSyncOffsets() {
+        setAudioDelay(0)
+        setSubtitleDelay(0)
+    }
+
     func changeQuality(_ newQuality: PlaybackQuality) {
         print("🎚️ [Player] Changing quality: \(selectedQuality.rawValue) → \(newQuality.rawValue)")
 
@@ -1513,6 +1656,9 @@ class PlayerViewModel: ObservableObject {
     }
 
     func onDisappear() {
+        // Stop performance stats polling
+        stopPerformanceStatsPolling()
+
         Task { @MainActor [weak self] in
             guard let self = self else { return }
             await self.reportProgress() // Final progress snapshot
