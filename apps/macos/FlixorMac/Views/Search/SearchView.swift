@@ -91,7 +91,8 @@ struct SearchView: View {
             parentRatingKey: nil,
             parentTitle: nil,
             leafCount: nil,
-            viewedLeafCount: nil
+            viewedLeafCount: nil,
+            editionTitle: item.editionTitle
         )
         router.searchPath.append(DetailsNavigationItem(item: mediaItem))
     }
@@ -282,7 +283,8 @@ extension SearchViewModel.SearchResult {
             parentRatingKey: nil,
             parentTitle: nil,
             leafCount: nil,
-            viewedLeafCount: nil
+            viewedLeafCount: nil,
+            editionTitle: editionTitle
         )
     }
 }

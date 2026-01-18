@@ -11,7 +11,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import ContextMenu from 'react-native-context-menu-view';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import type { PlexMediaItem } from '@flixor/core';
+import { getVersionString, type PlexMediaItem } from '@flixor/core';
 import { useAppSettings } from '../hooks/useAppSettings';
 
 const POSTER_SIZES = {
@@ -24,6 +24,7 @@ const CARD_GAP = 12;
 
 interface ContinueWatchingPosterRowProps {
   items: PlexMediaItem[];
+  itemsWithMultipleVersions?: Set<string>;
   onItemPress: (item: PlexMediaItem) => void;
   onBrowsePress?: () => void;
   onRemove?: (item: PlexMediaItem) => void;
@@ -55,6 +56,7 @@ const getRemainingTime = (item: PlexMediaItem): string => {
 
 function ContinueWatchingPosterRow({
   items,
+  itemsWithMultipleVersions,
   onItemPress,
   onBrowsePress,
   onRemove,
@@ -86,6 +88,9 @@ function ContinueWatchingPosterRow({
     const imageUri = getImageUri(item);
     const title = getTitle(item);
     const subtitle = getSubtitle?.(item);
+    // Only show version if this item had multiple versions across libraries (was deduplicated)
+    const showVersion = itemsWithMultipleVersions?.has(item.ratingKey) ?? false;
+    const versionString = showVersion ? getVersionString(item.Media) : null;
 
     return (
       <Pressable
@@ -150,15 +155,16 @@ function ContinueWatchingPosterRow({
         </View>
 
         {/* Title and subtitle below poster */}
-        {settings.showPosterTitles && (title || subtitle) && (
+        {settings.showPosterTitles && (title || subtitle || versionString) && (
           <View style={styles.textContainer}>
             {title && <Text style={styles.titleText} numberOfLines={1}>{title}</Text>}
             {subtitle && <Text style={styles.subtitleText} numberOfLines={1}>{subtitle}</Text>}
+            {versionString && <Text style={styles.versionText} numberOfLines={1}>{versionString}</Text>}
           </View>
         )}
       </Pressable>
     );
-  }, [getImageUri, getTitle, getSubtitle, handleItemPress, onInfo, onMarkWatched, onRemove, size, borderRadius, settings.showPosterTitles]);
+  }, [getImageUri, getTitle, getSubtitle, handleItemPress, onInfo, onMarkWatched, onRemove, size, borderRadius, settings.showPosterTitles, itemsWithMultipleVersions]);
 
   return (
     <View style={styles.container}>
@@ -284,6 +290,11 @@ const styles = StyleSheet.create({
   subtitleText: {
     color: '#888',
     fontSize: 11,
+    marginTop: 2,
+  },
+  versionText: {
+    color: '#888',
+    fontSize: 10,
     marginTop: 2,
   },
 });

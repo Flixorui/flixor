@@ -8,6 +8,7 @@ import type {
   PlexMediaContainer,
   PlexUltraBlurColors,
   PlexUltraBlurResponse,
+  ContinueWatchingResult,
 } from '../models/plex';
 
 /**
@@ -140,6 +141,11 @@ export class PlexServerService {
       params['X-Plex-Container-Start'] = String(options.offset);
     }
 
+    // Include extended media info for edition display
+    params.includeGuids = '1';
+    params.includeExtras = '1';
+    params.includeEditions = '1';
+
     const data = await this.get<PlexMediaContainer<PlexMediaItem>>(
       `/library/sections/${libraryKey}/all`,
       params,
@@ -193,15 +199,77 @@ export class PlexServerService {
   // ============================================
 
   /**
-   * Get continue watching items
+   * Get continue watching items (deduplicated by GUID)
+   * Returns items grouped by TMDB/IMDB GUID, keeping only the most recently watched version
    */
-  async getContinueWatching(): Promise<PlexMediaItem[]> {
+  async getContinueWatching(): Promise<ContinueWatchingResult> {
     const data = await this.get<PlexMediaContainer<PlexMediaItem>>(
       '/hubs/continueWatching/items',
       { includeGuids: '1' }, // Include external GUIDs (TMDB, IMDB, etc.)
       CacheTTL.SHORT
     );
-    return data.MediaContainer?.Metadata || [];
+    const items = data.MediaContainer?.Metadata || [];
+    console.log('[PlexServerService] getContinueWatching raw items:', items.length);
+    const result = this.deduplicateContinueWatching(items);
+    console.log('[PlexServerService] getContinueWatching deduplicated:', result.items.length, 'editions:', result.itemsWithMultipleVersions.size);
+    return result;
+  }
+
+  /**
+   * Deduplicate continue watching items by GUID
+   * Groups items by their TMDB/IMDB GUID and keeps the most recently watched version
+   */
+  private deduplicateContinueWatching(items: PlexMediaItem[]): ContinueWatchingResult {
+    const guidMap = new Map<string, PlexMediaItem>();
+    const guidCount = new Map<string, number>();
+
+    for (const item of items) {
+      const guid = this.extractPrimaryGuid(item.Guid);
+
+      // If no GUID, use ratingKey as fallback (can't dedupe without GUID)
+      if (!guid) {
+        guidMap.set(item.ratingKey, item);
+        continue;
+      }
+
+      // Count items per GUID to track duplicates
+      guidCount.set(guid, (guidCount.get(guid) || 0) + 1);
+
+      const existing = guidMap.get(guid);
+      // Keep the most recently watched version (highest lastViewedAt)
+      if (!existing || (item.lastViewedAt || 0) > (existing.lastViewedAt || 0)) {
+        guidMap.set(guid, item);
+      }
+    }
+
+    // Identify which final items had duplicates (multiple editions)
+    const itemsWithMultipleVersions = new Set<string>();
+    for (const [guid, item] of guidMap.entries()) {
+      if ((guidCount.get(guid) || 0) > 1) {
+        itemsWithMultipleVersions.add(item.ratingKey);
+      }
+    }
+
+    return {
+      items: Array.from(guidMap.values()),
+      itemsWithMultipleVersions,
+    };
+  }
+
+  /**
+   * Extract primary GUID (TMDB or IMDB) from Guid array
+   */
+  private extractPrimaryGuid(guids?: Array<{ id: string }>): string | null {
+    if (!guids || guids.length === 0) return null;
+
+    // Prefer TMDB, then IMDB
+    const tmdb = guids.find(g => g.id.startsWith('tmdb://'));
+    if (tmdb) return tmdb.id;
+
+    const imdb = guids.find(g => g.id.startsWith('imdb://'));
+    if (imdb) return imdb.id;
+
+    return guids[0]?.id || null;
   }
 
   /**

@@ -149,6 +149,10 @@ struct MediaItem: Identifiable, Codable {
     // Version selection (for multi-version titles)
     var mediaIndex: Int?              // Index of Media array to play (nil = first/default)
 
+    // Media info for edition detection
+    var media: [PlexMedia]?
+    var editionTitle: String?
+
     // Convenience initializer with default mediaIndex
     init(
         id: String,
@@ -171,7 +175,9 @@ struct MediaItem: Identifiable, Codable {
         parentTitle: String?,
         leafCount: Int?,
         viewedLeafCount: Int?,
-        mediaIndex: Int? = nil
+        mediaIndex: Int? = nil,
+        media: [PlexMedia]? = nil,
+        editionTitle: String? = nil
     ) {
         self.id = id
         self.title = title
@@ -194,6 +200,8 @@ struct MediaItem: Identifiable, Codable {
         self.leafCount = leafCount
         self.viewedLeafCount = viewedLeafCount
         self.mediaIndex = mediaIndex
+        self.media = media
+        self.editionTitle = editionTitle
     }
 
     enum CodingKeys: String, CodingKey {
@@ -218,5 +226,6 @@ struct MediaItem: Identifiable, Codable {
         case leafCount
         case viewedLeafCount
         case mediaIndex
+        case media = "Media"
     }
 }

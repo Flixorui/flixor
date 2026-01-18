@@ -779,7 +779,9 @@ export default function Details({ route }: RouteParams) {
         <Text style={{ color:'#bbb', marginHorizontal:16, marginTop:8, textAlign:'center' }}>
           {/* Episode: Show S#E# first */}
           {meta?.type === 'episode' && meta?.parentIndex && meta?.index ? `S${meta.parentIndex} E${meta.index} • ` : ''}
-          {meta?.year ? `${meta.year} • ` : ''}
+          {meta?.year ? `${meta.year}` : ''}
+          {extractEditionTitle(meta?.Media) ? ` · ${extractEditionTitle(meta?.Media)}` : ''}
+          {(meta?.year || extractEditionTitle(meta?.Media)) ? ' • ' : ''}
           {meta?.type === 'show' ? `${meta?.leafCount || 0} Episodes` : (meta?.duration ? `${Math.round(meta.duration/60000)}m` : '')}
           {meta?.Genre?.length ? ` • ${meta.Genre.map((g:any)=>g.tag).slice(0,3).join(', ')}` : ''}
         </Text>
@@ -1869,6 +1871,19 @@ function formatDate(dateStr?: string): string | undefined {
   if (!dateStr) return undefined;
   const date = new Date(dateStr);
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function extractEditionTitle(media?: any[]): string | undefined {
+  if (!media || media.length === 0) return undefined;
+  // Priority 1: Use explicit editionTitle from API
+  if (media[0]?.editionTitle) return media[0].editionTitle;
+  // Priority 2: Parse from filename {edition-XXX} pattern
+  const filePath = media[0]?.Part?.[0]?.file;
+  if (filePath) {
+    const match = filePath.match(/\{edition-([^}]+)\}/i);
+    if (match) return match[1];
+  }
+  return undefined;
 }
 
 function DetailsTab({ meta, tmdbCast, tmdbCrew, productionInfo, tmdbExtraInfo, mdblistRatings, onPersonPress, keyPrefix = '', firstEpisodeMedia }: {

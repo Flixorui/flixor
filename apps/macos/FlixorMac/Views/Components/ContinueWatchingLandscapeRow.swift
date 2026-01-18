@@ -6,9 +6,11 @@
 //
 
 import SwiftUI
+import FlixorKit
 
 struct ContinueWatchingLandscapeRow: View {
     let items: [MediaItem]
+    var itemsWithMultipleVersions: Set<String>? = nil
     var onTap: ((MediaItem) -> Void)?
 
     private let cardWidth: CGFloat = 380
@@ -30,9 +32,11 @@ struct ContinueWatchingLandscapeRow: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(spacing: 16) {
                     ForEach(items) { item in
+                        let showVersion = itemsWithMultipleVersions?.contains(item.id) ?? false
                         ContinueWatchingLandscapeCard(
                             item: item,
                             width: cardWidth,
+                            showVersion: showVersion,
                             onTap: { onTap?(item) }
                         )
                     }
@@ -48,11 +52,18 @@ struct ContinueWatchingLandscapeRow: View {
 struct ContinueWatchingLandscapeCard: View {
     let item: MediaItem
     let width: CGFloat
+    var showVersion: Bool = false
     var onTap: (() -> Void)?
 
     @State private var backdropURL: URL?
 
     private var height: CGFloat { width * 0.5625 } // 16:9
+
+    /// Version info (e.g., "4K · Dolby Vision")
+    private var versionText: String? {
+        guard showVersion else { return nil }
+        return getVersionString(item.media)
+    }
 
     private var progressPercentage: Double {
         guard let duration = item.duration, duration > 0,
@@ -161,6 +172,16 @@ struct ContinueWatchingLandscapeCard: View {
                         Text(bottomInfoText)
                             .font(.system(size: 13, weight: .medium))
                             .foregroundStyle(.white)
+
+                        // Version info (only shown if multiple versions exist across libraries)
+                        if let version = versionText {
+                            Text("·")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(.white.opacity(0.7))
+                            Text(version)
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(.white.opacity(0.7))
+                        }
 
                         Spacer()
 

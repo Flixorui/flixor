@@ -434,7 +434,8 @@ final class LibraryViewModel: ObservableObject {
                 parentRatingKey: media.parentRatingKey,
                 parentTitle: media.parentTitle,
                 leafCount: media.leafCount,
-                viewedLeafCount: media.viewedLeafCount
+                viewedLeafCount: media.viewedLeafCount,
+                editionTitle: media.editionTitle
             )
         }
 

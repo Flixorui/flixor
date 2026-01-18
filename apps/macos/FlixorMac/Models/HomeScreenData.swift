@@ -84,6 +84,15 @@ struct MediaItemFull: Identifiable, Codable {
         let id: String
     }
 
+    struct MediaEntry: Codable {
+        let editionTitle: String?
+        let Part: [PartEntry]?
+    }
+
+    struct PartEntry: Codable {
+        let file: String?
+    }
+
     let id: String // ratingKey
     let title: String
     let type: String
@@ -121,6 +130,9 @@ struct MediaItemFull: Identifiable, Codable {
     let Guid: [GuidEntry]?
     let slug: String?
     let tmdbGuid: String? // TMDB guid enriched by backend for watchlist items
+
+    // Media info
+    let Media: [MediaEntry]?
 
     // Library metadata
     let allowSync: Bool?
@@ -160,10 +172,71 @@ struct MediaItemFull: Identifiable, Codable {
         case Guid
         case slug
         case tmdbGuid
+        case Media
         case allowSync
         case librarySectionID
         case librarySectionTitle
         case librarySectionUUID
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        title = try container.decode(String.self, forKey: .title)
+        type = try container.decode(String.self, forKey: .type)
+        thumb = try container.decodeIfPresent(String.self, forKey: .thumb)
+        art = try container.decodeIfPresent(String.self, forKey: .art)
+        year = try container.decodeIfPresent(Int.self, forKey: .year)
+        rating = try container.decodeIfPresent(Double.self, forKey: .rating)
+        duration = try container.decodeIfPresent(Int.self, forKey: .duration)
+        viewOffset = try container.decodeIfPresent(Int.self, forKey: .viewOffset)
+        summary = try container.decodeIfPresent(String.self, forKey: .summary)
+        grandparentTitle = try container.decodeIfPresent(String.self, forKey: .grandparentTitle)
+        grandparentThumb = try container.decodeIfPresent(String.self, forKey: .grandparentThumb)
+        grandparentArt = try container.decodeIfPresent(String.self, forKey: .grandparentArt)
+        grandparentRatingKey = try container.decodeIfPresent(String.self, forKey: .grandparentRatingKey)
+        parentIndex = try container.decodeIfPresent(Int.self, forKey: .parentIndex)
+        index = try container.decodeIfPresent(Int.self, forKey: .index)
+        parentRatingKey = try container.decodeIfPresent(String.self, forKey: .parentRatingKey)
+        parentTitle = try container.decodeIfPresent(String.self, forKey: .parentTitle)
+        leafCount = try container.decodeIfPresent(Int.self, forKey: .leafCount)
+        viewedLeafCount = try container.decodeIfPresent(Int.self, forKey: .viewedLeafCount)
+        addedAt = try container.decodeIfPresent(Int.self, forKey: .addedAt)
+        lastViewedAt = try container.decodeIfPresent(Int.self, forKey: .lastViewedAt)
+        contentRating = try container.decodeIfPresent(String.self, forKey: .contentRating)
+        contentRatingAge = try container.decodeIfPresent(Int.self, forKey: .contentRatingAge)
+        studio = try container.decodeIfPresent(String.self, forKey: .studio)
+        tagline = try container.decodeIfPresent(String.self, forKey: .tagline)
+        key = try container.decodeIfPresent(String.self, forKey: .key)
+        guid = try container.decodeIfPresent(String.self, forKey: .guid)
+        Guid = try container.decodeIfPresent([GuidEntry].self, forKey: .Guid)
+        slug = try container.decodeIfPresent(String.self, forKey: .slug)
+        tmdbGuid = try container.decodeIfPresent(String.self, forKey: .tmdbGuid)
+        // Safely decode Media - if it fails, just set to nil
+        Media = try? container.decodeIfPresent([MediaEntry].self, forKey: .Media)
+        allowSync = try container.decodeIfPresent(Bool.self, forKey: .allowSync)
+        librarySectionID = try container.decodeIfPresent(Int.self, forKey: .librarySectionID)
+        librarySectionTitle = try container.decodeIfPresent(String.self, forKey: .librarySectionTitle)
+        librarySectionUUID = try container.decodeIfPresent(String.self, forKey: .librarySectionUUID)
+    }
+
+    // Extract edition title from Media array
+    private func extractEditionTitle() -> String? {
+        // Priority 1: Use explicit editionTitle from API
+        if let edition = Media?.first?.editionTitle, !edition.isEmpty {
+            return edition
+        }
+        // Priority 2: Parse from filename {edition-XXX} pattern
+        if let filePath = Media?.first?.Part?.first?.file {
+            if let match = filePath.range(of: #"\{edition-([^}]+)\}"#, options: .regularExpression) {
+                let fullMatch = String(filePath[match])
+                // Extract the edition name between {edition- and }
+                let start = fullMatch.index(fullMatch.startIndex, offsetBy: 9) // "{edition-".count
+                let end = fullMatch.index(fullMatch.endIndex, offsetBy: -1) // remove "}"
+                return String(fullMatch[start..<end])
+            }
+        }
+        return nil
     }
 
     // Convert to MediaItem
@@ -196,7 +269,8 @@ struct MediaItemFull: Identifiable, Codable {
             parentRatingKey: parentRatingKey,
             parentTitle: parentTitle,
             leafCount: leafCount,
-            viewedLeafCount: viewedLeafCount
+            viewedLeafCount: viewedLeafCount,
+            editionTitle: extractEditionTitle()
         )
     }
 }

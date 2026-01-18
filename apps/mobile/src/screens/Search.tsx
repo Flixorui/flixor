@@ -376,6 +376,12 @@ export default function Search({ isTab = false }: SearchProps) {
                                   <View style={{ width: '100%', height: '100%', backgroundColor: '#1a1a1a' }} />
                                 )}
                               </View>
+                              <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600', marginTop: 6 }} numberOfLines={1}>{result.title}</Text>
+                              {(result.year || result.editionTitle) && (
+                                <Text style={{ color: '#888', fontSize: 11, marginTop: 2 }} numberOfLines={1}>
+                                  {result.year}{result.year && result.editionTitle ? ' · ' : ''}{result.editionTitle}
+                                </Text>
+                              )}
                             </Pressable>
                           ))}
                       </View>

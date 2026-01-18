@@ -32,6 +32,17 @@ struct PosterCard: View {
         return Double(viewOffset) / Double(duration)
     }
 
+    private var yearEditionText: String {
+        var parts: [String] = []
+        if let year = item.year {
+            parts.append(String(year))
+        }
+        if let edition = item.editionTitle {
+            parts.append(edition)
+        }
+        return parts.joined(separator: " · ")
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             // Poster Image
@@ -102,8 +113,8 @@ struct PosterCard: View {
                         .lineLimit(2)
                         .frame(width: width, alignment: .leading)
 
-                    if let year = item.year {
-                        Text(String(year))
+                    if item.year != nil || item.editionTitle != nil {
+                        Text(yearEditionText)
                             .font(.system(size: 11))
                             .foregroundStyle(.secondary)
                     }
@@ -131,8 +142,14 @@ struct PosterCard: View {
                 grandparentTitle: nil,
                 grandparentThumb: nil,
                 grandparentArt: nil,
+                grandparentRatingKey: nil,
                 parentIndex: nil,
-                index: nil
+                index: nil,
+                parentRatingKey: nil,
+                parentTitle: nil,
+                leafCount: nil,
+                viewedLeafCount: nil,
+                editionTitle: "Theatrical Cut"
             ),
             width: 150
         )
@@ -152,8 +169,13 @@ struct PosterCard: View {
                 grandparentTitle: nil,
                 grandparentThumb: nil,
                 grandparentArt: nil,
+                grandparentRatingKey: nil,
                 parentIndex: nil,
-                index: nil
+                index: nil,
+                parentRatingKey: nil,
+                parentTitle: nil,
+                leafCount: nil,
+                viewedLeafCount: nil
             ),
             width: 150,
             showProgress: true

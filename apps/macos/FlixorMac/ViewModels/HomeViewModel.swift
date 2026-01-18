@@ -58,6 +58,7 @@ class HomeViewModel: ObservableObject {
     // MARK: - Data
     @Published var billboardItems: [MediaItem] = []
     @Published var continueWatchingItems: [MediaItem] = []
+    @Published var continueWatchingVersions: Set<String> = []  // ratingKeys with multiple versions across libraries
     @Published var onDeckItems: [MediaItem] = []
     @Published var recentlyAddedItems: [MediaItem] = []
     @Published var librarySections: [LibrarySection] = []
@@ -293,7 +294,8 @@ class HomeViewModel: ObservableObject {
             parentRatingKey: plex.parentRatingKey,
             parentTitle: plex.parentTitle,
             leafCount: plex.leafCount,
-            viewedLeafCount: plex.viewedLeafCount
+            viewedLeafCount: plex.viewedLeafCount,
+            media: plex.Media
         )
     }
 
@@ -836,11 +838,14 @@ class HomeViewModel: ObservableObject {
     private func fetchContinueWatching() async throws -> [MediaItem] {
         guard let plexServer = FlixorCore.shared.plexServer else { return [] }
         print("📦 [Home] Fetching continue watching items...")
-        let items = try await plexServer.getContinueWatching()
-        print("✅ [Home] Received \(items.count) continue watching items")
+        let result = try await plexServer.getContinueWatching()
+        print("✅ [Home] Received \(result.items.count) continue watching items (deduplicated)")
+
+        // Store which items have multiple editions
+        self.continueWatchingVersions = result.itemsWithMultipleVersions
 
         // Enrich with TMDB backdrop URLs before returning
-        let baseItems = items.map { toMediaItem($0) }
+        let baseItems = result.items.map { toMediaItem($0) }
         return await enrichWithTMDBBackdrops(baseItems)
     }
 

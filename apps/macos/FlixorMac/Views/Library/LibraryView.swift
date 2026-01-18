@@ -198,9 +198,9 @@ private struct LibraryListRow: View {
                         .font(.headline)
                         .foregroundStyle(.white)
                     HStack(spacing: 12) {
-                        if let year = entry.year {
+                        if entry.year != nil || entry.media.editionTitle != nil {
                             Label {
-                                Text(String(year))
+                                Text(yearEditionText(year: entry.year, edition: entry.media.editionTitle))
                             } icon: {
                                 Image(systemName: "calendar")
                             }
@@ -239,6 +239,17 @@ private struct LibraryListRow: View {
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .buttonStyle(.plain)
+    }
+
+    private func yearEditionText(year: Int?, edition: String?) -> String {
+        var parts: [String] = []
+        if let year = year {
+            parts.append(String(year))
+        }
+        if let edition = edition {
+            parts.append(edition)
+        }
+        return parts.joined(separator: " · ")
     }
 }
 

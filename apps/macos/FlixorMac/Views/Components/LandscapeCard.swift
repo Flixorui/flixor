@@ -30,6 +30,17 @@ struct LandscapeCard: View {
         return (Double(viewOffset) / Double(duration)) * 100.0
     }
 
+    private var yearEditionText: String {
+        var parts: [String] = []
+        if let year = item.year {
+            parts.append(String(year))
+        }
+        if let edition = item.editionTitle {
+            parts.append(edition)
+        }
+        return parts.joined(separator: " · ")
+    }
+
     var body: some View {
         Button(action: { onTap?() }) {
             ZStack(alignment: .bottomLeading) {
@@ -66,6 +77,12 @@ struct LandscapeCard: View {
 
                         if let label = item.episodeLabel {
                             Text(label)
+                                .font(.system(size: 12))
+                                .foregroundStyle(.white.opacity(0.85))
+                                .lineLimit(1)
+                        } else if item.year != nil || item.editionTitle != nil {
+                            // For movies/shows, show year and edition
+                            Text(yearEditionText)
                                 .font(.system(size: 12))
                                 .foregroundStyle(.white.opacity(0.85))
                                 .lineLimit(1)

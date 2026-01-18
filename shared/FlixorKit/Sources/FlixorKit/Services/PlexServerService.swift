@@ -161,6 +161,9 @@ public class PlexServerService {
         if let genre = genre { params["genre"] = genre }
         if let limit = limit { params["X-Plex-Container-Size"] = String(limit) }
         if let offset = offset { params["X-Plex-Container-Start"] = String(offset) }
+        // Include extended media info for edition display
+        params["includeGuids"] = "1"
+        params["includeEditions"] = "1"
 
         let response: PlexMediaContainerResponse<PlexMediaItem> = try await get(
             path: "/library/sections/\(key)/all",
@@ -217,13 +220,74 @@ public class PlexServerService {
 
     // MARK: - Hubs (Continue Watching, On Deck, etc.)
 
-    /// Get continue watching items
-    public func getContinueWatching() async throws -> [PlexMediaItem] {
+    /// Get continue watching items (deduplicated by GUID)
+    /// Returns items grouped by TMDB/IMDB GUID, keeping only the most recently watched version
+    public func getContinueWatching() async throws -> ContinueWatchingResult {
         let response: PlexMediaContainerResponse<PlexMediaItem> = try await get(
             path: "/hubs/continueWatching/items",
+            params: ["includeGuids": "1"],
             ttl: CacheTTL.short
         )
-        return response.MediaContainer.Metadata ?? []
+        let items = response.MediaContainer.Metadata ?? []
+        return deduplicateContinueWatching(items)
+    }
+
+    /// Deduplicate continue watching items by GUID
+    /// Groups items by their TMDB/IMDB GUID and keeps the most recently watched version
+    private func deduplicateContinueWatching(_ items: [PlexMediaItem]) -> ContinueWatchingResult {
+        var guidMap: [String: PlexMediaItem] = [:]
+        var guidCount: [String: Int] = [:]
+
+        for item in items {
+            let guid = extractPrimaryGuid(item.guids)
+
+            // If no GUID, use ratingKey as fallback (can't dedupe without GUID)
+            guard let guid = guid else {
+                if let rk = item.ratingKey {
+                    guidMap[rk] = item
+                }
+                continue
+            }
+
+            // Count items per GUID to track duplicates
+            guidCount[guid] = (guidCount[guid] ?? 0) + 1
+
+            // Keep the most recently watched version (compare viewOffset or viewCount)
+            if let existing = guidMap[guid] {
+                let existingViewOffset = existing.viewOffset ?? 0
+                let itemViewOffset = item.viewOffset ?? 0
+                if itemViewOffset > existingViewOffset {
+                    guidMap[guid] = item
+                }
+            } else {
+                guidMap[guid] = item
+            }
+        }
+
+        // Identify which final items had duplicates (multiple versions across libraries)
+        var itemsWithMultipleVersions = Set<String>()
+        for (guid, item) in guidMap {
+            if (guidCount[guid] ?? 0) > 1, let rk = item.ratingKey {
+                itemsWithMultipleVersions.insert(rk)
+            }
+        }
+
+        return ContinueWatchingResult(
+            items: Array(guidMap.values),
+            itemsWithMultipleVersions: itemsWithMultipleVersions
+        )
+    }
+
+    /// Extract primary GUID (TMDB or IMDB) from Guid array
+    private func extractPrimaryGuid(_ guids: [String]) -> String? {
+        // Prefer TMDB, then IMDB
+        if let tmdb = guids.first(where: { $0.hasPrefix("tmdb://") }) {
+            return tmdb
+        }
+        if let imdb = guids.first(where: { $0.hasPrefix("imdb://") }) {
+            return imdb
+        }
+        return guids.first
     }
 
     /// Get on deck items
@@ -270,6 +334,9 @@ public class PlexServerService {
             do {
                 var params: [String: String] = ["query": query]
                 if let type = type { params["type"] = String(type) }
+                // Include extended media info for edition display
+                params["includeGuids"] = "1"
+                params["includeEditions"] = "1"
 
                 let response: PlexMediaContainerResponse<PlexMediaItem> = try await get(
                     path: "/library/sections/\(lib.key)/search",
@@ -280,9 +347,12 @@ public class PlexServerService {
             } catch {
                 // Try alternative: get all items and filter by title
                 do {
+                    var fallbackParams: [String: String] = ["title": query]
+                    fallbackParams["includeGuids"] = "1"
+                    fallbackParams["includeEditions"] = "1"
                     let response: PlexMediaContainerResponse<PlexMediaItem> = try await get(
                         path: "/library/sections/\(lib.key)/all",
-                        params: ["title": query],
+                        params: fallbackParams,
                         ttl: CacheTTL.short
                     )
                     results.append(contentsOf: response.MediaContainer.Metadata ?? [])
@@ -590,6 +660,51 @@ public class PlexServerService {
     }
 }
 
+// MARK: - Continue Watching Result
+
+public struct ContinueWatchingResult {
+    public let items: [PlexMediaItem]
+    public let itemsWithMultipleVersions: Set<String>  // ratingKeys that had duplicates across libraries
+}
+
+/// Get version string from media info (resolution/HDR/audio)
+/// Used for Continue Watching to show which version user was watching
+/// e.g., "4K · Dolby Vision · Atmos"
+public func getVersionString(_ media: [PlexMedia]?) -> String? {
+    guard let media = media, let m = media.first else { return nil }
+
+    var parts: [String] = []
+
+    // Resolution
+    if let width = m.width {
+        if width >= 3800 { parts.append("4K") }
+        else if width >= 1900 { parts.append("1080p") }
+        else if width >= 1200 { parts.append("720p") }
+    }
+
+    // HDR (from videoProfile)
+    if let videoProfile = m.videoProfile?.lowercased() {
+        if videoProfile.contains("dolby vision") || videoProfile.contains("dovi") {
+            parts.append("Dolby Vision")
+        } else if videoProfile.contains("hdr10+") {
+            parts.append("HDR10+")
+        } else if videoProfile.contains("hdr") {
+            parts.append("HDR")
+        }
+    }
+
+    // Audio
+    if let audioChannels = m.audioChannels {
+        if audioChannels >= 8 {
+            parts.append("Atmos")
+        } else if audioChannels >= 6 {
+            parts.append("5.1")
+        }
+    }
+
+    return parts.isEmpty ? nil : parts.joined(separator: " · ")
+}
+
 // MARK: - Supporting Models
 
 public struct PlexMediaContainerResponse<T: Codable>: Codable {
@@ -726,6 +841,7 @@ public struct PlexMedia: Codable {
     public let audioProfile: String?
     public let audioChannels: Int?
     public let container: String?
+    public let editionTitle: String?  // e.g., "Theatrical Cut", "Director's Cut"
     public let Part: [PlexPart]?
 
     // Custom decoder to handle both Int and String for id
@@ -751,13 +867,14 @@ public struct PlexMedia: Codable {
         audioProfile = try container.decodeIfPresent(String.self, forKey: .audioProfile)
         audioChannels = try container.decodeIfPresent(Int.self, forKey: .audioChannels)
         self.container = try container.decodeIfPresent(String.self, forKey: .container)
+        editionTitle = try container.decodeIfPresent(String.self, forKey: .editionTitle)
         Part = try container.decodeIfPresent([PlexPart].self, forKey: .Part)
     }
 
     enum CodingKeys: String, CodingKey {
         case id, duration, bitrate, width, height, aspectRatio
         case videoCodec, videoProfile, audioCodec, audioProfile, audioChannels
-        case container, Part
+        case container, editionTitle, Part
     }
 
     public var parts: [PlexPart] {

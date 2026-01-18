@@ -38,6 +38,7 @@ class SearchViewModel: ObservableObject {
         let overview: String?
         let available: Bool  // true if in Plex library
         let genreIds: [Int]  // TMDB genre IDs
+        let editionTitle: String?  // Edition title for Plex items
 
         enum MediaType: String {
             case movie, tv, collection
@@ -155,7 +156,8 @@ class SearchViewModel: ObservableObject {
                     year: item.release_date?.prefix(4).description,
                     overview: nil,
                     available: false,
-                    genreIds: []
+                    genreIds: [],
+                editionTitle: nil
                 ))
             }
 
@@ -175,7 +177,8 @@ class SearchViewModel: ObservableObject {
                     year: item.first_air_date?.prefix(4).description,
                     overview: nil,
                     available: false,
-                    genreIds: []
+                    genreIds: [],
+                editionTitle: nil
                 ))
             }
 
@@ -218,7 +221,8 @@ class SearchViewModel: ObservableObject {
                             year: item.release_date?.prefix(4).description,
                             overview: nil,
                             available: false,
-                            genreIds: []
+                            genreIds: [],
+                        editionTitle: nil
                         )
                     }
                 }
@@ -243,7 +247,8 @@ class SearchViewModel: ObservableObject {
                             year: item.first_air_date?.prefix(4).description,
                             overview: nil,
                             available: false,
-                            genreIds: []
+                            genreIds: [],
+                        editionTitle: nil
                         )
                     }
                 }
@@ -376,6 +381,8 @@ class SearchViewModel: ObservableObject {
             let items = response.prefix(20)
             return await withTaskGroup(of: (String, SearchResult).self) { group in
                 for item in items {
+                    // Extract edition before entering task group (since extractEditionTitle is on self)
+                    let edition = self.extractEditionTitle(from: item.Media)
                     group.addTask {
                         let ratingKey = item.ratingKey
 
@@ -413,7 +420,8 @@ class SearchViewModel: ObservableObject {
                             year: item.year.map(String.init),
                             overview: item.summary,
                             available: true,
-                            genreIds: []
+                            genreIds: [],
+                            editionTitle: edition
                         )
 
                         return (ratingKey, result)
@@ -480,7 +488,8 @@ class SearchViewModel: ObservableObject {
                     year: (item.release_date ?? item.first_air_date)?.prefix(4).description,
                     overview: item.overview,
                     available: false,
-                    genreIds: genreIds
+                    genreIds: genreIds,
+                    editionTitle: nil
                 )
 
                 if item.media_type == "movie" {
@@ -549,7 +558,8 @@ class SearchViewModel: ObservableObject {
                         year: item.release_date?.prefix(4).description,
                         overview: nil,
                         available: false,
-                        genreIds: [genreId]
+                        genreIds: [genreId],
+                        editionTitle: nil
                     )
                 }
 
@@ -565,7 +575,8 @@ class SearchViewModel: ObservableObject {
                         year: item.first_air_date?.prefix(4).description,
                         overview: nil,
                         available: false,
-                        genreIds: [genreId]
+                        genreIds: [genreId],
+                        editionTitle: nil
                     )
                 }
 
@@ -601,5 +612,35 @@ class SearchViewModel: ObservableObject {
         let thumb: String?
         let parentThumb: String?
         let grandparentThumb: String?
+        let Media: [PlexSearchMedia]?
+    }
+
+    private struct PlexSearchMedia: Codable {
+        let editionTitle: String?
+        let Part: [PlexSearchPart]?
+    }
+
+    private struct PlexSearchPart: Codable {
+        let file: String?
+    }
+
+    /// Extract edition title from Media array (explicit editionTitle or parsed from filename)
+    private func extractEditionTitle(from media: [PlexSearchMedia]?) -> String? {
+        guard let first = media?.first else { return nil }
+        // Priority 1: Use explicit editionTitle from API
+        if let edition = first.editionTitle, !edition.isEmpty {
+            return edition
+        }
+        // Priority 2: Parse from filename {edition-XXX} pattern
+        if let filePath = first.Part?.first?.file {
+            if let match = filePath.range(of: #"\{edition-([^}]+)\}"#, options: .regularExpression) {
+                let fullMatch = String(filePath[match])
+                // Extract the edition name between {edition- and }
+                let start = fullMatch.index(fullMatch.startIndex, offsetBy: 9) // "{edition-".count
+                let end = fullMatch.index(fullMatch.endIndex, offsetBy: -1) // remove "}"
+                return String(fullMatch[start..<end])
+            }
+        }
+        return nil
     }
 }

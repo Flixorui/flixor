@@ -5,7 +5,7 @@
 
 import { getFlixorCore } from './index';
 import { loadAppSettings } from './SettingsData';
-import type { PlexMediaItem, TMDBMedia, PlexUltraBlurColors } from '@flixor/core';
+import type { PlexMediaItem, TMDBMedia, PlexUltraBlurColors, ContinueWatchingResult } from '@flixor/core';
 
 export type RowItem = {
   id: string;
@@ -108,13 +108,19 @@ export async function fetchTmdbTrendingMoviesWeek(): Promise<RowItem[]> {
 // Plex Data
 // ============================================
 
-export async function fetchContinueWatching(): Promise<PlexMediaItem[]> {
+export async function fetchContinueWatching(): Promise<ContinueWatchingResult> {
   try {
     const core = getFlixorCore();
-    return await core.plexServer.getContinueWatching();
+    if (!core.plexServer) {
+      console.log('[HomeData] fetchContinueWatching: no plexServer');
+      return { items: [], itemsWithMultipleVersions: new Set() };
+    }
+    const result = await core.plexServer.getContinueWatching();
+    console.log('[HomeData] fetchContinueWatching result:', result?.items?.length, 'items');
+    return result;
   } catch (e) {
     console.log('[HomeData] fetchContinueWatching error:', e);
-    return [];
+    return { items: [], itemsWithMultipleVersions: new Set() };
   }
 }
 

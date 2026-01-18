@@ -6,9 +6,11 @@
 //
 
 import SwiftUI
+import FlixorKit
 
 struct ContinueWatchingPosterRow: View {
     let items: [MediaItem]
+    var itemsWithMultipleVersions: Set<String>? = nil
     var onTap: ((MediaItem) -> Void)?
 
     private let cardWidth: CGFloat = 160
@@ -29,9 +31,11 @@ struct ContinueWatchingPosterRow: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(spacing: 14) {
                     ForEach(items) { item in
+                        let showVersion = itemsWithMultipleVersions?.contains(item.id) ?? false
                         ContinueWatchingPosterCard(
                             item: item,
                             width: cardWidth,
+                            showVersion: showVersion,
                             onTap: { onTap?(item) }
                         )
                     }
@@ -47,12 +51,19 @@ struct ContinueWatchingPosterRow: View {
 struct ContinueWatchingPosterCard: View {
     let item: MediaItem
     let width: CGFloat
+    var showVersion: Bool = false
     var onTap: (() -> Void)?
 
     @State private var isHovered = false
     @State private var posterURL: URL?
 
     private var height: CGFloat { width * 1.5 } // 2:3 aspect ratio
+
+    /// Version info (e.g., "4K · Dolby Vision")
+    private var versionText: String? {
+        guard showVersion else { return nil }
+        return getVersionString(item.media)
+    }
 
     // For episodes, use the show poster; for movies, use the movie poster
     private var defaultPosterURL: URL? {
@@ -107,6 +118,13 @@ struct ContinueWatchingPosterCard: View {
                             Text(label)
                                 .font(.system(size: 11))
                                 .foregroundStyle(.white.opacity(0.85))
+                                .lineLimit(1)
+                        }
+
+                        if let version = versionText {
+                            Text(version)
+                                .font(.system(size: 10))
+                                .foregroundStyle(.white.opacity(0.7))
                                 .lineLimit(1)
                         }
                     }

@@ -109,6 +109,7 @@ export interface PlexMedia {
   videoResolution?: string;
   container?: string;
   videoFrameRate?: string;
+  editionTitle?: string; // e.g., "Theatrical Cut", "Director's Cut", "Extended Edition"
   Part?: PlexPart[];
 }
 
@@ -178,4 +179,46 @@ export interface PlexUltraBlurResponse {
     size?: number;
     UltraBlurColors?: PlexUltraBlurColors[];
   };
+}
+
+// Continue Watching result with deduplication info
+export interface ContinueWatchingResult {
+  items: PlexMediaItem[];
+  itemsWithMultipleVersions: Set<string>; // ratingKeys that had duplicates across libraries
+}
+
+/**
+ * Get version string from media info (resolution/HDR/audio)
+ * Used for Continue Watching to show which version user was watching
+ * e.g., "4K · Dolby Vision · Atmos"
+ */
+export function getVersionString(media?: PlexMedia[]): string | null {
+  if (!media || media.length === 0) return null;
+  const m = media[0];
+
+  const parts: string[] = [];
+
+  // Resolution
+  if (m.width && m.width >= 3800) parts.push('4K');
+  else if (m.width && m.width >= 1900) parts.push('1080p');
+  else if (m.width && m.width >= 1200) parts.push('720p');
+
+  // HDR (from videoProfile in Part)
+  const videoProfile = m.Part?.[0]?.videoProfile?.toLowerCase() || '';
+  if (videoProfile.includes('dolby vision') || videoProfile.includes('dovi')) {
+    parts.push('Dolby Vision');
+  } else if (videoProfile.includes('hdr10+')) {
+    parts.push('HDR10+');
+  } else if (videoProfile.includes('hdr')) {
+    parts.push('HDR');
+  }
+
+  // Audio
+  if (m.audioChannels && m.audioChannels >= 8) {
+    parts.push('Atmos');
+  } else if (m.audioChannels && m.audioChannels >= 6) {
+    parts.push('5.1');
+  }
+
+  return parts.length > 0 ? parts.join(' · ') : null;
 }

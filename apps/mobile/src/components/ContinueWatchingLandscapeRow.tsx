@@ -12,7 +12,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import ContextMenu from 'react-native-context-menu-view';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import type { PlexMediaItem } from '@flixor/core';
+import { getVersionString, type PlexMediaItem } from '@flixor/core';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_WIDTH = SCREEN_WIDTH * 0.85;
@@ -21,6 +21,7 @@ const CARD_GAP = 12;
 
 interface ContinueWatchingLandscapeRowProps {
   items: PlexMediaItem[];
+  itemsWithMultipleVersions?: Set<string>;
   onItemPress: (item: PlexMediaItem) => void;
   onBrowsePress?: () => void;
   onRemove?: (item: PlexMediaItem) => void;
@@ -58,6 +59,7 @@ const getTitle = (item: PlexMediaItem): string => {
 
 function ContinueWatchingLandscapeRow({
   items,
+  itemsWithMultipleVersions,
   onItemPress,
   onBrowsePress,
   onRemove,
@@ -81,6 +83,9 @@ function ContinueWatchingLandscapeRow({
     const progress = getProgress(item);
     const remainingTime = getRemainingTime(item);
     const imageUri = getImageUri(item);
+    // Only show version if this item had multiple versions across libraries (was deduplicated)
+    const showVersion = itemsWithMultipleVersions?.has(item.ratingKey) ?? false;
+    const versionString = showVersion ? getVersionString(item.Media) : null;
 
     return (
       <Pressable
@@ -108,7 +113,7 @@ function ContinueWatchingLandscapeRow({
         >
           {/* Controls row */}
           <View style={styles.controlsRow}>
-            {/* Left side: Play icon, progress bar, time */}
+            {/* Left side: Play icon, progress bar, time, edition */}
             <View style={styles.leftControls}>
               <Ionicons name="play" size={12} color="#fff" />
 
@@ -117,6 +122,7 @@ function ContinueWatchingLandscapeRow({
               </View>
 
               <Text style={styles.timeText}>{remainingTime}</Text>
+              {versionString && <Text style={styles.versionText}>{versionString}</Text>}
             </View>
 
             {/* Right side: Context Menu - wrapped in Pressable to stop event propagation */}
@@ -145,7 +151,7 @@ function ContinueWatchingLandscapeRow({
         </LinearGradient>
       </Pressable>
     );
-  }, [getImageUri, handleItemPress, onInfo, onMarkWatched, onRemove]);
+  }, [getImageUri, handleItemPress, onInfo, onMarkWatched, onRemove, itemsWithMultipleVersions]);
 
   return (
     <View style={styles.container}>
@@ -260,6 +266,12 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 11,
     fontWeight: '500',
+  },
+  versionText: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 10,
+    fontWeight: '400',
+    marginLeft: 6,
   },
   menuButton: {
     padding: 4,

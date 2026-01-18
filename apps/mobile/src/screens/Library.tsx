@@ -465,6 +465,9 @@ function Card({
   const { settings } = useAppSettings();
   const img = getLibraryImageUrl(item.thumb, size * 2);
 
+  // Edition title (parsed from filename or API)
+  const editionTitle = item.editionTitle;
+
   return (
     <Pressable onPress={onPress} style={{ width: size, margin: 4 }}>
       <View
@@ -493,7 +496,9 @@ function Card({
           <Text numberOfLines={1} style={{ color: '#fff', marginTop: 6, fontWeight: '700' }}>
             {item.title}
           </Text>
-          {item.year ? <Text style={{ color: '#aaa', fontSize: 12 }}>{item.year}</Text> : null}
+          <Text style={{ color: '#aaa', fontSize: 12 }}>
+            {item.year}{item.year && editionTitle ? ' · ' : ''}{editionTitle}
+          </Text>
         </>
       ) : null}
     </Pressable>

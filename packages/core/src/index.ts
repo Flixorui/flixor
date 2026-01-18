@@ -33,7 +33,9 @@ export type {
   PlexMediaContainer,
   PlexUltraBlurColors,
   PlexUltraBlurResponse,
+  ContinueWatchingResult,
 } from './models/plex';
+export { getVersionString } from './models/plex';
 
 // Models - TMDB
 export type {

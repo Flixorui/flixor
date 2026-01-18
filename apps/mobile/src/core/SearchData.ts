@@ -13,6 +13,7 @@ export type SearchResult = {
   year?: string;
   source: 'plex' | 'tmdb';
   genreIds?: number[];
+  editionTitle?: string;
 };
 
 export type RowItem = {
@@ -71,6 +72,15 @@ export async function searchPlex(query: string): Promise<SearchResult[]> {
 
     return items.slice(0, 20).map((item: any) => {
       const thumb = item.thumb || item.parentThumb || item.grandparentThumb;
+      // Extract edition from Media array
+      let editionTitle = item.Media?.[0]?.editionTitle;
+      if (!editionTitle) {
+        const filePath = item.Media?.[0]?.Part?.[0]?.file;
+        if (filePath) {
+          const match = filePath.match(/\{edition-([^}]+)\}/i);
+          if (match) editionTitle = match[1];
+        }
+      }
       return {
         id: `plex:${item.ratingKey}`,
         title: item.title || item.grandparentTitle || 'Untitled',
@@ -78,6 +88,7 @@ export async function searchPlex(query: string): Promise<SearchResult[]> {
         image: thumb ? core.plexServer.getImageUrl(thumb, 300) : undefined,
         year: item.year ? String(item.year) : undefined,
         source: 'plex' as const,
+        editionTitle,
       };
     });
   } catch (e) {

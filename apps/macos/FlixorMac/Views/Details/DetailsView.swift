@@ -794,9 +794,15 @@ private struct DetailsHeroSection: View {
     // MARK: - Technical Metadata Row
     @ViewBuilder private var technicalMetadataRow: some View {
         HStack(spacing: 10) {
-            // Year
+            // Year and Edition
             if let year = vm.year, !year.isEmpty {
-                Text(year)
+                if let edition = vm.editionTitle, !edition.isEmpty {
+                    Text("\(year) · \(edition)")
+                } else {
+                    Text(year)
+                }
+            } else if let edition = vm.editionTitle, !edition.isEmpty {
+                Text(edition)
             }
 
             // Runtime

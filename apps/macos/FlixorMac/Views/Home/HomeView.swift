@@ -73,11 +73,13 @@ struct HomeView: View {
                                             case "poster":
                                                 ContinueWatchingPosterRow(
                                                     items: viewModel.continueWatchingItems,
+                                                    itemsWithMultipleVersions: viewModel.continueWatchingVersions,
                                                     onTap: { item in viewModel.showItemDetails(item) }
                                                 )
                                             default: // "landscape"
                                                 ContinueWatchingLandscapeRow(
                                                     items: viewModel.continueWatchingItems,
+                                                    itemsWithMultipleVersions: viewModel.continueWatchingVersions,
                                                     onTap: { item in viewModel.showItemDetails(item) }
                                                 )
                                             }

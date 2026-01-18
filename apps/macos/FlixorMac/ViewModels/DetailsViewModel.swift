@@ -30,6 +30,7 @@ class DetailsViewModel: ObservableObject {
     @Published var title: String = ""
     @Published var overview: String = ""
     @Published var year: String?
+    @Published var editionTitle: String?
     @Published var runtime: Int?
     @Published var rating: String?
     @Published var genres: [String] = []
@@ -167,12 +168,14 @@ class DetailsViewModel: ObservableObject {
         let audioCodec: String?
         let audioProfile: String?
         let container: String?
+        let editionTitle: String?  // Edition title (e.g., "Director's Cut")
         let Part: [PlexPart]?
     }
     struct PlexPart: Codable {
         let id: String?  // Can be Int or String from different Plex APIs
         let size: Int?
         let key: String?
+        let file: String?  // File path for edition parsing
         let Stream: [PlexStream]?
     }
     struct PlexStream: Codable {
@@ -377,6 +380,7 @@ class DetailsViewModel: ObservableObject {
                     if let media = meta.Media, !media.isEmpty {
                         appendTechnicalBadges(from: media)
                         hydrateVersions(from: media)
+                        extractEditionTitle(from: media)
                     }
                     // Extract collections
                     collections = (meta.Collection ?? []).compactMap { $0.tag }.filter { !$0.isEmpty }
@@ -474,6 +478,7 @@ class DetailsViewModel: ObservableObject {
                     if let media = meta.Media, !media.isEmpty {
                         appendTechnicalBadges(from: media)
                         hydrateVersions(from: media)
+                        extractEditionTitle(from: media)
                     }
                     // Extract collections
                     collections = (meta.Collection ?? []).compactMap { $0.tag }.filter { !$0.isEmpty }
@@ -1002,6 +1007,7 @@ class DetailsViewModel: ObservableObject {
         if let mediaArr = match.Media {
             appendTechnicalBadges(from: mediaArr)
             hydrateVersions(from: mediaArr)
+            extractEditionTitle(from: mediaArr)
             print("📊 [mapToPlex] Loaded \(mediaArr.count) media version(s) for technical details")
         } else {
             print("⚠️ [mapToPlex] No media versions found in Plex match")
@@ -1090,6 +1096,27 @@ class DetailsViewModel: ObservableObject {
             extra.append("Atmos")
         }
         addBadges(extra)
+    }
+
+    private func extractEditionTitle(from media: [PlexMedia]) {
+        guard let first = media.first else { return }
+        // Priority 1: Use explicit editionTitle from API
+        if let edition = first.editionTitle, !edition.isEmpty {
+            self.editionTitle = edition
+            return
+        }
+        // Priority 2: Parse from filename {edition-XXX} pattern
+        if let filePath = first.Part?.first?.file {
+            if let match = filePath.range(of: #"\{edition-([^}]+)\}"#, options: .regularExpression) {
+                let fullMatch = String(filePath[match])
+                // Extract the edition name between {edition- and }
+                let start = fullMatch.index(fullMatch.startIndex, offsetBy: 9) // "{edition-".count
+                let end = fullMatch.index(fullMatch.endIndex, offsetBy: -1) // remove "}"
+                self.editionTitle = String(fullMatch[start..<end])
+                return
+            }
+        }
+        self.editionTitle = nil
     }
 
     private func hydrateVersions(from media: [PlexMedia]) {
@@ -1467,6 +1494,7 @@ class DetailsViewModel: ObservableObject {
         if let media = meta.Media, !media.isEmpty {
             appendTechnicalBadges(from: media)
             hydrateVersions(from: media)
+            extractEditionTitle(from: media)
         }
 
         addBadge("Plex")
@@ -2107,11 +2135,13 @@ class DetailsViewModel: ObservableObject {
                     audioCodec: m.audioCodec,
                     audioProfile: m.audioProfile,
                     container: m.container,
+                    editionTitle: m.editionTitle,
                     Part: m.parts.map { p in
                         PlexPart(
                             id: p.id,
                             size: p.size,
                             key: p.key,
+                            file: p.file,
                             Stream: (p.Stream ?? []).map { s in
                                 PlexStream(
                                     id: s.id,

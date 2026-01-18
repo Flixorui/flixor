@@ -93,6 +93,7 @@ export default function Home({ onLogout }: HomeProps) {
 
   // Plex data
   const [continueItems, setContinueItems] = useState<PlexMediaItem[]>([]);
+  const [continueVersions, setContinueVersions] = useState<Set<string>>(new Set());
   const [onDeckItems, setOnDeckItems] = useState<PlexMediaItem[]>([]);
   const [recent, setRecent] = useState<PlexMediaItem[]>([]);
   // Cache for TMDB backdrop URLs with titles (ratingKey -> url)
@@ -417,9 +418,13 @@ export default function Home({ onLogout }: HomeProps) {
 
         // Exit loading as soon as Plex hero content (Continue Watching / On Deck / Recent) is ready
         // Priority: Continue Watching → On Deck → Recently Added (matches macOS behavior)
-        continuePromise.then(async (continueData) => {
+        continuePromise.then(async (continueResult) => {
+          console.log('[Home] continuePromise resolved:', continueResult);
           InteractionManager.runAfterInteractions(async () => {
+            const continueData = continueResult?.items || [];
+            console.log('[Home] Setting continueItems:', continueData.length);
             setContinueItems(continueData);
+            setContinueVersions(continueResult?.itemsWithMultipleVersions || new Set());
 
             // If we have continue watching items, use them for hero
             if (continueData.length > 0) {
@@ -462,7 +467,10 @@ export default function Home({ onLogout }: HomeProps) {
               }
             });
           });
-        }).catch(() => setContinueItems([]));
+        }).catch((err) => {
+          console.log('[Home] continuePromise error:', err);
+          setContinueItems([]);
+        });
 
         // On Deck fallback for hero
         onDeckPromise.then((onDeckData) => {
@@ -1134,6 +1142,7 @@ export default function Home({ onLogout }: HomeProps) {
             settings.continueWatchingLayout === 'landscape' ? (
               <ContinueWatchingLandscapeRow
                 items={continueItems}
+                itemsWithMultipleVersions={continueVersions}
                 onItemPress={onContinuePress}
                 onBrowsePress={openContinueWatchingBrowse}
                 getImageUri={plexContinueLandscapeImage}
@@ -1142,6 +1151,7 @@ export default function Home({ onLogout }: HomeProps) {
             ) : (
               <ContinueWatchingPosterRow
                 items={continueItems}
+                itemsWithMultipleVersions={continueVersions}
                 onItemPress={onContinuePress}
                 onBrowsePress={openContinueWatchingBrowse}
                 getImageUri={plexContinueImage}
