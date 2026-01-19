@@ -52,6 +52,30 @@ class MemoryManager {
     FastImage.clearMemoryCache();
     FastImage.clearDiskCache();
   }
+
+  /**
+   * Clear both memory and disk cache (async version)
+   */
+  async clearAllImageCachesAsync(): Promise<void> {
+    await FastImage.clearMemoryCache();
+    await FastImage.clearDiskCache();
+    console.log('[MemoryManager] All image caches cleared');
+  }
 }
 
 export const memoryManager = new MemoryManager();
+
+/**
+ * Clear all application caches (images + API data)
+ * Use this for the "Clear Cache" settings option
+ */
+export async function clearAllCaches(): Promise<void> {
+  // Clear image caches
+  await memoryManager.clearAllImageCachesAsync();
+
+  // Clear API/data cache
+  const { clearApiCache } = await import('./MobileCache');
+  await clearApiCache();
+
+  console.log('[MemoryManager] All caches cleared successfully');
+}

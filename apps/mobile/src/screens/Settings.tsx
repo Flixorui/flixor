@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, Switch, Dimensions, Linking, Pressable, Animated, Platform } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Switch, Dimensions, Linking, Pressable, Animated, Platform, Alert } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,8 +10,11 @@ import {
   getConnectedServerInfo,
   getAppVersion,
   setDiscoveryDisabled,
+  resetAllSettingsWithNotify,
 } from '../core/SettingsData';
 import { useAppSettings } from '../hooks/useAppSettings';
+import { appLogger } from '../core/AppLogger';
+import { clearAllCaches } from '../core/MemoryManager';
 import SettingsCard from '../components/settings/SettingsCard';
 import SettingItem from '../components/settings/SettingItem';
 import SettingsHeader from '../components/settings/SettingsHeader';
@@ -39,6 +42,7 @@ type CategoryId =
   | 'androidPerformance'
   | 'integrations'
   | 'playback'
+  | 'advanced'
   | 'about';
 
 const CATEGORIES: Array<{ id: CategoryId; title: string; icon: keyof typeof Ionicons.glyphMap; androidOnly?: boolean }> = [
@@ -48,6 +52,7 @@ const CATEGORIES: Array<{ id: CategoryId; title: string; icon: keyof typeof Ioni
   { id: 'androidPerformance', title: 'Android Performance', icon: 'speedometer-outline', androidOnly: true },
   { id: 'integrations', title: 'Integrations', icon: 'layers-outline' },
   { id: 'playback', title: 'Playback', icon: 'play-circle-outline' },
+  { id: 'advanced', title: 'Advanced', icon: 'construct-outline' },
   { id: 'about', title: 'About', icon: 'information-circle-outline' },
 ];
 
@@ -321,6 +326,94 @@ export default function Settings({ onBack }: SettingsProps) {
     </SettingsCard>
   );
 
+  const handleClearCache = useCallback(() => {
+    Alert.alert(
+      'Clear Cache',
+      'This will clear all cached images and data. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await clearAllCaches();
+              Alert.alert('Success', 'Cache cleared successfully');
+            } catch (error) {
+              Alert.alert('Error', 'Failed to clear cache');
+            }
+          },
+        },
+      ]
+    );
+  }, []);
+
+  const handleResetSettings = useCallback(() => {
+    Alert.alert(
+      'Reset Settings',
+      'This will reset all settings to their default values. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reset',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await resetAllSettingsWithNotify();
+              Alert.alert('Success', 'Settings reset to defaults');
+            } catch (error) {
+              Alert.alert('Error', 'Failed to reset settings');
+            }
+          },
+        },
+      ]
+    );
+  }, []);
+
+  const handleDebugLoggingToggle = useCallback((value: boolean) => {
+    updateSetting('enableDebugLogging', value);
+    appLogger.setDebugEnabled(value);
+  }, [updateSetting]);
+
+  const renderAdvanced = () => (
+    <SettingsCard title="ADVANCED">
+      <SettingItem
+        title="Debug Logging"
+        description="Enable verbose logging for troubleshooting"
+        icon="bug-outline"
+        renderRight={() => (
+          <Switch
+            value={settings.enableDebugLogging}
+            onValueChange={handleDebugLoggingToggle}
+          />
+        )}
+        isLast={false}
+      />
+      <SettingItem
+        title="View Logs"
+        description="View app logs for debugging"
+        icon="document-text-outline"
+        renderRight={renderRightChevron}
+        onPress={() => nav.navigate('LogsScreen')}
+        isLast={false}
+      />
+      <SettingItem
+        title="Clear Cache"
+        description="Clear cached images and data"
+        icon="trash-outline"
+        onPress={handleClearCache}
+        isLast={false}
+      />
+      <SettingItem
+        title="Reset Settings"
+        description="Reset all settings to defaults"
+        icon="refresh-outline"
+        onPress={handleResetSettings}
+        isLast={true}
+      />
+    </SettingsCard>
+  );
+
   const renderAbout = () => (
     <SettingsCard title="ABOUT">
       <SettingItem
@@ -394,6 +487,8 @@ export default function Settings({ onBack }: SettingsProps) {
         return renderIntegrations();
       case 'playback':
         return renderPlayback();
+      case 'advanced':
+        return renderAdvanced();
       case 'about':
         return renderAbout();
       default:
@@ -476,6 +571,7 @@ export default function Settings({ onBack }: SettingsProps) {
         {Platform.OS === 'android' && renderAndroidPerformance()}
         {renderIntegrations()}
         {renderPlayback()}
+        {renderAdvanced()}
         {renderAbout()}
       </Animated.ScrollView>
     </View>

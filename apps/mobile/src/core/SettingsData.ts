@@ -320,6 +320,9 @@ export interface AppSettings {
   seekTimeSmall: number; // Small seek duration in seconds (1-120)
   seekTimeLarge: number; // Large seek duration in seconds (1-120)
   rememberTrackSelections: boolean; // Remember audio/subtitle language choices
+
+  // Advanced settings
+  enableDebugLogging: boolean; // Enable verbose debug logging
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -376,11 +379,27 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   seekTimeSmall: 10, // Default: 10 seconds
   seekTimeLarge: 30, // Default: 30 seconds
   rememberTrackSelections: true, // Default: enabled
+
+  // Advanced defaults
+  enableDebugLogging: false, // Default: disabled
 };
 
 let cachedSettings: AppSettings = { ...DEFAULT_APP_SETTINGS };
 
 let settingsLoaded = false;
+
+// Simple event emitter for settings changes
+type SettingsListener = () => void;
+const settingsListeners: Set<SettingsListener> = new Set();
+
+export function addSettingsListener(listener: SettingsListener): () => void {
+  settingsListeners.add(listener);
+  return () => settingsListeners.delete(listener);
+}
+
+function notifySettingsListeners(): void {
+  settingsListeners.forEach((listener) => listener());
+}
 
 export async function loadAppSettings(): Promise<AppSettings> {
   try {
@@ -405,6 +424,7 @@ export async function setAppSettings(settings: Partial<AppSettings>): Promise<vo
   cachedSettings = { ...cachedSettings, ...settings };
   try {
     await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(cachedSettings));
+    notifySettingsListeners();
   } catch (e) {
     console.log('[SettingsData] setAppSettings error:', e);
   }
@@ -421,6 +441,21 @@ export async function resetAppSettings(): Promise<void> {
     await AsyncStorage.removeItem(SETTINGS_KEY);
   } catch (e) {
     console.log('[SettingsData] resetAppSettings error:', e);
+  }
+}
+
+/**
+ * Reset all settings to defaults with UI notification.
+ * Used by the "Reset Settings" button in Advanced settings.
+ */
+export async function resetAllSettingsWithNotify(): Promise<void> {
+  cachedSettings = { ...DEFAULT_APP_SETTINGS };
+  settingsLoaded = true;
+  try {
+    await AsyncStorage.removeItem(SETTINGS_KEY);
+    notifySettingsListeners();
+  } catch (e) {
+    console.log('[SettingsData] resetAllSettingsWithNotify error:', e);
   }
 }
 

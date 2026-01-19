@@ -217,3 +217,23 @@ export class MobileCache implements ICache {
     };
   }
 }
+
+// Singleton instance for direct access (used by clearAllCaches)
+let sharedCacheInstance: MobileCache | null = null;
+
+export function getSharedCache(): MobileCache {
+  if (!sharedCacheInstance) {
+    sharedCacheInstance = new MobileCache();
+  }
+  return sharedCacheInstance;
+}
+
+/**
+ * Clear all cached data (API responses, etc.)
+ * Does not clear image cache - use clearAllCachesIncludingImages for that
+ */
+export async function clearApiCache(): Promise<void> {
+  const cache = getSharedCache();
+  await cache.clear();
+  console.log('[MobileCache] API cache cleared');
+}

@@ -1,3 +1,4 @@
+import "react-native-gesture-handler";
 import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -11,6 +12,8 @@ import { useAppSettings } from './src/hooks/useAppSettings';
 import GlobalTopAppBar from './src/components/GlobalTopAppBar';
 import { useSafeAreaInsets, SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import { memoryManager } from './src/core/MemoryManager';
+import { appLogger } from './src/core/AppLogger';
+import { loadAppSettings } from './src/core/SettingsData';
 
 // Native iOS bottom tabs for liquid glass effect
 let createNativeBottomTabNavigator: any = null;
@@ -54,6 +57,7 @@ import OverseerrSettings from './src/screens/settings/OverseerrSettings';
 import PlexSettings from './src/screens/settings/PlexSettings';
 import UpdateSettings from './src/screens/settings/UpdateSettings';
 import PlayerSettings from './src/screens/settings/PlayerSettings';
+import LogsScreen from './src/screens/settings/LogsScreen';
 import * as Haptics from 'expo-haptics';
 import UpdatePopup from './src/components/UpdatePopup';
 import { useUpdateCheck } from './src/hooks/useUpdateCheck';
@@ -237,6 +241,7 @@ const SettingsTabScreen = React.memo(() => (
     </SettingsStack.Screen>
     <SettingsStack.Screen name="UpdateSettings" component={UpdateSettings} />
     <SettingsStack.Screen name="PlayerSettings" component={PlayerSettings} />
+    <SettingsStack.Screen name="LogsScreen" component={LogsScreen} />
   </SettingsStack.Navigator>
 ));
 
@@ -432,7 +437,14 @@ function AppContent() {
   return (
     <>
       <NavigationContainer>
-        <Stack.Navigator screenOptions={{ headerShown: false }}>
+        <Stack.Navigator 
+          screenOptions={{ 
+            headerShown: false, 
+            gestureEnabled: true, 
+            gestureDirection: 'horizontal', 
+            animation: 'slide_from_right', 
+            fullScreenGestureEnabled: true 
+          }}>
           {!isAuthenticated ? (
             // Not logged in - show Plex login
             <Stack.Screen name="PlexLogin">
@@ -470,6 +482,14 @@ export default function App() {
   // Initialize memory manager on app start (clears image cache when app goes to background)
   useEffect(() => {
     memoryManager.initialize();
+
+    // Initialize debug logging from persisted settings
+    (async () => {
+      const settings = await loadAppSettings();
+      appLogger.setDebugEnabled(settings.enableDebugLogging);
+      appLogger.info('App started');
+    })();
+
     return () => memoryManager.cleanup();
   }, []);
 
