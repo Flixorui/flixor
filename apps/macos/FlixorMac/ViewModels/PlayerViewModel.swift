@@ -528,16 +528,23 @@ class PlayerViewModel: ObservableObject {
     // MARK: - Auto-Skip
 
     private func triggerAutoSkipIfEnabled(for marker: PlayerMarker) {
-        guard !autoSkipTriggeredMarkers.contains(marker.id) else { return }
+        guard !autoSkipTriggeredMarkers.contains(marker.id) else {
+            print("⏭️ [Player] Marker \(marker.id) already triggered, skipping auto-skip")
+            return
+        }
 
         let defaults = UserDefaults.standard
-        let shouldAutoSkip = (marker.type == "intro" && defaults.skipIntroAutomatically) ||
-                             (marker.type == "credits" && defaults.skipCreditsAutomatically)
+        let skipIntro = defaults.skipIntroAutomatically
+        let skipCredits = defaults.skipCreditsAutomatically
+        let shouldAutoSkip = (marker.type == "intro" && skipIntro) ||
+                             (marker.type == "credits" && skipCredits)
+
+        print("⏭️ [Player] Auto-skip check: type=\(marker.type), skipIntro=\(skipIntro), skipCredits=\(skipCredits), shouldAutoSkip=\(shouldAutoSkip)")
 
         guard shouldAutoSkip else { return }
 
         let delay = defaults.autoSkipDelay
-        print("⏭️ [Player] Auto-skip \(marker.type) in \(delay)s")
+        print("⏭️ [Player] Starting auto-skip countdown for \(marker.type): \(delay)s")
 
         // Start countdown
         autoSkipCountdown = delay
@@ -579,7 +586,7 @@ class PlayerViewModel: ObservableObject {
         print("⏭️ [Player] Auto-skipped \(marker.type)")
     }
 
-    private func cancelAutoSkip() {
+    func cancelAutoSkip() {
         autoSkipTimer?.invalidate()
         autoSkipTimer = nil
         autoSkipCountdown = nil
@@ -656,6 +663,9 @@ class PlayerViewModel: ObservableObject {
 
     func skipMarker() {
         guard let marker = currentMarker else { return }
+        // Mark as triggered so it won't auto-skip again if user seeks back
+        autoSkipTriggeredMarkers.insert(marker.id)
+        cancelAutoSkip()
         let skipToTime = TimeInterval(marker.endTimeOffset) / 1000.0 + 1.0
         seek(to: skipToTime)
         print("⏭️ [Player] Skipped \(marker.type) to \(skipToTime)s")

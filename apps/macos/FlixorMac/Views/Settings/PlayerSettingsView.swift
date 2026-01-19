@@ -26,8 +26,8 @@ struct PlayerSettingsView: View {
     @AppStorage("rememberTrackSelections") private var rememberTrackSelections = true
 
     // MARK: - Auto-Skip Settings
-    @AppStorage("skipIntroAutomatically") private var skipIntroAutomatically = false
-    @AppStorage("skipCreditsAutomatically") private var skipCreditsAutomatically = false
+    @AppStorage("skipIntroAutomatically") private var skipIntroAutomatically = true
+    @AppStorage("skipCreditsAutomatically") private var skipCreditsAutomatically = true
     @AppStorage("autoSkipDelay") private var autoSkipDelay = 5
     @AppStorage("creditsCountdownFallback") private var creditsCountdownFallback = 30
 

@@ -41,12 +41,12 @@ extension UserDefaults {
     }
 
     var skipIntroAutomatically: Bool {
-        get { bool(forKey: Keys.skipIntroAutomatically) }
+        get { object(forKey: Keys.skipIntroAutomatically) as? Bool ?? true }  // Default: enabled
         set { set(newValue, forKey: Keys.skipIntroAutomatically) }
     }
 
     var skipCreditsAutomatically: Bool {
-        get { bool(forKey: Keys.skipCreditsAutomatically) }
+        get { object(forKey: Keys.skipCreditsAutomatically) as? Bool ?? true }  // Default: enabled
         set { set(newValue, forKey: Keys.skipCreditsAutomatically) }
     }
 }
@@ -520,8 +520,8 @@ extension UserDefaults {
         maxVolume = 100
         playerVolume = 100.0
         defaultPlaybackSpeed = 1.0
-        skipIntroAutomatically = false
-        skipCreditsAutomatically = false
+        skipIntroAutomatically = true
+        skipCreditsAutomatically = true
         autoSkipDelay = 5
         creditsCountdownFallback = 30
         rememberTrackSelections = true

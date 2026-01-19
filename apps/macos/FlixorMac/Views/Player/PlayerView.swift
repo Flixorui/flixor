@@ -163,80 +163,21 @@ struct PlayerView: View {
                 .allowsHitTesting(false)
             }
 
-            // Skip Intro Button - white pill, bottom-right; only for intro markers
-            // (Credits are handled by the Next Episode overlay)
+            // Skip Intro Button - Plezy style
             if let marker = viewModel.currentMarker, marker.type.lowercased() == "intro" {
-                VStack {
-                    Spacer()
-                    HStack {
-                        Spacer()
-                        Button(action: {
-                            viewModel.skipMarker()
-                        }) {
-                            Text("SKIP INTRO")
-                                .font(.system(size: 13, weight: .bold))
-                                .foregroundStyle(.black)
-                                .padding(.horizontal, 18)
-                                .padding(.vertical, 10)
-                                .background(Color.white)
-                                .clipShape(Capsule())
-                                .shadow(color: .black.opacity(0.25), radius: 8, y: 2)
-                        }
-                        .buttonStyle(.plain)
-                        .padding(.trailing, 32)
-                        .padding(.bottom, 96)
-                    }
-                }
-                .transition(.opacity)
+                SkipIntroButton(viewModel: viewModel, marker: marker)
+                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
             }
 
-            // Next Episode Countdown (web style)
+            // Next Episode Overlay - Plezy style
             if let countdown = viewModel.nextEpisodeCountdown, let nextEp = viewModel.nextEpisode {
-                VStack {
-                    Spacer()
-                    HStack {
-                        Spacer()
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Up Next • Playing in \(countdown)s")
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundStyle(.white)
-
-                            Text(nextEp.title)
-                                .font(.system(size: 16, weight: .medium))
-                                .foregroundStyle(.white.opacity(0.9))
-                                .lineLimit(1)
-
-                            HStack(spacing: 8) {
-                                Button("Cancel") {
-                                    viewModel.cancelCountdown()
-                                }
-                                .buttonStyle(.plain)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 8)
-                                .background(Color.white.opacity(0.1))
-                                .foregroundStyle(.white)
-                                .cornerRadius(4)
-
-                                Button("Play Now") {
-                                    viewModel.playNext()
-                                }
-                                .buttonStyle(.plain)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 8)
-                                .background(Color.red)
-                                .foregroundStyle(.white)
-                                .cornerRadius(4)
-                            }
-                        }
-                        .padding(16)
-                        .background(Color.black.opacity(0.85))
-                        .cornerRadius(12)
-                        .shadow(radius: 20)
-                        .padding(.trailing, 32)
-                        .padding(.bottom, 140)
-                    }
-                }
-                .transition(.opacity)
+                NextEpisodeOverlay(
+                    episode: nextEp,
+                    countdown: countdown,
+                    onCancel: { viewModel.cancelCountdown() },
+                    onPlayNow: { viewModel.playNext() }
+                )
+                .transition(.opacity.combined(with: .move(edge: .trailing)))
             }
         }
         .onDisappear {
@@ -3293,6 +3234,132 @@ class MPVPiPWindowManager {
     }
 }
 #endif
+
+// MARK: - Skip Intro Button (Plezy Style)
+
+private struct SkipIntroButton: View {
+    @ObservedObject var viewModel: PlayerViewModel
+    let marker: PlayerMarker
+
+    var body: some View {
+        VStack {
+            Spacer()
+            HStack {
+                Spacer()
+                Button(action: {
+                    viewModel.skipMarker()
+                }) {
+                    HStack(spacing: 8) {
+                        if let countdown = viewModel.autoSkipCountdown, countdown > 0 {
+                            Text("Skip Intro (\(countdown))")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(.black)
+                        } else {
+                            Text("Skip Intro")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(.black)
+                        }
+                        Image(systemName: "forward.fill")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(.black)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(Color.white.opacity(0.9))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .shadow(color: .black.opacity(0.3), radius: 8, y: 2)
+                }
+                .buttonStyle(.plain)
+                .padding(.trailing, 24)
+                .padding(.bottom, 115)
+            }
+        }
+    }
+}
+
+// MARK: - Next Episode Overlay (Plezy Style)
+
+private struct NextEpisodeOverlay: View {
+    let episode: EpisodeMetadata
+    let countdown: Int
+    let onCancel: () -> Void
+    let onPlayNow: () -> Void
+
+    var body: some View {
+        VStack {
+            Spacer()
+            HStack {
+                Spacer()
+                VStack(alignment: .leading, spacing: 12) {
+                    // Header
+                    Text("Next Episode")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.7))
+
+                    // Episode info
+                    if let parentIndex = episode.parentIndex, let index = episode.index {
+                        Text("S\(parentIndex) E\(index) · \(episode.title)")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .lineLimit(2)
+                    } else {
+                        Text(episode.title)
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .lineLimit(2)
+                    }
+
+                    // Action buttons
+                    HStack(spacing: 8) {
+                        // Cancel button (outlined)
+                        Button(action: onCancel) {
+                            Text("Cancel")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundStyle(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                                .background(Color.clear)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .stroke(Color.white.opacity(0.5), lineWidth: 1)
+                                )
+                        }
+                        .buttonStyle(.plain)
+
+                        // Play button (filled white with countdown)
+                        Button(action: onPlayNow) {
+                            HStack(spacing: 4) {
+                                if countdown > 0 {
+                                    Text("\(countdown)")
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundStyle(.black)
+                                    Image(systemName: "play.fill")
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundStyle(.black)
+                                } else {
+                                    Text("Play Now")
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundStyle(.black)
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(Color.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(16)
+                .frame(width: 320)
+                .background(Color.black.opacity(0.9))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .padding(.trailing, 24)
+                .padding(.bottom, 100)
+            }
+        }
+    }
+}
 
 #if DEBUG && canImport(PreviewsMacros)
 #Preview {

@@ -406,13 +406,24 @@ public class PlexServerService {
     // MARK: - Markers (Skip Intro/Credits)
 
     /// Get markers for an item (intro/credits skip points)
+    /// Note: No caching - markers can be updated by Plex at any time
     public func getMarkers(ratingKey: String) async throws -> [PlexMarker] {
+        // Debug: Print the full URL for manual verification
+        print("🔗 [Plex Markers] Fetching from: \(baseUrl)/library/metadata/\(ratingKey)?includeMarkers=1&X-Plex-Token=***")
+
         let response: PlexMediaContainerResponse<PlexMediaItem> = try await get(
             path: "/library/metadata/\(ratingKey)",
             params: ["includeMarkers": "1"],
-            ttl: CacheTTL.trending
+            ttl: CacheTTL.none
         )
-        return response.MediaContainer.Metadata?.first?.Marker ?? []
+
+        let markers = response.MediaContainer.Metadata?.first?.Marker ?? []
+        print("🔗 [Plex Markers] Response: \(markers.count) markers")
+        for marker in markers {
+            print("   📍 type=\(marker.type ?? "nil"), start=\(marker.startTimeOffset ?? 0)ms, end=\(marker.endTimeOffset ?? 0)ms")
+        }
+
+        return markers
     }
 
     // MARK: - Playback
