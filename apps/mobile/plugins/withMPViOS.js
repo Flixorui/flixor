@@ -41,6 +41,7 @@ const withMPViOS = (config) => {
     ];
 
     // Step 1: Copy files from native/ios/ to ios/Flixor/
+    // Note: Subtitle font (go-noto-current-regular.ttf) is handled by expo-font plugin in app.json
     console.log('[withMPViOS] Copying MPV native files...');
 
     // Ensure destination directory exists

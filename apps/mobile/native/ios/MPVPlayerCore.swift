@@ -206,8 +206,69 @@ class MPVPlayerCore: NSObject {
         mpv_observe_property(mpv, 0, "height", MPV_FORMAT_INT64)
         mpv_observe_property(mpv, 0, "demuxer-cache-time", MPV_FORMAT_DOUBLE)
 
+        // Configure subtitle fonts AFTER initialization (using mpv_set_property_string)
+        // This is critical - font properties must be set after mpv_initialize()
+        configureSubtitleFonts()
+
         print("[MPVPlayerCore] MPV initialized successfully")
         return true
+    }
+
+    /// Configures subtitle fonts for CJK character support
+    /// Must be called AFTER mpv_initialize() - uses mpv_set_property_string, not options
+    private func configureSubtitleFonts() {
+        guard mpv != nil else { return }
+
+        if let fontDir = setupSubtitleFont() {
+            // Enable config reading
+            mpv_set_property_string(mpv, "config", "yes")
+
+            // Set font directory and font name
+            mpv_set_property_string(mpv, "sub-fonts-dir", fontDir)
+            mpv_set_property_string(mpv, "sub-font", "Go Noto Current-Regular")
+
+            print("[MPVPlayerCore] Configured subtitle font: Go Noto Current-Regular at \(fontDir)")
+        } else {
+            print("[MPVPlayerCore] WARNING: Failed to setup subtitle font, CJK subtitles may not render")
+        }
+    }
+
+    // MARK: - Subtitle Font Setup
+
+    /// Copies the subtitle font from bundle to cache directory for libass to access
+    private func setupSubtitleFont() -> String? {
+        let fontFileName = "go-noto-current-regular.ttf"
+
+        // Get the font from bundle
+        guard let bundleFontPath = Bundle.main.path(forResource: "go-noto-current-regular", ofType: "ttf") else {
+            print("[MPVPlayerCore] Subtitle font not found in bundle")
+            return nil
+        }
+
+        // Create subtitle_fonts directory in cache
+        let cacheDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
+        let fontDir = cacheDir.appendingPathComponent("subtitle_fonts")
+
+        do {
+            // Create directory if needed
+            if !FileManager.default.fileExists(atPath: fontDir.path) {
+                try FileManager.default.createDirectory(at: fontDir, withIntermediateDirectories: true)
+            }
+
+            // Copy font to cache directory if not already there
+            let destFontPath = fontDir.appendingPathComponent(fontFileName)
+            if !FileManager.default.fileExists(atPath: destFontPath.path) {
+                try FileManager.default.copyItem(atPath: bundleFontPath, toPath: destFontPath.path)
+                print("[MPVPlayerCore] Copied subtitle font to: \(destFontPath.path)")
+            } else {
+                print("[MPVPlayerCore] Subtitle font already exists at: \(destFontPath.path)")
+            }
+
+            return fontDir.path
+        } catch {
+            print("[MPVPlayerCore] Failed to setup subtitle font: \(error)")
+            return nil
+        }
     }
 
     // MARK: - Background/Foreground Handling
