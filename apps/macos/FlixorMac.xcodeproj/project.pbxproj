@@ -8,7 +8,11 @@
 
 /* Begin PBXBuildFile section */
 		0509E7C9F208A6B61049105C /* PerformanceStats.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CB1C29CA6CFB52E468383D8 /* PerformanceStats.swift */; };
+		3A70BC76DBA52951CA9C3605 /* MpvConfigView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC5CC48F0840B10DB094145A /* MpvConfigView.swift */; };
+		3B374BB0581072BF2FDC1C78 /* MpvConfigModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 234624854A3AE7BEDC53EB9A /* MpvConfigModels.swift */; };
+		3C76EFC4102D71E4F8EB7485 /* PlayerSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9911C3B9537F9629E5086F4A /* PlayerSettingsView.swift */; };
 		4E24577161EC49F795708746 /* subtitles.png in Resources */ = {isa = PBXBuildFile; fileRef = 28F2733407E54826B6E93AC2 /* subtitles.png */; };
+		5141864342A197A67CBC0DEA /* TrackPreferenceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5602C0E02D02A79ABE8837A /* TrackPreferenceService.swift */; };
 		8CAEF6116645785A9605C460 /* PerformanceOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35363AC57105CBFEA1D47480 /* PerformanceOverlayView.swift */; };
 		8F8A4EEF11F94AB2B11AD777 /* back-arrow.png in Resources */ = {isa = PBXBuildFile; fileRef = D160AC63894645548212EEF0 /* back-arrow.png */; };
 		A001 /* FlixorMacApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B001 /* FlixorMacApp.swift */; };
@@ -120,9 +124,11 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		234624854A3AE7BEDC53EB9A /* MpvConfigModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MpvConfigModels.swift; path = MpvConfigModels.swift; sourceTree = "<group>"; };
 		28F2733407E54826B6E93AC2 /* subtitles.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = subtitles.png; sourceTree = "<group>"; };
 		35363AC57105CBFEA1D47480 /* PerformanceOverlayView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PerformanceOverlayView.swift; sourceTree = "<group>"; };
 		7CB1C29CA6CFB52E468383D8 /* PerformanceStats.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PerformanceStats.swift; sourceTree = "<group>"; };
+		9911C3B9537F9629E5086F4A /* PlayerSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PlayerSettingsView.swift; path = PlayerSettingsView.swift; sourceTree = "<group>"; };
 		B001 /* FlixorMacApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlixorMacApp.swift; sourceTree = "<group>"; };
 		B002 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		B003 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
@@ -224,6 +230,8 @@
 		C8D602AD2E990765002C9348 /* ThumbnailCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThumbnailCache.swift; sourceTree = "<group>"; };
 		C8D602B22E990765002C9348 /* ThumbnailMPVPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThumbnailMPVPlayer.swift; sourceTree = "<group>"; };
 		D160AC63894645548212EEF0 /* back-arrow.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "back-arrow.png"; sourceTree = "<group>"; };
+		DC5CC48F0840B10DB094145A /* MpvConfigView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MpvConfigView.swift; path = MpvConfigView.swift; sourceTree = "<group>"; };
+		F5602C0E02D02A79ABE8837A /* TrackPreferenceService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TrackPreferenceService.swift; path = TrackPreferenceService.swift; sourceTree = "<group>"; };
 		MPVMETAL002 /* MPVMetalLayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MPVMetalLayer.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -297,6 +305,7 @@
 				B170 /* MDBListRatings.swift */,
 				B171 /* OverseerrModels.swift */,
 				7CB1C29CA6CFB52E468383D8 /* PerformanceStats.swift */,
+				234624854A3AE7BEDC53EB9A /* MpvConfigModels.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -346,6 +355,7 @@
 				D021 /* MDBList */,
 				D022 /* Overseerr */,
 				B085 /* TraktScrobbler.swift */,
+				F5602C0E02D02A79ABE8837A /* TrackPreferenceService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -439,6 +449,8 @@
 				B251 /* DetailsScreenSettingsView.swift */,
 				B169 /* CatalogSettingsView.swift */,
 				B176 /* ContinueWatchingSettingsView.swift */,
+				9911C3B9537F9629E5086F4A /* PlayerSettingsView.swift */,
+				DC5CC48F0840B10DB094145A /* MpvConfigView.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -602,7 +614,7 @@
 			);
 			mainGroup = D001;
 			packageReferences = (
-				FKPR0001 /* XCLocalSwiftPackageReference "../../shared/FlixorKit" */,
+				FKPR0001 /* XCLocalSwiftPackageReference "FlixorKit" */,
 				YTPK0001 /* XCRemoteSwiftPackageReference "YouTubePlayerKit" */,
 				MPVK0001 /* XCRemoteSwiftPackageReference "MPVKit" */,
 			);
@@ -737,6 +749,10 @@
 				A300 /* ServiceIcons.swift in Sources */,
 				0509E7C9F208A6B61049105C /* PerformanceStats.swift in Sources */,
 				8CAEF6116645785A9605C460 /* PerformanceOverlayView.swift in Sources */,
+				3C76EFC4102D71E4F8EB7485 /* PlayerSettingsView.swift in Sources */,
+				5141864342A197A67CBC0DEA /* TrackPreferenceService.swift in Sources */,
+				3B374BB0581072BF2FDC1C78 /* MpvConfigModels.swift in Sources */,
+				3A70BC76DBA52951CA9C3605 /* MpvConfigView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -979,7 +995,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		FKPR0001 /* XCLocalSwiftPackageReference "../../shared/FlixorKit" */ = {
+		FKPR0001 /* XCLocalSwiftPackageReference "FlixorKit" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = ../../shared/FlixorKit;
 		};

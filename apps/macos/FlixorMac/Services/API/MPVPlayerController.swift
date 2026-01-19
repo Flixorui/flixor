@@ -147,8 +147,14 @@ class MPVPlayerController {
         // Disable on-screen display
         mpv_set_property_string(mpv, "osd-level", "0")
 
-        // Audio settings
-        mpv_set_property_string(mpv, "volume-max", "100")
+        // Network/HTTP options for Plex streaming
+        mpv_set_property_string(mpv, "tls-verify", "no")  // Plex direct uses custom certs
+        mpv_set_property_string(mpv, "network-timeout", "30")
+        mpv_set_property_string(mpv, "stream-lavf-o", "reconnect=1,reconnect_streamed=1,reconnect_delay_max=5")
+        print("[MPV] Network options configured (TLS verify disabled for Plex)")
+
+        // Apply user settings from UserDefaults
+        applyUserSettings()
 
         // Load thumbfast.lua script for thumbnails
         if let scriptPath = Bundle.main.path(forResource: "thumbfast", ofType: "lua") {
@@ -160,6 +166,57 @@ class MPVPlayerController {
         }
 
         print("✅ [MPV] Additional options configured")
+    }
+
+    /// Apply user settings from UserDefaults to MPV
+    private func applyUserSettings() {
+        let defaults = UserDefaults.standard
+
+        // Buffer size (demuxer-max-bytes)
+        let bufferMB = defaults.bufferSize
+        mpv_set_property_string(mpv, "demuxer-max-bytes", "\(bufferMB)MiB")
+        mpv_set_property_string(mpv, "demuxer-max-back-bytes", "\(bufferMB / 2)MiB")
+        print("[MPV] Buffer size set to \(bufferMB)MiB")
+
+        // Hardware decoding
+        let hwdec = defaults.hardwareDecoding ? "videotoolbox" : "no"
+        mpv_set_property_string(mpv, "hwdec", hwdec)
+        print("[MPV] Hardware decoding: \(hwdec)")
+
+        // HDR setting
+        hdrEnabled = defaults.hdrEnabled
+        mpv_set_property_string(mpv, "target-colorspace-hint", hdrEnabled ? "yes" : "no")
+        print("[MPV] HDR enabled: \(hdrEnabled)")
+
+        // Max volume (for volume boost)
+        mpv_set_property_string(mpv, "volume-max", "\(defaults.maxVolume)")
+        print("[MPV] Max volume: \(defaults.maxVolume)%")
+
+        // Default playback speed
+        if defaults.defaultPlaybackSpeed != 1.0 {
+            var speed = defaults.defaultPlaybackSpeed
+            mpv_set_property(mpv, "speed", MPV_FORMAT_DOUBLE, &speed)
+            print("[MPV] Default playback speed: \(speed)x")
+        }
+
+        // Saved volume
+        var volume = defaults.playerVolume
+        mpv_set_property(mpv, "volume", MPV_FORMAT_DOUBLE, &volume)
+
+        // Apply custom MPV config entries
+        let customEntries = defaults.getEnabledMpvConfigEntries()
+        for entry in customEntries {
+            mpv_set_property_string(mpv, entry.key, entry.value)
+            print("[MPV] Custom config: \(entry.key)=\(entry.value)")
+        }
+
+        print("✅ [MPV] User settings applied")
+    }
+
+    /// Refresh settings at runtime (call when settings change)
+    func refreshUserSettings() {
+        guard mpv != nil else { return }
+        applyUserSettings()
     }
 
     private func observeProperties() {
@@ -221,10 +278,17 @@ class MPVPlayerController {
 
     // MARK: - Playback Control
 
-    func loadFile(_ url: String) {
+    func loadFile(_ url: String, headers: [String: String]? = nil) {
         guard mpv != nil else {
             print("❌ [MPV] Cannot load file: mpv not initialized")
             return
+        }
+
+        // Set HTTP headers if provided (required for some Plex servers)
+        if let headers = headers, !headers.isEmpty {
+            let headerString = headers.map { "\($0.key): \($0.value)" }.joined(separator: ",")
+            mpv_set_property_string(mpv, "http-header-fields", headerString)
+            print("📺 [MPV] HTTP headers set: \(headers.count) headers")
         }
 
         print("📺 [MPV] Loading file: \(url)")
@@ -754,12 +818,19 @@ class MPVPlayerController {
         stats.videoBitrate = getPropertyDouble("video-bitrate")
         stats.hwdecCurrent = getPropertyString("hwdec-current")
 
-        // HDR/Color properties
+        // Color/Format properties
+        stats.pixelFormat = getPropertyString("video-params/pixelformat")
+        stats.hwPixelFormat = getPropertyString("video-params/hw-pixelformat")
+        stats.colorMatrix = getPropertyString("video-params/colormatrix")
         stats.videoParamsPrimaries = getPropertyString("video-params/primaries")
         stats.videoParamsGamma = getPropertyString("video-params/gamma")
+
+        // HDR Metadata
         stats.sigPeak = getPropertyDouble("video-params/sig-peak")
-        stats.maxCll = getPropertyAsInt("video-params/max-cll")
-        stats.maxFall = getPropertyAsInt("video-params/max-fall")
+        stats.maxLuma = getPropertyDouble("video-params/max-luma")
+        stats.minLuma = getPropertyDouble("video-params/min-luma")
+        stats.maxCll = getPropertyDouble("video-params/max-cll")
+        stats.maxFall = getPropertyDouble("video-params/max-fall")
 
         // Audio properties
         stats.audioCodec = getPropertyString("audio-codec-name")
@@ -772,12 +843,29 @@ class MPVPlayerController {
         stats.frameDropCount = getPropertyAsInt("frame-drop-count")
         stats.avsync = getPropertyDouble("avsync")
         stats.estimatedVfFps = getPropertyDouble("estimated-vf-fps")
+        stats.displayFps = getPropertyDouble("display-fps")
 
         // Cache properties
         stats.cacheUsed = getPropertyAsInt("cache-used")
+        stats.cacheSpeed = getPropertyDouble("cache-speed")
         stats.demuxerCacheDuration = getPropertyDouble("demuxer-cache-duration")
 
+        // App metrics (memory usage)
+        stats.appMemoryBytes = getAppMemoryUsage()
+
         return stats
+    }
+
+    /// Get current app memory usage in bytes
+    private func getAppMemoryUsage() -> Int? {
+        var info = mach_task_basic_info()
+        var count = mach_msg_type_number_t(MemoryLayout<mach_task_basic_info>.size) / 4
+        let result = withUnsafeMutablePointer(to: &info) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: 1) {
+                task_info(mach_task_self_, task_flavor_t(MACH_TASK_BASIC_INFO), $0, &count)
+            }
+        }
+        return result == KERN_SUCCESS ? Int(info.resident_size) : nil
     }
 
     /// Helper to get Int properties

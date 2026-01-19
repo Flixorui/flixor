@@ -12,6 +12,7 @@ import AppKit
 
 private enum SettingsCategory: String, CaseIterable, Identifiable {
     case plex
+    case player
     case discoveryMode
     case catalog
     case rowsSettings
@@ -30,6 +31,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .plex: return "Plex"
+        case .player: return "Player"
         case .discoveryMode: return "Discovery Mode"
         case .catalog: return "Catalogs"
         case .rowsSettings: return "Rows Settings"
@@ -48,6 +50,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
     var description: String {
         switch self {
         case .plex: return "Manage your Plex server connections"
+        case .player: return "Video playback and MPV configuration"
         case .discoveryMode: return "Control external content discovery features"
         case .catalog: return "Configure library visibility and filtering"
         case .rowsSettings: return "Choose which content rows to display"
@@ -67,6 +70,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
     var icon: String {
         switch self {
         case .plex: return "server.rack"
+        case .player: return "play.rectangle.fill"
         case .discoveryMode: return "eye.slash"
         case .catalog: return "rectangle.stack"
         case .rowsSettings: return "square.grid.3x1.below.line.grid.1x2"
@@ -176,6 +180,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
     var color: Color {
         switch self {
         case .plex: return Color(hex: "272A2D")
+        case .player: return .blue
         case .discoveryMode: return Color(hex: "FF6B6B")
         case .catalog: return .purple
         case .rowsSettings: return .blue
@@ -201,6 +206,7 @@ private struct SidebarSection {
     static var all: [SidebarSection] {
         [
             SidebarSection(title: "Account", categories: [.plex]),
+            SidebarSection(title: "Player", categories: [.player]),
             SidebarSection(title: "Content & Discovery", categories: [.discoveryMode, .catalog, .rowsSettings, .sidebar, .search]),
             SidebarSection(title: "Appearance", categories: [.homeScreenAppearance, .detailsScreen]),
             SidebarSection(title: "Integrations", categories: [.tmdb, .mdblist, .overseerr, .trakt]),
@@ -381,6 +387,8 @@ struct SettingsView: View {
         switch category {
         case .plex:
             PlexServersView()
+        case .player:
+            PlayerSettingsView()
         case .discoveryMode:
             DiscoveryModeSettingsView()
         case .catalog:

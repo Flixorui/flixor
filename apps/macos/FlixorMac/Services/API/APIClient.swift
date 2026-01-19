@@ -46,13 +46,13 @@ class APIClient: ObservableObject {
 
     func get<T: Decodable>(_ path: String, queryItems: [URLQueryItem]? = nil, bypassCache: Bool = false) async throws -> T {
         // Route requests through FlixorCore instead of localhost
-        return try await routeRequest(path: path, queryItems: queryItems)
+        return try await routeRequest(path: path, queryItems: queryItems, bypassCache: bypassCache)
     }
 
     // MARK: - FlixorCore Router
 
-    private func routeRequest<T: Decodable>(path: String, queryItems: [URLQueryItem]?) async throws -> T {
-        print("🔀 [APIClient] Routing: \(path)")
+    private func routeRequest<T: Decodable>(path: String, queryItems: [URLQueryItem]?, bypassCache: Bool = false) async throws -> T {
+        print("🔀 [APIClient] Routing: \(path)\(bypassCache ? " (bypassCache)" : "")")
 
         // Parse query items into dictionary
         var params: [String: String] = [:]
@@ -64,7 +64,7 @@ class APIClient: ObservableObject {
 
         // Route based on path prefix
         if path.hasPrefix("/api/plex/") {
-            return try await routePlexRequest(path: path, params: params)
+            return try await routePlexRequest(path: path, params: params, bypassCache: bypassCache)
         } else if path.hasPrefix("/api/tmdb/") {
             return try await routeTMDBRequest(path: path, params: params)
         } else if path.hasPrefix("/api/trakt/") {
@@ -79,7 +79,7 @@ class APIClient: ObservableObject {
 
     // MARK: - Plex Routing
 
-    private func routePlexRequest<T: Decodable>(path: String, params: [String: String]) async throws -> T {
+    private func routePlexRequest<T: Decodable>(path: String, params: [String: String], bypassCache: Bool = false) async throws -> T {
         guard let plexServer = FlixorCore.shared.plexServer else {
             throw APIError.serverError("No Plex server connected")
         }
@@ -89,8 +89,15 @@ class APIClient: ObservableObject {
         // /api/plex/metadata/{ratingKey}
         if subpath.hasPrefix("metadata/") {
             let ratingKey = String(subpath.dropFirst("metadata/".count))
-            let item = try await plexServer.getMetadata(ratingKey: ratingKey)
+            let item = try await plexServer.getMetadata(ratingKey: ratingKey, bypassCache: bypassCache)
             return try encodeAndDecode(item)
+        }
+
+        // /api/plex/markers/{ratingKey} - fetch intro/credits markers
+        if subpath.hasPrefix("markers/") {
+            let ratingKey = String(subpath.dropFirst("markers/".count))
+            let markers = try await plexServer.getMarkers(ratingKey: ratingKey)
+            return try encodeAndDecode(markers)
         }
 
         // /api/plex/dir/library/metadata/{key}/children
@@ -1260,7 +1267,7 @@ struct PlexMarkersMetadata: Decodable {
 }
 
 struct PlexMarker: Decodable {
-    let id: String?
+    let id: Int?              // Plex API returns Int, not String
     let type: String?
     let startTimeOffset: Int?
     let endTimeOffset: Int?
@@ -1270,10 +1277,15 @@ extension APIClient {
     /// Fetch Plex intro/credits markers for a ratingKey.
     func getPlexMarkers(ratingKey: String) async throws -> [PlexMarker] {
         let encoded = ratingKey.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? ratingKey
-        let path = "/api/plex/dir/library/metadata/\(encoded)"
-        let env: PlexMarkersEnvelope = try await get(path, queryItems: [URLQueryItem(name: "includeMarkers", value: "1")])
-        let list = env.MediaContainer?.Metadata?.first?.Marker ?? []
-        return list
+        let path = "/api/plex/markers/\(encoded)"
+        print("🔍 [API] Fetching markers from: \(path)")
+
+        let markers: [PlexMarker] = try await get(path)
+        print("🔍 [API] Markers response: count=\(markers.count)")
+        for marker in markers {
+            print("   📌 Marker: type=\(marker.type ?? "?"), start=\(marker.startTimeOffset ?? 0)ms, end=\(marker.endTimeOffset ?? 0)ms")
+        }
+        return markers
     }
 }
 

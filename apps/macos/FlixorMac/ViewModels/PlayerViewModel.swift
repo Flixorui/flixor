@@ -158,10 +158,16 @@ class PlayerViewModel: ObservableObject {
     @Published var markers: [PlayerMarker] = []
     @Published var currentMarker: PlayerMarker? = nil
 
+    // Auto-skip state
+    private var autoSkipTriggeredMarkers: Set<String> = []
+    private var autoSkipTimer: Timer?
+    @Published var autoSkipCountdown: Int? = nil  // Countdown seconds shown to user
+
     // Next episode & season episodes
     @Published var nextEpisode: EpisodeMetadata? = nil
     @Published var seasonEpisodes: [EpisodeMetadata] = []
     @Published var nextEpisodeCountdown: Int? = nil
+    private var nextEpisodeCountdownTimer: Timer?
 
     // Playback metadata
     let item: MediaItem
@@ -208,6 +214,23 @@ class PlayerViewModel: ObservableObject {
     // Display sleep prevention
     private var displaySleepAssertion: NSObjectProtocol?
 
+    /// Generate Plex HTTP headers for MPV streaming
+    private var plexStreamHeaders: [String: String] {
+        var headers: [String: String] = [
+            "X-Plex-Client-Identifier": "FlixorMac",
+            "X-Plex-Product": "Flixor",
+            "X-Plex-Version": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0",
+            "X-Plex-Platform": "macOS",
+            "X-Plex-Client-Profile-Name": "Generic",
+            "Accept": "application/json",
+            "Accept-Charset": "utf-8"
+        ]
+        if let token = plexToken {
+            headers["X-Plex-Token"] = token
+        }
+        return headers
+    }
+
     init(item: MediaItem) {
         self.item = item
         setupPlayer()
@@ -222,6 +245,10 @@ class PlayerViewModel: ObservableObject {
         }
         progressTimer?.invalidate()
         progressTimer = nil
+        autoSkipTimer?.invalidate()
+        autoSkipTimer = nil
+        nextEpisodeCountdownTimer?.invalidate()
+        nextEpisodeCountdownTimer = nil
         player?.pause()
         player = nil
         cancellables.removeAll()
@@ -406,19 +433,38 @@ class PlayerViewModel: ObservableObject {
             print("🌐 [Player] Calling api.getPlexMarkers...")
             let plexMarkers = try await api.getPlexMarkers(ratingKey: ratingKey)
             print("✅ [Player] Got \(plexMarkers.count) raw markers from API")
+
+            // Debug: Print raw marker data
+            for (index, m) in plexMarkers.enumerated() {
+                print("   [Raw \(index)] type=\(m.type ?? "nil"), start=\(m.startTimeOffset ?? -1), end=\(m.endTimeOffset ?? -1)")
+            }
+
             // Map to PlayerMarker (ensure id and ms fields present)
             let mapped: [PlayerMarker] = plexMarkers.compactMap { m in
                 guard let type = m.type?.lowercased(),
                       let s = m.startTimeOffset, let e = m.endTimeOffset else { return nil }
                 // Only care about intro/credits
                 guard type == "intro" || type == "credits" else { return nil }
-                let id = m.id ?? "\(type)-\(s)-\(e)"
+                // Convert Int id to String (Plex API returns Int)
+                let id = m.id.map { String($0) } ?? "\(type)-\(s)-\(e)"
                 return PlayerMarker(id: id, type: type, startTimeOffset: s, endTimeOffset: e)
             }
             self.markers = mapped
-            print("🎬 [Player] Markers found: \(mapped.count) - \(mapped.map { "\($0.type): \($0.startTimeOffset)-\($0.endTimeOffset)" })")
+            let creditsMarker = mapped.first { $0.type == "credits" }
+            let introMarker = mapped.first { $0.type == "intro" }
+            print("🎬 [Player] Markers loaded: \(mapped.count) total")
+            if let intro = introMarker {
+                print("   📍 INTRO: \(intro.startTimeOffset)ms - \(intro.endTimeOffset)ms (\(TimeInterval(intro.startTimeOffset)/1000.0)s - \(TimeInterval(intro.endTimeOffset)/1000.0)s)")
+            }
+            if let credits = creditsMarker {
+                print("   📍 CREDITS: \(credits.startTimeOffset)ms - \(credits.endTimeOffset)ms (\(TimeInterval(credits.startTimeOffset)/1000.0)s - \(TimeInterval(credits.endTimeOffset)/1000.0)s)")
+            }
+            if mapped.isEmpty {
+                print("   ⚠️ No intro/credits markers found for this content")
+            }
         } catch {
-            print("⚠️ [Player] Failed to fetch markers: \(error)")
+            print("❌ [Player] Failed to fetch markers: \(error)")
+            print("❌ [Player] Error details: \(String(describing: error))")
             self.markers = []
         }
     }
@@ -453,19 +499,12 @@ class PlayerViewModel: ObservableObject {
             if currentMarker != nil {
                 print("⚠️ [Player] Clearing marker - no markers available")
                 currentMarker = nil
+                cancelAutoSkip()
             }
             return
         }
 
         let currentMs = Int(currentTime * 1000)
-
-        // Debug: Log periodically what we're checking
-        if Int(currentTime).isMultiple(of: 30) {
-            print("🔍 [Player] Checking markers at \(currentMs)ms against \(markers.count) markers:")
-            for marker in markers {
-                print("   - \(marker.type): \(marker.startTimeOffset)-\(marker.endTimeOffset)ms")
-            }
-        }
 
         let newMarker = markers.first { marker in
             (marker.type == "intro" || marker.type == "credits") &&
@@ -476,33 +515,141 @@ class PlayerViewModel: ObservableObject {
         if newMarker?.id != currentMarker?.id {
             if let marker = newMarker {
                 print("🎬 [Player] ✅ Marker ACTIVE: \(marker.type) at \(currentMs)ms (range: \(marker.startTimeOffset)-\(marker.endTimeOffset))")
+                // Trigger auto-skip if enabled and not already triggered for this marker
+                triggerAutoSkipIfEnabled(for: marker)
             } else if currentMarker != nil {
                 print("🎬 [Player] ❌ Marker ended at \(currentMs)ms")
+                cancelAutoSkip()
             }
             currentMarker = newMarker
         }
     }
 
-    private func updateNextEpisodeCountdown() {
-        guard item.type == "episode", nextEpisode != nil, duration > 0 else {
-            if nextEpisodeCountdown != nil {
-                nextEpisodeCountdown = nil
+    // MARK: - Auto-Skip
+
+    private func triggerAutoSkipIfEnabled(for marker: PlayerMarker) {
+        guard !autoSkipTriggeredMarkers.contains(marker.id) else { return }
+
+        let defaults = UserDefaults.standard
+        let shouldAutoSkip = (marker.type == "intro" && defaults.skipIntroAutomatically) ||
+                             (marker.type == "credits" && defaults.skipCreditsAutomatically)
+
+        guard shouldAutoSkip else { return }
+
+        let delay = defaults.autoSkipDelay
+        print("⏭️ [Player] Auto-skip \(marker.type) in \(delay)s")
+
+        // Start countdown
+        autoSkipCountdown = delay
+        autoSkipTimer?.invalidate()
+
+        // Countdown timer (fires every second)
+        autoSkipTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
+            guard let self = self else {
+                timer.invalidate()
+                return
             }
+
+            Task { @MainActor in
+                guard let countdown = self.autoSkipCountdown, countdown > 0 else {
+                    timer.invalidate()
+                    return
+                }
+
+                if countdown == 1 {
+                    // Time to skip
+                    self.performAutoSkip(marker)
+                } else {
+                    self.autoSkipCountdown = countdown - 1
+                }
+            }
+        }
+    }
+
+    private func performAutoSkip(_ marker: PlayerMarker) {
+        // Verify we're still in the marker region
+        guard currentMarker?.id == marker.id else {
+            cancelAutoSkip()
             return
         }
 
-        // Start countdown at credits marker or last 30s
+        autoSkipTriggeredMarkers.insert(marker.id)
+        cancelAutoSkip()
+        skipMarker()
+        print("⏭️ [Player] Auto-skipped \(marker.type)")
+    }
+
+    private func cancelAutoSkip() {
+        autoSkipTimer?.invalidate()
+        autoSkipTimer = nil
+        autoSkipCountdown = nil
+    }
+
+    /// Cancel auto-skip when user manually skips or interacts
+    func userCancelledAutoSkip() {
+        if let marker = currentMarker {
+            autoSkipTriggeredMarkers.insert(marker.id)
+        }
+        cancelAutoSkip()
+    }
+
+    /// Find credits chapter by name (fallback when no Plex marker exists)
+    private func findCreditsChapter() -> MPVChapter? {
+        let creditsKeywords = ["credits", "end credits", "ending credits"]
+
+        return chapters.first { chapter in
+            guard let title = chapter.title?.lowercased() else { return false }
+            return creditsKeywords.contains { title.contains($0) }
+        }
+    }
+
+    private func updateNextEpisodeCountdown() {
+        // Debug: Log when guard fails
+        if item.type != "episode" {
+            if nextEpisodeCountdown != nil { nextEpisodeCountdown = nil }
+            return
+        }
+        if nextEpisode == nil {
+            if nextEpisodeCountdown != nil { nextEpisodeCountdown = nil }
+            return
+        }
+        if duration <= 0 {
+            if nextEpisodeCountdown != nil { nextEpisodeCountdown = nil }
+            return
+        }
+
+        // Priority: 1. Credits marker, 2. Credits chapter, 3. Time-based fallback
         let creditsMarker = markers.first { $0.type == "credits" }
-        let triggerStart = creditsMarker != nil ? TimeInterval(creditsMarker!.startTimeOffset) / 1000.0 : max(0, duration - 30)
+        let creditsChapter = findCreditsChapter()
+        let fallbackSeconds = TimeInterval(UserDefaults.standard.creditsCountdownFallback)
+        let bufferSeconds: TimeInterval = 3.0  // Show overlay 3 seconds before trigger point
+        var triggerStart: TimeInterval
+        let triggerSource: String
+
+        if let marker = creditsMarker {
+            // Priority 1: Use Plex credits marker (convert ms to seconds, minus buffer)
+            triggerStart = max(0, TimeInterval(marker.startTimeOffset) / 1000.0 - bufferSeconds)
+            triggerSource = "CREDITS marker (3s early) at \(triggerStart)s"
+        } else if let chapter = creditsChapter {
+            // Priority 2: Use credits chapter start time (minus buffer)
+            triggerStart = max(0, chapter.time - bufferSeconds)
+            triggerSource = "CREDITS chapter '\(chapter.title ?? "Credits")' (3s early) at \(triggerStart)s"
+        } else {
+            // Priority 3: Use fallback (X seconds before end)
+            triggerStart = max(0, duration - fallbackSeconds)
+            triggerSource = "FALLBACK (\(Int(fallbackSeconds))s before end) at \(triggerStart)s"
+        }
 
         if currentTime >= triggerStart {
-            let remaining = max(0, Int(ceil(duration - currentTime)))
-            if nextEpisodeCountdown != remaining {
-                nextEpisodeCountdown = remaining
+            // Start 5-second countdown timer if not already running
+            if nextEpisodeCountdown == nil && nextEpisodeCountdownTimer == nil {
+                print("🎬 [Countdown] TRIGGERED via \(triggerSource)! Starting 5s countdown")
+                startNextEpisodeCountdown()
             }
         } else {
+            // Cancel countdown if we seeked back before trigger point
             if nextEpisodeCountdown != nil {
-                nextEpisodeCountdown = nil
+                cancelCountdown()
             }
         }
     }
@@ -772,7 +919,7 @@ class PlayerViewModel: ObservableObject {
                 }
 
                 print("🎬 [MPV] Loading file: \(finalURL.absoluteString)")
-                mpvController.loadFile(finalURL.absoluteString)
+                mpvController.loadFile(finalURL.absoluteString, headers: plexStreamHeaders)
 
                 // MPV will handle playback automatically
                 // Property and event callbacks will update our @Published properties
@@ -1618,6 +1765,11 @@ class PlayerViewModel: ObservableObject {
         // Stop progress tracking immediately
         stopProgressTracking()
 
+        // Cancel next episode countdown
+        nextEpisodeCountdownTimer?.invalidate()
+        nextEpisodeCountdownTimer = nil
+        nextEpisodeCountdown = nil
+
         // Disable display sleep prevention
         disableDisplaySleep()
 
@@ -1769,7 +1921,34 @@ class PlayerViewModel: ObservableObject {
     }
 
     func cancelCountdown() {
+        nextEpisodeCountdownTimer?.invalidate()
+        nextEpisodeCountdownTimer = nil
         nextEpisodeCountdown = nil
+    }
+
+    private func startNextEpisodeCountdown() {
+        nextEpisodeCountdown = 5
+        nextEpisodeCountdownTimer?.invalidate()
+        nextEpisodeCountdownTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
+            guard let self = self else {
+                timer.invalidate()
+                return
+            }
+            Task { @MainActor in
+                guard let countdown = self.nextEpisodeCountdown, countdown > 0 else {
+                    timer.invalidate()
+                    self.nextEpisodeCountdownTimer = nil
+                    return
+                }
+                let newCount = countdown - 1
+                self.nextEpisodeCountdown = newCount
+                if newCount == 0 {
+                    timer.invalidate()
+                    self.nextEpisodeCountdownTimer = nil
+                    self.playNext()
+                }
+            }
+        }
     }
 
     // MARK: - Retry
@@ -1869,7 +2048,7 @@ class PlayerViewModel: ObservableObject {
 
                 print("🎬 [MPV] Reloading file with fresh URL")
                 self.fileStartTime = nil // Reset to detect new loading errors
-                mpvController.loadFile(url.absoluteString)
+                mpvController.loadFile(url.absoluteString, headers: plexStreamHeaders)
 
                 // Seek will happen after file-loaded event via applyInitialSeekIfNeeded
                 // But we need to preserve the position
@@ -1981,7 +2160,7 @@ class PlayerViewModel: ObservableObject {
 
                 print("🎬 [MPV] Loading HLS stream")
                 self.fileStartTime = nil
-                mpvController.loadFile(finalURL.absoluteString)
+                mpvController.loadFile(finalURL.absoluteString, headers: plexStreamHeaders)
 
                 // Restore position after file loads
                 if savedPosition > 2 {

@@ -163,8 +163,9 @@ struct PlayerView: View {
                 .allowsHitTesting(false)
             }
 
-            // Skip Intro/Credits Button - white pill, bottom-right; only for intro/credits
-            if let marker = viewModel.currentMarker, ["intro","credits"].contains(marker.type.lowercased()) {
+            // Skip Intro Button - white pill, bottom-right; only for intro markers
+            // (Credits are handled by the Next Episode overlay)
+            if let marker = viewModel.currentMarker, marker.type.lowercased() == "intro" {
                 VStack {
                     Spacer()
                     HStack {
@@ -172,7 +173,7 @@ struct PlayerView: View {
                         Button(action: {
                             viewModel.skipMarker()
                         }) {
-                            Text(marker.type.lowercased() == "intro" ? "SKIP INTRO" : "SKIP CREDITS")
+                            Text("SKIP INTRO")
                                 .font(.system(size: 13, weight: .bold))
                                 .foregroundStyle(.black)
                                 .padding(.horizontal, 18)
@@ -769,6 +770,26 @@ struct PlayerControlsView: View {
 
                 Spacer()
 
+                // Performance stats toggle (MPV only) - Top bar position
+                if viewModel.mpvController != nil {
+                    Button(action: {
+                        viewModel.togglePerformanceOverlay()
+                    }) {
+                        Image(systemName: "info.circle")
+                            .font(.system(size: 18))
+                            .frame(width: 32, height: 32)
+                            .foregroundStyle(viewModel.showPerformanceOverlay ? Color.accentColor : .white)
+                    }
+                    .buttonStyle(.plain)
+                    .scaleEffect(isStatsHovered ? 1.1 : 1.0)
+                    .onHover { hovering in
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            isStatsHovered = hovering
+                        }
+                    }
+                    .help("Performance Stats (I)")
+                }
+
                 // Quality Selector
                 Menu {
                     ForEach(viewModel.availableQualities) { quality in
@@ -1079,34 +1100,16 @@ struct PlayerControlsView: View {
                     }
                     .help("Playback Speed")
 
-                    // Performance stats toggle (MPV only)
-                    if viewModel.mpvController != nil {
-                        Button(action: {
-                            viewModel.togglePerformanceOverlay()
-                        }) {
-                            Image(systemName: "chart.bar.fill")
-                                .font(.system(size: 16))
-                                .frame(width: 32, height: 32)
-                                .foregroundStyle(viewModel.showPerformanceOverlay ? Color.accentColor : .white)
-                        }
-                        .buttonStyle(.plain)
-                        .scaleEffect(isStatsHovered ? 1.1 : 1.0)
-                        .onHover { hovering in
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                isStatsHovered = hovering
-                            }
-                        }
-                        .help("Performance Stats (I)")
-                    }
-
                     // Chapters button (MPV only, when chapters exist)
                     if viewModel.mpvController != nil && !viewModel.chapters.isEmpty {
                         Button(action: {
                             showChaptersPanel.toggle()
                         }) {
-                            Image(systemName: "list.bullet")
-                                .font(.system(size: 16))
-                                .frame(width: 32, height: 32)
+                            Image("chaptericon")
+                                .resizable()
+                                .renderingMode(.template)
+                                .scaledToFit()
+                                .frame(width: 42, height: 42)
                                 .foregroundStyle(showChaptersPanel ? Color.accentColor : .white)
                         }
                         .buttonStyle(.plain)

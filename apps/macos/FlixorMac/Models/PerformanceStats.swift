@@ -19,12 +19,19 @@ struct PerformanceStats {
     var videoBitrate: Double?
     var hwdecCurrent: String?
 
-    // MARK: - HDR/Color Properties
+    // MARK: - Color/Format Properties
+    var pixelFormat: String?
+    var hwPixelFormat: String?
+    var colorMatrix: String?
     var videoParamsPrimaries: String?
     var videoParamsGamma: String?
+
+    // MARK: - HDR Metadata
     var sigPeak: Double?
-    var maxCll: Int?
-    var maxFall: Int?
+    var maxLuma: Double?
+    var minLuma: Double?
+    var maxCll: Double?
+    var maxFall: Double?
 
     // MARK: - Audio Properties
     var audioCodec: String?
@@ -38,11 +45,17 @@ struct PerformanceStats {
     var frameDropCount: Int?
     var avsync: Double?
     var estimatedVfFps: Double?
+    var displayFps: Double?
 
     // MARK: - Cache/Network Properties
     var cacheUsed: Int?
+    var cacheSpeed: Double?
     var demuxerCacheDuration: Double?
     var demuxerCacheState: String?
+
+    // MARK: - App Metrics
+    var appMemoryBytes: Int?
+    var uiFps: Double?
 
     // MARK: - Computed Properties
 
@@ -127,23 +140,51 @@ struct PerformanceStats {
     var hdrType: String {
         guard let sigPeak = sigPeak, sigPeak > 1.0 else { return "SDR" }
 
-        // Check for Dolby Vision first (typically has very high peak)
-        if let gamma = videoParamsGamma, gamma.lowercased().contains("dovi") {
-            return "Dolby Vision"
+        // Check for Dolby Vision first
+        if let gamma = videoParamsGamma {
+            let gammaLower = gamma.lowercased()
+            if gammaLower.contains("dolbyvision") || gammaLower.contains("dovi") {
+                return "Dolby Vision"
+            }
         }
 
         // Check primaries and transfer function
         if let gamma = videoParamsGamma {
-            if gamma.lowercased().contains("pq") || gamma.lowercased().contains("smpte2084") {
+            let gammaLower = gamma.lowercased()
+            if gammaLower.contains("pq") || gammaLower.contains("smpte2084") {
                 if let primaries = videoParamsPrimaries, primaries.lowercased().contains("2020") {
                     return "HDR10"
                 }
-            } else if gamma.lowercased().contains("hlg") {
+            } else if gammaLower.contains("hlg") {
                 return "HLG"
             }
         }
 
         return "HDR"
+    }
+
+    var formattedMaxLuma: String {
+        guard let luma = maxLuma else { return "N/A" }
+        return String(format: "%.0f cd/m²", luma)
+    }
+
+    var formattedMinLuma: String {
+        guard let luma = minLuma else { return "N/A" }
+        return String(format: "%.4f cd/m²", luma)
+    }
+
+    var formattedMaxCll: String {
+        guard let cll = maxCll else { return "N/A" }
+        return String(format: "%.0f cd/m²", cll)
+    }
+
+    var formattedMaxFall: String {
+        guard let fall = maxFall else { return "N/A" }
+        return String(format: "%.0f cd/m²", fall)
+    }
+
+    var hasHdrMetadata: Bool {
+        return maxLuma != nil || maxCll != nil
     }
 
     var formattedHdrMetadata: String {
@@ -154,14 +195,36 @@ struct PerformanceStats {
         }
 
         if let cll = maxCll {
-            parts.append("MaxCLL: \(cll)")
+            parts.append(String(format: "MaxCLL: %.0f", cll))
         }
 
         if let fall = maxFall {
-            parts.append("MaxFALL: \(fall)")
+            parts.append(String(format: "MaxFALL: %.0f", fall))
         }
 
         return parts.isEmpty ? "N/A" : parts.joined(separator: ", ")
+    }
+
+    var formattedDisplayFps: String {
+        guard let fps = displayFps else { return "N/A" }
+        return String(format: "%.0f", fps)
+    }
+
+    var formattedCacheSpeed: String {
+        guard let speed = cacheSpeed else { return "N/A" }
+        let mbps = speed / (1024 * 1024)
+        return String(format: "%.1f MB/s", mbps)
+    }
+
+    var formattedAppMemory: String {
+        guard let bytes = appMemoryBytes else { return "N/A" }
+        let mb = Double(bytes) / (1024 * 1024)
+        return String(format: "%.1f MB", mb)
+    }
+
+    var formattedUiFps: String {
+        guard let fps = uiFps else { return "N/A" }
+        return String(format: "%.1f", fps)
     }
 
     var formattedColorspace: String {

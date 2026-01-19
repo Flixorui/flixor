@@ -181,10 +181,13 @@ public class PlexServerService {
     // MARK: - Metadata
 
     /// Get metadata for a specific item
-    public func getMetadata(ratingKey: String) async throws -> PlexMediaItem {
+    /// - Parameters:
+    ///   - ratingKey: The rating key of the item
+    ///   - bypassCache: If true, skip cache and fetch fresh data (useful for retry scenarios)
+    public func getMetadata(ratingKey: String, bypassCache: Bool = false) async throws -> PlexMediaItem {
         let response: PlexMediaContainerResponse<PlexMediaItem> = try await get(
             path: "/library/metadata/\(ratingKey)",
-            ttl: CacheTTL.trending
+            ttl: bypassCache ? CacheTTL.none : CacheTTL.trending
         )
         guard let item = response.MediaContainer.Metadata?.first else {
             throw PlexServerError.notFound
@@ -974,7 +977,7 @@ public struct PlexRole: Codable {
 }
 
 public struct PlexMarker: Codable {
-    public let id: String?
+    public let id: Int?           // Plex API returns Int, not String
     public let type: String?
     public let startTimeOffset: Int?
     public let endTimeOffset: Int?

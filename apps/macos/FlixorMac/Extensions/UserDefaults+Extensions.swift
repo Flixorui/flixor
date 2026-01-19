@@ -294,5 +294,243 @@ extension UserDefaults {
         showContinueWatching = true
         posterSize = "medium"
         showPosterTitles = true
+
+        // Reset player settings
+        resetPlayerSettings()
+    }
+}
+
+// MARK: - Player Settings
+
+extension UserDefaults {
+    private enum PlayerKeys {
+        // MPV Core
+        static let bufferSize = "mpvBufferSize"
+        static let hardwareDecoding = "mpvHardwareDecoding"
+        static let hdrEnabled = "mpvHdrEnabled"
+
+        // Seek
+        static let seekTimeSmall = "seekTimeSmall"
+        static let seekTimeLarge = "seekTimeLarge"
+
+        // Volume
+        static let maxVolume = "maxVolume"
+        static let playerVolume = "playerVolume"
+
+        // Playback
+        static let defaultPlaybackSpeed = "defaultPlaybackSpeed"
+
+        // Auto-Skip
+        static let autoSkipDelay = "autoSkipDelay"
+        static let creditsCountdownFallback = "creditsCountdownFallback"
+
+        // Track Preferences
+        static let rememberTrackSelections = "rememberTrackSelections"
+
+        // Subtitle Styling
+        static let subtitleFontSize = "subtitleFontSize"
+        static let subtitleTextColor = "subtitleTextColor"
+        static let subtitleBorderSize = "subtitleBorderSize"
+        static let subtitleBorderColor = "subtitleBorderColor"
+        static let subtitleBackgroundColor = "subtitleBackgroundColor"
+        static let subtitleBackgroundOpacity = "subtitleBackgroundOpacity"
+
+        // Custom MPV Config
+        static let mpvConfigEntries = "mpvConfigEntries"
+        static let mpvConfigPresets = "mpvConfigPresets"
+    }
+
+    // MARK: MPV Core Settings
+
+    /// Buffer size in MB (64, 128, 256, 512, 1024)
+    var bufferSize: Int {
+        get { object(forKey: PlayerKeys.bufferSize) as? Int ?? 128 }
+        set { set(newValue, forKey: PlayerKeys.bufferSize) }
+    }
+
+    /// Hardware decoding enabled (VideoToolbox on macOS)
+    var hardwareDecoding: Bool {
+        get { object(forKey: PlayerKeys.hardwareDecoding) as? Bool ?? true }
+        set { set(newValue, forKey: PlayerKeys.hardwareDecoding) }
+    }
+
+    /// HDR/Dolby Vision support enabled
+    var hdrEnabled: Bool {
+        get { object(forKey: PlayerKeys.hdrEnabled) as? Bool ?? true }
+        set { set(newValue, forKey: PlayerKeys.hdrEnabled) }
+    }
+
+    // MARK: Seek Settings
+
+    /// Small seek duration in seconds (1-120, default: 10)
+    var seekTimeSmall: Int {
+        get { object(forKey: PlayerKeys.seekTimeSmall) as? Int ?? 10 }
+        set { set(newValue, forKey: PlayerKeys.seekTimeSmall) }
+    }
+
+    /// Large seek duration in seconds (1-120, default: 30)
+    var seekTimeLarge: Int {
+        get { object(forKey: PlayerKeys.seekTimeLarge) as? Int ?? 30 }
+        set { set(newValue, forKey: PlayerKeys.seekTimeLarge) }
+    }
+
+    // MARK: Volume Settings
+
+    /// Maximum volume percentage (100-300, for volume boost)
+    var maxVolume: Int {
+        get { object(forKey: PlayerKeys.maxVolume) as? Int ?? 100 }
+        set { set(newValue, forKey: PlayerKeys.maxVolume) }
+    }
+
+    /// Current player volume (0-100)
+    var playerVolume: Double {
+        get { object(forKey: PlayerKeys.playerVolume) as? Double ?? 100.0 }
+        set { set(newValue, forKey: PlayerKeys.playerVolume) }
+    }
+
+    // MARK: Playback Settings
+
+    /// Default playback speed (0.5-3.0)
+    var defaultPlaybackSpeed: Double {
+        get { object(forKey: PlayerKeys.defaultPlaybackSpeed) as? Double ?? 1.0 }
+        set { set(newValue, forKey: PlayerKeys.defaultPlaybackSpeed) }
+    }
+
+    // MARK: Auto-Skip Settings
+
+    /// Delay before auto-skipping markers in seconds (1-30)
+    var autoSkipDelay: Int {
+        get { object(forKey: PlayerKeys.autoSkipDelay) as? Int ?? 5 }
+        set { set(newValue, forKey: PlayerKeys.autoSkipDelay) }
+    }
+
+    /// Credits countdown fallback when no credits marker exists (seconds before end)
+    var creditsCountdownFallback: Int {
+        get { object(forKey: PlayerKeys.creditsCountdownFallback) as? Int ?? 30 }
+        set { set(newValue, forKey: PlayerKeys.creditsCountdownFallback) }
+    }
+
+    // MARK: Track Preferences
+
+    /// Remember audio/subtitle track language selections
+    var rememberTrackSelections: Bool {
+        get { object(forKey: PlayerKeys.rememberTrackSelections) as? Bool ?? true }
+        set { set(newValue, forKey: PlayerKeys.rememberTrackSelections) }
+    }
+
+    // MARK: Subtitle Styling
+
+    /// Subtitle font size (30-80)
+    var subtitleFontSize: Int {
+        get { object(forKey: PlayerKeys.subtitleFontSize) as? Int ?? 55 }
+        set { set(newValue, forKey: PlayerKeys.subtitleFontSize) }
+    }
+
+    /// Subtitle text color (hex string, default white)
+    var subtitleTextColor: String {
+        get { string(forKey: PlayerKeys.subtitleTextColor) ?? "#FFFFFF" }
+        set { set(newValue, forKey: PlayerKeys.subtitleTextColor) }
+    }
+
+    /// Subtitle border/outline size (0-5)
+    var subtitleBorderSize: Double {
+        get { object(forKey: PlayerKeys.subtitleBorderSize) as? Double ?? 3.0 }
+        set { set(newValue, forKey: PlayerKeys.subtitleBorderSize) }
+    }
+
+    /// Subtitle border color (hex string, default black)
+    var subtitleBorderColor: String {
+        get { string(forKey: PlayerKeys.subtitleBorderColor) ?? "#000000" }
+        set { set(newValue, forKey: PlayerKeys.subtitleBorderColor) }
+    }
+
+    /// Subtitle background color (hex string, default black)
+    var subtitleBackgroundColor: String {
+        get { string(forKey: PlayerKeys.subtitleBackgroundColor) ?? "#000000" }
+        set { set(newValue, forKey: PlayerKeys.subtitleBackgroundColor) }
+    }
+
+    /// Subtitle background opacity (0-1)
+    var subtitleBackgroundOpacity: Double {
+        get { object(forKey: PlayerKeys.subtitleBackgroundOpacity) as? Double ?? 0.0 }
+        set { set(newValue, forKey: PlayerKeys.subtitleBackgroundOpacity) }
+    }
+
+    // MARK: Custom MPV Config
+
+    /// Get custom MPV config entries
+    func getMpvConfigEntries() -> [MpvConfigEntry] {
+        guard let data = data(forKey: PlayerKeys.mpvConfigEntries) else { return [] }
+        return (try? JSONDecoder().decode([MpvConfigEntry].self, from: data)) ?? []
+    }
+
+    /// Save custom MPV config entries
+    func setMpvConfigEntries(_ entries: [MpvConfigEntry]) {
+        guard let data = try? JSONEncoder().encode(entries) else { return }
+        set(data, forKey: PlayerKeys.mpvConfigEntries)
+    }
+
+    /// Get enabled MPV config entries only
+    func getEnabledMpvConfigEntries() -> [MpvConfigEntry] {
+        return getMpvConfigEntries().filter { $0.isEnabled }
+    }
+
+    /// Get saved MPV presets
+    func getMpvPresets() -> [MpvPreset] {
+        guard let data = data(forKey: PlayerKeys.mpvConfigPresets) else { return [] }
+        return (try? JSONDecoder().decode([MpvPreset].self, from: data)) ?? []
+    }
+
+    /// Save MPV presets
+    func setMpvPresets(_ presets: [MpvPreset]) {
+        guard let data = try? JSONEncoder().encode(presets) else { return }
+        set(data, forKey: PlayerKeys.mpvConfigPresets)
+    }
+
+    /// Save current config entries as a preset
+    func saveMpvPreset(name: String) {
+        var presets = getMpvPresets()
+        presets.removeAll { $0.name == name }
+        let preset = MpvPreset(name: name, entries: getMpvConfigEntries(), createdAt: Date())
+        presets.append(preset)
+        setMpvPresets(presets)
+    }
+
+    /// Load a preset by name
+    func loadMpvPreset(name: String) {
+        guard let preset = getMpvPresets().first(where: { $0.name == name }) else { return }
+        setMpvConfigEntries(preset.entries)
+    }
+
+    /// Delete a preset by name
+    func deleteMpvPreset(name: String) {
+        var presets = getMpvPresets()
+        presets.removeAll { $0.name == name }
+        setMpvPresets(presets)
+    }
+
+    // MARK: Reset Player Settings
+
+    func resetPlayerSettings() {
+        bufferSize = 128
+        hardwareDecoding = true
+        hdrEnabled = true
+        seekTimeSmall = 10
+        seekTimeLarge = 30
+        maxVolume = 100
+        playerVolume = 100.0
+        defaultPlaybackSpeed = 1.0
+        skipIntroAutomatically = false
+        skipCreditsAutomatically = false
+        autoSkipDelay = 5
+        creditsCountdownFallback = 30
+        rememberTrackSelections = true
+        subtitleFontSize = 55
+        subtitleTextColor = "#FFFFFF"
+        subtitleBorderSize = 3.0
+        subtitleBorderColor = "#000000"
+        subtitleBackgroundColor = "#000000"
+        subtitleBackgroundOpacity = 0.0
+        setMpvConfigEntries([])
     }
 }
