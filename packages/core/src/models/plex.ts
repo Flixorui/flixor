@@ -140,7 +140,7 @@ export interface PlexStream {
 }
 
 export interface PlexMarker {
-  id?: string;
+  id?: number;  // Plex API returns Int, not String
   type: 'intro' | 'credits' | 'commercial';
   startTimeOffset: number;
   endTimeOffset: number;

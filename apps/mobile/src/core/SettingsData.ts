@@ -310,6 +310,16 @@ export interface AppSettings {
   showNewHotTab: boolean;
   // Search settings
   includeTmdbInSearch: boolean; // Include TMDB results in search
+
+  // Player settings
+  autoPlayNext: boolean; // Auto-play next episode when current finishes
+  skipIntroAutomatically: boolean; // Auto-skip detected intro segments
+  skipCreditsAutomatically: boolean; // Auto-skip detected credits segments
+  autoSkipDelay: number; // Seconds before auto-skipping (1-30)
+  creditsCountdownFallback: number; // Seconds before end to show Next Episode when no credits marker (10-120)
+  seekTimeSmall: number; // Small seek duration in seconds (1-120)
+  seekTimeLarge: number; // Large seek duration in seconds (1-120)
+  rememberTrackSelections: boolean; // Remember audio/subtitle language choices
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -356,6 +366,16 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   showNewHotTab: true,
   // Search defaults
   includeTmdbInSearch: true,
+
+  // Player defaults (matching macOS)
+  autoPlayNext: false, // Default: disabled (user must opt-in)
+  skipIntroAutomatically: true, // Default: enabled
+  skipCreditsAutomatically: true, // Default: enabled
+  autoSkipDelay: 5, // Default: 5 seconds
+  creditsCountdownFallback: 30, // Default: 30 seconds before end
+  seekTimeSmall: 10, // Default: 10 seconds
+  seekTimeLarge: 30, // Default: 30 seconds
+  rememberTrackSelections: true, // Default: enabled
 };
 
 let cachedSettings: AppSettings = { ...DEFAULT_APP_SETTINGS };

@@ -275,27 +275,47 @@ export default function Settings({ onBack }: SettingsProps) {
   const renderPlayback = () => (
     <SettingsCard title="PLAYBACK">
       <SettingItem
-        title="Video Player"
-        description="Coming soon"
+        title="Player Settings"
+        description="Skip intro, auto-play, seek durations"
         icon="play-circle-outline"
-        renderRight={() => <Text style={styles.comingSoon}>Soon</Text>}
-        disabled
+        renderRight={renderRightChevron}
+        onPress={() => nav.navigate('PlayerSettings')}
         isLast={false}
       />
       <SettingItem
-        title="Auto-play Best Stream"
-        description="Coming soon"
-        icon="flash-outline"
-        renderRight={() => <Switch value={false} onValueChange={() => {}} disabled />}
-        disabled
+        title="Skip Intro Automatically"
+        description="Auto-skip detected intro segments"
+        icon="play-skip-forward-outline"
+        renderRight={() => (
+          <Switch
+            value={settings.skipIntroAutomatically}
+            onValueChange={(value) => updateSetting('skipIntroAutomatically', value)}
+          />
+        )}
         isLast={false}
       />
       <SettingItem
-        title="Always Resume"
-        description="Coming soon"
-        icon="refresh-outline"
-        renderRight={() => <Switch value={false} onValueChange={() => {}} disabled />}
-        disabled
+        title="Skip Credits Automatically"
+        description="Auto-skip detected credits segments"
+        icon="play-skip-forward-outline"
+        renderRight={() => (
+          <Switch
+            value={settings.skipCreditsAutomatically}
+            onValueChange={(value) => updateSetting('skipCreditsAutomatically', value)}
+          />
+        )}
+        isLast={false}
+      />
+      <SettingItem
+        title="Auto-Play Next Episode"
+        description="Automatically play next episode"
+        icon="play-forward-outline"
+        renderRight={() => (
+          <Switch
+            value={settings.autoPlayNext}
+            onValueChange={(value) => updateSetting('autoPlayNext', value)}
+          />
+        )}
         isLast={true}
       />
     </SettingsCard>

@@ -30,6 +30,7 @@ import {
 import { Replay10Icon, Forward10Icon } from '../components/icons/SkipIcons';
 import { TopBarStore } from '../components/TopBarStore';
 import PlayerSettingsSheet from '../components/PlayerSettingsSheet';
+import { useAppSettings } from '../hooks/useAppSettings';
 
 type PlayerParams = {
   type: 'plex' | 'tmdb';
@@ -56,6 +57,7 @@ export default function Player({ route }: RouteParams) {
   const mpvPlayerRef = useRef<MPVPlayerRef>(null); // Android MPV player
   const videoRef = useRef<Video>(null); // expo-av fallback (unused with MPV)
   const { isLoading: flixorLoading, isConnected } = useFlixor();
+  const { settings } = useAppSettings();
   const KSPlayerModule = Platform.OS === 'ios' ? NativeModules.KSPlayerModule : null;
 
   // Multi-version support: which Media to use
@@ -93,7 +95,12 @@ export default function Player({ route }: RouteParams) {
   const [showControls, setShowControls] = useState(true);
 
   // Markers for skip intro/credits
-  const [markers, setMarkers] = useState<Array<{ type: string; startTimeOffset: number; endTimeOffset: number }>>([]);
+  const [markers, setMarkers] = useState<Array<{ id?: number | string; type: string; startTimeOffset: number; endTimeOffset: number }>>([]);
+
+  // Auto-skip state
+  const [autoSkipCountdown, setAutoSkipCountdown] = useState<number | null>(null);
+  const autoSkipTriggeredMarkersRef = useRef<Set<string>>(new Set());
+  const autoSkipTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Next episode for auto-play
   const [nextEpisode, setNextEpisode] = useState<NextEpisodeInfo | null>(null);
@@ -783,34 +790,73 @@ export default function Player({ route }: RouteParams) {
   }, []);
 
   // Refs for countdown/end handling to prevent infinite loops
-  const lastCountdownRef = useRef<number | null>(null);
+  const nextEpisodeCountdownStartedRef = useRef(false);
+  const nextEpisodeCountdownTimerRef = useRef<NodeJS.Timeout | null>(null);
   const movieEndTriggeredRef = useRef(false);
 
-  // Next episode countdown logic - use ref comparison to prevent unnecessary setState
+  // Next episode countdown logic - trigger 5-second countdown when credits start (or fallback)
   useEffect(() => {
     if (metadata?.type !== 'episode' || !nextEpisode || !duration) {
-      if (lastCountdownRef.current !== null) {
-        lastCountdownRef.current = null;
+      // Reset countdown state
+      if (nextEpisodeCountdownStartedRef.current) {
+        nextEpisodeCountdownStartedRef.current = false;
+        if (nextEpisodeCountdownTimerRef.current) {
+          clearInterval(nextEpisodeCountdownTimerRef.current);
+          nextEpisodeCountdownTimerRef.current = null;
+        }
         setNextEpisodeCountdown(null);
       }
       return;
     }
 
     const creditsMarker = markers.find(m => m.type === 'credits');
-    const triggerStart = creditsMarker ? (creditsMarker.startTimeOffset / 1000) : Math.max(0, duration - 30000) / 1000;
+    const fallbackSeconds = settings.creditsCountdownFallback; // User setting: seconds before end if no credits marker
+    const bufferSeconds = 3; // Show overlay 3 seconds before trigger point
 
-    if (position / 1000 >= triggerStart) {
-      const remaining = Math.max(0, Math.ceil((duration - position) / 1000));
-      // Only update state if countdown value changed
-      if (lastCountdownRef.current !== remaining) {
-        lastCountdownRef.current = remaining;
-        setNextEpisodeCountdown(remaining);
-      }
-    } else if (lastCountdownRef.current !== null) {
-      lastCountdownRef.current = null;
-      setNextEpisodeCountdown(null);
+    let triggerStart: number;
+    if (creditsMarker) {
+      // Use credits marker start time (minus buffer)
+      triggerStart = Math.max(0, creditsMarker.startTimeOffset / 1000 - bufferSeconds);
+    } else {
+      // Fallback: X seconds before end
+      triggerStart = Math.max(0, duration / 1000 - fallbackSeconds);
     }
-  }, [metadata, nextEpisode, duration, position, markers]);
+
+    const currentPositionSec = position / 1000;
+
+    // Check if we've reached the trigger point
+    if (currentPositionSec >= triggerStart && !nextEpisodeCountdownStartedRef.current) {
+      // Start 5-second countdown
+      console.log('[Player] Starting next episode countdown (5s)');
+      nextEpisodeCountdownStartedRef.current = true;
+      setNextEpisodeCountdown(5);
+
+      nextEpisodeCountdownTimerRef.current = setInterval(() => {
+        setNextEpisodeCountdown(prev => {
+          if (prev === null || prev <= 1) {
+            clearInterval(nextEpisodeCountdownTimerRef.current!);
+            nextEpisodeCountdownTimerRef.current = null;
+            return 0; // Will trigger playNext via the auto-play effect
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+
+    // Cleanup on unmount or when seeked back
+    return () => {
+      // Don't clear timer on every position update - only on actual cleanup
+    };
+  }, [metadata, nextEpisode, duration, position, markers, settings.creditsCountdownFallback]);
+
+  // Cleanup next episode countdown timer on unmount
+  useEffect(() => {
+    return () => {
+      if (nextEpisodeCountdownTimerRef.current) {
+        clearInterval(nextEpisodeCountdownTimerRef.current);
+      }
+    };
+  }, []);
 
   // Auto-play next episode
   useEffect(() => {
@@ -819,19 +865,94 @@ export default function Player({ route }: RouteParams) {
     }
   }, [nextEpisodeCountdown, nextEpisode, playNext]);
 
+  // Cancel auto-skip helper
+  const cancelAutoSkip = useCallback(() => {
+    if (autoSkipTimerRef.current) {
+      clearInterval(autoSkipTimerRef.current);
+      autoSkipTimerRef.current = null;
+    }
+    setAutoSkipCountdown(null);
+  }, []);
+
+  // Auto-skip intro/credits when enabled
+  useEffect(() => {
+    if (markers.length === 0) return;
+
+    // Find current marker
+    const currentMarker = markers.find(m =>
+      position >= m.startTimeOffset && position <= m.endTimeOffset
+    );
+
+    if (!currentMarker) {
+      // Exited marker region - cancel any running auto-skip
+      if (autoSkipCountdown !== null) {
+        if (autoSkipTimerRef.current) {
+          clearInterval(autoSkipTimerRef.current);
+          autoSkipTimerRef.current = null;
+        }
+        setAutoSkipCountdown(null);
+      }
+      return;
+    }
+
+    // Check if already triggered for this marker
+    const markerId = currentMarker.id ? String(currentMarker.id) : `${currentMarker.type}-${currentMarker.startTimeOffset}`;
+    if (autoSkipTriggeredMarkersRef.current.has(markerId)) {
+      return;
+    }
+
+    // Check auto-skip settings from user preferences
+    const shouldAutoSkip =
+      (currentMarker.type === 'intro' && settings.skipIntroAutomatically) ||
+      (currentMarker.type === 'credits' && settings.skipCreditsAutomatically);
+
+    if (!shouldAutoSkip) return;
+
+    // Only start countdown if not already running
+    if (autoSkipCountdown === null && !autoSkipTimerRef.current) {
+      const delay = settings.autoSkipDelay;
+      console.log(`[Player] Starting auto-skip countdown for ${currentMarker.type}: ${delay}s`);
+      setAutoSkipCountdown(delay);
+
+      autoSkipTimerRef.current = setInterval(() => {
+        setAutoSkipCountdown(prev => {
+          if (prev === null || prev <= 1) {
+            // Time to skip
+            clearInterval(autoSkipTimerRef.current!);
+            autoSkipTimerRef.current = null;
+            // Perform the skip
+            skipMarker(currentMarker);
+            return null;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+  }, [position, markers, autoSkipCountdown, settings.skipIntroAutomatically, settings.skipCreditsAutomatically, settings.autoSkipDelay]);
+
+  // Cleanup auto-skip timer on unmount
+  useEffect(() => {
+    return () => {
+      if (autoSkipTimerRef.current) {
+        clearInterval(autoSkipTimerRef.current);
+      }
+    };
+  }, []);
+
   // Movie end handling - use ref to prevent multiple triggers
   useEffect(() => {
     if (metadata?.type !== 'movie' || !duration) return;
     if (movieEndTriggeredRef.current) return; // Already triggered
 
     const creditsMarker = markers.find(m => m.type === 'credits');
-    const creditsStart = creditsMarker ? (creditsMarker.startTimeOffset / 1000) : Math.max(0, duration - 30000) / 1000;
+    const fallbackMs = settings.creditsCountdownFallback * 1000;
+    const creditsStart = creditsMarker ? (creditsMarker.startTimeOffset / 1000) : Math.max(0, duration - fallbackMs) / 1000;
 
     if (position / 1000 > 1 && position / 1000 >= creditsStart) {
       movieEndTriggeredRef.current = true;
       nav.goBack();
     }
-  }, [metadata, duration, position, markers, nav]);
+  }, [metadata, duration, position, markers, nav, settings.creditsCountdownFallback]);
 
   // KSPlayer event handlers
   const onPlayerLoad = useCallback(async (data: any) => {
@@ -1135,7 +1256,17 @@ export default function Player({ route }: RouteParams) {
     }
   };
 
-  const skipMarker = async (marker: { type: string; startTimeOffset: number; endTimeOffset: number }) => {
+  const skipMarker = async (marker: { id?: number | string; type: string; startTimeOffset: number; endTimeOffset: number }) => {
+    // Mark as triggered so auto-skip won't fire again if user seeks back
+    const markerId = marker.id ? String(marker.id) : `${marker.type}-${marker.startTimeOffset}`;
+    autoSkipTriggeredMarkersRef.current.add(markerId);
+    // Cancel auto-skip timer
+    if (autoSkipTimerRef.current) {
+      clearInterval(autoSkipTimerRef.current);
+      autoSkipTimerRef.current = null;
+    }
+    setAutoSkipCountdown(null);
+
     const targetMs = marker.endTimeOffset + 1000;
     if (Platform.OS === 'ios') {
       if (!playerRef.current) return;
@@ -1145,6 +1276,7 @@ export default function Player({ route }: RouteParams) {
       if (!mpvPlayerRef.current) return;
       mpvPlayerRef.current.seek(targetMs / 1000); // MPV uses seconds
     }
+    console.log(`[Player] Skipped ${marker.type} to ${targetMs}ms`);
   };
 
   const restart = async () => {
@@ -1657,60 +1789,80 @@ export default function Player({ route }: RouteParams) {
           </>
         )}
 
-        {/* Skip Intro/Credits button */}
-        {currentMarker && (
+        {/* Skip Intro button - only show for intro markers (credits handled by Next Episode overlay for episodes) */}
+        {currentMarker && (currentMarker.type === 'intro' || (currentMarker.type === 'credits' && !nextEpisode)) && (
           <View style={styles.skipMarkerContainer}>
             <TouchableOpacity
               onPress={() => skipMarker(currentMarker)}
               style={styles.skipMarkerButton}
             >
-              <Ionicons name="play-skip-forward" size={20} color="#000" />
               <Text style={styles.skipMarkerText}>
-                SKIP {currentMarker.type === 'intro' ? 'INTRO' : currentMarker.type === 'credits' ? 'CREDITS' : 'MARKER'}
+                {currentMarker.type === 'intro' ? 'Skip Intro' : 'Skip Credits'}
+                {autoSkipCountdown !== null && autoSkipCountdown > 0 && ` (${autoSkipCountdown})`}
               </Text>
+              <Ionicons name="play-forward" size={16} color="#000" />
             </TouchableOpacity>
           </View>
         )}
 
-        {/* Next episode countdown */}
+        {/* Next episode overlay (Plezy style) */}
         {nextEpisodeCountdown !== null && nextEpisode && (
           <View style={styles.nextEpisodeContainer}>
             <View style={styles.nextEpisodeCard}>
-              <TouchableOpacity
-                style={styles.nextEpisodeInfo}
-                onPress={playNext}
-                activeOpacity={0.7}
-              >
-                <View style={styles.nextEpisodeThumbnail}>
-                  {nextEpisode.thumb ? (
-                    <FastImage
-                      source={{
-                        uri: getPlayerImageUrl(nextEpisode.thumb, 300),
-                        priority: FastImage.priority.high,
-                        cache: FastImage.cacheControl.immutable,
-                      }}
-                      style={{ width: '100%', height: '100%', borderRadius: 4 }}
-                      resizeMode={FastImage.resizeMode.cover}
-                    />
-                  ) : (
-                    <Ionicons name="play-circle" size={40} color="#fff" />
-                  )}
-                </View>
-                <View style={styles.nextEpisodeDetails}>
-                  <Text style={styles.nextEpisodeOverline} numberOfLines={1}>
-                    {nextEpisode.episodeLabel ? `${nextEpisode.episodeLabel} •` : ''} NEXT EPISODE • Playing in {nextEpisodeCountdown}s
+              {/* Episode info */}
+              <View style={styles.nextEpisodeHeader}>
+                <Text style={styles.nextEpisodeLabel}>Up Next</Text>
+                <Text style={styles.nextEpisodeEpLabel}>{nextEpisode.episodeLabel}</Text>
+              </View>
+
+              {/* Thumbnail */}
+              <View style={styles.nextEpisodeThumbnail}>
+                {nextEpisode.thumb ? (
+                  <FastImage
+                    source={{
+                      uri: getPlayerImageUrl(nextEpisode.thumb, 300),
+                      priority: FastImage.priority.high,
+                      cache: FastImage.cacheControl.immutable,
+                    }}
+                    style={{ width: '100%', height: '100%', borderRadius: 8 }}
+                    resizeMode={FastImage.resizeMode.cover}
+                  />
+                ) : (
+                  <Ionicons name="play-circle" size={40} color="#fff" />
+                )}
+              </View>
+
+              {/* Title */}
+              <Text style={styles.nextEpisodeTitle} numberOfLines={2}>
+                {nextEpisode.title}
+              </Text>
+
+              {/* Buttons */}
+              <View style={styles.nextEpisodeButtons}>
+                <TouchableOpacity
+                  onPress={() => {
+                    // Cancel countdown
+                    nextEpisodeCountdownStartedRef.current = false;
+                    if (nextEpisodeCountdownTimerRef.current) {
+                      clearInterval(nextEpisodeCountdownTimerRef.current);
+                      nextEpisodeCountdownTimerRef.current = null;
+                    }
+                    setNextEpisodeCountdown(null);
+                  }}
+                  style={styles.nextEpisodeCancelButton}
+                >
+                  <Text style={styles.nextEpisodeCancelText}>Cancel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={playNext}
+                  style={styles.nextEpisodePlayButton}
+                >
+                  <Text style={styles.nextEpisodePlayText}>
+                    Play Now {nextEpisodeCountdown > 0 ? `(${nextEpisodeCountdown})` : ''}
                   </Text>
-                  <Text style={styles.nextEpisodeTitle} numberOfLines={1}>
-                    {nextEpisode.title}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => nav.goBack()}
-                style={styles.seeAllButton}
-              >
-                <Text style={styles.seeAllText}>SEE ALL EPISODES</Text>
-              </TouchableOpacity>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         )}
@@ -1940,6 +2092,7 @@ const styles = StyleSheet.create({
   actionTextDisabled: {
     color: '#666',
   },
+  // Skip Intro/Credits button (Plezy style)
   skipMarkerContainer: {
     position: 'absolute',
     bottom: 140,
@@ -1949,76 +2102,95 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#fff',
-    paddingHorizontal: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    paddingHorizontal: 16,
     paddingVertical: 12,
-    borderRadius: 4,
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
   },
   skipMarkerText: {
     color: '#000',
-    fontSize: 14,
-    fontWeight: '700',
-    letterSpacing: 0.5,
+    fontSize: 16,
+    fontWeight: '600',
   },
+
+  // Next Episode overlay (Plezy style - vertical card)
   nextEpisodeContainer: {
     position: 'absolute',
-    bottom: 60,
-    left: 20,
+    bottom: 100,
     right: 20,
     zIndex: 5,
   },
   nextEpisodeCard: {
-    backgroundColor: 'transparent',
-    borderRadius: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    borderRadius: 12,
     overflow: 'hidden',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingRight: 12,
-  },
-  nextEpisodeInfo: {
-    flexDirection: 'row',
+    width: 200,
     padding: 16,
-    gap: 12,
-    flex: 1,
+  },
+  nextEpisodeHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  nextEpisodeLabel: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  nextEpisodeEpLabel: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: 12,
+    fontWeight: '500',
   },
   nextEpisodeThumbnail: {
-    width: 92,
-    height: 52,
+    width: '100%',
+    height: 100,
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 4,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  nextEpisodeDetails: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  nextEpisodeOverline: {
-    color: '#ddd',
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.4,
-    marginBottom: 2,
+    marginBottom: 12,
   },
   nextEpisodeTitle: {
     color: '#fff',
-    fontSize: 16,
-    fontWeight: '800',
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 16,
+    lineHeight: 20,
   },
-  seeAllButton: {
-    borderWidth: 2,
-    borderColor: '#fff',
-    paddingHorizontal: 16,
+  nextEpisodeButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  nextEpisodeCancelButton: {
+    flex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     paddingVertical: 10,
-    borderRadius: 6,
+    borderRadius: 8,
     alignItems: 'center',
-    justifyContent: 'center',
   },
-  seeAllText: {
+  nextEpisodeCancelText: {
     color: '#fff',
-    fontSize: 13,
-    fontWeight: '900',
-    letterSpacing: 1,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  nextEpisodePlayButton: {
+    flex: 1,
+    backgroundColor: '#fff',
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  nextEpisodePlayText: {
+    color: '#000',
+    fontSize: 14,
+    fontWeight: '600',
   },
   bufferingContainer: {
     ...StyleSheet.absoluteFillObject,

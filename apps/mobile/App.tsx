@@ -53,6 +53,7 @@ import MDBListSettings from './src/screens/settings/MDBListSettings';
 import OverseerrSettings from './src/screens/settings/OverseerrSettings';
 import PlexSettings from './src/screens/settings/PlexSettings';
 import UpdateSettings from './src/screens/settings/UpdateSettings';
+import PlayerSettings from './src/screens/settings/PlayerSettings';
 import * as Haptics from 'expo-haptics';
 import UpdatePopup from './src/components/UpdatePopup';
 import { useUpdateCheck } from './src/hooks/useUpdateCheck';
@@ -235,6 +236,7 @@ const SettingsTabScreen = React.memo(() => (
       {() => <PlexSettings onLogout={() => logoutHandlerRef?.()} />}
     </SettingsStack.Screen>
     <SettingsStack.Screen name="UpdateSettings" component={UpdateSettings} />
+    <SettingsStack.Screen name="PlayerSettings" component={PlayerSettings} />
   </SettingsStack.Navigator>
 ));
 
