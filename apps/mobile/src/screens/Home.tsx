@@ -1065,12 +1065,21 @@ export default function Home({ onLogout }: HomeProps) {
               items={heroCarouselData}
               onSelect={(item) => {
                 const ids = getRowWatchlistIds(item);
-                if (!ids) return;
-                nav.navigate('Details', {
-                  type: 'tmdb',
-                  id: String(ids.tmdbId),
-                  mediaType: ids.mediaType,
-                });
+                if (ids) {
+                  // Navigate via TMDB
+                  nav.navigate('Details', {
+                    type: 'tmdb',
+                    id: String(ids.tmdbId),
+                    mediaType: ids.mediaType,
+                  });
+                } else if (item.id?.startsWith('plex:')) {
+                  // Fallback: navigate via Plex ratingKey
+                  const ratingKey = item.id.replace('plex:', '');
+                  nav.navigate('Details', {
+                    type: 'plex',
+                    ratingKey,
+                  });
+                }
               }}
               onAdd={async (item) => {
                 const ids = getRowWatchlistIds(item);
@@ -1116,6 +1125,15 @@ export default function Home({ onLogout }: HomeProps) {
                 hero={{ title: heroPick.title, subtitle: heroPick.subtitle, imageUri: heroPick.image, logoUri: heroLogo }}
                 inWatchlist={heroInWatchlist}
                 watchlistLoading={heroWatchlistLoading}
+                onPress={() => {
+                  if (heroPick.tmdbId && heroPick.mediaType) {
+                    nav.navigate('Details', {
+                      tmdbId: heroPick.tmdbId,
+                      mediaType: heroPick.mediaType,
+                      title: heroPick.title,
+                    });
+                  }
+                }}
                 onAdd={async () => {
                   if (!heroPick.tmdbId || !heroPick.mediaType || heroWatchlistLoading) return;
                   setHeroWatchlistLoading(true);

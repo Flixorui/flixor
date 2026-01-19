@@ -3,11 +3,37 @@
  * Used to verify HDR playback, frame rate, and codec information
  */
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import type { PlaybackStats, KSPlayerRef } from './KSPlayerComponent';
+import { View, Text, StyleSheet, NativeModules, findNodeHandle, Platform } from 'react-native';
+import type { MPVPlayerRef } from './MPVPlayerComponent';
+
+// Stats format (unified for both platforms)
+interface PlaybackStats {
+  currentTime?: number;
+  duration?: number;
+  fps?: number;
+  videoBitrate?: number;
+  bitRate?: number;
+  audioBitrate?: number;
+  audioBitRate?: number;
+  droppedFrames?: number;
+  cacheSeconds?: number;
+  naturalSize?: { width: number; height: number };
+  videoCodec?: string;
+  audioCodec?: string;
+  colorSpace?: string;
+  hdrType?: string;
+  dynamicRange?: string;
+  bitDepth?: number;
+  audioChannels?: number;
+  bufferProgress?: number;
+  playableTime?: number;
+  displayFPS?: number;
+  avSyncDiff?: number;
+  isHardwareAccelerated?: boolean;
+}
 
 interface PlaybackStatsHUDProps {
-  playerRef: React.RefObject<KSPlayerRef | null>;
+  playerRef: React.RefObject<MPVPlayerRef | null>;
   visible: boolean;
 }
 
@@ -17,8 +43,15 @@ export default function PlaybackStatsHUD({ playerRef, visible }: PlaybackStatsHU
   const fetchStats = useCallback(async () => {
     if (!playerRef.current || !visible) return;
     try {
-      const playbackStats = await playerRef.current.getPlaybackStats();
-      setStats(playbackStats);
+      // Use native module to get playback stats
+      const nodeHandle = findNodeHandle(playerRef.current as any);
+      if (!nodeHandle) return;
+
+      const MPVPlayerViewManager = NativeModules.MPVPlayerViewManager;
+      if (MPVPlayerViewManager?.getPlaybackStats) {
+        const playbackStats = await MPVPlayerViewManager.getPlaybackStats(nodeHandle);
+        setStats(playbackStats);
+      }
     } catch (err) {
       console.log('[PlaybackStatsHUD] Error fetching stats:', err);
     }

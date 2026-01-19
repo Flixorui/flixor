@@ -1,5 +1,5 @@
 /**
- * MPV Player Component for Android
+ * MPV Player Component for iOS and Android
  *
  * Native MPV-based video player with full codec support including:
  * - Direct play of MKV, MP4, and other containers
@@ -7,14 +7,34 @@
  * - HDR10, HDR10+, Dolby Vision passthrough
  * - Embedded subtitle support (SRT, ASS, PGS)
  * - Audio/subtitle track selection
+ *
+ * iOS: Uses MPVKit (libmpv) with Metal/Vulkan rendering
+ * Android: Uses native MPV with OpenGL/Vulkan rendering
  */
 import React, { useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
-import { View, StyleSheet, requireNativeComponent, Platform, UIManager, findNodeHandle, ViewStyle } from 'react-native';
+import { View, StyleSheet, requireNativeComponent, Platform, UIManager, findNodeHandle, ViewStyle, NativeModules } from 'react-native';
 
-// Only available on Android
-const MpvPlayerNative = Platform.OS === 'android'
+// Native components for each platform
+const MpvPlayerAndroid = Platform.OS === 'android'
   ? requireNativeComponent<any>('MpvPlayer')
   : null;
+
+let MpvPlayerIOS: any = null;
+if (Platform.OS === 'ios') {
+  try {
+    MpvPlayerIOS = requireNativeComponent<any>('MPVPlayerView');
+    console.log('[MPVPlayerComponent] iOS native component loaded:', MpvPlayerIOS);
+  } catch (error) {
+    console.error('[MPVPlayerComponent] Failed to load iOS native component:', error);
+  }
+}
+
+// Native module for iOS imperative commands
+const MPVPlayerViewManager = Platform.OS === 'ios'
+  ? NativeModules.MPVPlayerViewManager
+  : null;
+
+console.log('[MPVPlayerComponent] MPVPlayerViewManager module:', MPVPlayerViewManager);
 
 export interface MPVAudioTrack {
   id: number;
@@ -74,14 +94,27 @@ const MPVPlayerComponent = forwardRef<MPVPlayerRef, MPVPlayerProps>((props, ref)
   const nativeRef = useRef<any>(null);
 
   const dispatchCommand = useCallback((commandName: string, args: any[] = []) => {
-    if (nativeRef.current && Platform.OS === 'android') {
-      const handle = findNodeHandle(nativeRef.current);
-      if (handle) {
-        UIManager.dispatchViewManagerCommand(
-          handle,
-          commandName,
-          args
-        );
+    const handle = findNodeHandle(nativeRef.current);
+    if (!handle) return;
+
+    if (Platform.OS === 'android') {
+      UIManager.dispatchViewManagerCommand(
+        handle,
+        commandName,
+        args
+      );
+    } else if (Platform.OS === 'ios' && MPVPlayerViewManager) {
+      // iOS uses native module methods
+      switch (commandName) {
+        case 'seek':
+          MPVPlayerViewManager.seek(handle, args[0]);
+          break;
+        case 'setAudioTrack':
+          MPVPlayerViewManager.setAudioTrack(handle, args[0]);
+          break;
+        case 'setSubtitleTrack':
+          MPVPlayerViewManager.setSubtitleTrack(handle, args[0]);
+          break;
       }
     }
   }, []);
@@ -98,8 +131,12 @@ const MPVPlayerComponent = forwardRef<MPVPlayerRef, MPVPlayerProps>((props, ref)
     },
   }), [dispatchCommand]);
 
-  // Fallback for iOS or if native component is not available
-  if (Platform.OS !== 'android' || !MpvPlayerNative) {
+  // Fallback if native component is not available
+  const NativePlayer = Platform.OS === 'ios' ? MpvPlayerIOS : MpvPlayerAndroid;
+  console.log('[MPVPlayerComponent] render - NativePlayer:', NativePlayer, 'Platform:', Platform.OS);
+
+  if (!NativePlayer) {
+    console.error('[MPVPlayerComponent] NativePlayer is null! Showing fallback view.');
     return (
       <View style={[styles.container, props.style, { backgroundColor: 'black' }]} />
     );
@@ -129,12 +166,21 @@ const MPVPlayerComponent = forwardRef<MPVPlayerRef, MPVPlayerProps>((props, ref)
     props.onTracksChanged?.(event?.nativeEvent);
   };
 
+  // Build source object for iOS (expects NSDictionary) vs Android (separate props)
+  const sourceProps = Platform.OS === 'ios'
+    ? { source: props.source }
+    : { source: props.source?.uri, headers: props.source?.headers };
+
+  // iOS uses subtitleTrack prop, Android uses native commands
+  const trackProps = Platform.OS === 'ios'
+    ? {}
+    : {};
+
   return (
-    <MpvPlayerNative
+    <NativePlayer
       ref={nativeRef}
       style={[styles.container, props.style]}
-      source={props.source?.uri}
-      headers={props.source?.headers}
+      {...sourceProps}
       paused={props.paused ?? true}
       volume={props.volume ?? 1.0}
       rate={props.rate ?? 1.0}
@@ -144,16 +190,20 @@ const MPVPlayerComponent = forwardRef<MPVPlayerRef, MPVPlayerProps>((props, ref)
       onEnd={handleEnd}
       onError={handleError}
       onTracksChanged={handleTracksChanged}
-      decoderMode={props.decoderMode ?? 'auto'}
-      gpuMode={props.gpuMode ?? 'gpu'}
-      // Subtitle Styling
+      // Android-specific props
+      {...(Platform.OS === 'android' ? {
+        decoderMode: props.decoderMode ?? 'auto',
+        gpuMode: props.gpuMode ?? 'gpu',
+        subtitleBackgroundOpacity: props.subtitleBackgroundOpacity ?? 0,
+        subtitleBorderColor: props.subtitleBorderColor ?? '#000000',
+        subtitleShadowEnabled: props.subtitleShadowEnabled ?? true,
+      } : {})}
+      // Subtitle Styling (shared)
       subtitleSize={props.subtitleSize ?? 48}
       subtitleColor={props.subtitleColor ?? '#FFFFFF'}
-      subtitleBackgroundOpacity={props.subtitleBackgroundOpacity ?? 0}
       subtitleBorderSize={props.subtitleBorderSize ?? 3}
-      subtitleBorderColor={props.subtitleBorderColor ?? '#000000'}
-      subtitleShadowEnabled={props.subtitleShadowEnabled ?? true}
       subtitlePosition={props.subtitlePosition ?? 100}
+      {...trackProps}
     />
   );
 });

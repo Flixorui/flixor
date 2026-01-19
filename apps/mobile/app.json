@@ -49,10 +49,13 @@
             "usesCleartextTraffic": true,
             "minSdkVersion": 26,
             "ndkVersion": "27.1.12297006"
+          },
+          "ios": {
+            "deploymentTarget": "15.1"
           }
         }
       ],
-      "./plugins/withKSPlayer",
+      "./plugins/withMPViOS",
       "./plugins/withMPVPlayer"
     ]
   }

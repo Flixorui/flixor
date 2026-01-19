@@ -1,22 +1,12 @@
 {
-  "originHash" : "acb133665d2c6f788337e013f765d84b5914388a89850cefa4b62ba80bc73458",
+  "originHash" : "c535d3cdb62bd4e11e67f3c9e68290fa7ee9306634c5f56d2b0396eb75ed41ee",
   "pins" : [
     {
-      "identity" : "ffmpegkit",
+      "identity" : "mpvkit",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/kingslay/FFmpegKit.git",
+      "location" : "https://github.com/edde746/MPVKit",
       "state" : {
-        "revision" : "85b77c589de0360c111de16752db86b60496d70b",
-        "version" : "6.1.3"
-      }
-    },
-    {
-      "identity" : "ksplayer",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/kingslay/KSPlayer.git",
-      "state" : {
-        "branch" : "main",
-        "revision" : "a7cddd878f557afa6a1f2faad9d756949406adde"
+        "revision" : "0d0931fbbb25a3483a7edb46babd3f2f55abeefc"
       }
     }
   ],

@@ -820,6 +820,9 @@ export async function convertPlexItemsToHero(
 
     // Enrich with TMDB data if we have an ID
     if (tmdbId && !isNaN(tmdbId)) {
+      // Update ID to use TMDB format for navigation
+      heroItem.id = `tmdb:${mediaType}:${tmdbId}`;
+
       try {
         const [poster, backdrop, logo, overview] = await Promise.all([
           getTmdbTextlessPoster(tmdbId, mediaType), // Use textless poster (iso_639_1 is null) for Carousel/Netflix

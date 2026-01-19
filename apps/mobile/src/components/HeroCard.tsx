@@ -15,13 +15,14 @@ type HeroCardProps = {
   hero: Hero;
   authHeaders?: Record<string, string>;
   onAdd?: () => void;
+  onPress?: () => void;
   inWatchlist?: boolean;
   watchlistLoading?: boolean;
 };
 
-function HeroCard({ hero, authHeaders, onAdd, inWatchlist = false, watchlistLoading = false }: HeroCardProps) {
+function HeroCard({ hero, authHeaders, onAdd, onPress, inWatchlist = false, watchlistLoading = false }: HeroCardProps) {
   return (
-    <View style={{ paddingHorizontal: 16, marginTop: 8 }}>
+    <Pressable onPress={onPress} style={{ paddingHorizontal: 16, marginTop: 8 }}>
       <View style={{ borderRadius: 12, overflow: 'hidden', backgroundColor: '#111', shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 8 }}>
         {/* Image container - wider aspect ratio like Netflix hero cards */}
         <View style={{ width: '100%', aspectRatio: 0.78 }}>
@@ -109,7 +110,7 @@ function HeroCard({ hero, authHeaders, onAdd, inWatchlist = false, watchlistLoad
           ) : null}
         </View>
       </View>
-    </View>
+    </Pressable>
   );
 }
 

@@ -3,7 +3,27 @@ import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Modal, Platform }
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAppSettings } from '../hooks/useAppSettings';
-import type { AudioTrack, TextTrack } from './player';
+// Local track types for settings sheet (compatible with MPV track format)
+type AudioTrack = {
+  id: number;
+  index: number;
+  name: string;
+  language: string;
+  languageCode: string;
+  isEnabled: boolean;
+  bitRate: number;
+  bitDepth: number;
+};
+
+type TextTrack = {
+  id: number;
+  index: number;
+  name: string;
+  language: string;
+  languageCode: string;
+  isEnabled: boolean;
+  isImageSubtitle?: boolean;
+};
 
 export type Stream = {
   id: string;

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, StatusBar, Dimensions, Platform, NativeModules } from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, StatusBar, Dimensions, Platform, NativeModules, findNodeHandle } from 'react-native';
 import { Video, ResizeMode, AVPlaybackStatus, Audio } from 'expo-av';
 import FastImage from '@d11/react-native-fast-image';
 import Slider from '@react-native-community/slider';
@@ -7,7 +7,29 @@ import { useNavigation, StackActions } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { LinearGradient } from 'expo-linear-gradient';
-import { KSPlayerComponent, KSPlayerRef, AudioTrack, TextTrack, MPVPlayerComponent, MPVPlayerRef, MPVAudioTrack, MPVSubtitleTrack } from '../components/player';
+import { MPVPlayerComponent, MPVPlayerRef, MPVAudioTrack, MPVSubtitleTrack } from '../components/player';
+
+// Track types (unified for both iOS and Android MPV)
+type AudioTrack = {
+  id: number;
+  index: number;
+  name: string;
+  language: string;
+  languageCode: string;
+  isEnabled: boolean;
+  bitRate: number;
+  bitDepth: number;
+};
+
+type TextTrack = {
+  id: number;
+  index: number;
+  name: string;
+  language: string;
+  languageCode: string;
+  isEnabled: boolean;
+  isImageSubtitle?: boolean;
+};
 import PlaybackStatsHUD from '../components/player/PlaybackStatsHUD';
 import { Stream, PlaybackInfo } from '../components/PlayerSettingsSheet';
 import { useFlixor } from '../core/FlixorContext';
@@ -53,17 +75,16 @@ type RouteParams = {
 export default function Player({ route }: RouteParams) {
   const params: Partial<PlayerParams> = route?.params || {};
   const nav = useNavigation();
-  const playerRef = useRef<KSPlayerRef>(null);
-  const mpvPlayerRef = useRef<MPVPlayerRef>(null); // Android MPV player
+  const mpvPlayerRef = useRef<MPVPlayerRef>(null); // Unified MPV player (iOS + Android)
   const videoRef = useRef<Video>(null); // expo-av fallback (unused with MPV)
   const { isLoading: flixorLoading, isConnected } = useFlixor();
   const { settings } = useAppSettings();
-  const KSPlayerModule = Platform.OS === 'ios' ? NativeModules.KSPlayerModule : null;
+  const MPVPlayerModule = NativeModules.MPVPlayerModule; // Native module for async methods
 
   // Multi-version support: which Media to use
   const selectedMediaIndex = params.mediaIndex ?? 0;
 
-  // Track selection state (iOS KSPlayer only)
+  // Track selection state (MPV player - iOS + Android)
   const [audioTracks, setAudioTracks] = useState<AudioTrack[]>([]);
   const [textTracks, setTextTracks] = useState<TextTrack[]>([]);
   const audioTracksRef = useRef<AudioTrack[]>([]);
@@ -115,7 +136,7 @@ export default function Player({ route }: RouteParams) {
   // Direct play mode - allows in-player track switching
   const [isDirectPlay, setIsDirectPlay] = useState(false);
 
-  // Player backend (KSMEPlayer for MKV, KSAVPlayer for HLS)
+  // Player backend (MPV for both iOS and Android)
   const [playerBackend, setPlayerBackend] = useState<string>('');
 
   // HDR info from native player or Plex metadata
@@ -199,11 +220,8 @@ export default function Player({ route }: RouteParams) {
     if (progressInterval.current) clearInterval(progressInterval.current);
     if (controlsTimeout.current) clearTimeout(controlsTimeout.current);
     try {
-      if (Platform.OS === 'ios') {
-        playerRef.current?.setPaused(true);
-      } else {
-        await videoRef.current?.stopAsync?.();
-      }
+      // MPV player is controlled via state (paused prop), not direct method
+      // Just letting the component unmount will stop playback
     } catch {}
   }, []);
 
@@ -405,9 +423,8 @@ export default function Player({ route }: RouteParams) {
           if (part?.key) {
             console.log(`[Player] Media: container=${media?.container}, videoCodec=${media?.videoCodec}`);
 
-            // iOS with KSPlayer: Try Direct Play first (allows in-player track switching)
-            // But fall back to HLS transcode for high-bandwidth audio codecs that cause choppy playback
-            // Android with expo-av: Use HLS transcode (limited codec support)
+            // iOS/Android with MPV: Try Direct Play first (allows in-player track switching)
+            // But fall back to HLS transcode for high-bandwidth audio codecs
             if (Platform.OS === 'ios') {
               // Check if audio codec requires transcoding (high-bandwidth lossless codecs)
               const audioCodec = (media?.audioCodec || '').toLowerCase();
@@ -585,9 +602,8 @@ export default function Player({ route }: RouteParams) {
     })();
 
     return () => {
-      // Restore TopBar and TabBar when Player is closed
-      TopBarStore.setVisible(true);
-      TopBarStore.setTabBarVisible(true);
+      // Don't restore TopBar/TabBar here - let the destination screen manage its own state
+      // via useFocusEffect to avoid flashing TopBar on Details screen
 
       // Cleanup
       (async () => {
@@ -725,24 +741,15 @@ export default function Player({ route }: RouteParams) {
               await ScreenOrientation.unlockAsync();
             }
           } catch {}
-          try {
-            if (Platform.OS === 'ios') {
-              playerRef.current?.setPaused(false);
-            } else {
-              await videoRef.current?.playAsync?.();
-            }
-          } catch {}
+          // MPV player auto-starts via paused prop, no manual action needed
         }
       } catch {}
     });
 
     const blurSub = nav.addListener('blur', async () => {
       try {
-        if (Platform.OS === 'ios') {
-          playerRef.current?.setPaused(true);
-        } else {
-          await videoRef.current?.pauseAsync?.();
-        }
+        // MPV player will pause via state change when screen loses focus
+        setIsPlaying(false);
       } catch {}
     });
 
@@ -954,18 +961,17 @@ export default function Player({ route }: RouteParams) {
     }
   }, [metadata, duration, position, markers, nav, settings.creditsCountdownFallback]);
 
-  // KSPlayer event handlers
+  // MPV Player event handlers (unified for iOS and Android)
   const onPlayerLoad = useCallback(async (data: any) => {
-    console.log('[Player] KSPlayer onLoad:', data);
+    console.log('[Player] MPV onLoad:', data);
     const durationMs = (data.duration || 0) * 1000;
     setDuration(durationMs);
     durationRef.current = durationMs;
 
-    // Capture player backend
-    if (data.playerBackend) {
-      setPlayerBackend(data.playerBackend);
-      console.log('[Player] Player backend:', data.playerBackend);
-    }
+    // Capture player backend (default to MPV)
+    const backend = data.playerBackend || 'MPV';
+    setPlayerBackend(backend);
+    console.log('[Player] Player backend:', backend);
 
     // Capture HDR info from native player
     if (data.hdrType) {
@@ -987,9 +993,9 @@ export default function Player({ route }: RouteParams) {
     if (data.nativeLogPath) {
       console.log('[Player] Native log path:', data.nativeLogPath);
     }
-    if (KSPlayerModule?.getNativeLog) {
+    if (MPVPlayerModule?.getNativeLog) {
       try {
-        const nativeLog = await KSPlayerModule.getNativeLog();
+        const nativeLog = await MPVPlayerModule.getNativeLog();
         if (nativeLog) {
           console.log('[Player] Native log content (tail):\n' + nativeLog);
         } else {
@@ -1024,9 +1030,9 @@ export default function Player({ route }: RouteParams) {
     // Resume from viewOffset if available
     if (metadata?.viewOffset) {
       const resumeMs = parseInt(String(metadata.viewOffset));
-      if (resumeMs > 0 && playerRef.current) {
+      if (resumeMs > 0 && mpvPlayerRef.current) {
         console.log('[Player] Resuming from viewOffset:', resumeMs);
-        playerRef.current.seek(resumeMs / 1000); // KSPlayer uses seconds
+        mpvPlayerRef.current.seek(resumeMs / 1000); // MPV uses seconds
       }
     }
 
@@ -1085,7 +1091,7 @@ export default function Player({ route }: RouteParams) {
   }, []);
 
   const onPlayerEnd = useCallback(() => {
-    console.log('[Player] KSPlayer onEnd');
+    console.log('[Player] MPV onEnd');
     setIsPlaying(false);
 
     // Stop Trakt scrobble
@@ -1096,8 +1102,17 @@ export default function Player({ route }: RouteParams) {
   }, [metadata]);
 
   const onPlayerError = useCallback((error: any) => {
-    console.error('[Player] KSPlayer onError:', error);
-    setError(`Playback error: ${error.message || error.error || 'Unknown error'}`);
+    const errorMessage = error?.error || error?.message || 'Unknown error';
+    console.log('[Player] MPV onError:', errorMessage);
+
+    // Don't show UI error for debug messages
+    if (errorMessage.startsWith('DEBUG:')) {
+      console.log('[Player] DEBUG from native:', errorMessage);
+      return;
+    }
+
+    console.error('[Player] Actual playback error:', errorMessage);
+    setError(`Playback error: ${errorMessage}`);
   }, []);
 
   // expo-av playback status handler (Android fallback)
@@ -1136,64 +1151,7 @@ export default function Player({ route }: RouteParams) {
     }
   }, [isScrubbing, isPlaying, metadata]);
 
-  // MPV Player callbacks (Android)
-  const onMpvLoad = useCallback((data: { duration: number; width: number; height: number }) => {
-    console.log('[Player] MPV onLoad:', data);
-    const durationMs = (data.duration || 0) * 1000;
-    setDuration(durationMs);
-    durationRef.current = durationMs;
-
-    // Set player backend for UI display
-    setPlayerBackend('MPV');
-
-    // Resume from viewOffset if available
-    if (metadata?.viewOffset) {
-      const resumeMs = parseInt(String(metadata.viewOffset));
-      if (resumeMs > 0 && mpvPlayerRef.current) {
-        console.log('[Player] Resuming from viewOffset:', resumeMs);
-        mpvPlayerRef.current.seek(resumeMs / 1000);
-      }
-    }
-
-    // Start Trakt scrobble
-    if (metadata && !traktScrobbleStarted.current) {
-      startTraktScrobble(metadata, 0);
-      traktScrobbleStarted.current = true;
-      lastScrobbleState.current = 'playing';
-    }
-  }, [metadata]);
-
-  const onMpvProgress = useCallback((data: { currentTime: number; duration: number }) => {
-    const currentTimeMs = (data.currentTime || 0) * 1000;
-    const durationMs = (data.duration || 0) * 1000;
-
-    positionRef.current = currentTimeMs;
-
-    if (!isScrubbing) {
-      setPosition(currentTimeMs);
-    }
-
-    if (durationMs > 0 && Math.abs(durationMs - durationRef.current) > 100) {
-      setDuration(durationMs);
-      durationRef.current = durationMs;
-    }
-  }, [isScrubbing]);
-
-  const onMpvEnd = useCallback(() => {
-    console.log('[Player] MPV onEnd');
-    setIsPlaying(false);
-
-    if (traktScrobbleStarted.current && metadata) {
-      stopTraktScrobble(metadata, 100);
-      lastScrobbleState.current = 'stopped';
-    }
-  }, [metadata]);
-
-  const onMpvError = useCallback((error: { error: string }) => {
-    console.error('[Player] MPV onError:', error);
-    setError(`Playback error: ${error.error || 'Unknown error'}`);
-  }, []);
-
+  // MPV tracks changed callback (for both iOS and Android)
   const onMpvTracksChanged = useCallback((data: { audioTracks: MPVAudioTrack[]; subtitleTracks: MPVSubtitleTrack[] }) => {
     console.log('[Player] MPV onTracksChanged:', data);
 
@@ -1233,27 +1191,15 @@ export default function Player({ route }: RouteParams) {
   }, []);
 
   const togglePlayPause = async () => {
-    if (Platform.OS === 'ios') {
-      if (!playerRef.current) return;
-      playerRef.current.setPaused(isPlaying);
-    } else {
-      // Android: MPV player
-      // Note: MPV paused prop is controlled via state, not direct method call
-      // The component re-renders with updated paused prop
-      setIsPlaying(!isPlaying);
-    }
+    // MPV player paused prop is controlled via state
+    // The component re-renders with updated paused prop
+    setIsPlaying(!isPlaying);
   };
 
   const skip = async (seconds: number) => {
     const newPositionMs = Math.max(0, Math.min(duration, position + seconds * 1000));
-    if (Platform.OS === 'ios') {
-      if (!playerRef.current) return;
-      playerRef.current.seek(newPositionMs / 1000); // KSPlayer uses seconds
-    } else {
-      // Android: MPV player
-      if (!mpvPlayerRef.current) return;
-      mpvPlayerRef.current.seek(newPositionMs / 1000); // MPV uses seconds
-    }
+    if (!mpvPlayerRef.current) return;
+    mpvPlayerRef.current.seek(newPositionMs / 1000); // MPV uses seconds
   };
 
   const skipMarker = async (marker: { id?: number | string; type: string; startTimeOffset: number; endTimeOffset: number }) => {
@@ -1268,28 +1214,15 @@ export default function Player({ route }: RouteParams) {
     setAutoSkipCountdown(null);
 
     const targetMs = marker.endTimeOffset + 1000;
-    if (Platform.OS === 'ios') {
-      if (!playerRef.current) return;
-      playerRef.current.seek(targetMs / 1000); // KSPlayer uses seconds
-    } else {
-      // Android: MPV player
-      if (!mpvPlayerRef.current) return;
-      mpvPlayerRef.current.seek(targetMs / 1000); // MPV uses seconds
-    }
+    if (!mpvPlayerRef.current) return;
+    mpvPlayerRef.current.seek(targetMs / 1000); // MPV uses seconds
     console.log(`[Player] Skipped ${marker.type} to ${targetMs}ms`);
   };
 
   const restart = async () => {
-    if (Platform.OS === 'ios') {
-      if (!playerRef.current) return;
-      playerRef.current.seek(0);
-      playerRef.current.setPaused(false);
-    } else {
-      // Android: MPV player
-      if (!mpvPlayerRef.current) return;
-      mpvPlayerRef.current.seek(0);
-      setIsPlaying(true);
-    }
+    if (!mpvPlayerRef.current) return;
+    mpvPlayerRef.current.seek(0);
+    setIsPlaying(true);
   };
 
   // Track selection handlers (native player tracks by ID)
@@ -1301,18 +1234,10 @@ export default function Player({ route }: RouteParams) {
     }
     lastAudioTrackRef.current = trackId;
 
-    if (Platform.OS === 'ios') {
-      if (playerRef.current) {
-        console.log('[Player] Setting audio track (KSPlayer):', trackId);
-        playerRef.current.setAudioTrack(trackId);
-        setSelectedAudioTrack(trackId);
-      }
-    } else {
-      if (mpvPlayerRef.current) {
-        console.log('[Player] Setting audio track (MPV):', trackId);
-        mpvPlayerRef.current.setAudioTrack(trackId);
-        setSelectedAudioTrack(trackId);
-      }
+    if (mpvPlayerRef.current) {
+      console.log('[Player] Setting audio track (MPV):', trackId);
+      mpvPlayerRef.current.setAudioTrack(trackId);
+      setSelectedAudioTrack(trackId);
     }
   }, []);
 
@@ -1324,18 +1249,10 @@ export default function Player({ route }: RouteParams) {
     }
     lastTextTrackRef.current = trackId;
 
-    if (Platform.OS === 'ios') {
-      if (playerRef.current) {
-        console.log('[Player] Setting text track (KSPlayer):', trackId);
-        playerRef.current.setTextTrack(trackId);
-        setSelectedTextTrack(trackId);
-      }
-    } else {
-      if (mpvPlayerRef.current) {
-        console.log('[Player] Setting subtitle track (MPV):', trackId);
-        mpvPlayerRef.current.setSubtitleTrack(trackId);
-        setSelectedTextTrack(trackId);
-      }
+    if (mpvPlayerRef.current) {
+      console.log('[Player] Setting subtitle track (MPV):', trackId);
+      mpvPlayerRef.current.setSubtitleTrack(trackId);
+      setSelectedTextTrack(trackId);
     }
   }, []);
 
@@ -1405,20 +1322,8 @@ export default function Player({ route }: RouteParams) {
     setShowSettingsSheet(false);
 
     if (isDirectPlay) {
-      // Direct Play: Use in-player track switching (iOS KSPlayer or Android MPV)
+      // Direct Play: Use in-player track switching (MPV)
       let availableAudioTracks = audioTracksRef.current.length ? audioTracksRef.current : audioTracks;
-
-      // iOS: Try to refresh tracks from KSPlayer if needed
-      if (Platform.OS === 'ios' && availableAudioTracks.length === 0 && playerRef.current) {
-        try {
-          const freshTracks = await playerRef.current.getTracks();
-          availableAudioTracks = freshTracks.audioTracks || [];
-          audioTracksRef.current = availableAudioTracks;
-          setAudioTracks(availableAudioTracks);
-        } catch (err) {
-          console.warn('[Player] Failed to refresh KSPlayer audio tracks:', err);
-        }
-      }
 
       // Find the Plex stream index - this is the most reliable way to match
       // since Plex streams and native player tracks are typically in the same order
@@ -1478,20 +1383,8 @@ export default function Player({ route }: RouteParams) {
     setShowSettingsSheet(false);
 
     if (isDirectPlay) {
-      // Direct Play: Use in-player track switching (iOS KSPlayer or Android MPV)
+      // Direct Play: Use in-player track switching (MPV)
       let availableTextTracks = textTracksRef.current.length ? textTracksRef.current : textTracks;
-
-      // iOS: Try to refresh tracks from KSPlayer if needed
-      if (Platform.OS === 'ios' && availableTextTracks.length === 0 && playerRef.current) {
-        try {
-          const freshTracks = await playerRef.current.getTracks();
-          availableTextTracks = freshTracks.textTracks || [];
-          textTracksRef.current = availableTextTracks;
-          setTextTracks(availableTextTracks);
-        } catch (err) {
-          console.warn('[Player] Failed to refresh KSPlayer tracks:', err);
-        }
-      }
 
       if (streamId === '0') {
         // Disable subtitles
@@ -1615,51 +1508,30 @@ export default function Player({ route }: RouteParams) {
     <View style={styles.container}>
       <StatusBar hidden />
 
+      {/* Unified MPV Player (iOS + Android) */}
       {streamUrl ? (
-        Platform.OS === 'ios' ? (
-          <KSPlayerComponent
-            ref={playerRef}
-            source={{ uri: streamUrl }}
-            style={{ width: dimensions.width, height: dimensions.height }}
-            resizeMode="contain"
-            paused={false}
-            volume={1.0}
-            rate={1.0}
-            allowsExternalPlayback={true}
-            usesExternalPlaybackWhileExternalScreenIsActive={true}
-            onLoad={onPlayerLoad}
-            onProgress={onPlayerProgress}
-            onBuffering={onPlayerBuffering}
-            onEnd={onPlayerEnd}
-            onError={onPlayerError}
-          />
-        ) : (
-          // Android: MPV native player
-          <MPVPlayerComponent
-            ref={mpvPlayerRef}
-            source={{ uri: streamUrl }}
-            style={{ width: dimensions.width, height: dimensions.height }}
-            resizeMode="contain"
-            paused={!isPlaying}
-            volume={1.0}
-            rate={1.0}
-            decoderMode="auto"
-            onLoad={onMpvLoad}
-            onProgress={onMpvProgress}
-            onEnd={onMpvEnd}
-            onError={onMpvError}
-            onTracksChanged={onMpvTracksChanged}
-          />
-        )
+        <MPVPlayerComponent
+          ref={mpvPlayerRef}
+          source={{ uri: streamUrl }}
+          style={{ width: dimensions.width, height: dimensions.height }}
+          resizeMode="contain"
+          paused={!isPlaying}
+          volume={1.0}
+          rate={1.0}
+          decoderMode="auto"
+          onLoad={onPlayerLoad}
+          onProgress={onPlayerProgress}
+          onEnd={onPlayerEnd}
+          onError={onPlayerError}
+          onTracksChanged={onMpvTracksChanged}
+        />
       ) : null}
 
       {/* Developer Stats HUD (long press play button to toggle) */}
-      {Platform.OS === 'ios' && (
-        <PlaybackStatsHUD
-          playerRef={playerRef}
-          visible={showStatsHUD}
-        />
-      )}
+      <PlaybackStatsHUD
+        playerRef={mpvPlayerRef}
+        visible={showStatsHUD}
+      />
 
       {/* Background tap area to show/hide controls */}
       <View style={styles.tapArea} pointerEvents="box-none">
@@ -1692,7 +1564,13 @@ export default function Player({ route }: RouteParams) {
                   {Platform.OS === 'ios' && (
                     <TouchableOpacity
                       style={styles.iconButton}
-                      onPress={() => playerRef.current?.showAirPlayPicker()}
+                      onPress={() => {
+                        // Call via native module since MPV doesn't expose this as a ref method
+                        const nodeHandle = findNodeHandle(mpvPlayerRef.current as any);
+                        if (nodeHandle) {
+                          NativeModules.MPVPlayerViewManager?.showAirPlayPicker(nodeHandle);
+                        }
+                      }}
                     >
                       <Ionicons name="tv-outline" size={24} color="#fff" />
                     </TouchableOpacity>
@@ -1757,11 +1635,7 @@ export default function Player({ route }: RouteParams) {
                   onValueChange={(val: number) => setPosition(val)}
                   onSlidingComplete={(val: number) => {
                     const targetMs = Math.max(0, Math.min(duration, val));
-                    if (Platform.OS === 'ios') {
-                      playerRef.current?.seek(targetMs / 1000); // KSPlayer uses seconds
-                    } else {
-                      mpvPlayerRef.current?.seek(targetMs / 1000); // MPV uses seconds
-                    }
+                    mpvPlayerRef.current?.seek(targetMs / 1000); // MPV uses seconds
                     setIsScrubbing(false);
                   }}
                 />
@@ -1886,7 +1760,7 @@ export default function Player({ route }: RouteParams) {
         selectedSubtitle={selectedPlexSubtitle}
         onAudioChange={handlePlexAudioChange}
         onSubtitleChange={handlePlexSubtitleChange}
-        // KSPlayer tracks (iOS) - as fallback if Plex streams not available
+        // MPV tracks - as fallback if Plex streams not available
         ksAudioTracks={plexAudioStreams.length === 0 ? audioTracks : []}
         ksTextTracks={plexSubtitleStreams.length === 0 ? textTracks : []}
         selectedKsAudioTrack={selectedAudioTrack}
@@ -1906,7 +1780,7 @@ export default function Player({ route }: RouteParams) {
           audioCodec: metadata?.Media?.[selectedMediaIndex]?.audioCodec,
           audioChannels: metadata?.Media?.[selectedMediaIndex]?.audioChannels?.toString() + ' channels',
           container: metadata?.Media?.[selectedMediaIndex]?.container,
-          playerBackend: playerBackend || (Platform.OS === 'ios' ? 'KSPlayer' : 'expo-av'),
+          playerBackend: playerBackend || 'MPV',
           // HDR info - prefer native detection, fallback to Plex metadata
           hdrType: (hdrType as PlaybackInfo['hdrType']) || (() => {
             // Fallback: detect HDR from Plex video stream metadata

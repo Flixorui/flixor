@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { View, Text, ActivityIndicator, ScrollView, Pressable, Dimensions, StyleSheet, Linking, Alert, Image, FlatList } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Row from '../components/Row';
@@ -12,7 +12,7 @@ import { TechBadge, ContentRatingBadge } from '../components/badges';
 import PersonModal from '../components/PersonModal';
 import RequestButton from '../components/RequestButton';
 import VersionPicker, { MediaVersion, parseVersionDetails } from '../components/VersionPicker';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { TopBarStore } from '../components/TopBarStore';
 import { useFlixor } from '../core/FlixorContext';
 import { useAppSettings } from '../hooks/useAppSettings';
@@ -134,13 +134,14 @@ export default function Details({ route }: RouteParams) {
     meta?.type === 'movie' ? 'movie' : 'show'
   );
 
-  useEffect(() => {
-    // Hide TopBar and TabBar when Details screen is shown
-    TopBarStore.setVisible(false);
-    TopBarStore.setTabBarVisible(false);
-    // No cleanup - let underlying screens (Home/Browse) manage their own TopBar state
-    // via useFocusEffect to avoid flash when returning
-  }, []);
+  // Hide TopBar and TabBar when Details screen is focused (including when returning from Player)
+  useFocusEffect(
+    useCallback(() => {
+      TopBarStore.setVisible(false);
+      TopBarStore.setTabBarVisible(false);
+      // No cleanup - let underlying screens (Home/Browse) manage their own TopBar state
+    }, [])
+  );
 
   useEffect(() => {
     if (flixorLoading || !isConnected) return;
@@ -705,7 +706,7 @@ export default function Details({ route }: RouteParams) {
         scrollEventThrottle={16}
         onScroll={(e:any) => { scrollYRef.current = e.nativeEvent.contentOffset.y; }}
         bounces={false}
-        contentContainerStyle={{ paddingBottom: 32 }}
+        contentContainerStyle={{ paddingBottom: 32 + insets.bottom }}
       >
         {/* Hero backdrop */}
         <View style={{ marginBottom: 12 }}>

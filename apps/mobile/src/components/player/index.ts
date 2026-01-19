@@ -1,12 +1,11 @@
 /**
  * Player components index
+ *
+ * MPV is now the unified player for both iOS and Android:
+ * - iOS: MPVKit (libmpv) with Metal/Vulkan rendering
+ * - Android: Native MPV with OpenGL/Vulkan rendering
  */
 
-// iOS Player (KSPlayer)
-export { default as KSPlayerComponent } from './KSPlayerComponent';
-export type { KSPlayerRef, KSPlayerProps, KSPlayerSource, AudioTrack, TextTrack } from './KSPlayerComponent';
-export { useKSPlayer } from './useKSPlayer';
-
-// Android Player (MPV)
+// Unified MPV Player (iOS + Android)
 export { default as MPVPlayerComponent } from './MPVPlayerComponent';
 export type { MPVPlayerRef, MPVPlayerProps, MPVPlayerSource, MPVAudioTrack, MPVSubtitleTrack } from './MPVPlayerComponent';

@@ -3,10 +3,14 @@
 <plist version="1.0">
   <dict>
     <key>EXUpdatesCheckOnLaunch</key>
-    <string>ALWAYS</string>
+    <string>NEVER</string>
     <key>EXUpdatesEnabled</key>
-    <false/>
+    <true/>
     <key>EXUpdatesLaunchWaitMs</key>
-    <integer>0</integer>
+    <integer>30000</integer>
+    <key>EXUpdatesRuntimeVersion</key>
+    <string>0.1.8</string>
+    <key>EXUpdatesURL</key>
+    <string>https://ota.flixor.xyz/api/manifest</string>
   </dict>
 </plist>
