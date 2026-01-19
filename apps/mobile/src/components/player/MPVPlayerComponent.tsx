@@ -29,12 +29,10 @@ if (Platform.OS === 'ios') {
   }
 }
 
-// Native module for iOS imperative commands
+// Native module for iOS imperative commands and async methods
 const MPVPlayerViewManager = Platform.OS === 'ios'
   ? NativeModules.MPVPlayerViewManager
   : null;
-
-console.log('[MPVPlayerComponent] MPVPlayerViewManager module:', MPVPlayerViewManager);
 
 export interface MPVAudioTrack {
   id: number;
@@ -50,10 +48,66 @@ export interface MPVSubtitleTrack {
   codec: string;
 }
 
+export interface PerformanceStats {
+  // Basic playback
+  currentTime?: number;
+  duration?: number;
+  isPaused?: boolean;
+  isBuffering?: boolean;
+
+  // Video metrics
+  videoWidth?: number;
+  videoHeight?: number;
+  videoCodec?: string;
+  containerFps?: number;
+  actualFps?: number;
+  videoBitrate?: number;
+  hwdecCurrent?: string;
+  aspectName?: string;
+  rotate?: number;
+
+  // Color/Format metrics
+  pixelformat?: string;
+  hwPixelformat?: string;
+  colormatrix?: string;
+  primaries?: string;
+  gamma?: string;
+
+  // HDR metadata
+  maxLuma?: number;
+  minLuma?: number;
+  maxCll?: number;
+  maxFall?: number;
+
+  // Audio metrics
+  audioCodec?: string;
+  audioSamplerate?: number;
+  audioChannels?: string;
+  audioBitrate?: number;
+
+  // Performance metrics
+  displayFps?: number;
+  avsyncChange?: number;
+  frameDropCount?: number;
+  decoderFrameDropCount?: number;
+
+  // Buffer metrics
+  cacheUsed?: number;
+  cacheSpeed?: number;
+  cacheDuration?: number;
+
+  // Aspect ratio mode
+  aspectRatioMode?: number;
+}
+
 export interface MPVPlayerRef {
   seek: (positionSeconds: number) => void;
   setAudioTrack: (trackId: number) => void;
   setSubtitleTrack: (trackId: number) => void;
+  getPerformanceStats: () => Promise<PerformanceStats>;
+  cycleAspectRatio: () => Promise<number>;
+  getAspectRatioMode: () => Promise<number>;
+  showAirPlayPicker: () => void;
 }
 
 export interface MPVPlayerSource {
@@ -129,11 +183,63 @@ const MPVPlayerComponent = forwardRef<MPVPlayerRef, MPVPlayerProps>((props, ref)
     setSubtitleTrack: (trackId: number) => {
       dispatchCommand('setSubtitleTrack', [trackId]);
     },
+    getPerformanceStats: async (): Promise<PerformanceStats> => {
+      const handle = findNodeHandle(nativeRef.current);
+      if (!handle) return {};
+
+      if (Platform.OS === 'ios' && MPVPlayerViewManager) {
+        try {
+          return await MPVPlayerViewManager.getPerformanceStats(handle);
+        } catch (e) {
+          console.error('[MPVPlayer] getPerformanceStats error:', e);
+          return {};
+        }
+      }
+      // TODO: Add Android support
+      return {};
+    },
+    cycleAspectRatio: async (): Promise<number> => {
+      const handle = findNodeHandle(nativeRef.current);
+      if (!handle) return 0;
+
+      if (Platform.OS === 'ios' && MPVPlayerViewManager) {
+        try {
+          return await MPVPlayerViewManager.cycleAspectRatio(handle);
+        } catch (e) {
+          console.error('[MPVPlayer] cycleAspectRatio error:', e);
+          return 0;
+        }
+      }
+      // TODO: Add Android support
+      return 0;
+    },
+    getAspectRatioMode: async (): Promise<number> => {
+      const handle = findNodeHandle(nativeRef.current);
+      if (!handle) return 0;
+
+      if (Platform.OS === 'ios' && MPVPlayerViewManager) {
+        try {
+          return await MPVPlayerViewManager.getAspectRatioMode(handle);
+        } catch (e) {
+          console.error('[MPVPlayer] getAspectRatioMode error:', e);
+          return 0;
+        }
+      }
+      // TODO: Add Android support
+      return 0;
+    },
+    showAirPlayPicker: () => {
+      const handle = findNodeHandle(nativeRef.current);
+      if (!handle) return;
+
+      if (Platform.OS === 'ios' && MPVPlayerViewManager) {
+        MPVPlayerViewManager.showAirPlayPicker(handle);
+      }
+    },
   }), [dispatchCommand]);
 
   // Fallback if native component is not available
   const NativePlayer = Platform.OS === 'ios' ? MpvPlayerIOS : MpvPlayerAndroid;
-  console.log('[MPVPlayerComponent] render - NativePlayer:', NativePlayer, 'Platform:', Platform.OS);
 
   if (!NativePlayer) {
     console.error('[MPVPlayerComponent] NativePlayer is null! Showing fallback view.');

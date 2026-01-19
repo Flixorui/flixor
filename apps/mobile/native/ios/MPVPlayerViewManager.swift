@@ -139,4 +139,41 @@ class MPVPlayerViewManager: RCTViewManager {
             }
         }
     }
+
+    // MARK: - Performance Stats
+
+    @objc func getPerformanceStats(_ node: NSNumber, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
+        DispatchQueue.main.async {
+            if let view = self.bridge.uiManager.view(forReactTag: node) as? MPVPlayerView {
+                let stats = view.getPerformanceStats()
+                resolve(stats)
+            } else {
+                reject("NO_VIEW", "MPVPlayerView not found", nil)
+            }
+        }
+    }
+
+    // MARK: - Aspect Ratio
+
+    @objc func cycleAspectRatio(_ node: NSNumber, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
+        DispatchQueue.main.async {
+            if let view = self.bridge.uiManager.view(forReactTag: node) as? MPVPlayerView {
+                let newMode = view.cycleAspectRatio()
+                resolve(newMode)
+            } else {
+                reject("NO_VIEW", "MPVPlayerView not found", nil)
+            }
+        }
+    }
+
+    @objc func getAspectRatioMode(_ node: NSNumber, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
+        DispatchQueue.main.async {
+            if let view = self.bridge.uiManager.view(forReactTag: node) as? MPVPlayerView {
+                let mode = view.getAspectRatioMode()
+                resolve(mode)
+            } else {
+                reject("NO_VIEW", "MPVPlayerView not found", nil)
+            }
+        }
+    }
 }

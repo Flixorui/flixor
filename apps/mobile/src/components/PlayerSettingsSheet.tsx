@@ -55,6 +55,31 @@ export type PlaybackInfo = {
   colorSpace?: string;
   colorPrimaries?: string;
   colorTransfer?: string;
+  // Extended performance stats (from MPV)
+  decoder?: string; // Hardware decoder name
+  containerFps?: number;
+  actualFps?: number;
+  displayFps?: number;
+  aspectName?: string;
+  rotate?: number;
+  pixelFormat?: string;
+  hwPixelFormat?: string;
+  colorMatrix?: string;
+  // HDR metadata
+  maxLuma?: number;
+  minLuma?: number;
+  maxCll?: number;
+  maxFall?: number;
+  // Audio extended
+  audioSampleRate?: number;
+  audioBitrate?: number;
+  // Performance
+  avSync?: number;
+  droppedFrames?: number;
+  // Buffer
+  cacheDuration?: number;
+  cacheUsed?: number;
+  cacheSpeed?: number;
 };
 
 type PlayerSettingsSheetProps = {
@@ -355,11 +380,12 @@ export default function PlayerSettingsSheet({
                     <Text style={styles.emptyText}>No playback info available</Text>
                   ) : (
                     <>
-                      {/* Playback Mode */}
+                      {/* Playback Section */}
+                      <Text style={styles.infoSectionTitle}>Playback</Text>
                       <View style={styles.infoRow}>
                         <View style={styles.infoLabel}>
                           <Ionicons name="play-circle" size={18} color="#888" />
-                          <Text style={styles.infoLabelText}>Playback Mode</Text>
+                          <Text style={styles.infoLabelText}>Mode</Text>
                         </View>
                         <View style={[styles.infoBadge, playbackInfo.isDirectPlay ? styles.infoBadgeSuccess : styles.infoBadgeWarning]}>
                           <Text style={styles.infoBadgeText}>
@@ -367,19 +393,71 @@ export default function PlayerSettingsSheet({
                           </Text>
                         </View>
                       </View>
-
-                      {/* Player Backend */}
                       {playbackInfo.playerBackend && (
                         <View style={styles.infoRow}>
                           <View style={styles.infoLabel}>
                             <Ionicons name="hardware-chip" size={18} color="#888" />
-                            <Text style={styles.infoLabelText}>Player Backend</Text>
+                            <Text style={styles.infoLabelText}>Backend</Text>
                           </View>
                           <Text style={styles.infoValue}>{playbackInfo.playerBackend}</Text>
                         </View>
                       )}
+                      {playbackInfo.decoder && (
+                        <View style={styles.infoRow}>
+                          <View style={styles.infoLabel}>
+                            <Ionicons name="hardware-chip-outline" size={18} color="#888" />
+                            <Text style={styles.infoLabelText}>Decoder</Text>
+                          </View>
+                          <View style={[styles.infoBadge, playbackInfo.decoder !== 'Software' ? styles.infoBadgeSuccess : styles.infoBadgeWarning]}>
+                            <Text style={styles.infoBadgeText}>{playbackInfo.decoder}</Text>
+                          </View>
+                        </View>
+                      )}
 
-                      {/* Container */}
+                      {/* Video Section */}
+                      <Text style={styles.infoSectionTitle}>Video</Text>
+                      {playbackInfo.videoCodec && (
+                        <View style={styles.infoRow}>
+                          <View style={styles.infoLabel}>
+                            <Ionicons name="videocam" size={18} color="#888" />
+                            <Text style={styles.infoLabelText}>Codec</Text>
+                          </View>
+                          <Text style={styles.infoValue}>{playbackInfo.videoCodec.toUpperCase()}</Text>
+                        </View>
+                      )}
+                      {playbackInfo.videoResolution && (
+                        <View style={styles.infoRow}>
+                          <View style={styles.infoLabel}>
+                            <Ionicons name="resize" size={18} color="#888" />
+                            <Text style={styles.infoLabelText}>Resolution</Text>
+                          </View>
+                          <Text style={styles.infoValue}>{playbackInfo.videoResolution}</Text>
+                        </View>
+                      )}
+                      {playbackInfo.containerFps !== undefined && (
+                        <View style={styles.infoRow}>
+                          <View style={styles.infoLabel}>
+                            <Ionicons name="film" size={18} color="#888" />
+                            <Text style={styles.infoLabelText}>Frame Rate</Text>
+                          </View>
+                          <Text style={styles.infoValue}>{playbackInfo.containerFps.toFixed(2)} fps</Text>
+                        </View>
+                      )}
+                      {playbackInfo.videoBitrate !== undefined && playbackInfo.videoBitrate > 0 && (
+                        <View style={styles.infoRow}>
+                          <View style={styles.infoLabel}>
+                            <Ionicons name="speedometer" size={18} color="#888" />
+                            <Text style={styles.infoLabelText}>Bitrate</Text>
+                          </View>
+                          <Text style={styles.infoValue}>
+                            {playbackInfo.videoBitrate >= 1000000
+                              ? `${(playbackInfo.videoBitrate / 1000000).toFixed(1)} Mbps`
+                              : playbackInfo.videoBitrate >= 1000
+                              ? `${(playbackInfo.videoBitrate / 1000).toFixed(0)} Kbps`
+                              : `${playbackInfo.videoBitrate} bps`}
+                          </Text>
+                        </View>
+                      )}
                       {playbackInfo.container && (
                         <View style={styles.infoRow}>
                           <View style={styles.infoLabel}>
@@ -390,29 +468,8 @@ export default function PlayerSettingsSheet({
                         </View>
                       )}
 
-                      {/* Video Codec */}
-                      {playbackInfo.videoCodec && (
-                        <View style={styles.infoRow}>
-                          <View style={styles.infoLabel}>
-                            <Ionicons name="videocam" size={18} color="#888" />
-                            <Text style={styles.infoLabelText}>Video Codec</Text>
-                          </View>
-                          <Text style={styles.infoValue}>{playbackInfo.videoCodec.toUpperCase()}</Text>
-                        </View>
-                      )}
-
-                      {/* Video Resolution */}
-                      {playbackInfo.videoResolution && (
-                        <View style={styles.infoRow}>
-                          <View style={styles.infoLabel}>
-                            <Ionicons name="resize" size={18} color="#888" />
-                            <Text style={styles.infoLabelText}>Resolution</Text>
-                          </View>
-                          <Text style={styles.infoValue}>{playbackInfo.videoResolution}</Text>
-                        </View>
-                      )}
-
-                      {/* HDR Type */}
+                      {/* Color Section */}
+                      <Text style={styles.infoSectionTitle}>Color</Text>
                       {playbackInfo.hdrType && (
                         <View style={styles.infoRow}>
                           <View style={styles.infoLabel}>
@@ -424,53 +481,197 @@ export default function PlayerSettingsSheet({
                           </View>
                         </View>
                       )}
-
-                      {/* Color Space */}
-                      {playbackInfo.colorSpace && (
+                      {playbackInfo.pixelFormat && (
+                        <View style={styles.infoRow}>
+                          <View style={styles.infoLabel}>
+                            <Ionicons name="grid" size={18} color="#888" />
+                            <Text style={styles.infoLabelText}>Pixel Format</Text>
+                          </View>
+                          <Text style={styles.infoValue}>{playbackInfo.pixelFormat}</Text>
+                        </View>
+                      )}
+                      {playbackInfo.colorMatrix && (
                         <View style={styles.infoRow}>
                           <View style={styles.infoLabel}>
                             <Ionicons name="color-palette" size={18} color="#888" />
-                            <Text style={styles.infoLabelText}>Color Space</Text>
+                            <Text style={styles.infoLabelText}>Color Matrix</Text>
                           </View>
-                          <Text style={styles.infoValue}>{playbackInfo.colorSpace}</Text>
+                          <Text style={styles.infoValue}>{playbackInfo.colorMatrix}</Text>
                         </View>
                       )}
-
-                      {/* Video Bitrate */}
-                      {playbackInfo.videoBitrate && (
+                      {playbackInfo.colorPrimaries && (
                         <View style={styles.infoRow}>
                           <View style={styles.infoLabel}>
-                            <Ionicons name="speedometer" size={18} color="#888" />
-                            <Text style={styles.infoLabelText}>Video Bitrate</Text>
+                            <Ionicons name="color-filter" size={18} color="#888" />
+                            <Text style={styles.infoLabelText}>Primaries</Text>
                           </View>
-                          <Text style={styles.infoValue}>
-                            {playbackInfo.videoBitrate >= 1000
-                              ? `${(playbackInfo.videoBitrate / 1000).toFixed(1)} Mbps`
-                              : `${playbackInfo.videoBitrate} Kbps`}
-                          </Text>
+                          <Text style={styles.infoValue}>{playbackInfo.colorPrimaries}</Text>
+                        </View>
+                      )}
+                      {playbackInfo.colorTransfer && (
+                        <View style={styles.infoRow}>
+                          <View style={styles.infoLabel}>
+                            <Ionicons name="contrast" size={18} color="#888" />
+                            <Text style={styles.infoLabelText}>Transfer</Text>
+                          </View>
+                          <Text style={styles.infoValue}>{playbackInfo.colorTransfer}</Text>
                         </View>
                       )}
 
-                      {/* Audio Codec */}
+                      {/* HDR Metadata Section (if available) */}
+                      {(playbackInfo.maxLuma !== undefined || playbackInfo.maxCll !== undefined) && (
+                        <>
+                          <Text style={styles.infoSectionTitle}>HDR Metadata</Text>
+                          {playbackInfo.maxLuma !== undefined && (
+                            <View style={styles.infoRow}>
+                              <View style={styles.infoLabel}>
+                                <Ionicons name="sunny-outline" size={18} color="#888" />
+                                <Text style={styles.infoLabelText}>Max Luma</Text>
+                              </View>
+                              <Text style={styles.infoValue}>{playbackInfo.maxLuma.toFixed(0)} cd/m²</Text>
+                            </View>
+                          )}
+                          {playbackInfo.minLuma !== undefined && (
+                            <View style={styles.infoRow}>
+                              <View style={styles.infoLabel}>
+                                <Ionicons name="moon-outline" size={18} color="#888" />
+                                <Text style={styles.infoLabelText}>Min Luma</Text>
+                              </View>
+                              <Text style={styles.infoValue}>{playbackInfo.minLuma.toFixed(4)} cd/m²</Text>
+                            </View>
+                          )}
+                          {playbackInfo.maxCll !== undefined && (
+                            <View style={styles.infoRow}>
+                              <View style={styles.infoLabel}>
+                                <Ionicons name="flashlight" size={18} color="#888" />
+                                <Text style={styles.infoLabelText}>MaxCLL</Text>
+                              </View>
+                              <Text style={styles.infoValue}>{playbackInfo.maxCll.toFixed(0)} cd/m²</Text>
+                            </View>
+                          )}
+                          {playbackInfo.maxFall !== undefined && (
+                            <View style={styles.infoRow}>
+                              <View style={styles.infoLabel}>
+                                <Ionicons name="flashlight-outline" size={18} color="#888" />
+                                <Text style={styles.infoLabelText}>MaxFALL</Text>
+                              </View>
+                              <Text style={styles.infoValue}>{playbackInfo.maxFall.toFixed(0)} cd/m²</Text>
+                            </View>
+                          )}
+                        </>
+                      )}
+
+                      {/* Audio Section */}
+                      <Text style={styles.infoSectionTitle}>Audio</Text>
                       {playbackInfo.audioCodec && (
                         <View style={styles.infoRow}>
                           <View style={styles.infoLabel}>
                             <Ionicons name="volume-high" size={18} color="#888" />
-                            <Text style={styles.infoLabelText}>Audio Codec</Text>
+                            <Text style={styles.infoLabelText}>Codec</Text>
                           </View>
                           <Text style={styles.infoValue}>{playbackInfo.audioCodec.toUpperCase()}</Text>
                         </View>
                       )}
-
-                      {/* Audio Channels */}
+                      {playbackInfo.audioSampleRate !== undefined && (
+                        <View style={styles.infoRow}>
+                          <View style={styles.infoLabel}>
+                            <Ionicons name="pulse" size={18} color="#888" />
+                            <Text style={styles.infoLabelText}>Sample Rate</Text>
+                          </View>
+                          <Text style={styles.infoValue}>{(playbackInfo.audioSampleRate / 1000).toFixed(1)} kHz</Text>
+                        </View>
+                      )}
                       {playbackInfo.audioChannels && (
                         <View style={styles.infoRow}>
                           <View style={styles.infoLabel}>
                             <Ionicons name="headset" size={18} color="#888" />
-                            <Text style={styles.infoLabelText}>Audio Channels</Text>
+                            <Text style={styles.infoLabelText}>Channels</Text>
                           </View>
                           <Text style={styles.infoValue}>{playbackInfo.audioChannels}</Text>
                         </View>
+                      )}
+                      {playbackInfo.audioBitrate !== undefined && playbackInfo.audioBitrate > 0 && (
+                        <View style={styles.infoRow}>
+                          <View style={styles.infoLabel}>
+                            <Ionicons name="speedometer-outline" size={18} color="#888" />
+                            <Text style={styles.infoLabelText}>Bitrate</Text>
+                          </View>
+                          <Text style={styles.infoValue}>{(playbackInfo.audioBitrate / 1000).toFixed(0)} kbps</Text>
+                        </View>
+                      )}
+
+                      {/* Performance Section */}
+                      {(playbackInfo.actualFps !== undefined || playbackInfo.avSync !== undefined || playbackInfo.droppedFrames !== undefined) && (
+                        <>
+                          <Text style={styles.infoSectionTitle}>Performance</Text>
+                          {playbackInfo.actualFps !== undefined && (
+                            <View style={styles.infoRow}>
+                              <View style={styles.infoLabel}>
+                                <Ionicons name="analytics" size={18} color="#888" />
+                                <Text style={styles.infoLabelText}>Render FPS</Text>
+                              </View>
+                              <Text style={[styles.infoValue, playbackInfo.actualFps < (playbackInfo.containerFps ?? 24) * 0.9 ? styles.infoValueWarning : null]}>
+                                {playbackInfo.actualFps.toFixed(1)} fps
+                              </Text>
+                            </View>
+                          )}
+                          {playbackInfo.avSync !== undefined && (
+                            <View style={styles.infoRow}>
+                              <View style={styles.infoLabel}>
+                                <Ionicons name="sync" size={18} color="#888" />
+                                <Text style={styles.infoLabelText}>A/V Sync</Text>
+                              </View>
+                              <Text style={[styles.infoValue, Math.abs(playbackInfo.avSync) > 0.1 ? styles.infoValueWarning : null]}>
+                                {playbackInfo.avSync > 0 ? '+' : ''}{(playbackInfo.avSync * 1000).toFixed(0)}ms
+                              </Text>
+                            </View>
+                          )}
+                          {playbackInfo.droppedFrames !== undefined && (
+                            <View style={styles.infoRow}>
+                              <View style={styles.infoLabel}>
+                                <Ionicons name="warning" size={18} color="#888" />
+                                <Text style={styles.infoLabelText}>Dropped Frames</Text>
+                              </View>
+                              <Text style={[styles.infoValue, playbackInfo.droppedFrames > 0 ? styles.infoValueWarning : null]}>
+                                {playbackInfo.droppedFrames}
+                              </Text>
+                            </View>
+                          )}
+                        </>
+                      )}
+
+                      {/* Buffer Section */}
+                      {(playbackInfo.cacheDuration !== undefined || playbackInfo.cacheUsed !== undefined) && (
+                        <>
+                          <Text style={styles.infoSectionTitle}>Buffer</Text>
+                          {playbackInfo.cacheDuration !== undefined && (
+                            <View style={styles.infoRow}>
+                              <View style={styles.infoLabel}>
+                                <Ionicons name="time" size={18} color="#888" />
+                                <Text style={styles.infoLabelText}>Duration</Text>
+                              </View>
+                              <Text style={styles.infoValue}>{playbackInfo.cacheDuration.toFixed(1)}s</Text>
+                            </View>
+                          )}
+                          {playbackInfo.cacheUsed !== undefined && (
+                            <View style={styles.infoRow}>
+                              <View style={styles.infoLabel}>
+                                <Ionicons name="server" size={18} color="#888" />
+                                <Text style={styles.infoLabelText}>Cache Used</Text>
+                              </View>
+                              <Text style={styles.infoValue}>{(playbackInfo.cacheUsed / (1024 * 1024)).toFixed(1)} MB</Text>
+                            </View>
+                          )}
+                          {playbackInfo.cacheSpeed !== undefined && (
+                            <View style={styles.infoRow}>
+                              <View style={styles.infoLabel}>
+                                <Ionicons name="download" size={18} color="#888" />
+                                <Text style={styles.infoLabelText}>Speed</Text>
+                              </View>
+                              <Text style={styles.infoValue}>{(playbackInfo.cacheSpeed / (1024 * 1024)).toFixed(1)} MB/s</Text>
+                            </View>
+                          )}
+                        </>
                       )}
                     </>
                   )}
@@ -625,5 +826,17 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: '#fff',
+  },
+  infoSectionTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#4a9eff',
+    textTransform: 'uppercase',
+    marginTop: 16,
+    marginBottom: 8,
+    paddingHorizontal: 16,
+  },
+  infoValueWarning: {
+    color: '#ff6b6b',
   },
 });

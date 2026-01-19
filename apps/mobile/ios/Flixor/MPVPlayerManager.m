@@ -69,6 +69,20 @@ RCT_EXTERN_METHOD(getAirPlayState:(nonnull NSNumber *)node
                   resolve:(RCTPromiseResolveBlock)resolve
                   reject:(RCTPromiseRejectBlock)reject)
 
+// Performance Stats (Comprehensive)
+RCT_EXTERN_METHOD(getPerformanceStats:(nonnull NSNumber *)node
+                  resolve:(RCTPromiseResolveBlock)resolve
+                  reject:(RCTPromiseRejectBlock)reject)
+
+// Aspect Ratio / BoxFit Mode
+RCT_EXTERN_METHOD(cycleAspectRatio:(nonnull NSNumber *)node
+                  resolve:(RCTPromiseResolveBlock)resolve
+                  reject:(RCTPromiseRejectBlock)reject)
+
+RCT_EXTERN_METHOD(getAspectRatioMode:(nonnull NSNumber *)node
+                  resolve:(RCTPromiseResolveBlock)resolve
+                  reject:(RCTPromiseRejectBlock)reject)
+
 @end
 
 // MARK: - Native Module Bridge
@@ -90,6 +104,20 @@ RCT_EXTERN_METHOD(getAirPlayState:(nonnull NSNumber *)node
 RCT_EXTERN_METHOD(showAirPlayPicker:(nonnull NSNumber *)node)
 
 RCT_EXTERN_METHOD(getNativeLog:(RCTPromiseResolveBlock)resolve
+                  reject:(RCTPromiseRejectBlock)reject)
+
+// Performance Stats (Comprehensive)
+RCT_EXTERN_METHOD(getPerformanceStats:(nonnull NSNumber *)node
+                  resolve:(RCTPromiseResolveBlock)resolve
+                  reject:(RCTPromiseRejectBlock)reject)
+
+// Aspect Ratio / BoxFit Mode
+RCT_EXTERN_METHOD(cycleAspectRatio:(nonnull NSNumber *)node
+                  resolve:(RCTPromiseResolveBlock)resolve
+                  reject:(RCTPromiseRejectBlock)reject)
+
+RCT_EXTERN_METHOD(getAspectRatioMode:(nonnull NSNumber *)node
+                  resolve:(RCTPromiseResolveBlock)resolve
                   reject:(RCTPromiseRejectBlock)reject)
 
 @end

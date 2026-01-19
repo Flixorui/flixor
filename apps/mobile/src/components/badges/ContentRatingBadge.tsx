@@ -108,17 +108,20 @@ const formatRating = (rating: string): string => {
 const ContentRatingBadge: React.FC<ContentRatingBadgeProps> = ({ rating, size = 18 }) => {
   const imageKey = getRatingImageKey(rating);
   let pg13Size = false;
-  if (imageKey === 'pg13') {
+  let pgSize = false;
+  if (imageKey === 'pg13' || imageKey === 'unrated' || imageKey === 'tvma' || imageKey === 'tvpg' || imageKey === 'tv14' || imageKey === 'tvg') {
     pg13Size = true;
   }
-
+  if (imageKey === 'pg') {
+    pgSize = true;
+  }
   // If we have an image for this rating, use it
   if (imageKey && ratingImages[imageKey]) {
     return (
       <View style={styles.container}>
         <Image
           source={ratingImages[imageKey]}
-          style={{ height: pg13Size ? 20 : size, width: pg13Size ? 20*1.5 : size * 1.5 }}
+          style={{ height: pg13Size ? 20 : pgSize ? 16 : size, width: pg13Size ? 20*1.5 : pgSize ? 16*1.5 : size * 1.5 }}
           resizeMode="contain"
         />
       </View>

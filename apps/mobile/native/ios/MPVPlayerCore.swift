@@ -714,35 +714,147 @@ class MPVPlayerCore: NSObject {
         }
     }
 
-    // MARK: - Playback Stats
+    // MARK: - Aspect Ratio / BoxFit Mode
 
-    func getPlaybackStats() -> [String: Any] {
+    /// BoxFit mode: 0=contain (letterbox), 1=cover (fill screen), 2=fill (stretch)
+    private var boxFitMode: Int = 0
+
+    /// Cycle through BoxFit modes: contain → cover → fill → contain
+    func cycleAspectRatio() -> Int {
+        boxFitMode = (boxFitMode + 1) % 3
+        updateAspectRatio()
+        return boxFitMode
+    }
+
+    /// Get current BoxFit mode
+    func getAspectRatioMode() -> Int {
+        return boxFitMode
+    }
+
+    /// Update video scaling based on current BoxFit mode
+    private func updateAspectRatio() {
+        guard mpv != nil else { return }
+
+        // Reset all scaling properties first
+        mpv_set_property_string(mpv, "video-aspect-override", "no")
+        mpv_set_property_string(mpv, "panscan", "0")
+        mpv_set_property_string(mpv, "sub-ass-force-margins", "no")
+
+        switch boxFitMode {
+        case 1:
+            // Cover mode - use panscan to fill screen while maintaining aspect ratio
+            mpv_set_property_string(mpv, "panscan", "1.0")
+            mpv_set_property_string(mpv, "sub-ass-force-margins", "yes")
+            print("[MPVPlayerCore] Aspect ratio: Cover (panscan=1.0)")
+
+        case 2:
+            // Fill/stretch mode - override aspect ratio to match container
+            if let container = containerView, container.bounds.width > 0 && container.bounds.height > 0 {
+                let playerAspect = Double(container.bounds.width / container.bounds.height)
+                mpv_set_property_string(mpv, "video-aspect-override", String(format: "%.6f", playerAspect))
+                print("[MPVPlayerCore] Aspect ratio: Fill (stretch to \(playerAspect))")
+            }
+
+        default:
+            // Contain mode (letterbox) - default, no changes needed
+            print("[MPVPlayerCore] Aspect ratio: Contain (letterbox)")
+        }
+    }
+
+    // MARK: - Performance Stats (Comprehensive)
+
+    func getPerformanceStats() -> [String: Any] {
         guard mpv != nil else { return [:] }
 
         var stats: [String: Any] = [:]
 
+        // Basic playback state
         stats["currentTime"] = currentTime
         stats["duration"] = duration
         stats["isPaused"] = isPaused
         stats["isBuffering"] = isBuffering
+
+        // Video metrics
         stats["videoWidth"] = videoWidth
         stats["videoHeight"] = videoHeight
+        stats["videoCodec"] = formatCodecName(getProperty("video-codec"))
+        stats["containerFps"] = parseDouble(getProperty("container-fps"))
+        stats["actualFps"] = parseDouble(getProperty("estimated-vf-fps"))
+        stats["videoBitrate"] = parseInt(getProperty("video-bitrate"))
+        stats["hwdecCurrent"] = getProperty("hwdec-current") ?? "no"
+        stats["aspectName"] = getProperty("video-params/aspect-name")
+        stats["rotate"] = parseInt(getProperty("video-params/rotate"))
 
-        // Get additional stats from MPV
-        if let fps = getProperty("estimated-vf-fps") {
-            stats["fps"] = Double(fps) ?? 0
-        }
-        if let bitrate = getProperty("video-bitrate") {
-            stats["videoBitrate"] = Int(bitrate) ?? 0
-        }
-        if let droppedFrames = getProperty("vo-delayed-frame-count") {
-            stats["droppedFrames"] = Int(droppedFrames) ?? 0
-        }
-        if let cacheUsed = getProperty("demuxer-cache-duration") {
-            stats["cacheSeconds"] = Double(cacheUsed) ?? 0
-        }
+        // Color/Format metrics
+        stats["pixelformat"] = getProperty("video-params/pixelformat")
+        stats["hwPixelformat"] = getProperty("video-params/hw-pixelformat")
+        stats["colormatrix"] = getProperty("video-params/colormatrix")
+        stats["primaries"] = getProperty("video-params/primaries")
+        stats["gamma"] = getProperty("video-params/gamma")
+
+        // HDR metadata
+        stats["maxLuma"] = parseDouble(getProperty("video-params/max-luma"))
+        stats["minLuma"] = parseDouble(getProperty("video-params/min-luma"))
+        stats["maxCll"] = parseDouble(getProperty("video-params/max-cll"))
+        stats["maxFall"] = parseDouble(getProperty("video-params/max-fall"))
+
+        // Audio metrics
+        stats["audioCodec"] = formatCodecName(getProperty("audio-codec-name"))
+        stats["audioSamplerate"] = parseInt(getProperty("audio-params/samplerate"))
+        stats["audioChannels"] = getProperty("audio-params/hr-channels")
+        stats["audioBitrate"] = parseInt(getProperty("audio-bitrate"))
+
+        // Performance metrics
+        stats["displayFps"] = parseDouble(getProperty("display-fps"))
+        stats["avsyncChange"] = parseDouble(getProperty("total-avsync-change"))
+        stats["frameDropCount"] = parseInt(getProperty("frame-drop-count"))
+        stats["decoderFrameDropCount"] = parseInt(getProperty("decoder-frame-drop-count"))
+
+        // Buffer metrics
+        stats["cacheUsed"] = parseInt(getProperty("cache-used"))
+        stats["cacheSpeed"] = parseDouble(getProperty("cache-speed"))
+        stats["cacheDuration"] = parseDouble(getProperty("demuxer-cache-duration"))
+
+        // Current aspect mode
+        stats["aspectRatioMode"] = boxFitMode
 
         return stats
+    }
+
+    // Helper to parse int from string
+    private func parseInt(_ value: String?) -> Int? {
+        guard let v = value else { return nil }
+        return Int(v)
+    }
+
+    // Helper to parse double from string
+    private func parseDouble(_ value: String?) -> Double? {
+        guard let v = value else { return nil }
+        return Double(v)
+    }
+
+    // Format codec name for display
+    private func formatCodecName(_ codec: String?) -> String? {
+        guard let codec = codec, !codec.isEmpty else { return nil }
+        let upper = codec.uppercased()
+        if upper.contains("HEVC") || upper.contains("H265") { return "HEVC" }
+        if upper.contains("H264") || upper.contains("AVC") { return "H.264" }
+        if upper.contains("AV1") { return "AV1" }
+        if upper.contains("VP9") { return "VP9" }
+        if upper.contains("AAC") { return "AAC" }
+        if upper.contains("AC3") || upper.contains("AC-3") { return "AC3" }
+        if upper.contains("EAC3") || upper.contains("E-AC-3") { return "EAC3" }
+        if upper.contains("DTS") { return "DTS" }
+        if upper.contains("TRUEHD") { return "TrueHD" }
+        if upper.contains("FLAC") { return "FLAC" }
+        if upper.contains("OPUS") { return "Opus" }
+        return codec
+    }
+
+    // MARK: - Legacy Playback Stats (for compatibility)
+
+    func getPlaybackStats() -> [String: Any] {
+        return getPerformanceStats()
     }
 
     // MARK: - Cleanup

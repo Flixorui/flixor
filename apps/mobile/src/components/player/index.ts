@@ -8,4 +8,4 @@
 
 // Unified MPV Player (iOS + Android)
 export { default as MPVPlayerComponent } from './MPVPlayerComponent';
-export type { MPVPlayerRef, MPVPlayerProps, MPVPlayerSource, MPVAudioTrack, MPVSubtitleTrack } from './MPVPlayerComponent';
+export type { MPVPlayerRef, MPVPlayerProps, MPVPlayerSource, MPVAudioTrack, MPVSubtitleTrack, PerformanceStats } from './MPVPlayerComponent';

@@ -48,6 +48,52 @@ class MPVPlayerModule: NSObject {
         }
     }
 
+    // MARK: - Performance Stats (Comprehensive)
+
+    @objc func getPerformanceStats(_ node: NSNumber, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
+        DispatchQueue.main.async {
+            guard let bridge = RCTBridge.current(),
+                  let uiManager = bridge.module(for: RCTUIManager.self) as? RCTUIManager,
+                  let view = uiManager.view(forReactTag: node) as? MPVPlayerView else {
+                reject("NO_VIEW", "MPVPlayerView not found", nil)
+                return
+            }
+
+            let stats = view.getPerformanceStats()
+            resolve(stats)
+        }
+    }
+
+    // MARK: - Aspect Ratio / BoxFit Mode
+
+    @objc func cycleAspectRatio(_ node: NSNumber, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
+        DispatchQueue.main.async {
+            guard let bridge = RCTBridge.current(),
+                  let uiManager = bridge.module(for: RCTUIManager.self) as? RCTUIManager,
+                  let view = uiManager.view(forReactTag: node) as? MPVPlayerView else {
+                reject("NO_VIEW", "MPVPlayerView not found", nil)
+                return
+            }
+
+            let newMode = view.cycleAspectRatio()
+            resolve(newMode)
+        }
+    }
+
+    @objc func getAspectRatioMode(_ node: NSNumber, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {
+        DispatchQueue.main.async {
+            guard let bridge = RCTBridge.current(),
+                  let uiManager = bridge.module(for: RCTUIManager.self) as? RCTUIManager,
+                  let view = uiManager.view(forReactTag: node) as? MPVPlayerView else {
+                reject("NO_VIEW", "MPVPlayerView not found", nil)
+                return
+            }
+
+            let mode = view.getAspectRatioMode()
+            resolve(mode)
+        }
+    }
+
     // MARK: - AirPlay
 
     @objc func getAirPlayState(_ node: NSNumber, resolve: @escaping RCTPromiseResolveBlock, reject: @escaping RCTPromiseRejectBlock) {

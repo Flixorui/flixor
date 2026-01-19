@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, StatusBar, Dimensions, Platform, NativeModules, findNodeHandle } from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, StatusBar, Dimensions, Platform, NativeModules, Image } from 'react-native';
 import { Video, ResizeMode, AVPlaybackStatus, Audio } from 'expo-av';
 import FastImage from '@d11/react-native-fast-image';
 import Slider from '@react-native-community/slider';
@@ -7,7 +7,7 @@ import { useNavigation, StackActions } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { LinearGradient } from 'expo-linear-gradient';
-import { MPVPlayerComponent, MPVPlayerRef, MPVAudioTrack, MPVSubtitleTrack } from '../components/player';
+import { MPVPlayerComponent, MPVPlayerRef, MPVAudioTrack, MPVSubtitleTrack, PerformanceStats } from '../components/player';
 
 // Track types (unified for both iOS and Android MPV)
 type AudioTrack = {
@@ -30,7 +30,6 @@ type TextTrack = {
   isEnabled: boolean;
   isImageSubtitle?: boolean;
 };
-import PlaybackStatsHUD from '../components/player/PlaybackStatsHUD';
 import { Stream, PlaybackInfo } from '../components/PlayerSettingsSheet';
 import { useFlixor } from '../core/FlixorContext';
 import {
@@ -100,8 +99,11 @@ export default function Player({ route }: RouteParams) {
 
   // Settings sheet state
   const [showSettingsSheet, setShowSettingsSheet] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const isFullscreenRef = useRef(false);
+  // Performance stats for Info tab in settings sheet
+  const [performanceStats, setPerformanceStats] = useState<PerformanceStats>({});
+  // Rotation lock state (default: locked to landscape only, matching Plezy)
+  const [isRotationLocked, setIsRotationLocked] = useState(true);
+  const isRotationLockedRef = useRef(true);
 
   const [loading, setLoading] = useState(true);
   const [streamUrl, setStreamUrl] = useState<string>('');
@@ -178,7 +180,9 @@ export default function Player({ route }: RouteParams) {
   // Legacy pan scrub state removed (using Slider now)
 
   // Developer stats HUD (long press on play button to toggle)
-  const [showStatsHUD, setShowStatsHUD] = useState(false);
+
+  // Aspect ratio mode: 0=contain, 1=cover, 2=fill
+  const [aspectRatioMode, setAspectRatioMode] = useState(0);
 
   // PERFORMANCE FIX: Keep JS thread active during playback to prevent iOS from throttling
   // the render loop. This is a workaround for frame drops when JS is idle.
@@ -260,11 +264,11 @@ export default function Player({ route }: RouteParams) {
         console.warn('[Player] Failed to set audio mode:', e);
       }
 
-      // Enable landscape orientation
+      // Lock to landscape orientation by default (matching Plezy behavior)
       try {
-        await ScreenOrientation.unlockAsync();
+        await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
       } catch (e) {
-        console.warn('[Player] Failed to unlock orientation:', e);
+        console.warn('[Player] Failed to lock orientation:', e);
       }
 
       if (params.type === 'plex' && params.ratingKey) {
@@ -630,11 +634,12 @@ export default function Player({ route }: RouteParams) {
         // Only reset orientation/audio if we're leaving the Player entirely,
         // not when we're replacing to another Player instance
         if (!isReplacingRef.current) {
+          // Restore to portrait when exiting player (matching Plezy behavior for phones)
           try {
             await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
           } catch (e) {}
-          isFullscreenRef.current = false;
-          setIsFullscreen(false);
+          isRotationLockedRef.current = true;
+          setIsRotationLocked(true);
 
           try {
             await Audio.setAudioModeAsync({
@@ -725,17 +730,18 @@ export default function Player({ route }: RouteParams) {
 
     const focusSub = nav.addListener('focus', async () => {
       try {
-        if (isFullscreenRef.current) {
+        // Apply rotation lock state when screen gains focus
+        if (isRotationLockedRef.current) {
           await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
         } else {
           await ScreenOrientation.unlockAsync();
         }
         await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, staysActiveInBackground: true, shouldDuckAndroid: true });
-        // If we just replaced into this screen, ensure playback starts and orientation is landscape
+        // If we just replaced into this screen, ensure playback starts and orientation is applied
         if (isReplacingRef.current) {
           isReplacingRef.current = false;
           try {
-            if (isFullscreenRef.current) {
+            if (isRotationLockedRef.current) {
               await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
             } else {
               await ScreenOrientation.unlockAsync();
@@ -765,19 +771,59 @@ export default function Player({ route }: RouteParams) {
     }, 4000);
   };
 
-  const toggleFullscreen = async () => {
+  // Toggle rotation lock (matching Plezy's behavior)
+  // Locked: landscape left + right only
+  // Unlocked: all orientations (portrait + landscape)
+  const toggleRotationLock = async () => {
     try {
-      if (isFullscreen) {
-        await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
-        setIsFullscreen(false);
-        isFullscreenRef.current = false;
+      if (isRotationLocked) {
+        // Unlock: allow all orientations
+        await ScreenOrientation.unlockAsync();
+        setIsRotationLocked(false);
+        isRotationLockedRef.current = false;
       } else {
+        // Lock: landscape only
         await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
-        setIsFullscreen(true);
-        isFullscreenRef.current = true;
+        setIsRotationLocked(true);
+        isRotationLockedRef.current = true;
       }
     } catch (e) {
-      console.warn('[Player] Failed to toggle fullscreen:', e);
+      console.warn('[Player] Failed to toggle rotation lock:', e);
+    }
+  };
+
+  // Rotation lock icons (matching Plezy's Material Symbols)
+  const rotationLockIcons = {
+    locked: require('../../assets/player_icons/mobile-rotate-lock-outline-rounded.png'),
+    unlocked: require('../../assets/player_icons/mobile-rotate-outline-rounded.png'),
+  };
+
+  // Cycle through aspect ratio modes: contain → cover → fill
+  const cycleAspectRatio = async () => {
+    try {
+      const newMode = await mpvPlayerRef.current?.cycleAspectRatio();
+      if (newMode !== undefined) {
+        setAspectRatioMode(newMode);
+      }
+    } catch (e) {
+      console.warn('[Player] Failed to cycle aspect ratio:', e);
+    }
+  };
+
+  // Aspect ratio icons (matching Plezy's Material Symbols)
+  const aspectRatioIcons = {
+    contain: require('../../assets/player_icons/fit-screen-rounded.png'),
+    cover: require('../../assets/player_icons/aspect-ratio-outline-rounded.png'),
+    stretch: require('../../assets/player_icons/settings-overscan-outline-rounded.png'),
+  };
+
+  // Get icon for current aspect ratio mode
+  const getAspectRatioIcon = () => {
+    switch (aspectRatioMode) {
+      case 0: return aspectRatioIcons.contain; // letterbox - fits content within screen
+      case 1: return aspectRatioIcons.cover; // fill screen - fills screen, crops edges
+      case 2: return aspectRatioIcons.stretch; // stretch - stretches to fill, distorts aspect
+      default: return aspectRatioIcons.contain;
     }
   };
 
@@ -795,6 +841,27 @@ export default function Player({ route }: RouteParams) {
 
     return () => subscription?.remove();
   }, []);
+
+  // Fetch performance stats when settings sheet is open
+  useEffect(() => {
+    if (!showSettingsSheet) return;
+
+    const fetchStats = async () => {
+      try {
+        const stats = await mpvPlayerRef.current?.getPerformanceStats();
+        if (stats) {
+          setPerformanceStats(stats);
+        }
+      } catch (e) {
+        // Silently ignore errors
+      }
+    };
+
+    // Fetch immediately and then every 1 second
+    fetchStats();
+    const interval = setInterval(fetchStats, 1000);
+    return () => clearInterval(interval);
+  }, [showSettingsSheet]);
 
   // Refs for countdown/end handling to prevent infinite loops
   const nextEpisodeCountdownStartedRef = useRef(false);
@@ -1527,12 +1594,6 @@ export default function Player({ route }: RouteParams) {
         />
       ) : null}
 
-      {/* Developer Stats HUD (long press play button to toggle) */}
-      <PlaybackStatsHUD
-        playerRef={mpvPlayerRef}
-        visible={showStatsHUD}
-      />
-
       {/* Background tap area to show/hide controls */}
       <View style={styles.tapArea} pointerEvents="box-none">
         <TouchableOpacity style={StyleSheet.absoluteFillObject} activeOpacity={1} onPress={resetControlsTimeout} />
@@ -1565,21 +1626,28 @@ export default function Player({ route }: RouteParams) {
                     <TouchableOpacity
                       style={styles.iconButton}
                       onPress={() => {
-                        // Call via native module since MPV doesn't expose this as a ref method
-                        const nodeHandle = findNodeHandle(mpvPlayerRef.current as any);
-                        if (nodeHandle) {
-                          NativeModules.MPVPlayerViewManager?.showAirPlayPicker(nodeHandle);
-                        }
+                        mpvPlayerRef.current?.showAirPlayPicker();
                       }}
                     >
                       <Ionicons name="tv-outline" size={24} color="#fff" />
                     </TouchableOpacity>
                   )}
+                  {/* Aspect ratio button */}
                   <TouchableOpacity
                     style={styles.iconButton}
-                    onPress={toggleFullscreen}
+                    onPress={cycleAspectRatio}
                   >
-                    <Ionicons name={isFullscreen ? 'contract-outline' : 'expand-outline'} size={24} color="#fff" />
+                    <Image source={getAspectRatioIcon()} style={styles.aspectRatioIcon} />
+                  </TouchableOpacity>
+                  {/* Rotation lock button (matching Plezy) */}
+                  <TouchableOpacity
+                    style={styles.iconButton}
+                    onPress={toggleRotationLock}
+                  >
+                    <Image
+                      source={isRotationLocked ? rotationLockIcons.locked : rotationLockIcons.unlocked}
+                      style={styles.aspectRatioIcon}
+                    />
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.iconButton}
@@ -1599,8 +1667,6 @@ export default function Player({ route }: RouteParams) {
 
               <TouchableOpacity
                 onPress={togglePlayPause}
-                onLongPress={() => setShowStatsHUD(prev => !prev)}
-                delayLongPress={500}
                 style={styles.playPauseButton}
               >
                 <Ionicons
@@ -1771,18 +1837,54 @@ export default function Player({ route }: RouteParams) {
         qualityOptions={qualityOptions}
         selectedQuality={selectedQuality}
         onQualityChange={handleQualityChange}
-        // Playback info (uses selectedMediaIndex for multi-version support)
+        // Playback info (uses selectedMediaIndex for multi-version support + live performance stats)
         playbackInfo={{
           isDirectPlay,
-          videoCodec: metadata?.Media?.[selectedMediaIndex]?.videoCodec,
-          videoResolution: metadata?.Media?.[selectedMediaIndex]?.videoResolution,
-          videoBitrate: selectedQuality === 'original' ? metadata?.Media?.[selectedMediaIndex]?.bitrate : selectedQuality,
-          audioCodec: metadata?.Media?.[selectedMediaIndex]?.audioCodec,
-          audioChannels: metadata?.Media?.[selectedMediaIndex]?.audioChannels?.toString() + ' channels',
+          videoCodec: performanceStats.videoCodec || metadata?.Media?.[selectedMediaIndex]?.videoCodec,
+          videoResolution: performanceStats.videoWidth && performanceStats.videoHeight
+            ? `${performanceStats.videoWidth}x${performanceStats.videoHeight}`
+            : metadata?.Media?.[selectedMediaIndex]?.videoResolution,
+          videoBitrate: performanceStats.videoBitrate || (selectedQuality === 'original' ? metadata?.Media?.[selectedMediaIndex]?.bitrate : selectedQuality),
+          audioCodec: performanceStats.audioCodec || metadata?.Media?.[selectedMediaIndex]?.audioCodec,
+          audioChannels: performanceStats.audioChannels || metadata?.Media?.[selectedMediaIndex]?.audioChannels?.toString() + ' channels',
           container: metadata?.Media?.[selectedMediaIndex]?.container,
           playerBackend: playerBackend || 'MPV',
-          // HDR info - prefer native detection, fallback to Plex metadata
-          hdrType: (hdrType as PlaybackInfo['hdrType']) || (() => {
+          // Extended performance stats from MPV
+          decoder: performanceStats.hwdecCurrent
+            ? (performanceStats.hwdecCurrent === 'no' || performanceStats.hwdecCurrent === '' ? 'Software' : performanceStats.hwdecCurrent)
+            : undefined,
+          containerFps: performanceStats.containerFps,
+          actualFps: performanceStats.actualFps,
+          displayFps: performanceStats.displayFps,
+          aspectName: performanceStats.aspectName,
+          rotate: performanceStats.rotate,
+          pixelFormat: performanceStats.pixelformat,
+          hwPixelFormat: performanceStats.hwPixelformat,
+          colorMatrix: performanceStats.colormatrix,
+          colorPrimaries: performanceStats.primaries,
+          colorTransfer: performanceStats.gamma,
+          // HDR metadata
+          maxLuma: performanceStats.maxLuma,
+          minLuma: performanceStats.minLuma,
+          maxCll: performanceStats.maxCll,
+          maxFall: performanceStats.maxFall,
+          // Audio extended
+          audioSampleRate: performanceStats.audioSamplerate,
+          audioBitrate: performanceStats.audioBitrate,
+          // Performance
+          avSync: performanceStats.avsyncChange,
+          droppedFrames: (performanceStats.frameDropCount ?? 0) + (performanceStats.decoderFrameDropCount ?? 0),
+          // Buffer
+          cacheDuration: performanceStats.cacheDuration,
+          cacheUsed: performanceStats.cacheUsed,
+          cacheSpeed: performanceStats.cacheSpeed,
+          // HDR info - prefer native detection from MPV, fallback to Plex metadata
+          hdrType: (() => {
+            // First check MPV's gamma (transfer function) for HDR detection
+            const gamma = performanceStats.gamma?.toLowerCase() || '';
+            if (gamma.includes('pq') || gamma.includes('smpte2084')) return 'HDR10';
+            if (gamma.includes('hlg')) return 'HLG';
+            if (performanceStats.maxLuma) return 'HDR10'; // Has HDR metadata
             // Fallback: detect HDR from Plex video stream metadata
             const streams = metadata?.Media?.[selectedMediaIndex]?.Part?.[0]?.Stream || [];
             const videoStream = streams.find((s: any) => s.streamType === 1);
@@ -1798,8 +1900,8 @@ export default function Player({ route }: RouteParams) {
             // Check bit depth
             if (videoStream?.bitDepth >= 10) return 'HDR10';
             return null;
-          })(),
-          colorSpace: colorSpace || (() => {
+          })() as PlaybackInfo['hdrType'],
+          colorSpace: performanceStats.colormatrix || colorSpace || (() => {
             // Fallback: detect color space from Plex metadata
             const streams = metadata?.Media?.[selectedMediaIndex]?.Part?.[0]?.Stream || [];
             const videoStream = streams.find((s: any) => s.streamType === 1);
@@ -1889,6 +1991,15 @@ const styles = StyleSheet.create({
   },
   iconButton: {
     padding: 4,
+  },
+  iconButtonActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 4,
+  },
+  aspectRatioIcon: {
+    width: 24,
+    height: 24,
+    tintColor: '#fff',
   },
   centerControls: {
     position: 'absolute',

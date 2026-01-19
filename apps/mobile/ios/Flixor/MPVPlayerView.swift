@@ -297,6 +297,25 @@ class MPVPlayerView: UIView, MPVPlayerDelegate {
         return playerCore?.getPlaybackStats() ?? [:]
     }
 
+    // MARK: - Performance Stats (Comprehensive)
+
+    func getPerformanceStats() -> [String: Any] {
+        return playerCore?.getPerformanceStats() ?? [:]
+    }
+
+    // MARK: - Aspect Ratio / BoxFit Mode
+
+    /// Cycle through BoxFit modes: contain → cover → fill
+    /// Returns the new mode: 0=contain, 1=cover, 2=fill
+    func cycleAspectRatio() -> Int {
+        return playerCore?.cycleAspectRatio() ?? 0
+    }
+
+    /// Get current BoxFit mode
+    func getAspectRatioMode() -> Int {
+        return playerCore?.getAspectRatioMode() ?? 0
+    }
+
     // MARK: - AirPlay
 
     func showAirPlayPicker() {
