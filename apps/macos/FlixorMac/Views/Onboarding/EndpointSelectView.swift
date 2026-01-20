@@ -2,7 +2,7 @@
 //  EndpointSelectView.swift
 //  FlixorMac
 //
-//  Endpoint selection screen during onboarding
+//  Endpoint selection screen during onboarding - auto-tests and recommends best endpoint
 //
 
 import SwiftUI
@@ -13,13 +13,31 @@ struct EndpointSelectView: View {
     let onBack: () -> Void
     let onConnected: () -> Void
 
+    // Auto-test state
+    @State private var isAutoTesting = true
+    @State private var autoTestProgress: String = "Testing connections..."
+    @State private var selectedConnection: PlexConnectionResource?
+    @State private var selectedConnectionType: ConnectionType?
+
+    // Manual override state
+    @State private var showManualOverride = false
+    @State private var showIPv6Endpoints = false
     @State private var testingURI: String?
     @State private var testResults: [String: TestResult] = [:]
-    @State private var protocolFilter: ProtocolFilter = .all
     @State private var customEndpoint: String = ""
     @State private var testingCustom = false
     @State private var statusMessage: String?
     @State private var errorMessage: String?
+    @State private var isConnecting = false
+
+    /// Filtered connections (excluding IPv6 unless toggled)
+    private var filteredConnections: [PlexConnectionResource] {
+        if showIPv6Endpoints {
+            return server.connections
+        } else {
+            return server.connections.filter { !$0.IPv6 }
+        }
+    }
 
     enum TestResult {
         case testing
@@ -27,28 +45,31 @@ struct EndpointSelectView: View {
         case failed
     }
 
-    private enum ProtocolFilter: String, CaseIterable, Identifiable {
-        case all
-        case https
-        case http
+    enum ConnectionType: String {
+        case local = "Local"
+        case remote = "Remote"
+        case relay = "Relay"
 
-        var id: String { rawValue }
-
-        var label: String {
+        var color: Color {
             switch self {
-            case .all: return "All"
-            case .https: return "HTTPS"
-            case .http: return "HTTP"
+            case .local: return .green
+            case .remote: return .blue
+            case .relay: return .orange
+            }
+        }
+
+        var icon: String {
+            switch self {
+            case .local: return "house.fill"
+            case .remote: return "globe"
+            case .relay: return "arrow.triangle.swap"
             }
         }
     }
 
     var body: some View {
         ZStack {
-            // Background
             Color.black.ignoresSafeArea()
-
-            // Animated gradient background
             AnimatedGradientBackground()
 
             VStack(spacing: 0) {
@@ -66,7 +87,6 @@ struct EndpointSelectView: View {
                         .foregroundColor(.white.opacity(0.6))
                     }
                     .buttonStyle(.plain)
-
                     Spacer()
                 }
                 .padding(.horizontal, 60)
@@ -78,107 +98,246 @@ struct EndpointSelectView: View {
                         .font(.system(size: 32, weight: .heavy))
                         .foregroundColor(.white)
 
-                    Text("Select an endpoint to use for this server")
+                    Text(isAutoTesting ? "Finding the best connection..." : "Ready to connect")
                         .font(.system(size: 15))
                         .foregroundColor(.white.opacity(0.5))
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 60)
                 .padding(.top, 20)
-                .padding(.bottom, 24)
+                .padding(.bottom, 32)
 
-                // Content
-                ScrollView {
-                    VStack(spacing: 16) {
-                        // Protocol filter
-                        if !server.connections.isEmpty {
-                            protocolPicker
-                        }
-
-                        // Endpoints list
-                        endpointsList
-
-                        // Custom endpoint section
-                        customEndpointSection
-
-                        // Status message
-                        if let status = statusMessage {
-                            statusMessageView(status)
-                        }
-                    }
-                    .padding(.horizontal, 60)
-                    .padding(.bottom, 40)
+                // Main content
+                if isAutoTesting {
+                    autoTestingView
+                } else if let connection = selectedConnection, let type = selectedConnectionType {
+                    selectedConnectionView(connection: connection, type: type)
+                } else {
+                    noConnectionView
                 }
 
                 Spacer()
             }
         }
+        .task {
+            await autoTestEndpoints()
+        }
     }
 
-    private var protocolPicker: some View {
-        HStack {
-            Text("Protocol:")
-                .font(.system(size: 13))
-                .foregroundColor(.white.opacity(0.5))
+    // MARK: - Auto Testing View
 
-            Picker("", selection: $protocolFilter) {
-                ForEach(ProtocolFilter.allCases) { filter in
-                    Text(filter.label).tag(filter)
-                }
+    private var autoTestingView: some View {
+        VStack(spacing: 24) {
+            // Progress indicator
+            ZStack {
+                Circle()
+                    .stroke(Color.white.opacity(0.1), lineWidth: 4)
+                    .frame(width: 80, height: 80)
+
+                ProgressView()
+                    .scaleEffect(1.5)
+                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
             }
-            .pickerStyle(.segmented)
-            .frame(width: 200)
 
-            Spacer()
+            Text(autoTestProgress)
+                .font(.system(size: 14))
+                .foregroundColor(.white.opacity(0.6))
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
 
-            // Test all button
-            Button {
-                Task { await testAllEndpoints() }
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "speedometer")
-                        .font(.system(size: 12))
-                    Text("Test All")
-                        .font(.system(size: 12, weight: .medium))
+    // MARK: - Selected Connection View
+
+    private func selectedConnectionView(connection: PlexConnectionResource, type: ConnectionType) -> some View {
+        ScrollView {
+            VStack(spacing: 24) {
+                // Success card
+                VStack(spacing: 16) {
+                    // Icon and type
+                    HStack(spacing: 12) {
+                        ZStack {
+                            Circle()
+                                .fill(type.color.opacity(0.2))
+                                .frame(width: 56, height: 56)
+
+                            Image(systemName: type.icon)
+                                .font(.system(size: 24))
+                                .foregroundColor(type.color)
+                        }
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: 8) {
+                                Text("\(type.rawValue) Connection")
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundColor(.white)
+
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+                            }
+
+                            Text("Best available connection found")
+                                .font(.system(size: 13))
+                                .foregroundColor(.white.opacity(0.5))
+                        }
+
+                        Spacer()
+                    }
+
+                    // URI display
+                    HStack {
+                        Text(connection.uri)
+                            .font(.system(size: 13, design: .monospaced))
+                            .foregroundColor(.white.opacity(0.7))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+
+                        Spacer()
+
+                        if let result = testResults[connection.uri], case .success(let ms) = result {
+                            Text("\(ms)ms")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(.green)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.green.opacity(0.15))
+                                .cornerRadius(6)
+                        }
+                    }
+                    .padding(12)
+                    .background(Color.white.opacity(0.05))
+                    .cornerRadius(8)
+
+                    // Continue button
+                    Button {
+                        Task { await useEndpoint(connection.uri) }
+                    } label: {
+                        HStack(spacing: 8) {
+                            if isConnecting {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            }
+                            Text(isConnecting ? "Connecting..." : "Continue")
+                                .font(.system(size: 15, weight: .semibold))
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(Color.accentColor)
+                        .foregroundColor(.white)
+                        .cornerRadius(10)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isConnecting)
                 }
-                .foregroundColor(.blue)
+                .padding(20)
+                .background(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(Color.white.opacity(0.06))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(type.color.opacity(0.3), lineWidth: 1)
+                        )
+                )
+
+                // Manual override section
+                manualOverrideSection
+            }
+            .padding(.horizontal, 60)
+            .padding(.bottom, 40)
+        }
+    }
+
+    // MARK: - No Connection View
+
+    private var noConnectionView: some View {
+        VStack(spacing: 24) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 48))
+                .foregroundColor(.orange)
+
+            VStack(spacing: 8) {
+                Text("No Working Connection Found")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(.white)
+
+                Text("All endpoints failed to connect. Try a custom endpoint below.")
+                    .font(.system(size: 14))
+                    .foregroundColor(.white.opacity(0.5))
+                    .multilineTextAlignment(.center)
+            }
+
+            // Custom endpoint for fallback
+            customEndpointSection
+                .padding(.horizontal, 60)
+
+            Button("Retry Auto-Test") {
+                Task { await autoTestEndpoints() }
+            }
+            .buttonStyle(.bordered)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    // MARK: - Manual Override Section
+
+    private var manualOverrideSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    showManualOverride.toggle()
+                }
+            } label: {
+                HStack {
+                    Text("Choose a different endpoint")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.white.opacity(0.6))
+
+                    Spacer()
+
+                    Image(systemName: showManualOverride ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.white.opacity(0.4))
+                }
+                .padding(.vertical, 12)
             }
             .buttonStyle(.plain)
-            .disabled(testingURI != nil)
+
+            if showManualOverride {
+                VStack(spacing: 12) {
+                    // Endpoints list
+                    endpointsList
+
+                    // Custom endpoint
+                    customEndpointSection
+                }
+            }
         }
-        .padding(.bottom, 8)
     }
 
-    private var filteredConnections: [PlexConnectionResource] {
-        switch protocolFilter {
-        case .all:
-            return server.connections
-        case .https:
-            return server.connections.filter { $0.protocol.lowercased() == "https" }
-        case .http:
-            return server.connections.filter { $0.protocol.lowercased() == "http" }
-        }
-    }
+    // MARK: - Endpoints List
 
     private var endpointsList: some View {
-        VStack(spacing: 0) {
-            if filteredConnections.isEmpty {
-                if server.connections.isEmpty {
-                    Text("No endpoints available for this server")
-                        .font(.system(size: 14))
-                        .foregroundColor(.white.opacity(0.4))
-                        .padding(.vertical, 20)
-                } else {
-                    Text("No endpoints match the selected filter")
-                        .font(.system(size: 14))
-                        .foregroundColor(.white.opacity(0.4))
-                        .padding(.vertical, 20)
+        VStack(spacing: 8) {
+            // IPv6 toggle if there are IPv6 connections
+            if server.connections.contains(where: { $0.IPv6 }) {
+                HStack {
+                    Spacer()
+                    Toggle(isOn: $showIPv6Endpoints) {
+                        Text("Show IPv6")
+                            .font(.system(size: 12))
+                            .foregroundColor(.white.opacity(0.5))
+                    }
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
                 }
-            } else {
+            }
+
+            VStack(spacing: 0) {
                 ForEach(filteredConnections) { connection in
                     EndpointRow(
                         connection: connection,
                         testResult: testResults[connection.uri],
+                        isSelected: selectedConnection?.uri == connection.uri,
                         isTesting: testingURI == connection.uri,
                         onTest: { Task { await testEndpoint(connection) } },
                         onUse: { Task { await useEndpoint(connection.uri) } }
@@ -190,33 +349,35 @@ struct EndpointSelectView: View {
                     }
                 }
             }
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.white.opacity(0.04))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                    )
+            )
         }
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color.white.opacity(0.05))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                )
-        )
     }
 
-    private var customEndpointSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Custom Endpoint")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(.white.opacity(0.6))
+    // MARK: - Custom Endpoint Section
 
-            HStack(spacing: 12) {
+    private var customEndpointSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Custom Endpoint")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(.white.opacity(0.5))
+
+            HStack(spacing: 10) {
                 TextField("https://your-server.example.com:32400", text: $customEndpoint)
                     .textFieldStyle(.plain)
-                    .font(.system(size: 14))
+                    .font(.system(size: 13))
                     .foregroundColor(.white)
-                    .padding(12)
-                    .background(Color.white.opacity(0.06))
-                    .cornerRadius(10)
+                    .padding(10)
+                    .background(Color.white.opacity(0.05))
+                    .cornerRadius(8)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 10)
+                        RoundedRectangle(cornerRadius: 8)
                             .stroke(Color.white.opacity(0.1), lineWidth: 1)
                     )
 
@@ -224,52 +385,120 @@ struct EndpointSelectView: View {
                     Task { await testCustomEndpoint() }
                 }
                 .buttonStyle(.bordered)
+                .controlSize(.small)
                 .disabled(customEndpoint.isEmpty || testingCustom)
 
                 Button("Use") {
                     Task { await useEndpoint(customEndpoint) }
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(customEndpoint.isEmpty || testingCustom)
+                .controlSize(.small)
+                .disabled(customEndpoint.isEmpty || testingCustom || isConnecting)
             }
-
-            Text("Enter a custom endpoint URL if the listed ones don't work")
-                .font(.system(size: 12))
-                .foregroundColor(.white.opacity(0.4))
         }
-        .padding(.top, 16)
     }
 
-    private func statusMessageView(_ message: String) -> some View {
-        HStack(spacing: 8) {
-            if testingURI != nil || testingCustom {
-                ProgressView()
-                    .scaleEffect(0.7)
-            } else if message.contains("Connected") || message.contains("reachable") {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundColor(.green)
-            } else if message.contains("failed") || message.contains("Error") {
-                Image(systemName: "xmark.circle.fill")
-                    .foregroundColor(.red)
-            } else {
-                Image(systemName: "info.circle.fill")
-                    .foregroundColor(.blue)
+    // MARK: - Auto Test Logic
+
+    @MainActor
+    private func autoTestEndpoints() async {
+        isAutoTesting = true
+        selectedConnection = nil
+        selectedConnectionType = nil
+        testResults = [:]
+        autoTestProgress = "Testing all connections..."
+
+        // Filter out IPv6 connections for auto-test (prefer IPv4)
+        let nonIPv6Connections = server.connections.filter { !$0.IPv6 }
+
+        // Mark all as testing
+        for conn in nonIPv6Connections {
+            testResults[conn.uri] = .testing
+        }
+
+        // Test all connections in parallel
+        await withTaskGroup(of: (PlexConnectionResource, TestResult, Int).self) { group in
+            for connection in nonIPv6Connections {
+                group.addTask {
+                    let start = CFAbsoluteTimeGetCurrent()
+                    do {
+                        var request = URLRequest(url: URL(string: connection.uri)!)
+                        request.httpMethod = "HEAD"
+                        request.setValue(self.server.accessToken, forHTTPHeaderField: "X-Plex-Token")
+                        request.timeoutInterval = 8
+
+                        let (_, response) = try await URLSession.shared.data(for: request)
+                        guard let httpResponse = response as? HTTPURLResponse,
+                              (200...399).contains(httpResponse.statusCode) else {
+                            return (connection, .failed, 0)
+                        }
+
+                        let latency = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
+                        return (connection, .success(latency), latency)
+                    } catch {
+                        return (connection, .failed, 0)
+                    }
+                }
             }
 
-            Text(message)
-                .font(.system(size: 13))
-                .foregroundColor(.white.opacity(0.7))
+            // Collect results
+            for await (connection, result, _) in group {
+                testResults[connection.uri] = result
+            }
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color.white.opacity(0.05))
-        )
-        .padding(.top, 8)
+
+        // Find the best working connection (priority: Local → Remote → Relay, then by latency)
+        let workingConnections = nonIPv6Connections.filter { conn in
+            if case .success = testResults[conn.uri] {
+                return true
+            }
+            return false
+        }
+
+        // Sort by type priority, then by latency
+        let sortedWorking = workingConnections.sorted { conn1, conn2 in
+            let type1 = connectionType(for: conn1)
+            let type2 = connectionType(for: conn2)
+
+            // First sort by connection type priority
+            let order: [ConnectionType] = [.local, .remote, .relay]
+            let idx1 = order.firstIndex(of: type1) ?? 2
+            let idx2 = order.firstIndex(of: type2) ?? 2
+
+            if idx1 != idx2 {
+                return idx1 < idx2
+            }
+
+            // Then sort by latency (lower is better)
+            let latency1: Int
+            let latency2: Int
+            if case .success(let ms) = testResults[conn1.uri] { latency1 = ms } else { latency1 = Int.max }
+            if case .success(let ms) = testResults[conn2.uri] { latency2 = ms } else { latency2 = Int.max }
+            return latency1 < latency2
+        }
+
+        if let bestConnection = sortedWorking.first {
+            selectedConnection = bestConnection
+            selectedConnectionType = connectionType(for: bestConnection)
+        }
+
+        isAutoTesting = false
+        if selectedConnection == nil {
+            autoTestProgress = "No connections available"
+        }
     }
 
-    // MARK: - Actions
+    private func connectionType(for connection: PlexConnectionResource) -> ConnectionType {
+        if connection.local {
+            return .local
+        } else if connection.relay {
+            return .relay
+        } else {
+            return .remote
+        }
+    }
+
+    // MARK: - Manual Test/Use Actions
 
     @MainActor
     private func testEndpoint(_ connection: PlexConnectionResource) async {
@@ -281,7 +510,6 @@ struct EndpointSelectView: View {
         let start = CFAbsoluteTimeGetCurrent()
 
         do {
-            // Test using a simple HEAD request
             var request = URLRequest(url: URL(string: connection.uri)!)
             request.httpMethod = "HEAD"
             request.setValue(server.accessToken, forHTTPHeaderField: "X-Plex-Token")
@@ -290,25 +518,18 @@ struct EndpointSelectView: View {
             let (_, response) = try await URLSession.shared.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse,
                   (200...399).contains(httpResponse.statusCode) else {
-                throw NSError(domain: "EndpointTest", code: -1, userInfo: [NSLocalizedDescriptionKey: "Endpoint unreachable"])
+                throw NSError(domain: "EndpointTest", code: -1)
             }
 
             let latency = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
             testResults[connection.uri] = .success(latency)
-            statusMessage = "Endpoint reachable (\(latency)ms latency)"
+            statusMessage = "Endpoint reachable (\(latency)ms)"
         } catch {
             testResults[connection.uri] = .failed
             statusMessage = "Endpoint test failed"
         }
 
         testingURI = nil
-    }
-
-    @MainActor
-    private func testAllEndpoints() async {
-        for connection in filteredConnections {
-            await testEndpoint(connection)
-        }
     }
 
     @MainActor
@@ -328,11 +549,11 @@ struct EndpointSelectView: View {
             let (_, response) = try await URLSession.shared.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse,
                   (200...399).contains(httpResponse.statusCode) else {
-                throw NSError(domain: "EndpointTest", code: -1, userInfo: [NSLocalizedDescriptionKey: "Endpoint unreachable"])
+                throw NSError(domain: "EndpointTest", code: -1)
             }
 
             let latency = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
-            statusMessage = "Custom endpoint reachable (\(latency)ms latency)"
+            statusMessage = "Custom endpoint reachable (\(latency)ms)"
         } catch {
             statusMessage = "Custom endpoint test failed"
         }
@@ -342,28 +563,21 @@ struct EndpointSelectView: View {
 
     @MainActor
     private func useEndpoint(_ uri: String) async {
-        guard testingURI == nil && !testingCustom else { return }
-        testingURI = uri
-        statusMessage = "Connecting to endpoint..."
-        errorMessage = nil
+        guard !isConnecting else { return }
+        isConnecting = true
+        statusMessage = "Connecting..."
 
         do {
-            // Connect to the server with this endpoint via FlixorCore
             _ = try await FlixorCore.shared.connectToPlexServerWithUri(server, uri: uri)
-
-            statusMessage = "Connected successfully!"
             print("✅ [EndpointSelect] Connected to \(server.name) via \(uri)")
 
-            // Small delay to show success message
-            try? await Task.sleep(nanoseconds: 500_000_000)
-
+            try? await Task.sleep(nanoseconds: 300_000_000)
             onConnected()
         } catch {
             print("❌ [EndpointSelect] Connection failed: \(error)")
             statusMessage = "Connection failed: \(error.localizedDescription)"
+            isConnecting = false
         }
-
-        testingURI = nil
     }
 }
 
@@ -372,24 +586,34 @@ struct EndpointSelectView: View {
 private struct EndpointRow: View {
     let connection: PlexConnectionResource
     let testResult: EndpointSelectView.TestResult?
+    let isSelected: Bool
     let isTesting: Bool
     let onTest: () -> Void
     let onUse: () -> Void
 
+    private var connectionType: EndpointSelectView.ConnectionType {
+        if connection.local {
+            return .local
+        } else if connection.relay {
+            return .relay
+        } else {
+            return .remote
+        }
+    }
+
     var body: some View {
         HStack(spacing: 12) {
-            // Connection info
             VStack(alignment: .leading, spacing: 6) {
                 // Badges
                 HStack(spacing: 6) {
-                    if connection.local {
-                        badge("Local", color: .orange)
-                    }
-                    if connection.relay {
-                        badge("Relay", color: .gray)
-                    }
+                    badge(connectionType.rawValue, color: connectionType.color)
+
                     if connection.IPv6 {
                         badge("IPv6", color: .purple)
+                    }
+
+                    if isSelected {
+                        badge("Selected", color: .green)
                     }
 
                     // Test result
@@ -415,33 +639,29 @@ private struct EndpointRow: View {
                     }
                 }
 
-                // URI
                 Text(connection.uri)
-                    .font(.system(size: 13))
-                    .foregroundColor(.white.opacity(0.9))
-                    .textSelection(.enabled)
+                    .font(.system(size: 12))
+                    .foregroundColor(.white.opacity(0.8))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
             }
 
             Spacer()
 
-            // Actions
             HStack(spacing: 8) {
-                Button("Test") {
-                    onTest()
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .disabled(isTesting)
+                Button("Test") { onTest() }
+                    .buttonStyle(.bordered)
+                    .controlSize(.mini)
+                    .disabled(isTesting)
 
-                Button("Use") {
-                    onUse()
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-                .disabled(isTesting)
+                Button("Use") { onUse() }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.mini)
+                    .disabled(isTesting)
             }
         }
-        .padding(14)
+        .padding(12)
+        .background(isSelected ? Color.white.opacity(0.03) : Color.clear)
     }
 
     private func badge(_ text: String, color: Color) -> some View {
