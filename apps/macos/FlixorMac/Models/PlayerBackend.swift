@@ -42,7 +42,7 @@ extension UserDefaults {
         get {
             guard let rawValue = string(forKey: Keys.playerBackend),
                   let backend = PlayerBackend(rawValue: rawValue) else {
-                return .avplayer // Default to AVPlayer
+                return .mpv // Default to MPV
             }
             return backend
         }

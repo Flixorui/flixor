@@ -13,6 +13,7 @@ struct MPVVideoView: NSViewRepresentable {
     let mpvController: MPVPlayerController
 
     func makeNSView(context: Context) -> MPVNSView {
+        print("🎬 [MPVVideoView] makeNSView called")
         let view = MPVNSView()
         view.mpvController = mpvController
         return view
@@ -96,10 +97,17 @@ class MPVNSView: NSView {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
 
+        print("🪟 [MPVNSView] viewDidMoveToWindow called, window: \(window != nil ? "exists" : "nil")")
+
         if window != nil {
             // Initialize MPV when we have a window
             if let controller = mpvController, !controller.isInitialized {
+                print("🔧 [MPVNSView] Calling setupMPVRendering")
                 setupMPVRendering(controller: controller)
+            } else if mpvController == nil {
+                print("⚠️ [MPVNSView] mpvController is nil!")
+            } else {
+                print("✅ [MPVNSView] MPV already initialized")
             }
             updateLayerSize()
         }

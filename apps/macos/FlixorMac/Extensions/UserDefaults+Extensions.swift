@@ -263,6 +263,19 @@ extension UserDefaults {
     }
 }
 
+// MARK: - Debug Logging Settings
+
+extension UserDefaults {
+    private enum DebugKeys {
+        static let debugLoggingEnabled = "debugLoggingEnabled"
+    }
+
+    var debugLoggingEnabled: Bool {
+        get { bool(forKey: DebugKeys.debugLoggingEnabled) }
+        set { set(newValue, forKey: DebugKeys.debugLoggingEnabled) }
+    }
+}
+
 // MARK: - Onboarding Settings
 
 extension UserDefaults {

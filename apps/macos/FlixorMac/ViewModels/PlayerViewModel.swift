@@ -931,6 +931,19 @@ class PlayerViewModel: ObservableObject {
                     throw NSError(domain: "PlayerError", code: -1, userInfo: [NSLocalizedDescriptionKey: "MPV controller not initialized"])
                 }
 
+                // Wait for MPV to be initialized (view must be in window first)
+                var waitCount = 0
+                let maxWaitCount = 50 // 5 seconds max
+                while !mpvController.isInitialized && waitCount < maxWaitCount {
+                    print("⏳ [MPV] Waiting for initialization... (\(waitCount)/\(maxWaitCount))")
+                    try await Task.sleep(nanoseconds: 100_000_000) // 100ms
+                    waitCount += 1
+                }
+
+                guard mpvController.isInitialized else {
+                    throw NSError(domain: "PlayerError", code: -1, userInfo: [NSLocalizedDescriptionKey: "MPV failed to initialize (timeout)"])
+                }
+
                 print("🎬 [MPV] Loading file: \(finalURL.absoluteString)")
                 mpvController.loadFile(finalURL.absoluteString, headers: plexStreamHeaders)
 

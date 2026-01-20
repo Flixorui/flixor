@@ -24,6 +24,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
     case mdblist
     case overseerr
     case trakt
+    case advanced
     case about
 
     var id: String { rawValue }
@@ -43,6 +44,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         case .mdblist: return "MDBList"
         case .overseerr: return "Overseerr"
         case .trakt: return "Trakt"
+        case .advanced: return "Advanced"
         case .about: return "About"
         }
     }
@@ -62,6 +64,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         case .mdblist: return "Multi-source ratings aggregation"
         case .overseerr: return "Media request management integration"
         case .trakt: return "Watch history and scrobbling"
+        case .advanced: return "Debug logging and diagnostics"
         case .about: return "App information and credits"
         }
     }
@@ -82,6 +85,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         case .mdblist: return "star"
         case .overseerr: return "arrow.down.circle"
         case .trakt: return "chart.bar"
+        case .advanced: return "ladybug"
         case .about: return "info.circle"
         }
     }
@@ -192,6 +196,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         case .mdblist: return Color(hex: "4284CA")
         case .overseerr: return Color(hex: "0B1223")
         case .trakt: return Color(hex: "ED1C24")
+        case .advanced: return .gray
         case .about: return .orange
         }
     }
@@ -210,7 +215,7 @@ private struct SidebarSection {
             SidebarSection(title: "Content & Discovery", categories: [.discoveryMode, .catalog, .rowsSettings, .sidebar, .search]),
             SidebarSection(title: "Appearance", categories: [.homeScreenAppearance, .detailsScreen]),
             SidebarSection(title: "Integrations", categories: [.tmdb, .mdblist, .overseerr, .trakt]),
-            SidebarSection(title: "About", categories: [.about])
+            SidebarSection(title: "System", categories: [.advanced, .about])
         ]
     }
 }
@@ -411,6 +416,8 @@ struct SettingsView: View {
             OverseerrSettingsView()
         case .trakt:
             TraktSettingsContent()
+        case .advanced:
+            AdvancedSettingsContent()
         case .about:
             AboutSettingsContent()
         }
@@ -1058,6 +1065,82 @@ private struct TraktSettingsContent: View {
         } catch {
             errorMessage = "Failed to disconnect."
         }
+    }
+}
+
+// MARK: - Advanced Settings Content
+
+private struct AdvancedSettingsContent: View {
+    @ObservedObject private var logger = AppLogger.shared
+    @State private var showLogsSheet = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            // Debug Logging Toggle
+            SettingsGroupCard {
+                SettingsRow(
+                    icon: "ladybug.fill",
+                    iconColor: .gray,
+                    title: "Debug Logging",
+                    subtitle: "Enable verbose logging for troubleshooting",
+                    showDivider: false
+                ) {
+                    Toggle("", isOn: Binding(
+                        get: { logger.debugEnabled },
+                        set: { logger.setDebugEnabled($0) }
+                    ))
+                    .labelsHidden()
+                }
+            }
+
+            Text("When enabled, the app captures detailed logs that can help diagnose issues. Logs are stored in memory and cleared when the app restarts.")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 4)
+
+            // View Logs
+            SettingsGroupCard {
+                SettingsNavigationRow(
+                    icon: "doc.text.fill",
+                    iconColor: .blue,
+                    title: "View Logs",
+                    subtitle: "\(logger.logCount) \(logger.logCount == 1 ? "entry" : "entries")",
+                    showDivider: false
+                ) {
+                    showLogsSheet = true
+                }
+            }
+        }
+        .sheet(isPresented: $showLogsSheet) {
+            LogsSheetView(isPresented: $showLogsSheet)
+        }
+    }
+}
+
+// MARK: - Logs Sheet View
+
+private struct LogsSheetView: View {
+    @Binding var isPresented: Bool
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                Text("App Logs")
+                    .font(.system(size: 15, weight: .semibold))
+                Spacer()
+                Button("Done") { isPresented = false }
+                    .keyboardShortcut(.defaultAction)
+            }
+            .padding(16)
+
+            Divider()
+
+            // Logs content
+            LogsView()
+                .padding(16)
+        }
+        .frame(width: 700, height: 550)
     }
 }
 

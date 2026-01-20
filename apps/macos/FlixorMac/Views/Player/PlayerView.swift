@@ -25,10 +25,10 @@ struct PlayerView: View {
     @State private var isCursorHidden = false
     @State private var mpvPiPViewController: NSViewController?
     @State private var keyboardMonitor: Any?
-    @AppStorage("playerBackend") private var selectedBackend: String = PlayerBackend.avplayer.rawValue
+    @AppStorage("playerBackend") private var selectedBackend: String = PlayerBackend.mpv.rawValue
 
     private var playerBackend: PlayerBackend {
-        PlayerBackend(rawValue: selectedBackend) ?? .avplayer
+        PlayerBackend(rawValue: selectedBackend) ?? .mpv
     }
 
     init(item: MediaItem) {

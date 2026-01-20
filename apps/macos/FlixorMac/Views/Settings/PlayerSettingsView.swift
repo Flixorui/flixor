@@ -8,6 +8,16 @@
 import SwiftUI
 
 struct PlayerSettingsView: View {
+    // MARK: - Player Backend
+    @AppStorage("playerBackend") private var selectedBackend: String = PlayerBackend.mpv.rawValue
+
+    private var playerBackendBinding: Binding<PlayerBackend> {
+        Binding(
+            get: { PlayerBackend(rawValue: selectedBackend) ?? .mpv },
+            set: { selectedBackend = $0.rawValue }
+        )
+    }
+
     // MARK: - MPV Core Settings
     @AppStorage("mpvBufferSize") private var bufferSize = 128
     @AppStorage("mpvHardwareDecoding") private var hardwareDecoding = true
@@ -49,8 +59,32 @@ struct PlayerSettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            // Player Engine
-            SettingsCard(title: "Player Engine") {
+            // Player Backend Selection
+            SettingsCard(title: "Player Backend") {
+                SettingsRow(
+                    icon: "play.rectangle.fill",
+                    iconColor: .blue,
+                    title: "Video Player",
+                    subtitle: playerBackendBinding.wrappedValue.description,
+                    showDivider: false
+                ) {
+                    Picker("", selection: playerBackendBinding) {
+                        ForEach(PlayerBackend.allCases) { backend in
+                            Text(backend.displayName).tag(backend)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(width: 160)
+                }
+            }
+
+            Text("MPV offers better codec support and advanced features. AVPlayer is Apple's native player with better system integration.")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 4)
+
+            // Player Engine (MPV-specific settings)
+            SettingsCard(title: "MPV Engine") {
                 SettingsRow(
                     icon: "cpu",
                     iconColor: .blue,

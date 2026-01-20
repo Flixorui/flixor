@@ -15,6 +15,9 @@ struct FlixorMacApp: App {
     @StateObject private var apiClient = APIClient.shared
 
     init() {
+        // Initialize AppLogger early to capture all logs
+        _ = AppLogger.shared
+
         // Configure FlixorCore
         let clientId = getOrCreateClientId()
 

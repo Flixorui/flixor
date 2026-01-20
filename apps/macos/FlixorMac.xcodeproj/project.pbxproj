@@ -111,6 +111,8 @@
 		A251 /* DetailsScreenSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B251 /* DetailsScreenSettingsView.swift */; };
 		A260 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B260 /* OnboardingView.swift */; };
 		A300 /* ServiceIcons.swift in Sources */ = {isa = PBXBuildFile; fileRef = B300 /* ServiceIcons.swift */; };
+		C329C5CF7E24F55B6309CD45 /* LogsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E059C76C45BC6B2E47E6D5D9 /* LogsView.swift */; };
+		C83F2AAE873C2E3008D7A310 /* AppLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F6BC834C21606D91C967707 /* AppLogger.swift */; };
 		C8B8094D2F1CD3E0009BFDA0 /* YouTubePlayerKit in Frameworks */ = {isa = PBXBuildFile; productRef = YTPD0001 /* YouTubePlayerKit */; };
 		C8B8094E2F1CD3E0009BFDA0 /* MPVKit-GPL in Frameworks */ = {isa = PBXBuildFile; productRef = MPVD0001 /* MPVKit-GPL */; };
 		C8BA62692E9C5ABE00CFE44C /* NewPopularData.swift in Resources */ = {isa = PBXBuildFile; fileRef = B065 /* NewPopularData.swift */; };
@@ -130,6 +132,7 @@
 		234624854A3AE7BEDC53EB9A /* MpvConfigModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MpvConfigModels.swift; path = MpvConfigModels.swift; sourceTree = "<group>"; };
 		28F2733407E54826B6E93AC2 /* subtitles.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = subtitles.png; sourceTree = "<group>"; };
 		35363AC57105CBFEA1D47480 /* PerformanceOverlayView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PerformanceOverlayView.swift; sourceTree = "<group>"; };
+		5F6BC834C21606D91C967707 /* AppLogger.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppLogger.swift; sourceTree = "<group>"; };
 		7CB1C29CA6CFB52E468383D8 /* PerformanceStats.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PerformanceStats.swift; sourceTree = "<group>"; };
 		9911C3B9537F9629E5086F4A /* PlayerSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PlayerSettingsView.swift; path = PlayerSettingsView.swift; sourceTree = "<group>"; };
 		B001 /* FlixorMacApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlixorMacApp.swift; sourceTree = "<group>"; };
@@ -235,6 +238,7 @@
 		D160AC63894645548212EEF0 /* back-arrow.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "back-arrow.png"; sourceTree = "<group>"; };
 		DB41AA1177EF05D19E278916 /* ServerSelectView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ServerSelectView.swift; sourceTree = "<group>"; };
 		DC5CC48F0840B10DB094145A /* MpvConfigView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MpvConfigView.swift; path = MpvConfigView.swift; sourceTree = "<group>"; };
+		E059C76C45BC6B2E47E6D5D9 /* LogsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LogsView.swift; sourceTree = "<group>"; };
 		F156FB11282DDE8678B19A78 /* EndpointSelectView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EndpointSelectView.swift; sourceTree = "<group>"; };
 		F5602C0E02D02A79ABE8837A /* TrackPreferenceService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TrackPreferenceService.swift; path = TrackPreferenceService.swift; sourceTree = "<group>"; };
 		F85A04CB3691DE34BF4E4666 /* ServerEndpointFlowView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ServerEndpointFlowView.swift; sourceTree = "<group>"; };
@@ -362,6 +366,7 @@
 				D022 /* Overseerr */,
 				B085 /* TraktScrobbler.swift */,
 				F5602C0E02D02A79ABE8837A /* TrackPreferenceService.swift */,
+				5F6BC834C21606D91C967707 /* AppLogger.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -457,6 +462,7 @@
 				B176 /* ContinueWatchingSettingsView.swift */,
 				9911C3B9537F9629E5086F4A /* PlayerSettingsView.swift */,
 				DC5CC48F0840B10DB094145A /* MpvConfigView.swift */,
+				E059C76C45BC6B2E47E6D5D9 /* LogsView.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -765,6 +771,8 @@
 				6A22C3A3C46B60883309776E /* ServerSelectView.swift in Sources */,
 				9D82BB3DA6029E023449A907 /* EndpointSelectView.swift in Sources */,
 				D593D818FCF559C1912E8893 /* ServerEndpointFlowView.swift in Sources */,
+				C83F2AAE873C2E3008D7A310 /* AppLogger.swift in Sources */,
+				C329C5CF7E24F55B6309CD45 /* LogsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
