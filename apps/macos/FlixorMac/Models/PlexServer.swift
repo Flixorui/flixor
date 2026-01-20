@@ -37,6 +37,15 @@ struct PlexServer: Codable, Identifiable, Hashable {
     }
 
     var baseURLDisplay: String {
+        // If preferredUri is a full URL, use it directly
+        if let uri = preferredUri, uri.hasPrefix("http://") || uri.hasPrefix("https://") {
+            return uri
+        }
+        // If host looks like a full URL, use it directly
+        if let hostValue = host, hostValue.hasPrefix("http://") || hostValue.hasPrefix("https://") {
+            return hostValue
+        }
+        // Otherwise construct from parts
         let proto = (protocolName?.isEmpty == false ? protocolName! : "http")
         let hostValue = host ?? "—"
         let formattedHost = hostValue.contains(":") && !hostValue.contains("[") && !hostValue.contains("]")

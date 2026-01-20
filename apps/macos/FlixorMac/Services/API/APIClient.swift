@@ -269,19 +269,24 @@ class APIClient: ObservableObject {
         if subpath == "servers" {
             let servers = try await FlixorCore.shared.getPlexServers()
             let currentServerId = FlixorCore.shared.currentServer?.id
+            let currentConnectionUri = FlixorCore.shared.currentConnection?.uri
             // Map to PlexServer format expected by app, marking active server
             let mappedServers = servers.map { server in
-                PlexServer(
+                let isActive = server.id == currentServerId
+                // Use current connection URI for active server, otherwise first connection
+                let activeUri = isActive ? (currentConnectionUri ?? server.connections.first?.uri) : server.connections.first?.uri
+                let activeProtocol = isActive ? (FlixorCore.shared.currentConnection?.protocol ?? server.connections.first?.protocol) : server.connections.first?.protocol
+                return PlexServer(
                     id: server.id,
                     name: server.name,
-                    host: server.connections.first?.uri,
+                    host: activeUri,
                     port: nil,
-                    protocolName: server.connections.first?.protocol,
-                    preferredUri: server.connections.first?.uri,
+                    protocolName: activeProtocol,
+                    preferredUri: activeUri,
                     publicAddress: server.publicAddress,
                     localAddresses: nil,
                     machineIdentifier: server.id,
-                    isActive: server.id == currentServerId,
+                    isActive: isActive,
                     owned: server.owned,
                     presence: server.presence
                 )
@@ -937,18 +942,41 @@ class APIClient: ObservableObject {
     func getPlexConnections(serverId: String) async throws -> PlexConnectionsResponse {
         // Get connections from FlixorCore servers
         let servers = try await FlixorCore.shared.getPlexServers()
+        let currentConnection = FlixorCore.shared.currentConnection
+        let currentConnectionUri = currentConnection?.uri
+        let currentServerId = FlixorCore.shared.currentServer?.id
+
         if let server = servers.first(where: { $0.id == serverId || $0.name == serverId }) {
-            let connections = server.connections.map { conn in
-                PlexConnection(
+            let isCurrentServer = server.id == currentServerId
+            var connections = server.connections.map { conn in
+                let isCurrent = isCurrentServer && conn.uri == currentConnectionUri
+                return PlexConnection(
                     uri: conn.uri,
                     protocolName: conn.protocol,
                     local: conn.local,
                     relay: conn.relay,
                     IPv6: conn.IPv6,
-                    isCurrent: nil,
-                    isPreferred: nil
+                    isCurrent: isCurrent,
+                    isPreferred: isCurrent  // Mark current as preferred too
                 )
             }
+
+            // If current connection is a custom endpoint not in the list, add it
+            if isCurrentServer,
+               let currentConn = currentConnection,
+               !connections.contains(where: { $0.uri == currentConn.uri }) {
+                let customConnection = PlexConnection(
+                    uri: currentConn.uri,
+                    protocolName: currentConn.protocol,
+                    local: false,
+                    relay: false,
+                    IPv6: false,
+                    isCurrent: true,
+                    isPreferred: true
+                )
+                connections.insert(customConnection, at: 0)  // Add at top
+            }
+
             return PlexConnectionsResponse(serverId: serverId, connections: connections)
         }
         return PlexConnectionsResponse(serverId: serverId, connections: [])
@@ -1067,6 +1095,11 @@ class APIClient: ObservableObject {
                 throw APIError.serverError("Endpoint test failed: \(error.localizedDescription)")
             }
         }
+
+        // Actually connect to the server with this endpoint via FlixorCore
+        // This persists the connection and updates the PlexServerService
+        _ = try await FlixorCore.shared.connectToPlexServerWithUri(server, uri: uri)
+        print("✅ [APIClient] Endpoint updated and connected: \(uri)")
 
         return PlexEndpointUpdateResponse(
             message: "Endpoint updated",

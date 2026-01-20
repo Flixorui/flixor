@@ -11,6 +11,8 @@ struct ServerConnectionView: View {
     @State private var statusMessage: String?
     @State private var errorMessage: String?
     @State private var protocolFilter: ProtocolFilter = .all
+    @State private var customEndpoint: String = ""
+    @State private var testingCustom = false
 
     private enum ProtocolFilter: String, CaseIterable, Identifiable {
         case all
@@ -41,6 +43,9 @@ struct ServerConnectionView: View {
                 protocolPicker
             }
             connectionList
+
+            // Custom endpoint section
+            customEndpointSection
         }
 
             if let statusMessage { messageRow(text: statusMessage, style: .success) }
@@ -52,7 +57,7 @@ struct ServerConnectionView: View {
             }
         }
         .padding(20)
-        .frame(width: 520, height: 360)
+        .frame(width: 560, height: 480)
         .onAppear { Task { await loadConnections() } }
     }
 
@@ -147,6 +152,36 @@ struct ServerConnectionView: View {
         return nil
     }
 
+    // MARK: - Custom Endpoint Section
+
+    private var customEndpointSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Custom Endpoint")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 8) {
+                TextField("https://your-server.example.com:32400", text: $customEndpoint)
+                    .textFieldStyle(.roundedBorder)
+
+                Button("Test") { Task { await testCustomEndpoint() } }
+                    .disabled(customEndpoint.isEmpty || testingURI != nil || testingCustom)
+
+                Button("Use") { Task { await useCustomEndpoint() } }
+                    .disabled(customEndpoint.isEmpty || testingURI != nil || testingCustom)
+
+                if testingCustom {
+                    ProgressView().scaleEffect(0.6)
+                }
+            }
+
+            Text("Enter a custom endpoint URL if the listed ones don't work")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        }
+        .padding(.top, 8)
+    }
+
     // MARK: - Load/test/select
 
     @MainActor
@@ -207,6 +242,48 @@ struct ServerConnectionView: View {
         }
 
         testingURI = nil
+    }
+
+    @MainActor
+    private func testCustomEndpoint() async {
+        guard !customEndpoint.isEmpty, testingURI == nil, !testingCustom else { return }
+        testingCustom = true
+        errorMessage = nil
+        statusMessage = "Testing custom endpoint…"
+
+        let start = CFAbsoluteTimeGetCurrent()
+
+        do {
+            _ = try await APIClient.shared.setPlexServerEndpoint(serverId: server.id, uri: customEndpoint, test: true)
+            let latency = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
+            statusMessage = "Custom endpoint reachable (\(latency) ms latency)."
+        } catch {
+            errorMessage = "Custom endpoint is unreachable."
+            statusMessage = nil
+            print("❌ [Settings] Custom endpoint test failed: \(error)")
+        }
+
+        testingCustom = false
+    }
+
+    @MainActor
+    private func useCustomEndpoint() async {
+        guard !customEndpoint.isEmpty, testingURI == nil, !testingCustom else { return }
+        testingCustom = true
+        errorMessage = nil
+        statusMessage = "Setting custom endpoint…"
+
+        do {
+            _ = try await APIClient.shared.setPlexServerEndpoint(serverId: server.id, uri: customEndpoint, test: true)
+            statusMessage = "Custom endpoint saved."
+            onEndpointSelected?()
+            await loadConnections()
+        } catch {
+            errorMessage = "Unable to save custom endpoint."
+            statusMessage = nil
+        }
+
+        testingCustom = false
     }
 
     // MARK: - Helpers

@@ -75,29 +75,14 @@ class PlexAuthViewModel: ObservableObject {
 
                         // Complete authentication (stores token and initializes PlexTvService)
                         try await FlixorCore.shared.completePlexAuth(token: token)
-                        print("✅ [Auth] Authentication completed, fetching servers...")
+                        print("✅ [Auth] Authentication completed")
 
-                        // Fetch servers
-                        let servers = try await FlixorCore.shared.getPlexServers()
-
-                        if servers.isEmpty {
-                            await MainActor.run {
-                                self.error = "No Plex servers found on your account"
-                                self.isAuthenticating = false
-                            }
-                            return
-                        }
-
-                        // Connect to the first server (auto-select)
-                        let server = servers[0]
-                        _ = try await FlixorCore.shared.connectToPlexServer(server)
-
-                        // Success!
+                        // Success! RootView will show ServerSelectView next
                         await MainActor.run {
                             self.authToken = token
                             self.isAuthenticating = false
                         }
-                        print("✅ [Auth] Authentication complete! Connected to \(server.name)")
+                        print("✅ [Auth] Authentication complete! User will select server next.")
                         return
                     } else {
                         print("⏸️ [Auth] Not authenticated yet, waiting...")

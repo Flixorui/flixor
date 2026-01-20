@@ -401,6 +401,55 @@ public class FlixorCore: ObservableObject {
         return connection
     }
 
+    /// Connect to a specific Plex server with a specific URI
+    public func connectToPlexServerWithUri(_ server: PlexServerResource, uri: String) async throws -> PlexConnectionResource {
+        guard let token = plexToken, let config = self.config else {
+            throw FlixorCoreError.plexNotAuthenticated
+        }
+
+        // Find connection matching the URI, or create a synthetic one
+        let connection: PlexConnectionResource
+        if let existingConnection = server.connections.first(where: { $0.uri == uri }) {
+            connection = existingConnection
+        } else {
+            // Create a synthetic connection for custom endpoints
+            connection = PlexConnectionResource(
+                uri: uri,
+                protocol: uri.hasPrefix("https") ? "https" : "http",
+                local: false,
+                relay: false,
+                IPv6: false
+            )
+        }
+
+        // Test the connection
+        guard try await plexAuth.testConnection(connection, token: server.accessToken) else {
+            throw FlixorCoreError.serverConnectionFailed(serverName: server.name)
+        }
+
+        // Store state
+        self.currentServer = server
+        self.currentConnection = connection
+
+        // Initialize server service
+        _plexServer = PlexServerService(
+            baseUrl: connection.uri,
+            token: server.accessToken,
+            clientId: config.clientId,
+            cache: cache
+        )
+
+        // Persist to secure storage
+        try await secureStorage.set(StorageKeys.plexToken, value: StoredPlexAuth(
+            token: token,
+            server: server,
+            connection: connection
+        ))
+
+        print("✅ [FlixorCore] Connected to server: \(server.name) via \(uri)")
+        return connection
+    }
+
     /// Sign out from Plex
     public func signOutPlex() async {
         if let token = plexToken {

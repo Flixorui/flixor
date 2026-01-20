@@ -736,8 +736,11 @@ class PlayerViewModel: ObservableObject {
             let connectionsResponse = try await api.getPlexConnections(serverId: activeServer.id)
             let connections = connectionsResponse.connections
 
-            // Prefer local connection, fall back to first available
-            guard let selectedConnection = connections.first(where: { $0.local == true }) ?? connections.first else {
+            // Prefer current/preferred connection, then local, then first available
+            guard let selectedConnection = connections.first(where: { $0.isCurrent == true })
+                    ?? connections.first(where: { $0.isPreferred == true })
+                    ?? connections.first(where: { $0.local == true })
+                    ?? connections.first else {
                 throw NSError(domain: "PlayerError", code: -1, userInfo: [NSLocalizedDescriptionKey: "No Plex server connection available"])
             }
 
@@ -2012,7 +2015,9 @@ class PlayerViewModel: ObservableObject {
             }
 
             let connectionsResponse = try await api.getPlexConnections(serverId: activeServer.id)
-            guard let connection = connectionsResponse.connections.first(where: { $0.local == true })
+            guard let connection = connectionsResponse.connections.first(where: { $0.isCurrent == true })
+                                  ?? connectionsResponse.connections.first(where: { $0.isPreferred == true })
+                                  ?? connectionsResponse.connections.first(where: { $0.local == true })
                                   ?? connectionsResponse.connections.first else {
                 print("❌ [Player] No server connection")
                 return false

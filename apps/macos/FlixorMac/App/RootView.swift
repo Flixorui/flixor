@@ -87,20 +87,25 @@ struct RootView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color.black)
-            } else if flixorCore.isPlexAuthenticated && flixorCore.isPlexServerConnected {
-                if hasCompletedOnboarding {
-                    MainView()
-                        .transition(.opacity)
-                } else {
-                    OnboardingView {
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            hasCompletedOnboarding = true
-                        }
-                    }
-                    .transition(.opacity)
-                }
-            } else {
+            } else if !flixorCore.isPlexAuthenticated {
+                // Not authenticated - show login
                 PlexAuthView()
+                    .transition(.opacity)
+            } else if !flixorCore.isPlexServerConnected {
+                // Authenticated but no server connected - show server/endpoint selection
+                ServerEndpointFlowView()
+                    .transition(.opacity)
+            } else if !hasCompletedOnboarding {
+                // Connected but not onboarded - show onboarding
+                OnboardingView {
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        hasCompletedOnboarding = true
+                    }
+                }
+                .transition(.opacity)
+            } else {
+                // Fully ready - show main app
+                MainView()
                     .transition(.opacity)
             }
         }

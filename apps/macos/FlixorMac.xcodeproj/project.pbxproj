@@ -13,8 +13,10 @@
 		3C76EFC4102D71E4F8EB7485 /* PlayerSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9911C3B9537F9629E5086F4A /* PlayerSettingsView.swift */; };
 		4E24577161EC49F795708746 /* subtitles.png in Resources */ = {isa = PBXBuildFile; fileRef = 28F2733407E54826B6E93AC2 /* subtitles.png */; };
 		5141864342A197A67CBC0DEA /* TrackPreferenceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5602C0E02D02A79ABE8837A /* TrackPreferenceService.swift */; };
+		6A22C3A3C46B60883309776E /* ServerSelectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB41AA1177EF05D19E278916 /* ServerSelectView.swift */; };
 		8CAEF6116645785A9605C460 /* PerformanceOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35363AC57105CBFEA1D47480 /* PerformanceOverlayView.swift */; };
 		8F8A4EEF11F94AB2B11AD777 /* back-arrow.png in Resources */ = {isa = PBXBuildFile; fileRef = D160AC63894645548212EEF0 /* back-arrow.png */; };
+		9D82BB3DA6029E023449A907 /* EndpointSelectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F156FB11282DDE8678B19A78 /* EndpointSelectView.swift */; };
 		A001 /* FlixorMacApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B001 /* FlixorMacApp.swift */; };
 		A002 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B002 /* RootView.swift */; };
 		A003 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B003 /* SidebarView.swift */; };
@@ -119,6 +121,7 @@
 		C8D602AF2E990765002C9348 /* MPVThumbnailGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8D602AC2E990765002C9348 /* MPVThumbnailGenerator.swift */; };
 		C8D602B02E990765002C9348 /* ThumbnailCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8D602AD2E990765002C9348 /* ThumbnailCache.swift */; };
 		C8D602B12E990765002C9348 /* ThumbnailMPVPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8D602B22E990765002C9348 /* ThumbnailMPVPlayer.swift */; };
+		D593D818FCF559C1912E8893 /* ServerEndpointFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F85A04CB3691DE34BF4E4666 /* ServerEndpointFlowView.swift */; };
 		FKBF0001 /* FlixorKit in Frameworks */ = {isa = PBXBuildFile; productRef = FKPD0001 /* FlixorKit */; };
 		MPVMETAL001 /* MPVMetalLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = MPVMETAL002 /* MPVMetalLayer.swift */; };
 /* End PBXBuildFile section */
@@ -230,8 +233,11 @@
 		C8D602AD2E990765002C9348 /* ThumbnailCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThumbnailCache.swift; sourceTree = "<group>"; };
 		C8D602B22E990765002C9348 /* ThumbnailMPVPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThumbnailMPVPlayer.swift; sourceTree = "<group>"; };
 		D160AC63894645548212EEF0 /* back-arrow.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "back-arrow.png"; sourceTree = "<group>"; };
+		DB41AA1177EF05D19E278916 /* ServerSelectView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ServerSelectView.swift; sourceTree = "<group>"; };
 		DC5CC48F0840B10DB094145A /* MpvConfigView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MpvConfigView.swift; path = MpvConfigView.swift; sourceTree = "<group>"; };
+		F156FB11282DDE8678B19A78 /* EndpointSelectView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EndpointSelectView.swift; sourceTree = "<group>"; };
 		F5602C0E02D02A79ABE8837A /* TrackPreferenceService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TrackPreferenceService.swift; path = TrackPreferenceService.swift; sourceTree = "<group>"; };
+		F85A04CB3691DE34BF4E4666 /* ServerEndpointFlowView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ServerEndpointFlowView.swift; sourceTree = "<group>"; };
 		MPVMETAL002 /* MPVMetalLayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MPVMetalLayer.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -523,6 +529,9 @@
 			isa = PBXGroup;
 			children = (
 				B260 /* OnboardingView.swift */,
+				DB41AA1177EF05D19E278916 /* ServerSelectView.swift */,
+				F156FB11282DDE8678B19A78 /* EndpointSelectView.swift */,
+				F85A04CB3691DE34BF4E4666 /* ServerEndpointFlowView.swift */,
 			);
 			path = Onboarding;
 			sourceTree = "<group>";
@@ -753,6 +762,9 @@
 				5141864342A197A67CBC0DEA /* TrackPreferenceService.swift in Sources */,
 				3B374BB0581072BF2FDC1C78 /* MpvConfigModels.swift in Sources */,
 				3A70BC76DBA52951CA9C3605 /* MpvConfigView.swift in Sources */,
+				6A22C3A3C46B60883309776E /* ServerSelectView.swift in Sources */,
+				9D82BB3DA6029E023449A907 /* EndpointSelectView.swift in Sources */,
+				D593D818FCF559C1912E8893 /* ServerEndpointFlowView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

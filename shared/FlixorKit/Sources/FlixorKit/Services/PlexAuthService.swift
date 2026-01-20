@@ -344,6 +344,16 @@ public struct PlexServerResource: Codable, Identifiable {
     public let publicAddress: String?
     public let presence: Bool?
     public let connections: [PlexConnectionResource]
+
+    public init(id: String, name: String, owned: Bool, accessToken: String, publicAddress: String?, presence: Bool?, connections: [PlexConnectionResource]) {
+        self.id = id
+        self.name = name
+        self.owned = owned
+        self.accessToken = accessToken
+        self.publicAddress = publicAddress
+        self.presence = presence
+        self.connections = connections
+    }
 }
 
 public struct PlexConnectionResource: Codable, Identifiable {
@@ -354,6 +364,14 @@ public struct PlexConnectionResource: Codable, Identifiable {
     public let IPv6: Bool
 
     public var id: String { uri }
+
+    public init(uri: String, protocol: String, local: Bool, relay: Bool, IPv6: Bool) {
+        self.uri = uri
+        self.protocol = `protocol`
+        self.local = local
+        self.relay = relay
+        self.IPv6 = IPv6
+    }
 }
 
 // MARK: - Errors
