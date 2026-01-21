@@ -3,7 +3,17 @@
  * Requires user to enable and provide URL + API key in settings
  */
 
-import { isOverseerrEnabled, getOverseerrUrl, getOverseerrApiKey } from './SettingsData';
+import {
+  isOverseerrEnabled,
+  getOverseerrUrl,
+  getOverseerrAuthMethod,
+  getOverseerrApiKey,
+  getOverseerrSessionCookie,
+  setOverseerrSessionCookie,
+  setOverseerrPlexUsername,
+  clearOverseerrAuth,
+} from './SettingsData';
+import { getFlixorCore } from './index';
 
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
@@ -49,7 +59,10 @@ interface OverseerrUser {
   id: number;
   email: string;
   username: string;
+  plexUsername?: string;
+  plexToken?: string;
   permissions: number;
+  avatar?: string;
 }
 
 interface MediaRequest {
@@ -98,30 +111,55 @@ function normalizeUrl(url: string): string {
 
 /**
  * Make authenticated request to Overseerr API
+ * Supports both API key and session cookie (Plex) authentication
  */
 async function overseerrFetch<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
   const baseUrl = getOverseerrUrl();
-  const apiKey = getOverseerrApiKey();
+  const authMethod = getOverseerrAuthMethod();
 
-  if (!baseUrl || !apiKey) {
+  if (!baseUrl) {
     throw new Error('Overseerr not configured');
   }
 
   const url = `${normalizeUrl(baseUrl)}/api/v1${endpoint}`;
 
+  // Build headers based on auth method
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options.headers as Record<string, string>),
+  };
+
+  if (authMethod === 'api_key') {
+    const apiKey = getOverseerrApiKey();
+    if (!apiKey) {
+      throw new Error('Overseerr API key not configured');
+    }
+    headers['X-Api-Key'] = apiKey;
+  } else {
+    // Plex auth uses session cookie
+    const sessionCookie = getOverseerrSessionCookie();
+    if (!sessionCookie) {
+      throw new Error('Overseerr session expired. Please sign in again.');
+    }
+    headers['Cookie'] = sessionCookie;
+  }
+
   const response = await fetch(url, {
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Api-Key': apiKey,
-      ...options.headers,
-    },
+    headers,
+    credentials: 'include', // Important for cookie handling
   });
 
   if (!response.ok) {
+    // Handle session expiry
+    if (response.status === 401 && authMethod === 'plex') {
+      // Clear expired session
+      await setOverseerrSessionCookie(undefined);
+      throw new Error('Session expired. Please sign in again.');
+    }
     const errorText = await response.text().catch(() => 'Unknown error');
     throw new Error(`Overseerr API error (${response.status}): ${errorText}`);
   }
@@ -130,14 +168,25 @@ async function overseerrFetch<T>(
 }
 
 /**
- * Check if Overseerr is enabled and has URL + API key configured
+ * Check if Overseerr is enabled and properly configured
+ * For API key auth: needs URL + API key
+ * For Plex auth: needs URL + session cookie
  */
 export function isOverseerrReady(): boolean {
-  return isOverseerrEnabled() && !!getOverseerrUrl() && !!getOverseerrApiKey();
+  if (!isOverseerrEnabled() || !getOverseerrUrl()) {
+    return false;
+  }
+
+  const authMethod = getOverseerrAuthMethod();
+  if (authMethod === 'api_key') {
+    return !!getOverseerrApiKey();
+  } else {
+    return !!getOverseerrSessionCookie();
+  }
 }
 
 /**
- * Validate Overseerr connection with provided credentials
+ * Validate Overseerr connection with API key
  */
 export async function validateOverseerrConnection(
   url: string,
@@ -168,6 +217,157 @@ export async function validateOverseerrConnection(
     }
     return { valid: false, error: 'Connection failed' };
   }
+}
+
+/**
+ * Authenticate with Overseerr using Plex token
+ * This uses the existing Plex token from the app to sign in to Overseerr
+ */
+export async function authenticateWithPlex(
+  url: string
+): Promise<{ valid: boolean; username?: string; error?: string }> {
+  try {
+    // Get the Plex token from FlixorCore
+    const core = getFlixorCore();
+    const plexToken = (core as any).plexToken;
+
+    if (!plexToken) {
+      return { valid: false, error: 'Not signed in to Plex' };
+    }
+
+    const normalizedUrl = normalizeUrl(url);
+
+    // First, check if the server is reachable
+    try {
+      const statusResponse = await fetch(`${normalizedUrl}/api/v1/status`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (!statusResponse.ok) {
+        return { valid: false, error: 'Unable to connect to Overseerr server' };
+      }
+    } catch {
+      return { valid: false, error: 'Unable to connect to server' };
+    }
+
+    // Authenticate with Plex token
+    const authResponse = await fetch(`${normalizedUrl}/api/v1/auth/plex`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ authToken: plexToken }),
+      credentials: 'include',
+    });
+
+    if (!authResponse.ok) {
+      if (authResponse.status === 401 || authResponse.status === 403) {
+        return { valid: false, error: 'Plex account not authorized on this Overseerr server' };
+      }
+      const errorText = await authResponse.text().catch(() => '');
+      console.log('[OverseerrService] Plex auth error:', authResponse.status, errorText);
+      return { valid: false, error: `Authentication failed (${authResponse.status})` };
+    }
+
+    // Extract session cookie from response headers
+    const setCookieHeader = authResponse.headers.get('set-cookie');
+    let sessionCookie: string | null = null;
+
+    if (setCookieHeader) {
+      // Parse the connect.sid cookie
+      const cookieMatch = setCookieHeader.match(/connect\.sid=([^;]+)/);
+      if (cookieMatch) {
+        sessionCookie = `connect.sid=${cookieMatch[1]}`;
+      }
+    }
+
+    // Get user info from response
+    const user: OverseerrUser = await authResponse.json();
+    const username = user.username || user.plexUsername || user.email;
+
+    // Store the session cookie and username
+    if (sessionCookie) {
+      await setOverseerrSessionCookie(sessionCookie);
+      await setOverseerrPlexUsername(username);
+      console.log('[OverseerrService] Plex auth successful, session stored');
+      return { valid: true, username };
+    } else {
+      // Some servers may not return set-cookie header due to CORS
+      // Try to verify the session by making an authenticated request
+      console.log('[OverseerrService] No cookie in response, attempting to verify session');
+
+      // The session might be stored in a different way (e.g., response body token)
+      // For now, we'll use the plexToken directly for subsequent requests as a fallback
+      await setOverseerrPlexUsername(username);
+
+      // Try a test request to see if we're authenticated
+      const meResponse = await fetch(`${normalizedUrl}/api/v1/auth/me`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      });
+
+      if (meResponse.ok) {
+        console.log('[OverseerrService] Session appears valid without explicit cookie');
+        return { valid: true, username };
+      }
+
+      return { valid: false, error: 'Authentication succeeded but session cookie not received' };
+    }
+  } catch (error) {
+    console.log('[OverseerrService] Plex authentication error:', error);
+    if (error instanceof TypeError && error.message.includes('Network')) {
+      return { valid: false, error: 'Unable to connect to server' };
+    }
+    return { valid: false, error: 'Authentication failed' };
+  }
+}
+
+/**
+ * Validate existing Plex session
+ */
+export async function validatePlexSession(
+  url: string
+): Promise<{ valid: boolean; username?: string; error?: string }> {
+  try {
+    const sessionCookie = getOverseerrSessionCookie();
+    if (!sessionCookie) {
+      return { valid: false, error: 'No session found' };
+    }
+
+    const normalizedUrl = normalizeUrl(url);
+    const response = await fetch(`${normalizedUrl}/api/v1/auth/me`, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Cookie': sessionCookie,
+      },
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        return { valid: false, error: 'Session expired' };
+      }
+      return { valid: false, error: `Server error (${response.status})` };
+    }
+
+    const user: OverseerrUser = await response.json();
+    return { valid: true, username: user.username || user.plexUsername || user.email };
+  } catch (error) {
+    console.log('[OverseerrService] Session validation error:', error);
+    return { valid: false, error: 'Connection failed' };
+  }
+}
+
+/**
+ * Sign out of Overseerr (clear stored credentials)
+ */
+export async function signOutOverseerr(): Promise<void> {
+  await clearOverseerrAuth();
+  clearOverseerrCache();
+  console.log('[OverseerrService] Signed out and cleared cache');
 }
 
 /**

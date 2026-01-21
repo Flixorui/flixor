@@ -18,7 +18,13 @@ import SettingsCard from '../../components/settings/SettingsCard';
 import SettingItem from '../../components/settings/SettingItem';
 import OverseerrIcon from '../../components/icons/OverseerrIcon';
 import { useAppSettings } from '../../hooks/useAppSettings';
-import { validateOverseerrConnection, clearOverseerrCache } from '../../core/OverseerrService';
+import {
+  validateOverseerrConnection,
+  authenticateWithPlex,
+  validatePlexSession,
+  signOutOverseerr,
+  clearOverseerrCache,
+} from '../../core/OverseerrService';
 
 export default function OverseerrSettings() {
   const nav: any = useNavigation();
@@ -28,6 +34,9 @@ export default function OverseerrSettings() {
 
   const [url, setUrl] = useState(settings.overseerrUrl || '');
   const [apiKey, setApiKey] = useState(settings.overseerrApiKey || '');
+  const [authMethod, setAuthMethod] = useState<'api_key' | 'plex'>(
+    settings.overseerrAuthMethod || 'plex'
+  );
   const [testing, setTesting] = useState(false);
   const [saved, setSaved] = useState(false);
   const [testResult, setTestResult] = useState<{
@@ -44,23 +53,51 @@ export default function OverseerrSettings() {
     if (settings.overseerrApiKey && !apiKey) {
       setApiKey(settings.overseerrApiKey);
     }
+    if (settings.overseerrAuthMethod) {
+      setAuthMethod(settings.overseerrAuthMethod);
+    }
     // If settings are already configured, mark as saved
-    if (settings.overseerrUrl && settings.overseerrApiKey) {
+    const isConfiguredForMethod =
+      settings.overseerrUrl &&
+      ((settings.overseerrAuthMethod === 'api_key' && settings.overseerrApiKey) ||
+        (settings.overseerrAuthMethod === 'plex' && settings.overseerrSessionCookie));
+    if (isConfiguredForMethod) {
       setSaved(true);
     }
-  }, [settings.overseerrUrl, settings.overseerrApiKey]);
+  }, [
+    settings.overseerrUrl,
+    settings.overseerrApiKey,
+    settings.overseerrAuthMethod,
+    settings.overseerrSessionCookie,
+  ]);
 
   const hasUrl = useMemo(() => url.trim().length > 0, [url]);
   const hasKey = useMemo(() => apiKey.trim().length > 0, [apiKey]);
 
   // Check if current values match saved settings
   const hasChanges = useMemo(() => {
-    return url.trim() !== (settings.overseerrUrl || '') ||
-           apiKey.trim() !== (settings.overseerrApiKey || '');
-  }, [url, apiKey, settings.overseerrUrl, settings.overseerrApiKey]);
+    if (authMethod === 'api_key') {
+      return (
+        url.trim() !== (settings.overseerrUrl || '') ||
+        apiKey.trim() !== (settings.overseerrApiKey || '')
+      );
+    }
+    return url.trim() !== (settings.overseerrUrl || '');
+  }, [url, apiKey, authMethod, settings.overseerrUrl, settings.overseerrApiKey]);
 
-  const canTest = hasUrl && hasKey && settings.overseerrEnabled && (!saved || hasChanges);
-  const isConfigured = settings.overseerrEnabled && settings.overseerrUrl && settings.overseerrApiKey;
+  // Different conditions for each auth method
+  const canTestApiKey = hasUrl && hasKey && settings.overseerrEnabled && (!saved || hasChanges);
+  const canTestPlex = hasUrl && settings.overseerrEnabled;
+
+  const isConfigured =
+    settings.overseerrEnabled &&
+    settings.overseerrUrl &&
+    ((authMethod === 'api_key' && settings.overseerrApiKey) ||
+      (authMethod === 'plex' && settings.overseerrSessionCookie));
+
+  // Check if signed in with Plex
+  const isPlexSignedIn = authMethod === 'plex' && settings.overseerrSessionCookie;
+  const plexUsername = settings.overseerrPlexUsername;
 
   const toggleEnabled = async (value: boolean) => {
     await updateSetting('overseerrEnabled', value);
@@ -74,8 +111,15 @@ export default function OverseerrSettings() {
     }
   };
 
-  const testConnection = async () => {
-    if (!canTest) return;
+  const handleAuthMethodChange = async (method: 'api_key' | 'plex') => {
+    setAuthMethod(method);
+    await updateSetting('overseerrAuthMethod', method);
+    setTestResult(null);
+    setSaved(false);
+  };
+
+  const testApiKeyConnection = async () => {
+    if (!canTestApiKey) return;
 
     setTesting(true);
     setTestResult(null);
@@ -88,6 +132,7 @@ export default function OverseerrSettings() {
         // Save settings on successful test
         await updateSetting('overseerrUrl', url.trim());
         await updateSetting('overseerrApiKey', apiKey.trim());
+        await updateSetting('overseerrAuthMethod', 'api_key');
         clearOverseerrCache();
         setSaved(true);
 
@@ -112,6 +157,51 @@ export default function OverseerrSettings() {
     }
   };
 
+  const signInWithPlex = async () => {
+    if (!canTestPlex) return;
+
+    setTesting(true);
+    setTestResult(null);
+    setSaved(false);
+
+    try {
+      // Save URL first
+      await updateSetting('overseerrUrl', url.trim());
+      await updateSetting('overseerrAuthMethod', 'plex');
+
+      const result = await authenticateWithPlex(url.trim());
+
+      if (result.valid) {
+        clearOverseerrCache();
+        setSaved(true);
+
+        setTestResult({
+          success: true,
+          message: 'Signed in successfully!',
+          username: result.username,
+        });
+      } else {
+        setTestResult({
+          success: false,
+          message: result.error || 'Sign in failed',
+        });
+      }
+    } catch (error) {
+      setTestResult({
+        success: false,
+        message: 'Sign in failed',
+      });
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    await signOutOverseerr();
+    setSaved(false);
+    setTestResult(null);
+  };
+
   const getStatusInfo = () => {
     if (!settings.overseerrEnabled) {
       return {
@@ -121,12 +211,20 @@ export default function OverseerrSettings() {
         desc: 'Enable Overseerr to request movies and shows.',
       };
     }
-    if (!hasUrl || !hasKey) {
+    if (!hasUrl) {
       return {
         icon: 'alert-circle' as const,
         color: '#f59e0b',
         title: 'Configuration Required',
-        desc: 'Enter your Overseerr URL and API key.',
+        desc: 'Enter your Overseerr server URL.',
+      };
+    }
+    if (authMethod === 'api_key' && !hasKey) {
+      return {
+        icon: 'alert-circle' as const,
+        color: '#f59e0b',
+        title: 'API Key Required',
+        desc: 'Enter your Overseerr API key.',
       };
     }
     if (testResult?.success) {
@@ -146,11 +244,20 @@ export default function OverseerrSettings() {
       };
     }
     if (isConfigured) {
+      const displayName = authMethod === 'plex' ? plexUsername : 'API Key';
       return {
         icon: 'checkmark-circle' as const,
         color: '#22c55e',
-        title: 'Overseerr Active',
+        title: `Connected${displayName ? ` as ${displayName}` : ''}`,
         desc: 'Request movies and shows from Details screen.',
+      };
+    }
+    if (authMethod === 'plex') {
+      return {
+        icon: 'alert-circle' as const,
+        color: '#f59e0b',
+        title: 'Sign In Required',
+        desc: 'Sign in with your Plex account.',
       };
     }
     return {
@@ -232,82 +339,192 @@ export default function OverseerrSettings() {
           </Text>
         </SettingsCard>
 
-        {/* API Key */}
-        <SettingsCard title="API KEY">
-          <View style={[styles.inputWrap, !settings.overseerrEnabled && styles.disabled]}>
-            <TextInput
-              value={apiKey}
-              onChangeText={(text) => {
-                setApiKey(text);
-                setTestResult(null);
-                setSaved(false);
-              }}
-              placeholder="Enter your Overseerr API key"
-              placeholderTextColor="#6b7280"
-              style={[styles.input, !settings.overseerrEnabled && styles.inputDisabled]}
-              autoCapitalize="none"
-              autoCorrect={false}
-              secureTextEntry
-              editable={settings.overseerrEnabled}
-            />
+        {/* Authentication Method */}
+        <SettingsCard title="AUTHENTICATION">
+          <View style={[styles.authMethodWrap, !settings.overseerrEnabled && styles.disabled]}>
             <Pressable
               style={[
-                styles.testButton,
-                (!canTest || (saved && !hasChanges)) && styles.buttonDisabled,
-                saved && !hasChanges && styles.savedButton,
+                styles.authMethodOption,
+                authMethod === 'plex' && styles.authMethodSelected,
               ]}
-              onPress={testConnection}
-              disabled={!canTest || testing || (saved && !hasChanges)}
+              onPress={() => handleAuthMethodChange('plex')}
+              disabled={!settings.overseerrEnabled}
             >
-              {testing ? (
-                <ActivityIndicator size="small" color="#0b0b0d" />
-              ) : saved && !hasChanges ? (
-                <Text style={[styles.testButtonText, styles.savedButtonText]}>
-                  Saved
-                </Text>
-              ) : (
-                <Text style={[styles.testButtonText, !canTest && styles.buttonTextDisabled]}>
-                  Test & Save
-                </Text>
+              <Ionicons
+                name="logo-apple"
+                size={20}
+                color={authMethod === 'plex' ? '#fff' : '#9ca3af'}
+              />
+              <Text
+                style={[
+                  styles.authMethodText,
+                  authMethod === 'plex' && styles.authMethodTextSelected,
+                ]}
+              >
+                Sign in with Plex
+              </Text>
+              {authMethod === 'plex' && (
+                <Ionicons name="checkmark-circle" size={18} color="#22c55e" />
+              )}
+            </Pressable>
+
+            <Pressable
+              style={[
+                styles.authMethodOption,
+                authMethod === 'api_key' && styles.authMethodSelected,
+              ]}
+              onPress={() => handleAuthMethodChange('api_key')}
+              disabled={!settings.overseerrEnabled}
+            >
+              <Ionicons
+                name="key-outline"
+                size={20}
+                color={authMethod === 'api_key' ? '#fff' : '#9ca3af'}
+              />
+              <Text
+                style={[
+                  styles.authMethodText,
+                  authMethod === 'api_key' && styles.authMethodTextSelected,
+                ]}
+              >
+                API Key
+              </Text>
+              {authMethod === 'api_key' && (
+                <Ionicons name="checkmark-circle" size={18} color="#22c55e" />
               )}
             </Pressable>
           </View>
           <Text style={styles.note}>
-            Find your API key in Overseerr Settings {'>'} General {'>'} API Key
+            {authMethod === 'plex'
+              ? 'Use your existing Plex account to sign in (recommended)'
+              : 'Use an API key for authentication'}
           </Text>
         </SettingsCard>
 
-        {/* Instructions */}
-        <SettingsCard title="HOW TO GET YOUR API KEY">
-          <View style={styles.stepsWrap}>
-            <View style={styles.step}>
-              <Text style={styles.stepNumber}>1.</Text>
-              <Text style={styles.stepText}>
-                Open your <Text style={styles.highlight}>Overseerr</Text> web interface
-              </Text>
+        {/* Plex Auth Section */}
+        {authMethod === 'plex' && (
+          <SettingsCard title="PLEX SIGN IN">
+            <View style={[styles.inputWrap, !settings.overseerrEnabled && styles.disabled]}>
+              {/* Sign in / Signed in button */}
+              <Pressable
+                style={[
+                  styles.plexSignInButton,
+                  isPlexSignedIn && styles.plexSignedInButton,
+                  (!canTestPlex || testing) && !isPlexSignedIn && styles.buttonDisabled,
+                ]}
+                onPress={isPlexSignedIn ? undefined : signInWithPlex}
+                disabled={isPlexSignedIn || !canTestPlex || testing}
+              >
+                {testing ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : isPlexSignedIn ? (
+                  <>
+                    <Ionicons name="checkmark-circle" size={20} color="#fff" />
+                    <Text style={styles.plexSignInButtonText}>
+                      Signed in as {plexUsername || 'Plex User'}
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <Ionicons name="log-in-outline" size={20} color="#fff" />
+                    <Text style={styles.plexSignInButtonText}>Sign in with Plex</Text>
+                  </>
+                )}
+              </Pressable>
+
+              {/* Sign out button - only shown when signed in */}
+              {isPlexSignedIn && (
+                <Pressable style={styles.signOutButton} onPress={handleSignOut}>
+                  <Text style={styles.signOutButtonText}>Sign Out</Text>
+                </Pressable>
+              )}
             </View>
-            <View style={styles.step}>
-              <Text style={styles.stepNumber}>2.</Text>
-              <Text style={styles.stepText}>
-                Go to <Text style={styles.highlight}>Settings</Text> {'>'}{' '}
-                <Text style={styles.highlight}>General</Text>
+            <Text style={styles.note}>
+              {isPlexSignedIn
+                ? 'You can now request movies and shows from the Details screen.'
+                : 'Uses your existing Plex account to authenticate with Overseerr. Your Plex account must have access to the Overseerr server.'}
+            </Text>
+          </SettingsCard>
+        )}
+
+        {/* API Key Section */}
+        {authMethod === 'api_key' && (
+          <>
+            <SettingsCard title="API KEY">
+              <View style={[styles.inputWrap, !settings.overseerrEnabled && styles.disabled]}>
+                <TextInput
+                  value={apiKey}
+                  onChangeText={(text) => {
+                    setApiKey(text);
+                    setTestResult(null);
+                    setSaved(false);
+                  }}
+                  placeholder="Enter your Overseerr API key"
+                  placeholderTextColor="#6b7280"
+                  style={[styles.input, !settings.overseerrEnabled && styles.inputDisabled]}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  secureTextEntry
+                  editable={settings.overseerrEnabled}
+                />
+                <Pressable
+                  style={[
+                    styles.testButton,
+                    (!canTestApiKey || (saved && !hasChanges)) && styles.buttonDisabled,
+                    saved && !hasChanges && styles.savedButton,
+                  ]}
+                  onPress={testApiKeyConnection}
+                  disabled={!canTestApiKey || testing || (saved && !hasChanges)}
+                >
+                  {testing ? (
+                    <ActivityIndicator size="small" color="#0b0b0d" />
+                  ) : saved && !hasChanges ? (
+                    <Text style={[styles.testButtonText, styles.savedButtonText]}>Saved</Text>
+                  ) : (
+                    <Text style={[styles.testButtonText, !canTestApiKey && styles.buttonTextDisabled]}>
+                      Test & Save
+                    </Text>
+                  )}
+                </Pressable>
+              </View>
+              <Text style={styles.note}>
+                Find your API key in Overseerr Settings {'>'} General {'>'} API Key
               </Text>
-            </View>
-            <View style={styles.step}>
-              <Text style={styles.stepNumber}>3.</Text>
-              <Text style={styles.stepText}>
-                Copy the <Text style={styles.highlight}>API Key</Text> and paste above
-              </Text>
-            </View>
-            <Pressable
-              style={styles.linkButton}
-              onPress={() => Linking.openURL('https://docs.overseerr.dev/')}
-            >
-              <Text style={styles.linkButtonText}>Overseerr Documentation</Text>
-              <Ionicons name="open-outline" size={16} color="#3b82f6" />
-            </Pressable>
-          </View>
-        </SettingsCard>
+            </SettingsCard>
+
+            {/* Instructions for API Key */}
+            <SettingsCard title="HOW TO GET YOUR API KEY">
+              <View style={styles.stepsWrap}>
+                <View style={styles.step}>
+                  <Text style={styles.stepNumber}>1.</Text>
+                  <Text style={styles.stepText}>
+                    Open your <Text style={styles.highlight}>Overseerr</Text> web interface
+                  </Text>
+                </View>
+                <View style={styles.step}>
+                  <Text style={styles.stepNumber}>2.</Text>
+                  <Text style={styles.stepText}>
+                    Go to <Text style={styles.highlight}>Settings</Text> {'>'}{' '}
+                    <Text style={styles.highlight}>General</Text>
+                  </Text>
+                </View>
+                <View style={styles.step}>
+                  <Text style={styles.stepNumber}>3.</Text>
+                  <Text style={styles.stepText}>
+                    Copy the <Text style={styles.highlight}>API Key</Text> and paste above
+                  </Text>
+                </View>
+                <Pressable
+                  style={styles.linkButton}
+                  onPress={() => Linking.openURL('https://docs.overseerr.dev/')}
+                >
+                  <Text style={styles.linkButtonText}>Overseerr Documentation</Text>
+                  <Ionicons name="open-outline" size={16} color="#3b82f6" />
+                </Pressable>
+              </View>
+            </SettingsCard>
+          </>
+        )}
 
         {/* About */}
         <SettingsCard title="ABOUT OVERSEERR">
@@ -409,6 +626,67 @@ const styles = StyleSheet.create({
   inputDisabled: {
     backgroundColor: 'rgba(255,255,255,0.02)',
     color: '#6b7280',
+  },
+  // Auth method picker styles
+  authMethodWrap: {
+    padding: 14,
+    gap: 10,
+  },
+  authMethodOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+  authMethodSelected: {
+    backgroundColor: 'rgba(99, 102, 241, 0.15)',
+    borderColor: 'rgba(99, 102, 241, 0.4)',
+  },
+  authMethodText: {
+    flex: 1,
+    color: '#9ca3af',
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  authMethodTextSelected: {
+    color: '#fff',
+  },
+  // Plex sign in styles
+  plexSignInButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    backgroundColor: '#e5a00d',
+    borderRadius: 10,
+    paddingVertical: 14,
+    minHeight: 48,
+  },
+  plexSignedInButton: {
+    backgroundColor: '#22c55e',
+  },
+  plexSignInButtonText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 15,
+  },
+  signOutButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+  },
+  signOutButtonText: {
+    color: '#ef4444',
+    fontWeight: '600',
+    fontSize: 14,
   },
   testButton: {
     backgroundColor: '#fff',

@@ -277,7 +277,10 @@ export interface AppSettings {
   // Overseerr settings
   overseerrEnabled: boolean; // Enable Overseerr integration (disabled by default)
   overseerrUrl?: string; // Overseerr server URL (e.g., https://overseerr.example.com)
-  overseerrApiKey?: string; // Overseerr API key
+  overseerrAuthMethod: 'api_key' | 'plex'; // Authentication method
+  overseerrApiKey?: string; // Overseerr API key (when using api_key auth)
+  overseerrSessionCookie?: string; // Session cookie (when using plex auth)
+  overseerrPlexUsername?: string; // Username from Plex auth (for display)
   tmdbLanguagePreference: string;
   enrichMetadataWithTMDB: boolean;
   useTmdbLocalizedMetadata: boolean;
@@ -336,7 +339,10 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   // Overseerr defaults
   overseerrEnabled: false,
   overseerrUrl: undefined,
+  overseerrAuthMethod: 'plex', // Default to Plex auth (simpler for users)
   overseerrApiKey: undefined,
+  overseerrSessionCookie: undefined,
+  overseerrPlexUsername: undefined,
   tmdbLanguagePreference: 'en',
   enrichMetadataWithTMDB: true,
   useTmdbLocalizedMetadata: false,
@@ -496,8 +502,20 @@ export function getOverseerrUrl(): string | undefined {
   return cachedSettings.overseerrUrl;
 }
 
+export function getOverseerrAuthMethod(): 'api_key' | 'plex' {
+  return cachedSettings.overseerrAuthMethod ?? 'plex';
+}
+
 export function getOverseerrApiKey(): string | undefined {
   return cachedSettings.overseerrApiKey;
+}
+
+export function getOverseerrSessionCookie(): string | undefined {
+  return cachedSettings.overseerrSessionCookie;
+}
+
+export function getOverseerrPlexUsername(): string | undefined {
+  return cachedSettings.overseerrPlexUsername;
 }
 
 export async function setOverseerrEnabled(enabled: boolean): Promise<void> {
@@ -508,8 +526,28 @@ export async function setOverseerrUrl(url: string | undefined): Promise<void> {
   await setAppSettings({ overseerrUrl: url });
 }
 
+export async function setOverseerrAuthMethod(method: 'api_key' | 'plex'): Promise<void> {
+  await setAppSettings({ overseerrAuthMethod: method });
+}
+
 export async function setOverseerrApiKey(apiKey: string | undefined): Promise<void> {
   await setAppSettings({ overseerrApiKey: apiKey });
+}
+
+export async function setOverseerrSessionCookie(cookie: string | undefined): Promise<void> {
+  await setAppSettings({ overseerrSessionCookie: cookie });
+}
+
+export async function setOverseerrPlexUsername(username: string | undefined): Promise<void> {
+  await setAppSettings({ overseerrPlexUsername: username });
+}
+
+export async function clearOverseerrAuth(): Promise<void> {
+  await setAppSettings({
+    overseerrApiKey: undefined,
+    overseerrSessionCookie: undefined,
+    overseerrPlexUsername: undefined,
+  });
 }
 
 // Discovery mode helpers
