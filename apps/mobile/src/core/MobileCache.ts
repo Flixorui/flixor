@@ -1,12 +1,29 @@
 import { createMMKV, type MMKV } from 'react-native-mmkv';
 import type { ICache } from '@flixor/core';
+import { getCurrentProfile } from './ProfileStorage';
 
 const CACHE_PREFIX = 'cache:';
 const CACHE_INDEX_KEY = 'cache_index';
 
-// Initialize MMKV storage (synchronous, native-backed)
-// MMKV v4 uses createMMKV function (requires react-native-nitro-modules)
-const storage = createMMKV({ id: 'flixor-cache' });
+// Map of MMKV storage instances per profile
+// 'main' for main account, profile UUID for profiles
+const storageInstances = new Map<string, MMKV>();
+
+/**
+ * Get MMKV storage instance for the current profile
+ * Each profile has its own isolated cache storage
+ */
+function getStorage(): MMKV {
+  const profileId = getCurrentProfile() || 'main';
+
+  if (!storageInstances.has(profileId)) {
+    // Create new MMKV instance for this profile
+    const storage = createMMKV({ id: `flixor-cache-${profileId}` });
+    storageInstances.set(profileId, storage);
+  }
+
+  return storageInstances.get(profileId)!;
+}
 
 interface CacheEntry<T> {
   data: T;
@@ -69,12 +86,12 @@ export class MobileCache implements ICache {
 
     // 2. Check MMKV disk cache (synchronous, very fast)
     try {
-      const raw = storage.getString(CACHE_PREFIX + key);
+      const raw = getStorage().getString(CACHE_PREFIX + key);
       if (!raw) return null;
 
       const entry: CacheEntry<T> = JSON.parse(raw);
       if (!this.isValid(entry)) {
-        storage.remove(CACHE_PREFIX + key);
+        getStorage().remove(CACHE_PREFIX + key);
         return null;
       }
 
@@ -103,7 +120,7 @@ export class MobileCache implements ICache {
 
     // Disk cache (MMKV is synchronous but we keep async interface for compatibility)
     try {
-      storage.set(CACHE_PREFIX + key, JSON.stringify(entry));
+      getStorage().set(CACHE_PREFIX + key, JSON.stringify(entry));
       this.updateCacheIndex(key);
     } catch (e) {
       console.error('[MobileCache] Failed to write to disk:', e);
@@ -112,7 +129,7 @@ export class MobileCache implements ICache {
 
   private updateCacheIndex(key: string) {
     try {
-      const indexRaw = storage.getString(CACHE_INDEX_KEY);
+      const indexRaw = getStorage().getString(CACHE_INDEX_KEY);
       const index: string[] = indexRaw ? JSON.parse(indexRaw) : [];
 
       if (!index.includes(key)) {
@@ -123,11 +140,11 @@ export class MobileCache implements ICache {
       while (index.length > CACHE_LIMITS.maxDiskEntries) {
         const oldKey = index.shift();
         if (oldKey) {
-          storage.remove(CACHE_PREFIX + oldKey);
+          getStorage().remove(CACHE_PREFIX + oldKey);
         }
       }
 
-      storage.set(CACHE_INDEX_KEY, JSON.stringify(index));
+      getStorage().set(CACHE_INDEX_KEY, JSON.stringify(index));
     } catch (e) {
       console.error('[MobileCache] Failed to update index:', e);
     }
@@ -139,7 +156,7 @@ export class MobileCache implements ICache {
     if (idx > -1) {
       this.accessOrder.splice(idx, 1);
     }
-    storage.remove(CACHE_PREFIX + key);
+    getStorage().remove(CACHE_PREFIX + key);
   }
 
   // Alias for backwards compatibility
@@ -171,18 +188,18 @@ export class MobileCache implements ICache {
 
     // Disk
     try {
-      const indexRaw = storage.getString(CACHE_INDEX_KEY);
+      const indexRaw = getStorage().getString(CACHE_INDEX_KEY);
       const index: string[] = indexRaw ? JSON.parse(indexRaw) : [];
 
       for (const key of index) {
         if (regex.test(key)) {
-          storage.remove(CACHE_PREFIX + key);
+          getStorage().remove(CACHE_PREFIX + key);
         }
       }
 
       // Update index
       const newIndex = index.filter((key) => !regex.test(key));
-      storage.set(CACHE_INDEX_KEY, JSON.stringify(newIndex));
+      getStorage().set(CACHE_INDEX_KEY, JSON.stringify(newIndex));
     } catch (e) {
       console.error('[MobileCache] Failed to invalidate pattern:', e);
     }
@@ -193,13 +210,13 @@ export class MobileCache implements ICache {
     this.accessOrder = [];
 
     try {
-      const indexRaw = storage.getString(CACHE_INDEX_KEY);
+      const indexRaw = getStorage().getString(CACHE_INDEX_KEY);
       const index: string[] = indexRaw ? JSON.parse(indexRaw) : [];
 
       for (const key of index) {
-        storage.remove(CACHE_PREFIX + key);
+        getStorage().remove(CACHE_PREFIX + key);
       }
-      storage.remove(CACHE_INDEX_KEY);
+      getStorage().remove(CACHE_INDEX_KEY);
     } catch (e) {
       console.error('[MobileCache] Failed to clear cache:', e);
     }
@@ -207,7 +224,7 @@ export class MobileCache implements ICache {
 
   // New: Get cache stats for debugging
   getStats() {
-    const indexRaw = storage.getString(CACHE_INDEX_KEY);
+    const indexRaw = getStorage().getString(CACHE_INDEX_KEY);
     const index: string[] = indexRaw ? JSON.parse(indexRaw) : [];
     return {
       memoryEntries: this.memoryCache.size,
@@ -215,6 +232,15 @@ export class MobileCache implements ICache {
       memoryLimit: CACHE_LIMITS.maxMemoryEntries,
       diskLimit: CACHE_LIMITS.maxDiskEntries,
     };
+  }
+
+  /**
+   * Clear in-memory cache only (called when switching profiles)
+   * Disk cache is already per-profile via getStorage()
+   */
+  clearMemoryCache(): void {
+    this.memoryCache.clear();
+    this.accessOrder = [];
   }
 }
 
@@ -236,4 +262,14 @@ export async function clearApiCache(): Promise<void> {
   const cache = getSharedCache();
   await cache.clear();
   console.log('[MobileCache] API cache cleared');
+}
+
+/**
+ * Called when switching profiles
+ * Clears in-memory cache since disk cache is per-profile
+ */
+export function onProfileSwitch(): void {
+  const cache = getSharedCache();
+  cache.clearMemoryCache();
+  console.log('[MobileCache] Memory cache cleared for profile switch');
 }

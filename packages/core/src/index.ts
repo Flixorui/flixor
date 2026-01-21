@@ -1,6 +1,6 @@
 // Main entry point
 export { FlixorCore } from './FlixorCore';
-export type { FlixorCoreConfig } from './FlixorCore';
+export type { FlixorCoreConfig, ActiveProfile } from './FlixorCore';
 
 // Storage interfaces
 export type { IStorage } from './storage/IStorage';
@@ -21,6 +21,7 @@ export {
 export type {
   PlexPin,
   PlexUser,
+  PlexHomeUser,
   PlexServer,
   PlexConnection,
   PlexLibrary,

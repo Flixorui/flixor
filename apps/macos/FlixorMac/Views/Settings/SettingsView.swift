@@ -630,7 +630,7 @@ struct SettingsNavigationRow: View {
 // MARK: - Discovery Mode Settings View
 
 private struct DiscoveryModeSettingsView: View {
-    @AppStorage("discoveryDisabled") private var discoveryDisabled: Bool = false
+    @ObservedObject private var settings = ProfileSettings.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -643,9 +643,9 @@ private struct DiscoveryModeSettingsView: View {
                     showDivider: false
                 ) {
                     Toggle("", isOn: Binding(
-                        get: { discoveryDisabled },
+                        get: { settings.discoveryDisabled },
                         set: { newValue in
-                            UserDefaults.standard.setDiscoveryDisabled(newValue)
+                            settings.setDiscoveryDisabled(newValue)
                         }
                     ))
                     .labelsHidden()
@@ -657,7 +657,7 @@ private struct DiscoveryModeSettingsView: View {
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 4)
 
-            if discoveryDisabled {
+            if settings.discoveryDisabled {
                 HStack(spacing: 8) {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(.green)
@@ -673,8 +673,7 @@ private struct DiscoveryModeSettingsView: View {
 // MARK: - Sidebar Settings View
 
 private struct SidebarSettingsView: View {
-    @AppStorage("showNewPopularTab") private var showNewPopularTab: Bool = true
-    @AppStorage("discoveryDisabled") private var discoveryDisabled: Bool = false
+    @ObservedObject private var settings = ProfileSettings.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -683,12 +682,12 @@ private struct SidebarSettingsView: View {
                     icon: "play.circle.fill",
                     iconColor: .red,
                     title: "New & Popular Tab",
-                    subtitle: discoveryDisabled ? "Disabled by Library Only Mode" : "Show New & Popular tab in navigation",
+                    subtitle: settings.discoveryDisabled ? "Disabled by Library Only Mode" : "Show New & Popular tab in navigation",
                     showDivider: false
                 ) {
-                    Toggle("", isOn: $showNewPopularTab)
+                    Toggle("", isOn: $settings.showNewPopularTab)
                         .labelsHidden()
-                        .disabled(discoveryDisabled)
+                        .disabled(settings.discoveryDisabled)
                 }
             }
 
@@ -703,8 +702,7 @@ private struct SidebarSettingsView: View {
 // MARK: - Search Settings View
 
 private struct SearchSettingsView: View {
-    @AppStorage("includeTmdbInSearch") private var includeTmdbInSearch: Bool = true
-    @AppStorage("discoveryDisabled") private var discoveryDisabled: Bool = false
+    @ObservedObject private var settings = ProfileSettings.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -713,12 +711,12 @@ private struct SearchSettingsView: View {
                     icon: "film.fill",
                     iconColor: .blue,
                     title: "Include TMDB Results",
-                    subtitle: discoveryDisabled ? "Disabled by Library Only Mode" : "Show TMDB movies and shows in search",
+                    subtitle: settings.discoveryDisabled ? "Disabled by Library Only Mode" : "Show TMDB movies and shows in search",
                     showDivider: false
                 ) {
-                    Toggle("", isOn: $includeTmdbInSearch)
+                    Toggle("", isOn: $settings.includeTmdbInSearch)
                         .labelsHidden()
-                        .disabled(discoveryDisabled)
+                        .disabled(settings.discoveryDisabled)
                 }
             }
 
@@ -733,12 +731,13 @@ private struct SearchSettingsView: View {
 // MARK: - General Settings Content
 
 private struct GeneralSettingsContent: View {
-    @AppStorage("playerBackend") private var selectedBackend: String = PlayerBackend.avplayer.rawValue
+    // Global hardware setting - uses property from PlayerBackend.swift
+    private let defaults = UserDefaults.standard
 
     private var playerBackendBinding: Binding<PlayerBackend> {
         Binding(
-            get: { PlayerBackend(rawValue: selectedBackend) ?? .avplayer },
-            set: { selectedBackend = $0.rawValue }
+            get: { defaults.playerBackend },
+            set: { defaults.playerBackend = $0 }
         )
     }
 
@@ -801,10 +800,7 @@ private struct TraktSettingsContent: View {
     @State private var expiresAt: Date?
     @State private var pollingTask: Task<Void, Never>?
 
-    @AppStorage("traktAutoSyncWatched") private var autoSyncWatched: Bool = true
-    @AppStorage("traktSyncRatings") private var syncRatings: Bool = true
-    @AppStorage("traktSyncWatchlist") private var syncWatchlist: Bool = true
-    @AppStorage("traktScrobbleEnabled") private var scrobbleEnabled: Bool = true
+    @ObservedObject private var profileSettings = ProfileSettings.shared
 
     private var traktColor: Color { Color(hex: "ED1C24") }
 
@@ -901,16 +897,16 @@ private struct TraktSettingsContent: View {
         // Sync Settings
         SettingsGroupCard {
             SettingsRow(icon: "arrow.triangle.2.circlepath", iconColor: .blue, title: "Auto-sync watched") {
-                Toggle("", isOn: $autoSyncWatched).labelsHidden()
+                Toggle("", isOn: $profileSettings.traktAutoSyncWatched).labelsHidden()
             }
             SettingsRow(icon: "star.fill", iconColor: .yellow, title: "Sync ratings") {
-                Toggle("", isOn: $syncRatings).labelsHidden()
+                Toggle("", isOn: $profileSettings.traktSyncRatings).labelsHidden()
             }
             SettingsRow(icon: "bookmark.fill", iconColor: .purple, title: "Sync watchlist") {
-                Toggle("", isOn: $syncWatchlist).labelsHidden()
+                Toggle("", isOn: $profileSettings.traktSyncWatchlist).labelsHidden()
             }
             SettingsRow(icon: "play.circle.fill", iconColor: traktColor, title: "Enable scrobbling", showDivider: false) {
-                Toggle("", isOn: $scrobbleEnabled).labelsHidden()
+                Toggle("", isOn: $profileSettings.traktScrobbleEnabled).labelsHidden()
             }
         }
 

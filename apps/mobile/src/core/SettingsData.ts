@@ -5,6 +5,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getFlixorCore } from './index';
+import { getProfileKey, PROFILE_SCOPED_KEYS } from './ProfileStorage';
 
 // ============================================
 // Trakt Authentication
@@ -262,9 +263,8 @@ export async function selectServerEndpoint(serverId: string, uri: string): Promi
 
 // ============================================
 // Settings State (stored locally since standalone)
+// Profile-scoped: each profile has separate settings
 // ============================================
-
-const SETTINGS_KEY = 'flixor_app_settings';
 
 export interface AppSettings {
   watchlistProvider: 'trakt' | 'plex';
@@ -409,7 +409,9 @@ function notifySettingsListeners(): void {
 
 export async function loadAppSettings(): Promise<AppSettings> {
   try {
-    const stored = await AsyncStorage.getItem(SETTINGS_KEY);
+    // Use profile-scoped key for settings
+    const storageKey = getProfileKey(PROFILE_SCOPED_KEYS.APP_SETTINGS);
+    const stored = await AsyncStorage.getItem(storageKey);
     if (stored) {
       cachedSettings = { ...DEFAULT_APP_SETTINGS, ...JSON.parse(stored) };
     } else {
@@ -429,7 +431,9 @@ export function getAppSettings(): AppSettings {
 export async function setAppSettings(settings: Partial<AppSettings>): Promise<void> {
   cachedSettings = { ...cachedSettings, ...settings };
   try {
-    await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(cachedSettings));
+    // Use profile-scoped key for settings
+    const storageKey = getProfileKey(PROFILE_SCOPED_KEYS.APP_SETTINGS);
+    await AsyncStorage.setItem(storageKey, JSON.stringify(cachedSettings));
     notifySettingsListeners();
   } catch (e) {
     console.log('[SettingsData] setAppSettings error:', e);
@@ -444,7 +448,9 @@ export async function resetAppSettings(): Promise<void> {
   cachedSettings = { ...DEFAULT_APP_SETTINGS };
   settingsLoaded = false;
   try {
-    await AsyncStorage.removeItem(SETTINGS_KEY);
+    // Use profile-scoped key for settings
+    const storageKey = getProfileKey(PROFILE_SCOPED_KEYS.APP_SETTINGS);
+    await AsyncStorage.removeItem(storageKey);
   } catch (e) {
     console.log('[SettingsData] resetAppSettings error:', e);
   }
@@ -458,7 +464,9 @@ export async function resetAllSettingsWithNotify(): Promise<void> {
   cachedSettings = { ...DEFAULT_APP_SETTINGS };
   settingsLoaded = true;
   try {
-    await AsyncStorage.removeItem(SETTINGS_KEY);
+    // Use profile-scoped key for settings
+    const storageKey = getProfileKey(PROFILE_SCOPED_KEYS.APP_SETTINGS);
+    await AsyncStorage.removeItem(storageKey);
     notifySettingsListeners();
   } catch (e) {
     console.log('[SettingsData] resetAllSettingsWithNotify error:', e);

@@ -166,6 +166,7 @@ export class TraktService {
 
   /**
    * Initialize tokens from secure storage
+   * This should be called after profile switches to reload tokens from the new storage context
    */
   async initialize(): Promise<boolean> {
     const storedTokens = await this.secureStorage.get<TraktTokens>('trakt_tokens');
@@ -185,6 +186,8 @@ export class TraktService {
       }
       return true;
     }
+    // Clear in-memory tokens when no stored tokens found (important for profile switching)
+    this.tokens = null;
     return false;
   }
 

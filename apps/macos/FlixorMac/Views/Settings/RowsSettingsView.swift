@@ -8,12 +8,7 @@
 import SwiftUI
 
 struct RowsSettingsView: View {
-    @AppStorage("showContinueWatching") private var showContinueWatching: Bool = true
-    @AppStorage("showTrendingRows") private var showTrendingRows: Bool = true
-    @AppStorage("showTraktRows") private var showTraktRows: Bool = true
-    @AppStorage("showPlexPopular") private var showPlexPopular: Bool = true
-    @AppStorage("showWatchlist") private var showWatchlist: Bool = true
-    @AppStorage("discoveryDisabled") private var discoveryDisabled: Bool = false
+    @ObservedObject private var profileSettings = ProfileSettings.shared
 
     @State private var showContinueWatchingOptions = false
 
@@ -23,41 +18,41 @@ struct RowsSettingsView: View {
             SettingsSectionHeader(title: "Row Visibility")
             SettingsGroupCard {
                 SettingsRow(icon: "play.circle.fill", iconColor: .green, title: "Continue Watching") {
-                    Toggle("", isOn: $showContinueWatching).labelsHidden()
+                    Toggle("", isOn: $profileSettings.showContinueWatching).labelsHidden()
                 }
                 SettingsRow(icon: "bookmark.fill", iconColor: .blue, title: "Watchlist") {
-                    Toggle("", isOn: $showWatchlist).labelsHidden()
+                    Toggle("", isOn: $profileSettings.showWatchlist).labelsHidden()
                 }
                 SettingsRow(
                     icon: "flame.fill",
                     iconColor: .orange,
                     title: "Trending",
-                    subtitle: discoveryDisabled ? "Disabled by Library Only Mode" : nil
+                    subtitle: profileSettings.discoveryDisabled ? "Disabled by Library Only Mode" : nil
                 ) {
-                    Toggle("", isOn: $showTrendingRows)
+                    Toggle("", isOn: $profileSettings.showTrendingRows)
                         .labelsHidden()
-                        .disabled(discoveryDisabled)
+                        .disabled(profileSettings.discoveryDisabled)
                 }
                 SettingsRow(
                     icon: "chart.bar.fill",
                     iconColor: Color(hex: "ED1C24"),
                     title: "Trakt Rows",
-                    subtitle: discoveryDisabled ? "Disabled by Library Only Mode" : nil
+                    subtitle: profileSettings.discoveryDisabled ? "Disabled by Library Only Mode" : nil
                 ) {
-                    Toggle("", isOn: $showTraktRows)
+                    Toggle("", isOn: $profileSettings.showTraktRows)
                         .labelsHidden()
-                        .disabled(discoveryDisabled)
+                        .disabled(profileSettings.discoveryDisabled)
                 }
                 SettingsRow(
                     icon: "play.square.stack.fill",
                     iconColor: Color(hex: "E5A00D"),
                     title: "Popular on Plex",
-                    subtitle: discoveryDisabled ? "Disabled by Library Only Mode" : nil,
+                    subtitle: profileSettings.discoveryDisabled ? "Disabled by Library Only Mode" : nil,
                     showDivider: false
                 ) {
-                    Toggle("", isOn: $showPlexPopular)
+                    Toggle("", isOn: $profileSettings.showPlexPopular)
                         .labelsHidden()
-                        .disabled(discoveryDisabled)
+                        .disabled(profileSettings.discoveryDisabled)
                 }
             }
 
@@ -67,7 +62,7 @@ struct RowsSettingsView: View {
                 .padding(.horizontal, 4)
 
             // Continue Watching Options
-            if showContinueWatching {
+            if profileSettings.showContinueWatching {
                 SettingsSectionHeader(title: "Continue Watching")
                 SettingsGroupCard {
                     SettingsNavigationRow(

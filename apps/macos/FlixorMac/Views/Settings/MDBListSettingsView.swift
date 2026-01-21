@@ -9,13 +9,12 @@ import SwiftUI
 import AppKit
 
 struct MDBListSettingsView: View {
-    @AppStorage("mdblistEnabled") private var isEnabled: Bool = false
-    @AppStorage("mdblistApiKey") private var apiKey: String = ""
+    @ObservedObject private var profileSettings = ProfileSettings.shared
 
     private let mdblistColor = Color(hex: "F5C518")
 
     private var isReady: Bool {
-        isEnabled && !apiKey.isEmpty
+        profileSettings.mdblistEnabled && !profileSettings.mdblistApiKey.isEmpty
     }
 
     var body: some View {
@@ -28,7 +27,7 @@ struct MDBListSettingsView: View {
                         .font(.system(size: 20))
                         .foregroundStyle(isReady ? .green : .orange)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(isReady ? "Active" : (isEnabled ? "API Key Required" : "Disabled"))
+                        Text(isReady ? "Active" : (profileSettings.mdblistEnabled ? "API Key Required" : "Disabled"))
                             .font(.system(size: 13, weight: .semibold))
                         Text(isReady ? "Fetching ratings from multiple sources" : "Enable and add API key to activate")
                             .font(.system(size: 11))
@@ -43,9 +42,9 @@ struct MDBListSettingsView: View {
             SettingsSectionHeader(title: "Integration")
             SettingsGroupCard {
                 SettingsRow(icon: "star.fill", iconColor: mdblistColor, title: "Enable MDBList", subtitle: "Fetch ratings from multiple sources", showDivider: false) {
-                    Toggle("", isOn: $isEnabled)
+                    Toggle("", isOn: $profileSettings.mdblistEnabled)
                         .labelsHidden()
-                        .onChange(of: isEnabled) { newValue in
+                        .onChange(of: profileSettings.mdblistEnabled) { newValue in
                             if !newValue {
                                 Task { @MainActor in
                                     MDBListService.shared.clearCache()
@@ -64,14 +63,14 @@ struct MDBListSettingsView: View {
                         .padding(.horizontal, 12)
                         .padding(.top, 12)
 
-                    SecureField("Enter your MDBList API key", text: $apiKey)
+                    SecureField("Enter your MDBList API key", text: $profileSettings.mdblistApiKey)
                         .textFieldStyle(.plain)
                         .padding(10)
                         .background(Color(NSColor.textBackgroundColor))
                         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                         .padding(.horizontal, 12)
-                        .disabled(!isEnabled)
-                        .opacity(isEnabled ? 1 : 0.5)
+                        .disabled(!profileSettings.mdblistEnabled)
+                        .opacity(profileSettings.mdblistEnabled ? 1 : 0.5)
 
                     Text("Get your free API key from mdblist.com")
                         .font(.system(size: 11))

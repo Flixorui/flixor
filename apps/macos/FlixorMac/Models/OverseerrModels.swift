@@ -89,7 +89,10 @@ struct OverseerrUser: Codable {
     let id: Int
     let email: String?
     let username: String?
+    let plexUsername: String?
+    let plexToken: String?
     let permissions: Int?
+    let avatar: String?
 }
 
 struct OverseerrMediaRequest: Codable {

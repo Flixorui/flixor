@@ -4,6 +4,8 @@ import { MobileStorage } from './MobileStorage';
 import { MobileSecureStorage } from './MobileSecureStorage';
 import { MobileCache } from './MobileCache';
 import { loadAppSettings } from './SettingsData';
+import { runMigrations } from './ProfileMigration';
+import { restoreProfileContext } from './ProfileService';
 
 // Default API Keys - can be overridden by user in settings
 const DEFAULT_TMDB_API_KEY = 'db55323b8d3e4154498498a75642b381';
@@ -39,9 +41,16 @@ export async function initializeFlixorCore(): Promise<FlixorCore> {
     return flixorCoreInstance;
   }
 
+  // Run migrations first (before any storage operations)
+  await runMigrations();
+
+  // Restore profile context (sets current profile for storage scoping)
+  await restoreProfileContext();
+
   const clientId = await getOrCreateClientId();
 
   // Load settings to get custom TMDB API key if set
+  // (settings are now profile-scoped)
   const settings = await loadAppSettings();
   const tmdbApiKey = settings.tmdbApiKey || DEFAULT_TMDB_API_KEY;
   const tmdbLanguage = settings.tmdbLanguagePreference
@@ -110,3 +119,22 @@ export {
 
 // React Context and Hooks
 export { FlixorProvider, useFlixor, useRequireFlixor } from './FlixorContext';
+
+// Profile Management
+export {
+  getHomeUsers,
+  hasPlexHome,
+  getActiveProfile,
+  switchProfile,
+  switchToMainAccount,
+  restoreProfileContext,
+  getCurrentProfileName,
+  type ActiveProfile,
+} from './ProfileService';
+
+// Profile Utilities
+export {
+  setCurrentProfile,
+  getCurrentProfile,
+  getProfileKey,
+} from './ProfileStorage';

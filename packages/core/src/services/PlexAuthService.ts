@@ -1,4 +1,4 @@
-import type { PlexPin, PlexUser, PlexServer, PlexConnection } from '../models/plex';
+import type { PlexPin, PlexUser, PlexHomeUser, PlexServer, PlexConnection } from '../models/plex';
 
 const PLEX_TV_URL = 'https://plex.tv';
 
@@ -267,6 +267,87 @@ export class PlexAuthService {
     }
 
     return null;
+  }
+
+  /**
+   * Get list of Plex Home users
+   * Returns empty array if user is not part of a Plex Home
+   */
+  async getHomeUsers(token: string): Promise<PlexHomeUser[]> {
+    const response = await fetch(`${PLEX_TV_URL}/api/v2/home/users`, {
+      method: 'GET',
+      headers: this.getHeaders(token),
+    });
+
+    if (!response.ok) {
+      if (response.status === 403) {
+        // User is not part of a Plex Home
+        return [];
+      }
+      throw new Error(`Failed to get home users: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    // API returns { users: [...] } or may be direct array
+    const users = Array.isArray(data) ? data : (data?.users || []);
+
+    return users.map((user: Record<string, unknown>) => ({
+      id: user.id as number,
+      uuid: user.uuid as string,
+      title: (user.title || user.username || 'Unknown') as string,
+      username: (user.username || '') as string,
+      email: user.email as string | undefined,
+      thumb: user.thumb as string | undefined,
+      restricted: Boolean(user.restricted),
+      protected: Boolean(user.protected),
+      admin: Boolean(user.admin),
+      guest: Boolean(user.guest),
+      home: Boolean(user.home),
+    }));
+  }
+
+  /**
+   * Switch to a different Plex Home user
+   * @param token - Main account token
+   * @param userUuid - Target user UUID to switch to
+   * @param pin - PIN if the user is protected (has PIN set)
+   * @returns Object with new authentication token for the switched user
+   */
+  async switchHomeUser(
+    token: string,
+    userUuid: string,
+    pin?: string
+  ): Promise<{ authenticationToken: string }> {
+    const url = new URL(`${PLEX_TV_URL}/api/v2/home/users/${userUuid}/switch`);
+    if (pin) {
+      url.searchParams.append('pin', pin);
+    }
+
+    const response = await fetch(url.toString(), {
+      method: 'POST',
+      headers: this.getHeaders(token),
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        throw new Error('Invalid PIN');
+      }
+      if (response.status === 403) {
+        throw new Error('Not authorized to switch to this user');
+      }
+      throw new Error(`Failed to switch user: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    if (!data.authToken && !data.authenticationToken) {
+      throw new Error('No authentication token in response');
+    }
+
+    return {
+      authenticationToken: data.authToken || data.authenticationToken,
+    };
   }
 
   /**

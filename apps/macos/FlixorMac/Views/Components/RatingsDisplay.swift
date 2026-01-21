@@ -95,7 +95,7 @@ struct RatingsLoaderView: View {
     @State private var ratings: MDBListRatings?
     @State private var isLoading = false
 
-    @AppStorage("mdblistEnabled") private var mdblistEnabled: Bool = false
+    @ObservedObject private var profileSettings = ProfileSettings.shared
 
     private var shouldShow: Bool {
         return MDBListService.shared.isReady() && imdbId != nil

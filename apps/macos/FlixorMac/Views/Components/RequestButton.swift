@@ -57,7 +57,7 @@ struct RequestButton: View {
     @State private var isRequesting = false
     @State private var showConfirmation = false
 
-    @AppStorage("overseerrEnabled") private var overseerrEnabled: Bool = false
+    @ObservedObject private var profileSettings = ProfileSettings.shared
 
     // Only show if Overseerr is enabled and configured
     private var shouldShow: Bool {

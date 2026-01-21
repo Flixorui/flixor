@@ -62,4 +62,7 @@ public enum StorageKeys {
     public static let tmdbApiKey = "tmdb_api_key_override"
     public static let traktClientId = "trakt_client_id_override"
     public static let traktClientSecret = "trakt_client_secret_override"
+
+    // Profile management (global keys, not profile-scoped)
+    public static let activeProfileId = "active_profile_id"
 }

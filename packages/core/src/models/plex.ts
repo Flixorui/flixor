@@ -14,6 +14,21 @@ export interface PlexUser {
   title?: string;
 }
 
+// Plex Home User (from /api/v2/home/users)
+export interface PlexHomeUser {
+  id: number;
+  uuid: string;
+  title: string;
+  username: string;
+  email?: string;
+  thumb?: string;
+  restricted: boolean;  // true = managed/child account
+  protected: boolean;   // true = requires PIN to switch
+  admin: boolean;       // true = home admin
+  guest: boolean;       // true = guest user
+  home: boolean;        // true = part of Plex Home
+}
+
 // Plex Server (from plex.tv resources)
 export interface PlexServer {
   id: string; // clientIdentifier

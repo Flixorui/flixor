@@ -12,11 +12,10 @@ struct PosterSectionRow: View {
     var onTap: (MediaItem) -> Void
     var onBrowse: ((BrowseContext) -> Void)?
 
-    @AppStorage("posterSize") private var posterSize: String = "medium"
-    @AppStorage("showPosterTitles") private var showPosterTitles: Bool = true
+    @ObservedObject private var profileSettings = ProfileSettings.shared
 
     private var posterWidth: CGFloat {
-        switch posterSize {
+        switch profileSettings.posterSize {
         case "small": return 130
         case "large": return 190
         default: return 160

@@ -8,43 +8,51 @@
 import SwiftUI
 
 struct PlayerSettingsView: View {
-    // MARK: - Player Backend
-    @AppStorage("playerBackend") private var selectedBackend: String = PlayerBackend.mpv.rawValue
+    // MARK: - Profile Settings (profile-scoped)
+    @ObservedObject private var profileSettings = ProfileSettings.shared
 
+    // MARK: - Global Hardware Settings (device-specific, not profile-scoped)
+    private let defaults = UserDefaults.standard
+
+    // Player Backend binding (global) - uses property from PlayerBackend.swift
     private var playerBackendBinding: Binding<PlayerBackend> {
         Binding(
-            get: { PlayerBackend(rawValue: selectedBackend) ?? .mpv },
-            set: { selectedBackend = $0.rawValue }
+            get: { defaults.playerBackend },
+            set: { defaults.playerBackend = $0 }
         )
     }
 
-    // MARK: - MPV Core Settings
-    @AppStorage("mpvBufferSize") private var bufferSize = 128
-    @AppStorage("mpvHardwareDecoding") private var hardwareDecoding = true
-    @AppStorage("mpvHdrEnabled") private var hdrEnabled = true
+    // Hardware decoding binding (global)
+    private var hardwareDecodingBinding: Binding<Bool> {
+        Binding(
+            get: { defaults.hardwareDecoding },
+            set: { defaults.hardwareDecoding = $0 }
+        )
+    }
 
-    // MARK: - Seek Settings
-    @AppStorage("seekTimeSmall") private var seekTimeSmall = 10
-    @AppStorage("seekTimeLarge") private var seekTimeLarge = 30
+    // HDR binding (global)
+    private var hdrEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { defaults.hdrEnabled },
+            set: { defaults.hdrEnabled = $0 }
+        )
+    }
 
-    // MARK: - Volume Settings
-    @AppStorage("maxVolume") private var maxVolume = 100
+    // Buffer size binding (global)
+    private var bufferSizeBinding: Binding<Int> {
+        Binding(
+            get: { defaults.bufferSize },
+            set: { defaults.bufferSize = $0 }
+        )
+    }
 
-    // MARK: - Playback Settings
-    @AppStorage("defaultPlaybackSpeed") private var defaultPlaybackSpeed = 1.0
-    @AppStorage("autoPlayNext") private var autoPlayNext = false
-    @AppStorage("rememberTrackSelections") private var rememberTrackSelections = true
-
-    // MARK: - Auto-Skip Settings
-    @AppStorage("skipIntroAutomatically") private var skipIntroAutomatically = true
-    @AppStorage("skipCreditsAutomatically") private var skipCreditsAutomatically = true
-    @AppStorage("autoSkipDelay") private var autoSkipDelay = 5
-    @AppStorage("creditsCountdownFallback") private var creditsCountdownFallback = 30
-
-    // MARK: - Subtitle Styling
-    @AppStorage("subtitleFontSize") private var subtitleFontSize = 55
-    @AppStorage("subtitleBorderSize") private var subtitleBorderSize = 3.0
-    @AppStorage("subtitleBackgroundOpacity") private var subtitleBackgroundOpacity = 0.0
+    // Max volume binding (global)
+    private var maxVolumeBinding: Binding<Int> {
+        Binding(
+            get: { defaults.maxVolume },
+            set: { defaults.maxVolume = $0 }
+        )
+    }
 
     // For color pickers, we need state
     @State private var subtitleTextColor: Color = .white
@@ -83,7 +91,7 @@ struct PlayerSettingsView: View {
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 4)
 
-            // Player Engine (MPV-specific settings)
+            // Player Engine (MPV-specific settings) - GLOBAL
             SettingsCard(title: "MPV Engine") {
                 SettingsRow(
                     icon: "cpu",
@@ -91,7 +99,7 @@ struct PlayerSettingsView: View {
                     title: "Hardware Decoding",
                     subtitle: "Use VideoToolbox for GPU-accelerated decoding"
                 ) {
-                    Toggle("", isOn: $hardwareDecoding)
+                    Toggle("", isOn: hardwareDecodingBinding)
                         .labelsHidden()
                 }
 
@@ -102,12 +110,12 @@ struct PlayerSettingsView: View {
                     subtitle: "Enable high dynamic range playback",
                     showDivider: false
                 ) {
-                    Toggle("", isOn: $hdrEnabled)
+                    Toggle("", isOn: hdrEnabledBinding)
                         .labelsHidden()
                 }
             }
 
-            // Buffering
+            // Buffering - GLOBAL
             SettingsCard(title: "Buffering") {
                 SettingsRow(
                     icon: "memorychip",
@@ -116,7 +124,7 @@ struct PlayerSettingsView: View {
                     subtitle: "Amount of video data to pre-load",
                     showDivider: false
                 ) {
-                    Picker("", selection: $bufferSize) {
+                    Picker("", selection: bufferSizeBinding) {
                         ForEach(bufferOptions, id: \.self) { size in
                             Text("\(size) MB").tag(size)
                         }
@@ -126,7 +134,7 @@ struct PlayerSettingsView: View {
                 }
             }
 
-            // Seek Durations
+            // Seek Durations - PROFILE-SCOPED
             SettingsCard(title: "Seek Durations") {
                 SettingsRow(
                     icon: "gobackward.5",
@@ -134,7 +142,7 @@ struct PlayerSettingsView: View {
                     title: "Small Seek",
                     subtitle: "Arrow key seek duration"
                 ) {
-                    Stepper("\(seekTimeSmall)s", value: $seekTimeSmall, in: 1...120, step: 5)
+                    Stepper("\(profileSettings.seekTimeSmall)s", value: $profileSettings.seekTimeSmall, in: 1...120, step: 5)
                         .frame(width: 100)
                 }
 
@@ -145,12 +153,12 @@ struct PlayerSettingsView: View {
                     subtitle: "Double-tap or hold seek duration",
                     showDivider: false
                 ) {
-                    Stepper("\(seekTimeLarge)s", value: $seekTimeLarge, in: 1...120, step: 10)
+                    Stepper("\(profileSettings.seekTimeLarge)s", value: $profileSettings.seekTimeLarge, in: 1...120, step: 10)
                         .frame(width: 100)
                 }
             }
 
-            // Volume
+            // Volume - GLOBAL
             SettingsCard(title: "Volume") {
                 SettingsRow(
                     icon: "speaker.wave.3.fill",
@@ -159,12 +167,12 @@ struct PlayerSettingsView: View {
                     subtitle: "Allow volume boost beyond 100%",
                     showDivider: false
                 ) {
-                    Stepper("\(maxVolume)%", value: $maxVolume, in: 100...300, step: 25)
+                    Stepper("\(defaults.maxVolume)%", value: maxVolumeBinding, in: 100...300, step: 25)
                         .frame(width: 100)
                 }
             }
 
-            // Playback
+            // Playback - PROFILE-SCOPED
             SettingsCard(title: "Playback") {
                 SettingsRow(
                     icon: "speedometer",
@@ -172,7 +180,7 @@ struct PlayerSettingsView: View {
                     title: "Default Speed",
                     subtitle: "Playback speed for new sessions"
                 ) {
-                    Picker("", selection: $defaultPlaybackSpeed) {
+                    Picker("", selection: $profileSettings.defaultPlaybackSpeed) {
                         ForEach(playbackSpeedOptions, id: \.self) { speed in
                             Text("\(speed, specifier: "%.2g")x").tag(speed)
                         }
@@ -187,7 +195,7 @@ struct PlayerSettingsView: View {
                     title: "Auto-Play Next",
                     subtitle: "Automatically play next episode"
                 ) {
-                    Toggle("", isOn: $autoPlayNext)
+                    Toggle("", isOn: $profileSettings.autoPlayNext)
                         .labelsHidden()
                 }
 
@@ -198,12 +206,12 @@ struct PlayerSettingsView: View {
                     subtitle: "Remember audio/subtitle language choices",
                     showDivider: false
                 ) {
-                    Toggle("", isOn: $rememberTrackSelections)
+                    Toggle("", isOn: $profileSettings.rememberTrackSelections)
                         .labelsHidden()
                 }
             }
 
-            // Auto-Skip
+            // Auto-Skip - PROFILE-SCOPED
             SettingsCard(title: "Auto-Skip") {
                 SettingsRow(
                     icon: "forward.fill",
@@ -211,7 +219,7 @@ struct PlayerSettingsView: View {
                     title: "Skip Intro Automatically",
                     subtitle: "Auto-skip detected intro segments"
                 ) {
-                    Toggle("", isOn: $skipIntroAutomatically)
+                    Toggle("", isOn: $profileSettings.skipIntroAutomatically)
                         .labelsHidden()
                 }
 
@@ -221,7 +229,7 @@ struct PlayerSettingsView: View {
                     title: "Skip Credits Automatically",
                     subtitle: "Auto-skip detected credits segments"
                 ) {
-                    Toggle("", isOn: $skipCreditsAutomatically)
+                    Toggle("", isOn: $profileSettings.skipCreditsAutomatically)
                         .labelsHidden()
                 }
 
@@ -231,7 +239,7 @@ struct PlayerSettingsView: View {
                     title: "Skip Delay",
                     subtitle: "Seconds before auto-skipping"
                 ) {
-                    Stepper("\(autoSkipDelay)s", value: $autoSkipDelay, in: 1...30, step: 1)
+                    Stepper("\(profileSettings.autoSkipDelay)s", value: $profileSettings.autoSkipDelay, in: 1...30, step: 1)
                         .frame(width: 80)
                 }
 
@@ -242,12 +250,12 @@ struct PlayerSettingsView: View {
                     subtitle: "Show 'Next' button X seconds before end",
                     showDivider: false
                 ) {
-                    Stepper("\(creditsCountdownFallback)s", value: $creditsCountdownFallback, in: 10...120, step: 5)
+                    Stepper("\(profileSettings.creditsCountdownFallback)s", value: $profileSettings.creditsCountdownFallback, in: 10...120, step: 5)
                         .frame(width: 80)
                 }
             }
 
-            // Subtitle Styling
+            // Subtitle Styling - PROFILE-SCOPED
             SettingsCard(title: "Subtitle Styling") {
                 SettingsRow(
                     icon: "textformat.size",
@@ -255,7 +263,7 @@ struct PlayerSettingsView: View {
                     title: "Font Size",
                     subtitle: "Subtitle text size"
                 ) {
-                    Stepper("\(subtitleFontSize)", value: $subtitleFontSize, in: 30...80, step: 5)
+                    Stepper("\(profileSettings.subtitleFontSize)", value: $profileSettings.subtitleFontSize, in: 30...80, step: 5)
                         .frame(width: 80)
                 }
 
@@ -274,7 +282,7 @@ struct PlayerSettingsView: View {
                     iconColor: .gray,
                     title: "Border Size"
                 ) {
-                    Stepper("\(subtitleBorderSize, specifier: "%.1f")", value: $subtitleBorderSize, in: 0...5, step: 0.5)
+                    Stepper("\(profileSettings.subtitleBorderSize, specifier: "%.1f")", value: $profileSettings.subtitleBorderSize, in: 0...5, step: 0.5)
                         .frame(width: 80)
                 }
 
@@ -294,9 +302,9 @@ struct PlayerSettingsView: View {
                     title: "Background Opacity"
                 ) {
                     HStack(spacing: 8) {
-                        Slider(value: $subtitleBackgroundOpacity, in: 0...1, step: 0.1)
+                        Slider(value: $profileSettings.subtitleBackgroundOpacity, in: 0...1, step: 0.1)
                             .frame(width: 100)
-                        Text("\(Int(subtitleBackgroundOpacity * 100))%")
+                        Text("\(Int(profileSettings.subtitleBackgroundOpacity * 100))%")
                             .font(.system(size: 11))
                             .foregroundStyle(.secondary)
                             .frame(width: 35, alignment: .trailing)

@@ -9,9 +9,7 @@ import SwiftUI
 
 struct ContinueWatchingSettingsView: View {
     @Environment(\.dismiss) private var dismiss
-    @AppStorage("continueWatchingLayout") private var layout: String = "landscape"
-    @AppStorage("useCachedStreams") private var useCachedStreams: Bool = false
-    @AppStorage("streamCacheTTL") private var cacheTTL: Int = 3600
+    @ObservedObject private var profileSettings = ProfileSettings.shared
     @State private var showPreview: Bool = false
 
     var body: some View {
@@ -51,17 +49,17 @@ struct ContinueWatchingSettingsView: View {
                                 LayoutOptionButton(
                                     title: "Landscape",
                                     icon: "rectangle.fill",
-                                    isSelected: layout == "landscape"
+                                    isSelected: profileSettings.continueWatchingLayout == "landscape"
                                 ) {
-                                    layout = "landscape"
+                                    profileSettings.continueWatchingLayout = "landscape"
                                 }
 
                                 LayoutOptionButton(
                                     title: "Poster",
                                     icon: "rectangle.portrait.fill",
-                                    isSelected: layout == "poster"
+                                    isSelected: profileSettings.continueWatchingLayout == "poster"
                                 ) {
-                                    layout = "poster"
+                                    profileSettings.continueWatchingLayout = "poster"
                                 }
                             }
                             .padding(.horizontal, 12)
@@ -71,7 +69,7 @@ struct ContinueWatchingSettingsView: View {
 
                     // Collapsible Preview Section
                     CollapsiblePreviewSection(title: "Preview", isExpanded: $showPreview) {
-                        if layout == "landscape" {
+                        if profileSettings.continueWatchingLayout == "landscape" {
                             landscapePreview
                         } else {
                             posterPreview
@@ -81,17 +79,17 @@ struct ContinueWatchingSettingsView: View {
                     // Cache Section
                     SettingsSectionHeader(title: "Stream Caching")
                     SettingsGroupCard {
-                        SettingsRow(icon: "arrow.triangle.2.circlepath.circle.fill", iconColor: .blue, title: "Cache Stream URLs", showDivider: !useCachedStreams) {
-                            Toggle("", isOn: $useCachedStreams).labelsHidden()
+                        SettingsRow(icon: "arrow.triangle.2.circlepath.circle.fill", iconColor: .blue, title: "Cache Stream URLs", showDivider: !profileSettings.useCachedStreams) {
+                            Toggle("", isOn: $profileSettings.useCachedStreams).labelsHidden()
                         }
 
-                        if useCachedStreams {
+                        if profileSettings.useCachedStreams {
                             VStack(alignment: .leading, spacing: 8) {
                                 Text("Cache Duration")
                                     .font(.system(size: 12, weight: .medium))
                                     .padding(.horizontal, 12)
 
-                                Picker("", selection: $cacheTTL) {
+                                Picker("", selection: $profileSettings.streamCacheTTL) {
                                     Text("15 min").tag(900)
                                     Text("30 min").tag(1800)
                                     Text("1 hour").tag(3600)

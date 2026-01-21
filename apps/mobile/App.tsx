@@ -81,6 +81,7 @@ import { FlixorProvider, useFlixor } from './src/core';
 import PlexLogin from './src/screens/PlexLogin';
 import ServerSelect from './src/screens/ServerSelect';
 import OnboardingScreen from './src/screens/Onboarding';
+import ProfileSelect from './src/screens/ProfileSelect';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { resetAppSettings } from './src/core/SettingsData';
 
@@ -93,6 +94,7 @@ type RootStackParamList = {
   Onboarding: undefined;
   PlexLogin: undefined;
   ServerSelect: undefined;
+  ProfileSelect: undefined;
   Main: undefined;
 };
 
@@ -369,7 +371,7 @@ const Tabs = React.memo(() => {
 });
 
 function AppContent() {
-  const { flixor, isLoading, error, isAuthenticated, isConnected, refresh } = useFlixor();
+  const { flixor, isLoading, error, isAuthenticated, isConnected, refresh, refreshProfile } = useFlixor();
   const {
     isUpdateAvailable,
     isDownloading,
@@ -462,7 +464,31 @@ function AppContent() {
             </Stack.Screen>
           ) : (
             // Fully authenticated, connected, and onboarded - show main app
-            <Stack.Screen name="Main" component={Tabs} />
+            <>
+              <Stack.Screen name="Main" component={Tabs} />
+              <Stack.Screen
+                name="ProfileSelect"
+                options={{
+                  presentation: 'modal',
+                  animation: 'slide_from_bottom',
+                  gestureEnabled: true,
+                }}
+              >
+                {({ navigation }) => (
+                  <ProfileSelect
+                    onProfileSelected={async () => {
+                      await refreshProfile();
+                      // Reset navigation to force home screen to reload with new profile data
+                      navigation.reset({
+                        index: 0,
+                        routes: [{ name: 'Main' }],
+                      });
+                    }}
+                    onClose={() => navigation.goBack()}
+                  />
+                )}
+              </Stack.Screen>
+            </>
           )}
         </Stack.Navigator>
       </NavigationContainer>

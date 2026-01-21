@@ -15,7 +15,7 @@ struct HeroCarousel: View {
     var onMyList: ((MediaItem) -> Void)?
     var autoAdvanceInterval: TimeInterval = 8.0
 
-    @AppStorage("heroAutoRotate") private var heroAutoRotate: Bool = true
+    @ObservedObject private var profileSettings = ProfileSettings.shared
     @State private var isHovered = false
     @State private var timer: Timer?
     @State private var direction: TransitionDirection = .forward
@@ -122,7 +122,7 @@ struct HeroCarousel: View {
                 isHovered = hovering
             }
             // Pause/resume auto-advance on hover (only if auto-rotate is enabled)
-            if heroAutoRotate {
+            if profileSettings.heroAutoRotate {
                 if hovering {
                     stopTimer()
                 } else {
@@ -132,14 +132,14 @@ struct HeroCarousel: View {
         }
         .animation(.easeInOut(duration: 0.5), value: currentIndex)
         .onAppear {
-            if heroAutoRotate {
+            if profileSettings.heroAutoRotate {
                 startTimer()
             }
         }
         .onDisappear {
             stopTimer()
         }
-        .onChange(of: heroAutoRotate) { newValue in
+        .onChange(of: profileSettings.heroAutoRotate) { newValue in
             if newValue {
                 startTimer()
             } else {
@@ -202,7 +202,7 @@ struct HeroCarousel: View {
 
     private func restartTimer() {
         stopTimer()
-        if heroAutoRotate {
+        if profileSettings.heroAutoRotate {
             startTimer()
         }
     }

@@ -11,7 +11,7 @@ struct SearchView: View {
     @StateObject private var viewModel = SearchViewModel()
     @EnvironmentObject private var router: NavigationRouter
     @EnvironmentObject private var mainViewState: MainViewState
-    @AppStorage("includeTmdbInSearch") private var includeTmdbInSearch: Bool = true
+    @ObservedObject private var profileSettings = ProfileSettings.shared
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -29,7 +29,7 @@ struct SearchView: View {
                     Group {
                         switch viewModel.searchMode {
                         case .idle:
-                            if includeTmdbInSearch {
+                            if profileSettings.includeTmdbInSearch {
                                 IdleStateView(viewModel: viewModel, onTap: { item in
                                     navigateToDetails(item: item)
                                 })
@@ -57,11 +57,11 @@ struct SearchView: View {
         }
         .navigationTitle("")
         .task {
-            if includeTmdbInSearch && viewModel.popularItems.isEmpty && viewModel.trendingItems.isEmpty {
+            if profileSettings.includeTmdbInSearch && viewModel.popularItems.isEmpty && viewModel.trendingItems.isEmpty {
                 await viewModel.loadInitialContent()
             }
         }
-        .onChange(of: includeTmdbInSearch) { newValue in
+        .onChange(of: profileSettings.includeTmdbInSearch) { newValue in
             // Reload content when setting changes
             Task {
                 await viewModel.loadInitialContent()

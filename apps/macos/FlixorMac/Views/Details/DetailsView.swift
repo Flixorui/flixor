@@ -123,8 +123,8 @@ struct DetailsView: View {
     @State private var episodeVersions: [DetailsViewModel.VersionDetail] = []
     @State private var isLoadingVersions = false
 
-    // Layout preference setting
-    @AppStorage("detailsScreenLayout") private var detailsScreenLayout: String = "tabbed"
+    // Profile-scoped layout preference
+    @ObservedObject private var profileSettings = ProfileSettings.shared
 
     private var hasPlexSource: Bool {
         vm.playableId != nil || vm.plexRatingKey != nil
@@ -149,13 +149,13 @@ struct DetailsView: View {
                             )
 
                             // Only show tabs bar in tabbed layout
-                            if detailsScreenLayout == "tabbed" {
+                            if profileSettings.detailsScreenLayout == "tabbed" {
                                 DetailsTabsBar(tabs: tabsData, activeTab: $activeTab)
                             }
                         }
 
                         // Tabbed Layout: Show one section at a time based on selected tab
-                        if detailsScreenLayout == "tabbed" {
+                        if profileSettings.detailsScreenLayout == "tabbed" {
                             VStack(spacing: 32) {
                                 switch activeTab {
                                 case "SUGGESTED":
@@ -518,10 +518,8 @@ private struct DetailsHeroSection: View {
     @State private var isOverviewExpanded = false
     @State private var selectedTrailer: Trailer?
 
-    // Rating visibility settings
-    @AppStorage("showIMDbRating") private var showIMDbRating: Bool = true
-    @AppStorage("showRottenTomatoesCritic") private var showRottenTomatoesCritic: Bool = true
-    @AppStorage("showRottenTomatoesAudience") private var showRottenTomatoesAudience: Bool = true
+    // Profile-scoped rating visibility settings
+    @ObservedObject private var profileSettings = ProfileSettings.shared
 
     private var hasTrailers: Bool { !trailers.isEmpty }
 
@@ -864,7 +862,7 @@ private struct DetailsHeroSection: View {
             let mdbRatings = vm.mdblistRatings
 
             // IMDb: prefer Plex parsed, then Plex direct, then MDBList, then TMDB
-            if showIMDbRating {
+            if profileSettings.showIMDbRating {
                 let imdbScore: Double? = {
                     if let score = plexRatings?.imdb?.score, score > 0 { return score }
                     if let score = vm.plexImdbRating, score > 0 { return score }
@@ -882,7 +880,7 @@ private struct DetailsHeroSection: View {
             }
 
             // RT Critic: prefer Plex, then MDBList
-            if showRottenTomatoesCritic {
+            if profileSettings.showRottenTomatoesCritic {
                 let criticScore: Int? = {
                     if let score = plexRatings?.rottenTomatoes?.critic, score > 0 { return score }
                     if let score = mdbRatings?.tomatoes, score > 0 { return Int(score) }
@@ -898,7 +896,7 @@ private struct DetailsHeroSection: View {
             }
 
             // RT Audience: prefer Plex parsed, then Plex direct, then MDBList
-            if showRottenTomatoesAudience {
+            if profileSettings.showRottenTomatoesAudience {
                 let audienceScore: Int? = {
                     if let score = plexRatings?.rottenTomatoes?.audience, score > 0 { return score }
                     if let score = vm.plexAudienceRating, score > 0 { return score }
@@ -1333,12 +1331,11 @@ private struct SuggestedSections: View {
     let layout: DetailsLayoutMetrics
     var onBrowse: ((BrowseContext) -> Void)?
 
-    @AppStorage("showRelatedContent") private var showRelatedContent: Bool = true
-    @AppStorage("suggestedLayout") private var suggestedLayout: String = "landscape"
+    @ObservedObject private var profileSettings = ProfileSettings.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: layout.width < 1100 ? 24 : 28) {
-            if showRelatedContent && !vm.related.isEmpty {
+            if profileSettings.showRelatedContent && !vm.related.isEmpty {
                 suggestedRow(
                     section: LibrarySection(
                         id: "rel",
@@ -1350,7 +1347,7 @@ private struct SuggestedSections: View {
                     )
                 )
             }
-            if showRelatedContent && !vm.similar.isEmpty {
+            if profileSettings.showRelatedContent && !vm.similar.isEmpty {
                 suggestedRow(
                     section: LibrarySection(
                         id: "sim",
@@ -1367,7 +1364,7 @@ private struct SuggestedSections: View {
 
     @ViewBuilder
     private func suggestedRow(section: LibrarySection) -> some View {
-        if suggestedLayout == "poster" {
+        if profileSettings.suggestedLayout == "poster" {
             PosterSectionRow(
                 section: section,
                 onTap: { media in
@@ -1398,7 +1395,7 @@ private struct DetailsTabContent: View {
     let layout: DetailsLayoutMetrics
     var onPersonTap: (CastCrewCard.Person) -> Void
 
-    @AppStorage("showCastCrew") private var showCastCrew: Bool = true
+    @ObservedObject private var profileSettings = ProfileSettings.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 40) {
@@ -1475,7 +1472,7 @@ private struct DetailsTabContent: View {
             }
 
             // Cast & Crew Section (Apple TV+ style) - also show for episodes with guest stars
-            if showCastCrew && (!vm.cast.isEmpty || !vm.crew.isEmpty || !vm.guestStars.isEmpty) {
+            if profileSettings.showCastCrew && (!vm.cast.isEmpty || !vm.crew.isEmpty || !vm.guestStars.isEmpty) {
                 VStack(alignment: .leading, spacing: 16) {
                     HStack {
                         Text(vm.isEpisode && !vm.guestStars.isEmpty ? "Guest Stars" : "Cast & Crew")
@@ -2099,7 +2096,7 @@ private struct EpisodesTabContent: View {
     let onPlayEpisode: (DetailsViewModel.Episode) -> Void
     var hasPlexSource: Bool = true
 
-    @AppStorage("episodeLayout") private var episodeLayout: String = "horizontal"
+    @ObservedObject private var profileSettings = ProfileSettings.shared
 
     private let cardWidth: CGFloat = 340
     private var cardHeight: CGFloat { 180 }
@@ -2130,7 +2127,7 @@ private struct EpisodesTabContent: View {
                 .padding(.vertical, 40)
             } else if vm.episodes.isEmpty {
                 Text("No episodes found").foregroundStyle(.secondary)
-            } else if episodeLayout == "horizontal" {
+            } else if profileSettings.episodeLayout == "horizontal" {
                 // Horizontal scroll of episode cards (like mobile)
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(spacing: 14) {

@@ -8,10 +8,8 @@
 import SwiftUI
 
 struct TMDBSettingsView: View {
-    @AppStorage("tmdbApiKey") private var apiKey: String = ""
-    @AppStorage("tmdbLanguage") private var language: String = "en"
-    @AppStorage("tmdbEnrichMetadata") private var enrichMetadata: Bool = true
-    @AppStorage("tmdbLocalizedMetadata") private var localizedMetadata: Bool = false
+    @ObservedObject private var profileSettings = ProfileSettings.shared
+    private let defaults = UserDefaults.standard
 
     private let tmdbColor = Color(hex: "01B4E4")
 
@@ -26,7 +24,7 @@ struct TMDBSettingsView: View {
                         .padding(.horizontal, 12)
                         .padding(.top, 12)
 
-                    TextField("Enter your TMDB API key (optional)", text: $apiKey)
+                    TextField("Enter your TMDB API key (optional)", text: Binding(get: { defaults.tmdbApiKey }, set: { defaults.tmdbApiKey = $0 }))
                         .textFieldStyle(.plain)
                         .padding(10)
                         .background(Color(NSColor.textBackgroundColor))
@@ -45,7 +43,7 @@ struct TMDBSettingsView: View {
             SettingsSectionHeader(title: "Language")
             SettingsGroupCard {
                 SettingsRow(icon: "globe", iconColor: .blue, title: "Metadata Language", showDivider: false) {
-                    Picker("", selection: $language) {
+                    Picker("", selection: $profileSettings.tmdbLanguage) {
                         Text("English").tag("en")
                         Text("Spanish").tag("es")
                         Text("French").tag("fr")
@@ -61,10 +59,10 @@ struct TMDBSettingsView: View {
             SettingsSectionHeader(title: "Metadata")
             SettingsGroupCard {
                 SettingsRow(icon: "sparkles", iconColor: tmdbColor, title: "Enrich Metadata", subtitle: "Fetch cast, logos, and extras from TMDB") {
-                    Toggle("", isOn: $enrichMetadata).labelsHidden()
+                    Toggle("", isOn: $profileSettings.tmdbEnrichMetadata).labelsHidden()
                 }
                 SettingsRow(icon: "character.bubble.fill", iconColor: .purple, title: "Localized Metadata", subtitle: "Prefer localized titles and summaries", showDivider: false) {
-                    Toggle("", isOn: $localizedMetadata).labelsHidden()
+                    Toggle("", isOn: $profileSettings.tmdbLocalizedMetadata).labelsHidden()
                 }
             }
 

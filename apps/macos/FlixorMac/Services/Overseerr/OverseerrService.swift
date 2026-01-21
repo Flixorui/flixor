@@ -3,10 +3,11 @@
 //  FlixorMac
 //
 //  Overseerr API service for requesting media
-//  Requires user to enable and provide URL + API key in settings
+//  Requires user to enable and provide URL + API key or Plex auth in settings
 //
 
 import Foundation
+import FlixorKit
 
 @MainActor
 class OverseerrService: ObservableObject {
@@ -25,17 +26,26 @@ class OverseerrService: ObservableObject {
     // MARK: - Computed Properties
 
     private var isEnabled: Bool {
-        UserDefaults.standard.bool(forKey: "overseerrEnabled")
+        UserDefaults.standard.overseerrEnabled
     }
 
     private var serverUrl: String? {
-        let url = UserDefaults.standard.string(forKey: "overseerrUrl")
-        return url?.isEmpty == false ? url : nil
+        let url = UserDefaults.standard.overseerrUrl
+        return url.isEmpty ? nil : url
+    }
+
+    private var authMethod: OverseerrAuthMethod {
+        UserDefaults.standard.overseerrAuthMethod
     }
 
     private var apiKey: String? {
-        let key = UserDefaults.standard.string(forKey: "overseerrApiKey")
-        return key?.isEmpty == false ? key : nil
+        let key = UserDefaults.standard.overseerrApiKey
+        return key.isEmpty ? nil : key
+    }
+
+    private var sessionCookie: String? {
+        let cookie = UserDefaults.standard.overseerrSessionCookie
+        return cookie.isEmpty ? nil : cookie
     }
 
     // MARK: - Initialization
@@ -44,12 +54,21 @@ class OverseerrService: ObservableObject {
 
     // MARK: - Public API
 
-    /// Check if Overseerr is enabled and has URL + API key configured
+    /// Check if Overseerr is enabled and properly configured
+    /// For API key auth: needs URL + API key
+    /// For Plex auth: needs URL + session cookie
     func isReady() -> Bool {
-        return isEnabled && serverUrl != nil && apiKey != nil
+        guard isEnabled, serverUrl != nil else { return false }
+
+        switch authMethod {
+        case .apiKey:
+            return apiKey != nil
+        case .plex:
+            return sessionCookie != nil
+        }
     }
 
-    /// Validate Overseerr connection with provided credentials
+    /// Validate Overseerr connection with API key
     func validateConnection(url: String, apiKey: String) async -> OverseerrConnectionResult {
         do {
             let normalizedUrl = normalizeUrl(url)
@@ -82,6 +101,134 @@ class OverseerrService: ObservableObject {
             print("[OverseerrService] Connection validation error: \(error)")
             return OverseerrConnectionResult(valid: false, username: nil, error: "Connection failed")
         }
+    }
+
+    /// Authenticate with Overseerr using Plex token
+    func authenticateWithPlex(url: String) async -> OverseerrConnectionResult {
+        do {
+            // Get the Plex token from FlixorCore
+            guard let plexToken = FlixorCore.shared.plexToken else {
+                return OverseerrConnectionResult(valid: false, username: nil, error: "Not signed in to Plex")
+            }
+
+            let normalizedUrl = normalizeUrl(url)
+
+            // First, check if the server is reachable
+            guard let statusUrl = URL(string: "\(normalizedUrl)/api/v1/status") else {
+                return OverseerrConnectionResult(valid: false, username: nil, error: "Invalid URL")
+            }
+
+            var statusRequest = URLRequest(url: statusUrl)
+            statusRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+            let (_, statusResponse) = try await URLSession.shared.data(for: statusRequest)
+            guard let httpStatusResponse = statusResponse as? HTTPURLResponse,
+                  httpStatusResponse.statusCode == 200 else {
+                return OverseerrConnectionResult(valid: false, username: nil, error: "Unable to connect to Overseerr server")
+            }
+
+            // Authenticate with Plex token
+            guard let authUrl = URL(string: "\(normalizedUrl)/api/v1/auth/plex") else {
+                return OverseerrConnectionResult(valid: false, username: nil, error: "Invalid URL")
+            }
+
+            var authRequest = URLRequest(url: authUrl)
+            authRequest.httpMethod = "POST"
+            authRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            authRequest.httpBody = try JSONEncoder().encode(["authToken": plexToken])
+
+            let (authData, authResponse) = try await URLSession.shared.data(for: authRequest)
+
+            guard let httpAuthResponse = authResponse as? HTTPURLResponse else {
+                return OverseerrConnectionResult(valid: false, username: nil, error: "Invalid response")
+            }
+
+            if httpAuthResponse.statusCode == 401 || httpAuthResponse.statusCode == 403 {
+                return OverseerrConnectionResult(valid: false, username: nil, error: "Plex account not authorized on this Overseerr server")
+            }
+
+            if httpAuthResponse.statusCode < 200 || httpAuthResponse.statusCode >= 300 {
+                print("[OverseerrService] Plex auth error: \(httpAuthResponse.statusCode)")
+                return OverseerrConnectionResult(valid: false, username: nil, error: "Authentication failed (\(httpAuthResponse.statusCode))")
+            }
+
+            // Extract session cookie from response headers
+            var sessionCookie: String?
+            if let allHeaders = httpAuthResponse.allHeaderFields as? [String: String],
+               let setCookieHeader = allHeaders["Set-Cookie"] ?? allHeaders["set-cookie"] {
+                // Parse the connect.sid cookie
+                if let cookieMatch = setCookieHeader.range(of: "connect\\.sid=([^;]+)", options: .regularExpression) {
+                    let fullMatch = String(setCookieHeader[cookieMatch])
+                    sessionCookie = fullMatch
+                }
+            }
+
+            // Get user info from response
+            let user = try JSONDecoder().decode(OverseerrUser.self, from: authData)
+            let username = user.username ?? user.plexUsername ?? user.email ?? "Plex User"
+
+            // Store the session cookie and username
+            if let cookie = sessionCookie {
+                UserDefaults.standard.overseerrSessionCookie = cookie
+                UserDefaults.standard.overseerrPlexUsername = username
+                print("[OverseerrService] Plex auth successful, session stored")
+                return OverseerrConnectionResult(valid: true, username: username, error: nil)
+            } else {
+                // Session might be stored differently - save username and try to verify
+                UserDefaults.standard.overseerrPlexUsername = username
+                print("[OverseerrService] No cookie in response, authentication may have failed")
+                return OverseerrConnectionResult(valid: false, username: nil, error: "Session cookie not received")
+            }
+        } catch {
+            print("[OverseerrService] Plex authentication error: \(error)")
+            return OverseerrConnectionResult(valid: false, username: nil, error: "Authentication failed")
+        }
+    }
+
+    /// Validate existing Plex session
+    func validatePlexSession(url: String) async -> OverseerrConnectionResult {
+        guard let cookie = sessionCookie else {
+            return OverseerrConnectionResult(valid: false, username: nil, error: "No session found")
+        }
+
+        do {
+            let normalizedUrl = normalizeUrl(url)
+            guard let requestUrl = URL(string: "\(normalizedUrl)/api/v1/auth/me") else {
+                return OverseerrConnectionResult(valid: false, username: nil, error: "Invalid URL")
+            }
+
+            var request = URLRequest(url: requestUrl)
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue(cookie, forHTTPHeaderField: "Cookie")
+
+            let (data, response) = try await URLSession.shared.data(for: request)
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                return OverseerrConnectionResult(valid: false, username: nil, error: "Invalid response")
+            }
+
+            if httpResponse.statusCode == 401 {
+                return OverseerrConnectionResult(valid: false, username: nil, error: "Session expired")
+            }
+
+            if httpResponse.statusCode != 200 {
+                return OverseerrConnectionResult(valid: false, username: nil, error: "Server error (\(httpResponse.statusCode))")
+            }
+
+            let user = try JSONDecoder().decode(OverseerrUser.self, from: data)
+            let username = user.username ?? user.plexUsername ?? user.email ?? "user"
+            return OverseerrConnectionResult(valid: true, username: username, error: nil)
+        } catch {
+            print("[OverseerrService] Session validation error: \(error)")
+            return OverseerrConnectionResult(valid: false, username: nil, error: "Connection failed")
+        }
+    }
+
+    /// Sign out of Overseerr (clear stored credentials)
+    func signOut() {
+        UserDefaults.standard.clearOverseerrAuth()
+        clearCache()
+        print("[OverseerrService] Signed out and cleared cache")
     }
 
     /// Get media request status from Overseerr
@@ -200,7 +347,7 @@ class OverseerrService: ObservableObject {
     }
 
     private func makeRequest(endpoint: String, method: String = "GET", body: Data? = nil) async throws -> Data {
-        guard let serverUrl = serverUrl, let apiKey = apiKey else {
+        guard let serverUrl = serverUrl else {
             throw NSError(domain: "OverseerrService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Overseerr not configured"])
         }
 
@@ -212,13 +359,33 @@ class OverseerrService: ObservableObject {
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(apiKey, forHTTPHeaderField: "X-Api-Key")
+
+        // Set authentication header based on auth method
+        switch authMethod {
+        case .apiKey:
+            guard let key = apiKey else {
+                throw NSError(domain: "OverseerrService", code: -1, userInfo: [NSLocalizedDescriptionKey: "API key not configured"])
+            }
+            request.setValue(key, forHTTPHeaderField: "X-Api-Key")
+        case .plex:
+            guard let cookie = sessionCookie else {
+                throw NSError(domain: "OverseerrService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Session expired. Please sign in again."])
+            }
+            request.setValue(cookie, forHTTPHeaderField: "Cookie")
+        }
+
         request.httpBody = body
 
         let (data, response) = try await URLSession.shared.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw NSError(domain: "OverseerrService", code: -3, userInfo: [NSLocalizedDescriptionKey: "Invalid response"])
+        }
+
+        // Handle session expiry for Plex auth
+        if httpResponse.statusCode == 401 && authMethod == .plex {
+            UserDefaults.standard.overseerrSessionCookie = ""
+            throw NSError(domain: "OverseerrService", code: 401, userInfo: [NSLocalizedDescriptionKey: "Session expired. Please sign in again."])
         }
 
         if httpResponse.statusCode < 200 || httpResponse.statusCode >= 300 {

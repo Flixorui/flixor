@@ -72,7 +72,7 @@ struct RootView: View {
     @EnvironmentObject var flixorCore: FlixorCore
     @StateObject private var watchlistController = WatchlistController()
     @State private var isInitializing = true
-    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding: Bool = false
+    @ObservedObject private var profileSettings = ProfileSettings.shared
 
     var body: some View {
         Group {
@@ -95,11 +95,11 @@ struct RootView: View {
                 // Authenticated but no server connected - show server/endpoint selection
                 ServerEndpointFlowView()
                     .transition(.opacity)
-            } else if !hasCompletedOnboarding {
+            } else if !profileSettings.hasCompletedOnboarding {
                 // Connected but not onboarded - show onboarding
                 OnboardingView {
                     withAnimation(.easeInOut(duration: 0.3)) {
-                        hasCompletedOnboarding = true
+                        profileSettings.hasCompletedOnboarding = true
                     }
                 }
                 .transition(.opacity)
@@ -111,13 +111,13 @@ struct RootView: View {
         }
         .animation(.easeInOut(duration: 0.3), value: flixorCore.isPlexAuthenticated)
         .animation(.easeInOut(duration: 0.3), value: flixorCore.isPlexServerConnected)
-        .animation(.easeInOut(duration: 0.3), value: hasCompletedOnboarding)
+        .animation(.easeInOut(duration: 0.3), value: profileSettings.hasCompletedOnboarding)
         .environmentObject(watchlistController)
         .task {
             // Wait for FlixorCore to initialize
             _ = await FlixorCore.shared.initialize()
-            // Sync SessionManager with FlixorCore
-            sessionManager.updateFromFlixorCore()
+            // Restore session (includes profile context and checking for multiple profiles)
+            await sessionManager.restoreSession()
             isInitializing = false
         }
     }
@@ -125,24 +125,60 @@ struct RootView: View {
 
 struct MainView: View {
     @State private var showingSettings = false
+    @State private var showingProfileSelect = false
+    @State private var contentRefreshId = UUID()
     @EnvironmentObject var sessionManager: SessionManager
     @StateObject private var router = NavigationRouter()
     @StateObject private var mainViewState = MainViewState()
-    @AppStorage("showNewPopularTab") private var showNewPopularTab: Bool = true
+    @StateObject private var profileManager = ProfileManager.shared
+    @ObservedObject private var profileSettings = ProfileSettings.shared
 
     /// Visible navigation items based on settings
     private var visibleNavItems: [NavItem] {
         NavItem.allCases.filter { item in
-            if item == .newPopular && !showNewPopularTab {
+            if item == .newPopular && !profileSettings.showNewPopularTab {
                 return false
             }
             return true
         }
     }
 
+    // Profile avatar colors
+    private let avatarColors: [Color] = [
+        Color(red: 0.91, green: 0.3, blue: 0.24),
+        Color(red: 0.16, green: 0.5, blue: 0.73),
+        Color(red: 0.18, green: 0.8, blue: 0.44),
+        Color(red: 0.61, green: 0.35, blue: 0.71),
+        Color(red: 0.95, green: 0.77, blue: 0.06),
+        Color(red: 0.9, green: 0.49, blue: 0.13),
+        Color(red: 0.1, green: 0.74, blue: 0.61),
+        Color(red: 0.93, green: 0.46, blue: 0.62),
+    ]
+
+    private var profileAvatarColor: Color {
+        if let profile = sessionManager.activeProfile {
+            let index = abs(profile.userId) % avatarColors.count
+            return avatarColors[index]
+        }
+        return avatarColors[0]
+    }
+
+    private var profileInitials: String {
+        if let profile = sessionManager.activeProfile {
+            let name = profile.title
+            let components = name.split(separator: " ")
+            if components.count >= 2 {
+                return "\(components[0].prefix(1))\(components[1].prefix(1))".uppercased()
+            }
+            return String(name.prefix(2)).uppercased()
+        }
+        return sessionManager.currentUser?.username.prefix(1).uppercased() ?? "U"
+    }
+
     var body: some View {
         NavigationStack(path: router.pathBinding(for: mainViewState.selectedTab)) {
             destinationView(for: mainViewState.selectedTab)
+                .id(contentRefreshId)
                 // Centralize PlayerView presentation here to avoid inheriting padding
                 .navigationDestination(for: MediaItem.self) { item in
                     PlayerView(item: item)
@@ -195,9 +231,24 @@ struct MainView: View {
             // User profile menu on right
             ToolbarItem(placement: .primaryAction) {
                 Menu {
-                    if let user = sessionManager.currentUser {
-                        Text(user.username)
+                    // Current profile/user info
+                    if let profile = sessionManager.activeProfile {
+                        Label(profile.title, systemImage: "person.circle.fill")
                             .font(.headline)
+                    } else if let user = sessionManager.currentUser {
+                        Label(user.username, systemImage: "person.circle")
+                            .font(.headline)
+                    }
+
+                    Divider()
+
+                    // Switch Profile (only if multiple profiles available)
+                    if sessionManager.hasMultipleProfiles {
+                        Button(action: {
+                            showingProfileSelect = true
+                        }) {
+                            Label("Switch Profile", systemImage: "person.2")
+                        }
 
                         Divider()
                     }
@@ -216,11 +267,15 @@ struct MainView: View {
                         Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
                     }
                 } label: {
-                    HStack(spacing: 8) {
-                        Text(sessionManager.currentUser?.username.uppercased() ?? "U")
-                            .font(.headline)
-                            .foregroundStyle(.white)
-                    }.padding(.horizontal, 20)
+                    Circle()
+                        .fill(profileAvatarColor)
+                        .frame(width: 28, height: 28)
+                        .overlay(
+                            Text(profileInitials)
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundColor(.white)
+                        )
+                        .padding(.horizontal, 20)
                 }
                 .menuStyle(.borderlessButton)
                 .menuIndicator(.hidden)
@@ -232,7 +287,18 @@ struct MainView: View {
         .sheet(isPresented: $showingSettings) {
             SettingsView()
         }
-        .onChange(of: showNewPopularTab) { newValue in
+        .sheet(isPresented: $showingProfileSelect) {
+            ProfileSelectView {
+                // Refresh session after profile switch
+                sessionManager.refreshProfile()
+                // Force content refresh by changing the ID
+                contentRefreshId = UUID()
+                // Reset navigation to home
+                mainViewState.selectedTab = .home
+                router.homePath = NavigationPath()
+            }
+        }
+        .onChange(of: profileSettings.showNewPopularTab) { newValue in
             // If New & Popular tab is hidden while on that tab, switch to Home
             if !newValue && mainViewState.selectedTab == .newPopular {
                 mainViewState.selectedTab = .home

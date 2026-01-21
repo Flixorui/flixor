@@ -28,12 +28,9 @@ enum SectionLoadState: Equatable {
 
 @MainActor
 class HomeViewModel: ObservableObject {
-    // MARK: - Settings
-    @AppStorage("enabledLibraryKeys") private var enabledLibraryKeysString: String = ""
-
+    // MARK: - Settings (Profile-Scoped)
     private var enabledLibraryKeys: Set<String> {
-        let keys = enabledLibraryKeysString.split(separator: ",").map { String($0) }
-        return Set(keys)
+        Set(UserDefaults.standard.enabledLibraryKeys)
     }
 
     private func isLibraryEnabled(_ key: String) -> Bool {
@@ -1045,7 +1042,9 @@ class HomeViewModel: ObservableObject {
 
     // MARK: - Billboard Rotation
 
-    @AppStorage("heroAutoRotate") private var heroAutoRotate: Bool = true
+    private var heroAutoRotate: Bool {
+        UserDefaults.standard.heroAutoRotate
+    }
 
     private func startBillboardRotation() {
         guard !billboardItems.isEmpty else { return }

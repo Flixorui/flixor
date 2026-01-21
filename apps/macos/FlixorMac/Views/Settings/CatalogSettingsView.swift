@@ -9,14 +9,14 @@ import SwiftUI
 import FlixorKit
 
 struct CatalogSettingsView: View {
-    @AppStorage("enabledLibraryKeys") private var enabledLibraryKeysString: String = ""
+    @ObservedObject private var profileSettings = ProfileSettings.shared
 
     @State private var libraries: [PlexLibrary] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
 
     private var enabledLibraryKeys: Set<String> {
-        Set(enabledLibraryKeysString.split(separator: ",").map { String($0) })
+        Set(profileSettings.enabledLibraryKeys)
     }
 
     var body: some View {
@@ -191,9 +191,9 @@ struct CatalogSettingsView: View {
         }
 
         if keys.count == libraries.count {
-            enabledLibraryKeysString = ""
+            profileSettings.enabledLibraryKeys = []
         } else {
-            enabledLibraryKeysString = keys.sorted().joined(separator: ",")
+            profileSettings.enabledLibraryKeys = keys.sorted()
         }
     }
 

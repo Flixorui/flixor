@@ -15,12 +15,8 @@ struct HomeView: View {
     @State private var showBrowseModal = false
     @State private var activeBrowseContext: BrowseContext?
 
-    // Home Screen Settings
-    @AppStorage("heroLayout") private var heroLayout: String = "billboard"
-    @AppStorage("showHeroSection") private var showHeroSection: Bool = true
-    @AppStorage("showContinueWatching") private var showContinueWatching: Bool = true
-    @AppStorage("continueWatchingLayout") private var continueWatchingLayout: String = "landscape"
-    @AppStorage("rowLayout") private var rowLayout: String = "landscape"
+    // Profile-scoped Home Screen Settings
+    @ObservedObject private var profileSettings = ProfileSettings.shared
 
     var body: some View {
         ZStack {
@@ -36,10 +32,10 @@ struct HomeView: View {
                         VStack(spacing: 0) {
 
                             // Hero Section (Billboard or Carousel based on settings)
-                            if showHeroSection {
+                            if profileSettings.showHeroSection {
                                 Group {
                                     if !viewModel.billboardItems.isEmpty {
-                                        switch heroLayout {
+                                        switch profileSettings.heroLayout {
                                         case "carousel":
                                             HeroCarousel(
                                                 items: viewModel.billboardItems,
@@ -65,11 +61,11 @@ struct HomeView: View {
                             // Content sections with modular skeleton loading
                             VStack(spacing: 40) {
                                 // Continue Watching - shows skeleton until loaded (if enabled)
-                                if showContinueWatching {
+                                if profileSettings.showContinueWatching {
                                     SectionContainer(
                                         state: viewModel.continueWatchingState,
                                         content: {
-                                            switch continueWatchingLayout {
+                                            switch profileSettings.continueWatchingLayout {
                                             case "poster":
                                                 ContinueWatchingPosterRow(
                                                     items: viewModel.continueWatchingItems,
@@ -86,9 +82,9 @@ struct HomeView: View {
                                         },
                                         skeleton: {
                                             SkeletonCarouselRow(
-                                                itemWidth: continueWatchingLayout == "poster" ? 160 : 380,
-                                                itemCount: continueWatchingLayout == "poster" ? 6 : 4,
-                                                cardType: continueWatchingLayout == "poster" ? .poster : .landscape
+                                                itemWidth: profileSettings.continueWatchingLayout == "poster" ? 160 : 380,
+                                                itemCount: profileSettings.continueWatchingLayout == "poster" ? 6 : 4,
+                                                cardType: profileSettings.continueWatchingLayout == "poster" ? .poster : .landscape
                                             )
                                         }
                                     )
@@ -100,15 +96,15 @@ struct HomeView: View {
                                     // Show expected number of skeleton rows
                                     ForEach(0..<viewModel.expectedExtraSectionCount, id: \.self) { _ in
                                         SkeletonCarouselRow(
-                                            itemWidth: rowLayout == "poster" ? 160 : 420,
-                                            itemCount: rowLayout == "poster" ? 6 : 4,
-                                            cardType: rowLayout == "poster" ? .poster : .landscape
+                                            itemWidth: profileSettings.rowLayout == "poster" ? 160 : 420,
+                                            itemCount: profileSettings.rowLayout == "poster" ? 6 : 4,
+                                            cardType: profileSettings.rowLayout == "poster" ? .poster : .landscape
                                         )
                                     }
                                 } else {
                                     ForEach(viewModel.extraSections) { section in
                                         Group {
-                                            if rowLayout == "poster" {
+                                            if profileSettings.rowLayout == "poster" {
                                                 PosterSectionRow(
                                                     section: section,
                                                     onTap: { item in
@@ -203,7 +199,7 @@ struct HomeView: View {
 
 struct BillboardSection: View {
     @ObservedObject var viewModel: HomeViewModel
-    @AppStorage("heroAutoRotate") private var heroAutoRotate: Bool = true
+    @ObservedObject private var profileSettings = ProfileSettings.shared
 
     @State private var isHovered = false
 
@@ -295,7 +291,7 @@ struct BillboardSection: View {
                 isHovered = hovering
             }
             // Pause/resume auto-rotation on hover
-            if heroAutoRotate {
+            if profileSettings.heroAutoRotate {
                 if hovering {
                     viewModel.stopBillboardRotation()
                 } else {
@@ -304,7 +300,7 @@ struct BillboardSection: View {
             }
         }
         .animation(.easeInOut(duration: 0.5), value: viewModel.currentBillboardIndex)
-        .onChange(of: heroAutoRotate) { newValue in
+        .onChange(of: profileSettings.heroAutoRotate) { newValue in
             if newValue {
                 viewModel.resumeBillboardRotation()
             } else {

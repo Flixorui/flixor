@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from 'react';
 import { FlixorMobile, initializeFlixorMobile } from './FlixorMobile';
+import { getActiveProfile, hasPlexHome, type ActiveProfile } from './ProfileService';
 
 interface FlixorContextValue {
   flixor: FlixorMobile | null;
@@ -8,6 +9,10 @@ interface FlixorContextValue {
   isAuthenticated: boolean;
   isConnected: boolean;
   refresh: () => Promise<void>;
+  // Profile state
+  activeProfile: ActiveProfile | null;
+  hasMultipleProfiles: boolean;
+  refreshProfile: () => Promise<void>;
 }
 
 const FlixorContext = createContext<FlixorContextValue>({
@@ -17,6 +22,10 @@ const FlixorContext = createContext<FlixorContextValue>({
   isAuthenticated: false,
   isConnected: false,
   refresh: async () => {},
+  // Profile defaults
+  activeProfile: null,
+  hasMultipleProfiles: false,
+  refreshProfile: async () => {},
 });
 
 interface FlixorProviderProps {
@@ -32,6 +41,10 @@ export function FlixorProvider({ children }: FlixorProviderProps) {
     isConnected: false,
   });
 
+  // Profile state
+  const [activeProfile, setActiveProfile] = useState<ActiveProfile | null>(null);
+  const [hasMultipleProfiles, setHasMultipleProfiles] = useState(false);
+
   const initialize = async () => {
     try {
       setIsLoading(true);
@@ -42,6 +55,16 @@ export function FlixorProvider({ children }: FlixorProviderProps) {
         isAuthenticated: instance.isPlexAuthenticated,
         isConnected: instance.isConnected,
       });
+
+      // Load profile state
+      if (instance.isPlexAuthenticated) {
+        const [profile, hasHome] = await Promise.all([
+          getActiveProfile(),
+          hasPlexHome(),
+        ]);
+        setActiveProfile(profile);
+        setHasMultipleProfiles(hasHome);
+      }
     } catch (e) {
       setError(e instanceof Error ? e : new Error('Failed to initialize'));
     } finally {
@@ -62,6 +85,19 @@ export function FlixorProvider({ children }: FlixorProviderProps) {
     }
   }, [flixor]);
 
+  const refreshProfile = useCallback(async () => {
+    try {
+      const [profile, hasHome] = await Promise.all([
+        getActiveProfile(),
+        hasPlexHome(),
+      ]);
+      setActiveProfile(profile);
+      setHasMultipleProfiles(hasHome);
+    } catch (e) {
+      console.log('[FlixorContext] refreshProfile error:', e);
+    }
+  }, []);
+
   const value = useMemo(() => ({
     flixor,
     isLoading,
@@ -69,7 +105,21 @@ export function FlixorProvider({ children }: FlixorProviderProps) {
     isAuthenticated: authState.isAuthenticated,
     isConnected: authState.isConnected,
     refresh,
-  }), [flixor, isLoading, error, authState.isAuthenticated, authState.isConnected, refresh]);
+    // Profile values
+    activeProfile,
+    hasMultipleProfiles,
+    refreshProfile,
+  }), [
+    flixor,
+    isLoading,
+    error,
+    authState.isAuthenticated,
+    authState.isConnected,
+    refresh,
+    activeProfile,
+    hasMultipleProfiles,
+    refreshProfile,
+  ]);
 
   return (
     <FlixorContext.Provider value={value}>

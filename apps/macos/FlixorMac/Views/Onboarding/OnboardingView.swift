@@ -63,13 +63,8 @@ struct OnboardingView: View {
     @State private var currentIndex = 0
     @State private var showIndividualSettings = false
 
-    // Discovery settings state
-    @AppStorage("discoveryDisabled") private var discoveryDisabled: Bool = false
-    @AppStorage("showTrendingRows") private var showTrendingRows: Bool = true
-    @AppStorage("showTraktRows") private var showTraktRows: Bool = true
-    @AppStorage("showPlexPopular") private var showPlexPopular: Bool = true
-    @AppStorage("showNewPopularTab") private var showNewPopularTab: Bool = true
-    @AppStorage("includeTmdbInSearch") private var includeTmdbInSearch: Bool = true
+    // Profile-scoped discovery settings
+    @ObservedObject private var profileSettings = ProfileSettings.shared
 
     var body: some View {
         ZStack {
@@ -117,12 +112,12 @@ struct OnboardingView: View {
                         if slide.isConfig {
                             ConfigSlideView(
                                 showIndividualSettings: $showIndividualSettings,
-                                discoveryDisabled: $discoveryDisabled,
-                                showTrendingRows: $showTrendingRows,
-                                showTraktRows: $showTraktRows,
-                                showPlexPopular: $showPlexPopular,
-                                showNewPopularTab: $showNewPopularTab,
-                                includeTmdbInSearch: $includeTmdbInSearch
+                                discoveryDisabled: $profileSettings.discoveryDisabled,
+                                showTrendingRows: $profileSettings.showTrendingRows,
+                                showTraktRows: $profileSettings.showTraktRows,
+                                showPlexPopular: $profileSettings.showPlexPopular,
+                                showNewPopularTab: $profileSettings.showNewPopularTab,
+                                includeTmdbInSearch: $profileSettings.includeTmdbInSearch
                             )
                             .tag(index)
                         } else {
@@ -200,14 +195,10 @@ struct OnboardingView: View {
                 .animation(.easeInOut(duration: 0.3), value: currentIndex)
             }
         }
-        .onChange(of: discoveryDisabled) { newValue in
+        .onChange(of: profileSettings.discoveryDisabled) { newValue in
             if newValue {
                 // When Library Only Mode is enabled, disable all discovery features
-                showTrendingRows = false
-                showTraktRows = false
-                showPlexPopular = false
-                showNewPopularTab = false
-                includeTmdbInSearch = false
+                profileSettings.setDiscoveryDisabled(true)
             }
         }
     }
@@ -217,7 +208,7 @@ struct OnboardingView: View {
     }
 
     private func completeOnboarding() {
-        UserDefaults.standard.hasCompletedOnboarding = true
+        profileSettings.hasCompletedOnboarding = true
         onComplete()
     }
 }

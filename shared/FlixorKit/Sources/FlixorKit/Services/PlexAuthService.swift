@@ -34,6 +34,80 @@ public struct PlexUser: Codable {
     public let title: String?
 }
 
+/// Plex Home user (managed user or family member)
+public struct PlexHomeUser: Codable, Identifiable {
+    public let id: Int
+    public let uuid: String
+    public let title: String
+    public let username: String?
+    public let email: String?
+    public let thumb: String?
+    public let restricted: Bool      // true = managed/child account
+    public let `protected`: Bool     // true = requires PIN
+    public let admin: Bool
+    public let guest: Bool
+    public let home: Bool
+
+    public init(id: Int, uuid: String, title: String, username: String?, email: String?, thumb: String?, restricted: Bool, protected: Bool, admin: Bool, guest: Bool, home: Bool) {
+        self.id = id
+        self.uuid = uuid
+        self.title = title
+        self.username = username
+        self.email = email
+        self.thumb = thumb
+        self.restricted = restricted
+        self.protected = `protected`
+        self.admin = admin
+        self.guest = guest
+        self.home = home
+    }
+}
+
+/// Response from home users API
+private struct PlexHomeUsersResponse: Codable {
+    let users: [PlexHomeUserRaw]?
+}
+
+/// Raw home user from API (before transformation)
+private struct PlexHomeUserRaw: Codable {
+    let id: Int
+    let uuid: String
+    let title: String?
+    let username: String?
+    let email: String?
+    let thumb: String?
+    let restricted: Bool?
+    let `protected`: Bool?
+    let admin: Bool?
+    let guest: Bool?
+    let home: Bool?
+}
+
+/// Response from switch user API
+private struct PlexSwitchUserResponse: Codable {
+    let authToken: String?
+    let authenticationToken: String?
+}
+
+/// Active profile info
+public struct ActiveProfile: Codable {
+    public let userId: Int
+    public let uuid: String
+    public let title: String
+    public let thumb: String?
+    public let restricted: Bool
+    public let `protected`: Bool
+
+    public init(userId: Int, uuid: String, title: String, thumb: String?, restricted: Bool, protected: Bool) {
+        self.userId = userId
+        self.uuid = uuid
+        self.title = title
+        self.thumb = thumb
+        self.restricted = restricted
+        self.protected = `protected`
+    }
+}
+
 // MARK: - PlexAuthService
 
 public class PlexAuthService {
@@ -298,6 +372,114 @@ public class PlexAuthService {
 
         _ = try? await URLSession.shared.data(for: request)
     }
+
+    // MARK: - Plex Home / Profile Management
+
+    /// Get list of Plex Home users
+    /// Returns empty array if user is not part of a Plex Home
+    public func getHomeUsers(token: String) async throws -> [PlexHomeUser] {
+        guard let url = URL(string: "\(plexTvUrl)/api/v2/home/users") else {
+            throw PlexAuthError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+
+        for (key, value) in getHeaders(token: token) {
+            request.setValue(value, forHTTPHeaderField: key)
+        }
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw PlexAuthError.invalidResponse
+        }
+
+        // 403 means user is not part of a Plex Home
+        if httpResponse.statusCode == 403 {
+            return []
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            throw PlexAuthError.httpError(statusCode: httpResponse.statusCode)
+        }
+
+        // Try to decode as object with users array first, then as direct array
+        let users: [PlexHomeUserRaw]
+        if let responseObj = try? JSONDecoder().decode(PlexHomeUsersResponse.self, from: data) {
+            users = responseObj.users ?? []
+        } else if let directArray = try? JSONDecoder().decode([PlexHomeUserRaw].self, from: data) {
+            users = directArray
+        } else {
+            return []
+        }
+
+        return users.map { raw in
+            PlexHomeUser(
+                id: raw.id,
+                uuid: raw.uuid,
+                title: raw.title ?? raw.username ?? "Unknown",
+                username: raw.username,
+                email: raw.email,
+                thumb: raw.thumb,
+                restricted: raw.restricted ?? false,
+                protected: raw.protected ?? false,
+                admin: raw.admin ?? false,
+                guest: raw.guest ?? false,
+                home: raw.home ?? false
+            )
+        }
+    }
+
+    /// Switch to a different Plex Home user
+    /// - Parameters:
+    ///   - token: Main account token
+    ///   - userUuid: Target user UUID to switch to
+    ///   - pin: PIN if the user is protected (has PIN set)
+    /// - Returns: New authentication token for the switched user
+    public func switchHomeUser(token: String, userUuid: String, pin: String? = nil) async throws -> String {
+        var urlString = "\(plexTvUrl)/api/v2/home/users/\(userUuid)/switch"
+        if let pin = pin {
+            urlString += "?pin=\(pin)"
+        }
+
+        guard let url = URL(string: urlString) else {
+            throw PlexAuthError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+
+        for (key, value) in getHeaders(token: token) {
+            request.setValue(value, forHTTPHeaderField: key)
+        }
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw PlexAuthError.invalidResponse
+        }
+
+        if httpResponse.statusCode == 401 {
+            throw PlexAuthError.invalidPin
+        }
+
+        if httpResponse.statusCode == 403 {
+            throw PlexAuthError.notAuthorizedToSwitch
+        }
+
+        guard httpResponse.statusCode == 200 || httpResponse.statusCode == 201 else {
+            throw PlexAuthError.httpError(statusCode: httpResponse.statusCode)
+        }
+
+        let switchResponse = try JSONDecoder().decode(PlexSwitchUserResponse.self, from: data)
+
+        guard let authToken = switchResponse.authToken ?? switchResponse.authenticationToken else {
+            throw PlexAuthError.noAuthTokenInResponse
+        }
+
+        return authToken
+    }
 }
 
 // MARK: - Supporting Models
@@ -383,6 +565,9 @@ public enum PlexAuthError: Error, LocalizedError {
     case pinExpired
     case pinTimeout
     case invalidToken
+    case invalidPin
+    case notAuthorizedToSwitch
+    case noAuthTokenInResponse
 
     public var errorDescription: String? {
         switch self {
@@ -398,6 +583,12 @@ public enum PlexAuthError: Error, LocalizedError {
             return "PIN authorization timed out"
         case .invalidToken:
             return "Invalid or expired token"
+        case .invalidPin:
+            return "Invalid PIN"
+        case .notAuthorizedToSwitch:
+            return "Not authorized to switch to this user"
+        case .noAuthTokenInResponse:
+            return "No authentication token in response"
         }
     }
 }

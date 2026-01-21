@@ -8,15 +8,7 @@
 import SwiftUI
 
 struct HomeScreenAppearanceView: View {
-    @AppStorage("heroLayout") private var heroLayout: String = "billboard"
-    @AppStorage("showHeroSection") private var showHeroSection: Bool = true
-    @AppStorage("heroAutoRotate") private var heroAutoRotate: Bool = true
-    @AppStorage("continueWatchingLayout") private var continueWatchingLayout: String = "landscape"
-    @AppStorage("rowLayout") private var rowLayout: String = "poster"
-    @AppStorage("posterSize") private var posterSize: String = "medium"
-    @AppStorage("showPosterTitles") private var showPosterTitles: Bool = true
-    @AppStorage("showLibraryTitles") private var showLibraryTitles: Bool = true
-    @AppStorage("posterCornerRadius") private var posterCornerRadius: String = "medium"
+    @ObservedObject private var profileSettings = ProfileSettings.shared
 
     @State private var showHeroPreview: Bool = false
     @State private var showContinueWatchingPreview: Bool = false
@@ -27,11 +19,11 @@ struct HomeScreenAppearanceView: View {
             SettingsSectionHeader(title: "Hero Section")
             SettingsGroupCard {
                 SettingsRow(icon: "rectangle.inset.filled", iconColor: .blue, title: "Show Hero Section", showDivider: false) {
-                    Toggle("", isOn: $showHeroSection).labelsHidden()
+                    Toggle("", isOn: $profileSettings.showHeroSection).labelsHidden()
                 }
             }
 
-            if showHeroSection {
+            if profileSettings.showHeroSection {
                 SettingsGroupCard {
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Hero Layout")
@@ -43,17 +35,17 @@ struct HomeScreenAppearanceView: View {
                             LayoutOptionButton(
                                 title: "Billboard",
                                 icon: "rectangle.fill",
-                                isSelected: heroLayout == "billboard"
+                                isSelected: profileSettings.heroLayout == "billboard"
                             ) {
-                                heroLayout = "billboard"
+                                profileSettings.heroLayout = "billboard"
                             }
 
                             LayoutOptionButton(
                                 title: "Carousel",
                                 icon: "rectangle.stack.fill",
-                                isSelected: heroLayout == "carousel"
+                                isSelected: profileSettings.heroLayout == "carousel"
                             ) {
-                                heroLayout = "carousel"
+                                profileSettings.heroLayout = "carousel"
                             }
                         }
                         .padding(.horizontal, 12)
@@ -63,13 +55,13 @@ struct HomeScreenAppearanceView: View {
 
                 SettingsGroupCard {
                     SettingsRow(icon: "arrow.triangle.2.circlepath", iconColor: .orange, title: "Auto-Rotate Hero", showDivider: false) {
-                        Toggle("", isOn: $heroAutoRotate).labelsHidden()
+                        Toggle("", isOn: $profileSettings.heroAutoRotate).labelsHidden()
                     }
                 }
 
                 // Hero Layout Preview
                 CollapsiblePreviewSection(title: "Hero Preview", isExpanded: $showHeroPreview) {
-                    if heroLayout == "billboard" {
+                    if profileSettings.heroLayout == "billboard" {
                         billboardPreview
                     } else {
                         carouselPreview
@@ -90,17 +82,17 @@ struct HomeScreenAppearanceView: View {
                         LayoutOptionButton(
                             title: "Landscape",
                             icon: "rectangle.fill",
-                            isSelected: continueWatchingLayout == "landscape"
+                            isSelected: profileSettings.continueWatchingLayout == "landscape"
                         ) {
-                            continueWatchingLayout = "landscape"
+                            profileSettings.continueWatchingLayout = "landscape"
                         }
 
                         LayoutOptionButton(
                             title: "Poster",
                             icon: "rectangle.portrait.fill",
-                            isSelected: continueWatchingLayout == "poster"
+                            isSelected: profileSettings.continueWatchingLayout == "poster"
                         ) {
-                            continueWatchingLayout = "poster"
+                            profileSettings.continueWatchingLayout = "poster"
                         }
                     }
                     .padding(.horizontal, 12)
@@ -110,7 +102,7 @@ struct HomeScreenAppearanceView: View {
 
             // Continue Watching Preview
             CollapsiblePreviewSection(title: "Continue Watching Preview", isExpanded: $showContinueWatchingPreview) {
-                if continueWatchingLayout == "landscape" {
+                if profileSettings.continueWatchingLayout == "landscape" {
                     continueWatchingLandscapePreview
                 } else {
                     continueWatchingPosterPreview
@@ -121,13 +113,13 @@ struct HomeScreenAppearanceView: View {
             SettingsSectionHeader(title: "Poster Display")
             SettingsGroupCard {
                 SettingsRow(icon: "textformat", iconColor: .purple, title: "Show Titles") {
-                    Toggle("", isOn: $showPosterTitles).labelsHidden()
+                    Toggle("", isOn: $profileSettings.showPosterTitles).labelsHidden()
                 }
                 SettingsRow(icon: "folder", iconColor: .blue, title: "Show Library Titles") {
-                    Toggle("", isOn: $showLibraryTitles).labelsHidden()
+                    Toggle("", isOn: $profileSettings.showLibraryTitles).labelsHidden()
                 }
                 SettingsRow(icon: "arrow.up.left.and.arrow.down.right", iconColor: .green, title: "Poster Size") {
-                    Picker("", selection: $posterSize) {
+                    Picker("", selection: $profileSettings.posterSize) {
                         Text("Small").tag("small")
                         Text("Medium").tag("medium")
                         Text("Large").tag("large")
@@ -136,7 +128,7 @@ struct HomeScreenAppearanceView: View {
                     .frame(width: 100)
                 }
                 SettingsRow(icon: "square.on.square", iconColor: .orange, title: "Corner Radius", showDivider: false) {
-                    Picker("", selection: $posterCornerRadius) {
+                    Picker("", selection: $profileSettings.posterCornerRadius) {
                         Text("None").tag("none")
                         Text("Small").tag("small")
                         Text("Medium").tag("medium")

@@ -8,16 +8,7 @@
 import SwiftUI
 
 struct DetailsScreenSettingsView: View {
-    @AppStorage("detailsScreenLayout") private var detailsScreenLayout: String = "tabbed"
-    @AppStorage("episodeLayout") private var episodeLayout: String = "horizontal"
-    @AppStorage("suggestedLayout") private var suggestedLayout: String = "landscape"
-    @AppStorage("showRelatedContent") private var showRelatedContent: Bool = true
-    @AppStorage("showCastCrew") private var showCastCrew: Bool = true
-
-    // Rating visibility settings
-    @AppStorage("showIMDbRating") private var showIMDbRating: Bool = true
-    @AppStorage("showRottenTomatoesCritic") private var showRottenTomatoesCritic: Bool = true
-    @AppStorage("showRottenTomatoesAudience") private var showRottenTomatoesAudience: Bool = true
+    @ObservedObject private var profileSettings = ProfileSettings.shared
 
     @State private var showEpisodePreview: Bool = false
     @State private var showSuggestedPreview: Bool = false
@@ -42,17 +33,17 @@ struct DetailsScreenSettingsView: View {
                         LayoutOptionButton(
                             title: "Tabbed",
                             icon: "rectangle.split.3x1",
-                            isSelected: detailsScreenLayout == "tabbed"
+                            isSelected: profileSettings.detailsScreenLayout == "tabbed"
                         ) {
-                            detailsScreenLayout = "tabbed"
+                            profileSettings.detailsScreenLayout = "tabbed"
                         }
 
                         LayoutOptionButton(
                             title: "Unified",
                             icon: "rectangle.portrait",
-                            isSelected: detailsScreenLayout == "unified"
+                            isSelected: profileSettings.detailsScreenLayout == "unified"
                         ) {
-                            detailsScreenLayout = "unified"
+                            profileSettings.detailsScreenLayout = "unified"
                         }
                     }
                     .padding(.horizontal, 12)
@@ -78,17 +69,17 @@ struct DetailsScreenSettingsView: View {
                         LayoutOptionButton(
                             title: "Horizontal",
                             icon: "rectangle.split.3x1.fill",
-                            isSelected: episodeLayout == "horizontal"
+                            isSelected: profileSettings.episodeLayout == "horizontal"
                         ) {
-                            episodeLayout = "horizontal"
+                            profileSettings.episodeLayout = "horizontal"
                         }
 
                         LayoutOptionButton(
                             title: "Vertical",
                             icon: "list.bullet",
-                            isSelected: episodeLayout == "vertical"
+                            isSelected: profileSettings.episodeLayout == "vertical"
                         ) {
-                            episodeLayout = "vertical"
+                            profileSettings.episodeLayout = "vertical"
                         }
                     }
                     .padding(.horizontal, 12)
@@ -98,7 +89,7 @@ struct DetailsScreenSettingsView: View {
 
             // Episode Layout Preview
             CollapsiblePreviewSection(title: "Episode Preview", isExpanded: $showEpisodePreview) {
-                if episodeLayout == "horizontal" {
+                if profileSettings.episodeLayout == "horizontal" {
                     horizontalEpisodePreview
                 } else {
                     verticalEpisodePreview
@@ -123,17 +114,17 @@ struct DetailsScreenSettingsView: View {
                         LayoutOptionButton(
                             title: "Landscape",
                             icon: "rectangle.fill",
-                            isSelected: suggestedLayout == "landscape"
+                            isSelected: profileSettings.suggestedLayout == "landscape"
                         ) {
-                            suggestedLayout = "landscape"
+                            profileSettings.suggestedLayout = "landscape"
                         }
 
                         LayoutOptionButton(
                             title: "Poster",
                             icon: "rectangle.portrait.fill",
-                            isSelected: suggestedLayout == "poster"
+                            isSelected: profileSettings.suggestedLayout == "poster"
                         ) {
-                            suggestedLayout = "poster"
+                            profileSettings.suggestedLayout = "poster"
                         }
                     }
                     .padding(.horizontal, 12)
@@ -143,7 +134,7 @@ struct DetailsScreenSettingsView: View {
 
             // Suggested Layout Preview
             CollapsiblePreviewSection(title: "Suggested Preview", isExpanded: $showSuggestedPreview) {
-                if suggestedLayout == "landscape" {
+                if profileSettings.suggestedLayout == "landscape" {
                     suggestedLandscapePreview
                 } else {
                     suggestedPosterPreview
@@ -154,10 +145,10 @@ struct DetailsScreenSettingsView: View {
             SettingsSectionHeader(title: "Content Display")
             SettingsGroupCard {
                 SettingsRow(icon: "rectangle.stack.fill", iconColor: .blue, title: "Show Related Content") {
-                    Toggle("", isOn: $showRelatedContent).labelsHidden()
+                    Toggle("", isOn: $profileSettings.showRelatedContent).labelsHidden()
                 }
                 SettingsRow(icon: "person.2.fill", iconColor: .purple, title: "Show Cast & Crew", showDivider: false) {
-                    Toggle("", isOn: $showCastCrew).labelsHidden()
+                    Toggle("", isOn: $profileSettings.showCastCrew).labelsHidden()
                 }
             }
 
@@ -165,13 +156,13 @@ struct DetailsScreenSettingsView: View {
             SettingsSectionHeader(title: "Ratings Display")
             SettingsGroupCard {
                 SettingsRow(icon: "star.fill", iconColor: .yellow, title: "IMDb Rating", subtitle: "Show IMDb score") {
-                    Toggle("", isOn: $showIMDbRating).labelsHidden()
+                    Toggle("", isOn: $profileSettings.showIMDbRating).labelsHidden()
                 }
                 SettingsRow(icon: "leaf.fill", iconColor: .red, title: "Rotten Tomatoes (Critics)", subtitle: "Tomatometer score") {
-                    Toggle("", isOn: $showRottenTomatoesCritic).labelsHidden()
+                    Toggle("", isOn: $profileSettings.showRottenTomatoesCritic).labelsHidden()
                 }
                 SettingsRow(icon: "popcorn.fill", iconColor: .orange, title: "Rotten Tomatoes (Audience)", subtitle: "Audience score", showDivider: false) {
-                    Toggle("", isOn: $showRottenTomatoesAudience).labelsHidden()
+                    Toggle("", isOn: $profileSettings.showRottenTomatoesAudience).labelsHidden()
                 }
             }
 

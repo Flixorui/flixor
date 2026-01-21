@@ -4,6 +4,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFlixor } from '../core/FlixorContext';
+import ProfileAvatar from '../components/ProfileAvatar';
 import {
   getTraktProfile,
   getPlexUser,
@@ -66,7 +67,7 @@ export default function Settings({ onBack }: SettingsProps) {
   const insets = useSafeAreaInsets();
   const headerHeight = insets.top + 52;
   const scrollY = useRef(new Animated.Value(0)).current;
-  const { isLoading: flixorLoading, isConnected } = useFlixor();
+  const { isLoading: flixorLoading, isConnected, activeProfile, hasMultipleProfiles } = useFlixor();
   const { settings, updateSetting } = useAppSettings();
   const [traktProfile, setTraktProfile] = useState<any | null>(null);
   const [plexUser, setPlexUser] = useState<any | null>(null);
@@ -99,8 +100,30 @@ export default function Settings({ onBack }: SettingsProps) {
     return plexUser?.username || plexUser?.title || 'Connected';
   }, [plexUser, serverInfo]);
 
+  const profileDescription = useMemo(() => {
+    if (!hasMultipleProfiles) return 'Switch between Plex Home users';
+    if (activeProfile) return `${activeProfile.title}`;
+    return 'Main Account';
+  }, [activeProfile, hasMultipleProfiles]);
+
   const renderAccount = () => (
     <SettingsCard title="ACCOUNT">
+      {hasMultipleProfiles && (
+        <SettingItem
+          title="Switch Profile"
+          description={profileDescription}
+          renderIcon={() => (
+            <ProfileAvatar
+              thumb={activeProfile?.thumb}
+              title={activeProfile?.title || 'Main'}
+              size={24}
+            />
+          )}
+          renderRight={renderRightChevron}
+          onPress={() => nav.navigate('ProfileSelect')}
+          isLast={false}
+        />
+      )}
       <SettingItem
         title="Plex"
         description={plexDescription}
