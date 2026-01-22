@@ -105,6 +105,7 @@ export default function Details({ route }: RouteParams) {
   };
   const isUnifiedLayout = detailsSettings.layout === 'unified';
   const [loading, setLoading] = useState(true);
+  const [glassKey, setGlassKey] = useState(0); // Force GlassView re-render on focus
   const [meta, setMeta] = useState<any>(null);
   const [episodes, setEpisodes] = useState<any[]>([]);
   const [seasons, setSeasons] = useState<any[]>([]);
@@ -273,6 +274,8 @@ export default function Details({ route }: RouteParams) {
     useCallback(() => {
       TopBarStore.setVisible(false);
       TopBarStore.setTabBarVisible(false);
+      // Force GlassView to re-render on focus (fixes iOS liquid glass not showing after navigation)
+      setGlassKey(k => k + 1);
       // No cleanup - let underlying screens (Home/Browse) manage their own TopBar state
     }, [])
   );
@@ -939,7 +942,7 @@ export default function Details({ route }: RouteParams) {
       >
         {/* Blur background */}
         <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
-          <ConditionalBlurView intensity={90} tint="dark" style={StyleSheet.absoluteFillObject} />
+          <ConditionalBlurView intensity={50} tint="dark" style={StyleSheet.absoluteFillObject} />
           <View style={[StyleSheet.absoluteFillObject, { backgroundColor: headerOverlayColor }]} />
           {/* Bottom separator */}
           <View
@@ -956,20 +959,9 @@ export default function Details({ route }: RouteParams) {
         {/* Header content */}
         <View style={{ paddingTop: insets.top, paddingBottom: 12 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12 }}>
-            {/* Back button in sticky header */}
-            <Pressable onPress={() => nav.goBack()} style={{ width: 36, height: 36, borderRadius: 18, overflow: 'hidden' }}>
-              {Platform.OS === 'ios' && GlassViewComp && liquidGlassAvailable ? (
-                <GlassViewComp style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                  <Ionicons name="chevron-back" color="#fff" size={22} />
-                </GlassViewComp>
-              ) : (
-                <>
-                  <ConditionalBlurView intensity={60} tint="dark" style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                    <Ionicons name="chevron-back" color="#fff" size={22} />
-                  </ConditionalBlurView>
-                  <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 18, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' }} pointerEvents="none" />
-                </>
-              )}
+            {/* Back button in sticky header - uses simple styling since header already has blur */}
+            <Pressable onPress={() => nav.goBack()} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(0,0,0,0.3)', alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="chevron-back" color="#fff" size={22} />
             </Pressable>
             {/* Centered logo or title */}
             <View style={{ flex: 1, alignItems: 'center', marginHorizontal: 8 }}>
@@ -981,31 +973,16 @@ export default function Details({ route }: RouteParams) {
                 </Text>
               )}
             </View>
-            {/* Watchlist button */}
+            {/* Watchlist button - uses simple styling since header already has blur */}
             <Pressable
               onPress={handleStickyWatchlistToggle}
               disabled={watchlistLoading}
-              style={{ width: 36, height: 36, borderRadius: 18, overflow: 'hidden', opacity: watchlistLoading ? 0.5 : 1 }}
+              style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(0,0,0,0.3)', alignItems: 'center', justifyContent: 'center', opacity: watchlistLoading ? 0.5 : 1 }}
             >
-              {Platform.OS === 'ios' && GlassViewComp && liquidGlassAvailable ? (
-                <GlassViewComp style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                  {watchlistLoading ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <Ionicons name={inWatchlist ? 'bookmark' : 'bookmark-outline'} size={18} color="#fff" />
-                  )}
-                </GlassViewComp>
+              {watchlistLoading ? (
+                <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <>
-                  <ConditionalBlurView intensity={60} tint="dark" style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                    {watchlistLoading ? (
-                      <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                      <Ionicons name={inWatchlist ? 'bookmark' : 'bookmark-outline'} size={18} color="#fff" />
-                    )}
-                  </ConditionalBlurView>
-                  <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 18, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' }} pointerEvents="none" />
-                </>
+                <Ionicons name={inWatchlist ? 'bookmark' : 'bookmark-outline'} size={18} color="#fff" />
               )}
             </Pressable>
           </View>
@@ -1020,20 +997,23 @@ export default function Details({ route }: RouteParams) {
         contentContainerStyle={{ paddingBottom: 32 + insets.bottom }}
       >
         {/* Hero backdrop with parallax */}
-        <View style={{ overflow: 'hidden' }}>
-          <View style={{ width: '100%', aspectRatio: 16/9, backgroundColor: '#111' }}>
+        <View style={{ overflow: 'hidden' }} pointerEvents="box-none">
+          <View style={{ width: '100%', aspectRatio: 16/9, backgroundColor: '#111' }} pointerEvents="box-none">
             {backdrop() && FastImage ? (
-              <Animated.View style={[{ width: '100%', height: '100%' }, backdropAnimatedStyle]}>
+              <Animated.View style={[{ width: '100%', height: '100%' }, backdropAnimatedStyle]} pointerEvents="none">
                 <FastImage source={{ uri: backdrop() }} style={{ width: '100%', height: '120%' }} resizeMode="cover" />
               </Animated.View>
             ) : null}
             {/* Top-left back button */}
             <View style={{ position: 'absolute', left: 12, top: insets.top + 8, flexDirection: 'row' }}>
-              <Pressable onPress={() => nav.goBack()} style={{ width: 36, height: 36, borderRadius: 18, overflow: 'hidden' }}>
+              <Pressable onPress={() => nav.goBack()} style={{ width: 36, height: 36 }}>
                 {Platform.OS === 'ios' && GlassViewComp && liquidGlassAvailable ? (
-                  <GlassViewComp style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                    <Ionicons name="chevron-back" color="#fff" size={22} />
-                  </GlassViewComp>
+                  <>
+                    <GlassViewComp key={`glass-${glassKey}`} style={{ position: 'absolute', width: 36, height: 36, borderRadius: 18, overflow: 'hidden' }} isInteractive glassEffectStyle="clear" tintColor="rgba(59, 55, 55, 0.15)" />
+                    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }} pointerEvents="none">
+                      <Ionicons name="chevron-back" color="#fff" size={22} />
+                    </View>
+                  </>
                 ) : (
                   <>
                     <ConditionalBlurView intensity={60} tint="dark" style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
@@ -1049,10 +1029,11 @@ export default function Details({ route }: RouteParams) {
               colors={getGradientColors as [string, string, ...string[]]}
               locations={[0, 0.3, 0.5, 0.7, 1]}
               style={{ position: 'absolute', left: 0, right: 0, bottom: -1, height: '70%' }}
+              pointerEvents="none"
             />
             {/* TMDB logo overlay with parallax */}
             {meta?.logoUrl && FastImage ? (
-              <Animated.View style={[{ position: 'absolute', bottom: 24, left: '10%', right: '10%', height: 48 }, logoAnimatedStyle]}>
+              <Animated.View style={[{ position: 'absolute', bottom: 24, left: '10%', right: '10%', height: 48 }, logoAnimatedStyle]} pointerEvents="none">
                 <FastImage source={{ uri: meta.logoUrl }} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
               </Animated.View>
             ) : null}
