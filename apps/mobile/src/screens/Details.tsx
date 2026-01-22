@@ -546,6 +546,9 @@ export default function Details({ route }: RouteParams) {
               ? det.genres.map((g: any) => ({ tag: g.name }))
               : [];
 
+            // Fetch logo for TMDB items not in Plex
+            const logo = await fetchTmdbLogo(params.mediaType, Number(params.id));
+
             setMeta({
               title: det?.title || det?.name || 'Title',
               summary: det?.overview,
@@ -553,6 +556,7 @@ export default function Details({ route }: RouteParams) {
               type: params.mediaType === 'movie' ? 'movie' : 'show',
               backdropUrl: back,
               Genre: genres,
+              logoUrl: logo,
             });
             setNoLocalSource(true);
             setMatchedPlex(false);
