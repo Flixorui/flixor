@@ -531,26 +531,34 @@ class DetailsViewModel: ObservableObject {
         await loadOverseerrStatus()
     }
 
-    /// Fetch UltraBlur colors from Plex for dynamic background gradients
+    /// Fetch UltraBlur colors for dynamic background gradients
+    /// Prefers TMDB backdrop (matches hero section display) over Plex art
     private func fetchUltraBlurColors() async {
-        guard let artPath = plexArtPath, !artPath.isEmpty else {
-            print("⚠️ [Details] No Plex art path available for UltraBlur")
-            return
-        }
-
         guard let plexServer = FlixorCore.shared.plexServer else {
             print("⚠️ [Details] No Plex server for UltraBlur colors")
             return
         }
 
-        do {
-            // Get full Plex image URL for the art
-            guard let imageUrl = ImageService.shared.plexImageURL(path: artPath, width: 1920, height: 1080)?.absoluteString else {
-                print("⚠️ [Details] Could not construct Plex image URL for UltraBlur")
-                return
-            }
+        // Determine the image URL to use:
+        // 1. Prefer TMDB backdrop URL (matches what hero section displays)
+        // 2. Fall back to Plex art path
+        var imageUrl: String?
 
-            if let colors = try await plexServer.getUltraBlurColors(imageUrl: imageUrl) {
+        if let backdrop = backdropURL?.absoluteString, !backdrop.isEmpty {
+            imageUrl = backdrop
+            print("🎨 [Details] Using TMDB backdrop for UltraBlur: \(backdrop)")
+        } else if let artPath = plexArtPath, !artPath.isEmpty {
+            imageUrl = ImageService.shared.plexImageURL(path: artPath, width: 1920, height: 1080)?.absoluteString
+            print("🎨 [Details] Using Plex art path for UltraBlur: \(artPath)")
+        }
+
+        guard let finalImageUrl = imageUrl else {
+            print("⚠️ [Details] No image URL available for UltraBlur")
+            return
+        }
+
+        do {
+            if let colors = try await plexServer.getUltraBlurColors(imageUrl: finalImageUrl) {
                 withAnimation(.easeInOut(duration: 0.8)) {
                     self.heroColors = colors
                 }
@@ -1441,6 +1449,9 @@ class DetailsViewModel: ObservableObject {
         selectedSeasonKey = nil  // Null = season-only mode
         await loadPlexEpisodes(seasonKey: ratingKey)
 
+        // Fetch UltraBlur colors for dynamic background (must be called here since we return early)
+        await fetchUltraBlurColors()
+
         print("✅ [loadSeasonDirect] Season-only view loaded successfully")
     }
 
@@ -1501,19 +1512,27 @@ class DetailsViewModel: ObservableObject {
         playableId = "plex:\(ratingKey)"
         plexRatingKey = ratingKey
 
-        // Try to find TMDB ID from show's GUID for enhancement
-        // First check episode's own GUIDs, then try to get show data
+        // Try to find TMDB ID from the parent TV show
+        // For episodes, we always want the SHOW's TMDB ID (not episode-specific IDs)
         var showTmdbId: String?
-        if let tm = meta.Guid?.compactMap({ $0.id }).first(where: { $0.contains("tmdb://") || $0.contains("themoviedb://") }),
-           let tid = tm.components(separatedBy: "://").last {
-            // Episode GUID format might be tmdb://tv/SHOWID/season/X/episode/Y or just the show ID
-            showTmdbId = tid.components(separatedBy: "/").first
-            tmdbId = showTmdbId
-            plexGuid = tm
+
+        // Helper to extract numeric TMDB ID from GUID string
+        // Handles formats like: tmdb://12345, tmdb://tv/12345, themoviedb://tv/12345/season/1/episode/2
+        func extractTmdbShowId(from guid: String) -> String? {
+            guard let afterScheme = guid.components(separatedBy: "://").last else { return nil }
+            // Split by "/" and find the first purely numeric component (the show ID)
+            let components = afterScheme.components(separatedBy: "/")
+            for component in components {
+                // Check if this component is a valid numeric TMDB ID
+                if !component.isEmpty && component.allSatisfy({ $0.isNumber }) {
+                    return component
+                }
+            }
+            return nil
         }
 
-        // If no TMDB ID from episode, try to get from show metadata
-        if showTmdbId == nil, let showKey = meta.grandparentRatingKey {
+        // For episodes, prefer fetching from the parent show to ensure correct show ID
+        if let showKey = meta.grandparentRatingKey {
             do {
                 print("📡 [loadEpisodeDirect] Fetching show metadata for TMDB ID...")
                 guard let plexServer = FlixorCore.shared.plexServer else {
@@ -1522,9 +1541,10 @@ class DetailsViewModel: ObservableObject {
                 let showItem = try await plexServer.getMetadata(ratingKey: showKey)
                 let showMeta = plexItemToMeta(showItem)
                 if let tm = showMeta.Guid?.compactMap({ $0.id }).first(where: { $0.contains("tmdb://") || $0.contains("themoviedb://") }),
-                   let tid = tm.components(separatedBy: "://").last {
+                   let tid = extractTmdbShowId(from: tm) {
                     showTmdbId = tid
                     tmdbId = tid
+                    plexGuid = tm
                     print("✅ [loadEpisodeDirect] Found TMDB ID from show: \(tid)")
                 }
             } catch {
@@ -1532,10 +1552,29 @@ class DetailsViewModel: ObservableObject {
             }
         }
 
+        // Fallback: try episode's own GUID if we couldn't get from show
+        if showTmdbId == nil {
+            if let tm = meta.Guid?.compactMap({ $0.id }).first(where: { $0.contains("tmdb://") || $0.contains("themoviedb://") }),
+               let tid = extractTmdbShowId(from: tm) {
+                showTmdbId = tid
+                tmdbId = tid
+                plexGuid = tm
+                print("✅ [loadEpisodeDirect] Found TMDB ID from episode GUID: \(tid)")
+            }
+        }
+
         // Fetch TMDB episode enhancements
         if let tid = showTmdbId, let sNum = seasonNumber, let eNum = episodeNumber {
             await fetchTMDBEpisodeEnhancements(showTmdbId: tid, seasonNumber: sNum, episodeNumber: eNum)
         }
+
+        // Fetch TMDB TV series backdrop for hero section (overrides Plex art)
+        if let tid = showTmdbId {
+            await fetchTMDBSeriesBackdrop(showTmdbId: tid)
+        }
+
+        // Fetch UltraBlur colors for dynamic background (must be called here since we return early)
+        await fetchUltraBlurColors()
 
         print("✅ [loadEpisodeDirect] Episode view loaded successfully")
     }
@@ -1630,6 +1669,36 @@ class DetailsViewModel: ObservableObject {
             print("✅ [fetchTMDBEpisodeEnhancements] TMDB episode enhancements complete")
         } catch {
             print("⚠️ [fetchTMDBEpisodeEnhancements] Failed to fetch TMDB episode data: \(error)")
+        }
+    }
+
+    // MARK: - TMDB Series Backdrop (for Episodes)
+
+    /// Fetch TMDB TV series backdrop for episode details screen
+    /// This ensures the hero section uses the series backdrop instead of episode still
+    private func fetchTMDBSeriesBackdrop(showTmdbId: String) async {
+        print("📡 [fetchTMDBSeriesBackdrop] Fetching TV series backdrop for show \(showTmdbId)")
+
+        struct TMDBTVShow: Codable {
+            let backdrop_path: String?
+        }
+
+        do {
+            let show: TMDBTVShow = try await api.get("/api/tmdb/tv/\(showTmdbId)")
+
+            if let backdropPath = show.backdrop_path {
+                let tmdbBackdropUrl = "https://image.tmdb.org/t/p/original\(backdropPath)"
+                if let url = URL(string: tmdbBackdropUrl) {
+                    backdropURL = url
+                    print("✅ [fetchTMDBSeriesBackdrop] Set TMDB series backdrop URL: \(url.absoluteString)")
+                } else {
+                    print("⚠️ [fetchTMDBSeriesBackdrop] Failed to create URL from: \(tmdbBackdropUrl)")
+                }
+            } else {
+                print("⚠️ [fetchTMDBSeriesBackdrop] No backdrop_path in TMDB response")
+            }
+        } catch {
+            print("⚠️ [fetchTMDBSeriesBackdrop] Failed to fetch TV series data: \(error)")
         }
     }
 

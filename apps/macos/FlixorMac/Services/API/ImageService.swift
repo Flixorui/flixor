@@ -60,13 +60,21 @@ class ImageService {
     // MARK: - Plex Thumb
 
     func thumbURL(for item: MediaItem, width: Int = 300, height: Int = 450) -> URL? {
-        plexImageURL(path: item.thumb, width: width, height: height)
+        // Handle direct HTTP URLs (e.g., TMDB posters)
+        if let thumb = item.thumb, thumb.hasPrefix("http") {
+            return URL(string: thumb)
+        }
+        return plexImageURL(path: item.thumb, width: width, height: height)
     }
 
     // MARK: - Plex Art (Backdrop)
 
     func artURL(for item: MediaItem, width: Int = 1920, height: Int = 1080) -> URL? {
-        plexImageURL(path: item.art, width: width, height: height)
+        // Handle direct HTTP URLs (e.g., TMDB backdrops)
+        if let art = item.art, art.hasPrefix("http") {
+            return URL(string: art)
+        }
+        return plexImageURL(path: item.art, width: width, height: height)
     }
 
     // MARK: - Continue Watching Images (Backdrop style)

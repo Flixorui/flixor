@@ -660,27 +660,51 @@ class HomeViewModel: ObservableObject {
                 }
             } catch { print("⚠️ [Home] Trakt watchlist failed: \(error)") }
 
-            // Recently Watched (auth)
+            // Recently Watched (auth) - fetch movies and shows separately like mobile
             do {
-                let history = try await trakt.getHistory(limit: 12)
+                async let moviesTask = trakt.getHistory(type: "movies", page: 1, limit: 20)
+                async let showsTask = trakt.getHistory(type: "shows", page: 1, limit: 20)
+                let (moviesHistory, showsHistory) = try await (moviesTask, showsTask)
+
+                // Combine and deduplicate by TMDB ID
+                var seenIds = Set<String>()
                 var items: [MediaItem] = []
-                for histItem in history.prefix(12) {
-                    if let movie = histItem.movie {
-                        if let item = await mapTraktMovieToMediaItem(movie) {
-                            items.append(item)
-                        }
-                    } else if let show = histItem.show {
-                        if let item = await mapTraktShowToMediaItem(show) {
-                            items.append(item)
+
+                // Process movies
+                for histItem in moviesHistory {
+                    if let movie = histItem.movie, let tmdbId = movie.ids.tmdb {
+                        let id = "tmdb:movie:\(tmdbId)"
+                        if !seenIds.contains(id) {
+                            seenIds.insert(id)
+                            if let item = await mapTraktMovieToMediaItem(movie) {
+                                items.append(item)
+                            }
                         }
                     }
                 }
-                if !items.isEmpty {
+
+                // Process shows
+                for histItem in showsHistory {
+                    if let show = histItem.show, let tmdbId = show.ids.tmdb {
+                        let id = "tmdb:tv:\(tmdbId)"
+                        if !seenIds.contains(id) {
+                            seenIds.insert(id)
+                            if let item = await mapTraktShowToMediaItem(show) {
+                                items.append(item)
+                            }
+                        }
+                    }
+                }
+
+                // Limit to 12 items
+                let limitedItems = Array(items.prefix(12))
+
+                if !limitedItems.isEmpty {
                     sections.append(LibrarySection(
                         id: "trakt-history",
                         title: "Recently Watched",
-                        items: items,
-                        totalCount: items.count,
+                        items: limitedItems,
+                        totalCount: limitedItems.count,
                         libraryKey: nil,
                         browseContext: .trakt(kind: .history)
                     ))
@@ -741,12 +765,14 @@ class HomeViewModel: ObservableObject {
 
     private func mapTraktMovieToMediaItem(_ movie: FlixorKit.TraktMovie) async -> MediaItem? {
         guard let tmdb = movie.ids.tmdb else { return nil }
-        let backdrop = await fetchTMDBBackdrop(mediaType: "movie", id: tmdb)
+        async let backdropTask = fetchTMDBBackdrop(mediaType: "movie", id: tmdb)
+        async let posterTask = fetchTMDBPoster(mediaType: "movie", id: tmdb)
+        let (backdrop, poster) = await (backdropTask, posterTask)
         return MediaItem(
             id: "tmdb:movie:\(tmdb)",
             title: movie.title,
             type: "movie",
-            thumb: nil,
+            thumb: poster,
             art: backdrop,
             year: movie.year,
             rating: nil,
@@ -783,12 +809,14 @@ class HomeViewModel: ObservableObject {
 
     private func mapTraktShowToMediaItem(_ show: FlixorKit.TraktShow) async -> MediaItem? {
         guard let tmdb = show.ids.tmdb else { return nil }
-        let backdrop = await fetchTMDBBackdrop(mediaType: "tv", id: tmdb)
+        async let backdropTask = fetchTMDBBackdrop(mediaType: "tv", id: tmdb)
+        async let posterTask = fetchTMDBPoster(mediaType: "tv", id: tmdb)
+        let (backdrop, poster) = await (backdropTask, posterTask)
         return MediaItem(
             id: "tmdb:tv:\(tmdb)",
             title: show.title,
             type: "show",
-            thumb: nil,
+            thumb: poster,
             art: backdrop,
             year: show.year,
             rating: nil,
@@ -1145,13 +1173,30 @@ class HomeViewModel: ObservableObject {
     }
 
     /// Resolve backdrop URL for hero/billboard item (for UltraBlur)
+    /// Prefers TMDB backdrop (matches displayed hero image) over Plex art
     private func resolveHeroBackdropURL(for item: MediaItem) async -> String? {
-        // First try to get the Plex art URL
+        // Determine cache key (same logic as BillboardView)
+        let cacheKey: String
+        if item.type == "episode", let seriesKey = item.grandparentRatingKey {
+            cacheKey = "series:\(seriesKey)"
+        } else if item.type == "season", let seriesKey = item.parentRatingKey {
+            cacheKey = "series:\(seriesKey)"
+        } else {
+            cacheKey = item.id
+        }
+
+        // Check BillboardImageCache for TMDB backdrop (matches what hero displays)
+        if let cached = BillboardImageCache.shared.get(itemId: cacheKey),
+           let tmdbBackdrop = cached.0 {
+            print("🎨 [Home] Using cached TMDB backdrop for UltraBlur: \(tmdbBackdrop.absoluteString)")
+            return tmdbBackdrop.absoluteString
+        }
+
+        // Fall back to Plex art if no TMDB cached
         if let art = item.art {
             if art.hasPrefix("http") {
                 return art
             }
-            // Use Plex server to get full URL
             if let plexServer = FlixorCore.shared.plexServer {
                 return plexServer.getImageUrl(path: art, width: 1920)
             }

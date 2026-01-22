@@ -473,76 +473,32 @@ struct LandscapeSectionView: View {
 struct HomeBackground: View {
     var heroColors: PlexUltraBlurColors?
 
-    // Default fallback colors (teal/red theme)
-    private let defaultTopRight = "144c54"  // Teal
-    private let defaultBottomLeft = "7a1612" // Deep red
+    // Default fallback color (dark theme)
+    private let defaultColor = "0d0d0f"
 
-    // Get colors with fallback
-    private var topRightColor: Color {
-        Color(hex: heroColors?.topRight ?? defaultTopRight)
+    // Get colors with fallback (matching mobile: topLeft at top, bottomLeft at bottom)
+    private var topColor: Color {
+        Color(hex: heroColors?.topLeft ?? defaultColor)
     }
 
-    private var bottomLeftColor: Color {
-        Color(hex: heroColors?.bottomLeft ?? defaultBottomLeft)
+    private var bottomColor: Color {
+        Color(hex: heroColors?.bottomLeft ?? defaultColor)
     }
 
     var body: some View {
-        ZStack {
-            // Base dark gradient
-            LinearGradient(colors: [Color(hex: 0x0a0a0a), Color(hex: 0x0f0f10), Color(hex: 0x0b0c0d)], startPoint: .top, endPoint: .bottom)
-
-            // Top-right glow (from hero colors)
-            RadialGradient(
-                gradient: Gradient(colors: [
-                    topRightColor.opacity(0.50),
-                    topRightColor.opacity(0.25),
-                    .clear
-                ]),
-                center: .init(x: 0.84, y: 0.06),
-                startRadius: 0,
-                endRadius: 800
-            )
-
-            // Bottom-left glow (from hero colors)
-            RadialGradient(
-                gradient: Gradient(colors: [
-                    bottomLeftColor.opacity(0.55),
-                    bottomLeftColor.opacity(0.25),
-                    .clear
-                ]),
-                center: .init(x: 0.10, y: 0.92),
-                startRadius: 0,
-                endRadius: 800
-            )
-
-            // Subtle echoes
-            RadialGradient(
-                gradient: Gradient(colors: [
-                    bottomLeftColor.opacity(0.12),
-                    bottomLeftColor.opacity(0.06),
-                    .clear
-                ]),
-                center: .init(x: 0.08, y: 0.08),
-                startRadius: 0,
-                endRadius: 700
-            )
-
-            RadialGradient(
-                gradient: Gradient(colors: [
-                    topRightColor.opacity(0.12),
-                    topRightColor.opacity(0.06),
-                    .clear
-                ]),
-                center: .init(x: 0.92, y: 0.92),
-                startRadius: 0,
-                endRadius: 700
-            )
-
-            // Soft vignette
-            RadialGradient(gradient: Gradient(colors: [.clear, Color.black.opacity(0.22)]), center: .init(x: 0.5, y: 0.45), startRadius: 300, endRadius: 1200)
-        }
+        // Vertical gradient matching mobile orientation:
+        // Solid topLeft for hero area (0-35%), then transitions to bottomLeft
+        LinearGradient(
+            stops: [
+                .init(color: topColor, location: 0),
+                .init(color: topColor, location: 0.35),
+                .init(color: bottomColor, location: 1)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
         .ignoresSafeArea()
-        .animation(.easeInOut(duration: 0.8), value: heroColors?.topRight)
+        .animation(.easeInOut(duration: 0.8), value: heroColors?.topLeft)
         .animation(.easeInOut(duration: 0.8), value: heroColors?.bottomLeft)
     }
 }

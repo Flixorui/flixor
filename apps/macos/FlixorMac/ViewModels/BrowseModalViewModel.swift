@@ -34,6 +34,8 @@ class BrowseModalViewModel: ObservableObject {
     private var context: BrowseContext?
     private var tmdbPage = 1
     private var tmdbTotalPages = 1
+    private var traktPage = 1
+    private let pageSize = 20
 
     // Reset state when modal is dismissed
     func reset() {
@@ -46,12 +48,14 @@ class BrowseModalViewModel: ObservableObject {
         context = nil
         tmdbPage = 1
         tmdbTotalPages = 1
+        traktPage = 1
     }
 
     func load(context: BrowseContext) async {
         self.context = context
         tmdbPage = 1
         tmdbTotalPages = 1
+        traktPage = 1
         canLoadMore = false
         isLoadingMore = false
 
@@ -80,7 +84,17 @@ class BrowseModalViewModel: ObservableObject {
         guard let context, canLoadMore, !isLoadingMore else { return }
         isLoadingMore = true
         do {
-            let nextPage = tmdbPage + 1
+            // Determine next page based on context type
+            let nextPage: Int
+            switch context {
+            case .trakt:
+                nextPage = traktPage + 1
+            case .tmdb:
+                nextPage = tmdbPage + 1
+            default:
+                nextPage = 1
+            }
+
             let more = try await fetchItems(for: context, page: nextPage, append: true)
             items.append(contentsOf: more)
             if items.isEmpty {
@@ -110,8 +124,7 @@ class BrowseModalViewModel: ObservableObject {
         case .tmdb(let kind, let media, let id, let display):
             return try await fetchTMDB(kind: kind, media: media, identifier: id, displayTitle: display, page: page, append: append)
         case .trakt(let kind):
-            canLoadMore = false
-            return try await fetchTrakt(kind: kind)
+            return try await fetchTrakt(kind: kind, page: page, append: append)
         }
     }
 
@@ -297,53 +310,108 @@ class BrowseModalViewModel: ObservableObject {
 
     // MARK: - Trakt Fetchers
 
-    private func fetchTrakt(kind: TraktBrowseKind) async throws -> [MediaItem] {
+    private func fetchTrakt(kind: TraktBrowseKind, page: Int, append: Bool) async throws -> [MediaItem] {
         switch kind {
         case .trendingMovies:
-            return try await fetchTraktTrending(media: "movies")
+            return try await fetchTraktTrending(media: "movies", page: page)
         case .trendingShows:
-            return try await fetchTraktTrending(media: "shows")
+            return try await fetchTraktTrending(media: "shows", page: page)
         case .watchlist:
-            return try await fetchTraktWatchlist()
+            return try await fetchTraktWatchlist(page: page)
         case .history:
-            return try await fetchTraktHistory()
+            return try await fetchTraktHistory(page: page)
         case .recommendations:
-            return try await fetchTraktRecommendations()
+            return try await fetchTraktRecommendations(page: page)
         case .popularShows:
-            return try await fetchTraktPopular(media: "shows")
+            return try await fetchTraktPopular(media: "shows", page: page)
         }
     }
 
-    private func fetchTraktTrending(media: String) async throws -> [MediaItem] {
+    private func fetchTraktTrending(media: String, page: Int) async throws -> [MediaItem] {
         struct TraktTrendingItem: Codable { let watchers: Int?; let movie: TraktMedia?; let show: TraktMedia? }
-        let arr: [TraktTrendingItem] = try await api.get("/api/trakt/trending/\(media)")
+        let arr: [TraktTrendingItem] = try await api.get(
+            "/api/trakt/trending/\(media)",
+            queryItems: [URLQueryItem(name: "page", value: String(page)), URLQueryItem(name: "limit", value: String(pageSize))]
+        )
         let mediaType = (media == "movies") ? "movie" : "tv"
         let list: [TraktMedia] = arr.map { $0.movie ?? $0.show }.compactMap { $0 }
+        canLoadMore = list.count == pageSize
+        traktPage = page
         return await mapTraktMedia(list, mediaType: mediaType)
     }
 
-    private func fetchTraktPopular(media: String) async throws -> [MediaItem] {
-        let arr: [TraktMedia] = try await api.get("/api/trakt/popular/\(media)")
+    private func fetchTraktPopular(media: String, page: Int) async throws -> [MediaItem] {
+        let arr: [TraktMedia] = try await api.get(
+            "/api/trakt/popular/\(media)",
+            queryItems: [URLQueryItem(name: "page", value: String(page)), URLQueryItem(name: "limit", value: String(pageSize))]
+        )
         let mediaType = (media == "movies") ? "movie" : "tv"
+        canLoadMore = arr.count == pageSize
+        traktPage = page
         return await mapTraktMedia(arr, mediaType: mediaType)
     }
 
-    private func fetchTraktWatchlist() async throws -> [MediaItem] {
+    private func fetchTraktWatchlist(page: Int) async throws -> [MediaItem] {
         struct TraktItem: Codable { let movie: TraktMedia?; let show: TraktMedia? }
-        let arr: [TraktItem] = try await api.get("/api/trakt/users/me/watchlist")
+        let arr: [TraktItem] = try await api.get(
+            "/api/trakt/users/me/watchlist",
+            queryItems: [URLQueryItem(name: "page", value: String(page)), URLQueryItem(name: "limit", value: String(pageSize))]
+        )
         let mediaList: [TraktMedia] = arr.compactMap { $0.movie ?? $0.show }
+        canLoadMore = mediaList.count == pageSize
+        traktPage = page
         return await mapTraktMedia(mediaList, mediaType: nil)
     }
 
-    private func fetchTraktHistory() async throws -> [MediaItem] {
+    private func fetchTraktHistory(page: Int) async throws -> [MediaItem] {
         struct TraktItem: Codable { let movie: TraktMedia?; let show: TraktMedia? }
-        let arr: [TraktItem] = try await api.get("/api/trakt/users/me/history")
-        let mediaList: [TraktMedia] = arr.compactMap { $0.movie ?? $0.show }
+        // Fetch movies and shows history separately like mobile does
+        async let moviesTask: [TraktItem] = api.get(
+            "/api/trakt/users/me/history/movies",
+            queryItems: [URLQueryItem(name: "page", value: String(page)), URLQueryItem(name: "limit", value: String(pageSize))]
+        )
+        async let showsTask: [TraktItem] = api.get(
+            "/api/trakt/users/me/history/shows",
+            queryItems: [URLQueryItem(name: "page", value: String(page)), URLQueryItem(name: "limit", value: String(pageSize))]
+        )
+        let (moviesArr, showsArr) = try await (moviesTask, showsTask)
+
+        // Combine and deduplicate by TMDB ID
+        var seenIds = Set<String>()
+        var mediaList: [TraktMedia] = []
+
+        for item in moviesArr {
+            if let movie = item.movie, let tmdbId = movie.ids.tmdb {
+                let id = "tmdb:movie:\(tmdbId)"
+                if !seenIds.contains(id) {
+                    seenIds.insert(id)
+                    mediaList.append(movie)
+                }
+            }
+        }
+
+        for item in showsArr {
+            if let show = item.show, let tmdbId = show.ids.tmdb {
+                let id = "tmdb:tv:\(tmdbId)"
+                if !seenIds.contains(id) {
+                    seenIds.insert(id)
+                    mediaList.append(show)
+                }
+            }
+        }
+
+        canLoadMore = moviesArr.count == pageSize || showsArr.count == pageSize
+        traktPage = page
         return await mapTraktMedia(mediaList, mediaType: nil)
     }
 
-    private func fetchTraktRecommendations() async throws -> [MediaItem] {
-        let arr: [TraktMedia] = try await api.get("/api/trakt/recommendations/movies")
+    private func fetchTraktRecommendations(page: Int) async throws -> [MediaItem] {
+        let arr: [TraktMedia] = try await api.get(
+            "/api/trakt/recommendations/movies",
+            queryItems: [URLQueryItem(name: "page", value: String(page)), URLQueryItem(name: "limit", value: String(pageSize))]
+        )
+        canLoadMore = arr.count == pageSize
+        traktPage = page
         return await mapTraktMedia(arr, mediaType: "movie")
     }
 
@@ -357,12 +425,16 @@ class BrowseModalViewModel: ObservableObject {
                     let type = mediaType ?? (media.ids.tmdb != nil ? self.inferType(from: media) : "movie")
                     let title = media.title ?? ""
                     do {
-                        let backdrop = try await self.fetchTMDBBackdrop(mediaType: type, id: tmdb)
+                        // Fetch both poster and backdrop in parallel
+                        async let posterTask = self.fetchTMDBPoster(mediaType: type, id: tmdb)
+                        async let backdropTask = self.fetchTMDBBackdrop(mediaType: type, id: tmdb)
+                        let (poster, backdrop) = try await (posterTask, backdropTask)
+
                         return MediaItem(
                             id: "tmdb:\(type == "movie" ? "movie" : "tv"):\(tmdb)",
                             title: title,
                             type: type == "movie" ? "movie" : "show",
-                            thumb: nil,
+                            thumb: poster,
                             art: backdrop,
                             year: media.year,
                             rating: nil,
@@ -405,6 +477,15 @@ class BrowseModalViewModel: ObservableObject {
         let detail: TMDBTitle = try await api.get("/api/tmdb/\(mediaType)/\(id)")
         if let path = detail.backdrop_path {
             return imageService.tmdbImageURL(path: path, size: .w780)?.absoluteString
+        }
+        return nil
+    }
+
+    private func fetchTMDBPoster(mediaType: String, id: Int) async throws -> String? {
+        struct TMDBTitle: Codable { let poster_path: String? }
+        let detail: TMDBTitle = try await api.get("/api/tmdb/\(mediaType)/\(id)")
+        if let path = detail.poster_path {
+            return imageService.tmdbImageURL(path: path, size: .w500)?.absoluteString
         }
         return nil
     }

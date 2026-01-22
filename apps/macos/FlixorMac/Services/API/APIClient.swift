@@ -579,10 +579,23 @@ class APIClient: ObservableObject {
             }
         }
 
-        // /api/trakt/users/me/history
-        if subpath == "users/me/history" {
-            let result = try await trakt.getHistory()
-            return try encodeAndDecode(result)
+        // /api/trakt/users/me/history or /api/trakt/users/me/history/{type}
+        if subpath.hasPrefix("users/me/history") {
+            let page = params["page"].flatMap { Int($0) } ?? 1
+            let limit = params["limit"].flatMap { Int($0) } ?? 20
+
+            // Check if a type is specified (movies, shows, episodes)
+            let parts = subpath.components(separatedBy: "/")
+            if parts.count == 4 {
+                // users/me/history/{type}
+                let type = parts[3]  // "movies", "shows", or "episodes"
+                let result = try await trakt.getHistory(type: type, page: page, limit: limit)
+                return try encodeAndDecode(result)
+            } else {
+                // users/me/history (no type)
+                let result = try await trakt.getHistory(page: page, limit: limit)
+                return try encodeAndDecode(result)
+            }
         }
 
         // /api/trakt/{media}/watched/{period} - Most watched movies/shows
