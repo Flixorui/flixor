@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { View, Text, TextInput, Pressable, ActivityIndicator, ScrollView, StyleSheet, Animated, Keyboard, InteractionManager } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import FastImage from '@d11/react-native-fast-image';
@@ -37,10 +37,14 @@ const IMAGE_PRELOAD_CAP = 6;
 
 interface SearchProps {
   isTab?: boolean;
+  nativeSearchText?: string; // Text from iOS native search bar (older iOS)
+  hideCustomSearchBar?: boolean; // Hide custom search bar (iOS with native tabs)
 }
 
-export default function Search({ isTab = false }: SearchProps) {
+export default function Search({ isTab = false, nativeSearchText, hideCustomSearchBar = false }: SearchProps) {
+  const useNativeSearchBar = nativeSearchText !== undefined;
   const nav: any = useNavigation();
+  const insets = useSafeAreaInsets();
   const { isConnected } = useFlixor();
   const { settings } = useAppSettings();
   const [query, setQuery] = useState('');
@@ -135,8 +139,10 @@ export default function Search({ isTab = false }: SearchProps) {
       Animated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true }).start();
     }
 
-    // Auto-focus input
-    setTimeout(() => inputRef.current?.focus(), 100);
+    // Auto-focus input (only for custom search bar)
+    if (!hideCustomSearchBar) {
+      setTimeout(() => inputRef.current?.focus(), 100);
+    }
 
     // Cleanup on unmount
     return () => {
@@ -150,7 +156,7 @@ export default function Search({ isTab = false }: SearchProps) {
         clearTimeout(searchTimeout.current);
       }
     };
-  }, [isConnected, isTab, settings.includeTmdbInSearch]);
+  }, [isConnected, isTab, settings.includeTmdbInSearch, hideCustomSearchBar]);
 
   const performSearch = useCallback(async (q: string) => {
     if (!isConnected || !q.trim()) return;
@@ -207,11 +213,11 @@ export default function Search({ isTab = false }: SearchProps) {
     }
   }, [isConnected, settings.includeTmdbInSearch]);
 
-  const handleQueryChange = (text: string) => {
+  const handleQueryChange = useCallback((text: string) => {
     setQuery(text);
-    
+
     if (searchTimeout.current) clearTimeout(searchTimeout.current);
-    
+
     if (text.trim()) {
       searchTimeout.current = setTimeout(() => performSearch(text), 300);
     } else {
@@ -221,7 +227,14 @@ export default function Search({ isTab = false }: SearchProps) {
       setTmdbShows([]);
       setGenreRows([]);
     }
-  };
+  }, [performSearch]);
+
+  // Handle native search bar text changes (iOS 26+)
+  useEffect(() => {
+    if (useNativeSearchBar && nativeSearchText !== undefined) {
+      handleQueryChange(nativeSearchText);
+    }
+  }, [nativeSearchText, useNativeSearchBar, handleQueryChange]);
 
   const handleResultPress = (result: SearchResult | RowItem) => {
     const id = result.id;
@@ -255,40 +268,43 @@ export default function Search({ isTab = false }: SearchProps) {
         style={StyleSheet.absoluteFillObject}
       />
 
-      <SafeAreaView style={{ flex: 1 }} edges={['top']}>
+      <SafeAreaView style={{ flex: 1 }} edges={hideCustomSearchBar ? [] : ['top']}>
         <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
-          {/* Search Bar */}
-          <View style={styles.searchBar}>
-            <Ionicons name="search" size={20} color="#888" style={{ marginRight: 12 }} />
-            <TextInput
-              ref={inputRef}
-              value={query}
-              onChangeText={handleQueryChange}
-              placeholder="Search for movies, shows..."
-              placeholderTextColor="#666"
-              style={styles.input}
-              returnKeyType="search"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            {query ? (
-              <Pressable onPress={() => handleQueryChange('')} style={{ padding: 4 }}>
-                <Ionicons name="close-circle" size={20} color="#888" />
-              </Pressable>
-            ) : null}
-            {!isTab && (
-              <Pressable onPress={() => nav.goBack()} style={{ marginLeft: 12 }}>
-                <Text style={{ color: '#fff', fontWeight: '600' }}>Cancel</Text>
-              </Pressable>
-            )}
-          </View>
+          {/* Custom Search Bar - hidden on iOS with native tabs */}
+          {!hideCustomSearchBar && (
+            <View style={styles.searchBar}>
+              <Ionicons name="search" size={20} color="#888" style={{ marginRight: 12 }} />
+              <TextInput
+                ref={inputRef}
+                value={query}
+                onChangeText={handleQueryChange}
+                placeholder="Search for movies, shows..."
+                placeholderTextColor="#666"
+                style={styles.input}
+                returnKeyType="search"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              {query ? (
+                <Pressable onPress={() => handleQueryChange('')} style={{ padding: 4 }}>
+                  <Ionicons name="close-circle" size={20} color="#888" />
+                </Pressable>
+              ) : null}
+              {!isTab && (
+                <Pressable onPress={() => nav.goBack()} style={{ marginLeft: 12 }}>
+                  <Text style={{ color: '#fff', fontWeight: '600' }}>Cancel</Text>
+                </Pressable>
+              )}
+            </View>
+          )}
 
           {/* Results/Empty State */}
           <ScrollView
             style={{ flex: 1 }}
             contentContainerStyle={{ paddingBottom: 80 }}
+            contentInsetAdjustmentBehavior="automatic"
             keyboardShouldPersistTaps="handled"
-            onScrollBeginDrag={() => Keyboard.dismiss()}
+            keyboardDismissMode="on-drag"
           >
             {searchMode === 'idle' && settings.includeTmdbInSearch ? (
               <View style={{ paddingTop: 24 }}>

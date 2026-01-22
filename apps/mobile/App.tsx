@@ -15,11 +15,11 @@ import { memoryManager } from './src/core/MemoryManager';
 import { appLogger } from './src/core/AppLogger';
 import { loadAppSettings } from './src/core/SettingsData';
 
-// Native iOS bottom tabs for liquid glass effect
+// Native iOS bottom tabs for liquid glass effect (React Navigation v7)
 let createNativeBottomTabNavigator: any = null;
 if (Platform.OS === 'ios') {
   try {
-    const bottomTabs = require('@bottom-tabs/react-navigation');
+    const bottomTabs = require('@react-navigation/bottom-tabs/unstable');
     createNativeBottomTabNavigator = bottomTabs.createNativeBottomTabNavigator;
   } catch {
     createNativeBottomTabNavigator = null;
@@ -203,25 +203,59 @@ const MyListStackNavigator = React.memo(() => {
   );
 });
 
-const SearchStackNavigator = React.memo(() => (
-  <View style={{ flex: 1 }}>
-    <SearchStack.Navigator screenOptions={{ headerShown: false }}>
-      <SearchStack.Screen name="SearchScreen">
-        {() => <Search isTab />}
-      </SearchStack.Screen>
-      <SearchStack.Screen
-        name="Details"
-        component={Details}
-        options={{ presentation: 'card', animation: 'slide_from_right' }}
-      />
-      <SearchStack.Screen
-        name="Player"
-        component={Player}
-        options={{ presentation: 'fullScreenModal', animation: 'fade' }}
-      />
-    </SearchStack.Navigator>
-  </View>
-));
+const SearchStackNavigator = React.memo(() => {
+  const [nativeSearchText, setNativeSearchText] = React.useState('');
+  // iOS 26+ with liquid glass: Use native search (header required for tab bar transformation)
+  // iOS 18 and below / Android: Use custom search bar
+  const useNativeTabs = Platform.OS === 'ios' && createNativeBottomTabNavigator && liquidGlassAvailable;
+
+  return (
+    <View style={{ flex: 1 }}>
+      <SearchStack.Navigator
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: '#0a0a0a' },
+        }}
+      >
+        <SearchStack.Screen
+          name="SearchScreen"
+          options={useNativeTabs ? {
+            headerShown: true,
+            headerTransparent: true,
+            headerLargeTitle: false,
+            headerStyle: { backgroundColor: 'transparent' },
+            headerTitle: '',
+            headerSearchBarOptions: {
+              placeholder: 'Search for movies, shows...',
+              hideWhenScrolling: false,
+              onChangeText: (e: any) => setNativeSearchText(e.nativeEvent.text),
+              onCancelButtonPress: () => setNativeSearchText(''),
+              autoCapitalize: 'none',
+            },
+          } : undefined}
+        >
+          {() => (
+            <Search
+              isTab
+              nativeSearchText={useNativeTabs ? nativeSearchText : undefined}
+              hideCustomSearchBar={useNativeTabs}
+            />
+          )}
+        </SearchStack.Screen>
+        <SearchStack.Screen
+          name="Details"
+          component={Details}
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
+        />
+        <SearchStack.Screen
+          name="Player"
+          component={Player}
+          options={{ presentation: 'fullScreenModal', animation: 'fade' }}
+        />
+      </SearchStack.Navigator>
+    </View>
+  );
+});
 
 const SettingsTabScreen = React.memo(() => (
   <SettingsStack.Navigator screenOptions={{ headerShown: false }}>
@@ -253,8 +287,9 @@ const Tabs = React.memo(() => {
   const insets = useSafeAreaInsets();
   const { settings } = useAppSettings();
 
-  // Use native iOS tabs when available (iOS 18+ with @bottom-tabs)
-  if (Platform.OS === 'ios' && createNativeBottomTabNavigator) {
+  // Use native iOS tabs only on iOS 26+ with liquid glass
+  // iOS 18 and below falls back to regular tabs with blur view (same as Android)
+  if (Platform.OS === 'ios' && createNativeBottomTabNavigator && liquidGlassAvailable) {
     const IOSTab = createNativeBottomTabNavigator();
 
     return (
@@ -275,7 +310,7 @@ const Tabs = React.memo(() => {
             component={HomeStackNavigator}
             options={{
               title: 'Home',
-              tabBarIcon: () => ({ sfSymbol: 'house' }),
+              tabBarIcon: () => ({ type: 'sfSymbol', name: 'house' }),
             }}
           />
           <IOSTab.Screen
@@ -283,7 +318,8 @@ const Tabs = React.memo(() => {
             component={SearchStackNavigator}
             options={{
               title: 'Search',
-              tabBarIcon: () => ({ sfSymbol: 'magnifyingglass' }),
+              tabBarIcon: () => ({ type: 'sfSymbol', name: 'magnifyingglass' }),
+              tabBarSystemItem: 'search',
             }}
           />
           {settings.showNewHotTab && (
@@ -292,7 +328,7 @@ const Tabs = React.memo(() => {
               component={NewHotStackNavigator}
               options={{
                 title: 'New & Hot',
-                tabBarIcon: () => ({ sfSymbol: 'play.circle' }),
+                tabBarIcon: () => ({ type: 'sfSymbol', name: 'play.circle' }),
               }}
             />
           )}
@@ -301,7 +337,7 @@ const Tabs = React.memo(() => {
             component={MyListStackNavigator}
             options={{
               title: 'My List',
-              tabBarIcon: () => ({ sfSymbol: 'bookmark' }),
+              tabBarIcon: () => ({ type: 'sfSymbol', name: 'bookmark' }),
             }}
           />
           <IOSTab.Screen
@@ -309,7 +345,7 @@ const Tabs = React.memo(() => {
             component={SettingsTabScreen}
             options={{
               title: 'Settings',
-              tabBarIcon: () => ({ sfSymbol: 'gear' }),
+              tabBarIcon: () => ({ type: 'sfSymbol', name: 'gear' }),
             }}
           />
         </IOSTab.Navigator>
@@ -320,9 +356,9 @@ const Tabs = React.memo(() => {
   // Fallback for Android and older iOS
   return (
     <Tab.Navigator
-      sceneContainerStyle={{ backgroundColor: '#1b0a10' }}
       screenOptions={({ route }) => ({
         headerShown: false,
+        sceneStyle: { backgroundColor: '#1b0a10' },
         tabBarShowLabel: true,
         tabBarActiveTintColor: '#fff',
         tabBarInactiveTintColor: '#bdbdbd',
