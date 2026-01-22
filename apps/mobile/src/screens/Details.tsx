@@ -1,5 +1,14 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { View, Text, ActivityIndicator, ScrollView, Pressable, Dimensions, StyleSheet, Linking, Alert, Image, FlatList } from 'react-native';
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+import { View, Text, ActivityIndicator, ScrollView, Pressable, Dimensions, StyleSheet, Linking, Alert, Image, FlatList, useWindowDimensions, Platform } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  interpolate,
+  Extrapolation,
+  withTiming,
+  Easing,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Row from '../components/Row';
 import TrailersRow from '../components/TrailersRow';
@@ -50,8 +59,25 @@ import {
   PersonCredit,
   NextUpEpisode,
 } from '../core/DetailsData';
+import { getUltraBlurColors, PlexUltraBlurColors } from '../core/HomeData';
 
 import FastImage from '@d11/react-native-fast-image';
+
+// Optional iOS liquid glass effect with safe fallback
+let GlassViewComp: any = null;
+let liquidGlassAvailable = false;
+if (Platform.OS === 'ios') {
+  try {
+    const glass = require('expo-glass-effect');
+    GlassViewComp = glass.GlassView;
+    liquidGlassAvailable = typeof glass.isLiquidGlassAvailable === 'function'
+      ? glass.isLiquidGlassAvailable()
+      : false;
+  } catch {
+    GlassViewComp = null;
+    liquidGlassAvailable = false;
+  }
+}
 
 type DetailsParams = {
   type: 'plex' | 'tmdb';
@@ -124,15 +150,123 @@ export default function Details({ route }: RouteParams) {
   const [pendingPlayRatingKey, setPendingPlayRatingKey] = useState<string | null>(null);
   const [imdbId, setImdbId] = useState<string | undefined>(undefined);
   const [firstEpisodeMedia, setFirstEpisodeMedia] = useState<any[]>([]); // Technical info from first episode (for TV shows)
-  const scrollRef = useRef<ScrollView | null>(null);
+  const [ultraBlurColors, setUltraBlurColors] = useState<PlexUltraBlurColors | null>(null);
+  const scrollRef = useRef<Animated.ScrollView | null>(null);
   const nav: any = useNavigation();
-  const scrollYRef = useRef(0);
+  const { width: screenWidth } = useWindowDimensions();
+
+  // Parallax animation values
+  const scrollY = useSharedValue(0);
+  const HERO_HEIGHT = useMemo(() => screenWidth * (9 / 16), [screenWidth]); // 16:9 aspect ratio
+  const PARALLAX_FACTOR = 0.3;
+  const LOGO_PARALLAX_FACTOR = 0.2;
+  const HEADER_APPEAR_THRESHOLD = HERO_HEIGHT - 60; // When to start showing sticky header
+
+  // Scroll handler for parallax
+  const scrollHandler = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      scrollY.value = event.contentOffset.y;
+    },
+  });
+
+  // Animated style for backdrop parallax
+  const backdropAnimatedStyle = useAnimatedStyle(() => {
+    const translateY = interpolate(
+      scrollY.value,
+      [-100, 0, HERO_HEIGHT],
+      [-100 * PARALLAX_FACTOR, 0, HERO_HEIGHT * PARALLAX_FACTOR],
+      Extrapolation.CLAMP
+    );
+    // Scale up slightly on overscroll (pull down)
+    const scale = interpolate(
+      scrollY.value,
+      [-150, 0],
+      [1.15, 1],
+      Extrapolation.CLAMP
+    );
+    return {
+      transform: [{ translateY }, { scale }],
+    };
+  });
+
+  // Animated style for logo parallax (slower for depth effect)
+  const logoAnimatedStyle = useAnimatedStyle(() => {
+    const translateY = interpolate(
+      scrollY.value,
+      [0, HERO_HEIGHT],
+      [0, HERO_HEIGHT * LOGO_PARALLAX_FACTOR],
+      Extrapolation.CLAMP
+    );
+    const opacity = interpolate(
+      scrollY.value,
+      [0, HEADER_APPEAR_THRESHOLD * 0.7],
+      [1, 0],
+      Extrapolation.CLAMP
+    );
+    return {
+      transform: [{ translateY }],
+      opacity,
+    };
+  });
+
+  // Animated style for sticky header
+  const stickyHeaderStyle = useAnimatedStyle(() => {
+    const opacity = interpolate(
+      scrollY.value,
+      [HEADER_APPEAR_THRESHOLD - 30, HEADER_APPEAR_THRESHOLD + 20],
+      [0, 1],
+      Extrapolation.CLAMP
+    );
+    const translateY = interpolate(
+      scrollY.value,
+      [HEADER_APPEAR_THRESHOLD - 30, HEADER_APPEAR_THRESHOLD + 20],
+      [-20, 0],
+      Extrapolation.CLAMP
+    );
+    return {
+      opacity,
+      transform: [{ translateY }],
+    };
+  });
 
   // MDBList ratings hook - fetches from multiple sources (if enabled)
   const mdblistRating = useMDBListRatings(
     imdbId,
     meta?.type === 'movie' ? 'movie' : 'show'
   );
+
+  // Fetch UltraBlur colors from backdrop image
+  useEffect(() => {
+    if (!meta) return;
+
+    const fetchColors = async () => {
+      // Get backdrop URL
+      let backdropUrl: string | undefined;
+      if (meta.backdropUrl) {
+        backdropUrl = String(meta.backdropUrl);
+      } else {
+        const path = meta.art || meta.thumb;
+        if (path) {
+          backdropUrl = getPlexImageUrl(path, 1080);
+        }
+      }
+
+      if (!backdropUrl) return;
+
+      try {
+        console.log('[Details] Fetching UltraBlur colors for backdrop');
+        const colors = await getUltraBlurColors(backdropUrl);
+        if (colors) {
+          console.log('[Details] UltraBlur colors:', colors);
+          setUltraBlurColors(colors);
+        }
+      } catch (e) {
+        console.log('[Details] Error fetching UltraBlur colors:', e);
+      }
+    };
+
+    fetchColors();
+  }, [meta?.backdropUrl, meta?.art, meta?.thumb]);
 
   // Hide TopBar and TabBar when Details screen is focused (including when returning from Player)
   useFocusEffect(
@@ -605,6 +739,70 @@ export default function Details({ route }: RouteParams) {
     }
   };
 
+  // Helper to parse hex color (with or without #) to RGB
+  const hexToRgb = useCallback((hex: string) => {
+    // Remove # if present, handle colors without #
+    const cleanHex = hex.replace(/^#/, '');
+    const result = /^([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(cleanHex);
+    return result ? {
+      r: parseInt(result[1], 16),
+      g: parseInt(result[2], 16),
+      b: parseInt(result[3], 16)
+    } : null;
+  }, []);
+
+  // Default dark color for fallback
+  const DEFAULT_BG_COLOR = '#0d0d0f';
+  const DEFAULT_RGB = { r: 13, g: 13, b: 15 };
+
+  // Generate hero overlay gradient colors from UltraBlur (uses topLeft to blend with background)
+  // Must be before early returns to satisfy Rules of Hooks
+  const getGradientColors = useMemo(() => {
+    const rawColor = ultraBlurColors?.topLeft;
+    const rgb = rawColor ? hexToRgb(rawColor) : null;
+    const { r, g, b } = rgb || DEFAULT_RGB;
+    return [
+      `rgba(${r},${g},${b},0)`,
+      `rgba(${r},${g},${b},0.4)`,
+      `rgba(${r},${g},${b},0.7)`,
+      `rgba(${r},${g},${b},0.9)`,
+      `rgba(${r},${g},${b},1)`,
+    ];
+  }, [ultraBlurColors, hexToRgb]);
+
+  // Header overlay color with opacity (uses topLeft to match hero area)
+  const headerOverlayColor = useMemo(() => {
+    const rawColor = ultraBlurColors?.topLeft;
+    const rgb = rawColor ? hexToRgb(rawColor) : null;
+    const { r, g, b } = rgb || DEFAULT_RGB;
+    return `rgba(${r},${g},${b},0.85)`;
+  }, [ultraBlurColors, hexToRgb]);
+
+  // Background gradient colors (vertical gradient from top to bottom)
+  // Uses 3 stops: solid topLeft for hero area, then transitions to bottomLeft
+  const backgroundGradientColors = useMemo(() => {
+    const formatColor = (color: string | undefined) => {
+      if (!color) return DEFAULT_BG_COLOR;
+      return color.startsWith('#') ? color : `#${color}`;
+    };
+    const topColor = formatColor(ultraBlurColors?.topLeft);
+    const bottomColor = formatColor(ultraBlurColors?.bottomLeft);
+    // 3-stop gradient: solid at top (hero area), then fade to bottom color
+    return [topColor, topColor, bottomColor];
+  }, [ultraBlurColors]);
+
+  // Hero blend overlay colors (fades from solid topLeft to transparent)
+  const heroBlendColors = useMemo(() => {
+    const rawColor = ultraBlurColors?.topLeft;
+    const rgb = rawColor ? hexToRgb(rawColor) : null;
+    const { r, g, b } = rgb || DEFAULT_RGB;
+    return [
+      `rgba(${r},${g},${b},1)`,
+      `rgba(${r},${g},${b},0.6)`,
+      `rgba(${r},${g},${b},0)`,
+    ];
+  }, [ultraBlurColors, hexToRgb]);
+
   console.log('[Details] Render - loading:', loading, 'isConnected:', isConnected, 'meta:', !!meta);
 
   if (flixorLoading || !isConnected || loading) {
@@ -630,6 +828,7 @@ export default function Details({ route }: RouteParams) {
     const path = meta?.art || meta?.thumb;
     return path ? getPlexImageUrl(path, 1080) : undefined;
   };
+
   const title = meta?.title || meta?.grandparentTitle || 'Title';
   const contentRating = meta?.contentRating || 'PG';
   // Badges parsing from Plex streams (matching macOS logic)
@@ -700,38 +899,162 @@ export default function Details({ route }: RouteParams) {
   if (!imdbRating && typeof meta?.rating === 'number') imdbRating = meta.rating;
   if (!rtAudienceRating && typeof meta?.audienceRating === 'number') rtAudienceRating = Math.round(meta.audienceRating * 10);
 
+  // Handler for sticky header watchlist toggle
+  const handleStickyWatchlistToggle = async () => {
+    if (!watchlistIds || watchlistLoading) return;
+    setWatchlistLoading(true);
+    try {
+      const result = await toggleWatchlist(watchlistIds, 'both');
+      if (result.success) {
+        setInWatchlist(result.inWatchlist);
+      }
+    } finally {
+      setWatchlistLoading(false);
+    }
+  };
+
   return (
-    <View style={{ flex: 1, backgroundColor: '#0d0d0f' }}>
-      <ScrollView ref={ref => { scrollRef.current = ref; }}
+    <View style={{ flex: 1, backgroundColor: DEFAULT_BG_COLOR }}>
+      {/* Background gradient using UltraBlur colors */}
+      {/* 3-stop: solid topLeft for hero area (0-35%), then transitions to bottomLeft */}
+      <LinearGradient
+        colors={backgroundGradientColors as [string, string, ...string[]]}
+        locations={[0, 0.35, 1]}
+        style={StyleSheet.absoluteFillObject}
+      />
+      {/* Sticky Header with Logo - appears when scrolled past hero */}
+      <Animated.View
+        style={[
+          {
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            zIndex: 100,
+            overflow: 'hidden',
+          },
+          stickyHeaderStyle,
+        ]}
+        pointerEvents="box-none"
+      >
+        {/* Blur background */}
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+          <ConditionalBlurView intensity={90} tint="dark" style={StyleSheet.absoluteFillObject} />
+          <View style={[StyleSheet.absoluteFillObject, { backgroundColor: headerOverlayColor }]} />
+          {/* Bottom separator */}
+          <View
+            style={{
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: StyleSheet.hairlineWidth,
+              backgroundColor: 'rgba(255,255,255,0.1)',
+            }}
+          />
+        </View>
+        {/* Header content */}
+        <View style={{ paddingTop: insets.top, paddingBottom: 12 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12 }}>
+            {/* Back button in sticky header */}
+            <Pressable onPress={() => nav.goBack()} style={{ width: 36, height: 36, borderRadius: 18, overflow: 'hidden' }}>
+              {Platform.OS === 'ios' && GlassViewComp && liquidGlassAvailable ? (
+                <GlassViewComp style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                  <Ionicons name="chevron-back" color="#fff" size={22} />
+                </GlassViewComp>
+              ) : (
+                <>
+                  <ConditionalBlurView intensity={60} tint="dark" style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name="chevron-back" color="#fff" size={22} />
+                  </ConditionalBlurView>
+                  <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 18, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' }} pointerEvents="none" />
+                </>
+              )}
+            </Pressable>
+            {/* Centered logo or title */}
+            <View style={{ flex: 1, alignItems: 'center', marginHorizontal: 8 }}>
+              {meta?.logoUrl && FastImage ? (
+                <FastImage source={{ uri: meta.logoUrl }} style={{ width: 120, height: 32 }} resizeMode="contain" />
+              ) : (
+                <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }} numberOfLines={1}>
+                  {title}
+                </Text>
+              )}
+            </View>
+            {/* Watchlist button */}
+            <Pressable
+              onPress={handleStickyWatchlistToggle}
+              disabled={watchlistLoading}
+              style={{ width: 36, height: 36, borderRadius: 18, overflow: 'hidden', opacity: watchlistLoading ? 0.5 : 1 }}
+            >
+              {Platform.OS === 'ios' && GlassViewComp && liquidGlassAvailable ? (
+                <GlassViewComp style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                  {watchlistLoading ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Ionicons name={inWatchlist ? 'bookmark' : 'bookmark-outline'} size={18} color="#fff" />
+                  )}
+                </GlassViewComp>
+              ) : (
+                <>
+                  <ConditionalBlurView intensity={60} tint="dark" style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                    {watchlistLoading ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Ionicons name={inWatchlist ? 'bookmark' : 'bookmark-outline'} size={18} color="#fff" />
+                    )}
+                  </ConditionalBlurView>
+                  <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 18, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' }} pointerEvents="none" />
+                </>
+              )}
+            </Pressable>
+          </View>
+        </View>
+      </Animated.View>
+
+      <Animated.ScrollView
+        ref={scrollRef}
         scrollEventThrottle={16}
-        onScroll={(e:any) => { scrollYRef.current = e.nativeEvent.contentOffset.y; }}
-        bounces={false}
+        onScroll={scrollHandler}
+        bounces={true}
         contentContainerStyle={{ paddingBottom: 32 + insets.bottom }}
       >
-        {/* Hero backdrop */}
-        <View style={{ marginBottom: 12 }}>
-          <View style={{ width:'100%', aspectRatio: 16/9, backgroundColor:'#111' }}>
+        {/* Hero backdrop with parallax */}
+        <View style={{ overflow: 'hidden' }}>
+          <View style={{ width: '100%', aspectRatio: 16/9, backgroundColor: '#111' }}>
             {backdrop() && FastImage ? (
-              <FastImage source={{ uri: backdrop() }} style={{ width:'100%', height:'100%' }} resizeMode="cover" />
+              <Animated.View style={[{ width: '100%', height: '100%' }, backdropAnimatedStyle]}>
+                <FastImage source={{ uri: backdrop() }} style={{ width: '100%', height: '120%' }} resizeMode="cover" />
+              </Animated.View>
             ) : null}
             {/* Top-left back button */}
-            <View style={{ position:'absolute', left: 12, top: insets.top + 8, flexDirection:'row' }}>
-              <Pressable onPress={() => { nav.goBack(); }} style={{ width: 36, height: 36, borderRadius: 18, overflow: 'hidden' }}>
-                <ConditionalBlurView intensity={60} tint="dark" style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                  <Ionicons name="chevron-back" color="#fff" size={22} />
-                </ConditionalBlurView>
-                <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 18, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' }} pointerEvents="none" />
+            <View style={{ position: 'absolute', left: 12, top: insets.top + 8, flexDirection: 'row' }}>
+              <Pressable onPress={() => nav.goBack()} style={{ width: 36, height: 36, borderRadius: 18, overflow: 'hidden' }}>
+                {Platform.OS === 'ios' && GlassViewComp && liquidGlassAvailable ? (
+                  <GlassViewComp style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name="chevron-back" color="#fff" size={22} />
+                  </GlassViewComp>
+                ) : (
+                  <>
+                    <ConditionalBlurView intensity={60} tint="dark" style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                      <Ionicons name="chevron-back" color="#fff" size={22} />
+                    </ConditionalBlurView>
+                    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 18, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' }} pointerEvents="none" />
+                  </>
+                )}
               </Pressable>
             </View>
-            {/* Gradient from image into content */}
+            {/* Gradient from image into content - 5-stop gradient with UltraBlur colors */}
             <LinearGradient
-              colors={[ 'rgba(0,0,0,0.0)', 'rgba(13,13,15,0.85)', '#0d0d0f' ]}
-              start={{ x: 0.5, y: 0.4 }} end={{ x: 0.5, y: 1.0 }}
-              style={{ position:'absolute', left:0, right:0, bottom:0, height:'55%' }}
+              colors={getGradientColors as [string, string, ...string[]]}
+              locations={[0, 0.3, 0.5, 0.7, 1]}
+              style={{ position: 'absolute', left: 0, right: 0, bottom: -1, height: '70%' }}
             />
-            {/* TMDB logo overlay (center) if available */}
+            {/* TMDB logo overlay with parallax */}
             {meta?.logoUrl && FastImage ? (
-              <FastImage source={{ uri: meta.logoUrl }} style={{ position:'absolute', bottom: 24, left:'10%', right:'10%', height: 48 }} resizeMode="contain" />
+              <Animated.View style={[{ position: 'absolute', bottom: 24, left: '10%', right: '10%', height: 48 }, logoAnimatedStyle]}>
+                <FastImage source={{ uri: meta.logoUrl }} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
+              </Animated.View>
             ) : null}
           </View>
         </View>
@@ -1060,7 +1383,7 @@ export default function Details({ route }: RouteParams) {
             </>
           )}
         </View>
-      </ScrollView>
+      </Animated.ScrollView>
 
       {/* Person Modal */}
       <PersonModal
