@@ -10,13 +10,9 @@ import SwiftUI
 private struct DetailsLayoutMetrics {
     let width: CGFloat
 
+    // Hero height based on 16:9 aspect ratio
     var heroHeight: CGFloat {
-        switch width {
-        case ..<900: return 900
-        case ..<1200: return 1200
-        case ..<1500: return 1520
-        default: return 2000
-        }
+        width * 9 / 16
     }
 
     var heroHorizontalPadding: CGFloat {
@@ -28,12 +24,9 @@ private struct DetailsLayoutMetrics {
         }
     }
 
+    // Dynamic top padding - approximately 45% of hero height to push content to lower portion
     var heroTopPadding: CGFloat {
-        switch width {
-        case ..<900: return 108
-        case ..<1200: return 128
-        default: return 416
-        }
+        heroHeight * 0.45
     }
 
     var heroBottomPadding: CGFloat {
@@ -598,8 +591,8 @@ private struct DetailsHeroSection: View {
     @State private var showFullOverview = false
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            // Backdrop with enhanced gradients for two-column layout
+        ZStack(alignment: .bottomLeading) {
+            // Backdrop with enhanced gradients - sized to show full image (16:9 aspect ratio)
             GeometryReader { geo in
                 ZStack {
                     CachedAsyncImage(url: vm.backdropURL)
@@ -648,6 +641,8 @@ private struct DetailsHeroSection: View {
             HStack(alignment: .bottom, spacing: 40) {
                 // LEFT COLUMN - Primary Content
                 VStack(alignment: .leading, spacing: 16) {
+                    Spacer(minLength: 0)
+
                     // Logo or Title
                     if let logo = vm.logoURL {
                         CachedAsyncImage(url: logo, contentMode: .fit)
@@ -679,22 +674,23 @@ private struct DetailsHeroSection: View {
                         trailersSection
                     }
                 }
-                .frame(maxWidth: contentColumnMaxWidth, alignment: .leading)
+                .frame(maxWidth: contentColumnMaxWidth, maxHeight: .infinity, alignment: .bottomLeading)
 
                 Spacer(minLength: 20)
 
                 // RIGHT COLUMN - Credits (only on wider screens)
                 if width >= 900 {
                     creditsSection
-                        .frame(maxWidth: creditsColumnWidth, alignment: .trailing)
+                        .frame(maxWidth: creditsColumnWidth, maxHeight: .infinity, alignment: .bottomTrailing)
                 }
             }
+            .frame(maxHeight: .infinity)
             .padding(.leading, layout.heroHorizontalPadding)
             .padding(.trailing, layout.heroHorizontalPadding)
             .padding(.top, layout.heroTopPadding)
-            .padding(.bottom, 24)
+            .padding(.bottom, layout.heroBottomPadding)
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, minHeight: layout.heroHeight, maxHeight: layout.heroHeight)
         .sheet(item: $selectedTrailer) { trailer in
             TrailerModal(
                 trailer: trailer,

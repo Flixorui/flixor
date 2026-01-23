@@ -7,6 +7,11 @@ import {
   OverseerrMediaStatus,
   OverseerrRequestResult,
   OverseerrStatus,
+  OverseerrSeason,
+  getRequestableSeasons,
+  getUnavailableSeasons,
+  hasRequestableSeasons as checkHasRequestableSeasons,
+  isPartiallyAvailableTv as checkIsPartiallyAvailableTv,
 } from '../core/OverseerrService';
 
 interface UseOverseerrStatusResult {
@@ -16,7 +21,14 @@ interface UseOverseerrStatusResult {
   error: string | null;
   refetch: () => Promise<void>;
   submitRequest: (is4k?: boolean) => Promise<OverseerrRequestResult>;
+  submitSeasonRequest: (seasons: number[], is4k?: boolean) => Promise<OverseerrRequestResult>;
   isRequesting: boolean;
+  // Season-related data for TV shows
+  seasons: OverseerrSeason[];
+  requestableSeasons: OverseerrSeason[];
+  unavailableSeasons: OverseerrSeason[];
+  hasRequestableSeasons: boolean;
+  isPartiallyAvailableTv: boolean;
 }
 
 /**
@@ -67,7 +79,7 @@ export function useOverseerrStatus(
       setIsRequesting(true);
 
       try {
-        const result = await requestMedia(numericTmdbId, mediaType, is4k);
+        const result = await requestMedia(numericTmdbId, mediaType, undefined, is4k);
 
         if (result.success) {
           // Clear cache and refetch status
@@ -86,9 +98,48 @@ export function useOverseerrStatus(
     [numericTmdbId, mediaType, fetchStatus]
   );
 
+  const submitSeasonRequest = useCallback(
+    async (seasons: number[], is4k: boolean = false): Promise<OverseerrRequestResult> => {
+      if (!numericTmdbId || !isOverseerrReady()) {
+        return { success: false, error: 'Overseerr not configured' };
+      }
+
+      if (seasons.length === 0) {
+        return { success: false, error: 'No seasons selected' };
+      }
+
+      setIsRequesting(true);
+
+      try {
+        const result = await requestMedia(numericTmdbId, mediaType, seasons, is4k);
+
+        if (result.success) {
+          // Clear cache and refetch status
+          clearOverseerrCacheItem(numericTmdbId, mediaType);
+          await fetchStatus();
+        }
+
+        return result;
+      } catch (err) {
+        console.log('[useOverseerrStatus] Error submitting season request:', err);
+        return { success: false, error: 'Request failed' };
+      } finally {
+        setIsRequesting(false);
+      }
+    },
+    [numericTmdbId, mediaType, fetchStatus]
+  );
+
   useEffect(() => {
     fetchStatus();
   }, [fetchStatus]);
+
+  // Compute season-related data
+  const seasons = statusData.seasons || [];
+  const requestableSeasons = getRequestableSeasons(statusData);
+  const unavailableSeasons = getUnavailableSeasons(statusData);
+  const hasRequestableSeasons = checkHasRequestableSeasons(statusData);
+  const isPartiallyAvailableTv = mediaType === 'tv' && checkIsPartiallyAvailableTv(statusData);
 
   return {
     status: statusData.status,
@@ -97,6 +148,12 @@ export function useOverseerrStatus(
     error,
     refetch: fetchStatus,
     submitRequest,
+    submitSeasonRequest,
     isRequesting,
+    seasons,
+    requestableSeasons,
+    unavailableSeasons,
+    hasRequestableSeasons,
+    isPartiallyAvailableTv,
   };
 }

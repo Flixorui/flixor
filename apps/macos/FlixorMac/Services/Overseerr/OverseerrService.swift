@@ -254,10 +254,13 @@ class OverseerrService: ObservableObject {
             let status: OverseerrMediaStatus
             if mediaType == "movie" {
                 let details = try JSONDecoder().decode(OverseerrMovieDetails.self, from: data)
-                status = parseMediaStatus(mediaInfo: details.mediaInfo)
+                status = parseMediaStatus(mediaInfo: details.mediaInfo, seasons: nil)
             } else {
                 let details = try JSONDecoder().decode(OverseerrTvDetails.self, from: data)
-                status = parseMediaStatus(mediaInfo: details.mediaInfo)
+                // For TV shows, get seasons from mediaInfo (which has per-season status)
+                // Fall back to details.seasons if mediaInfo.seasons is not available
+                let seasons = details.mediaInfo?.seasons ?? details.seasons
+                status = parseMediaStatus(mediaInfo: details.mediaInfo, seasons: seasons)
             }
 
             // Cache the result
@@ -272,7 +275,12 @@ class OverseerrService: ObservableObject {
     }
 
     /// Request media through Overseerr
-    func requestMedia(tmdbId: Int, mediaType: String, is4k: Bool = false) async -> OverseerrRequestResult {
+    /// - Parameters:
+    ///   - tmdbId: TMDB ID of the media
+    ///   - mediaType: "movie" or "tv"
+    ///   - seasons: Specific season numbers to request (for TV only). If nil, requests all available seasons.
+    ///   - is4k: Whether to request 4K version
+    func requestMedia(tmdbId: Int, mediaType: String, seasons: [Int]? = nil, is4k: Bool = false) async -> OverseerrRequestResult {
         guard isReady() else {
             return OverseerrRequestResult(success: false, requestId: nil, status: nil, error: "Overseerr not configured")
         }
@@ -292,31 +300,62 @@ class OverseerrService: ObservableObject {
 
             // For TV shows, we need to specify which seasons to request
             if mediaType == "tv" {
-                let seasons = await getTvSeasons(tmdbId: tmdbId)
-                if seasons.isEmpty {
-                    return OverseerrRequestResult(success: false, requestId: nil, status: nil, error: "Could not determine available seasons")
+                let seasonsToRequest: [Int]
+                if let specificSeasons = seasons, !specificSeasons.isEmpty {
+                    // Use the specific seasons provided
+                    seasonsToRequest = specificSeasons
+                } else {
+                    // Request all available seasons
+                    seasonsToRequest = await getTvSeasons(tmdbId: tmdbId)
                 }
-                requestBody["seasons"] = seasons
-                print("[OverseerrService] Requesting seasons: \(seasons)")
+
+                if seasonsToRequest.isEmpty {
+                    return OverseerrRequestResult(success: false, requestId: nil, status: nil, error: "No seasons available to request")
+                }
+                requestBody["seasons"] = seasonsToRequest
+                print("[OverseerrService] Requesting seasons: \(seasonsToRequest)")
             }
 
             let bodyData = try JSONSerialization.data(withJSONObject: requestBody)
             let data = try await makeRequest(endpoint: "/request", method: "POST", body: bodyData)
 
-            // Clear cache for this item
-            let cacheKey = "\(mediaType):\(tmdbId)"
-            cache.removeValue(forKey: cacheKey)
-
-            let response = try JSONDecoder().decode(OverseerrMediaRequest.self, from: data)
-            print("[OverseerrService] Request created: \(response.id)")
-
-            // Determine status from response
-            var status: OverseerrStatus = .pending
-            if response.status == MediaRequestStatusCode.approved.rawValue {
-                status = .approved
+            // Debug: Log raw response
+            if let responseString = String(data: data, encoding: .utf8) {
+                print("[OverseerrService] Raw response: \(responseString)")
             }
 
-            return OverseerrRequestResult(success: true, requestId: response.id, status: status, error: nil)
+            // Try to decode the response - Overseerr returns different structures
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                // Check for error message in response (Overseerr returns 202 with message for some errors)
+                if let message = json["message"] as? String {
+                    print("[OverseerrService] API returned message: \(message)")
+                    return OverseerrRequestResult(success: false, requestId: nil, status: nil, error: message)
+                }
+
+                // Clear cache for this item on success
+                let cacheKey = "\(mediaType):\(tmdbId)"
+                cache.removeValue(forKey: cacheKey)
+
+                // Try to get request ID from response
+                let requestId = json["id"] as? Int
+
+                // Check status if available
+                var status: OverseerrStatus = .pending
+                if let statusCode = json["status"] as? Int {
+                    if statusCode == MediaRequestStatusCode.approved.rawValue {
+                        status = .approved
+                    }
+                }
+
+                print("[OverseerrService] Request created successfully (id: \(requestId?.description ?? "unknown"))")
+                return OverseerrRequestResult(success: true, requestId: requestId, status: status, error: nil)
+            }
+
+            // If we can't parse the response, assume success based on HTTP status
+            let cacheKey = "\(mediaType):\(tmdbId)"
+            cache.removeValue(forKey: cacheKey)
+            print("[OverseerrService] Request created (response not parsed)")
+            return OverseerrRequestResult(success: true, requestId: nil, status: .pending, error: nil)
         } catch {
             print("[OverseerrService] Error creating request: \(error)")
             return OverseerrRequestResult(success: false, requestId: nil, status: nil, error: error.localizedDescription)
@@ -396,19 +435,22 @@ class OverseerrService: ObservableObject {
         return data
     }
 
-    private func parseMediaStatus(mediaInfo: OverseerrMediaInfo?) -> OverseerrMediaStatus {
+    private func parseMediaStatus(mediaInfo: OverseerrMediaInfo?, seasons: [OverseerrSeason]?) -> OverseerrMediaStatus {
         guard let mediaInfo = mediaInfo else {
-            return OverseerrMediaStatus(status: .notRequested, canRequest: true)
+            return OverseerrMediaStatus(status: .notRequested, canRequest: true, seasons: seasons)
         }
 
         // Check media availability status first
         switch mediaInfo.status {
         case MediaInfoStatusCode.available.rawValue:
-            return OverseerrMediaStatus(status: .available, canRequest: false)
+            return OverseerrMediaStatus(status: .available, canRequest: false, seasons: seasons)
         case MediaInfoStatusCode.partiallyAvailable.rawValue:
-            return OverseerrMediaStatus(status: .partiallyAvailable, canRequest: true)
+            // For partially available, allow opening the picker if there are any unavailable seasons
+            // (even if they're all partially available - we'll show an explanation)
+            let unavailableSeasons = (seasons ?? []).filter { !$0.isAvailable && $0.seasonNumber > 0 }
+            return OverseerrMediaStatus(status: .partiallyAvailable, canRequest: !unavailableSeasons.isEmpty, seasons: seasons)
         case MediaInfoStatusCode.processing.rawValue:
-            return OverseerrMediaStatus(status: .processing, canRequest: false)
+            return OverseerrMediaStatus(status: .processing, canRequest: false, seasons: seasons)
         default:
             break
         }
@@ -417,11 +459,11 @@ class OverseerrService: ObservableObject {
         if let latestRequest = mediaInfo.requests?.first {
             switch latestRequest.status {
             case MediaRequestStatusCode.pending.rawValue:
-                return OverseerrMediaStatus(status: .pending, requestId: latestRequest.id, canRequest: false)
+                return OverseerrMediaStatus(status: .pending, requestId: latestRequest.id, canRequest: false, seasons: seasons)
             case MediaRequestStatusCode.approved.rawValue:
-                return OverseerrMediaStatus(status: .approved, requestId: latestRequest.id, canRequest: false)
+                return OverseerrMediaStatus(status: .approved, requestId: latestRequest.id, canRequest: false, seasons: seasons)
             case MediaRequestStatusCode.declined.rawValue:
-                return OverseerrMediaStatus(status: .declined, requestId: latestRequest.id, canRequest: true)
+                return OverseerrMediaStatus(status: .declined, requestId: latestRequest.id, canRequest: true, seasons: seasons)
             default:
                 break
             }
@@ -429,10 +471,10 @@ class OverseerrService: ObservableObject {
 
         // Default to not requested
         if mediaInfo.status == MediaInfoStatusCode.pending.rawValue {
-            return OverseerrMediaStatus(status: .pending, canRequest: false)
+            return OverseerrMediaStatus(status: .pending, canRequest: false, seasons: seasons)
         }
 
-        return OverseerrMediaStatus(status: .notRequested, canRequest: true)
+        return OverseerrMediaStatus(status: .notRequested, canRequest: true, seasons: seasons)
     }
 
     private func getTvSeasons(tmdbId: Int) async -> [Int] {

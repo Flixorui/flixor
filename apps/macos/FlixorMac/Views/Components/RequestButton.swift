@@ -56,12 +56,34 @@ struct RequestButton: View {
     @State private var isLoading = false
     @State private var isRequesting = false
     @State private var showConfirmation = false
+    @State private var showSeasonPicker = false
+    @State private var selectedSeasons: Set<Int> = []
 
     @ObservedObject private var profileSettings = ProfileSettings.shared
 
     // Only show if Overseerr is enabled and configured
     private var shouldShow: Bool {
         return OverseerrService.shared.isReady()
+    }
+
+    /// Check if this is a partially available TV show with unavailable seasons
+    private var isPartiallyAvailableTv: Bool {
+        status?.isPartiallyAvailableTv ?? false
+    }
+
+    /// Get requestable seasons for partially available TV shows
+    private var requestableSeasons: [OverseerrSeason] {
+        status?.requestableSeasons ?? []
+    }
+
+    /// Get all seasons (excluding season 0) for the season picker
+    private var allSeasons: [OverseerrSeason] {
+        (status?.seasons ?? []).filter { $0.seasonNumber > 0 }
+    }
+
+    /// Check if there are any requestable seasons
+    private var hasRequestableSeasons: Bool {
+        !requestableSeasons.isEmpty
     }
 
     var body: some View {
@@ -80,6 +102,7 @@ struct RequestButton: View {
         .task(id: tmdbId) {
             // Reset status and reload when tmdbId changes (navigation to new item)
             status = nil
+            selectedSeasons = []
             await loadStatus()
         }
         .alert("Request \(title)?", isPresented: $showConfirmation) {
@@ -89,6 +112,18 @@ struct RequestButton: View {
             }
         } message: {
             Text("This will submit a request to Overseerr. You'll be notified when it becomes available.")
+        }
+        .sheet(isPresented: $showSeasonPicker) {
+            SeasonPickerSheet(
+                title: title,
+                seasons: allSeasons,
+                hasRequestableSeasons: hasRequestableSeasons,
+                selectedSeasons: $selectedSeasons,
+                isRequesting: $isRequesting,
+                onRequest: {
+                    Task { await requestSelectedSeasons() }
+                }
+            )
         }
     }
 
@@ -162,7 +197,12 @@ struct RequestButton: View {
     private var pillButton: some View {
         Button {
             if canRequest {
-                showConfirmation = true
+                if isPartiallyAvailableTv {
+                    // Show season picker for partially available TV shows
+                    showSeasonPicker = true
+                } else {
+                    showConfirmation = true
+                }
             }
         } label: {
             HStack(spacing: 8) {
@@ -195,7 +235,11 @@ struct RequestButton: View {
     private var iconButton: some View {
         Button {
             if canRequest {
-                showConfirmation = true
+                if isPartiallyAvailableTv {
+                    showSeasonPicker = true
+                } else {
+                    showConfirmation = true
+                }
             }
         } label: {
             Group {
@@ -223,7 +267,11 @@ struct RequestButton: View {
     private var circleButton: some View {
         Button {
             if canRequest {
-                showConfirmation = true
+                if isPartiallyAvailableTv {
+                    showSeasonPicker = true
+                } else {
+                    showConfirmation = true
+                }
             }
         } label: {
             Group {
@@ -276,5 +324,259 @@ struct RequestButton: View {
                 await loadStatus()
             }
         }
+    }
+
+    @MainActor
+    private func requestSelectedSeasons() async {
+        guard canRequest, !selectedSeasons.isEmpty else { return }
+
+        isRequesting = true
+        defer { isRequesting = false }
+
+        let seasonsArray = Array(selectedSeasons).sorted()
+        let result = await OverseerrService.shared.requestMedia(
+            tmdbId: tmdbId,
+            mediaType: mediaType,
+            seasons: seasonsArray
+        )
+
+        if result.success {
+            showSeasonPicker = false
+            selectedSeasons = []
+            // Reload status from server to get updated season availability
+            await loadStatus()
+        }
+    }
+}
+
+// MARK: - Season Picker Sheet
+
+private struct SeasonPickerSheet: View {
+    let title: String
+    let seasons: [OverseerrSeason]
+    let hasRequestableSeasons: Bool
+    @Binding var selectedSeasons: Set<Int>
+    @Binding var isRequesting: Bool
+    let onRequest: () -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Request Seasons")
+                        .font(.system(size: 18, weight: .semibold))
+                    Text(title)
+                        .font(.system(size: 14))
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 24))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(20)
+
+            Divider()
+
+            // Warning message if no requestable seasons
+            if !hasRequestableSeasons {
+                HStack(spacing: 12) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 24))
+                        .foregroundStyle(.yellow)
+
+                    Text("All unavailable seasons have some episodes already downloaded. Overseerr cannot request the remaining episodes for partially downloaded seasons.")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(16)
+                .background(Color.yellow.opacity(0.1))
+                .cornerRadius(8)
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
+            }
+
+            // Season list
+            ScrollView {
+                VStack(spacing: 8) {
+                    ForEach(seasons.sorted(by: { $0.seasonNumber < $1.seasonNumber }), id: \.seasonNumber) { season in
+                        SeasonRow(
+                            season: season,
+                            isSelected: selectedSeasons.contains(season.seasonNumber),
+                            onToggle: {
+                                guard season.canRequest else { return }
+                                if selectedSeasons.contains(season.seasonNumber) {
+                                    selectedSeasons.remove(season.seasonNumber)
+                                } else {
+                                    selectedSeasons.insert(season.seasonNumber)
+                                }
+                            }
+                        )
+                    }
+                }
+                .padding(20)
+            }
+
+            Divider()
+
+            // Footer with actions
+            HStack {
+                if hasRequestableSeasons {
+                    Button("Select All") {
+                        // Only select requestable seasons
+                        selectedSeasons = Set(seasons.filter { $0.canRequest }.map { $0.seasonNumber })
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.blue)
+                }
+
+                Spacer()
+
+                Button(hasRequestableSeasons ? "Cancel" : "Close") {
+                    dismiss()
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+
+                if hasRequestableSeasons {
+                    Button {
+                        onRequest()
+                    } label: {
+                        HStack(spacing: 6) {
+                            if isRequesting {
+                                ProgressView()
+                                    .progressViewStyle(.circular)
+                                    .controlSize(.small)
+                            }
+                            Text("Request \(selectedSeasons.count) Season\(selectedSeasons.count == 1 ? "" : "s")")
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(selectedSeasons.isEmpty ? Color.gray.opacity(0.3) : Color(hex: "6366F1"))
+                        )
+                        .foregroundStyle(.white)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(selectedSeasons.isEmpty || isRequesting)
+                }
+            }
+            .padding(20)
+        }
+        .frame(width: 400, height: 550)
+        .background(Color(nsColor: .windowBackgroundColor))
+    }
+}
+
+private struct SeasonRow: View {
+    let season: OverseerrSeason
+    let isSelected: Bool
+    let onToggle: () -> Void
+
+    private var isRequestable: Bool {
+        season.canRequest
+    }
+
+    private var statusText: String {
+        if season.isAvailable {
+            return "Available"
+        } else if season.isProcessing {
+            return "Processing"
+        } else if season.isPending {
+            return "Pending"
+        } else if season.isPartiallyAvailable {
+            return "Partial"
+        }
+        return "Not Available"
+    }
+
+    private var statusColor: Color {
+        if season.isAvailable {
+            return .green
+        } else if season.isProcessing || season.isPending {
+            return .orange
+        } else if season.isPartiallyAvailable {
+            return .yellow
+        }
+        return .secondary
+    }
+
+    private var iconName: String {
+        if season.isAvailable {
+            return "checkmark.circle.fill"
+        } else if season.isPartiallyAvailable {
+            return "exclamationmark.circle.fill"
+        } else if isSelected {
+            return "checkmark.circle.fill"
+        } else {
+            return "circle"
+        }
+    }
+
+    private var iconColor: Color {
+        if season.isAvailable {
+            return .green
+        } else if season.isPartiallyAvailable {
+            return .yellow
+        } else if isSelected {
+            return Color(hex: "6366F1")
+        } else {
+            return .secondary
+        }
+    }
+
+    var body: some View {
+        Button {
+            if isRequestable {
+                onToggle()
+            }
+        } label: {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Image(systemName: iconName)
+                        .font(.system(size: 20))
+                        .foregroundStyle(iconColor)
+
+                    Text("Season \(season.seasonNumber)")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(isRequestable ? .primary : .secondary)
+
+                    Spacer()
+
+                    Text(statusText)
+                        .font(.system(size: 13, weight: season.isAvailable ? .semibold : .regular))
+                        .foregroundStyle(statusColor)
+                }
+
+                // Show message for partially available seasons
+                if season.isPartiallyAvailable {
+                    Text("Some episodes available - Overseerr cannot request remaining")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .padding(.leading, 28)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(isSelected && isRequestable ? Color(hex: "6366F1").opacity(0.15) : Color.secondary.opacity(0.1))
+            )
+            .opacity(isRequestable ? 1.0 : 0.6)
+        }
+        .buttonStyle(.plain)
+        .disabled(!isRequestable)
     }
 }

@@ -42,10 +42,61 @@ export type OverseerrStatus =
   | 'available'
   | 'unknown';
 
+export interface OverseerrSeason {
+  seasonNumber: number;
+  status?: number;
+  status4k?: number;
+}
+
+// Helper functions for season status
+export function isSeasonAvailable(season: OverseerrSeason): boolean {
+  return season.status === MediaInfoStatus.AVAILABLE;
+}
+
+export function isSeasonPartiallyAvailable(season: OverseerrSeason): boolean {
+  return season.status === MediaInfoStatus.PARTIALLY_AVAILABLE;
+}
+
+export function isSeasonProcessing(season: OverseerrSeason): boolean {
+  return season.status === MediaInfoStatus.PROCESSING;
+}
+
+export function isSeasonPending(season: OverseerrSeason): boolean {
+  return season.status === MediaInfoStatus.PENDING;
+}
+
+export function canRequestSeason(season: OverseerrSeason): boolean {
+  if (season.status === undefined) return true;
+  return (
+    season.status !== MediaInfoStatus.AVAILABLE &&
+    season.status !== MediaInfoStatus.PROCESSING &&
+    season.status !== MediaInfoStatus.PENDING &&
+    season.status !== MediaInfoStatus.PARTIALLY_AVAILABLE
+  );
+}
+
 export interface OverseerrMediaStatus {
   status: OverseerrStatus;
   requestId?: number;
   canRequest: boolean;
+  seasons?: OverseerrSeason[];
+}
+
+// Helper functions for media status with seasons
+export function getRequestableSeasons(status: OverseerrMediaStatus): OverseerrSeason[] {
+  return (status.seasons || []).filter(s => canRequestSeason(s) && s.seasonNumber > 0);
+}
+
+export function getUnavailableSeasons(status: OverseerrMediaStatus): OverseerrSeason[] {
+  return (status.seasons || []).filter(s => !isSeasonAvailable(s) && s.seasonNumber > 0);
+}
+
+export function hasRequestableSeasons(status: OverseerrMediaStatus): boolean {
+  return getRequestableSeasons(status).length > 0;
+}
+
+export function isPartiallyAvailableTv(status: OverseerrMediaStatus): boolean {
+  return status.status === 'partially_available' && getUnavailableSeasons(status).length > 0;
 }
 
 export interface OverseerrRequestResult {
@@ -81,6 +132,7 @@ interface MediaInfo {
   tmdbId: number;
   status: number;
   requests?: MediaRequest[];
+  seasons?: OverseerrSeason[];
 }
 
 interface MovieDetails {
@@ -91,6 +143,7 @@ interface MovieDetails {
 interface TvDetails {
   id: number;
   mediaInfo?: MediaInfo;
+  seasons?: OverseerrSeason[];
 }
 
 // In-memory cache for media status
@@ -373,19 +426,22 @@ export async function signOutOverseerr(): Promise<void> {
 /**
  * Convert API status codes to human-readable status
  */
-function parseMediaStatus(mediaInfo?: MediaInfo): OverseerrMediaStatus {
+function parseMediaStatus(mediaInfo?: MediaInfo, seasons?: OverseerrSeason[]): OverseerrMediaStatus {
   if (!mediaInfo) {
-    return { status: 'not_requested', canRequest: true };
+    return { status: 'not_requested', canRequest: true, seasons };
   }
 
   // Check media availability status first
   switch (mediaInfo.status) {
     case MediaInfoStatus.AVAILABLE:
-      return { status: 'available', canRequest: false };
+      return { status: 'available', canRequest: false, seasons };
     case MediaInfoStatus.PARTIALLY_AVAILABLE:
-      return { status: 'partially_available', canRequest: true };
+      // For partially available, allow opening the picker if there are any unavailable seasons
+      // (even if they're all partially available - we'll show an explanation)
+      const unavailableSeasons = (seasons || []).filter(s => !isSeasonAvailable(s) && s.seasonNumber > 0);
+      return { status: 'partially_available', canRequest: unavailableSeasons.length > 0, seasons };
     case MediaInfoStatus.PROCESSING:
-      return { status: 'processing', canRequest: false };
+      return { status: 'processing', canRequest: false, seasons };
   }
 
   // Check request status if media not available
@@ -393,20 +449,20 @@ function parseMediaStatus(mediaInfo?: MediaInfo): OverseerrMediaStatus {
   if (latestRequest) {
     switch (latestRequest.status) {
       case MediaRequestStatus.PENDING:
-        return { status: 'pending', requestId: latestRequest.id, canRequest: false };
+        return { status: 'pending', requestId: latestRequest.id, canRequest: false, seasons };
       case MediaRequestStatus.APPROVED:
-        return { status: 'approved', requestId: latestRequest.id, canRequest: false };
+        return { status: 'approved', requestId: latestRequest.id, canRequest: false, seasons };
       case MediaRequestStatus.DECLINED:
-        return { status: 'declined', requestId: latestRequest.id, canRequest: true };
+        return { status: 'declined', requestId: latestRequest.id, canRequest: true, seasons };
     }
   }
 
   // Default to not requested
   if (mediaInfo.status === MediaInfoStatus.PENDING) {
-    return { status: 'pending', canRequest: false };
+    return { status: 'pending', canRequest: false, seasons };
   }
 
-  return { status: 'not_requested', canRequest: true };
+  return { status: 'not_requested', canRequest: true, seasons };
 }
 
 /**
@@ -434,7 +490,15 @@ export async function getMediaStatus(
     const endpoint = mediaType === 'movie' ? `/movie/${tmdbId}` : `/tv/${tmdbId}`;
     const details = await overseerrFetch<MovieDetails | TvDetails>(endpoint);
 
-    const status = parseMediaStatus(details.mediaInfo);
+    // For TV shows, get seasons from mediaInfo (which has per-season status)
+    // Fall back to details.seasons if mediaInfo.seasons is not available
+    let seasons: OverseerrSeason[] | undefined;
+    if (mediaType === 'tv') {
+      const tvDetails = details as TvDetails;
+      seasons = tvDetails.mediaInfo?.seasons ?? tvDetails.seasons;
+    }
+
+    const status = parseMediaStatus(details.mediaInfo, seasons);
 
     // Cache the result
     statusCache.set(cacheKey, { status, timestamp: Date.now() });
@@ -468,10 +532,15 @@ async function getTvSeasons(tmdbId: number): Promise<number[]> {
 
 /**
  * Request media through Overseerr
+ * @param tmdbId - TMDB ID of the media
+ * @param mediaType - 'movie' or 'tv'
+ * @param seasons - Specific season numbers to request (for TV only). If undefined, requests all available seasons.
+ * @param is4k - Whether to request 4K version
  */
 export async function requestMedia(
   tmdbId: number,
   mediaType: 'movie' | 'tv',
+  seasons?: number[],
   is4k: boolean = false
 ): Promise<OverseerrRequestResult> {
   if (!isOverseerrReady()) {
@@ -499,34 +568,88 @@ export async function requestMedia(
 
     // For TV shows, we need to specify which seasons to request
     if (mediaType === 'tv') {
-      const seasons = await getTvSeasons(tmdbId);
-      if (seasons.length === 0) {
-        return { success: false, error: 'Could not determine available seasons' };
+      let seasonsToRequest: number[];
+      if (seasons && seasons.length > 0) {
+        // Use the specific seasons provided
+        seasonsToRequest = seasons;
+      } else {
+        // Request all available seasons
+        seasonsToRequest = await getTvSeasons(tmdbId);
       }
-      requestBody.seasons = seasons;
-      console.log(`[OverseerrService] Requesting seasons:`, seasons);
+
+      if (seasonsToRequest.length === 0) {
+        return { success: false, error: 'No seasons available to request' };
+      }
+      requestBody.seasons = seasonsToRequest;
+      console.log(`[OverseerrService] Requesting seasons:`, seasonsToRequest);
     }
 
-    const response = await overseerrFetch<MediaRequest>('/request', {
+    // Make request and handle response
+    const baseUrl = getOverseerrUrl();
+    const authMethod = getOverseerrAuthMethod();
+
+    if (!baseUrl) {
+      throw new Error('Overseerr not configured');
+    }
+
+    const url = `${normalizeUrl(baseUrl)}/api/v1/request`;
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    if (authMethod === 'api_key') {
+      const apiKey = getOverseerrApiKey();
+      if (!apiKey) {
+        throw new Error('Overseerr API key not configured');
+      }
+      headers['X-Api-Key'] = apiKey;
+    } else {
+      const sessionCookie = getOverseerrSessionCookie();
+      if (!sessionCookie) {
+        throw new Error('Overseerr session expired. Please sign in again.');
+      }
+      headers['Cookie'] = sessionCookie;
+    }
+
+    const response = await fetch(url, {
       method: 'POST',
+      headers,
       body: JSON.stringify(requestBody),
+      credentials: 'include',
     });
+
+    const data = await response.json();
+
+    // Debug: Log raw response
+    console.log('[OverseerrService] Raw response:', JSON.stringify(data));
+
+    // Check for error message in response (Overseerr returns 202 with message for some errors)
+    if (data.message) {
+      console.log('[OverseerrService] API returned message:', data.message);
+      return { success: false, error: data.message };
+    }
+
+    if (!response.ok) {
+      throw new Error(`Overseerr API error (${response.status})`);
+    }
 
     // Clear cache for this item
     const cacheKey = `${mediaType}:${tmdbId}`;
     statusCache.delete(cacheKey);
 
-    console.log('[OverseerrService] Request created:', response);
+    // Try to get request ID from response
+    const requestId = data.id;
 
-    // Determine status from response
+    // Check status if available
     let status: OverseerrStatus = 'pending';
-    if (response.status === MediaRequestStatus.APPROVED) {
+    if (data.status === MediaRequestStatus.APPROVED) {
       status = 'approved';
     }
 
+    console.log(`[OverseerrService] Request created successfully (id: ${requestId ?? 'unknown'})`);
     return {
       success: true,
-      requestId: response.id,
+      requestId,
       status,
     };
   } catch (error) {
