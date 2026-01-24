@@ -21,7 +21,9 @@
       "icon": "./assets/icons/ios-light.png",
       "jsEngine": "hermes",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "UIFileSharingEnabled": true,
+        "LSSupportsOpeningDocumentsInPlace": true
       }
     },
     "android": {

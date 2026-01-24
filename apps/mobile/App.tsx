@@ -43,6 +43,7 @@ import Search from './src/screens/Search';
 import Browse from './src/screens/Browse';
 import NewHot from './src/screens/NewHot';
 import MyList from './src/screens/MyList';
+import Downloads from './src/screens/Downloads';
 import Settings from './src/screens/Settings';
 import CatalogSettings from './src/screens/settings/CatalogSettings';
 import HomeScreenSettings from './src/screens/settings/HomeScreenSettings';
@@ -105,6 +106,7 @@ const HomeStack = createNativeStackNavigator();
 const SearchStack = createNativeStackNavigator();
 const NewHotStack = createNativeStackNavigator();
 const MyListStack = createNativeStackNavigator();
+const DownloadsStack = createNativeStackNavigator();
 const SettingsStack = createNativeStackNavigator();
 
 // Store logout handler in a ref accessible to child components
@@ -200,6 +202,21 @@ const MyListStackNavigator = React.memo(() => {
         />
       </MyListStack.Navigator>
       {topBarVisible && <GlobalTopAppBar screenContext="MyList" />}
+    </View>
+  );
+});
+
+const DownloadsStackNavigator = React.memo(() => {
+  return (
+    <View style={{ flex: 1 }}>
+      <DownloadsStack.Navigator screenOptions={{ headerShown: false }}>
+        <DownloadsStack.Screen name="DownloadsScreen" component={Downloads} />
+        <DownloadsStack.Screen
+          name="Player"
+          component={Player}
+          options={{ presentation: 'fullScreenModal', animation: 'fade' }}
+        />
+      </DownloadsStack.Navigator>
     </View>
   );
 });
@@ -343,6 +360,14 @@ const Tabs = React.memo(() => {
             }}
           />
           <IOSTab.Screen
+            name="DownloadsTab"
+            component={DownloadsStackNavigator}
+            options={{
+              title: 'Downloads',
+              tabBarIcon: () => ({ type: 'sfSymbol', name: 'arrow.down.circle' }),
+            }}
+          />
+          <IOSTab.Screen
             name="SettingsTab"
             component={SettingsTabScreen}
             options={{
@@ -387,6 +412,7 @@ const Tabs = React.memo(() => {
             : route.name === 'NewHotTab' ? (focused ? 'play-circle' : 'play-circle-outline')
             : route.name === 'SettingsTab' ? (focused ? 'settings' : 'settings-outline')
             : route.name === 'MyTab' ? (focused ? 'bookmark' : 'bookmark-outline')
+            : route.name === 'DownloadsTab' ? (focused ? 'download' : 'download-outline')
             : (focused ? 'home' : 'home-outline');
           return <Ionicons name={name as any} size={22} color={color} />;
         }
@@ -403,6 +429,7 @@ const Tabs = React.memo(() => {
         <Tab.Screen name="NewHotTab" options={{ title: 'New & Hot' }} component={NewHotStackNavigator} />
       )}
       <Tab.Screen name="MyTab" options={{ title: 'My List' }} component={MyListStackNavigator} />
+      <Tab.Screen name="DownloadsTab" options={{ title: 'Downloads' }} component={DownloadsStackNavigator} />
       <Tab.Screen name="SettingsTab" options={{ title: 'Settings' }} component={SettingsTabScreen} />
     </Tab.Navigator>
   );

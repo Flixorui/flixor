@@ -52,9 +52,15 @@ import { Replay10Icon, Forward10Icon } from '../components/icons/SkipIcons';
 import { TopBarStore } from '../components/TopBarStore';
 import PlayerSettingsSheet from '../components/PlayerSettingsSheet';
 import { useAppSettings } from '../hooks/useAppSettings';
+import {
+  getOfflineMetadata,
+  getOfflineMedia,
+  getOfflineMarkers,
+  formatMarkersForPlayer,
+} from '../services/downloads';
 
 type PlayerParams = {
-  type: 'plex' | 'tmdb';
+  type: 'plex' | 'tmdb' | 'offline';
   ratingKey?: string;
   id?: string;
   // For transcode track switching - player restarts with these
@@ -63,6 +69,9 @@ type PlayerParams = {
   initialQuality?: number | 'original';
   resumePosition?: number; // Resume position in ms
   mediaIndex?: number; // Index of Media array to play (for multi-version support)
+  // For offline playback
+  offlineFilePath?: string;
+  offlineGlobalKey?: string;
 };
 
 type RouteParams = {
@@ -269,6 +278,73 @@ export default function Player({ route }: RouteParams) {
         await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
       } catch (e) {
         console.warn('[Player] Failed to lock orientation:', e);
+      }
+
+      // Handle offline playback
+      if (params.type === 'offline' && params.offlineFilePath && params.offlineGlobalKey) {
+        try {
+          console.log('[Player] Offline playback mode');
+          console.log('[Player] File path:', params.offlineFilePath);
+
+          // Load cached metadata
+          const offlineMeta = await getOfflineMetadata(params.offlineGlobalKey);
+          const offlineMedia = await getOfflineMedia(params.offlineGlobalKey);
+
+          if (!offlineMeta || !offlineMedia) {
+            setError('Offline metadata not found');
+            setLoading(false);
+            return;
+          }
+
+          // Convert offline metadata to player-compatible format
+          const playerMeta = {
+            ratingKey: offlineMeta.ratingKey,
+            title: offlineMeta.title,
+            type: offlineMedia.type,
+            summary: offlineMeta.summary,
+            thumb: offlineMeta.localThumbPath,
+            duration: offlineMeta.duration,
+            grandparentTitle: offlineMeta.grandparentTitle,
+            parentIndex: offlineMeta.parentIndex,
+            index: offlineMeta.index,
+          };
+
+          setMetadata(playerMeta);
+          metadataRef.current = playerMeta;
+
+          // Load cached markers for skip intro/credits
+          try {
+            const cachedMarkers = await getOfflineMarkers(params.offlineGlobalKey);
+            if (cachedMarkers.length > 0) {
+              const formattedMarkers = formatMarkersForPlayer(cachedMarkers);
+              setMarkers(formattedMarkers);
+              console.log('[Player] Offline markers loaded:', formattedMarkers.length);
+            }
+          } catch (e) {
+            console.warn('[Player] Failed to load offline markers:', e);
+          }
+
+          // Set stream URL to local file (path may already include file:// prefix)
+          const fileUrl = params.offlineFilePath.startsWith('file://')
+            ? params.offlineFilePath
+            : `file://${params.offlineFilePath}`;
+          console.log('[Player] ====== OFFLINE PLAYBACK ======');
+          console.log('[Player] File URL:', fileUrl);
+          console.log('[Player] =============================');
+
+          setStreamUrl(fileUrl);
+          setIsDirectPlay(true);
+          setSelectedQuality('original');
+          setLoading(false);
+
+          // Note: Timeline updates and Trakt scrobbling are skipped for offline playback
+          // They can be synced when back online
+        } catch (e: any) {
+          console.error('[Player] Offline playback error:', e);
+          setError(e?.message || 'Failed to load offline content');
+          setLoading(false);
+        }
+        return;
       }
 
       if (params.type === 'plex' && params.ratingKey) {

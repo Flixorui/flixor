@@ -20,6 +20,7 @@ import BadgePill from '../components/BadgePill';
 import { TechBadge, ContentRatingBadge } from '../components/badges';
 import PersonModal from '../components/PersonModal';
 import RequestButton from '../components/RequestButton';
+import { DownloadButton } from '../components/downloads';
 import VersionPicker, { MediaVersion, parseVersionDetails } from '../components/VersionPicker';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { TopBarStore } from '../components/TopBarStore';
@@ -1222,6 +1223,14 @@ export default function Details({ route }: RouteParams) {
               compact
             />
           )}
+          {/* Download button - only show for movies and when source is available */}
+          {!noLocalSource && meta?.type === 'movie' && meta && (
+            <DownloadButton
+              metadata={meta}
+              variant="pill"
+              size="small"
+            />
+          )}
         </View>
 
         {/* Synopsis */}
@@ -1252,20 +1261,24 @@ export default function Details({ route }: RouteParams) {
               {meta?.type === 'show' && seasons.length > 0 && (
                 <View key="unified-episodes" style={{ marginBottom: 32 }}>
                   <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700', marginHorizontal: 16, marginBottom: 12 }}>Episodes</Text>
-                  <SeasonSelector seasons={seasons} seasonKey={seasonKey} onChange={async (key)=> {
-                    setSeasonKey(key);
-                    setEpisodesLoading(true);
-                    try {
-                      if (seasonSource === 'plex') {
-                        setEpisodes(await fetchPlexSeasonEpisodes(key));
-                      } else if (seasonSource === 'tmdb') {
-                        const tvId = route?.params?.id ? String(route?.params?.id) : undefined;
-                        if (tvId) setEpisodes(await fetchTmdbSeasonEpisodes(Number(tvId), Number(key)));
+                  <SeasonSelector
+                    seasons={seasons}
+                    seasonKey={seasonKey}
+                    onChange={async (key)=> {
+                      setSeasonKey(key);
+                      setEpisodesLoading(true);
+                      try {
+                        if (seasonSource === 'plex') {
+                          setEpisodes(await fetchPlexSeasonEpisodes(key));
+                        } else if (seasonSource === 'tmdb') {
+                          const tvId = route?.params?.id ? String(route?.params?.id) : undefined;
+                          if (tvId) setEpisodes(await fetchTmdbSeasonEpisodes(Number(tvId), Number(key)));
+                        }
+                      } finally {
+                        setEpisodesLoading(false);
                       }
-                    } finally {
-                      setEpisodesLoading(false);
-                    }
-                  }} />
+                    }}
+                  />
                   <EpisodeList
                     season={(() => {
                       const idx = seasons.findIndex((s: any, i: number) => String(s.ratingKey || s.key || i) === seasonKey);
@@ -1315,20 +1328,24 @@ export default function Details({ route }: RouteParams) {
             <>
               {meta?.type === 'show' && tab === 'episodes' ? (
                 <>
-                  <SeasonSelector seasons={seasons} seasonKey={seasonKey} onChange={async (key)=> {
-                    setSeasonKey(key);
-                    setEpisodesLoading(true);
-                    try {
-                      if (seasonSource === 'plex') {
-                        setEpisodes(await fetchPlexSeasonEpisodes(key));
-                      } else if (seasonSource === 'tmdb') {
-                        const tvId = route?.params?.id ? String(route?.params?.id) : undefined;
-                        if (tvId) setEpisodes(await fetchTmdbSeasonEpisodes(Number(tvId), Number(key)));
+                  <SeasonSelector
+                    seasons={seasons}
+                    seasonKey={seasonKey}
+                    onChange={async (key)=> {
+                      setSeasonKey(key);
+                      setEpisodesLoading(true);
+                      try {
+                        if (seasonSource === 'plex') {
+                          setEpisodes(await fetchPlexSeasonEpisodes(key));
+                        } else if (seasonSource === 'tmdb') {
+                          const tvId = route?.params?.id ? String(route?.params?.id) : undefined;
+                          if (tvId) setEpisodes(await fetchTmdbSeasonEpisodes(Number(tvId), Number(key)));
+                        }
+                      } finally {
+                        setEpisodesLoading(false);
                       }
-                    } finally {
-                      setEpisodesLoading(false);
-                    }
-                  }} />
+                    }}
+                  />
                   <EpisodeList
                     season={(() => {
                       const idx = seasons.findIndex((s: any, i: number) => String(s.ratingKey || s.key || i) === seasonKey);
@@ -1618,6 +1635,12 @@ function EpisodeList({ season, episodes, tmdbMode, tmdbId, loading, tmdbEpisodeD
               <Ionicons name="checkmark" size={14} color="#111" />
             </View>
           ) : null}
+          {/* Download button for horizontal cards - only for Plex sources */}
+          {!tmdbMode && ep.ratingKey && (
+            <View style={{ position: 'absolute', top: 10, right: 10 }}>
+              <DownloadButton metadata={ep} variant="icon" size="small" />
+            </View>
+          )}
         </LinearGradient>
       </Pressable>
     );
@@ -1684,7 +1707,12 @@ function EpisodeList({ season, episodes, tmdbMode, tmdbId, loading, tmdbEpisodeD
                   {airDate ? <Text style={{ color: '#bbb' }}>{airDate}</Text> : null}
                 </View>
               </View>
-              <Ionicons name="download-outline" size={18} color="#fff" style={{ alignSelf: 'center' }} />
+              {/* Download button for episodes - only for Plex sources */}
+              {!tmdbMode && ep.ratingKey && (
+                <View style={{ alignSelf: 'center', marginLeft: 8 }}>
+                  <DownloadButton metadata={ep} variant="icon" size="small" />
+                </View>
+              )}
             </Pressable>
           );
         })
@@ -2290,7 +2318,7 @@ function SeasonSelector({ seasons, seasonKey, onChange }: { seasons:any[]; seaso
           );
         })}
       </ScrollView>
-      
+
     </View>
   );
 }

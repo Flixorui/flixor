@@ -328,6 +328,10 @@ export interface AppSettings {
 
   // Advanced settings
   enableDebugLogging: boolean; // Enable verbose debug logging
+
+  // Download settings
+  downloadOnWifiOnly: boolean; // Only download on WiFi
+  maxConcurrentDownloads: number; // Max simultaneous downloads (1-3)
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -392,6 +396,10 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
 
   // Advanced defaults
   enableDebugLogging: false, // Default: disabled
+
+  // Download defaults
+  downloadOnWifiOnly: true, // Default: only download on WiFi
+  maxConcurrentDownloads: 1, // Default: 1 concurrent download
 };
 
 let cachedSettings: AppSettings = { ...DEFAULT_APP_SETTINGS };
