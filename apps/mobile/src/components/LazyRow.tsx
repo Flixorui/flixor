@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { View, LayoutChangeEvent, Dimensions } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import Row from './Row';
 import RowSkeleton from './RowSkeleton';
 
@@ -10,6 +11,7 @@ const VIEWPORT_BUFFER = SCREEN_HEIGHT * 0.5;
 
 interface LazyRowProps {
   title: string;
+  titleIcon?: keyof typeof Ionicons.glyphMap;
   // Either provide pre-loaded items OR a fetchData function
   items?: any[];
   fetchData?: () => Promise<any[]>;
@@ -24,6 +26,7 @@ interface LazyRowProps {
 
 function LazyRow({
   title,
+  titleIcon,
   items: preloadedItems,
   fetchData,
   getImageUri,
@@ -111,6 +114,7 @@ function LazyRow({
     <View onLayout={onLayout}>
       <Row
         title={title}
+        titleIcon={titleIcon}
         items={data}
         getImageUri={getImageUri}
         getTitle={getTitle}

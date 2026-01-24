@@ -294,6 +294,8 @@ export interface AppSettings {
   showTrendingRows: boolean;
   showTraktRows: boolean;
   showPlexPopularRow: boolean;
+  showCollectionRows: boolean; // Show Plex collections on home screen
+  hiddenCollectionKeys: string[]; // Collection ratingKeys to hide from home screen
   showPosterTitles: boolean;
   posterSize: 'small' | 'medium' | 'large';
   posterBorderRadius: number;
@@ -356,6 +358,8 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   showTrendingRows: true,
   showTraktRows: true,
   showPlexPopularRow: true,
+  showCollectionRows: true,
+  hiddenCollectionKeys: [],
   showPosterTitles: true,
   posterSize: 'medium',
   posterBorderRadius: 12,

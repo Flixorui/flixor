@@ -4,8 +4,9 @@ import Poster from './Poster';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 
-function Row({ title, items, getImageUri, getTitle, getSubtitle, authHeaders, onItemPress, onTitlePress, onBrowsePress, keyPrefix = '' }: {
+function Row({ title, titleIcon, items, getImageUri, getTitle, getSubtitle, authHeaders, onItemPress, onTitlePress, onBrowsePress, keyPrefix = '' }: {
   title: string;
+  titleIcon?: keyof typeof Ionicons.glyphMap;
   items: any[];
   getImageUri: (item: any) => string | undefined;
   getTitle: (item: any) => string | undefined;
@@ -33,6 +34,9 @@ function Row({ title, items, getImageUri, getTitle, getSubtitle, authHeaders, on
           disabled={!onBrowsePress && !onTitlePress}
           style={styles.titlePressable}
         >
+          {titleIcon && (
+            <Ionicons name={titleIcon} size={16} color="#fff" style={styles.titleIcon} />
+          )}
           <Text style={styles.title}>{title}</Text>
           {(onBrowsePress || onTitlePress) && (
             <Ionicons name="chevron-forward" size={18} color="#fff" style={styles.chevron} />
@@ -89,6 +93,9 @@ const styles = StyleSheet.create({
   chevron: {
     marginLeft: 4,
     marginTop: 1,
+  },
+  titleIcon: {
+    marginRight: 6,
   },
 });
 

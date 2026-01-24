@@ -973,3 +973,63 @@ export async function fetchAllLibraries(): Promise<Array<{ key: string; title: s
     return [];
   }
 }
+
+// ============================================
+// Plex Collections
+// ============================================
+
+export type CollectionRowData = {
+  ratingKey: string;
+  title: string;
+  items: RowItem[];
+};
+
+/**
+ * Fetch collections with their items for home screen rows
+ * Sorted by childCount (popular collections first), limited to avoid clutter
+ */
+export async function fetchCollectionRowsForHome(
+  limit: number = 5
+): Promise<CollectionRowData[]> {
+  try {
+    const core = getFlixorCore();
+    const collections = await core.plexServer.getAllCollections();
+
+    // Sort by childCount descending (show largest collections first)
+    // and limit to avoid overwhelming the home screen
+    const sortedCollections = collections
+      .filter((c: any) => (c.childCount || 0) > 0)
+      .sort((a: any, b: any) => (b.childCount || 0) - (a.childCount || 0))
+      .slice(0, limit);
+
+    const collectionRows: CollectionRowData[] = [];
+
+    for (const coll of sortedCollections) {
+      try {
+        const items = await core.plexServer.getCollectionItems(coll.ratingKey, {
+          size: 15, // Limit items per row for performance
+        });
+
+        if (items.length > 0) {
+          collectionRows.push({
+            ratingKey: coll.ratingKey,
+            title: coll.title || 'Untitled Collection',
+            items: items.map((item: PlexMediaItem) => ({
+              id: `plex:${item.ratingKey}`,
+              title: item.title || 'Untitled',
+              image: core.plexServer.getImageUrl(item.thumb, 300),
+              mediaType: item.type === 'movie' ? 'movie' as const : 'tv' as const,
+            })),
+          });
+        }
+      } catch (e) {
+        console.log('[HomeData] Error fetching collection items:', e);
+      }
+    }
+
+    return collectionRows;
+  } catch (e) {
+    console.log('[HomeData] fetchCollectionRowsForHome error:', e);
+    return [];
+  }
+}

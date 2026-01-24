@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { View, Text, ScrollView, Switch, Pressable, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import SettingsHeader from '../../components/settings/SettingsHeader';
 import SettingsCard from '../../components/settings/SettingsCard';
 import SettingItem from '../../components/settings/SettingItem';
@@ -144,8 +145,32 @@ export default function HomeScreenSettings() {
                 disabled={settings.discoveryDisabled}
               />
             )}
-            isLast={true}
+            isLast={false}
           />
+          <SettingItem
+            title="Collections"
+            description="Show Plex collection rows on home"
+            icon="albums-outline"
+            renderRight={() => (
+              <Switch
+                value={settings.showCollectionRows}
+                onValueChange={(value) => updateSetting('showCollectionRows', value)}
+              />
+            )}
+            isLast={!settings.showCollectionRows}
+          />
+          {settings.showCollectionRows && (
+            <SettingItem
+              title="Manage Collections"
+              description="Choose which collections appear"
+              icon="sparkles-outline"
+              renderRight={() => (
+                <Ionicons name="chevron-forward" size={18} color="#9ca3af" />
+              )}
+              onPress={() => nav.navigate('CollectionRowsSettings')}
+              isLast={true}
+            />
+          )}
         </SettingsCard>
 
         <SettingsCard title="POSTERS">

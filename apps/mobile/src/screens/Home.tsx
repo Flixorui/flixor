@@ -33,6 +33,7 @@ import {
   fetchTraktWatchlist,
   fetchTraktHistory,
   fetchTraktRecommendations,
+  fetchCollectionRowsForHome,
   getPlexImageUrl,
   getContinueWatchingImageUrl,
   getTmdbLogo,
@@ -48,6 +49,7 @@ import {
   GenreItem,
   PlexUltraBlurColors,
   HeroItem,
+  CollectionRowData,
 } from '../core/HomeData';
 import {
   toggleWatchlist,
@@ -123,6 +125,9 @@ export default function Home({ onLogout }: HomeProps) {
   const [traktMyWatchlist, setTraktMyWatchlist] = useState<RowItem[]>([]);
   const [traktHistory, setTraktHistory] = useState<RowItem[]>([]);
   const [traktRecommendations, setTraktRecommendations] = useState<RowItem[]>([]);
+
+  // Collection rows
+  const [collectionRows, setCollectionRows] = useState<CollectionRowData[]>([]);
 
   // UI state
   const [tab, setTab] = useState<'all' | 'movies' | 'shows'>('all');
@@ -233,6 +238,7 @@ export default function Home({ onLogout }: HomeProps) {
     setTraktMyWatchlist([]);
     setTraktHistory([]);
     setTraktRecommendations([]);
+    setCollectionRows([]);
     setHeroCarouselData([]);
 
     // Re-trigger data load by incrementing retryCount
@@ -596,6 +602,20 @@ export default function Home({ onLogout }: HomeProps) {
         fetchTraktRecommendations().then((items) => {
           InteractionManager.runAfterInteractions(() => setTraktRecommendations(items));
         }).catch(() => {});
+
+        // Collection rows - load in background (deferred)
+        if (settings.showCollectionRows) {
+          fetchCollectionRowsForHome(10).then((rows) => {
+            InteractionManager.runAfterInteractions(() => {
+              // Filter out hidden collections and limit to 5
+              const hiddenKeys = new Set(settings.hiddenCollectionKeys || []);
+              const visibleRows = rows
+                .filter((row) => !hiddenKeys.has(row.ratingKey))
+                .slice(0, 5);
+              setCollectionRows(visibleRows);
+            });
+          }).catch(() => setCollectionRows([]));
+        }
 
         const durationMs = Date.now() - loadStart;
         console.log(`[Home][perf] all fetches dispatched in ${durationMs}ms`);
@@ -1179,7 +1199,28 @@ export default function Home({ onLogout }: HomeProps) {
               />
             )
           )}
-          
+
+          {/* Collection Rows */}
+          {settings.showCollectionRows && collectionRows.map((collection) => (
+            collection.items.length > 0 ? (
+              <LazyRow
+                key={`collection-${collection.ratingKey}`}
+                title={collection.title}
+                titleIcon="sparkles"
+                items={collection.items}
+                getImageUri={getRowUri}
+                getTitle={getRowTitle}
+                onItemPress={onRowPress}
+                onBrowsePress={() => openRowBrowse(
+                  { type: 'plexCollection', collectionKey: collection.ratingKey } as any,
+                  collection.title,
+                  collection.items
+                )}
+                keyPrefix={`collection-${collection.ratingKey}-`}
+              />
+            ) : null
+          ))}
+
           {settings.showPlexPopularRow && popularOnPlexTmdb.length > 0 && (
             <Row
               title="Popular on Plex"
@@ -1367,9 +1408,6 @@ export default function Home({ onLogout }: HomeProps) {
             tab: library.type === 'movie' ? 'movies' : 'tv',
             libraryKey: library.key,
           });
-        }}
-        onSelectCollections={() => {
-          nav.navigate('Collections');
         }}
       />
 

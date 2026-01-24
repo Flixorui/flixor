@@ -16,17 +16,12 @@ import {
   fetchLibraries,
   GenreItem,
 } from '../core/HomeData';
-import {
-  fetchCollections,
-  CollectionItem,
-} from '../core/CollectionsData';
 
 type BrowseModalProps = {
   visible: boolean;
   onClose: () => void;
   onSelectGenre: (genre: GenreItem, type: 'movie' | 'tv') => void;
   onSelectLibrary: (library: { key: string; title: string; type: string }) => void;
-  onSelectCollections: () => void;
 };
 
 export default function BrowseModal({
@@ -34,14 +29,12 @@ export default function BrowseModal({
   onClose,
   onSelectGenre,
   onSelectLibrary,
-  onSelectCollections,
 }: BrowseModalProps) {
   const [loading, setLoading] = useState(true);
   const [movieGenres, setMovieGenres] = useState<GenreItem[]>([]);
   const [tvGenres, setTvGenres] = useState<GenreItem[]>([]);
   const [libraries, setLibraries] = useState<Array<{ key: string; title: string; type: string }>>([]);
-  const [collections, setCollections] = useState<CollectionItem[]>([]);
-  const [activeTab, setActiveTab] = useState<'movies' | 'tvshows' | 'libraries' | 'collections'>('movies');
+  const [activeTab, setActiveTab] = useState<'movies' | 'tvshows' | 'libraries'>('movies');
 
   useEffect(() => {
     if (visible) {
@@ -52,16 +45,14 @@ export default function BrowseModal({
   const loadData = async () => {
     setLoading(true);
     try {
-      const [movies, tv, libs, colls] = await Promise.all([
+      const [movies, tv, libs] = await Promise.all([
         fetchMovieGenres(),
         fetchTvGenres(),
         fetchLibraries(),
-        fetchCollections(),
       ]);
       setMovieGenres(movies);
       setTvGenres(tv);
       setLibraries(libs);
-      setCollections(colls);
     } catch (e) {
       console.log('[BrowseModal] Error loading data:', e);
     } finally {
@@ -90,59 +81,6 @@ export default function BrowseModal({
             <Text style={styles.genreText}>{genre.title}</Text>
           </Pressable>
         ))}
-      </View>
-    );
-  };
-
-  const renderCollections = () => {
-    return (
-      <View style={styles.libraryList}>
-        {/* All Collections button */}
-        <Pressable
-          style={styles.libraryButton}
-          onPress={() => {
-            onSelectCollections();
-            onClose();
-          }}
-        >
-          <View style={[styles.libraryIcon, { backgroundColor: 'rgba(100,100,255,0.2)' }]}>
-            <Ionicons name="albums" size={24} color="#fff" />
-          </View>
-          <View style={styles.libraryInfo}>
-            <Text style={styles.libraryTitle}>All Collections</Text>
-            <Text style={styles.libraryType}>
-              Browse all your Plex collections
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color="#666" />
-        </Pressable>
-
-        {/* Show first few collections as preview */}
-        {collections.slice(0, 5).map((coll) => (
-          <Pressable
-            key={coll.ratingKey}
-            style={styles.libraryButton}
-            onPress={() => {
-              onSelectCollections();
-              onClose();
-            }}
-          >
-            <View style={[styles.libraryIcon, { backgroundColor: 'rgba(80,80,80,0.3)' }]}>
-              <Ionicons name="albums-outline" size={24} color="#fff" />
-            </View>
-            <View style={styles.libraryInfo}>
-              <Text style={styles.libraryTitle}>{coll.title}</Text>
-              {coll.childCount !== undefined && (
-                <Text style={styles.libraryType}>{coll.childCount} items</Text>
-              )}
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#666" />
-          </Pressable>
-        ))}
-
-        {collections.length === 0 && (
-          <Text style={styles.emptyText}>No collections found</Text>
-        )}
       </View>
     );
   };
@@ -230,14 +168,6 @@ export default function BrowseModal({
                 Libraries
               </Text>
             </Pressable>
-            <Pressable
-              style={[styles.tab, activeTab === 'collections' && styles.tabActive]}
-              onPress={() => setActiveTab('collections')}
-            >
-              <Text style={[styles.tabText, activeTab === 'collections' && styles.tabTextActive]}>
-                Collections
-              </Text>
-            </Pressable>
           </View>
 
           {/* Content */}
@@ -254,7 +184,6 @@ export default function BrowseModal({
               {activeTab === 'movies' && renderGenreGrid(movieGenres, 'movie')}
               {activeTab === 'tvshows' && renderGenreGrid(tvGenres, 'tv')}
               {activeTab === 'libraries' && renderLibraries()}
-              {activeTab === 'collections' && renderCollections()}
             </ScrollView>
           )}
         </View>
