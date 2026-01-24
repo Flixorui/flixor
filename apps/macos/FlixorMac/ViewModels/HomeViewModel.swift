@@ -48,6 +48,7 @@ class HomeViewModel: ObservableObject {
     @Published var recentlyAddedState: SectionLoadState = .idle
     @Published var librariesState: SectionLoadState = .idle
     @Published var extraSectionsState: SectionLoadState = .idle
+    @Published var collectionSectionsState: SectionLoadState = .idle
 
     // Expected number of extra section rows (for skeleton placeholders)
     let expectedExtraSectionCount = 8
@@ -60,6 +61,7 @@ class HomeViewModel: ObservableObject {
     @Published var recentlyAddedItems: [MediaItem] = []
     @Published var librarySections: [LibrarySection] = []
     @Published var extraSections: [LibrarySection] = [] // TMDB/Trakt/Watchlist/Genres
+    @Published var collectionSections: [LibrarySection] = [] // Plex Collections
 
     @Published var currentBillboardIndex = 0
     @Published var pendingAction: HomeAction?
@@ -92,6 +94,7 @@ class HomeViewModel: ObservableObject {
         recentlyAddedState = .loading
         librariesState = .loading
         extraSectionsState = .loading
+        collectionSectionsState = .loading
 
         // Fire-and-forget each section; update UI as each finishes
         Task { @MainActor in
@@ -159,6 +162,11 @@ class HomeViewModel: ObservableObject {
         // Load additional content sections (TMDB/Trakt/Genres/Watchlist) without blocking
         Task { @MainActor in
             await self.loadAdditionalRows()
+        }
+
+        // Load collection sections (Plex Collections) without blocking
+        Task { @MainActor in
+            await self.loadCollectionRows()
         }
 
         loadTask = nil
@@ -235,6 +243,74 @@ class HomeViewModel: ObservableObject {
             print("✅ [Home] Extra sections prepared: \(ordered.map { $0.title }.joined(separator: ", "))")
             self.extraSections = ordered
             self.extraSectionsState = ordered.isEmpty ? .empty : .loaded
+        }
+    }
+
+    // MARK: - Collection Rows
+
+    private func loadCollectionRows() async {
+        // Check if collections are enabled in settings
+        guard UserDefaults.standard.showCollectionRows else {
+            await MainActor.run {
+                self.collectionSections = []
+                self.collectionSectionsState = .empty
+            }
+            return
+        }
+
+        guard let plexServer = FlixorCore.shared.plexServer else {
+            await MainActor.run {
+                self.collectionSections = []
+                self.collectionSectionsState = .empty
+            }
+            return
+        }
+
+        do {
+            let collections = try await plexServer.getAllCollections()
+
+            // Get hidden collection keys from settings
+            let hiddenKeys = Set(UserDefaults.standard.hiddenCollectionKeys)
+
+            // Sort by childCount descending and filter out hidden collections
+            let sortedCollections = collections
+                .filter { !hiddenKeys.contains($0.ratingKey) }
+                .sorted { ($0.childCount ?? 0) > ($1.childCount ?? 0) }
+
+            // Fetch 10 collections but only show 5 (in case some are hidden)
+            let limitedCollections = Array(sortedCollections.prefix(10))
+
+            var sections: [LibrarySection] = []
+
+            for collection in limitedCollections.prefix(5) {
+                do {
+                    let items = try await plexServer.getCollectionItems(ratingKey: collection.ratingKey, size: 15)
+                    if !items.isEmpty {
+                        let mediaItems = items.map { toMediaItem($0) }
+                        sections.append(LibrarySection(
+                            id: "collection-\(collection.ratingKey)",
+                            title: collection.title ?? "Untitled Collection",
+                            items: mediaItems,
+                            totalCount: collection.childCount ?? items.count,
+                            libraryKey: nil,
+                            browseContext: .plexCollection(ratingKey: collection.ratingKey, title: collection.title ?? "Collection"),
+                            isCollection: true
+                        ))
+                    }
+                } catch {
+                    // Continue with other collections
+                }
+            }
+
+            await MainActor.run {
+                self.collectionSections = sections
+                self.collectionSectionsState = sections.isEmpty ? .empty : .loaded
+            }
+        } catch {
+            await MainActor.run {
+                self.collectionSections = []
+                self.collectionSectionsState = .error(error.localizedDescription)
+            }
         }
     }
 

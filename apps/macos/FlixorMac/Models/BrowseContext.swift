@@ -11,6 +11,7 @@ enum BrowseContext: Equatable {
     case plexDirectory(path: String, title: String?)
     case plexLibrary(key: String, title: String?)
     case plexWatchlist
+    case plexCollection(ratingKey: String, title: String)
     case tmdb(kind: TMDBBrowseKind, media: TMDBMediaType, id: String?, displayTitle: String?)
     case trakt(kind: TraktBrowseKind)
 }

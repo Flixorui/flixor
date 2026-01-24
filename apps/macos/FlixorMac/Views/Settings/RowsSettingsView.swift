@@ -11,6 +11,7 @@ struct RowsSettingsView: View {
     @ObservedObject private var profileSettings = ProfileSettings.shared
 
     @State private var showContinueWatchingOptions = false
+    @State private var showCollectionRowsSettings = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
@@ -47,12 +48,21 @@ struct RowsSettingsView: View {
                     icon: "play.square.stack.fill",
                     iconColor: Color(hex: "E5A00D"),
                     title: "Popular on Plex",
-                    subtitle: profileSettings.discoveryDisabled ? "Disabled by Library Only Mode" : nil,
-                    showDivider: false
+                    subtitle: profileSettings.discoveryDisabled ? "Disabled by Library Only Mode" : nil
                 ) {
                     Toggle("", isOn: $profileSettings.showPlexPopular)
                         .labelsHidden()
                         .disabled(profileSettings.discoveryDisabled)
+                }
+                SettingsRow(
+                    icon: "sparkles",
+                    iconColor: .purple,
+                    title: "Collections",
+                    subtitle: "Show Plex collection rows on home",
+                    showDivider: false
+                ) {
+                    Toggle("", isOn: $profileSettings.showCollectionRows)
+                        .labelsHidden()
                 }
             }
 
@@ -60,6 +70,22 @@ struct RowsSettingsView: View {
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 4)
+
+            // Collection Rows Options
+            if profileSettings.showCollectionRows {
+                SettingsSectionHeader(title: "Collections")
+                SettingsGroupCard {
+                    SettingsNavigationRow(
+                        icon: "sparkles",
+                        iconColor: .purple,
+                        title: "Manage Collections",
+                        subtitle: "Choose which collections appear",
+                        showDivider: false
+                    ) {
+                        showCollectionRowsSettings = true
+                    }
+                }
+            }
 
             // Continue Watching Options
             if profileSettings.showContinueWatching {
@@ -80,6 +106,10 @@ struct RowsSettingsView: View {
         .sheet(isPresented: $showContinueWatchingOptions) {
             ContinueWatchingSettingsView()
                 .frame(width: 500, height: 580)
+        }
+        .sheet(isPresented: $showCollectionRowsSettings) {
+            CollectionRowsSettingsView()
+                .frame(width: 500, height: 600)
         }
     }
 }

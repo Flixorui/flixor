@@ -602,6 +602,56 @@ public class PlexServerService {
         return response.MediaContainer.Directory ?? []
     }
 
+    // MARK: - Collections
+
+    /// Get collections for a library section
+    public func getCollections(libraryKey: String) async throws -> [PlexCollection] {
+        let response: PlexCollectionResponse = try await get(
+            path: "/library/sections/\(libraryKey)/collections",
+            ttl: CacheTTL.dynamic
+        )
+        // Plex can return collections in either Metadata or Directory depending on server version
+        return (response.MediaContainer.Metadata ?? []) + (response.MediaContainer.Directory ?? [])
+    }
+
+    /// Get all collections across all libraries
+    public func getAllCollections(type: String? = nil) async throws -> [PlexCollection] {
+        let libraries = try await getLibraries()
+
+        // Filter by type if specified
+        let targetLibraries = libraries.filter { lib in
+            guard let type = type else { return true }
+            return lib.type == type
+        }
+
+        var allCollections: [PlexCollection] = []
+        for lib in targetLibraries {
+            do {
+                let collections = try await getCollections(libraryKey: lib.key)
+                allCollections.append(contentsOf: collections)
+            } catch {
+                // Continue with other libraries
+            }
+        }
+
+        return allCollections
+    }
+
+    /// Get items in a collection
+    public func getCollectionItems(ratingKey: String, size: Int? = nil) async throws -> [PlexMediaItem] {
+        var params: [String: String] = [:]
+        if let size = size {
+            params["X-Plex-Container-Size"] = String(size)
+        }
+
+        let response: PlexMediaContainerResponse<PlexMediaItem> = try await get(
+            path: "/library/collections/\(ratingKey)/children",
+            params: params.isEmpty ? nil : params,
+            ttl: CacheTTL.dynamic
+        )
+        return response.MediaContainer.Metadata ?? []
+    }
+
     // MARK: - Playback Progress
 
     /// Report playback progress to Plex server
@@ -746,6 +796,68 @@ public struct PlexLibrary: Codable, Identifiable {
 
 public struct PlexFilterResponse: Codable {
     public let MediaContainer: PlexFilterContainer
+}
+
+public struct PlexCollectionResponse: Codable {
+    public let MediaContainer: PlexCollectionContainer
+}
+
+public struct PlexCollectionContainer: Codable {
+    public let size: Int?
+    public let Metadata: [PlexCollection]?
+    public let Directory: [PlexCollection]?
+}
+
+public struct PlexCollection: Codable, Identifiable {
+    public let ratingKey: String
+    public let key: String?
+    public let title: String?
+    public let thumb: String?
+    public let childCount: Int?
+    public let minYear: Int?
+    public let maxYear: Int?
+
+    public var id: String { ratingKey }
+
+    enum CodingKeys: String, CodingKey {
+        case ratingKey, key, title, thumb, childCount, minYear, maxYear
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        // Handle ratingKey as either String or Int
+        if let stringKey = try? container.decode(String.self, forKey: .ratingKey) {
+            ratingKey = stringKey
+        } else if let intKey = try? container.decode(Int.self, forKey: .ratingKey) {
+            ratingKey = String(intKey)
+        } else {
+            throw DecodingError.dataCorruptedError(forKey: .ratingKey, in: container, debugDescription: "ratingKey is neither String nor Int")
+        }
+
+        key = try container.decodeIfPresent(String.self, forKey: .key)
+        title = try container.decodeIfPresent(String.self, forKey: .title)
+        thumb = try container.decodeIfPresent(String.self, forKey: .thumb)
+        childCount = try container.decodeIfPresent(Int.self, forKey: .childCount)
+
+        // Handle minYear as either Int or String
+        if let intYear = try? container.decodeIfPresent(Int.self, forKey: .minYear) {
+            minYear = intYear
+        } else if let stringYear = try? container.decodeIfPresent(String.self, forKey: .minYear) {
+            minYear = Int(stringYear)
+        } else {
+            minYear = nil
+        }
+
+        // Handle maxYear as either Int or String
+        if let intYear = try? container.decodeIfPresent(Int.self, forKey: .maxYear) {
+            maxYear = intYear
+        } else if let stringYear = try? container.decodeIfPresent(String.self, forKey: .maxYear) {
+            maxYear = Int(stringYear)
+        } else {
+            maxYear = nil
+        }
+    }
 }
 
 public struct PlexFilterContainer: Codable {

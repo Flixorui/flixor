@@ -13,6 +13,7 @@
 		3B374BB0581072BF2FDC1C78 /* MpvConfigModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 234624854A3AE7BEDC53EB9A /* MpvConfigModels.swift */; };
 		3C76EFC4102D71E4F8EB7485 /* PlayerSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9911C3B9537F9629E5086F4A /* PlayerSettingsView.swift */; };
 		485E86E1490854741ABF2104 /* ProfileSelectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B54CEB421DB505DF6CAC5D90 /* ProfileSelectView.swift */; };
+		4C4EB5599C5763F7B6381FFC /* CollectionRowsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89419B4257304E4E31113CDA /* CollectionRowsSettingsView.swift */; };
 		4E24577161EC49F795708746 /* subtitles.png in Resources */ = {isa = PBXBuildFile; fileRef = 28F2733407E54826B6E93AC2 /* subtitles.png */; };
 		5141864342A197A67CBC0DEA /* TrackPreferenceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5602C0E02D02A79ABE8837A /* TrackPreferenceService.swift */; };
 		6A22C3A3C46B60883309776E /* ServerSelectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB41AA1177EF05D19E278916 /* ServerSelectView.swift */; };
@@ -142,6 +143,7 @@
 		5170360C6E9CB0E5C7FC9138 /* ProfileManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProfileManager.swift; sourceTree = "<group>"; };
 		5F6BC834C21606D91C967707 /* AppLogger.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppLogger.swift; sourceTree = "<group>"; };
 		7CB1C29CA6CFB52E468383D8 /* PerformanceStats.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PerformanceStats.swift; sourceTree = "<group>"; };
+		89419B4257304E4E31113CDA /* CollectionRowsSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CollectionRowsSettingsView.swift; path = CollectionRowsSettingsView.swift; sourceTree = "<group>"; };
 		9911C3B9537F9629E5086F4A /* PlayerSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PlayerSettingsView.swift; path = PlayerSettingsView.swift; sourceTree = "<group>"; };
 		A551E079C93FFCF1E765E133 /* ProfileSettings.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProfileSettings.swift; sourceTree = "<group>"; };
 		B001 /* FlixorMacApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlixorMacApp.swift; sourceTree = "<group>"; };
@@ -475,6 +477,7 @@
 				9911C3B9537F9629E5086F4A /* PlayerSettingsView.swift */,
 				DC5CC48F0840B10DB094145A /* MpvConfigView.swift */,
 				E059C76C45BC6B2E47E6D5D9 /* LogsView.swift */,
+				89419B4257304E4E31113CDA /* CollectionRowsSettingsView.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -802,6 +805,7 @@
 				CE42D609CCF0888789C6A902 /* PinEntryView.swift in Sources */,
 				B9C16909303BFF072E42A53C /* ProfileManager.swift in Sources */,
 				7D99B9021A5FFDE7C3B82C93 /* ProfileSettings.swift in Sources */,
+				4C4EB5599C5763F7B6381FFC /* CollectionRowsSettingsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

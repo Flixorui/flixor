@@ -48,6 +48,14 @@ class ProfileSettings: ObservableObject {
         didSet { defaults.showWatchlist = showWatchlist }
     }
 
+    @Published var showCollectionRows: Bool {
+        didSet { defaults.showCollectionRows = showCollectionRows }
+    }
+
+    @Published var hiddenCollectionKeys: [String] {
+        didSet { defaults.hiddenCollectionKeys = hiddenCollectionKeys }
+    }
+
     @Published var showHeroSection: Bool {
         didSet { defaults.showHeroSection = showHeroSection }
     }
@@ -272,6 +280,8 @@ class ProfileSettings: ObservableObject {
         self.showTraktRows = defaults.showTraktRows
         self.showPlexPopular = defaults.showPlexPopular
         self.showWatchlist = defaults.showWatchlist
+        self.showCollectionRows = defaults.showCollectionRows
+        self.hiddenCollectionKeys = defaults.hiddenCollectionKeys
         self.showHeroSection = defaults.showHeroSection
         self.heroAutoRotate = defaults.heroAutoRotate
         self.showContinueWatching = defaults.showContinueWatching
@@ -356,6 +366,8 @@ class ProfileSettings: ObservableObject {
         showTraktRows = defaults.showTraktRows
         showPlexPopular = defaults.showPlexPopular
         showWatchlist = defaults.showWatchlist
+        showCollectionRows = defaults.showCollectionRows
+        hiddenCollectionKeys = defaults.hiddenCollectionKeys
         showHeroSection = defaults.showHeroSection
         heroAutoRotate = defaults.heroAutoRotate
         showContinueWatching = defaults.showContinueWatching

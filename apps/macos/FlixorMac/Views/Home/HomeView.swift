@@ -90,6 +90,34 @@ struct HomeView: View {
                                     )
                                 }
 
+                                // Collection sections (Plex Collections)
+                                if profileSettings.showCollectionRows {
+                                    if viewModel.collectionSectionsState.isLoading {
+                                        // Show skeleton rows while loading
+                                        ForEach(0..<3, id: \.self) { _ in
+                                            SkeletonCarouselRow(
+                                                itemWidth: profileSettings.rowLayout == "poster" ? 160 : 420,
+                                                itemCount: profileSettings.rowLayout == "poster" ? 6 : 4,
+                                                cardType: profileSettings.rowLayout == "poster" ? .poster : .landscape
+                                            )
+                                        }
+                                    } else {
+                                        ForEach(viewModel.collectionSections) { section in
+                                            CollectionSectionRow(
+                                                section: section,
+                                                rowLayout: profileSettings.rowLayout,
+                                                onTap: { item in
+                                                    viewModel.showItemDetails(item)
+                                                },
+                                                onBrowse: { context in
+                                                    presentBrowse(context)
+                                                }
+                                            )
+                                            .transition(.opacity)
+                                        }
+                                    }
+                                }
+
                                 // Extra sections (Popular on Plex, Trending Now, Watchlist, Genres, Trakt)
                                 // Show skeleton placeholders while loading, then fade in actual content
                                 if viewModel.extraSectionsState.isLoading {
@@ -565,6 +593,67 @@ struct ErrorView: View {
             .buttonStyle(.plain)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+// MARK: - Collection Section Row (with sparkles icon)
+
+struct CollectionSectionRow: View {
+    let section: LibrarySection
+    let rowLayout: String
+    var onTap: (MediaItem) -> Void
+    var onBrowse: ((BrowseContext) -> Void)?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Header with sparkles icon
+            HStack(spacing: 8) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.white)
+
+                Text(section.title)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(.white)
+
+                Spacer()
+
+                if let browseContext = section.browseContext {
+                    Button(action: { onBrowse?(browseContext) }) {
+                        Text("Browse All")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 20)
+
+            // Row content
+            if rowLayout == "poster" {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(spacing: 12) {
+                        ForEach(section.items) { item in
+                            PosterCard(item: item, width: 150) {
+                                onTap(item)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                }
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(spacing: 16) {
+                        ForEach(section.items) { item in
+                            LandscapeCard(item: item, width: 420) {
+                                onTap(item)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                }
+            }
+        }
     }
 }
 

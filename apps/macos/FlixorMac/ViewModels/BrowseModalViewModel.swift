@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import FlixorKit
 
 // Local types for Trakt API responses (used with backend)
 private struct TraktIDs: Codable { let tmdb: Int?; let trakt: Int?; let imdb: String?; let tvdb: Int? }
@@ -121,6 +122,9 @@ class BrowseModalViewModel: ObservableObject {
         case .plexWatchlist:
             canLoadMore = false
             return try await fetchPlexWatchlist()
+        case .plexCollection(let ratingKey, _):
+            canLoadMore = false
+            return try await fetchPlexCollection(ratingKey: ratingKey)
         case .tmdb(let kind, let media, let id, let display):
             return try await fetchTMDB(kind: kind, media: media, identifier: id, displayTitle: display, page: page, append: append)
         case .trakt(let kind):
@@ -138,6 +142,8 @@ class BrowseModalViewModel: ObservableObject {
             return (libraryTitle ?? "Library", "All titles")
         case .plexWatchlist:
             return ("Watchlist", "Plex.tv")
+        case .plexCollection(_, let collectionTitle):
+            return (collectionTitle, "Collection")
         case .tmdb(let kind, _, _, let display):
             switch kind {
             case .trending:
@@ -231,6 +237,35 @@ class BrowseModalViewModel: ObservableObject {
             items.append(entry)
         }
         return items
+    }
+
+    private func fetchPlexCollection(ratingKey: String) async throws -> [MediaItem] {
+        guard let plexServer = FlixorCore.shared.plexServer else { return [] }
+        let items = try await plexServer.getCollectionItems(ratingKey: ratingKey, size: nil)
+        return items.map { plex in
+            MediaItem(
+                id: plex.ratingKey ?? plex.key ?? "",
+                title: plex.title ?? "Unknown",
+                type: plex.type ?? "unknown",
+                thumb: plex.thumb,
+                art: plex.art,
+                year: plex.year,
+                rating: nil,
+                duration: plex.duration,
+                viewOffset: plex.viewOffset,
+                summary: plex.summary,
+                grandparentTitle: plex.grandparentTitle,
+                grandparentThumb: plex.grandparentThumb,
+                grandparentArt: plex.grandparentArt,
+                grandparentRatingKey: plex.grandparentRatingKey,
+                parentIndex: plex.parentIndex,
+                index: plex.index,
+                parentRatingKey: plex.parentRatingKey,
+                parentTitle: plex.parentTitle,
+                leafCount: plex.leafCount,
+                viewedLeafCount: plex.viewedLeafCount
+            )
+        }
     }
 
     // MARK: - TMDB Fetchers

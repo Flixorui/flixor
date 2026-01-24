@@ -213,6 +213,8 @@ extension UserDefaults {
         static let showTraktRows = "showTraktRows"
         static let showPlexPopular = "showPlexPopular"
         static let showWatchlist = "showWatchlist"
+        static let showCollectionRows = "showCollectionRows"
+        static let hiddenCollectionKeys = "hiddenCollectionKeys"
         static let posterSize = "posterSize"
         static let showPosterTitles = "showPosterTitles"
         static let showLibraryTitles = "showLibraryTitles"
@@ -267,6 +269,16 @@ extension UserDefaults {
     var showWatchlist: Bool {
         get { object(forKey: profileKey(HomeKeys.showWatchlist)) as? Bool ?? true }
         set { set(newValue, forKey: profileKey(HomeKeys.showWatchlist)) }
+    }
+
+    var showCollectionRows: Bool {
+        get { object(forKey: profileKey(HomeKeys.showCollectionRows)) as? Bool ?? true }
+        set { set(newValue, forKey: profileKey(HomeKeys.showCollectionRows)) }
+    }
+
+    var hiddenCollectionKeys: [String] {
+        get { stringArray(forKey: profileKey(HomeKeys.hiddenCollectionKeys)) ?? [] }
+        set { set(newValue, forKey: profileKey(HomeKeys.hiddenCollectionKeys)) }
     }
 
     var posterSize: String {
@@ -481,6 +493,8 @@ extension UserDefaults {
         heroLayout = "billboard"
         showHeroSection = true
         showContinueWatching = true
+        showCollectionRows = true
+        hiddenCollectionKeys = []
         posterSize = "medium"
         showPosterTitles = true
 

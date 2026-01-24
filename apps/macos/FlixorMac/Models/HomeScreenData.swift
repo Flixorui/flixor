@@ -22,6 +22,7 @@ struct LibrarySection: Identifiable {
     let totalCount: Int
     let libraryKey: String?
     let browseContext: BrowseContext?
+    let isCollection: Bool
 
     init(
         id: String,
@@ -29,7 +30,8 @@ struct LibrarySection: Identifiable {
         items: [MediaItem],
         totalCount: Int,
         libraryKey: String?,
-        browseContext: BrowseContext? = nil
+        browseContext: BrowseContext? = nil,
+        isCollection: Bool = false
     ) {
         self.id = id
         self.title = title
@@ -37,6 +39,7 @@ struct LibrarySection: Identifiable {
         self.totalCount = totalCount
         self.libraryKey = libraryKey
         self.browseContext = browseContext
+        self.isCollection = isCollection
     }
 }
 
