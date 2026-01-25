@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import FlixorKit
 
 private struct DetailsLayoutMetrics {
     let width: CGFloat
@@ -396,6 +397,7 @@ struct DetailsView: View {
         case .library: router.libraryPath.append(item)
         case .myList: router.myListPath.append(item)
         case .newPopular: router.newPopularPath.append(item)
+        case .downloads: router.downloadsPath.append(item)
         }
     }
 
@@ -432,6 +434,7 @@ struct DetailsView: View {
         case .library: router.libraryPath.append(navItem)
         case .myList: router.myListPath.append(navItem)
         case .newPopular: router.newPopularPath.append(navItem)
+        case .downloads: router.downloadsPath.append(navItem)
         }
     }
 
@@ -541,6 +544,18 @@ private struct DetailsHeroSection: View {
     // Check if has Plex source
     private var hasPlexSource: Bool {
         vm.playableId != nil || vm.plexRatingKey != nil
+    }
+
+    // Get the Plex rating key from either plexRatingKey or playableId (format: "plex:12345")
+    private var effectivePlexRatingKey: String? {
+        if let rk = vm.plexRatingKey {
+            return rk
+        }
+        // Extract from playableId if it's a plex ID
+        if let playableId = vm.playableId, playableId.hasPrefix("plex:") {
+            return String(playableId.dropFirst(5))
+        }
+        return nil
     }
 
     // HDR/DV badge from technical info (uses hdrFormat which checks both videoProfile and displayTitle)
@@ -1034,6 +1049,27 @@ private struct DetailsHeroSection: View {
                         mediaType: overseerrMediaType,
                         title: vm.title,
                         style: .circle
+                    )
+                }
+
+                // Download button - circular (Apple TV+ style)
+                // Only show for movies and episodes (not TV shows or seasons) with a Plex source
+                if hasPlexSource,
+                   let ratingKey = effectivePlexRatingKey,
+                   let serverId = FlixorCore.shared.server?.id,
+                   (vm.mediaKind == "movie" || item.type == "movie" || isEpisode) {
+                    let downloadType: DownloadMediaType = isEpisode ? .episode : .movie
+                    DetailsDownloadButton(
+                        ratingKey: ratingKey,
+                        serverId: serverId,
+                        type: downloadType,
+                        title: vm.title,
+                        year: vm.year.flatMap { Int($0) },
+                        thumb: vm.posterURL?.absoluteString,
+                        grandparentTitle: item.grandparentTitle,
+                        grandparentRatingKey: item.grandparentRatingKey,
+                        parentIndex: item.parentIndex,
+                        index: item.index
                     )
                 }
             }
@@ -2097,6 +2133,21 @@ private struct EpisodesTabContent: View {
     private let cardWidth: CGFloat = 340
     private var cardHeight: CGFloat { 180 }
 
+    // Computed show info for downloads
+    private var showTitle: String {
+        // If viewing a show, use vm.title; if viewing a season/episode, use vm.showTitle
+        vm.showTitle ?? vm.title
+    }
+
+    private var showRatingKey: String? {
+        // If viewing a show, use vm.plexRatingKey; if viewing a season, use parentShowKey
+        vm.showRatingKey ?? vm.parentShowKey ?? vm.plexRatingKey
+    }
+
+    private var serverId: String? {
+        FlixorCore.shared.server?.id
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             // Season selector (hide in season-only mode)
@@ -2134,6 +2185,9 @@ private struct EpisodesTabContent: View {
                                 width: cardWidth,
                                 height: cardHeight,
                                 isDisabled: !hasPlexSource,
+                                showTitle: showTitle,
+                                showRatingKey: showRatingKey,
+                                serverId: serverId,
                                 onPlay: { onPlayEpisode(episode) }
                             )
                         }
@@ -2150,6 +2204,9 @@ private struct EpisodesTabContent: View {
                             episodeNumber: index + 1,
                             layout: layout,
                             isDisabled: !hasPlexSource,
+                            showTitle: showTitle,
+                            showRatingKey: showRatingKey,
+                            serverId: serverId,
                             onPlay: { onPlayEpisode(episode) }
                         )
                     }
@@ -2194,9 +2251,13 @@ private struct HorizontalEpisodeCard: View {
     let width: CGFloat
     let height: CGFloat
     var isDisabled: Bool = false
+    var showTitle: String = ""
+    var showRatingKey: String?
+    var serverId: String?
     let onPlay: () -> Void
 
     @State private var isHovered = false
+    @StateObject private var downloadManager = DownloadManager.shared
 
     private var progressPct: Double {
         Double(episode.progressPct ?? 0)
@@ -2306,24 +2367,41 @@ private struct HorizontalEpisodeCard: View {
                     }
                 }
 
-                // Completed checkmark
-                if isCompleted {
-                    VStack {
-                        HStack {
-                            Spacer()
-                            ZStack {
-                                Circle()
-                                    .fill(Color.white)
-                                    .frame(width: 22, height: 22)
-
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 12, weight: .bold))
-                                    .foregroundStyle(.black)
-                            }
-                            .padding(10)
-                        }
+                // Top-right buttons overlay
+                VStack {
+                    HStack {
                         Spacer()
+                        HStack(spacing: 6) {
+                            // Download button
+                            if let serverId = serverId {
+                                EpisodeDownloadButton(
+                                    ratingKey: episode.id,
+                                    serverId: serverId,
+                                    title: episode.title,
+                                    seasonNumber: episode.seasonNumber ?? 1,
+                                    episodeNumber: episode.episodeNumber ?? episodeNumber,
+                                    showTitle: showTitle,
+                                    showRatingKey: showRatingKey,
+                                    thumb: episode.image?.absoluteString
+                                )
+                            }
+
+                            // Completed checkmark
+                            if isCompleted {
+                                ZStack {
+                                    Circle()
+                                        .fill(Color.white)
+                                        .frame(width: 22, height: 22)
+
+                                    Image(systemName: "checkmark")
+                                        .font(.system(size: 12, weight: .bold))
+                                        .foregroundStyle(.black)
+                                }
+                            }
+                        }
+                        .padding(10)
                     }
+                    Spacer()
                 }
             }
             .frame(width: width, height: height)
@@ -2353,9 +2431,13 @@ private struct VerticalEpisodeRow: View {
     let episodeNumber: Int
     let layout: DetailsLayoutMetrics
     var isDisabled: Bool = false
+    var showTitle: String = ""
+    var showRatingKey: String?
+    var serverId: String?
     let onPlay: () -> Void
 
     @State private var isHovered = false
+    @StateObject private var downloadManager = DownloadManager.shared
 
     private var progressPct: Double {
         Double(episode.progressPct ?? 0)
@@ -2430,10 +2512,26 @@ private struct VerticalEpisodeRow: View {
 
                         Spacer()
 
-                        if isCompleted {
-                            Image(systemName: "checkmark.circle.fill")
-                                .font(.system(size: 18))
-                                .foregroundStyle(.green)
+                        HStack(spacing: 8) {
+                            // Download button
+                            if let serverId = serverId {
+                                EpisodeDownloadButton(
+                                    ratingKey: episode.id,
+                                    serverId: serverId,
+                                    title: episode.title,
+                                    seasonNumber: episode.seasonNumber ?? 1,
+                                    episodeNumber: episode.episodeNumber ?? episodeNumber,
+                                    showTitle: showTitle,
+                                    showRatingKey: showRatingKey,
+                                    thumb: episode.image?.absoluteString
+                                )
+                            }
+
+                            if isCompleted {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.system(size: 18))
+                                    .foregroundStyle(.green)
+                            }
                         }
                     }
 

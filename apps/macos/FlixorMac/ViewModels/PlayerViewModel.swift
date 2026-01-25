@@ -237,6 +237,80 @@ class PlayerViewModel: ObservableObject {
         setupNowPlayingInfo()
     }
 
+    /// Initialize for offline playback from a local file
+    init(offlineFilePath: String, title: String) {
+        // Create a minimal MediaItem for offline playback
+        self.item = MediaItem(
+            id: "offline",
+            title: title,
+            type: "movie",
+            thumb: nil,
+            art: nil,
+            year: nil,
+            rating: nil,
+            duration: nil,
+            viewOffset: nil,
+            summary: nil,
+            grandparentTitle: nil,
+            grandparentThumb: nil,
+            grandparentArt: nil,
+            grandparentRatingKey: nil,
+            parentIndex: nil,
+            index: nil,
+            parentRatingKey: nil,
+            parentTitle: nil,
+            leafCount: nil,
+            viewedLeafCount: nil
+        )
+
+        // Setup for offline playback
+        Task { @MainActor in
+            self.setupOfflinePlayer(filePath: offlineFilePath)
+        }
+    }
+
+    /// Setup player for offline file playback
+    private func setupOfflinePlayer(filePath: String) {
+        // Use MPV backend for offline playback (better file format support)
+        setupMPVController()
+
+        // Build file URL
+        let fileUrl = filePath.hasPrefix("file://") ? filePath : "file://\(filePath)"
+
+        print("[Player] Loading offline file: \(fileUrl)")
+        isLoading = true
+
+        // Wait for MPV to initialize before loading (view must be in window first)
+        Task { @MainActor in
+            guard let mpvController = self.mpvController else {
+                print("❌ [Player] MPV controller not available for offline playback")
+                self.error = "MPV controller not initialized"
+                return
+            }
+
+            // Wait for MPV to be initialized (view must be in window first)
+            var waitCount = 0
+            let maxWaitCount = 50 // 5 seconds max
+            while !mpvController.isInitialized && waitCount < maxWaitCount {
+                print("⏳ [Player] Waiting for MPV initialization for offline file... (\(waitCount)/\(maxWaitCount))")
+                try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
+                waitCount += 1
+            }
+
+            guard mpvController.isInitialized else {
+                print("❌ [Player] MPV failed to initialize for offline playback (timeout)")
+                self.error = "MPV failed to initialize"
+                return
+            }
+
+            print("🎬 [Player] MPV initialized, loading offline file: \(fileUrl)")
+            mpvController.loadFile(fileUrl, headers: nil)
+
+            // Start progress tracking
+            self.startProgressTracking()
+        }
+    }
+
     deinit {
         // Cleanup synchronously in deinit
         if let observer = timeObserver {

@@ -36,6 +36,34 @@ struct PlayerView: View {
         _viewModel = StateObject(wrappedValue: PlayerViewModel(item: item))
     }
 
+    /// Initialize with an offline (downloaded) media item
+    init(offlineItem: OfflineMediaItem) {
+        // Create a minimal MediaItem from the offline item
+        self.item = MediaItem(
+            id: offlineItem.ratingKey,
+            title: offlineItem.title,
+            type: offlineItem.type,
+            thumb: nil,
+            art: nil,
+            year: offlineItem.year,
+            rating: nil,
+            duration: nil,
+            viewOffset: nil,
+            summary: nil,
+            grandparentTitle: offlineItem.grandparentTitle,
+            grandparentThumb: nil,
+            grandparentArt: nil,
+            grandparentRatingKey: offlineItem.grandparentRatingKey,
+            parentIndex: offlineItem.parentIndex,
+            index: offlineItem.index,
+            parentRatingKey: nil,
+            parentTitle: nil,
+            leafCount: nil,
+            viewedLeafCount: nil
+        )
+        _viewModel = StateObject(wrappedValue: PlayerViewModel(offlineFilePath: offlineItem.filePath, title: offlineItem.displayTitle))
+    }
+
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
@@ -215,6 +243,7 @@ struct PlayerView: View {
                     case .library: router.libraryPath.append(nextItem)
                     case .myList: router.myListPath.append(nextItem)
                     case .newPopular: router.newPopularPath.append(nextItem)
+                    case .downloads: router.downloadsPath.append(nextItem)
                     }
                 }
             }

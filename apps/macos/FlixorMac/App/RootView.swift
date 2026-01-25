@@ -13,6 +13,7 @@ enum NavItem: String, CaseIterable, Identifiable {
     case library = "Library"
     case myList = "My List"
     case newPopular = "New & Popular"
+    case downloads = "Downloads"
     case search = "Search"
 
     var id: String { rawValue }
@@ -36,6 +37,7 @@ final class NavigationRouter: ObservableObject {
     @Published var libraryPath = NavigationPath()
     @Published var myListPath = NavigationPath()
     @Published var newPopularPath = NavigationPath()
+    @Published var downloadsPath = NavigationPath()
 
     func pathBinding(for tab: NavItem) -> Binding<NavigationPath> {
         Binding(
@@ -46,6 +48,7 @@ final class NavigationRouter: ObservableObject {
                 case .library: return self.libraryPath
                 case .myList: return self.myListPath
                 case .newPopular: return self.newPopularPath
+                case .downloads: return self.downloadsPath
                 }
             },
             set: { newValue in
@@ -55,6 +58,7 @@ final class NavigationRouter: ObservableObject {
                 case .library: self.libraryPath = newValue
                 case .myList: self.myListPath = newValue
                 case .newPopular: self.newPopularPath = newValue
+                case .downloads: self.downloadsPath = newValue
                 }
             }
         )
@@ -188,6 +192,12 @@ struct MainView: View {
                 }
                 .navigationDestination(for: DetailsNavigationItem.self) { navItem in
                     DetailsView(item: navItem.item)
+                }
+                .navigationDestination(for: OfflineMediaItem.self) { item in
+                    PlayerView(offlineItem: item)
+                        .toolbar(.hidden, for: .windowToolbar)
+                        .ignoresSafeArea(.all, edges: .all)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
         }
         .environmentObject(router)
@@ -328,6 +338,10 @@ struct MainView: View {
             if router.newPopularPath.count > 0 {
                 router.newPopularPath.removeLast(router.newPopularPath.count)
             }
+        case .downloads:
+            if router.downloadsPath.count > 0 {
+                router.downloadsPath.removeLast(router.downloadsPath.count)
+            }
         }
     }
 
@@ -344,6 +358,8 @@ struct MainView: View {
             MyListView()
         case .newPopular:
             NewPopularView()
+        case .downloads:
+            DownloadsView()
         }
     }
 }
