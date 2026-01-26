@@ -85,17 +85,9 @@ export default function Library() {
     setItems([]);
 
     try {
-      // Resolve a concrete section key based on pill
-      const useSection =
-        mType === 'show'
-          ? sectionKeys.show
-          : mType === 'movie'
-            ? sectionKeys.movie
-            : sectionKeys.show || sectionKeys.movie;
-
-      if (useSection) {
+      if (resolvedLibraryKey) {
         console.log('[Library] Fetching items...');
-        const result = await fetchLibraryItems(useSection, {
+        const result = await fetchLibraryItems(resolvedLibraryKey, {
           type: mType === 'all' ? 'all' : mType,
           offset: 0,
           limit: ITEM_LIMITS.GRID_PAGE,
@@ -112,7 +104,19 @@ export default function Library() {
     }
 
     setRefreshing(false);
-  }, [flixor, mType, sectionKeys, genreKey, sortOption]);
+  }, [flixor, mType, resolvedLibraryKey, genreKey, sortOption]);
+
+  // Get user's library preferences from settings
+  const { settings } = useAppSettings();
+
+  // Read libraryKey and libraryTitle from route params (passed from BrowseModal library selection)
+  const { routeLibraryKey, routeLibraryTitle } = useMemo(() => {
+    const params = route.params as any;
+    return {
+      routeLibraryKey: params?.libraryKey as string | undefined,
+      routeLibraryTitle: params?.libraryTitle as string | undefined,
+    };
+  }, [route.params]);
 
   // Read route params to set initial selection and genre filter
   useEffect(() => {
@@ -132,6 +136,37 @@ export default function Library() {
     }
     console.log('[Library] route params:', params);
   }, [route.params]);
+
+  // Resolve which library key to use with priority:
+  // 1. Explicit libraryKey from navigation (e.g., BrowseModal library selection)
+  // 2. User's preferred library from settings (for Movies/Shows pill navigation)
+  // 3. Fallback to first library of type from sectionKeys
+  const resolvedLibraryKey = useMemo(() => {
+    // Priority 1: Explicit libraryKey from navigation
+    if (routeLibraryKey) {
+      console.log('[Library] Using explicit libraryKey from route:', routeLibraryKey);
+      return routeLibraryKey;
+    }
+
+    // Priority 2: User's preferred library from settings
+    if (mType === 'movie' && settings.moviesLibraryKey) {
+      console.log('[Library] Using moviesLibraryKey from settings:', settings.moviesLibraryKey);
+      return settings.moviesLibraryKey;
+    }
+    if (mType === 'show' && settings.showsLibraryKey) {
+      console.log('[Library] Using showsLibraryKey from settings:', settings.showsLibraryKey);
+      return settings.showsLibraryKey;
+    }
+
+    // Priority 3: Fallback to first library of type
+    const fallback = mType === 'show'
+      ? sectionKeys.show
+      : mType === 'movie'
+        ? sectionKeys.movie
+        : sectionKeys.show || sectionKeys.movie;
+    console.log('[Library] Using fallback sectionKey:', fallback);
+    return fallback;
+  }, [routeLibraryKey, mType, settings.moviesLibraryKey, settings.showsLibraryKey, sectionKeys]);
 
   useFocusEffect(
     useCallback(() => {
@@ -159,6 +194,8 @@ export default function Library() {
       compact: false,
       customFilters: undefined,
       activeGenre: genreName,
+      // Show library name in pill when navigating from BrowseModal library selection
+      customPillLabel: routeLibraryTitle,
       onNavigateLibrary: undefined,
       onClose: () => {
         if (nav.canGoBack()) {
@@ -170,12 +207,13 @@ export default function Library() {
       },
       onClearGenre: clearGenreFilter,
     });
-  }, [isFocused, selected, nav, genreName, clearGenreFilter]);
+  }, [isFocused, selected, nav, genreName, clearGenreFilter, routeLibraryTitle]);
 
-  // Clean up activeGenre when leaving Library
+  // Clean up activeGenre and customPillLabel when leaving Library
   useEffect(() => {
     return () => {
       TopBarStore.setActiveGenre(undefined);
+      TopBarStore.setCustomPillLabel(undefined);
       TopBarStore.setHandlers({ onClearGenre: undefined });
     };
   }, []);
@@ -198,10 +236,10 @@ export default function Library() {
     })();
   }, [flixorLoading, isConnected]);
 
-  // Load items when section keys, type, genre, or sort changes
+  // Load items when resolved library key, type, genre, or sort changes
   useEffect(() => {
     if (flixorLoading || !isConnected) return;
-    if (!sectionKeys.show && !sectionKeys.movie) return;
+    if (!resolvedLibraryKey) return;
 
     setLoading(true);
     setError(null);
@@ -209,47 +247,31 @@ export default function Library() {
 
     (async () => {
       try {
-        // Resolve a concrete section key based on pill, or fall back to first available section
-        const useSection =
-          mType === 'show'
-            ? sectionKeys.show
-            : mType === 'movie'
-              ? sectionKeys.movie
-              : sectionKeys.show || sectionKeys.movie;
+        console.log('[Library] load items', { selected, mType, resolvedLibraryKey, genreKey, sort: sortOption.value });
 
-        console.log('[Library] load items', { selected, mType, useSection, genreKey, sort: sortOption.value });
+        const result = await fetchLibraryItems(resolvedLibraryKey, {
+          type: mType === 'all' ? 'all' : mType,
+          offset: 0,
+          limit: ITEM_LIMITS.GRID_PAGE,
+          genreKey,
+          sort: sortOption.value,
+        });
 
-        if (useSection) {
-          const result = await fetchLibraryItems(useSection, {
-            type: mType === 'all' ? 'all' : mType,
-            offset: 0,
-            limit: ITEM_LIMITS.GRID_PAGE,
-            genreKey,
-            sort: sortOption.value,
-          });
-
-          console.log('[Library] mapped first page', result.items.length);
-          // Preload images for smoother scrolling
-          const preloadSize = Math.floor(Dimensions.get('window').width / 3);
-          const imagesToPreload = result.items
-            .slice(0, IMAGE_PRELOAD_CAP)
-            .filter((item) => item.thumb)
-            .map((item) => ({ uri: getLibraryImageUrl(item.thumb, preloadSize * 2) }));
-          if (imagesToPreload.length > 0) {
-            FastImage.preload(imagesToPreload);
-          }
-          // Use InteractionManager to defer state updates for smoother UI
-          InteractionManager.runAfterInteractions(() => {
-            setItems(result.items);
-            setHasMore(result.hasMore);
-          });
-        } else {
-          console.log('[Library] no section found; showing empty');
-          InteractionManager.runAfterInteractions(() => {
-            setItems([]);
-            setHasMore(false);
-          });
+        console.log('[Library] mapped first page', result.items.length);
+        // Preload images for smoother scrolling
+        const preloadSize = Math.floor(Dimensions.get('window').width / 3);
+        const imagesToPreload = result.items
+          .slice(0, IMAGE_PRELOAD_CAP)
+          .filter((item) => item.thumb)
+          .map((item) => ({ uri: getLibraryImageUrl(item.thumb, preloadSize * 2) }));
+        if (imagesToPreload.length > 0) {
+          FastImage.preload(imagesToPreload);
         }
+        // Use InteractionManager to defer state updates for smoother UI
+        InteractionManager.runAfterInteractions(() => {
+          setItems(result.items);
+          setHasMore(result.hasMore);
+        });
       } catch (e: any) {
         setError(e?.message || 'Failed to load library');
       } finally {
@@ -258,39 +280,30 @@ export default function Library() {
         });
       }
     })();
-  }, [flixorLoading, isConnected, mType, sectionKeys, genreKey, sortOption]);
+  }, [flixorLoading, isConnected, mType, resolvedLibraryKey, genreKey, sortOption]);
 
   const loadMore = async () => {
-    if (!hasMore || loadingMoreRef.current) return;
+    if (!hasMore || loadingMoreRef.current || !resolvedLibraryKey) return;
     loadingMoreRef.current = true;
 
     try {
       const nextPage = page + 1;
-      const useSection =
-        mType === 'show'
-          ? sectionKeys.show
-          : mType === 'movie'
-            ? sectionKeys.movie
-            : sectionKeys.show || sectionKeys.movie;
+      const offset = (nextPage - 1) * 40;
+      const result = await fetchLibraryItems(resolvedLibraryKey, {
+        type: mType === 'all' ? 'all' : mType,
+        offset,
+        limit: ITEM_LIMITS.GRID_PAGE,
+        genreKey,
+        sort: sortOption.value,
+      });
 
-      if (useSection) {
-        const offset = (nextPage - 1) * 40;
-        const result = await fetchLibraryItems(useSection, {
-          type: mType === 'all' ? 'all' : mType,
-          offset,
-          limit: ITEM_LIMITS.GRID_PAGE,
-          genreKey,
-          sort: sortOption.value,
-        });
-
-        console.log('[Library] loadMore page', nextPage, 'count', result.items.length);
-        // Use InteractionManager to defer state updates for smoother scrolling
-        InteractionManager.runAfterInteractions(() => {
-          setItems((prev) => [...prev, ...result.items]);
-          setPage(nextPage);
-          setHasMore(result.hasMore);
-        });
-      }
+      console.log('[Library] loadMore page', nextPage, 'count', result.items.length);
+      // Use InteractionManager to defer state updates for smoother scrolling
+      InteractionManager.runAfterInteractions(() => {
+        setItems((prev) => [...prev, ...result.items]);
+        setPage(nextPage);
+        setHasMore(result.hasMore);
+      });
     } catch (e) {
       console.log('[Library] loadMore error:', e);
     }

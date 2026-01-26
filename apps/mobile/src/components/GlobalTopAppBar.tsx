@@ -18,6 +18,7 @@ export default function GlobalTopAppBar({ screenContext }: Props) {
   const compact = useTopBarStore((st) => st.compact === true);
   const customFilters = useTopBarStore((st) => st.customFilters);
   const activeGenre = useTopBarStore((st) => st.activeGenre);
+  const customPillLabel = useTopBarStore((st) => st.customPillLabel);
 
   // Re-render only when the scrollY reference changes (screen switch)
   const scrollY = useTopBarStore((st) => st.scrollY);
@@ -54,6 +55,7 @@ export default function GlobalTopAppBar({ screenContext }: Props) {
       customFilters={customFilters}
       activeGenre={activeGenre}
       onClearGenre={onClearGenre}
+      customPillLabel={customPillLabel}
       onHeightChange={(h)=> TopBarStore.setHeight(h)}
     />
   );

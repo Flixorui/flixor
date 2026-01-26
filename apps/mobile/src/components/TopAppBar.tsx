@@ -16,7 +16,7 @@ if (Platform.OS === 'android') {
   UIManager.setLayoutAnimationEnabledExperimental?.(true);
 }
 
-function TopAppBar({ visible, username, showFilters, selected, onChange, onOpenCategories, onNavigateLibrary, onClose, scrollY, onHeightChange, compact, customFilters, activeGenre, onClearGenre }: {
+function TopAppBar({ visible, username, showFilters, selected, onChange, onOpenCategories, onNavigateLibrary, onClose, scrollY, onHeightChange, compact, customFilters, activeGenre, onClearGenre, customPillLabel }: {
   visible: boolean;
   username?: string;
   showFilters?: boolean;
@@ -31,6 +31,7 @@ function TopAppBar({ visible, username, showFilters, selected, onChange, onOpenC
   customFilters?: React.ReactNode; // Custom filter content (e.g., tab pills for NewHot)
   activeGenre?: string;
   onClearGenre?: ()=>void;
+  customPillLabel?: string; // Custom label for pill when browsing specific library
 }) {
   const insets = useSafeAreaInsets();
 
@@ -154,6 +155,7 @@ function TopAppBar({ visible, username, showFilters, selected, onChange, onOpenC
                   onClose={onClose}
                   activeGenre={activeGenre}
                   onClearGenre={onClearGenre}
+                  customPillLabel={customPillLabel}
                 />
               </Animated.View>
             </View>

@@ -171,6 +171,14 @@ export default function Settings({ onBack }: SettingsProps) {
           onPress={() => nav.navigate('CatalogSettings')}
           isLast={false}
         />
+        <SettingItem
+          title="Library Mapping"
+          description="Choose libraries for Movies & TV Shows pills"
+          icon="layers-outline"
+          renderRight={renderRightChevron}
+          onPress={() => nav.navigate('LibraryMappingSettings')}
+          isLast={false}
+        />
       <SettingItem
         title="Home Screen"
         description="Hero and row visibility"

@@ -18,6 +18,7 @@ type State = {
   compact?: boolean;
   customFilters?: React.ReactNode;
   activeGenre?: string;
+  customPillLabel?: string; // Custom label for pill when browsing specific library
   height: number;
 };
 
@@ -38,6 +39,7 @@ const state: State = {
   compact: false,
   customFilters: undefined,
   activeGenre: undefined,
+  customPillLabel: undefined,
   height: 90,
 };
 
@@ -68,6 +70,7 @@ export const TopBarStore = {
   setCompact(v: boolean) { if (state.compact !== v) { state.compact = v; emit(); } },
   setCustomFilters(v?: React.ReactNode) { if (state.customFilters !== v) { state.customFilters = v; emit(); } },
   setActiveGenre(v?: string) { if (state.activeGenre !== v) { state.activeGenre = v; emit(); } },
+  setCustomPillLabel(v?: string) { if (state.customPillLabel !== v) { state.customPillLabel = v; emit(); } },
   setScrollY(y?: Animated.Value) {
     if (state.scrollY !== y) {
       state.scrollY = y;

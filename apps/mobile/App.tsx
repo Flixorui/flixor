@@ -60,6 +60,7 @@ import UpdateSettings from './src/screens/settings/UpdateSettings';
 import PlayerSettings from './src/screens/settings/PlayerSettings';
 import LogsScreen from './src/screens/settings/LogsScreen';
 import CollectionRowsSettings from './src/screens/settings/CollectionRowsSettings';
+import LibraryMappingSettings from './src/screens/settings/LibraryMappingSettings';
 import * as Haptics from 'expo-haptics';
 import UpdatePopup from './src/components/UpdatePopup';
 import { useUpdateCheck } from './src/hooks/useUpdateCheck';
@@ -297,6 +298,7 @@ const SettingsTabScreen = React.memo(() => (
     <SettingsStack.Screen name="PlayerSettings" component={PlayerSettings} />
     <SettingsStack.Screen name="LogsScreen" component={LogsScreen} />
     <SettingsStack.Screen name="CollectionRowsSettings" component={CollectionRowsSettings} />
+    <SettingsStack.Screen name="LibraryMappingSettings" component={LibraryMappingSettings} />
   </SettingsStack.Navigator>
 ));
 

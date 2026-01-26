@@ -303,6 +303,9 @@ export interface AppSettings {
   heroLayout: 'legacy' | 'carousel' | 'appletv';
   continueWatchingLayout: 'poster' | 'landscape';
   enabledLibraryKeys?: string[];
+  // Library mapping for Home screen pills
+  moviesLibraryKey?: string; // User's preferred movie library for Movies pill
+  showsLibraryKey?: string; // User's preferred TV shows library for Shows pill
   // Android-specific settings
   enableAndroidBlurView: boolean; // Enable blur effects on Android (may impact performance)
   // Details screen rating visibility settings
@@ -371,6 +374,9 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   heroLayout: 'carousel',
   continueWatchingLayout: 'landscape',
   enabledLibraryKeys: undefined,
+  // Library mapping defaults
+  moviesLibraryKey: undefined, // Auto-select first movie library
+  showsLibraryKey: undefined, // Auto-select first TV shows library
   // Android-specific defaults
   enableAndroidBlurView: false, // Disabled by default for performance
   // Details screen rating visibility defaults
@@ -598,4 +604,21 @@ export async function setDiscoveryDisabled(disabled: boolean): Promise<void> {
     // Just update the master toggle, don't change individual settings
     await setAppSettings({ discoveryDisabled: false });
   }
+}
+
+// Library mapping helpers
+export function getMoviesLibraryKey(): string | undefined {
+  return cachedSettings.moviesLibraryKey;
+}
+
+export async function setMoviesLibraryKey(key: string | undefined): Promise<void> {
+  await setAppSettings({ moviesLibraryKey: key });
+}
+
+export function getShowsLibraryKey(): string | undefined {
+  return cachedSettings.showsLibraryKey;
+}
+
+export async function setShowsLibraryKey(key: string | undefined): Promise<void> {
+  await setAppSettings({ showsLibraryKey: key });
 }

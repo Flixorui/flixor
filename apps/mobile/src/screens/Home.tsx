@@ -1407,6 +1407,7 @@ export default function Home({ onLogout }: HomeProps) {
           nav.navigate('Library', {
             tab: library.type === 'movie' ? 'movies' : 'tv',
             libraryKey: library.key,
+            libraryTitle: library.title,
           });
         }}
       />
