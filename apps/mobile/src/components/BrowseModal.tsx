@@ -34,7 +34,7 @@ export default function BrowseModal({
   const [movieGenres, setMovieGenres] = useState<GenreItem[]>([]);
   const [tvGenres, setTvGenres] = useState<GenreItem[]>([]);
   const [libraries, setLibraries] = useState<Array<{ key: string; title: string; type: string }>>([]);
-  const [activeTab, setActiveTab] = useState<'movies' | 'tvshows' | 'libraries'>('movies');
+  const [activeTab, setActiveTab] = useState<'movies' | 'tvshows' | 'libraries'>('libraries');
 
   useEffect(() => {
     if (visible) {
@@ -145,6 +145,14 @@ export default function BrowseModal({
           {/* Tabs */}
           <View style={styles.tabs}>
             <Pressable
+              style={[styles.tab, activeTab === 'libraries' && styles.tabActive]}
+              onPress={() => setActiveTab('libraries')}
+            >
+              <Text style={[styles.tabText, activeTab === 'libraries' && styles.tabTextActive]}>
+                Libraries
+              </Text>
+            </Pressable>
+            <Pressable
               style={[styles.tab, activeTab === 'movies' && styles.tabActive]}
               onPress={() => setActiveTab('movies')}
             >
@@ -160,14 +168,6 @@ export default function BrowseModal({
                 TV Shows
               </Text>
             </Pressable>
-            <Pressable
-              style={[styles.tab, activeTab === 'libraries' && styles.tabActive]}
-              onPress={() => setActiveTab('libraries')}
-            >
-              <Text style={[styles.tabText, activeTab === 'libraries' && styles.tabTextActive]}>
-                Libraries
-              </Text>
-            </Pressable>
           </View>
 
           {/* Content */}
@@ -181,9 +181,9 @@ export default function BrowseModal({
               contentContainerStyle={styles.scrollContent}
               showsVerticalScrollIndicator={false}
             >
+              {activeTab === 'libraries' && renderLibraries()}
               {activeTab === 'movies' && renderGenreGrid(movieGenres, 'movie')}
               {activeTab === 'tvshows' && renderGenreGrid(tvGenres, 'tv')}
-              {activeTab === 'libraries' && renderLibraries()}
             </ScrollView>
           )}
         </View>
