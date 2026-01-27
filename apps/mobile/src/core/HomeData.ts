@@ -14,6 +14,13 @@ export type RowItem = {
   mediaType?: 'movie' | 'tv';
 };
 
+// Extended type for Trakt Continue Watching with backdrop and progress
+export type TraktContinueWatchingItem = RowItem & {
+  backdrop?: string;
+  progress: number; // 0-100
+  subtitle?: string; // e.g., "S1E5" for episodes
+};
+
 // ============================================
 // Helper: Parallel processing with concurrency limit
 // ============================================
@@ -397,6 +404,84 @@ export async function fetchTraktWatchlist(): Promise<RowItem[]> {
     });
   } catch (e) {
     console.log('[HomeData] fetchTraktWatchlist error:', e);
+    return [];
+  }
+}
+
+/**
+ * Fetch Trakt Continue Watching (playback progress)
+ * Returns items the user has started but not finished watching
+ */
+export async function fetchTraktContinueWatching(): Promise<TraktContinueWatchingItem[]> {
+  try {
+    const core = getFlixorCore();
+    if (!core.isTraktAuthenticated) return [];
+
+    const playbackItems = await core.trakt.getPlaybackProgress();
+
+    // Filter out completed items (progress >= 90%) and sort by most recent
+    const inProgressItems = playbackItems
+      .filter((item) => item.progress < 90)
+      .sort((a, b) => new Date(b.paused_at).getTime() - new Date(a.paused_at).getTime());
+
+    // Deduplicate: for shows, only keep the most recent episode per show
+    const seenIds = new Set<string>();
+    const uniqueItems = inProgressItems.filter((item) => {
+      const isMovie = item.type === 'movie';
+      const media = isMovie ? item.movie : item.show;
+      const tmdbId = media?.ids?.tmdb;
+      const type = isMovie ? 'movie' : 'tv';
+      const id = tmdbId ? `tmdb:${type}:${tmdbId}` : `trakt:${type}:${media?.ids?.trakt}`;
+      if (seenIds.has(id)) return false;
+      seenIds.add(id);
+      return true;
+    });
+
+    return withLimit(uniqueItems.slice(0, 12), 5, async (item) => {
+      const isMovie = item.type === 'movie';
+      const media = isMovie ? item.movie : item.show;
+      const tmdbId = media?.ids?.tmdb;
+      const type = isMovie ? 'movie' : 'tv';
+      let image: string | undefined;
+      let backdrop: string | undefined;
+
+      if (tmdbId) {
+        try {
+          const details = isMovie
+            ? await core.tmdb.getMovieDetails(tmdbId)
+            : await core.tmdb.getTVDetails(tmdbId);
+          image = details.poster_path
+            ? core.tmdb.getPosterUrl(details.poster_path, 'w342')
+            : undefined;
+          // Fetch backdrop with title burned in (like Plex Continue Watching)
+          backdrop = await getTmdbBackdropWithTitle(tmdbId, type);
+          // Fallback to regular backdrop if no title version available
+          if (!backdrop && details.backdrop_path) {
+            backdrop = core.tmdb.getBackdropUrl(details.backdrop_path, 'w780');
+          }
+        } catch {}
+      }
+
+      // For episodes, use show title as main title, episode info as subtitle
+      let title = media?.title || '';
+      let subtitle: string | undefined;
+      if (!isMovie && item.episode) {
+        title = item.show?.title || '';
+        subtitle = `S${item.episode.season}E${item.episode.number}`;
+      }
+
+      return {
+        id: tmdbId ? `tmdb:${type}:${tmdbId}` : `trakt:${type}:${media?.ids?.trakt}`,
+        title,
+        subtitle,
+        image,
+        backdrop,
+        progress: item.progress,
+        mediaType: type as 'movie' | 'tv',
+      };
+    });
+  } catch (e) {
+    console.log('[HomeData] fetchTraktContinueWatching error:', e);
     return [];
   }
 }

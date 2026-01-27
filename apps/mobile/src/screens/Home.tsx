@@ -9,6 +9,8 @@ import Row from '../components/Row';
 import LazyRow from '../components/LazyRow';
 import ContinueWatchingLandscapeRow from '../components/ContinueWatchingLandscapeRow';
 import ContinueWatchingPosterRow from '../components/ContinueWatchingPosterRow';
+import TraktContinueWatchingLandscapeRow from '../components/TraktContinueWatchingLandscapeRow';
+import TraktContinueWatchingPosterRow from '../components/TraktContinueWatchingPosterRow';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { TopBarStore } from '../components/TopBarStore';
 import { TOP_BAR_EXPANDED_CONTENT_HEIGHT } from '../components/topBarMetrics';
@@ -33,6 +35,7 @@ import {
   fetchTraktWatchlist,
   fetchTraktHistory,
   fetchTraktRecommendations,
+  fetchTraktContinueWatching,
   fetchCollectionRowsForHome,
   getPlexImageUrl,
   getContinueWatchingImageUrl,
@@ -46,6 +49,7 @@ import {
   getUsername,
   convertPlexItemsToHero,
   RowItem,
+  TraktContinueWatchingItem,
   GenreItem,
   PlexUltraBlurColors,
   HeroItem,
@@ -125,6 +129,7 @@ export default function Home({ onLogout }: HomeProps) {
   const [traktMyWatchlist, setTraktMyWatchlist] = useState<RowItem[]>([]);
   const [traktHistory, setTraktHistory] = useState<RowItem[]>([]);
   const [traktRecommendations, setTraktRecommendations] = useState<RowItem[]>([]);
+  const [traktContinueWatching, setTraktContinueWatching] = useState<TraktContinueWatchingItem[]>([]);
 
   // Collection rows
   const [collectionRows, setCollectionRows] = useState<CollectionRowData[]>([]);
@@ -238,6 +243,7 @@ export default function Home({ onLogout }: HomeProps) {
     setTraktMyWatchlist([]);
     setTraktHistory([]);
     setTraktRecommendations([]);
+    setTraktContinueWatching([]);
     setCollectionRows([]);
     setHeroCarouselData([]);
 
@@ -603,6 +609,13 @@ export default function Home({ onLogout }: HomeProps) {
           InteractionManager.runAfterInteractions(() => setTraktRecommendations(items));
         }).catch(() => {});
 
+        // Trakt Continue Watching (only if enabled in settings)
+        if (settings.showTraktContinueWatching) {
+          fetchTraktContinueWatching().then((items) => {
+            InteractionManager.runAfterInteractions(() => setTraktContinueWatching(items));
+          }).catch(() => setTraktContinueWatching([]));
+        }
+
         // Collection rows - load in background (deferred)
         if (settings.showCollectionRows) {
           fetchCollectionRowsForHome(10).then((rows) => {
@@ -893,14 +906,19 @@ export default function Home({ onLogout }: HomeProps) {
       const cancel = scheduleIdleWork(async () => {
         try {
           await new Promise(resolve => setTimeout(resolve, 500));
-          const results = await Promise.allSettled([
+          const promises: Promise<RowItem[]>[] = [
             fetchTraktTrendingMovies(),
             fetchTraktTrendingShows(),
             fetchTraktPopularShows(),
             fetchTraktWatchlist(),
             fetchTraktHistory(),
             fetchTraktRecommendations(),
-          ]);
+          ];
+          // Add Trakt Continue Watching refresh if enabled
+          if (settings.showTraktContinueWatching) {
+            promises.push(fetchTraktContinueWatching());
+          }
+          const results = await Promise.allSettled(promises);
           const tval = <T,>(i: number): T =>
             results[i].status === 'fulfilled'
               ? (results[i] as PromiseFulfilledResult<T>).value
@@ -919,12 +937,18 @@ export default function Home({ onLogout }: HomeProps) {
           setTraktMyWatchlist(prev => (isSameRowList(prev, nextWatchlist) ? prev : nextWatchlist));
           setTraktHistory(prev => (isSameRowList(prev, nextHistory) ? prev : nextHistory));
           setTraktRecommendations(prev => (isSameRowList(prev, nextRecommendations) ? prev : nextRecommendations));
+
+          // Update Trakt Continue Watching if enabled
+          if (settings.showTraktContinueWatching && results.length > 6) {
+            const nextContinueWatching = tval<TraktContinueWatchingItem[]>(6);
+            setTraktContinueWatching(prev => (isSameRowList(prev, nextContinueWatching) ? prev : nextContinueWatching));
+          }
           lastTraktRefreshRef.current = Date.now();
         } catch {}
       }, 1200);
 
       return cancel;
-    }, [loading, isSameRowList, scheduleIdleWork])
+    }, [loading, isSameRowList, scheduleIdleWork, settings.showTraktContinueWatching])
   );
 
   const getRowUri = useCallback((it: RowItem) => it.image, []);
@@ -1200,6 +1224,31 @@ export default function Home({ onLogout }: HomeProps) {
             )
           )}
 
+          {/* Trakt Continue Watching Row */}
+          {settings.showTraktContinueWatching && traktContinueWatching.length > 0 && (
+            settings.continueWatchingLayout === 'landscape' ? (
+              <TraktContinueWatchingLandscapeRow
+                items={traktContinueWatching}
+                onItemPress={(item) => onRowPress(item)}
+                onBrowsePress={() => openRowBrowse(
+                  { type: 'trakt', kind: 'continueWatching', mediaType: 'movie', title: 'Continue Watching (Trakt)' } as any,
+                  'Continue Watching (Trakt)',
+                  traktContinueWatching
+                )}
+              />
+            ) : (
+              <TraktContinueWatchingPosterRow
+                items={traktContinueWatching}
+                onItemPress={(item) => onRowPress(item)}
+                onBrowsePress={() => openRowBrowse(
+                  { type: 'trakt', kind: 'continueWatching', mediaType: 'movie', title: 'Continue Watching (Trakt)' } as any,
+                  'Continue Watching (Trakt)',
+                  traktContinueWatching
+                )}
+              />
+            )
+          )}
+
           {/* Collection Rows */}
           {settings.showCollectionRows && collectionRows.map((collection) => (
             collection.items.length > 0 ? (
@@ -1319,36 +1368,39 @@ export default function Home({ onLogout }: HomeProps) {
 
           {settings.showTraktRows && tab !== 'shows' && traktTrendMovies.length > 0 && (
             <LazyRow
-              title="Trending Movies on Trakt"
+              title="Trending Movies"
+              badge={{ text: 'Trakt' }}
               items={traktTrendMovies}
               getImageUri={getRowUri}
               getTitle={getRowTitle}
               onItemPress={onRowPress}
-              onBrowsePress={() => openRowBrowse({ type: 'trakt', kind: 'trending', mediaType: 'movie', title: 'Trending Movies on Trakt' }, 'Trending Movies on Trakt', traktTrendMovies)}
+              onBrowsePress={() => openRowBrowse({ type: 'trakt', kind: 'trending', mediaType: 'movie', title: 'Trending Movies' }, 'Trending Movies', traktTrendMovies)}
               keyPrefix="trakt-trend-movies-"
             />
           )}
 
           {settings.showTraktRows && tab !== 'movies' && traktTrendShows.length > 0 && (
             <LazyRow
-              title="Trending TV Shows on Trakt"
+              title="Trending Shows"
+              badge={{ text: 'Trakt' }}
               items={traktTrendShows}
               getImageUri={getRowUri}
               getTitle={getRowTitle}
               onItemPress={onRowPress}
-              onBrowsePress={() => openRowBrowse({ type: 'trakt', kind: 'trending', mediaType: 'tv', title: 'Trending TV Shows on Trakt' }, 'Trending TV Shows on Trakt', traktTrendShows)}
+              onBrowsePress={() => openRowBrowse({ type: 'trakt', kind: 'trending', mediaType: 'tv', title: 'Trending Shows' }, 'Trending Shows', traktTrendShows)}
               keyPrefix="trakt-trend-shows-"
             />
           )}
 
           {settings.showTraktRows && traktMyWatchlist.length > 0 && (
             <LazyRow
-              title="Your Trakt Watchlist"
+              title="Watchlist"
+              badge={{ text: 'Trakt' }}
               items={traktMyWatchlist}
               getImageUri={getRowUri}
               getTitle={getRowTitle}
               onItemPress={onRowPress}
-              onBrowsePress={() => openRowBrowse({ type: 'trakt', kind: 'watchlist', mediaType: 'movie', title: 'Your Trakt Watchlist' }, 'Your Trakt Watchlist', traktMyWatchlist)}
+              onBrowsePress={() => openRowBrowse({ type: 'trakt', kind: 'watchlist', mediaType: 'movie', title: 'Watchlist' }, 'Watchlist', traktMyWatchlist)}
               keyPrefix="trakt-watchlist-"
             />
           )}
@@ -1356,6 +1408,7 @@ export default function Home({ onLogout }: HomeProps) {
           {settings.showTraktRows && traktHistory.length > 0 && (
             <LazyRow
               title="Recently Watched"
+              badge={{ text: 'Trakt' }}
               items={traktHistory}
               getImageUri={getRowUri}
               getTitle={getRowTitle}
@@ -1368,6 +1421,7 @@ export default function Home({ onLogout }: HomeProps) {
           {settings.showTraktRows && traktRecommendations.length > 0 && (
             <LazyRow
               title="Recommended for You"
+              badge={{ text: 'Trakt' }}
               items={traktRecommendations}
               getImageUri={getRowUri}
               getTitle={getRowTitle}
@@ -1379,12 +1433,13 @@ export default function Home({ onLogout }: HomeProps) {
 
           {settings.showTraktRows && traktPopularShows.length > 0 && (
             <LazyRow
-              title="Popular TV Shows on Trakt"
+              title="Popular Shows"
+              badge={{ text: 'Trakt' }}
               items={traktPopularShows}
               getImageUri={getRowUri}
               getTitle={getRowTitle}
               onItemPress={onRowPress}
-              onBrowsePress={() => openRowBrowse({ type: 'trakt', kind: 'trending', mediaType: 'tv', title: 'Popular TV Shows on Trakt' }, 'Popular TV Shows on Trakt', traktPopularShows)}
+              onBrowsePress={() => openRowBrowse({ type: 'trakt', kind: 'trending', mediaType: 'tv', title: 'Popular Shows' }, 'Popular Shows', traktPopularShows)}
               keyPrefix="trakt-popular-shows-"
             />
           )}

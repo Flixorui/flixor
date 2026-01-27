@@ -135,6 +135,19 @@ export default function HomeScreenSettings() {
             isLast={false}
           />
           <SettingItem
+            title="Trakt Continue Watching"
+            description={settings.discoveryDisabled ? "Disabled by Library Only Mode" : "Show in-progress items synced from Trakt"}
+            icon="time-outline"
+            renderRight={() => (
+              <Switch
+                value={settings.showTraktContinueWatching}
+                onValueChange={(value) => updateSetting('showTraktContinueWatching', value)}
+                disabled={settings.discoveryDisabled}
+              />
+            )}
+            isLast={false}
+          />
+          <SettingItem
             title="Popular on Plex"
             description={settings.discoveryDisabled ? "Disabled by Library Only Mode" : "Show Plex popularity row"}
             icon="flame-outline"

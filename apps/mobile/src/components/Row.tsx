@@ -4,9 +4,15 @@ import Poster from './Poster';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 
-function Row({ title, titleIcon, items, getImageUri, getTitle, getSubtitle, authHeaders, onItemPress, onTitlePress, onBrowsePress, keyPrefix = '' }: {
+export interface RowBadge {
+  text: string;
+  color?: string;
+}
+
+function Row({ title, titleIcon, badge, items, getImageUri, getTitle, getSubtitle, authHeaders, onItemPress, onTitlePress, onBrowsePress, keyPrefix = '' }: {
   title: string;
   titleIcon?: keyof typeof Ionicons.glyphMap;
+  badge?: RowBadge;
   items: any[];
   getImageUri: (item: any) => string | undefined;
   getTitle: (item: any) => string | undefined;
@@ -36,6 +42,11 @@ function Row({ title, titleIcon, items, getImageUri, getTitle, getSubtitle, auth
         >
           {titleIcon && (
             <Ionicons name={titleIcon} size={16} color="#fff" style={styles.titleIcon} />
+          )}
+          {badge && (
+            <View style={[styles.badge, badge.color ? { backgroundColor: badge.color } : null]}>
+              <Text style={styles.badgeText}>{badge.text}</Text>
+            </View>
           )}
           <Text style={styles.title}>{title}</Text>
           {(onBrowsePress || onTitlePress) && (
@@ -96,6 +107,18 @@ const styles = StyleSheet.create({
   },
   titleIcon: {
     marginRight: 6,
+  },
+  badge: {
+    backgroundColor: '#ED1C24',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginRight: 8,
+  },
+  badgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '600',
   },
 });
 

@@ -66,6 +66,7 @@ export type {
   TraktRecommendation,
   TraktUser,
   TraktStats,
+  TraktPlaybackItem,
 } from './trakt';
 
 // Browse models

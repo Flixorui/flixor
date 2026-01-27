@@ -183,6 +183,17 @@ export interface TraktUser {
   };
 }
 
+// Playback Progress Item (for Continue Watching)
+export interface TraktPlaybackItem {
+  id: number;
+  progress: number; // 0-100 percentage
+  paused_at: string;
+  type: 'movie' | 'episode';
+  movie?: TraktMovie;
+  show?: TraktShow;
+  episode?: TraktEpisode;
+}
+
 // Stats
 export interface TraktStats {
   movies: {
