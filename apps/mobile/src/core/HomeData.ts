@@ -659,7 +659,6 @@ export async function getTmdbTextlessPoster(
         : await core.tmdb.getTVImages(tmdbId);
 
     const posters = images.posters || [];
-    console.log('[HomeData] getTmdbTextlessPoster - found', posters.length, 'posters for', mediaType, tmdbId);
 
     // Find a textless poster (iso_639_1 is null means no language/text)
     const textless = posters.find(
@@ -670,12 +669,10 @@ export async function getTmdbTextlessPoster(
     const poster = textless || posters[0];
 
     if (poster?.file_path) {
-      console.log('[HomeData] Using poster:', poster.file_path, 'iso_639_1:', poster.iso_639_1);
       return core.tmdb.getPosterUrl(poster.file_path, 'w780');
     }
     return undefined;
   } catch (e) {
-    console.log('[HomeData] getTmdbTextlessPoster error:', e);
     return undefined;
   }
 }
@@ -695,7 +692,6 @@ export async function getTmdbTextlessBackdrop(
         : await core.tmdb.getTVImages(tmdbId);
 
     const backdrops = images.backdrops || [];
-    console.log('[HomeData] getTmdbTextlessBackdrop - found', backdrops.length, 'backdrops for', mediaType, tmdbId);
 
     const textless = backdrops.find(
       (b: any) => (b.iso_639_1 == null) && (b.iso_3166_1 == null)
@@ -707,7 +703,6 @@ export async function getTmdbTextlessBackdrop(
     }
     return undefined;
   } catch (e) {
-    console.log('[HomeData] getTmdbTextlessBackdrop error:', e);
     return undefined;
   }
 }
@@ -725,31 +720,41 @@ export async function getTmdbBackdropWithTitle(
 ): Promise<string | undefined> {
   try {
     const core = getFlixorCore();
+    // Pass true to get all languages (Hindi, Korean, etc.) for backdrop with title
     const images =
       mediaType === 'movie'
-        ? await core.tmdb.getMovieImages(tmdbId)
-        : await core.tmdb.getTVImages(tmdbId);
+        ? await core.tmdb.getMovieImages(tmdbId, true)
+        : await core.tmdb.getTVImages(tmdbId, true);
 
     const backdrops = images.backdrops || [];
     let backdrop: any = null;
 
-    // 1. Prefer English backdrop (has title text burned in)
-    backdrop = backdrops.find((b: any) => b.iso_639_1 === 'en');
+    // Separate backdrops with title text (any language) from textless ones
+    const withTitle = backdrops.filter((b: any) => b.iso_639_1 && b.iso_639_1.length > 0);
+    const textless = backdrops.filter((b: any) => !b.iso_639_1 || b.iso_639_1.length === 0);
 
-    // 2. If no English, get highest rated backdrop with any language (iso_639_1 != null)
-    if (!backdrop) {
-      const withLanguage = backdrops
-        .filter((b: any) => b.iso_639_1 != null)
-        .sort((a: any, b: any) => (b.vote_average || 0) - (a.vote_average || 0));
-      backdrop = withLanguage[0];
+    // 1. Prefer English backdrop (has title text burned in)
+    backdrop = withTitle.find((b: any) => b.iso_639_1 === 'en');
+
+    // 2. If no English, get highest rated backdrop with any language that has title
+    //    When vote_average is equal, prefer higher resolution (width)
+    if (!backdrop && withTitle.length > 0) {
+      const sorted = withTitle.sort((a: any, b: any) => {
+        const voteDiff = (b.vote_average || 0) - (a.vote_average || 0);
+        if (voteDiff !== 0) return voteDiff;
+        return (b.width || 0) - (a.width || 0); // Prefer higher resolution
+      });
+      backdrop = sorted[0];
     }
 
-    // 3. Fallback to textless (iso_639_1 = null) - highest rated
-    if (!backdrop) {
-      const textless = backdrops
-        .filter((b: any) => b.iso_639_1 == null)
-        .sort((a: any, b: any) => (b.vote_average || 0) - (a.vote_average || 0));
-      backdrop = textless[0];
+    // 3. Fallback to textless - highest rated, then highest resolution
+    if (!backdrop && textless.length > 0) {
+      const sorted = textless.sort((a: any, b: any) => {
+        const voteDiff = (b.vote_average || 0) - (a.vote_average || 0);
+        if (voteDiff !== 0) return voteDiff;
+        return (b.width || 0) - (a.width || 0);
+      });
+      backdrop = sorted[0];
     }
 
     if (backdrop?.file_path) {
