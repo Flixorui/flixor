@@ -207,7 +207,8 @@ class HomeViewModel: ObservableObject {
         print("🔄 [Home] Refreshing Recently Added sections...")
         recentlyAddedPerLibraryState = .loading
         do {
-            let sections = try await fetchRecentlyAddedPerLibrary()
+            // Bypass cache to get fresh data after setting change
+            let sections = try await fetchRecentlyAddedPerLibrary(bypassCache: true)
             recentlyAddedSections = sections
             recentlyAddedPerLibraryState = sections.isEmpty ? .empty : .loaded
             print("✅ [Home] Recently Added sections refreshed: \(sections.count) sections")
@@ -975,10 +976,10 @@ class HomeViewModel: ObservableObject {
         return items.map { toMediaItem($0) }
     }
 
-    private func fetchContinueWatching() async throws -> [MediaItem] {
+    private func fetchContinueWatching(bypassCache: Bool = false) async throws -> [MediaItem] {
         guard let plexServer = FlixorCore.shared.plexServer else { return [] }
-        print("📦 [Home] Fetching continue watching items...")
-        let result = try await plexServer.getContinueWatching()
+        print("📦 [Home] Fetching continue watching items\(bypassCache ? " (bypass cache)" : "")...")
+        let result = try await plexServer.getContinueWatching(bypassCache: bypassCache)
         print("✅ [Home] Received \(result.items.count) continue watching items (deduplicated)")
 
         // Store which items have multiple editions
@@ -1145,13 +1146,14 @@ class HomeViewModel: ObservableObject {
     }
 
     /// Fetch "Recently Added in {LibraryName}" for each enabled library
-    private func fetchRecentlyAddedPerLibrary() async throws -> [LibrarySection] {
+    /// - Parameter bypassCache: If true, skip cache and fetch fresh data (useful for polling)
+    private func fetchRecentlyAddedPerLibrary(bypassCache: Bool = false) async throws -> [LibrarySection] {
         guard let plexServer = FlixorCore.shared.plexServer else { return [] }
 
         // Check if episode grouping is enabled
         let shouldGroupEpisodes = UserDefaults.standard.groupRecentlyAddedEpisodes
 
-        print("📦 [Home] Fetching recently added per library (grouping: \(shouldGroupEpisodes))...")
+        print("📦 [Home] Fetching recently added per library (grouping: \(shouldGroupEpisodes))\(bypassCache ? " (bypass cache)" : "")...")
         let libraries = try await plexServer.getLibraries()
 
         // Filter libraries based on enabled settings
@@ -1162,7 +1164,7 @@ class HomeViewModel: ObservableObject {
         for library in filteredLibraries {
             do {
                 // Fetch recently added for this specific library
-                let allItems = try await plexServer.getRecentlyAdded(libraryKey: library.key)
+                let allItems = try await plexServer.getRecentlyAdded(libraryKey: library.key, bypassCache: bypassCache)
                 // Fetch more items if grouping is enabled to account for consolidation
                 let fetchLimit = shouldGroupEpisodes ? 30 : 20
                 let rawItems = Array(allItems.prefix(fetchLimit))
@@ -1288,12 +1290,12 @@ class HomeViewModel: ObservableObject {
     /// Poll only dynamic rows (Continue Watching, Recently Added per library)
     /// This is a light refresh - doesn't reload the entire home screen
     private func pollDynamicRows() async {
-        print("🔄 [Home] Polling dynamic rows...")
+        print("🔄 [Home] Polling dynamic rows (bypassing cache)...")
 
-        // Poll Continue Watching
+        // Poll Continue Watching (bypass cache to get fresh data)
         Task { @MainActor in
             do {
-                let data = try await self.fetchContinueWatching()
+                let data = try await self.fetchContinueWatching(bypassCache: true)
                 // Only update if data changed (compare rating keys)
                 let existingKeys = Set(self.continueWatchingItems.map { $0.id })
                 let newKeys = Set(data.map { $0.id })
@@ -1309,10 +1311,10 @@ class HomeViewModel: ObservableObject {
             }
         }
 
-        // Poll Recently Added per library
+        // Poll Recently Added per library (bypass cache to get fresh data)
         Task { @MainActor in
             do {
-                let sections = try await self.fetchRecentlyAddedPerLibrary()
+                let sections = try await self.fetchRecentlyAddedPerLibrary(bypassCache: true)
                 // Only update if data changed
                 let existingIds = Set(self.recentlyAddedSections.flatMap { $0.items.map { $0.id } })
                 let newIds = Set(sections.flatMap { $0.items.map { $0.id } })
