@@ -96,6 +96,10 @@ class ProfileSettings: ObservableObject {
         didSet { defaults.posterCornerRadius = posterCornerRadius }
     }
 
+    @Published var groupRecentlyAddedEpisodes: Bool {
+        didSet { defaults.groupRecentlyAddedEpisodes = groupRecentlyAddedEpisodes }
+    }
+
     // MARK: - Details Screen Settings
 
     @Published var detailsScreenLayout: String {
@@ -292,6 +296,7 @@ class ProfileSettings: ObservableObject {
         self.showPosterTitles = defaults.showPosterTitles
         self.showLibraryTitles = defaults.showLibraryTitles
         self.posterCornerRadius = defaults.posterCornerRadius
+        self.groupRecentlyAddedEpisodes = defaults.groupRecentlyAddedEpisodes
 
         // Details Screen
         self.detailsScreenLayout = defaults.detailsScreenLayout
@@ -378,6 +383,7 @@ class ProfileSettings: ObservableObject {
         showPosterTitles = defaults.showPosterTitles
         showLibraryTitles = defaults.showLibraryTitles
         posterCornerRadius = defaults.posterCornerRadius
+        groupRecentlyAddedEpisodes = defaults.groupRecentlyAddedEpisodes
 
         // Details Screen
         detailsScreenLayout = defaults.detailsScreenLayout

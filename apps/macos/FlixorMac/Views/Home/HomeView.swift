@@ -90,6 +90,45 @@ struct HomeView: View {
                                     )
                                 }
 
+                                // Recently Added per library sections
+                                if viewModel.recentlyAddedPerLibraryState.isLoading {
+                                    // Show skeleton rows while loading (one per expected library)
+                                    ForEach(0..<2, id: \.self) { _ in
+                                        SkeletonCarouselRow(
+                                            itemWidth: profileSettings.rowLayout == "poster" ? 160 : 420,
+                                            itemCount: profileSettings.rowLayout == "poster" ? 6 : 4,
+                                            cardType: profileSettings.rowLayout == "poster" ? .poster : .landscape
+                                        )
+                                    }
+                                } else {
+                                    ForEach(viewModel.recentlyAddedSections) { section in
+                                        Group {
+                                            if profileSettings.rowLayout == "poster" {
+                                                PosterSectionRow(
+                                                    section: section,
+                                                    onTap: { item in
+                                                        viewModel.showItemDetails(item)
+                                                    },
+                                                    onBrowse: { context in
+                                                        presentBrowse(context)
+                                                    }
+                                                )
+                                            } else {
+                                                LandscapeSectionView(
+                                                    section: section,
+                                                    onTap: { item in
+                                                        viewModel.showItemDetails(item)
+                                                    },
+                                                    onBrowse: { context in
+                                                        presentBrowse(context)
+                                                    }
+                                                )
+                                            }
+                                        }
+                                        .transition(.opacity)
+                                    }
+                                }
+
                                 // Collection sections (Plex Collections)
                                 if profileSettings.showCollectionRows {
                                     if viewModel.collectionSectionsState.isLoading {
@@ -160,6 +199,7 @@ struct HomeView: View {
                             }
                             .padding(.vertical, 40)
                             .animation(.easeInOut(duration: 0.3), value: viewModel.extraSectionsState)
+                            .animation(.easeInOut(duration: 0.3), value: viewModel.recentlyAddedPerLibraryState)
                         }
                     }
                 }
@@ -194,6 +234,7 @@ struct HomeView: View {
         }
         .onDisappear {
             viewModel.stopBillboardRotation()
+            viewModel.stopPolling()
         }
         .toast()
         .onChange(of: viewModel.pendingAction) { action in
@@ -210,6 +251,12 @@ struct HomeView: View {
             if !value {
                 activeBrowseContext = nil
                 browseViewModel.reset()
+            }
+        }
+        .onChange(of: profileSettings.groupRecentlyAddedEpisodes) { _ in
+            // Refresh Recently Added sections when grouping setting changes
+            Task {
+                await viewModel.refreshRecentlyAddedSections()
             }
         }
     }

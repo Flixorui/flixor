@@ -141,6 +141,16 @@ class APIClient: ObservableObject {
                 return try encodeAndDecode(response)
             }
 
+            // dir/library/sections/{key}/recentlyAdded - recently added items for a library
+            if dirPath.hasPrefix("library/sections/") && dirPath.contains("/recentlyAdded") {
+                // Extract section key from path like "library/sections/2/recentlyAdded"
+                let afterSections = String(dirPath.dropFirst("library/sections/".count))
+                let key = String(afterSections.prefix(while: { $0 != "/" }))
+                let items = try await plexServer.getRecentlyAdded(libraryKey: key)
+                let response = PlexDirResponse(MediaContainer: PlexDirContainer(Metadata: items))
+                return try encodeAndDecode(response)
+            }
+
             // Generic directory fetch - use children or library items
             if dirPath.hasPrefix("library/metadata/") {
                 let key = String(dirPath.dropFirst("library/metadata/".count).prefix(while: { $0 != "/" }))

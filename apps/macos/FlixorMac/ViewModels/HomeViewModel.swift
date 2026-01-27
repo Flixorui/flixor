@@ -46,6 +46,7 @@ class HomeViewModel: ObservableObject {
     @Published var continueWatchingState: SectionLoadState = .idle
     @Published var onDeckState: SectionLoadState = .idle
     @Published var recentlyAddedState: SectionLoadState = .idle
+    @Published var recentlyAddedPerLibraryState: SectionLoadState = .idle
     @Published var librariesState: SectionLoadState = .idle
     @Published var extraSectionsState: SectionLoadState = .idle
     @Published var collectionSectionsState: SectionLoadState = .idle
@@ -53,12 +54,18 @@ class HomeViewModel: ObservableObject {
     // Expected number of extra section rows (for skeleton placeholders)
     let expectedExtraSectionCount = 8
 
+    // MARK: - Polling Configuration
+    private var pollTimer: Timer?
+    private let pollInterval: TimeInterval = 30 // Poll every 30 seconds
+    private var isPolling = false
+
     // MARK: - Data
     @Published var billboardItems: [MediaItem] = []
     @Published var continueWatchingItems: [MediaItem] = []
     @Published var continueWatchingVersions: Set<String> = []  // ratingKeys with multiple versions across libraries
     @Published var onDeckItems: [MediaItem] = []
-    @Published var recentlyAddedItems: [MediaItem] = []
+    @Published var recentlyAddedItems: [MediaItem] = [] // Global recently added (legacy, kept for billboard fallback)
+    @Published var recentlyAddedSections: [LibrarySection] = [] // Per-library recently added rows
     @Published var librarySections: [LibrarySection] = []
     @Published var extraSections: [LibrarySection] = [] // TMDB/Trakt/Watchlist/Genres
     @Published var collectionSections: [LibrarySection] = [] // Plex Collections
@@ -92,6 +99,7 @@ class HomeViewModel: ObservableObject {
         continueWatchingState = .loading
         onDeckState = .loading
         recentlyAddedState = .loading
+        recentlyAddedPerLibraryState = .loading
         librariesState = .loading
         extraSectionsState = .loading
         collectionSectionsState = .loading
@@ -147,6 +155,19 @@ class HomeViewModel: ObservableObject {
             }
         }
 
+        // Per-library Recently Added rows
+        Task { @MainActor in
+            do {
+                let sections = try await self.fetchRecentlyAddedPerLibrary()
+                self.recentlyAddedSections = sections
+                self.recentlyAddedPerLibraryState = sections.isEmpty ? .empty : .loaded
+                print("✅ [Home] Recently Added per library loaded: \(sections.count) sections")
+            } catch {
+                print("⚠️ [Home] Recently Added per library failed: \(error)")
+                self.recentlyAddedPerLibraryState = .error(error.localizedDescription)
+            }
+        }
+
         Task { @MainActor in
             do {
                 let libs = try await self.fetchLibrarySections()
@@ -169,6 +190,9 @@ class HomeViewModel: ObservableObject {
             await self.loadCollectionRows()
         }
 
+        // Start polling for dynamic rows (Continue Watching, Recently Added)
+        startPolling()
+
         loadTask = nil
     }
 
@@ -176,6 +200,21 @@ class HomeViewModel: ObservableObject {
 
     func refresh() async {
         await loadHomeScreen()
+    }
+
+    /// Refresh only the Recently Added per-library sections (used when grouping setting changes)
+    func refreshRecentlyAddedSections() async {
+        print("🔄 [Home] Refreshing Recently Added sections...")
+        recentlyAddedPerLibraryState = .loading
+        do {
+            let sections = try await fetchRecentlyAddedPerLibrary()
+            recentlyAddedSections = sections
+            recentlyAddedPerLibraryState = sections.isEmpty ? .empty : .loaded
+            print("✅ [Home] Recently Added sections refreshed: \(sections.count) sections")
+        } catch {
+            print("⚠️ [Home] Recently Added refresh failed: \(error)")
+            recentlyAddedPerLibraryState = .error(error.localizedDescription)
+        }
     }
 
     // MARK: - Additional Sections
@@ -1105,6 +1144,191 @@ class HomeViewModel: ObservableObject {
         return items.map { toMediaItem($0) }
     }
 
+    /// Fetch "Recently Added in {LibraryName}" for each enabled library
+    private func fetchRecentlyAddedPerLibrary() async throws -> [LibrarySection] {
+        guard let plexServer = FlixorCore.shared.plexServer else { return [] }
+
+        // Check if episode grouping is enabled
+        let shouldGroupEpisodes = UserDefaults.standard.groupRecentlyAddedEpisodes
+
+        print("📦 [Home] Fetching recently added per library (grouping: \(shouldGroupEpisodes))...")
+        let libraries = try await plexServer.getLibraries()
+
+        // Filter libraries based on enabled settings
+        let filteredLibraries = libraries.filter { isLibraryEnabled($0.key) }
+
+        var sections: [LibrarySection] = []
+
+        for library in filteredLibraries {
+            do {
+                // Fetch recently added for this specific library
+                let allItems = try await plexServer.getRecentlyAdded(libraryKey: library.key)
+                // Fetch more items if grouping is enabled to account for consolidation
+                let fetchLimit = shouldGroupEpisodes ? 30 : 20
+                let rawItems = Array(allItems.prefix(fetchLimit))
+
+                if !rawItems.isEmpty {
+                    let finalItems: [MediaItem]
+                    if shouldGroupEpisodes {
+                        // Group TV episodes by series, keep movies/shows as-is
+                        let processedItems = groupEpisodesBySeries(rawItems.map { toMediaItem($0) })
+                        finalItems = Array(processedItems.prefix(20))
+                        print("✅ [Home] Recently Added in \(library.title): \(rawItems.count) raw → \(finalItems.count) grouped items")
+                    } else {
+                        // Show individual items without grouping
+                        finalItems = Array(rawItems.prefix(20).map { toMediaItem($0) })
+                        print("✅ [Home] Recently Added in \(library.title): \(finalItems.count) items (ungrouped)")
+                    }
+
+                    sections.append(LibrarySection(
+                        id: "recently-added-\(library.key)",
+                        title: "Recently Added in \(library.title)",
+                        items: finalItems,
+                        totalCount: finalItems.count,
+                        libraryKey: library.key,
+                        browseContext: .plexDirectory(
+                            path: "/library/sections/\(library.key)/recentlyAdded",
+                            title: "Recently Added in \(library.title)"
+                        )
+                    ))
+                }
+            } catch {
+                print("⚠️ [Home] Failed to load recently added for \(library.title): \(error)")
+                // Continue with other libraries
+            }
+        }
+
+        return sections
+    }
+
+    /// Group TV episodes by their parent series, preserving order of first appearance
+    /// Non-episode items (movies, shows) are kept as-is
+    private func groupEpisodesBySeries(_ items: [MediaItem]) -> [MediaItem] {
+        var result: [MediaItem] = []
+        var seenSeriesKeys = Set<String>()
+        var seriesEpisodeCounts: [String: Int] = [:]
+
+        // First pass: count episodes per series
+        for item in items {
+            if item.type == "episode", let seriesKey = item.grandparentRatingKey {
+                seriesEpisodeCounts[seriesKey, default: 0] += 1
+            }
+        }
+
+        // Second pass: build result list, replacing episodes with series representative
+        for item in items {
+            if item.type == "episode", let seriesKey = item.grandparentRatingKey {
+                // Skip if we've already added this series
+                if seenSeriesKeys.contains(seriesKey) {
+                    continue
+                }
+                seenSeriesKeys.insert(seriesKey)
+
+                let episodeCount = seriesEpisodeCounts[seriesKey] ?? 1
+
+                // Create a series representative item
+                let seriesItem = MediaItem(
+                    id: seriesKey, // Use series rating key so clicking navigates to series details
+                    title: item.grandparentTitle ?? item.title,
+                    type: "show", // Render as show poster
+                    thumb: item.grandparentThumb ?? item.thumb,
+                    art: item.grandparentArt ?? item.art,
+                    year: item.year,
+                    rating: item.rating,
+                    duration: nil,
+                    viewOffset: nil,
+                    summary: episodeCount > 1 ? "\(episodeCount) new episodes" : "1 new episode",
+                    grandparentTitle: nil,
+                    grandparentThumb: nil,
+                    grandparentArt: nil,
+                    grandparentRatingKey: nil,
+                    parentIndex: nil,
+                    index: nil,
+                    parentRatingKey: nil,
+                    parentTitle: nil,
+                    leafCount: episodeCount, // Store episode count
+                    viewedLeafCount: nil
+                )
+                result.append(seriesItem)
+            } else {
+                // Non-episode items (movies, shows) - keep as-is
+                result.append(item)
+            }
+        }
+
+        return result
+    }
+
+    // MARK: - Polling for Dynamic Rows
+
+    /// Start polling for Continue Watching and Recently Added rows
+    func startPolling() {
+        guard !isPolling else { return }
+        isPolling = true
+
+        print("🔄 [Home] Starting polling for dynamic rows (every \(Int(pollInterval))s)")
+
+        pollTimer?.invalidate()
+        pollTimer = Timer.scheduledTimer(withTimeInterval: pollInterval, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
+            Task { @MainActor in
+                await self.pollDynamicRows()
+            }
+        }
+    }
+
+    /// Stop polling
+    func stopPolling() {
+        pollTimer?.invalidate()
+        pollTimer = nil
+        isPolling = false
+        print("⏹️ [Home] Polling stopped")
+    }
+
+    /// Poll only dynamic rows (Continue Watching, Recently Added per library)
+    /// This is a light refresh - doesn't reload the entire home screen
+    private func pollDynamicRows() async {
+        print("🔄 [Home] Polling dynamic rows...")
+
+        // Poll Continue Watching
+        Task { @MainActor in
+            do {
+                let data = try await self.fetchContinueWatching()
+                // Only update if data changed (compare rating keys)
+                let existingKeys = Set(self.continueWatchingItems.map { $0.id })
+                let newKeys = Set(data.map { $0.id })
+                if existingKeys != newKeys || data.count != self.continueWatchingItems.count {
+                    self.continueWatchingItems = data
+                    self.continueWatchingState = data.isEmpty ? .empty : .loaded
+                    print("✅ [Home] Continue Watching updated: \(data.count) items")
+                } else {
+                    print("ℹ️ [Home] Continue Watching unchanged")
+                }
+            } catch {
+                print("⚠️ [Home] Poll Continue Watching failed: \(error)")
+            }
+        }
+
+        // Poll Recently Added per library
+        Task { @MainActor in
+            do {
+                let sections = try await self.fetchRecentlyAddedPerLibrary()
+                // Only update if data changed
+                let existingIds = Set(self.recentlyAddedSections.flatMap { $0.items.map { $0.id } })
+                let newIds = Set(sections.flatMap { $0.items.map { $0.id } })
+                if existingIds != newIds || sections.count != self.recentlyAddedSections.count {
+                    self.recentlyAddedSections = sections
+                    self.recentlyAddedPerLibraryState = sections.isEmpty ? .empty : .loaded
+                    print("✅ [Home] Recently Added per library updated: \(sections.count) sections")
+                } else {
+                    print("ℹ️ [Home] Recently Added per library unchanged")
+                }
+            } catch {
+                print("⚠️ [Home] Poll Recently Added per library failed: \(error)")
+            }
+        }
+    }
+
     private func fetchLibrarySections() async throws -> [LibrarySection] {
         guard let plexServer = FlixorCore.shared.plexServer else { return [] }
 
@@ -1320,6 +1544,7 @@ class HomeViewModel: ObservableObject {
 
     deinit {
         billboardTimer?.invalidate()
+        pollTimer?.invalidate()
     }
 }
 

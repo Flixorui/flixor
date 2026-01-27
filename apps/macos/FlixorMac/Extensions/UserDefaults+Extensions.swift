@@ -219,6 +219,7 @@ extension UserDefaults {
         static let showPosterTitles = "showPosterTitles"
         static let showLibraryTitles = "showLibraryTitles"
         static let posterCornerRadius = "posterCornerRadius"
+        static let groupRecentlyAddedEpisodes = "groupRecentlyAddedEpisodes"
     }
 
     var heroLayout: String {
@@ -299,6 +300,12 @@ extension UserDefaults {
     var posterCornerRadius: String {
         get { string(forKey: profileKey(HomeKeys.posterCornerRadius)) ?? "medium" }
         set { set(newValue, forKey: profileKey(HomeKeys.posterCornerRadius)) }
+    }
+
+    /// Group recently added TV episodes by series (default: true)
+    var groupRecentlyAddedEpisodes: Bool {
+        get { object(forKey: profileKey(HomeKeys.groupRecentlyAddedEpisodes)) as? Bool ?? true }
+        set { set(newValue, forKey: profileKey(HomeKeys.groupRecentlyAddedEpisodes)) }
     }
 }
 
