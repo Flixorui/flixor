@@ -74,11 +74,21 @@ struct PosterSectionCard: View {
         return "S\(season)E\(episode)"
     }
 
-    // Badge text: shows "X new" for grouped episodes, otherwise TV/episode label
+    // Check if this is a grouped recently added item (we mark these with summary like "X new episodes")
+    private var isGroupedRecentlyAdded: Bool {
+        guard item.type == "show",
+              let summary = item.summary,
+              summary.contains("new episode") else {
+            return false
+        }
+        return true
+    }
+
+    // Badge text: shows episode count for grouped items, otherwise TV/episode label
     private var badgeText: String {
-        // For grouped recently added shows with episode count
-        if item.type == "show", let count = item.leafCount, count > 0 {
-            return "\(count) new"
+        // For grouped recently added shows - show just the count
+        if isGroupedRecentlyAdded, let count = item.leafCount, count > 0 {
+            return "\(count)"
         }
         // For individual episodes
         if item.type == "episode" {
@@ -88,12 +98,9 @@ struct PosterSectionCard: View {
         return "TV"
     }
 
-    // Badge color: green for new episodes, blue for regular TV
+    // Badge color: semi-transparent black for all badges
     private var badgeColor: Color {
-        if item.type == "show", let count = item.leafCount, count > 0 {
-            return Color.green.opacity(0.85)
-        }
-        return Color.blue.opacity(0.8)
+        return Color.black.opacity(0.6)
     }
 
     var body: some View {
