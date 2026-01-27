@@ -5,6 +5,7 @@
 
 import { getFlixorCore } from './index';
 import { loadAppSettings } from './SettingsData';
+import { mapTmdbToPlex, fetchPlexSeasons, fetchPlexSeasonEpisodes } from './DetailsData';
 import type { PlexMediaItem, TMDBMedia, PlexUltraBlurColors, ContinueWatchingResult } from '@flixor/core';
 
 export type RowItem = {
@@ -21,6 +22,7 @@ export type TraktContinueWatchingItem = RowItem & {
   subtitle?: string; // e.g., "S1E5" for episodes
   seasonNumber?: number; // For episodes
   episodeNumber?: number; // For episodes
+  plexRatingKey?: string; // Matched Plex episode ratingKey (for direct episode navigation)
 };
 
 // ============================================
@@ -411,6 +413,55 @@ export async function fetchTraktWatchlist(): Promise<RowItem[]> {
 }
 
 /**
+ * Try to match a TMDB show episode to a Plex library episode
+ * Returns the Plex episode ratingKey if found, null otherwise
+ */
+async function matchTraktEpisodeToPlex(
+  tmdbId: number,
+  showTitle: string,
+  seasonNum: number,
+  episodeNum: number
+): Promise<string | null> {
+  try {
+    // 1. Try to match the show to Plex
+    const plexShow = await mapTmdbToPlex('tv', String(tmdbId), showTitle);
+    if (!plexShow) {
+      return null;
+    }
+
+    // 2. Get all seasons of the show
+    const seasons = await fetchPlexSeasons(String(plexShow.ratingKey));
+    if (!seasons.length) {
+      return null;
+    }
+
+    // 3. Find the matching season (by index which is the season number)
+    const matchingSeason = seasons.find((s: PlexMediaItem) => s.index === seasonNum);
+    if (!matchingSeason) {
+      return null;
+    }
+
+    // 4. Get all episodes of the season
+    const episodes = await fetchPlexSeasonEpisodes(String(matchingSeason.ratingKey));
+    if (!episodes.length) {
+      return null;
+    }
+
+    // 5. Find the matching episode (by index which is the episode number)
+    const matchingEpisode = episodes.find((e: PlexMediaItem) => e.index === episodeNum);
+    if (!matchingEpisode) {
+      return null;
+    }
+
+    console.log(`[HomeData] Matched Trakt episode to Plex: ${showTitle} S${seasonNum}E${episodeNum} -> ${matchingEpisode.ratingKey}`);
+    return String(matchingEpisode.ratingKey);
+  } catch (e) {
+    console.log('[HomeData] matchTraktEpisodeToPlex error:', e);
+    return null;
+  }
+}
+
+/**
  * Fetch Trakt Continue Watching (playback progress)
  * Returns items the user has started but not finished watching
  */
@@ -446,6 +497,7 @@ export async function fetchTraktContinueWatching(): Promise<TraktContinueWatchin
       const type = isMovie ? 'movie' : 'tv';
       let image: string | undefined;
       let backdrop: string | undefined;
+      let plexRatingKey: string | undefined;
 
       if (tmdbId) {
         try {
@@ -474,6 +526,14 @@ export async function fetchTraktContinueWatching(): Promise<TraktContinueWatchin
         seasonNumber = item.episode.season;
         episodeNumber = item.episode.number;
         subtitle = `S${seasonNumber}E${episodeNumber}`;
+
+        // Try to match episode to Plex library for direct episode navigation
+        if (tmdbId && seasonNumber && episodeNumber) {
+          const matchedRk = await matchTraktEpisodeToPlex(tmdbId, title, seasonNumber, episodeNumber);
+          if (matchedRk) {
+            plexRatingKey = matchedRk;
+          }
+        }
       }
 
       return {
@@ -486,6 +546,7 @@ export async function fetchTraktContinueWatching(): Promise<TraktContinueWatchin
         mediaType: type as 'movie' | 'tv',
         seasonNumber,
         episodeNumber,
+        plexRatingKey,
       };
     });
   } catch (e) {

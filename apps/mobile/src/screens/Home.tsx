@@ -965,13 +965,20 @@ export default function Home({ onLogout }: HomeProps) {
     }
   }, [nav]);
 
-  // Custom handler for Trakt Continue Watching - includes season/episode for episodes
+  // Custom handler for Trakt Continue Watching - uses Plex ratingKey for episodes if available
   const onTraktContinuePress = useCallback((it: TraktContinueWatchingItem) => {
     if (!it?.id) return;
+
+    // If we have a matched Plex episode ratingKey, navigate directly to episode details (like normal Continue Watching)
+    if (it.plexRatingKey) {
+      return nav.navigate('Details', { type: 'plex', ratingKey: it.plexRatingKey });
+    }
+
+    // Fallback to TMDB navigation
     if (it.id.startsWith('tmdb:')) {
       const [, media, id] = it.id.split(':');
       const mediaType = media === 'movie' ? 'movie' : 'tv';
-      // For episodes, pass initialSeason and initialEpisode to navigate to the correct season
+      // For episodes without Plex match, still pass season/episode for context
       if (mediaType === 'tv' && it.seasonNumber) {
         return nav.navigate('Details', {
           type: 'tmdb',
