@@ -37,6 +37,7 @@ import {
   fetchTraktRecommendations,
   fetchTraktContinueWatching,
   fetchCollectionRowsForHome,
+  fetchRecentlyAddedPerLibrary,
   getPlexImageUrl,
   getContinueWatchingImageUrl,
   getTmdbLogo,
@@ -54,6 +55,7 @@ import {
   PlexUltraBlurColors,
   HeroItem,
   CollectionRowData,
+  RecentlyAddedSection,
 } from '../core/HomeData';
 import {
   toggleWatchlist,
@@ -133,6 +135,9 @@ export default function Home({ onLogout }: HomeProps) {
 
   // Collection rows
   const [collectionRows, setCollectionRows] = useState<CollectionRowData[]>([]);
+
+  // Recently Added per library rows
+  const [recentlyAddedSections, setRecentlyAddedSections] = useState<RecentlyAddedSection[]>([]);
 
   // UI state
   const [tab, setTab] = useState<'all' | 'movies' | 'shows'>('all');
@@ -245,6 +250,7 @@ export default function Home({ onLogout }: HomeProps) {
     setTraktRecommendations([]);
     setTraktContinueWatching([]);
     setCollectionRows([]);
+    setRecentlyAddedSections([]);
     setHeroCarouselData([]);
 
     // Re-trigger data load by incrementing retryCount
@@ -630,6 +636,18 @@ export default function Home({ onLogout }: HomeProps) {
           }).catch(() => setCollectionRows([]));
         }
 
+        // Recently Added per library rows - load in background (deferred)
+        if (settings.showRecentlyAddedRows) {
+          fetchRecentlyAddedPerLibrary(
+            settings.groupRecentlyAddedEpisodes,
+            settings.enabledLibraryKeys
+          ).then((sections) => {
+            InteractionManager.runAfterInteractions(() => {
+              setRecentlyAddedSections(sections);
+            });
+          }).catch(() => setRecentlyAddedSections([]));
+        }
+
         const durationMs = Date.now() - loadStart;
         console.log(`[Home][perf] all fetches dispatched in ${durationMs}ms`);
       } catch (err: any) {
@@ -651,6 +669,86 @@ export default function Home({ onLogout }: HomeProps) {
       }
     })();
   }, [flixorLoading, isConnected, retryCount]);
+
+  // Polling for dynamic rows (Continue Watching, Recently Added)
+  // Poll every 30 seconds to keep content fresh without full page refresh
+  useEffect(() => {
+    if (loading || !isConnected) return;
+
+    const POLL_INTERVAL = 30000; // 30 seconds
+
+    const pollDynamicRows = async () => {
+      console.log('[Home] Polling dynamic rows...');
+
+      // Poll Continue Watching
+      if (settings.showContinueWatchingRow) {
+        try {
+          const data = await fetchContinueWatching();
+          const existingKeys = new Set(continueItems.map(item => item.ratingKey));
+          const newKeys = new Set(data.items.map(item => item.ratingKey));
+          // Only update if data changed
+          if (existingKeys.size !== newKeys.size || ![...existingKeys].every(k => newKeys.has(k))) {
+            setContinueItems(data.items);
+            setContinueVersions(data.itemsWithMultipleVersions);
+            console.log('[Home] Continue Watching updated:', data.items.length, 'items');
+
+            // Fetch TMDB backdrops for new items
+            data.items.forEach(async (item) => {
+              if (continueBackdrops[item.ratingKey]) return; // Already have backdrop
+              try {
+                let tmdbId: string | null = null;
+                let mediaType: 'movie' | 'tv' = 'movie';
+
+                if (item.type === 'movie') {
+                  tmdbId = extractTmdbIdFromGuids(item.Guid || []);
+                  mediaType = 'movie';
+                } else if (item.type === 'episode' && item.grandparentRatingKey) {
+                  tmdbId = await getShowTmdbId(item.grandparentRatingKey);
+                  mediaType = 'tv';
+                }
+
+                if (tmdbId) {
+                  const backdrop = await getTmdbBackdropWithTitle(Number(tmdbId), mediaType);
+                  if (backdrop) {
+                    setContinueBackdrops(prev => ({ ...prev, [item.ratingKey]: backdrop }));
+                  }
+                }
+              } catch (e) {
+                // Silently handle errors
+              }
+            });
+          }
+        } catch (e) {
+          console.log('[Home] Poll Continue Watching error:', e);
+        }
+      }
+
+      // Poll Recently Added per library
+      if (settings.showRecentlyAddedRows) {
+        try {
+          const sections = await fetchRecentlyAddedPerLibrary(
+            settings.groupRecentlyAddedEpisodes,
+            settings.enabledLibraryKeys
+          );
+          const existingIds = new Set(recentlyAddedSections.flatMap(s => s.items.map(i => i.id)));
+          const newIds = new Set(sections.flatMap(s => s.items.map(i => i.id)));
+          // Only update if data changed
+          if (existingIds.size !== newIds.size || ![...existingIds].every(id => newIds.has(id))) {
+            setRecentlyAddedSections(sections);
+            console.log('[Home] Recently Added updated:', sections.length, 'sections');
+          }
+        } catch (e) {
+          console.log('[Home] Poll Recently Added error:', e);
+        }
+      }
+    };
+
+    const intervalId = setInterval(pollDynamicRows, POLL_INTERVAL);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [loading, isConnected, settings.showContinueWatchingRow, settings.showRecentlyAddedRows, settings.groupRecentlyAddedEpisodes]);
 
   // Memory management: Clear FastImage memory cache when app goes to background
   // Note: Memory cleanup on app background is now handled centrally by MemoryManager
@@ -1293,6 +1391,28 @@ export default function Home({ onLogout }: HomeProps) {
                   collection.items
                 )}
                 keyPrefix={`collection-${collection.ratingKey}-`}
+              />
+            ) : null
+          ))}
+
+          {/* Recently Added per Library Rows */}
+          {settings.showRecentlyAddedRows && recentlyAddedSections.map((section) => (
+            section.items.length > 0 ? (
+              <LazyRow
+                key={section.id}
+                title={section.title}
+                titleIcon="time-outline"
+                items={section.items}
+                getImageUri={getRowUri}
+                getTitle={getRowTitle}
+                getSubtitle={(item) => item.subtitle}
+                onItemPress={onRowPress}
+                onBrowsePress={() => openRowBrowse(
+                  { type: 'plexDirectory', path: `/library/sections/${section.libraryKey}/recentlyAdded`, title: section.title } as any,
+                  section.title,
+                  section.items
+                )}
+                keyPrefix={`recently-added-${section.libraryKey}-`}
               />
             ) : null
           ))}

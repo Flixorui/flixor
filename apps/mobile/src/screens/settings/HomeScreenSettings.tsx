@@ -186,6 +186,35 @@ export default function HomeScreenSettings() {
           )}
         </SettingsCard>
 
+        <SettingsCard title="RECENTLY ADDED">
+          <SettingItem
+            title="Show Recently Added Rows"
+            description="Show 'Recently Added in {Library}' rows"
+            icon="time-outline"
+            renderRight={() => (
+              <Switch
+                value={settings.showRecentlyAddedRows}
+                onValueChange={(value) => updateSetting('showRecentlyAddedRows', value)}
+              />
+            )}
+            isLast={!settings.showRecentlyAddedRows}
+          />
+          {settings.showRecentlyAddedRows && (
+            <SettingItem
+              title="Group Episodes by Series"
+              description="Show series posters instead of individual episodes"
+              icon="albums-outline"
+              renderRight={() => (
+                <Switch
+                  value={settings.groupRecentlyAddedEpisodes}
+                  onValueChange={(value) => updateSetting('groupRecentlyAddedEpisodes', value)}
+                />
+              )}
+              isLast={true}
+            />
+          )}
+        </SettingsCard>
+
         <SettingsCard title="POSTERS">
           <SettingItem
             title="Show Titles"

@@ -13,6 +13,7 @@ export type RowItem = {
   title: string;
   image?: string;
   mediaType?: 'movie' | 'tv';
+  subtitle?: string; // Optional subtitle (e.g., "3 new episodes" for grouped series)
 };
 
 // Extended type for Trakt Continue Watching with backdrop and progress
@@ -720,7 +721,6 @@ export async function getTmdbTextlessPoster(
         : await core.tmdb.getTVImages(tmdbId);
 
     const posters = images.posters || [];
-    console.log('[HomeData] getTmdbTextlessPoster - found', posters.length, 'posters for', mediaType, tmdbId);
 
     // Find a textless poster (iso_639_1 is null means no language/text)
     const textless = posters.find(
@@ -731,12 +731,10 @@ export async function getTmdbTextlessPoster(
     const poster = textless || posters[0];
 
     if (poster?.file_path) {
-      console.log('[HomeData] Using poster:', poster.file_path, 'iso_639_1:', poster.iso_639_1);
       return core.tmdb.getPosterUrl(poster.file_path, 'w780');
     }
     return undefined;
   } catch (e) {
-    console.log('[HomeData] getTmdbTextlessPoster error:', e);
     return undefined;
   }
 }
@@ -756,7 +754,6 @@ export async function getTmdbTextlessBackdrop(
         : await core.tmdb.getTVImages(tmdbId);
 
     const backdrops = images.backdrops || [];
-    console.log('[HomeData] getTmdbTextlessBackdrop - found', backdrops.length, 'backdrops for', mediaType, tmdbId);
 
     const textless = backdrops.find(
       (b: any) => (b.iso_639_1 == null) && (b.iso_3166_1 == null)
@@ -768,7 +765,6 @@ export async function getTmdbTextlessBackdrop(
     }
     return undefined;
   } catch (e) {
-    console.log('[HomeData] getTmdbTextlessBackdrop error:', e);
     return undefined;
   }
 }
@@ -786,31 +782,41 @@ export async function getTmdbBackdropWithTitle(
 ): Promise<string | undefined> {
   try {
     const core = getFlixorCore();
+    // Pass true to get all languages (Hindi, Korean, etc.) for backdrop with title
     const images =
       mediaType === 'movie'
-        ? await core.tmdb.getMovieImages(tmdbId)
-        : await core.tmdb.getTVImages(tmdbId);
+        ? await core.tmdb.getMovieImages(tmdbId, true)
+        : await core.tmdb.getTVImages(tmdbId, true);
 
     const backdrops = images.backdrops || [];
     let backdrop: any = null;
 
-    // 1. Prefer English backdrop (has title text burned in)
-    backdrop = backdrops.find((b: any) => b.iso_639_1 === 'en');
+    // Separate backdrops with title text (any language) from textless ones
+    const withTitle = backdrops.filter((b: any) => b.iso_639_1 && b.iso_639_1.length > 0);
+    const textless = backdrops.filter((b: any) => !b.iso_639_1 || b.iso_639_1.length === 0);
 
-    // 2. If no English, get highest rated backdrop with any language (iso_639_1 != null)
-    if (!backdrop) {
-      const withLanguage = backdrops
-        .filter((b: any) => b.iso_639_1 != null)
-        .sort((a: any, b: any) => (b.vote_average || 0) - (a.vote_average || 0));
-      backdrop = withLanguage[0];
+    // 1. Prefer English backdrop (has title text burned in)
+    backdrop = withTitle.find((b: any) => b.iso_639_1 === 'en');
+
+    // 2. If no English, get highest rated backdrop with any language that has title
+    //    When vote_average is equal, prefer higher resolution (width)
+    if (!backdrop && withTitle.length > 0) {
+      const sorted = withTitle.sort((a: any, b: any) => {
+        const voteDiff = (b.vote_average || 0) - (a.vote_average || 0);
+        if (voteDiff !== 0) return voteDiff;
+        return (b.width || 0) - (a.width || 0); // Prefer higher resolution
+      });
+      backdrop = sorted[0];
     }
 
-    // 3. Fallback to textless (iso_639_1 = null) - highest rated
-    if (!backdrop) {
-      const textless = backdrops
-        .filter((b: any) => b.iso_639_1 == null)
-        .sort((a: any, b: any) => (b.vote_average || 0) - (a.vote_average || 0));
-      backdrop = textless[0];
+    // 3. Fallback to textless - highest rated, then highest resolution
+    if (!backdrop && textless.length > 0) {
+      const sorted = textless.sort((a: any, b: any) => {
+        const voteDiff = (b.vote_average || 0) - (a.vote_average || 0);
+        if (voteDiff !== 0) return voteDiff;
+        return (b.width || 0) - (a.width || 0);
+      });
+      backdrop = sorted[0];
     }
 
     if (backdrop?.file_path) {
@@ -1186,4 +1192,128 @@ export async function fetchCollectionRowsForHome(
     console.log('[HomeData] fetchCollectionRowsForHome error:', e);
     return [];
   }
+}
+
+// ============================================
+// Recently Added Per Library
+// ============================================
+
+export type RecentlyAddedSection = {
+  id: string;
+  libraryKey: string;
+  title: string;
+  items: RowItem[];
+};
+
+/**
+ * Fetch "Recently Added in {LibraryName}" for each enabled library
+ * @param groupEpisodes - If true, group TV episodes by series
+ */
+export async function fetchRecentlyAddedPerLibrary(
+  groupEpisodes: boolean = true,
+  enabledLibraryKeys?: string[]
+): Promise<RecentlyAddedSection[]> {
+  try {
+    const core = getFlixorCore();
+    const libraries = await core.plexServer.getLibraries();
+
+    // Filter libraries based on enabled settings
+    const filteredLibraries = enabledLibraryKeys && enabledLibraryKeys.length > 0
+      ? libraries.filter((lib) => enabledLibraryKeys.includes(String(lib.key)))
+      : libraries;
+
+    const sections: RecentlyAddedSection[] = [];
+
+    for (const library of filteredLibraries) {
+      try {
+        // Fetch recently added for this specific library
+        const allItems = await core.plexServer.getRecentlyAdded(library.key);
+        // Fetch more items if grouping is enabled to account for consolidation
+        const fetchLimit = groupEpisodes ? 30 : 20;
+        const rawItems = allItems.slice(0, fetchLimit);
+
+        if (rawItems.length > 0) {
+          let finalItems: RowItem[];
+
+          if (groupEpisodes) {
+            // Group TV episodes by series, keep movies/shows as-is
+            const processedItems = groupEpisodesBySeries(rawItems, core);
+            finalItems = processedItems.slice(0, 20);
+          } else {
+            // Show individual items without grouping
+            finalItems = rawItems.slice(0, 20).map((item: PlexMediaItem) => ({
+              id: `plex:${item.ratingKey}`,
+              title: item.title || item.grandparentTitle || 'Untitled',
+              image: core.plexServer.getImageUrl(item.thumb, 300),
+              mediaType: item.type === 'movie' ? 'movie' as const : 'tv' as const,
+            }));
+          }
+
+          sections.push({
+            id: `recently-added-${library.key}`,
+            libraryKey: library.key,
+            title: `Recently Added in ${library.title}`,
+            items: finalItems,
+          });
+        }
+      } catch (e) {
+        console.log(`[HomeData] Failed to load recently added for ${library.title}:`, e);
+        // Continue with other libraries
+      }
+    }
+
+    return sections;
+  } catch (e) {
+    console.log('[HomeData] fetchRecentlyAddedPerLibrary error:', e);
+    return [];
+  }
+}
+
+/**
+ * Group TV episodes by their parent series, preserving order of first appearance
+ * Non-episode items (movies, shows) are kept as-is
+ */
+function groupEpisodesBySeries(items: PlexMediaItem[], core: any): RowItem[] {
+  const result: RowItem[] = [];
+  const seenSeriesKeys = new Set<string>();
+  const seriesEpisodeCounts: Record<string, number> = {};
+
+  // First pass: count episodes per series
+  for (const item of items) {
+    if (item.type === 'episode' && item.grandparentRatingKey) {
+      seriesEpisodeCounts[item.grandparentRatingKey] = (seriesEpisodeCounts[item.grandparentRatingKey] || 0) + 1;
+    }
+  }
+
+  // Second pass: build result list, replacing episodes with series representative
+  for (const item of items) {
+    if (item.type === 'episode' && item.grandparentRatingKey) {
+      // Skip if we've already added this series
+      if (seenSeriesKeys.has(item.grandparentRatingKey)) {
+        continue;
+      }
+      seenSeriesKeys.add(item.grandparentRatingKey);
+
+      const episodeCount = seriesEpisodeCounts[item.grandparentRatingKey] || 1;
+
+      // Create a series representative item
+      result.push({
+        id: `plex:${item.grandparentRatingKey}`, // Use series rating key so clicking navigates to series details
+        title: item.grandparentTitle || item.title || 'Untitled',
+        image: core.plexServer.getImageUrl(item.grandparentThumb || item.thumb, 300),
+        mediaType: 'tv' as const,
+        subtitle: episodeCount > 1 ? `${episodeCount} new episodes` : '1 new episode',
+      });
+    } else {
+      // Non-episode items (movies, shows) - keep as-is
+      result.push({
+        id: `plex:${item.ratingKey}`,
+        title: item.title || 'Untitled',
+        image: core.plexServer.getImageUrl(item.thumb, 300),
+        mediaType: item.type === 'movie' ? 'movie' as const : 'tv' as const,
+      });
+    }
+  }
+
+  return result;
 }
