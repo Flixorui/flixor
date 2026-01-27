@@ -651,6 +651,8 @@ struct CollectionSectionRow: View {
     var onTap: (MediaItem) -> Void
     var onBrowse: ((BrowseContext) -> Void)?
 
+    @State private var isHeaderHovered = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             // Header with sparkles icon
@@ -663,18 +665,38 @@ struct CollectionSectionRow: View {
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(.white)
 
-                Spacer()
-
                 if let browseContext = section.browseContext {
                     Button(action: { onBrowse?(browseContext) }) {
-                        Text("Browse All")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(.secondary)
+                        HStack(spacing: 4) {
+                            Text("Browse")
+                            Image(systemName: "chevron.right")
+                        }
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 4)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(Color.white.opacity(isHeaderHovered ? 0.12 : 0))
+                        )
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .opacity(isHeaderHovered ? 1 : 0)
+                    .offset(x: isHeaderHovered ? 4 : 0)
+                    .animation(.easeOut(duration: 0.24), value: isHeaderHovered)
+                    .allowsHitTesting(isHeaderHovered)
                 }
+
+                Spacer()
             }
             .padding(.horizontal, 20)
+            .onHover { hovering in
+                withAnimation(.easeOut(duration: 0.2)) {
+                    isHeaderHovered = hovering
+                }
+            }
+            .contentShape(Rectangle())
 
             // Row content
             if rowLayout == "poster" {

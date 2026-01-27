@@ -263,7 +263,7 @@ struct PlayerSettingsView: View {
                     title: "Font Size",
                     subtitle: "Subtitle text size"
                 ) {
-                    Stepper("\(profileSettings.subtitleFontSize)", value: $profileSettings.subtitleFontSize, in: 30...80, step: 5)
+                    Stepper("\(profileSettings.subtitleFontSize)", value: $profileSettings.subtitleFontSize, in: 12...80, step: 5)
                         .frame(width: 80)
                 }
 

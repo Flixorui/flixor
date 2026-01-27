@@ -130,6 +130,7 @@ struct RootView: View {
 struct MainView: View {
     @State private var showingSettings = false
     @State private var showingProfileSelect = false
+    @State private var showingSignOutConfirmation = false
     @State private var contentRefreshId = UUID()
     @EnvironmentObject var sessionManager: SessionManager
     @StateObject private var router = NavigationRouter()
@@ -302,10 +303,10 @@ struct MainView: View {
                         Label("Settings", systemImage: "gear")
                     }
 
-                    Button(action: {
-                        Task {
-                            await sessionManager.logout()
-                        }
+                    Divider()
+
+                    Button(role: .destructive, action: {
+                        showingSignOutConfirmation = true
                     }) {
                         Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
                     }
@@ -340,6 +341,20 @@ struct MainView: View {
                 mainViewState.selectedTab = .home
                 router.homePath = NavigationPath()
             }
+        }
+        .confirmationDialog(
+            "Sign Out",
+            isPresented: $showingSignOutConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Sign Out", role: .destructive) {
+                Task {
+                    await sessionManager.logout()
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Are you sure you want to sign out?")
         }
         .onChange(of: profileSettings.showNewPopularTab) { newValue in
             // If New & Popular tab is hidden while on that tab, switch to Home
