@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React from 'react';
 import { View, Text, ScrollView, Switch, Pressable, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,7 +7,6 @@ import SettingsHeader from '../../components/settings/SettingsHeader';
 import SettingsCard from '../../components/settings/SettingsCard';
 import SettingItem from '../../components/settings/SettingItem';
 import { useAppSettings } from '../../hooks/useAppSettings';
-import { setDiscoveryDisabled } from '../../core/SettingsData';
 
 export default function HomeScreenSettings() {
   const nav: any = useNavigation();
@@ -19,34 +18,6 @@ export default function HomeScreenSettings() {
     <View style={styles.container}>
       <SettingsHeader title="Home Screen" onBack={() => nav.goBack()} />
       <ScrollView contentContainerStyle={[styles.content, { paddingTop: headerHeight + 12, paddingBottom: insets.bottom + 100 }]}>
-        <SettingsCard title="DISCOVERY MODE">
-          <SettingItem
-            title="Library Only Mode"
-            description="Turn off all discovery features. Only show content from your Plex library."
-            icon="eye-off-outline"
-            renderRight={() => (
-              <Switch
-                value={settings.discoveryDisabled}
-                onValueChange={async (value) => {
-                  await setDiscoveryDisabled(value);
-                  // Refresh settings state
-                  updateSetting('discoveryDisabled', value);
-                  if (value) {
-                    // Also update the local state for individual toggles
-                    updateSetting('showTrendingRows', false);
-                    updateSetting('showTraktRows', false);
-                    updateSetting('showPlexPopularRow', false);
-                    updateSetting('showNewHotTab', false);
-                    updateSetting('includeTmdbInSearch', false);
-                  }
-                }}
-                trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#FF6B6B' }}
-              />
-            )}
-            isLast={true}
-          />
-        </SettingsCard>
-
         <SettingsCard title="HERO">
           <SettingItem
             title="Show Hero"
@@ -161,6 +132,18 @@ export default function HomeScreenSettings() {
             isLast={false}
           />
           <SettingItem
+            title="Genre Rows"
+            description="Show genre-based rows (Drama, Animation, etc.)"
+            icon="pricetags-outline"
+            renderRight={() => (
+              <Switch
+                value={settings.showPlexGenreRows}
+                onValueChange={(value) => updateSetting('showPlexGenreRows', value)}
+              />
+            )}
+            isLast={false}
+          />
+          <SettingItem
             title="Collections"
             description="Show Plex collection rows on home"
             icon="albums-outline"
@@ -181,14 +164,11 @@ export default function HomeScreenSettings() {
                 <Ionicons name="chevron-forward" size={18} color="#9ca3af" />
               )}
               onPress={() => nav.navigate('CollectionRowsSettings')}
-              isLast={true}
+              isLast={false}
             />
           )}
-        </SettingsCard>
-
-        <SettingsCard title="RECENTLY ADDED">
           <SettingItem
-            title="Show Recently Added Rows"
+            title="Recently Added"
             description="Show 'Recently Added in {Library}' rows"
             icon="time-outline"
             renderRight={() => (
@@ -197,9 +177,12 @@ export default function HomeScreenSettings() {
                 onValueChange={(value) => updateSetting('showRecentlyAddedRows', value)}
               />
             )}
-            isLast={!settings.showRecentlyAddedRows}
+            isLast={true}
           />
-          {settings.showRecentlyAddedRows && (
+        </SettingsCard>
+
+        {settings.showRecentlyAddedRows && (
+          <SettingsCard title="RECENTLY ADDED">
             <SettingItem
               title="Group Episodes by Series"
               description="Show series posters instead of individual episodes"
@@ -212,8 +195,8 @@ export default function HomeScreenSettings() {
               )}
               isLast={true}
             />
-          )}
-        </SettingsCard>
+          </SettingsCard>
+        )}
 
         <SettingsCard title="POSTERS">
           <SettingItem

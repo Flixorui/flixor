@@ -586,14 +586,17 @@ export default function Home({ onLogout }: HomeProps) {
         ];
 
         // Load genres progressively - update state as each completes (deferred)
-        genreDefs.forEach(async (gd) => {
-          try {
-            const items = await fetchPlexGenreRow(gd.type, gd.label);
-            InteractionManager.runAfterInteractions(() => {
-              setGenres(prev => ({ ...prev, [gd.key]: items }));
-            });
-          } catch {}
-        });
+        // Only fetch if genre rows are enabled in settings
+        if (settings.showPlexGenreRows) {
+          genreDefs.forEach(async (gd) => {
+            try {
+              const items = await fetchPlexGenreRow(gd.type, gd.label);
+              InteractionManager.runAfterInteractions(() => {
+                setGenres(prev => ({ ...prev, [gd.key]: items }));
+              });
+            } catch {}
+          });
+        }
 
         // Trakt rows - load in background (deferred updates)
         fetchTraktTrendingMovies().then((items) => {
@@ -1476,28 +1479,29 @@ export default function Home({ onLogout }: HomeProps) {
             />
           )}
 
-          {genres['TV Shows - Children']?.length ? (
+          {/* Plex Genre Rows */}
+          {settings.showPlexGenreRows && genres['TV Shows - Children']?.length ? (
             <LazyRow title="TV Shows - Children" items={genres['TV Shows - Children']} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} onBrowsePress={() => openRowBrowse({ type: 'plexGenre', genre: 'Children', mediaType: 'tv' }, 'TV Shows - Children', genres['TV Shows - Children'])} keyPrefix="genre-tv-children-" />
           ) : null}
-          {genres['Movie - Music']?.length ? (
+          {settings.showPlexGenreRows && genres['Movie - Music']?.length ? (
             <LazyRow title="Movie - Music" items={genres['Movie - Music']} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} onBrowsePress={() => openRowBrowse({ type: 'plexGenre', genre: 'Music', mediaType: 'movie' }, 'Movie - Music', genres['Movie - Music'])} keyPrefix="genre-movie-music-" />
           ) : null}
-          {genres['Movies - Documentary']?.length ? (
+          {settings.showPlexGenreRows && genres['Movies - Documentary']?.length ? (
             <LazyRow title="Movies - Documentary" items={genres['Movies - Documentary']} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} onBrowsePress={() => openRowBrowse({ type: 'plexGenre', genre: 'Documentary', mediaType: 'movie' }, 'Movies - Documentary', genres['Movies - Documentary'])} keyPrefix="genre-movie-doc-" />
           ) : null}
-          {genres['Movies - History']?.length ? (
+          {settings.showPlexGenreRows && genres['Movies - History']?.length ? (
             <LazyRow title="Movies - History" items={genres['Movies - History']} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} onBrowsePress={() => openRowBrowse({ type: 'plexGenre', genre: 'History', mediaType: 'movie' }, 'Movies - History', genres['Movies - History'])} keyPrefix="genre-movie-history-" />
           ) : null}
-          {genres['TV Shows - Reality']?.length ? (
+          {settings.showPlexGenreRows && genres['TV Shows - Reality']?.length ? (
             <LazyRow title="TV Shows - Reality" items={genres['TV Shows - Reality']} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} onBrowsePress={() => openRowBrowse({ type: 'plexGenre', genre: 'Reality', mediaType: 'tv' }, 'TV Shows - Reality', genres['TV Shows - Reality'])} keyPrefix="genre-tv-reality-" />
           ) : null}
-          {genres['Movies - Drama']?.length ? (
+          {settings.showPlexGenreRows && genres['Movies - Drama']?.length ? (
             <LazyRow title="Movies - Drama" items={genres['Movies - Drama']} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} onBrowsePress={() => openRowBrowse({ type: 'plexGenre', genre: 'Drama', mediaType: 'movie' }, 'Movies - Drama', genres['Movies - Drama'])} keyPrefix="genre-movie-drama-" />
           ) : null}
-          {genres['TV Shows - Suspense']?.length ? (
+          {settings.showPlexGenreRows && genres['TV Shows - Suspense']?.length ? (
             <LazyRow title="TV Shows - Suspense" items={genres['TV Shows - Suspense']} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} onBrowsePress={() => openRowBrowse({ type: 'plexGenre', genre: 'Suspense', mediaType: 'tv' }, 'TV Shows - Suspense', genres['TV Shows - Suspense'])} keyPrefix="genre-tv-suspense-" />
           ) : null}
-          {genres['Movies - Animation']?.length ? (
+          {settings.showPlexGenreRows && genres['Movies - Animation']?.length ? (
             <LazyRow title="Movies - Animation" items={genres['Movies - Animation']} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} onBrowsePress={() => openRowBrowse({ type: 'plexGenre', genre: 'Animation', mediaType: 'movie' }, 'Movies - Animation', genres['Movies - Animation'])} keyPrefix="genre-movie-animation-" />
           ) : null}
 

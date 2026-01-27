@@ -299,6 +299,7 @@ export interface AppSettings {
   hiddenCollectionKeys: string[]; // Collection ratingKeys to hide from home screen
   showRecentlyAddedRows: boolean; // Show "Recently Added in {Library}" rows on home screen
   groupRecentlyAddedEpisodes: boolean; // Group TV episodes by series in Recently Added rows
+  showPlexGenreRows: boolean; // Show Plex genre-based rows on home screen
   showPosterTitles: boolean;
   posterSize: 'small' | 'medium' | 'large';
   posterBorderRadius: number;
@@ -373,6 +374,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   hiddenCollectionKeys: [],
   showRecentlyAddedRows: true, // Show "Recently Added in {Library}" rows
   groupRecentlyAddedEpisodes: true, // Group episodes by series by default
+  showPlexGenreRows: true, // Show Plex genre-based rows
   showPosterTitles: true,
   posterSize: 'medium',
   posterBorderRadius: 12,
