@@ -6,6 +6,7 @@ import Slider from '@react-native-community/slider';
 import { useNavigation, StackActions } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ScreenOrientation from 'expo-screen-orientation';
+import { useKeepAwake } from 'expo-keep-awake';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MPVPlayerComponent, MPVPlayerRef, MPVAudioTrack, MPVSubtitleTrack, PerformanceStats } from '../components/player';
 
@@ -88,6 +89,9 @@ export default function Player({ route }: RouteParams) {
   const { isLoading: flixorLoading, isConnected } = useFlixor();
   const { settings } = useAppSettings();
   const MPVPlayerModule = NativeModules.MPVPlayerModule; // Native module for async methods
+
+  // Keep screen awake during video playback
+  useKeepAwake();
 
   // Multi-version support: which Media to use
   const selectedMediaIndex = params.mediaIndex ?? 0;

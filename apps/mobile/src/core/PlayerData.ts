@@ -320,6 +320,43 @@ export function extractTraktIds(metadata: PlexMediaItem | null): TraktScrobbleId
 }
 
 /**
+ * Get show's TMDB/IMDB IDs for episode scrobbling
+ * Fetches the parent show metadata to get accurate IDs
+ */
+async function getShowIdsForEpisode(metadata: PlexMediaItem): Promise<TraktScrobbleIds> {
+  const ids: TraktScrobbleIds = {};
+
+  try {
+    const grandparentRatingKey = (metadata as any).grandparentRatingKey;
+    if (!grandparentRatingKey) {
+      console.log('[PlayerData] No grandparentRatingKey for episode');
+      return ids;
+    }
+
+    const core = getFlixorCore();
+    const showMetadata = await core.plexServer.getMetadata(grandparentRatingKey);
+
+    if (showMetadata) {
+      const showGuids = (showMetadata as any)?.Guid || [];
+      for (const g of showGuids) {
+        const id = String(g.id || '');
+        if (id.includes('tmdb://') || id.includes('themoviedb://')) {
+          ids.tmdbId = Number(id.split('://')[1]);
+        }
+        if (id.includes('imdb://')) {
+          ids.imdbId = id.split('://')[1];
+        }
+      }
+      console.log('[PlayerData] Got show IDs for episode:', ids);
+    }
+  } catch (e) {
+    console.log('[PlayerData] getShowIdsForEpisode error:', e);
+  }
+
+  return ids;
+}
+
+/**
  * Start scrobbling on Trakt
  */
 export async function startTraktScrobble(
@@ -343,17 +380,21 @@ export async function startTraktScrobble(
       await core.trakt.startScrobbleMovie({ ids: toTraktIds(ids) }, progress);
       console.log('[PlayerData] Started Trakt movie scrobble');
     } else if (mediaType === 'episode') {
-      // For episodes, we need show IDs and episode info
-      const showIds = extractTraktIds({ Guid: (metadata as any).grandparentGuid } as any);
+      // For episodes, we need show IDs (fetched from parent show) and episode info
+      const showIds = await getShowIdsForEpisode(metadata);
       const episodeInfo = {
         season: (metadata as any).parentIndex || 1,
         number: (metadata as any).index || 1,
       };
 
-      // Try with episode-specific IDs if show IDs aren't available
+      // Use show IDs if available, fallback to episode IDs
       const finalIds = (showIds.tmdbId || showIds.imdbId) ? showIds : ids;
+      if (!finalIds.tmdbId && !finalIds.imdbId) {
+        console.log('[PlayerData] No IDs available for Trakt episode scrobble');
+        return;
+      }
       await core.trakt.startScrobbleEpisode({ ids: toTraktIds(finalIds) }, episodeInfo, progress);
-      console.log('[PlayerData] Started Trakt episode scrobble');
+      console.log('[PlayerData] Started Trakt episode scrobble:', episodeInfo);
     }
   } catch (e) {
     console.log('[PlayerData] startTraktScrobble error:', e);
@@ -381,12 +422,13 @@ export async function pauseTraktScrobble(
       await core.trakt.pauseScrobbleMovie({ ids: toTraktIds(ids) }, progress);
       console.log('[PlayerData] Paused Trakt movie scrobble');
     } else if (mediaType === 'episode') {
-      const showIds = extractTraktIds({ Guid: (metadata as any).grandparentGuid } as any);
+      const showIds = await getShowIdsForEpisode(metadata);
       const episodeInfo = {
         season: (metadata as any).parentIndex || 1,
         number: (metadata as any).index || 1,
       };
       const finalIds = (showIds.tmdbId || showIds.imdbId) ? showIds : ids;
+      if (!finalIds.tmdbId && !finalIds.imdbId) return;
       await core.trakt.pauseScrobbleEpisode({ ids: toTraktIds(finalIds) }, episodeInfo, progress);
       console.log('[PlayerData] Paused Trakt episode scrobble');
     }
@@ -416,12 +458,13 @@ export async function stopTraktScrobble(
       await core.trakt.stopScrobbleMovie({ ids: toTraktIds(ids) }, progress);
       console.log('[PlayerData] Stopped Trakt movie scrobble, progress:', progress);
     } else if (mediaType === 'episode') {
-      const showIds = extractTraktIds({ Guid: (metadata as any).grandparentGuid } as any);
+      const showIds = await getShowIdsForEpisode(metadata);
       const episodeInfo = {
         season: (metadata as any).parentIndex || 1,
         number: (metadata as any).index || 1,
       };
       const finalIds = (showIds.tmdbId || showIds.imdbId) ? showIds : ids;
+      if (!finalIds.tmdbId && !finalIds.imdbId) return;
       await core.trakt.stopScrobbleEpisode({ ids: toTraktIds(finalIds) }, episodeInfo, progress);
       console.log('[PlayerData] Stopped Trakt episode scrobble, progress:', progress);
     }
