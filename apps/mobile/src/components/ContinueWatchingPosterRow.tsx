@@ -119,12 +119,16 @@ function ContinueWatchingPosterRow({
           >
             {/* Controls row */}
             <View style={styles.controlsRow}>
-              {/* Left side: Play icon, progress bar, time */}
+              {/* Left side: Play icon, progress bar, episode info, time */}
               <View style={styles.leftControls}>
                 <Ionicons name="play" size={10} color="#fff" />
                 <View style={styles.progressTrack}>
                   <View style={[styles.progressFill, { width: `${progress}%` }]} />
                 </View>
+                {/* Show episode info (S1, E1) for episodes */}
+                {item.type === 'episode' && item.parentIndex && item.index && (
+                  <Text style={styles.episodeText}>S{item.parentIndex}, E{item.index}</Text>
+                )}
                 <Text style={styles.timeText}>{remainingTime}</Text>
               </View>
 
@@ -271,6 +275,11 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: '#fff',
     borderRadius: 2,
+  },
+  episodeText: {
+    color: '#fff',
+    fontSize: 9,
+    fontWeight: '500',
   },
   timeText: {
     color: '#fff',

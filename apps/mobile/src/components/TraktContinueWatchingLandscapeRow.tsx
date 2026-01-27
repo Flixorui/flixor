@@ -69,20 +69,12 @@ function TraktContinueWatchingLandscapeRow({
 
         {/* Bottom gradient */}
         <LinearGradient
-          colors={['transparent', 'rgba(0,0,0,0.7)']}
+          colors={['transparent', 'rgba(0,0,0,0.6)']}
           style={styles.bottomGradient}
         >
-          {/* Title and subtitle */}
-          <View style={styles.textContainer}>
-            <Text style={styles.title} numberOfLines={1}>{item.title}</Text>
-            {item.subtitle && (
-              <Text style={styles.subtitle}>{item.subtitle}</Text>
-            )}
-          </View>
-
           {/* Controls row */}
           <View style={styles.controlsRow}>
-            {/* Left side: Play icon, progress bar, percentage */}
+            {/* Left side: Play icon, progress bar, episode info, percentage */}
             <View style={styles.leftControls}>
               <Ionicons name="play" size={12} color="#fff" />
 
@@ -90,12 +82,11 @@ function TraktContinueWatchingLandscapeRow({
                 <View style={[styles.progressFill, { width: `${item.progress}%` }]} />
               </View>
 
+              {/* Show episode info (S1, E1) for episodes */}
+              {item.seasonNumber && item.episodeNumber && (
+                <Text style={styles.episodeText}>S{item.seasonNumber}, E{item.episodeNumber}</Text>
+              )}
               <Text style={styles.progressText}>{Math.round(item.progress)}%</Text>
-            </View>
-
-            {/* Trakt badge */}
-            <View style={styles.traktBadge}>
-              <Text style={styles.traktText}>Trakt</Text>
             </View>
           </View>
         </LinearGradient>
@@ -201,24 +192,10 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: 80,
+    height: 50,
     justifyContent: 'flex-end',
     borderBottomLeftRadius: 12,
     borderBottomRightRadius: 12,
-  },
-  textContainer: {
-    paddingHorizontal: 12,
-    marginBottom: 4,
-  },
-  title: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  subtitle: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 12,
-    marginTop: 2,
   },
   controlsRow: {
     flexDirection: 'row',
@@ -241,24 +218,18 @@ const styles = StyleSheet.create({
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#ED1C24', // Trakt red
+    backgroundColor: '#fff',
     borderRadius: 2,
+  },
+  episodeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '500',
   },
   progressText: {
     color: '#fff',
     fontSize: 11,
     fontWeight: '500',
-  },
-  traktBadge: {
-    backgroundColor: 'rgba(237, 28, 36, 0.8)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  traktText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: '600',
   },
 });
 

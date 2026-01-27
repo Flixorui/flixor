@@ -86,23 +86,17 @@ function TraktContinueWatchingPosterRow({
               <View style={styles.progressTrack}>
                 <View style={[styles.progressFill, { width: `${item.progress}%` }]} />
               </View>
+              {/* Show episode info (S1, E1) for episodes */}
+              {item.seasonNumber && item.episodeNumber && (
+                <Text style={styles.episodeText}>S{item.seasonNumber}, E{item.episodeNumber}</Text>
+              )}
               <Text style={styles.progressText}>{Math.round(item.progress)}%</Text>
             </View>
           </LinearGradient>
         </View>
-
-        {/* Title and subtitle below poster */}
-        {settings.showPosterTitles && (
-          <View style={[styles.textContainer, { width: size.width }]}>
-            <Text style={styles.title} numberOfLines={2}>{item.title}</Text>
-            {item.subtitle && (
-              <Text style={styles.subtitle} numberOfLines={1}>{item.subtitle}</Text>
-            )}
-          </View>
-        )}
       </Pressable>
     );
-  }, [handleItemPress, size, borderRadius, settings.showPosterTitles]);
+  }, [handleItemPress, size, borderRadius]);
 
   return (
     <View style={styles.container}>
@@ -218,28 +212,18 @@ const styles = StyleSheet.create({
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#ED1C24', // Trakt red
+    backgroundColor: '#fff',
     borderRadius: 2,
+  },
+  episodeText: {
+    color: '#fff',
+    fontSize: 9,
+    fontWeight: '500',
   },
   progressText: {
     color: '#fff',
     fontSize: 9,
     fontWeight: '500',
-  },
-  textContainer: {
-    marginTop: 6,
-    paddingHorizontal: 2,
-  },
-  title: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '500',
-    lineHeight: 16,
-  },
-  subtitle: {
-    color: 'rgba(255,255,255,0.6)',
-    fontSize: 11,
-    marginTop: 2,
   },
 });
 

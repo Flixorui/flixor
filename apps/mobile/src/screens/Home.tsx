@@ -965,6 +965,26 @@ export default function Home({ onLogout }: HomeProps) {
     }
   }, [nav]);
 
+  // Custom handler for Trakt Continue Watching - includes season/episode for episodes
+  const onTraktContinuePress = useCallback((it: TraktContinueWatchingItem) => {
+    if (!it?.id) return;
+    if (it.id.startsWith('tmdb:')) {
+      const [, media, id] = it.id.split(':');
+      const mediaType = media === 'movie' ? 'movie' : 'tv';
+      // For episodes, pass initialSeason and initialEpisode to navigate to the correct season
+      if (mediaType === 'tv' && it.seasonNumber) {
+        return nav.navigate('Details', {
+          type: 'tmdb',
+          mediaType,
+          id,
+          initialSeason: it.seasonNumber,
+          initialEpisode: it.episodeNumber,
+        });
+      }
+      return nav.navigate('Details', { type: 'tmdb', mediaType, id });
+    }
+  }, [nav]);
+
   const plexImage = useCallback((item: PlexMediaItem) => getPlexImageUrl(item, 300), []);
   const plexContinueImage = useCallback((item: PlexMediaItem) => getContinueWatchingImageUrl(item, 300), []);
   // Landscape image for Continue Watching - prefer TMDB backdrop with title
@@ -1229,20 +1249,20 @@ export default function Home({ onLogout }: HomeProps) {
             settings.continueWatchingLayout === 'landscape' ? (
               <TraktContinueWatchingLandscapeRow
                 items={traktContinueWatching}
-                onItemPress={(item) => onRowPress(item)}
+                onItemPress={onTraktContinuePress}
                 onBrowsePress={() => openRowBrowse(
-                  { type: 'trakt', kind: 'continueWatching', mediaType: 'movie', title: 'Continue Watching (Trakt)' } as any,
-                  'Continue Watching (Trakt)',
+                  { type: 'trakt', kind: 'continueWatching', mediaType: 'movie', title: 'Continue Watching' } as any,
+                  'Continue Watching',
                   traktContinueWatching
                 )}
               />
             ) : (
               <TraktContinueWatchingPosterRow
                 items={traktContinueWatching}
-                onItemPress={(item) => onRowPress(item)}
+                onItemPress={onTraktContinuePress}
                 onBrowsePress={() => openRowBrowse(
-                  { type: 'trakt', kind: 'continueWatching', mediaType: 'movie', title: 'Continue Watching (Trakt)' } as any,
-                  'Continue Watching (Trakt)',
+                  { type: 'trakt', kind: 'continueWatching', mediaType: 'movie', title: 'Continue Watching' } as any,
+                  'Continue Watching',
                   traktContinueWatching
                 )}
               />

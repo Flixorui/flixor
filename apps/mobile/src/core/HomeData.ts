@@ -19,6 +19,8 @@ export type TraktContinueWatchingItem = RowItem & {
   backdrop?: string;
   progress: number; // 0-100
   subtitle?: string; // e.g., "S1E5" for episodes
+  seasonNumber?: number; // For episodes
+  episodeNumber?: number; // For episodes
 };
 
 // ============================================
@@ -465,9 +467,13 @@ export async function fetchTraktContinueWatching(): Promise<TraktContinueWatchin
       // For episodes, use show title as main title, episode info as subtitle
       let title = media?.title || '';
       let subtitle: string | undefined;
+      let seasonNumber: number | undefined;
+      let episodeNumber: number | undefined;
       if (!isMovie && item.episode) {
         title = item.show?.title || '';
-        subtitle = `S${item.episode.season}E${item.episode.number}`;
+        seasonNumber = item.episode.season;
+        episodeNumber = item.episode.number;
+        subtitle = `S${seasonNumber}E${episodeNumber}`;
       }
 
       return {
@@ -478,6 +484,8 @@ export async function fetchTraktContinueWatching(): Promise<TraktContinueWatchin
         backdrop,
         progress: item.progress,
         mediaType: type as 'movie' | 'tv',
+        seasonNumber,
+        episodeNumber,
       };
     });
   } catch (e) {
