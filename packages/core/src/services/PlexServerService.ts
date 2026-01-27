@@ -162,12 +162,26 @@ export class PlexServerService {
    * Get metadata for a specific item
    */
   async getMetadata(ratingKey: string, includeGuids = false): Promise<PlexMediaItem | null> {
+    const params: Record<string, string> = {
+      includeEditions: '1', // Include edition information
+    };
+    if (includeGuids) {
+      params.includeGuids = '1';
+    }
+    
     const data = await this.get<PlexMediaContainer<PlexMediaItem>>(
       `/library/metadata/${ratingKey}`,
-      includeGuids ? { includeGuids: '1' } : undefined,
+      params,
       CacheTTL.TRENDING
     );
-    return data.MediaContainer?.Metadata?.[0] || null;
+    const metadata = data.MediaContainer?.Metadata?.[0] || null;
+
+    if (metadata) {
+      // Ensure editionTitle is included
+      metadata.editionTitle = metadata.editionTitle || undefined;
+    }
+
+    return metadata;
   }
 
   /**
@@ -329,7 +343,7 @@ export class PlexServerService {
           // Use section-specific search endpoint
           const data = await this.get<PlexMediaContainer<PlexMediaItem>>(
             `/library/sections/${lib.key}/search`,
-            { query, type: type ? String(type) : undefined } as Record<string, string>,
+            { query, type: type ? String(type) : undefined, includeEditions: '1' } as Record<string, string>,
             CacheTTL.SHORT
           );
           const items = data.MediaContainer?.Metadata || [];

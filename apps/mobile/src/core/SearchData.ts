@@ -72,14 +72,10 @@ export async function searchPlex(query: string): Promise<SearchResult[]> {
 
     return items.slice(0, 20).map((item: any) => {
       const thumb = item.thumb || item.parentThumb || item.grandparentThumb;
-      // Extract edition from Media array
-      let editionTitle = item.Media?.[0]?.editionTitle;
-      if (!editionTitle) {
-        const filePath = item.Media?.[0]?.Part?.[0]?.file;
-        if (filePath) {
-          const match = filePath.match(/\{edition-([^}]+)\}/i);
-          if (match) editionTitle = match[1];
-        }
+      // Extract edition from metadata
+      let editionTitle = item.editionTitle; // Priority 1: Direct property
+      if (!editionTitle && item.Media?.[0]) {
+        editionTitle = item.Media[0].editionTitle; // Priority 2: From Media array
       }
       return {
         id: `plex:${item.ratingKey}`,

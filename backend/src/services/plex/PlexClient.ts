@@ -43,6 +43,7 @@ interface PlexMetadata {
   viewOffset?: number;
   viewCount?: number;
   lastViewedAt?: number;
+  editionTitle?: string; // Add support for movie editions
 }
 
 export class PlexClient {
@@ -245,7 +246,12 @@ export class PlexClient {
       3600 // 1 hour cache
     );
 
-    return data.MediaContainer.Metadata[0];
+    const metadata = data.MediaContainer.Metadata[0];
+
+    return {
+      ...metadata,
+      editionTitle: metadata.editionTitle || undefined, // Include edition title if available
+    };
   }
 
   /**

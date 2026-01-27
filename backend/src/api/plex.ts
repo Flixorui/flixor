@@ -545,10 +545,16 @@ router.get('/metadata/:id',
           includeExternalMedia: includeExternalMedia ? 1 : undefined,
           includeChildren: includeChildren ? 1 : undefined,
         });
-        res.json(metadata);
+        res.json({
+          ...metadata,
+          editionTitle: metadata.editionTitle || undefined, // Include edition title in response
+        });
       } else {
         const metadata = await client.getMetadata(id);
-        res.json(metadata);
+        res.json({
+          ...metadata,
+          editionTitle: metadata.editionTitle || undefined, // Include edition title in response
+        });
       }
     } catch (error: any) {
       logger.error(`Failed to get metadata for ratingKey ${req.params.id}:`, {
