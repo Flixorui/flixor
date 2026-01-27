@@ -1020,9 +1020,6 @@ export async function getUltraBlurColors(
   try {
     const core = getFlixorCore();
     const colors = await core.plexServer.getUltraBlurColors(imageUrl);
-    if (colors) {
-      console.log('[HomeData] UltraBlur colors:', colors);
-    }
     return colors;
   } catch (e) {
     console.log('[HomeData] getUltraBlurColors error:', e);

@@ -95,7 +95,7 @@ export async function getPlexUser(): Promise<any | null> {
 // ============================================
 
 export function getAppVersion(): string {
-  return 'Beta1.9.5';
+  return 'Beta2.0.0';
 }
 
 export function getConnectedServerInfo(): { name: string; url: string } | null {

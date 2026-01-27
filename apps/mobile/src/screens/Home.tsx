@@ -437,7 +437,6 @@ export default function Home({ onLogout }: HomeProps) {
         // Exit loading as soon as Plex hero content (Continue Watching / On Deck / Recent) is ready
         // Priority: Continue Watching → On Deck → Recently Added (matches macOS behavior)
         continuePromise.then(async (continueResult) => {
-          console.log('[Home] continuePromise resolved:', continueResult);
           InteractionManager.runAfterInteractions(async () => {
             const continueData = continueResult?.items || [];
             console.log('[Home] Setting continueItems:', continueData.length);
