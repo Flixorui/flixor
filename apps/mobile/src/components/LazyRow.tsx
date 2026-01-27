@@ -18,6 +18,7 @@ interface LazyRowProps {
   fetchData?: () => Promise<any[]>;
   getImageUri: (item: any) => string | undefined;
   getTitle: (item: any) => string | undefined;
+  getSubtitle?: (item: any) => string | undefined;
   authHeaders?: Record<string, string>;
   onItemPress?: (item: any) => void;
   onTitlePress?: () => void;
@@ -33,6 +34,7 @@ function LazyRow({
   fetchData,
   getImageUri,
   getTitle,
+  getSubtitle,
   authHeaders,
   onItemPress,
   onTitlePress,
@@ -121,6 +123,7 @@ function LazyRow({
         items={data}
         getImageUri={getImageUri}
         getTitle={getTitle}
+        getSubtitle={getSubtitle}
         authHeaders={authHeaders}
         onItemPress={onItemPress}
         onTitlePress={onTitlePress}

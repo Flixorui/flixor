@@ -12,6 +12,7 @@ export type RowItem = {
   title: string;
   image?: string;
   mediaType?: 'movie' | 'tv';
+  subtitle?: string; // Optional subtitle (e.g., "3 new episodes" for grouped series)
 };
 
 // Extended type for Trakt Continue Watching with backdrop and progress
@@ -1130,4 +1131,128 @@ export async function fetchCollectionRowsForHome(
     console.log('[HomeData] fetchCollectionRowsForHome error:', e);
     return [];
   }
+}
+
+// ============================================
+// Recently Added Per Library
+// ============================================
+
+export type RecentlyAddedSection = {
+  id: string;
+  libraryKey: string;
+  title: string;
+  items: RowItem[];
+};
+
+/**
+ * Fetch "Recently Added in {LibraryName}" for each enabled library
+ * @param groupEpisodes - If true, group TV episodes by series
+ */
+export async function fetchRecentlyAddedPerLibrary(
+  groupEpisodes: boolean = true,
+  enabledLibraryKeys?: string[]
+): Promise<RecentlyAddedSection[]> {
+  try {
+    const core = getFlixorCore();
+    const libraries = await core.plexServer.getLibraries();
+
+    // Filter libraries based on enabled settings
+    const filteredLibraries = enabledLibraryKeys && enabledLibraryKeys.length > 0
+      ? libraries.filter((lib) => enabledLibraryKeys.includes(String(lib.key)))
+      : libraries;
+
+    const sections: RecentlyAddedSection[] = [];
+
+    for (const library of filteredLibraries) {
+      try {
+        // Fetch recently added for this specific library
+        const allItems = await core.plexServer.getRecentlyAdded(library.key);
+        // Fetch more items if grouping is enabled to account for consolidation
+        const fetchLimit = groupEpisodes ? 30 : 20;
+        const rawItems = allItems.slice(0, fetchLimit);
+
+        if (rawItems.length > 0) {
+          let finalItems: RowItem[];
+
+          if (groupEpisodes) {
+            // Group TV episodes by series, keep movies/shows as-is
+            const processedItems = groupEpisodesBySeries(rawItems, core);
+            finalItems = processedItems.slice(0, 20);
+          } else {
+            // Show individual items without grouping
+            finalItems = rawItems.slice(0, 20).map((item: PlexMediaItem) => ({
+              id: `plex:${item.ratingKey}`,
+              title: item.title || item.grandparentTitle || 'Untitled',
+              image: core.plexServer.getImageUrl(item.thumb, 300),
+              mediaType: item.type === 'movie' ? 'movie' as const : 'tv' as const,
+            }));
+          }
+
+          sections.push({
+            id: `recently-added-${library.key}`,
+            libraryKey: library.key,
+            title: `Recently Added in ${library.title}`,
+            items: finalItems,
+          });
+        }
+      } catch (e) {
+        console.log(`[HomeData] Failed to load recently added for ${library.title}:`, e);
+        // Continue with other libraries
+      }
+    }
+
+    return sections;
+  } catch (e) {
+    console.log('[HomeData] fetchRecentlyAddedPerLibrary error:', e);
+    return [];
+  }
+}
+
+/**
+ * Group TV episodes by their parent series, preserving order of first appearance
+ * Non-episode items (movies, shows) are kept as-is
+ */
+function groupEpisodesBySeries(items: PlexMediaItem[], core: any): RowItem[] {
+  const result: RowItem[] = [];
+  const seenSeriesKeys = new Set<string>();
+  const seriesEpisodeCounts: Record<string, number> = {};
+
+  // First pass: count episodes per series
+  for (const item of items) {
+    if (item.type === 'episode' && item.grandparentRatingKey) {
+      seriesEpisodeCounts[item.grandparentRatingKey] = (seriesEpisodeCounts[item.grandparentRatingKey] || 0) + 1;
+    }
+  }
+
+  // Second pass: build result list, replacing episodes with series representative
+  for (const item of items) {
+    if (item.type === 'episode' && item.grandparentRatingKey) {
+      // Skip if we've already added this series
+      if (seenSeriesKeys.has(item.grandparentRatingKey)) {
+        continue;
+      }
+      seenSeriesKeys.add(item.grandparentRatingKey);
+
+      const episodeCount = seriesEpisodeCounts[item.grandparentRatingKey] || 1;
+
+      // Create a series representative item
+      result.push({
+        id: `plex:${item.grandparentRatingKey}`, // Use series rating key so clicking navigates to series details
+        title: item.grandparentTitle || item.title || 'Untitled',
+        image: core.plexServer.getImageUrl(item.grandparentThumb || item.thumb, 300),
+        mediaType: 'tv' as const,
+        subtitle: episodeCount > 1 ? `${episodeCount} new episodes` : '1 new episode',
+      });
+    } else {
+      // Non-episode items (movies, shows) - keep as-is
+      result.push({
+        id: `plex:${item.ratingKey}`,
+        title: item.title || 'Untitled',
+        image: core.plexServer.getImageUrl(item.thumb, 300),
+        mediaType: item.type === 'movie' ? 'movie' as const : 'tv' as const,
+      });
+    }
+  }
+
+  return result;
 }
