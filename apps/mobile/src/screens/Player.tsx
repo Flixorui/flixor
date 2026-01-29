@@ -1136,9 +1136,6 @@ export default function Player({ route }: RouteParams) {
     const loadedAudioTracks = data.audioTracks || [];
     const loadedTextTracks = data.textTracks || [];
 
-    console.log('[Player] Audio tracks from onLoad:', loadedAudioTracks);
-    console.log('[Player] Text tracks from onLoad:', loadedTextTracks);
-
     if (data.nativeLogPath) {
       console.log('[Player] Native log path:', data.nativeLogPath);
     }

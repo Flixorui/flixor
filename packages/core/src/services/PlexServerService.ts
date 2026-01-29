@@ -211,7 +211,6 @@ export class PlexServerService {
     const items = data.MediaContainer?.Metadata || [];
     console.log('[PlexServerService] getContinueWatching raw items:', items.length);
     const result = this.deduplicateContinueWatching(items);
-    console.log('[PlexServerService] getContinueWatching deduplicated:', result.items.length, 'editions:', result.itemsWithMultipleVersions.size);
     return result;
   }
 
