@@ -1,7 +1,8 @@
 import React from 'react';
-import { Animated, View, Text, StyleSheet, LayoutAnimation, UIManager, Platform } from 'react-native';
+import { Animated, View, Text, StyleSheet, LayoutAnimation, UIManager, Platform, Pressable, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import ConditionalBlurView from './ConditionalBlurView';
 import Pills from './Pills';
 import { TopBarStore } from './TopBarStore';
@@ -34,6 +35,7 @@ function TopAppBar({ visible, username, showFilters, selected, onChange, onOpenC
   customPillLabel?: string; // Custom label for pill when browsing specific library
 }) {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<any>();
 
   const collapsedHeight = insets.top + TOP_BAR_COLLAPSED_CONTENT_HEIGHT;
   const expandedHeight = insets.top + TOP_BAR_EXPANDED_CONTENT_HEIGHT;
@@ -85,6 +87,32 @@ function TopAppBar({ visible, username, showFilters, selected, onChange, onOpenC
     onHeightChange?.(headerHeight);
   }, [headerHeight, onHeightChange]);
 
+  const handleOpenDownloads = React.useCallback(() => {
+    // Walk up the navigator tree to find the tabs navigator
+    let current: any = navigation;
+    while (current) {
+      const state = current.getState?.();
+      if (state?.routeNames?.includes('DownloadsTab')) {
+        current.navigate('DownloadsTab');
+        return;
+      }
+      current = current.getParent?.();
+    }
+
+    // If the downloads tab is hidden, fall back to the root Downloads screen
+    current = navigation;
+    while (current) {
+      const state = current.getState?.();
+      if (state?.routeNames?.includes('Downloads')) {
+        current.navigate('Downloads');
+        return;
+      }
+      current = current.getParent?.();
+    }
+
+    navigation.navigate('Downloads');
+  }, [navigation]);
+
   return (
     <Animated.View
       pointerEvents={visible ? 'box-none' : 'none'}
@@ -125,7 +153,18 @@ function TopAppBar({ visible, username, showFilters, selected, onChange, onOpenC
             <Text style={{ color: '#fff', fontSize: compact ? 20 : 25, fontWeight: compact ? '700' : '600'}}>
               {compact ? username : `For ${username || 'You'}`}
             </Text>
-            {/* Search button removed - using bottom tab bar search instead */}
+            <Pressable
+              onPress={handleOpenDownloads}
+              hitSlop={10}
+              style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}
+              accessibilityRole="button"
+              accessibilityLabel="Downloads"
+            >
+              <Image
+                source={require('../../assets/icons/downloads.png')}
+                style={{ width: 32, height: 32, resizeMode: 'contain' }}
+              />
+            </Pressable>
           </View>
           {/* Pills row – animated visibility with slide up/down OR custom filters */}
           {customFilters ? (

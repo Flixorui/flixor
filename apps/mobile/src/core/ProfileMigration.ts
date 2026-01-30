@@ -10,11 +10,11 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { GLOBAL_KEYS } from './ProfileStorage';
+import { GLOBAL_KEYS, PROFILE_SCOPED_KEYS } from './ProfileStorage';
 
 // Migration version tracking
 const MIGRATION_VERSION_KEY = GLOBAL_KEYS.MIGRATION_VERSION;
-const CURRENT_MIGRATION_VERSION = 2; // Version 2 = profile support
+const CURRENT_MIGRATION_VERSION = 3; // Version 3 = unified details layout default
 
 /**
  * Run all necessary migrations
@@ -31,12 +31,61 @@ export async function runMigrations(): Promise<void> {
       await migrateToProfileSupport();
     }
 
+    if (currentVersion < 3) {
+      await migrateDetailsLayoutToUnified();
+    }
+
     // Save current migration version
     await AsyncStorage.setItem(MIGRATION_VERSION_KEY, String(CURRENT_MIGRATION_VERSION));
     console.log('[Migration] All migrations complete');
   } catch (e) {
     console.error('[Migration] Migration failed:', e);
     // Don't throw - app should still work, just might have issues
+  }
+}
+
+/**
+ * Migration to force unified details layout for existing users.
+ * Updates stored app settings (main account + profiles) to use unified layout.
+ */
+async function migrateDetailsLayoutToUnified(): Promise<void> {
+  console.log('[Migration] Forcing unified details layout (v3)');
+
+  try {
+    const settingsKey = PROFILE_SCOPED_KEYS.APP_SETTINGS;
+    const allKeys = await AsyncStorage.getAllKeys();
+    const targetKeys = allKeys.filter((key) => key === settingsKey || key.endsWith(`:${settingsKey}`));
+
+    if (targetKeys.length === 0) {
+      console.log('[Migration] No app settings found to update');
+      return;
+    }
+
+    const entries = await AsyncStorage.multiGet(targetKeys);
+    const updates: Array<[string, string]> = [];
+
+    for (const [key, value] of entries) {
+      if (!value) continue;
+      try {
+        const parsed = JSON.parse(value);
+        if (parsed.detailsScreenLayout !== 'unified') {
+          const next = { ...parsed, detailsScreenLayout: 'unified' };
+          updates.push([key, JSON.stringify(next)]);
+        }
+      } catch (e) {
+        console.log(`[Migration] Skipping invalid settings for ${key}:`, e);
+      }
+    }
+
+    if (updates.length > 0) {
+      await AsyncStorage.multiSet(updates);
+      console.log(`[Migration] Updated ${updates.length} settings entries to unified layout`);
+    } else {
+      console.log('[Migration] Settings already unified');
+    }
+  } catch (e) {
+    console.error('[Migration] migrateDetailsLayoutToUnified error:', e);
+    throw e;
   }
 }
 

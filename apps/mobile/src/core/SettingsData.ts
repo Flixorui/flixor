@@ -320,6 +320,7 @@ export interface AppSettings {
   detailsScreenLayout: 'tabbed' | 'unified';
   // Tab bar settings
   showNewHotTab: boolean;
+  showDownloadsTab: boolean;
   // Search settings
   includeTmdbInSearch: boolean; // Include TMDB results in search
 
@@ -392,9 +393,10 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   showRottenTomatoesCritic: true,
   showRottenTomatoesAudience: true,
   // Details screen layout default
-  detailsScreenLayout: 'tabbed',
+  detailsScreenLayout: 'unified',
   // Tab bar defaults
   showNewHotTab: true,
+  showDownloadsTab: false,
   // Search defaults
   includeTmdbInSearch: true,
 

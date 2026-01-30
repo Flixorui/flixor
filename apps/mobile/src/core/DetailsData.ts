@@ -197,8 +197,8 @@ export async function fetchTmdbLogo(mediaType: 'movie' | 'tv', tmdbId: number): 
   try {
     const core = getFlixorCore();
     const images = mediaType === 'movie'
-      ? await core.tmdb.getMovieImages(tmdbId)
-      : await core.tmdb.getTVImages(tmdbId);
+      ? await core.tmdb.getMovieImages(tmdbId, true)
+      : await core.tmdb.getTVImages(tmdbId, true);
 
     const logos = images.logos || [];
     const logo = logos.find((l: any) => l.iso_639_1 === 'en') || logos[0];

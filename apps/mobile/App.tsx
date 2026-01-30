@@ -366,14 +366,16 @@ const Tabs = React.memo(() => {
               tabBarIcon: () => ({ type: 'sfSymbol', name: 'bookmark' }),
             }}
           />
-          <IOSTab.Screen
-            name="DownloadsTab"
-            component={DownloadsStackNavigator}
-            options={{
-              title: 'Downloads',
-              tabBarIcon: () => ({ type: 'sfSymbol', name: 'arrow.down.circle' }),
-            }}
-          />
+          {settings.showDownloadsTab && (
+            <IOSTab.Screen
+              name="DownloadsTab"
+              component={DownloadsStackNavigator}
+              options={{
+                title: 'Downloads',
+                tabBarIcon: () => ({ type: 'sfSymbol', name: 'arrow.down.circle' }),
+              }}
+            />
+          )}
           <IOSTab.Screen
             name="SettingsTab"
             component={SettingsTabScreen}
@@ -436,7 +438,9 @@ const Tabs = React.memo(() => {
         <Tab.Screen name="NewHotTab" options={{ title: 'New & Hot' }} component={NewHotStackNavigator} />
       )}
       <Tab.Screen name="MyTab" options={{ title: 'My List' }} component={MyListStackNavigator} />
-      <Tab.Screen name="DownloadsTab" options={{ title: 'Downloads' }} component={DownloadsStackNavigator} />
+      {settings.showDownloadsTab && (
+        <Tab.Screen name="DownloadsTab" options={{ title: 'Downloads' }} component={DownloadsStackNavigator} />
+      )}
       <Tab.Screen name="SettingsTab" options={{ title: 'Settings' }} component={SettingsTabScreen} />
     </Tab.Navigator>
   );
@@ -538,6 +542,11 @@ function AppContent() {
             // Fully authenticated, connected, and onboarded - show main app
             <>
               <Stack.Screen name="Main" component={Tabs} />
+              <Stack.Screen
+                name="Downloads"
+                component={Downloads}
+                options={{ presentation: 'card', animation: 'slide_from_right' }}
+              />
               <Stack.Screen
                 name="ProfileSelect"
                 options={{
