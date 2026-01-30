@@ -267,7 +267,7 @@ export default function Home({ onLogout }: HomeProps) {
   }, [heroCarouselData, preloadImages]);
 
   const y = React.useRef(new Animated.Value(0)).current;
-  const contentTopInset = TOP_BAR_EXPANDED_CONTENT_HEIGHT;
+  const contentTopInset = insets.top + TOP_BAR_EXPANDED_CONTENT_HEIGHT;
   // Use ref instead of useIsFocused() to avoid re-renders on focus change
   const isFocusedRef = useRef(true);
   const perfRef = useRef({ focusAt: 0, loadAt: 0 });
@@ -1191,7 +1191,7 @@ export default function Home({ onLogout }: HomeProps) {
   const topRightColor = heroColors?.topRight || '144c54';
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#1b0a10' }} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#1b0a10' }} edges={['left', 'right']}>
       <LinearGradient
         colors={['#1a1a1a', '#181818', '#151515']}
         start={{ x: 0.5, y: 0 }}

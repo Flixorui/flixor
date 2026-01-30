@@ -2171,7 +2171,7 @@ function ProductionRow({ items, isMovie }: { items: Array<{id: number; name: str
                 resizeMode="contain"
               />
             ) : (
-              <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>{item.name}</Text>
+              <Text style={{ color: '#000', fontSize: 13, fontWeight: '600' }}>{item.name}</Text>
             )}
           </View>
         ))}
