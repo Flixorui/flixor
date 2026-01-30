@@ -41,6 +41,18 @@ export default function BottomAppBarSettings() {
                 onValueChange={(value) => updateSetting('showDownloadsTab', value)}
               />
             )}
+            isLast={false}
+          />
+          <SettingItem
+            title="My List Tab"
+            description="Show My List tab in bottom navigation"
+            icon="bookmark-outline"
+            renderRight={() => (
+              <Switch
+                value={settings.showMyListTab}
+                onValueChange={(value) => updateSetting('showMyListTab', value)}
+              />
+            )}
             isLast={true}
           />
         </SettingsCard>

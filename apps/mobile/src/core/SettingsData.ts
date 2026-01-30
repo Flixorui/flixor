@@ -321,6 +321,7 @@ export interface AppSettings {
   // Tab bar settings
   showNewHotTab: boolean;
   showDownloadsTab: boolean;
+  showMyListTab: boolean;
   // Search settings
   includeTmdbInSearch: boolean; // Include TMDB results in search
 
@@ -397,6 +398,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   // Tab bar defaults
   showNewHotTab: true,
   showDownloadsTab: false,
+  showMyListTab: true,
   // Search defaults
   includeTmdbInSearch: true,
 

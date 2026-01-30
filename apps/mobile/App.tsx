@@ -358,14 +358,16 @@ const Tabs = React.memo(() => {
               }}
             />
           )}
-          <IOSTab.Screen
-            name="MyTab"
-            component={MyListStackNavigator}
-            options={{
-              title: 'My List',
-              tabBarIcon: () => ({ type: 'sfSymbol', name: 'bookmark' }),
-            }}
-          />
+          {settings.showMyListTab && (
+            <IOSTab.Screen
+              name="MyTab"
+              component={MyListStackNavigator}
+              options={{
+                title: 'My List',
+                tabBarIcon: () => ({ type: 'sfSymbol', name: 'bookmark' }),
+              }}
+            />
+          )}
           {settings.showDownloadsTab && (
             <IOSTab.Screen
               name="DownloadsTab"
@@ -437,7 +439,9 @@ const Tabs = React.memo(() => {
       {settings.showNewHotTab && (
         <Tab.Screen name="NewHotTab" options={{ title: 'New & Hot' }} component={NewHotStackNavigator} />
       )}
-      <Tab.Screen name="MyTab" options={{ title: 'My List' }} component={MyListStackNavigator} />
+      {settings.showMyListTab && (
+        <Tab.Screen name="MyTab" options={{ title: 'My List' }} component={MyListStackNavigator} />
+      )}
       {settings.showDownloadsTab && (
         <Tab.Screen name="DownloadsTab" options={{ title: 'Downloads' }} component={DownloadsStackNavigator} />
       )}
