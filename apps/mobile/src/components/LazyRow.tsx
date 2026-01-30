@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { View, LayoutChangeEvent, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import Row from './Row';
+import Row, { RowBadge } from './Row';
 import RowSkeleton from './RowSkeleton';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -12,11 +12,13 @@ const VIEWPORT_BUFFER = SCREEN_HEIGHT * 0.5;
 interface LazyRowProps {
   title: string;
   titleIcon?: keyof typeof Ionicons.glyphMap;
+  badge?: RowBadge;
   // Either provide pre-loaded items OR a fetchData function
   items?: any[];
   fetchData?: () => Promise<any[]>;
   getImageUri: (item: any) => string | undefined;
   getTitle: (item: any) => string | undefined;
+  getSubtitle?: (item: any) => string | undefined;
   authHeaders?: Record<string, string>;
   onItemPress?: (item: any) => void;
   onTitlePress?: () => void;
@@ -27,10 +29,12 @@ interface LazyRowProps {
 function LazyRow({
   title,
   titleIcon,
+  badge,
   items: preloadedItems,
   fetchData,
   getImageUri,
   getTitle,
+  getSubtitle,
   authHeaders,
   onItemPress,
   onTitlePress,
@@ -115,9 +119,11 @@ function LazyRow({
       <Row
         title={title}
         titleIcon={titleIcon}
+        badge={badge}
         items={data}
         getImageUri={getImageUri}
         getTitle={getTitle}
+        getSubtitle={getSubtitle}
         authHeaders={authHeaders}
         onItemPress={onItemPress}
         onTitlePress={onTitlePress}

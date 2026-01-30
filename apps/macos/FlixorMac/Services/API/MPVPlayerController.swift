@@ -37,6 +37,9 @@ class MPVPlayerController {
     /// HDR state
     private var hdrEnabled = true
     private var lastSigPeak: Double = 0.0
+    private var lastGamma: String?
+    private var lastPrimaries: String?
+    private var isHDRModeActive = false
 
     /// Callback for property changes
     var onPropertyChange: ((String, Any?) -> Void)?
@@ -232,48 +235,157 @@ class MPVPlayerController {
         mpv_observe_property(mpv, 0, "seeking", MPV_FORMAT_FLAG)
         mpv_observe_property(mpv, 0, "paused-for-cache", MPV_FORMAT_FLAG)
 
-        // CRITICAL: Observe sig-peak for HDR/EDR activation (plezy approach)
+        // CRITICAL: Observe HDR/EDR properties (IINA approach)
         mpv_observe_property(mpv, 0, "video-params/sig-peak", MPV_FORMAT_DOUBLE)
+        mpv_observe_property(mpv, 0, "video-params/gamma", MPV_FORMAT_STRING)
+        mpv_observe_property(mpv, 0, "video-params/primaries", MPV_FORMAT_STRING)
 
         // Observe thumbfast-info property for thumbnail metadata
         mpv_observe_property(mpv, 0, "user-data/thumbfast-info", MPV_FORMAT_STRING)
     }
 
-    // MARK: - HDR/EDR Support
+    // MARK: - HDR/EDR Support (IINA approach)
 
-    /// Update EDR mode based on sig-peak (plezy approach)
-    private func updateEDRMode(sigPeak: Double) {
+    /// Configure HDR mode based on video properties (gamma, primaries, sig-peak)
+    /// This follows IINA's approach: detect HDR via transfer function (PQ/HLG),
+    /// then configure MPV and the layer colorspace accordingly
+    private func configureHDRMode() {
         guard let layer = metalLayer else { return }
+        guard let gamma = lastGamma, let primaries = lastPrimaries else {
+            // Video properties not yet available
+            return
+        }
 
         // Check if screen supports EDR
         var edrHeadroom: CGFloat = 1.0
         if let screen = window?.screen ?? NSScreen.main {
             edrHeadroom = screen.maximumExtendedDynamicRangeColorComponentValue
         }
-
-        let isHDRContent = sigPeak > 1.0
         let screenSupportsEDR = edrHeadroom > 1.0
-        let shouldEnableEDR = hdrEnabled && isHDRContent && screenSupportsEDR
 
-        layer.wantsExtendedDynamicRangeContent = shouldEnableEDR
+        // HDR videos use Hybrid Log Gamma (HLG) or Perceptual Quantization (PQ) transfer function
+        let isHDRContent = gamma == "pq" || gamma == "hlg"
+        let shouldEnableHDR = hdrEnabled && isHDRContent && screenSupportsEDR
 
-        print("[MPV] EDR: \(shouldEnableEDR) (hdrEnabled: \(hdrEnabled), sigPeak: \(sigPeak), headroom: \(edrHeadroom))")
+        // Avoid redundant configuration
+        if shouldEnableHDR == isHDRModeActive {
+            return
+        }
+        isHDRModeActive = shouldEnableHDR
+
+        if shouldEnableHDR {
+            configureForHDR(primaries: primaries, gamma: gamma)
+        } else {
+            configureForSDR()
+        }
+
+        print("🎨 [MPV] HDR Mode: \(shouldEnableHDR) (gamma: \(gamma), primaries: \(primaries), sigPeak: \(lastSigPeak), headroom: \(edrHeadroom))")
+    }
+
+    /// Configure MPV and layer for HDR playback
+    private func configureForHDR(primaries: String, gamma: String) {
+        guard let layer = metalLayer, mpv != nil else { return }
+
+        // Enable EDR on the layer
+        layer.wantsExtendedDynamicRangeContent = true
+
+        // Set appropriate colorspace based on primaries (IINA approach)
+        let colorspaceName: CFString?
+        switch primaries {
+        case "bt.2020":
+            // BT.2020 / Rec.2100 - Standard HDR color space (used by most HDR/DV content)
+            if #available(macOS 11.0, *) {
+                colorspaceName = CGColorSpace.itur_2100_PQ
+            } else if #available(macOS 10.15.4, *) {
+                colorspaceName = CGColorSpace.itur_2020_PQ
+            } else {
+                colorspaceName = CGColorSpace.itur_2020_PQ_EOTF
+            }
+        case "display-p3":
+            // Display P3 with PQ transfer
+            if #available(macOS 10.15.4, *) {
+                colorspaceName = CGColorSpace.displayP3_PQ
+            } else {
+                colorspaceName = CGColorSpace.displayP3_PQ_EOTF
+            }
+        default:
+            // Unknown primaries - use BT.2020 as fallback for HDR
+            if #available(macOS 11.0, *) {
+                colorspaceName = CGColorSpace.itur_2100_PQ
+            } else {
+                colorspaceName = CGColorSpace.itur_2020_PQ
+            }
+        }
+
+        if let name = colorspaceName, let cs = CGColorSpace(name: name) {
+            layer.colorspace = cs
+            print("🌈 [MPV] Layer colorspace set to: \(primaries) (PQ)")
+        }
+
+        // Configure MPV for HDR output (IINA approach)
+        // Disable ICC profile for HDR - let the display handle it
+        mpv_set_property_string(mpv, "icc-profile-auto", "no")
+
+        // Set target primaries to match the video
+        mpv_set_property_string(mpv, "target-prim", primaries)
+
+        // Set target transfer function to PQ (HLG will be converted to PQ)
+        mpv_set_property_string(mpv, "target-trc", "pq")
+
+        // Keep target-colorspace-hint enabled for display signaling
+        mpv_set_property_string(mpv, "target-colorspace-hint", "yes")
+
+        // Let mpv handle peak detection automatically
+        mpv_set_property_string(mpv, "target-peak", "auto")
+
+        // Disable tone mapping - we want native HDR passthrough
+        mpv_set_property_string(mpv, "tone-mapping", "")
+
+        print("✅ [MPV] Configured for HDR: target-prim=\(primaries), target-trc=pq, icc-profile-auto=no")
+    }
+
+    /// Configure MPV and layer for SDR playback
+    private func configureForSDR() {
+        guard let layer = metalLayer, mpv != nil else { return }
+
+        // Disable EDR
+        layer.wantsExtendedDynamicRangeContent = false
+
+        // Reset to sRGB colorspace
+        if let srgb = CGColorSpace(name: CGColorSpace.sRGB) {
+            layer.colorspace = srgb
+        }
+
+        // Reset MPV settings to auto/defaults for SDR
+        mpv_set_property_string(mpv, "icc-profile-auto", "yes")
+        mpv_set_property_string(mpv, "target-prim", "auto")
+        mpv_set_property_string(mpv, "target-trc", "auto")
+        mpv_set_property_string(mpv, "target-peak", "auto")
+        mpv_set_property_string(mpv, "tone-mapping", "auto")
+        mpv_set_property_string(mpv, "target-colorspace-hint", hdrEnabled ? "yes" : "no")
+
+        print("✅ [MPV] Configured for SDR: auto settings restored")
     }
 
     /// Enable or disable HDR mode
     func setHDREnabled(_ enabled: Bool) {
         hdrEnabled = enabled
-        print("[MPV] HDR enabled: \(enabled)")
+        print("[MPV] HDR user preference: \(enabled)")
 
-        // Update MPV's target-colorspace-hint
-        if mpv != nil {
-            mpv_set_property_string(mpv, "target-colorspace-hint", enabled ? "yes" : "no")
-        }
-
-        // Re-evaluate EDR mode with current sig-peak
+        // Reconfigure based on current video properties
         DispatchQueue.main.async {
-            self.updateEDRMode(sigPeak: self.lastSigPeak)
+            // Reset HDR mode state to force reconfiguration
+            self.isHDRModeActive = false
+            self.configureHDRMode()
         }
+    }
+
+    /// Reset HDR state (call when loading new file)
+    func resetHDRState() {
+        lastGamma = nil
+        lastPrimaries = nil
+        lastSigPeak = 0.0
+        isHDRModeActive = false
     }
 
     // MARK: - Playback Control
@@ -283,6 +395,9 @@ class MPVPlayerController {
             print("❌ [MPV] Cannot load file: mpv not initialized")
             return
         }
+
+        // Reset HDR state for new file
+        resetHDRState()
 
         // Set HTTP headers if provided (required for some Plex servers)
         if let headers = headers, !headers.isEmpty {
@@ -611,12 +726,22 @@ class MPVPlayerController {
                 }
             }()
 
-            // Handle sig-peak for HDR/EDR activation (plezy approach)
+            // Handle HDR properties (IINA approach)
             if propertyName == "video-params/sig-peak", let sigPeak = value as? Double {
                 lastSigPeak = sigPeak
                 DispatchQueue.main.async {
-                    self.updateEDRMode(sigPeak: sigPeak)
+                    self.configureHDRMode()
                     self.onHDRDetected?(sigPeak > 1.0, sigPeak)
+                }
+            } else if propertyName == "video-params/gamma", let gamma = value as? String {
+                lastGamma = gamma
+                DispatchQueue.main.async {
+                    self.configureHDRMode()
+                }
+            } else if propertyName == "video-params/primaries", let primaries = value as? String {
+                lastPrimaries = primaries
+                DispatchQueue.main.async {
+                    self.configureHDRMode()
                 }
             }
 
@@ -1048,24 +1173,24 @@ class MPVPlayerController {
         return nil
     }
 
-    /// No longer needed
+    /// No longer needed - ICC handled automatically based on HDR/SDR mode
     func setRenderICCProfile(_ colorSpace: NSColorSpace) {
-        // No-op: gpu-next handles color management
+        // No-op: configureHDRMode handles ICC profile settings
     }
 
-    /// No longer needed with sig-peak based detection
+    /// Deprecated - use configureHDRMode instead
     func setHDRProperties(primaries: String) {
-        // No-op: target-colorspace-hint handles this
+        // No-op: configureHDRMode handles this automatically
     }
 
-    /// No longer needed with sig-peak based detection
+    /// Deprecated - use configureHDRMode instead
     func setSDRProperties() {
-        // No-op: target-colorspace-hint handles this
+        // No-op: configureHDRMode handles this automatically
     }
 
-    /// No longer needed
+    /// No longer needed - ICC handled automatically
     func setICCProfile(path: String?) {
-        // No-op: gpu-next handles color management
+        // No-op: configureHDRMode handles ICC profile settings
     }
 }
 

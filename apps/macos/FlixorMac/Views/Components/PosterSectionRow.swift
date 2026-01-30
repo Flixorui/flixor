@@ -32,7 +32,7 @@ struct PosterSectionRow: View {
             items: section.items,
             itemWidth: posterWidth,
             spacing: 14,
-            rowHeight: posterHeight + 16,
+            rowHeight: posterHeight, // Match exact content height to fix hover offset
             browseAction: section.browseContext.map { context in
                 { onBrowse?(context) }
             }
@@ -58,16 +58,57 @@ struct PosterSectionCard: View {
 
     private var height: CGFloat { width * 1.5 }
 
+    // For episodes: show series title, otherwise item title
+    private var displayTitle: String {
+        if item.type == "episode", let seriesTitle = item.grandparentTitle {
+            return seriesTitle
+        }
+        return item.title
+    }
+
+    // For episodes: format as S1E1
+    private var episodeLabel: String? {
+        guard item.type == "episode" else { return nil }
+        let season = item.parentIndex ?? 1
+        let episode = item.index ?? 1
+        return "S\(season)E\(episode)"
+    }
+
+    // Check if this is a grouped recently added item (we mark these with summary like "X new episodes")
+    private var isGroupedRecentlyAdded: Bool {
+        guard item.type == "show",
+              let summary = item.summary,
+              summary.contains("new episode") else {
+            return false
+        }
+        return true
+    }
+
+    // Badge text: shows episode count for grouped items, otherwise TV/episode label
+    private var badgeText: String {
+        // For grouped recently added shows - show just the count
+        if isGroupedRecentlyAdded, let count = item.leafCount, count > 0 {
+            return "\(count)"
+        }
+        // For individual episodes
+        if item.type == "episode" {
+            return episodeLabel ?? "TV"
+        }
+        // Default for shows
+        return "TV"
+    }
+
+    // Badge color: semi-transparent black for all badges
+    private var badgeColor: Color {
+        return Color.black.opacity(0.6)
+    }
+
     var body: some View {
         Button(action: { onTap?() }) {
             ZStack(alignment: .bottom) {
-                // Poster Image
+                // Poster Image - for episodes, use series poster (grandparentThumb)
                 CachedAsyncImage(
-                    url: posterURL ?? ImageService.shared.thumbURL(
-                        for: item,
-                        width: Int(width * 2),
-                        height: Int(height * 2)
-                    )
+                    url: posterURL ?? resolveDefaultPosterURL()
                 )
                 .aspectRatio(contentMode: .fill)
                 .frame(width: width, height: height)
@@ -91,12 +132,20 @@ struct PosterSectionCard: View {
                 // Title overlay (only on hover)
                 if isHovered {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(item.title)
+                        // Series/Movie title
+                        Text(displayTitle)
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(.white)
                             .lineLimit(2)
 
                         HStack(spacing: 6) {
+                            // Episode label (S1E1 format)
+                            if let epLabel = episodeLabel {
+                                Text(epLabel)
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundStyle(.white.opacity(0.85))
+                            }
+
                             if let year = item.year {
                                 Text(String(year))
                                     .font(.system(size: 11))
@@ -120,16 +169,17 @@ struct PosterSectionCard: View {
                 }
 
                 // Type badge (top trailing)
+                // Shows "X new" for grouped recently added episodes, otherwise shows TV/episode label
                 if item.type == "show" || item.type == "episode" {
                     VStack {
                         HStack {
                             Spacer()
-                            Text("TV")
+                            Text(badgeText)
                                 .font(.system(size: 10, weight: .bold))
                                 .foregroundStyle(.white)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 3)
-                                .background(Color.blue.opacity(0.8))
+                                .background(badgeColor)
                                 .clipShape(RoundedRectangle(cornerRadius: 4))
                                 .padding(6)
                         }
@@ -146,6 +196,7 @@ struct PosterSectionCard: View {
             .shadow(color: .black.opacity(0.3), radius: 6, y: 3)
         }
         .buttonStyle(.plain)
+        .contentShape(Rectangle()) // Ensures full button area is clickable
         .onHover { hovering in
             withAnimation(.easeOut(duration: 0.15)) {
                 isHovered = hovering
@@ -154,6 +205,19 @@ struct PosterSectionCard: View {
         .task(id: item.id) {
             await loadPoster()
         }
+    }
+
+    /// Resolve default poster URL - for episodes use series poster
+    private func resolveDefaultPosterURL() -> URL? {
+        if item.type == "episode", let grandparentThumb = item.grandparentThumb {
+            // Use series poster for episodes
+            return ImageService.shared.plexImageURL(path: grandparentThumb, width: Int(width * 2), height: Int(height * 2))
+        }
+        return ImageService.shared.thumbURL(
+            for: item,
+            width: Int(width * 2),
+            height: Int(height * 2)
+        )
     }
 
     private func loadPoster() async {
@@ -181,6 +245,11 @@ struct PosterSectionCard: View {
             return nil
         }
 
+        // For episodes, try to get series poster via grandparentRatingKey
+        if item.type == "episode", let seriesKey = item.grandparentRatingKey {
+            return try await fetchPlexTMDBPoster(ratingKey: seriesKey, mediaType: "tv")
+        }
+
         // Handle plex: prefix
         if item.id.hasPrefix("plex:") {
             let rk = String(item.id.dropFirst(5))
@@ -195,16 +264,16 @@ struct PosterSectionCard: View {
         return nil
     }
 
-    private func fetchPlexTMDBPoster(ratingKey: String) async throws -> URL? {
+    private func fetchPlexTMDBPoster(ratingKey: String, mediaType: String? = nil) async throws -> URL? {
         struct PlexMeta: Codable { let type: String?; let Guid: [PlexGuid]? }
         struct PlexGuid: Codable { let id: String? }
 
         let meta: PlexMeta = try await APIClient.shared.get("/api/plex/metadata/\(ratingKey)")
-        let mediaType = (meta.type == "movie") ? "movie" : "tv"
+        let resolvedType = mediaType ?? ((meta.type == "movie") ? "movie" : "tv")
 
         if let guid = meta.Guid?.compactMap({ $0.id }).first(where: { $0.contains("tmdb://") || $0.contains("themoviedb://") }),
            let tid = guid.components(separatedBy: "://").last {
-            return try await fetchTMDBPoster(mediaType: mediaType, id: tid)
+            return try await fetchTMDBPoster(mediaType: resolvedType, id: tid)
         }
         return nil
     }

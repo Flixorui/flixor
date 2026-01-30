@@ -44,6 +44,21 @@ class MPVMetalLayer: CAMetalLayer {
         }
     }
 
+    /// Thread-safe colorspace property for HDR/SDR switching
+    /// Colorspace must also be set on main thread
+    override var colorspace: CGColorSpace? {
+        get { return super.colorspace }
+        set {
+            if Thread.isMainThread {
+                super.colorspace = newValue
+            } else {
+                DispatchQueue.main.async {
+                    super.colorspace = newValue
+                }
+            }
+        }
+    }
+
     // MARK: - Initialization
 
     override init() {

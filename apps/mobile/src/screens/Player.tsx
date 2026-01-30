@@ -1,11 +1,12 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, StatusBar, Dimensions, Platform, NativeModules, Image } from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, StatusBar, Dimensions, Platform, NativeModules, Image, Pressable } from 'react-native';
 import { Video, ResizeMode, AVPlaybackStatus, Audio } from 'expo-av';
 import FastImage from '@d11/react-native-fast-image';
 import Slider from '@react-native-community/slider';
 import { useNavigation, StackActions } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ScreenOrientation from 'expo-screen-orientation';
+import { useKeepAwake } from 'expo-keep-awake';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MPVPlayerComponent, MPVPlayerRef, MPVAudioTrack, MPVSubtitleTrack, PerformanceStats } from '../components/player';
 
@@ -89,6 +90,9 @@ export default function Player({ route }: RouteParams) {
   const { settings } = useAppSettings();
   const MPVPlayerModule = NativeModules.MPVPlayerModule; // Native module for async methods
 
+  // Keep screen awake during video playback
+  useKeepAwake();
+
   // Multi-version support: which Media to use
   const selectedMediaIndex = params.mediaIndex ?? 0;
 
@@ -157,6 +161,8 @@ export default function Player({ route }: RouteParams) {
   // Quality selection state
   const [selectedQuality, setSelectedQuality] = useState<number | 'original'>('original');
   const [qualityOptions, setQualityOptions] = useState<Array<{ label: string; value: number | 'original' }>>([]);
+
+  // Video resize mode for pinch-to-zoom (contain = letterbox, cover = fill screen)
 
   // Track screen dimensions for rotation
   const [dimensions, setDimensions] = useState({
@@ -1130,9 +1136,6 @@ export default function Player({ route }: RouteParams) {
     const loadedAudioTracks = data.audioTracks || [];
     const loadedTextTracks = data.textTracks || [];
 
-    console.log('[Player] Audio tracks from onLoad:', loadedAudioTracks);
-    console.log('[Player] Text tracks from onLoad:', loadedTextTracks);
-
     if (data.nativeLogPath) {
       console.log('[Player] Native log path:', data.nativeLogPath);
     }
@@ -1628,6 +1631,39 @@ export default function Player({ route }: RouteParams) {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
+  // Pinch gesture tracking for toggling aspect ratio (like Plezy)
+  const isPinchingRef = useRef(false);
+
+  const handleTouchStart = useCallback((e: any) => {
+    const touchCount = e.nativeEvent.touches?.length || 0;
+    if (touchCount >= 2) {
+      isPinchingRef.current = true;
+    }
+  }, []);
+
+  const handleTouchEnd = useCallback(async () => {
+    if (isPinchingRef.current) {
+      // Use the same method as the aspect ratio button
+      try {
+        const newMode = await mpvPlayerRef.current?.cycleAspectRatio();
+        if (newMode !== undefined) {
+          setAspectRatioMode(newMode);
+          console.log('[Player] Pinch gesture - aspect ratio mode:', newMode);
+        }
+      } catch (e) {
+        console.log('[Player] Pinch gesture cycleAspectRatio error:', e);
+      }
+      isPinchingRef.current = false;
+    }
+  }, []);
+
+  const handleTouchMove = useCallback((e: any) => {
+    const touchCount = e.nativeEvent.touches?.length || 0;
+    if (touchCount >= 2 && !isPinchingRef.current) {
+      isPinchingRef.current = true;
+    }
+  }, []);
+
   if (loading) {
     return (
       <View style={styles.loading}>
@@ -1651,28 +1687,33 @@ export default function Player({ route }: RouteParams) {
     <View style={styles.container}>
       <StatusBar hidden />
 
-      {/* Unified MPV Player (iOS + Android) */}
-      {streamUrl ? (
-        <MPVPlayerComponent
-          ref={mpvPlayerRef}
-          source={{ uri: streamUrl }}
-          style={{ width: dimensions.width, height: dimensions.height }}
-          resizeMode="contain"
-          paused={!isPlaying}
-          volume={1.0}
-          rate={1.0}
-          decoderMode="auto"
-          onLoad={onPlayerLoad}
-          onProgress={onPlayerProgress}
-          onEnd={onPlayerEnd}
-          onError={onPlayerError}
-          onTracksChanged={onMpvTracksChanged}
-        />
-      ) : null}
+          {/* Unified MPV Player (iOS + Android) */}
+          {streamUrl ? (
+            <MPVPlayerComponent
+              ref={mpvPlayerRef}
+              source={{ uri: streamUrl }}
+              style={{ width: dimensions.width, height: dimensions.height }}
+              paused={!isPlaying}
+              volume={1.0}
+              rate={1.0}
+              decoderMode="auto"
+              onLoad={onPlayerLoad}
+              onProgress={onPlayerProgress}
+              onEnd={onPlayerEnd}
+              onError={onPlayerError}
+              onTracksChanged={onMpvTracksChanged}
+            />
+          ) : null}
 
-      {/* Background tap area to show/hide controls */}
+      {/* Background tap area to show/hide controls + pinch gesture detection */}
       <View style={styles.tapArea} pointerEvents="box-none">
-        <TouchableOpacity style={StyleSheet.absoluteFillObject} activeOpacity={1} onPress={resetControlsTimeout} />
+        <Pressable
+          style={StyleSheet.absoluteFillObject}
+          onPress={resetControlsTimeout}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+        />
         {/* Controls overlay */}
         {showControls && (
           <>

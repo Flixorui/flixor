@@ -71,6 +71,21 @@ struct RowsSettingsView: View {
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 4)
 
+            // Recently Added Options
+            SettingsSectionHeader(title: "Recently Added")
+            SettingsGroupCard {
+                SettingsRow(
+                    icon: "square.stack.fill",
+                    iconColor: .cyan,
+                    title: "Group Episodes by Series",
+                    subtitle: "Show series posters instead of individual episodes",
+                    showDivider: false
+                ) {
+                    Toggle("", isOn: $profileSettings.groupRecentlyAddedEpisodes)
+                        .labelsHidden()
+                }
+            }
+
             // Collection Rows Options
             if profileSettings.showCollectionRows {
                 SettingsSectionHeader(title: "Collections")

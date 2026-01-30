@@ -35,15 +35,22 @@ export class TMDBService {
 
   /**
    * Make a GET request to TMDB with caching
+   * @param skipLanguage - If true, don't add the default language parameter (for images with all languages)
    */
   private async get<T>(
     path: string,
     params?: Record<string, string>,
-    ttl: number = CacheTTL.TRENDING
+    ttl: number = CacheTTL.TRENDING,
+    skipLanguage: boolean = false
   ): Promise<T> {
-    const queryParams = new URLSearchParams({
+    const baseParams: Record<string, string> = {
       api_key: this.apiKey,
-      language: this.language,
+    };
+    if (!skipLanguage) {
+      baseParams.language = this.language;
+    }
+    const queryParams = new URLSearchParams({
+      ...baseParams,
       ...params,
     });
 
@@ -168,12 +175,15 @@ export class TMDBService {
 
   /**
    * Get movie images
+   * @param id - TMDB movie ID
+   * @param includeAllLanguages - If true, returns images in all languages (skips language filter). Default false (en,null only)
    */
-  async getMovieImages(id: number): Promise<TMDBImages> {
+  async getMovieImages(id: number, includeAllLanguages: boolean = false): Promise<TMDBImages> {
     return this.get<TMDBImages>(
       `/movie/${id}/images`,
-      { include_image_language: 'en,null' },
-      CacheTTL.TRENDING
+      includeAllLanguages ? undefined : { include_image_language: 'en,null' },
+      CacheTTL.TRENDING,
+      includeAllLanguages // skipLanguage - don't add language param when fetching all languages
     );
   }
 
@@ -249,12 +259,15 @@ export class TMDBService {
 
   /**
    * Get TV images
+   * @param id - TMDB TV show ID
+   * @param includeAllLanguages - If true, returns images in all languages (skips language filter). Default false (en,null only)
    */
-  async getTVImages(id: number): Promise<TMDBImages> {
+  async getTVImages(id: number, includeAllLanguages: boolean = false): Promise<TMDBImages> {
     return this.get<TMDBImages>(
       `/tv/${id}/images`,
-      { include_image_language: 'en,null' },
-      CacheTTL.TRENDING
+      includeAllLanguages ? undefined : { include_image_language: 'en,null' },
+      CacheTTL.TRENDING,
+      includeAllLanguages // skipLanguage - don't add language param when fetching all languages
     );
   }
 

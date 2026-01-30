@@ -9,6 +9,8 @@ import Row from '../components/Row';
 import LazyRow from '../components/LazyRow';
 import ContinueWatchingLandscapeRow from '../components/ContinueWatchingLandscapeRow';
 import ContinueWatchingPosterRow from '../components/ContinueWatchingPosterRow';
+import TraktContinueWatchingLandscapeRow from '../components/TraktContinueWatchingLandscapeRow';
+import TraktContinueWatchingPosterRow from '../components/TraktContinueWatchingPosterRow';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { TopBarStore } from '../components/TopBarStore';
 import { TOP_BAR_EXPANDED_CONTENT_HEIGHT } from '../components/topBarMetrics';
@@ -33,7 +35,9 @@ import {
   fetchTraktWatchlist,
   fetchTraktHistory,
   fetchTraktRecommendations,
+  fetchTraktContinueWatching,
   fetchCollectionRowsForHome,
+  fetchRecentlyAddedPerLibrary,
   getPlexImageUrl,
   getContinueWatchingImageUrl,
   getTmdbLogo,
@@ -46,10 +50,12 @@ import {
   getUsername,
   convertPlexItemsToHero,
   RowItem,
+  TraktContinueWatchingItem,
   GenreItem,
   PlexUltraBlurColors,
   HeroItem,
   CollectionRowData,
+  RecentlyAddedSection,
 } from '../core/HomeData';
 import {
   toggleWatchlist,
@@ -125,9 +131,13 @@ export default function Home({ onLogout }: HomeProps) {
   const [traktMyWatchlist, setTraktMyWatchlist] = useState<RowItem[]>([]);
   const [traktHistory, setTraktHistory] = useState<RowItem[]>([]);
   const [traktRecommendations, setTraktRecommendations] = useState<RowItem[]>([]);
+  const [traktContinueWatching, setTraktContinueWatching] = useState<TraktContinueWatchingItem[]>([]);
 
   // Collection rows
   const [collectionRows, setCollectionRows] = useState<CollectionRowData[]>([]);
+
+  // Recently Added per library rows
+  const [recentlyAddedSections, setRecentlyAddedSections] = useState<RecentlyAddedSection[]>([]);
 
   // UI state
   const [tab, setTab] = useState<'all' | 'movies' | 'shows'>('all');
@@ -238,7 +248,9 @@ export default function Home({ onLogout }: HomeProps) {
     setTraktMyWatchlist([]);
     setTraktHistory([]);
     setTraktRecommendations([]);
+    setTraktContinueWatching([]);
     setCollectionRows([]);
+    setRecentlyAddedSections([]);
     setHeroCarouselData([]);
 
     // Re-trigger data load by incrementing retryCount
@@ -425,7 +437,6 @@ export default function Home({ onLogout }: HomeProps) {
         // Exit loading as soon as Plex hero content (Continue Watching / On Deck / Recent) is ready
         // Priority: Continue Watching → On Deck → Recently Added (matches macOS behavior)
         continuePromise.then(async (continueResult) => {
-          console.log('[Home] continuePromise resolved:', continueResult);
           InteractionManager.runAfterInteractions(async () => {
             const continueData = continueResult?.items || [];
             console.log('[Home] Setting continueItems:', continueData.length);
@@ -574,14 +585,17 @@ export default function Home({ onLogout }: HomeProps) {
         ];
 
         // Load genres progressively - update state as each completes (deferred)
-        genreDefs.forEach(async (gd) => {
-          try {
-            const items = await fetchPlexGenreRow(gd.type, gd.label);
-            InteractionManager.runAfterInteractions(() => {
-              setGenres(prev => ({ ...prev, [gd.key]: items }));
-            });
-          } catch {}
-        });
+        // Only fetch if genre rows are enabled in settings
+        if (settings.showPlexGenreRows) {
+          genreDefs.forEach(async (gd) => {
+            try {
+              const items = await fetchPlexGenreRow(gd.type, gd.label);
+              InteractionManager.runAfterInteractions(() => {
+                setGenres(prev => ({ ...prev, [gd.key]: items }));
+              });
+            } catch {}
+          });
+        }
 
         // Trakt rows - load in background (deferred updates)
         fetchTraktTrendingMovies().then((items) => {
@@ -603,6 +617,13 @@ export default function Home({ onLogout }: HomeProps) {
           InteractionManager.runAfterInteractions(() => setTraktRecommendations(items));
         }).catch(() => {});
 
+        // Trakt Continue Watching (only if enabled in settings)
+        if (settings.showTraktContinueWatching) {
+          fetchTraktContinueWatching().then((items) => {
+            InteractionManager.runAfterInteractions(() => setTraktContinueWatching(items));
+          }).catch(() => setTraktContinueWatching([]));
+        }
+
         // Collection rows - load in background (deferred)
         if (settings.showCollectionRows) {
           fetchCollectionRowsForHome(10).then((rows) => {
@@ -615,6 +636,18 @@ export default function Home({ onLogout }: HomeProps) {
               setCollectionRows(visibleRows);
             });
           }).catch(() => setCollectionRows([]));
+        }
+
+        // Recently Added per library rows - load in background (deferred)
+        if (settings.showRecentlyAddedRows) {
+          fetchRecentlyAddedPerLibrary(
+            settings.groupRecentlyAddedEpisodes,
+            settings.enabledLibraryKeys
+          ).then((sections) => {
+            InteractionManager.runAfterInteractions(() => {
+              setRecentlyAddedSections(sections);
+            });
+          }).catch(() => setRecentlyAddedSections([]));
         }
 
         const durationMs = Date.now() - loadStart;
@@ -638,6 +671,86 @@ export default function Home({ onLogout }: HomeProps) {
       }
     })();
   }, [flixorLoading, isConnected, retryCount]);
+
+  // Polling for dynamic rows (Continue Watching, Recently Added)
+  // Poll every 30 seconds to keep content fresh without full page refresh
+  useEffect(() => {
+    if (loading || !isConnected) return;
+
+    const POLL_INTERVAL = 30000; // 30 seconds
+
+    const pollDynamicRows = async () => {
+      console.log('[Home] Polling dynamic rows...');
+
+      // Poll Continue Watching
+      if (settings.showContinueWatchingRow) {
+        try {
+          const data = await fetchContinueWatching();
+          const existingKeys = new Set(continueItems.map(item => item.ratingKey));
+          const newKeys = new Set(data.items.map(item => item.ratingKey));
+          // Only update if data changed
+          if (existingKeys.size !== newKeys.size || ![...existingKeys].every(k => newKeys.has(k))) {
+            setContinueItems(data.items);
+            setContinueVersions(data.itemsWithMultipleVersions);
+            console.log('[Home] Continue Watching updated:', data.items.length, 'items');
+
+            // Fetch TMDB backdrops for new items
+            data.items.forEach(async (item) => {
+              if (continueBackdrops[item.ratingKey]) return; // Already have backdrop
+              try {
+                let tmdbId: string | null = null;
+                let mediaType: 'movie' | 'tv' = 'movie';
+
+                if (item.type === 'movie') {
+                  tmdbId = extractTmdbIdFromGuids(item.Guid || []);
+                  mediaType = 'movie';
+                } else if (item.type === 'episode' && item.grandparentRatingKey) {
+                  tmdbId = await getShowTmdbId(item.grandparentRatingKey);
+                  mediaType = 'tv';
+                }
+
+                if (tmdbId) {
+                  const backdrop = await getTmdbBackdropWithTitle(Number(tmdbId), mediaType);
+                  if (backdrop) {
+                    setContinueBackdrops(prev => ({ ...prev, [item.ratingKey]: backdrop }));
+                  }
+                }
+              } catch (e) {
+                // Silently handle errors
+              }
+            });
+          }
+        } catch (e) {
+          console.log('[Home] Poll Continue Watching error:', e);
+        }
+      }
+
+      // Poll Recently Added per library
+      if (settings.showRecentlyAddedRows) {
+        try {
+          const sections = await fetchRecentlyAddedPerLibrary(
+            settings.groupRecentlyAddedEpisodes,
+            settings.enabledLibraryKeys
+          );
+          const existingIds = new Set(recentlyAddedSections.flatMap(s => s.items.map(i => i.id)));
+          const newIds = new Set(sections.flatMap(s => s.items.map(i => i.id)));
+          // Only update if data changed
+          if (existingIds.size !== newIds.size || ![...existingIds].every(id => newIds.has(id))) {
+            setRecentlyAddedSections(sections);
+            console.log('[Home] Recently Added updated:', sections.length, 'sections');
+          }
+        } catch (e) {
+          console.log('[Home] Poll Recently Added error:', e);
+        }
+      }
+    };
+
+    const intervalId = setInterval(pollDynamicRows, POLL_INTERVAL);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [loading, isConnected, settings.showContinueWatchingRow, settings.showRecentlyAddedRows, settings.groupRecentlyAddedEpisodes]);
 
   // Memory management: Clear FastImage memory cache when app goes to background
   // Note: Memory cleanup on app background is now handled centrally by MemoryManager
@@ -893,14 +1006,19 @@ export default function Home({ onLogout }: HomeProps) {
       const cancel = scheduleIdleWork(async () => {
         try {
           await new Promise(resolve => setTimeout(resolve, 500));
-          const results = await Promise.allSettled([
+          const promises: Promise<RowItem[]>[] = [
             fetchTraktTrendingMovies(),
             fetchTraktTrendingShows(),
             fetchTraktPopularShows(),
             fetchTraktWatchlist(),
             fetchTraktHistory(),
             fetchTraktRecommendations(),
-          ]);
+          ];
+          // Add Trakt Continue Watching refresh if enabled
+          if (settings.showTraktContinueWatching) {
+            promises.push(fetchTraktContinueWatching());
+          }
+          const results = await Promise.allSettled(promises);
           const tval = <T,>(i: number): T =>
             results[i].status === 'fulfilled'
               ? (results[i] as PromiseFulfilledResult<T>).value
@@ -919,12 +1037,18 @@ export default function Home({ onLogout }: HomeProps) {
           setTraktMyWatchlist(prev => (isSameRowList(prev, nextWatchlist) ? prev : nextWatchlist));
           setTraktHistory(prev => (isSameRowList(prev, nextHistory) ? prev : nextHistory));
           setTraktRecommendations(prev => (isSameRowList(prev, nextRecommendations) ? prev : nextRecommendations));
+
+          // Update Trakt Continue Watching if enabled
+          if (settings.showTraktContinueWatching && results.length > 6) {
+            const nextContinueWatching = tval<TraktContinueWatchingItem[]>(6);
+            setTraktContinueWatching(prev => (isSameRowList(prev, nextContinueWatching) ? prev : nextContinueWatching));
+          }
           lastTraktRefreshRef.current = Date.now();
         } catch {}
       }, 1200);
 
       return cancel;
-    }, [loading, isSameRowList, scheduleIdleWork])
+    }, [loading, isSameRowList, scheduleIdleWork, settings.showTraktContinueWatching])
   );
 
   const getRowUri = useCallback((it: RowItem) => it.image, []);
@@ -938,6 +1062,33 @@ export default function Home({ onLogout }: HomeProps) {
     if (it.id.startsWith('tmdb:')) {
       const [, media, id] = it.id.split(':');
       return nav.navigate('Details', { type: 'tmdb', mediaType: media === 'movie' ? 'movie' : 'tv', id });
+    }
+  }, [nav]);
+
+  // Custom handler for Trakt Continue Watching - uses Plex ratingKey for episodes if available
+  const onTraktContinuePress = useCallback((it: TraktContinueWatchingItem) => {
+    if (!it?.id) return;
+
+    // If we have a matched Plex episode ratingKey, navigate directly to episode details (like normal Continue Watching)
+    if (it.plexRatingKey) {
+      return nav.navigate('Details', { type: 'plex', ratingKey: it.plexRatingKey });
+    }
+
+    // Fallback to TMDB navigation
+    if (it.id.startsWith('tmdb:')) {
+      const [, media, id] = it.id.split(':');
+      const mediaType = media === 'movie' ? 'movie' : 'tv';
+      // For episodes without Plex match, still pass season/episode for context
+      if (mediaType === 'tv' && it.seasonNumber) {
+        return nav.navigate('Details', {
+          type: 'tmdb',
+          mediaType,
+          id,
+          initialSeason: it.seasonNumber,
+          initialEpisode: it.episodeNumber,
+        });
+      }
+      return nav.navigate('Details', { type: 'tmdb', mediaType, id });
     }
   }, [nav]);
 
@@ -1200,6 +1351,31 @@ export default function Home({ onLogout }: HomeProps) {
             )
           )}
 
+          {/* Trakt Continue Watching Row */}
+          {settings.showTraktContinueWatching && traktContinueWatching.length > 0 && (
+            settings.continueWatchingLayout === 'landscape' ? (
+              <TraktContinueWatchingLandscapeRow
+                items={traktContinueWatching}
+                onItemPress={onTraktContinuePress}
+                onBrowsePress={() => openRowBrowse(
+                  { type: 'trakt', kind: 'continueWatching', mediaType: 'movie', title: 'Continue Watching' } as any,
+                  'Continue Watching',
+                  traktContinueWatching
+                )}
+              />
+            ) : (
+              <TraktContinueWatchingPosterRow
+                items={traktContinueWatching}
+                onItemPress={onTraktContinuePress}
+                onBrowsePress={() => openRowBrowse(
+                  { type: 'trakt', kind: 'continueWatching', mediaType: 'movie', title: 'Continue Watching' } as any,
+                  'Continue Watching',
+                  traktContinueWatching
+                )}
+              />
+            )
+          )}
+
           {/* Collection Rows */}
           {settings.showCollectionRows && collectionRows.map((collection) => (
             collection.items.length > 0 ? (
@@ -1217,6 +1393,28 @@ export default function Home({ onLogout }: HomeProps) {
                   collection.items
                 )}
                 keyPrefix={`collection-${collection.ratingKey}-`}
+              />
+            ) : null
+          ))}
+
+          {/* Recently Added per Library Rows */}
+          {settings.showRecentlyAddedRows && recentlyAddedSections.map((section) => (
+            section.items.length > 0 ? (
+              <LazyRow
+                key={section.id}
+                title={section.title}
+                titleIcon="time-outline"
+                items={section.items}
+                getImageUri={getRowUri}
+                getTitle={getRowTitle}
+                getSubtitle={(item) => item.subtitle}
+                onItemPress={onRowPress}
+                onBrowsePress={() => openRowBrowse(
+                  { type: 'plexDirectory', path: `/library/sections/${section.libraryKey}/recentlyAdded`, title: section.title } as any,
+                  section.title,
+                  section.items
+                )}
+                keyPrefix={`recently-added-${section.libraryKey}-`}
               />
             ) : null
           ))}
@@ -1280,28 +1478,29 @@ export default function Home({ onLogout }: HomeProps) {
             />
           )}
 
-          {genres['TV Shows - Children']?.length ? (
+          {/* Plex Genre Rows */}
+          {settings.showPlexGenreRows && genres['TV Shows - Children']?.length ? (
             <LazyRow title="TV Shows - Children" items={genres['TV Shows - Children']} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} onBrowsePress={() => openRowBrowse({ type: 'plexGenre', genre: 'Children', mediaType: 'tv' }, 'TV Shows - Children', genres['TV Shows - Children'])} keyPrefix="genre-tv-children-" />
           ) : null}
-          {genres['Movie - Music']?.length ? (
+          {settings.showPlexGenreRows && genres['Movie - Music']?.length ? (
             <LazyRow title="Movie - Music" items={genres['Movie - Music']} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} onBrowsePress={() => openRowBrowse({ type: 'plexGenre', genre: 'Music', mediaType: 'movie' }, 'Movie - Music', genres['Movie - Music'])} keyPrefix="genre-movie-music-" />
           ) : null}
-          {genres['Movies - Documentary']?.length ? (
+          {settings.showPlexGenreRows && genres['Movies - Documentary']?.length ? (
             <LazyRow title="Movies - Documentary" items={genres['Movies - Documentary']} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} onBrowsePress={() => openRowBrowse({ type: 'plexGenre', genre: 'Documentary', mediaType: 'movie' }, 'Movies - Documentary', genres['Movies - Documentary'])} keyPrefix="genre-movie-doc-" />
           ) : null}
-          {genres['Movies - History']?.length ? (
+          {settings.showPlexGenreRows && genres['Movies - History']?.length ? (
             <LazyRow title="Movies - History" items={genres['Movies - History']} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} onBrowsePress={() => openRowBrowse({ type: 'plexGenre', genre: 'History', mediaType: 'movie' }, 'Movies - History', genres['Movies - History'])} keyPrefix="genre-movie-history-" />
           ) : null}
-          {genres['TV Shows - Reality']?.length ? (
+          {settings.showPlexGenreRows && genres['TV Shows - Reality']?.length ? (
             <LazyRow title="TV Shows - Reality" items={genres['TV Shows - Reality']} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} onBrowsePress={() => openRowBrowse({ type: 'plexGenre', genre: 'Reality', mediaType: 'tv' }, 'TV Shows - Reality', genres['TV Shows - Reality'])} keyPrefix="genre-tv-reality-" />
           ) : null}
-          {genres['Movies - Drama']?.length ? (
+          {settings.showPlexGenreRows && genres['Movies - Drama']?.length ? (
             <LazyRow title="Movies - Drama" items={genres['Movies - Drama']} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} onBrowsePress={() => openRowBrowse({ type: 'plexGenre', genre: 'Drama', mediaType: 'movie' }, 'Movies - Drama', genres['Movies - Drama'])} keyPrefix="genre-movie-drama-" />
           ) : null}
-          {genres['TV Shows - Suspense']?.length ? (
+          {settings.showPlexGenreRows && genres['TV Shows - Suspense']?.length ? (
             <LazyRow title="TV Shows - Suspense" items={genres['TV Shows - Suspense']} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} onBrowsePress={() => openRowBrowse({ type: 'plexGenre', genre: 'Suspense', mediaType: 'tv' }, 'TV Shows - Suspense', genres['TV Shows - Suspense'])} keyPrefix="genre-tv-suspense-" />
           ) : null}
-          {genres['Movies - Animation']?.length ? (
+          {settings.showPlexGenreRows && genres['Movies - Animation']?.length ? (
             <LazyRow title="Movies - Animation" items={genres['Movies - Animation']} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} onBrowsePress={() => openRowBrowse({ type: 'plexGenre', genre: 'Animation', mediaType: 'movie' }, 'Movies - Animation', genres['Movies - Animation'])} keyPrefix="genre-movie-animation-" />
           ) : null}
 
@@ -1319,36 +1518,39 @@ export default function Home({ onLogout }: HomeProps) {
 
           {settings.showTraktRows && tab !== 'shows' && traktTrendMovies.length > 0 && (
             <LazyRow
-              title="Trending Movies on Trakt"
+              title="Trending Movies"
+              badge={{ text: 'Trakt' }}
               items={traktTrendMovies}
               getImageUri={getRowUri}
               getTitle={getRowTitle}
               onItemPress={onRowPress}
-              onBrowsePress={() => openRowBrowse({ type: 'trakt', kind: 'trending', mediaType: 'movie', title: 'Trending Movies on Trakt' }, 'Trending Movies on Trakt', traktTrendMovies)}
+              onBrowsePress={() => openRowBrowse({ type: 'trakt', kind: 'trending', mediaType: 'movie', title: 'Trending Movies' }, 'Trending Movies', traktTrendMovies)}
               keyPrefix="trakt-trend-movies-"
             />
           )}
 
           {settings.showTraktRows && tab !== 'movies' && traktTrendShows.length > 0 && (
             <LazyRow
-              title="Trending TV Shows on Trakt"
+              title="Trending Shows"
+              badge={{ text: 'Trakt' }}
               items={traktTrendShows}
               getImageUri={getRowUri}
               getTitle={getRowTitle}
               onItemPress={onRowPress}
-              onBrowsePress={() => openRowBrowse({ type: 'trakt', kind: 'trending', mediaType: 'tv', title: 'Trending TV Shows on Trakt' }, 'Trending TV Shows on Trakt', traktTrendShows)}
+              onBrowsePress={() => openRowBrowse({ type: 'trakt', kind: 'trending', mediaType: 'tv', title: 'Trending Shows' }, 'Trending Shows', traktTrendShows)}
               keyPrefix="trakt-trend-shows-"
             />
           )}
 
           {settings.showTraktRows && traktMyWatchlist.length > 0 && (
             <LazyRow
-              title="Your Trakt Watchlist"
+              title="Watchlist"
+              badge={{ text: 'Trakt' }}
               items={traktMyWatchlist}
               getImageUri={getRowUri}
               getTitle={getRowTitle}
               onItemPress={onRowPress}
-              onBrowsePress={() => openRowBrowse({ type: 'trakt', kind: 'watchlist', mediaType: 'movie', title: 'Your Trakt Watchlist' }, 'Your Trakt Watchlist', traktMyWatchlist)}
+              onBrowsePress={() => openRowBrowse({ type: 'trakt', kind: 'watchlist', mediaType: 'movie', title: 'Watchlist' }, 'Watchlist', traktMyWatchlist)}
               keyPrefix="trakt-watchlist-"
             />
           )}
@@ -1356,6 +1558,7 @@ export default function Home({ onLogout }: HomeProps) {
           {settings.showTraktRows && traktHistory.length > 0 && (
             <LazyRow
               title="Recently Watched"
+              badge={{ text: 'Trakt' }}
               items={traktHistory}
               getImageUri={getRowUri}
               getTitle={getRowTitle}
@@ -1368,6 +1571,7 @@ export default function Home({ onLogout }: HomeProps) {
           {settings.showTraktRows && traktRecommendations.length > 0 && (
             <LazyRow
               title="Recommended for You"
+              badge={{ text: 'Trakt' }}
               items={traktRecommendations}
               getImageUri={getRowUri}
               getTitle={getRowTitle}
@@ -1379,12 +1583,13 @@ export default function Home({ onLogout }: HomeProps) {
 
           {settings.showTraktRows && traktPopularShows.length > 0 && (
             <LazyRow
-              title="Popular TV Shows on Trakt"
+              title="Popular Shows"
+              badge={{ text: 'Trakt' }}
               items={traktPopularShows}
               getImageUri={getRowUri}
               getTitle={getRowTitle}
               onItemPress={onRowPress}
-              onBrowsePress={() => openRowBrowse({ type: 'trakt', kind: 'trending', mediaType: 'tv', title: 'Popular TV Shows on Trakt' }, 'Popular TV Shows on Trakt', traktPopularShows)}
+              onBrowsePress={() => openRowBrowse({ type: 'trakt', kind: 'trending', mediaType: 'tv', title: 'Popular Shows' }, 'Popular Shows', traktPopularShows)}
               keyPrefix="trakt-popular-shows-"
             />
           )}

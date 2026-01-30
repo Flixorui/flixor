@@ -85,6 +85,8 @@ type DetailsParams = {
   ratingKey?: string;
   mediaType?: 'movie' | 'tv';
   id?: string;
+  initialSeason?: number; // For navigating to a specific season (e.g., from Trakt Continue Watching)
+  initialEpisode?: number; // For navigating to a specific episode
 };
 
 type RouteParams = {
@@ -602,8 +604,12 @@ export default function Details({ route }: RouteParams) {
               const ss = await fetchTmdbSeasonsList(Number(params.id));
               if (ss.length) {
                 setSeasons(ss.map((s) => ({ key: s.key, title: s.title })) as any);
-                setSeasonKey(ss[0].key);
-                const eps = await fetchTmdbSeasonEpisodes(Number(params.id), Number(ss[0].key));
+                // Use initialSeason if provided (e.g., from Trakt Continue Watching), otherwise default to first season
+                const targetSeasonKey = params.initialSeason
+                  ? ss.find((s) => Number(s.key) === params.initialSeason)?.key || ss[0].key
+                  : ss[0].key;
+                setSeasonKey(targetSeasonKey);
+                const eps = await fetchTmdbSeasonEpisodes(Number(params.id), Number(targetSeasonKey));
                 setEpisodes(eps);
                 setSeasonSource('tmdb');
               }

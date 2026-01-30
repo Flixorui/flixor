@@ -95,7 +95,7 @@ export async function getPlexUser(): Promise<any | null> {
 // ============================================
 
 export function getAppVersion(): string {
-  return 'Beta1.9.5';
+  return 'Beta2.0.0';
 }
 
 export function getConnectedServerInfo(): { name: string; url: string } | null {
@@ -293,9 +293,13 @@ export interface AppSettings {
   showContinueWatchingRow: boolean;
   showTrendingRows: boolean;
   showTraktRows: boolean;
+  showTraktContinueWatching: boolean; // Show Trakt Continue Watching row on home screen
   showPlexPopularRow: boolean;
   showCollectionRows: boolean; // Show Plex collections on home screen
   hiddenCollectionKeys: string[]; // Collection ratingKeys to hide from home screen
+  showRecentlyAddedRows: boolean; // Show "Recently Added in {Library}" rows on home screen
+  groupRecentlyAddedEpisodes: boolean; // Group TV episodes by series in Recently Added rows
+  showPlexGenreRows: boolean; // Show Plex genre-based rows on home screen
   showPosterTitles: boolean;
   posterSize: 'small' | 'medium' | 'large';
   posterBorderRadius: number;
@@ -364,9 +368,13 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   showContinueWatchingRow: true,
   showTrendingRows: true,
   showTraktRows: true,
+  showTraktContinueWatching: false, // Disabled by default, users enable when they want Trakt sync
   showPlexPopularRow: true,
   showCollectionRows: true,
   hiddenCollectionKeys: [],
+  showRecentlyAddedRows: true, // Show "Recently Added in {Library}" rows
+  groupRecentlyAddedEpisodes: true, // Group episodes by series by default
+  showPlexGenreRows: true, // Show Plex genre-based rows
   showPosterTitles: true,
   posterSize: 'medium',
   posterBorderRadius: 12,
@@ -621,4 +629,13 @@ export function getShowsLibraryKey(): string | undefined {
 
 export async function setShowsLibraryKey(key: string | undefined): Promise<void> {
   await setAppSettings({ showsLibraryKey: key });
+}
+
+// Trakt Continue Watching helpers
+export function isShowTraktContinueWatching(): boolean {
+  return cachedSettings.showTraktContinueWatching ?? false;
+}
+
+export async function setShowTraktContinueWatching(enabled: boolean): Promise<void> {
+  await setAppSettings({ showTraktContinueWatching: enabled });
 }

@@ -14,6 +14,7 @@ import type {
   TraktHistoryItem,
   TraktCollectionItem,
   TraktRatingItem,
+  TraktPlaybackItem,
   TraktUser,
   TraktStats,
 } from '../models/trakt';
@@ -473,6 +474,29 @@ export class TraktService {
       { page: String(page), limit: String(limit), extended: 'full' },
       { auth: true, ttl: CacheTTL.SHORT }
     );
+  }
+
+  /**
+   * Get playback progress (Continue Watching)
+   * Returns items the user has started but not finished watching
+   */
+  async getPlaybackProgress(
+    type?: 'movies' | 'episodes'
+  ): Promise<TraktPlaybackItem[]> {
+    const path = type ? `/sync/playback/${type}` : '/sync/playback';
+    return this.get<TraktPlaybackItem[]>(
+      path,
+      { extended: 'full' },
+      { auth: true, ttl: CacheTTL.SHORT }
+    );
+  }
+
+  /**
+   * Remove a playback progress item (removes from Continue Watching)
+   */
+  async removePlaybackProgress(playbackId: number): Promise<void> {
+    await this.delete(`/sync/playback/${playbackId}`);
+    await this.cache.invalidatePattern('trakt:auth:*playback*');
   }
 
   /**

@@ -113,7 +113,7 @@ function ContinueWatchingLandscapeRow({
         >
           {/* Controls row */}
           <View style={styles.controlsRow}>
-            {/* Left side: Play icon, progress bar, time, edition */}
+            {/* Left side: Play icon, progress bar, episode info, time, edition */}
             <View style={styles.leftControls}>
               <Ionicons name="play" size={12} color="#fff" />
 
@@ -121,6 +121,10 @@ function ContinueWatchingLandscapeRow({
                 <View style={[styles.progressFill, { width: `${progress}%` }]} />
               </View>
 
+              {/* Show episode info (S1, E1) for episodes */}
+              {item.type === 'episode' && item.parentIndex && item.index && (
+                <Text style={styles.episodeText}>S{item.parentIndex}, E{item.index}</Text>
+              )}
               <Text style={styles.timeText}>{remainingTime}</Text>
               {versionString && <Text style={styles.versionText}>{versionString}</Text>}
             </View>
@@ -261,6 +265,11 @@ const styles = StyleSheet.create({
     height: '100%',
     backgroundColor: '#fff',
     borderRadius: 2,
+  },
+  episodeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '500',
   },
   timeText: {
     color: '#fff',

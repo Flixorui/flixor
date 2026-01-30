@@ -678,13 +678,15 @@ export function getTmdbProfileUrl(path: string | undefined): string {
 
 export function extractTmdbIdFromGuids(guids: any[]): string | null {
   if (!Array.isArray(guids)) return null;
+  // If multiple TMDB IDs exist (rare), prefer the last one (likely corrected/updated)
+  let tmdbId: string | null = null;
   for (const g of guids) {
     const id = String(g.id || '');
     if (id.includes('tmdb://') || id.includes('themoviedb://')) {
-      return id.split('://')[1];
+      tmdbId = id.split('://')[1];
     }
   }
-  return null;
+  return tmdbId;
 }
 
 // ============================================

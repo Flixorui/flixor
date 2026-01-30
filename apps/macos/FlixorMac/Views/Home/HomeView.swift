@@ -90,6 +90,45 @@ struct HomeView: View {
                                     )
                                 }
 
+                                // Recently Added per library sections
+                                if viewModel.recentlyAddedPerLibraryState.isLoading {
+                                    // Show skeleton rows while loading (one per expected library)
+                                    ForEach(0..<2, id: \.self) { _ in
+                                        SkeletonCarouselRow(
+                                            itemWidth: profileSettings.rowLayout == "poster" ? 160 : 420,
+                                            itemCount: profileSettings.rowLayout == "poster" ? 6 : 4,
+                                            cardType: profileSettings.rowLayout == "poster" ? .poster : .landscape
+                                        )
+                                    }
+                                } else {
+                                    ForEach(viewModel.recentlyAddedSections) { section in
+                                        Group {
+                                            if profileSettings.rowLayout == "poster" {
+                                                PosterSectionRow(
+                                                    section: section,
+                                                    onTap: { item in
+                                                        viewModel.showItemDetails(item)
+                                                    },
+                                                    onBrowse: { context in
+                                                        presentBrowse(context)
+                                                    }
+                                                )
+                                            } else {
+                                                LandscapeSectionView(
+                                                    section: section,
+                                                    onTap: { item in
+                                                        viewModel.showItemDetails(item)
+                                                    },
+                                                    onBrowse: { context in
+                                                        presentBrowse(context)
+                                                    }
+                                                )
+                                            }
+                                        }
+                                        .transition(.opacity)
+                                    }
+                                }
+
                                 // Collection sections (Plex Collections)
                                 if profileSettings.showCollectionRows {
                                     if viewModel.collectionSectionsState.isLoading {
@@ -160,6 +199,7 @@ struct HomeView: View {
                             }
                             .padding(.vertical, 40)
                             .animation(.easeInOut(duration: 0.3), value: viewModel.extraSectionsState)
+                            .animation(.easeInOut(duration: 0.3), value: viewModel.recentlyAddedPerLibraryState)
                         }
                     }
                 }
@@ -194,6 +234,7 @@ struct HomeView: View {
         }
         .onDisappear {
             viewModel.stopBillboardRotation()
+            viewModel.stopPolling()
         }
         .toast()
         .onChange(of: viewModel.pendingAction) { action in
@@ -210,6 +251,12 @@ struct HomeView: View {
             if !value {
                 activeBrowseContext = nil
                 browseViewModel.reset()
+            }
+        }
+        .onChange(of: profileSettings.groupRecentlyAddedEpisodes) { _ in
+            // Refresh Recently Added sections when grouping setting changes
+            Task {
+                await viewModel.refreshRecentlyAddedSections()
             }
         }
     }
@@ -604,6 +651,8 @@ struct CollectionSectionRow: View {
     var onTap: (MediaItem) -> Void
     var onBrowse: ((BrowseContext) -> Void)?
 
+    @State private var isHeaderHovered = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             // Header with sparkles icon
@@ -616,18 +665,38 @@ struct CollectionSectionRow: View {
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(.white)
 
-                Spacer()
-
                 if let browseContext = section.browseContext {
                     Button(action: { onBrowse?(browseContext) }) {
-                        Text("Browse All")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(.secondary)
+                        HStack(spacing: 4) {
+                            Text("Browse")
+                            Image(systemName: "chevron.right")
+                        }
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 4)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(Color.white.opacity(isHeaderHovered ? 0.12 : 0))
+                        )
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .opacity(isHeaderHovered ? 1 : 0)
+                    .offset(x: isHeaderHovered ? 4 : 0)
+                    .animation(.easeOut(duration: 0.24), value: isHeaderHovered)
+                    .allowsHitTesting(isHeaderHovered)
                 }
+
+                Spacer()
             }
             .padding(.horizontal, 20)
+            .onHover { hovering in
+                withAnimation(.easeOut(duration: 0.2)) {
+                    isHeaderHovered = hovering
+                }
+            }
+            .contentShape(Rectangle())
 
             // Row content
             if rowLayout == "poster" {

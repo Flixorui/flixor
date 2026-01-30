@@ -130,6 +130,7 @@ struct RootView: View {
 struct MainView: View {
     @State private var showingSettings = false
     @State private var showingProfileSelect = false
+    @State private var showingSignOutConfirmation = false
     @State private var contentRefreshId = UUID()
     @EnvironmentObject var sessionManager: SessionManager
     @StateObject private var router = NavigationRouter()
@@ -180,25 +181,59 @@ struct MainView: View {
     }
 
     var body: some View {
-        NavigationStack(path: router.pathBinding(for: mainViewState.selectedTab)) {
-            destinationView(for: mainViewState.selectedTab)
-                .id(contentRefreshId)
-                // Centralize PlayerView presentation here to avoid inheriting padding
-                .navigationDestination(for: MediaItem.self) { item in
-                    PlayerView(item: item)
-                        .toolbar(.hidden, for: .windowToolbar)
-                        .ignoresSafeArea(.all, edges: .all)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // Use ZStack with separate NavigationStacks per tab for smooth tab switching
+        // Each tab maintains its own navigation state and is shown/hidden via opacity
+        ZStack {
+            // Home Tab
+            NavigationStack(path: $router.homePath) {
+                HomeView()
+                    .navigationDestinations()
+            }
+            .id(contentRefreshId) // Only changes on profile switch, not tab switch
+            .opacity(mainViewState.selectedTab == .home ? 1 : 0)
+            .zIndex(mainViewState.selectedTab == .home ? 1 : 0)
+
+            // Search Tab
+            NavigationStack(path: $router.searchPath) {
+                SearchView()
+                    .navigationDestinations()
+            }
+            .opacity(mainViewState.selectedTab == .search ? 1 : 0)
+            .zIndex(mainViewState.selectedTab == .search ? 1 : 0)
+
+            // Library Tab
+            NavigationStack(path: $router.libraryPath) {
+                LibraryView()
+                    .navigationDestinations()
+            }
+            .opacity(mainViewState.selectedTab == .library ? 1 : 0)
+            .zIndex(mainViewState.selectedTab == .library ? 1 : 0)
+
+            // My List Tab
+            NavigationStack(path: $router.myListPath) {
+                MyListView()
+                    .navigationDestinations()
+            }
+            .opacity(mainViewState.selectedTab == .myList ? 1 : 0)
+            .zIndex(mainViewState.selectedTab == .myList ? 1 : 0)
+
+            // New & Popular Tab
+            if profileSettings.showNewPopularTab {
+                NavigationStack(path: $router.newPopularPath) {
+                    NewPopularView()
+                        .navigationDestinations()
                 }
-                .navigationDestination(for: DetailsNavigationItem.self) { navItem in
-                    DetailsView(item: navItem.item)
-                }
-                .navigationDestination(for: OfflineMediaItem.self) { item in
-                    PlayerView(offlineItem: item)
-                        .toolbar(.hidden, for: .windowToolbar)
-                        .ignoresSafeArea(.all, edges: .all)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
+                .opacity(mainViewState.selectedTab == .newPopular ? 1 : 0)
+                .zIndex(mainViewState.selectedTab == .newPopular ? 1 : 0)
+            }
+
+            // Downloads Tab
+            NavigationStack(path: $router.downloadsPath) {
+                DownloadsView()
+                    .navigationDestinations()
+            }
+            .opacity(mainViewState.selectedTab == .downloads ? 1 : 0)
+            .zIndex(mainViewState.selectedTab == .downloads ? 1 : 0)
         }
         .environmentObject(router)
         .environmentObject(mainViewState)
@@ -224,13 +259,12 @@ struct MainView: View {
                             item: item,
                             isActive: mainViewState.selectedTab == item,
                             onTap: {
-                                withAnimation(.easeInOut(duration: 0.2)) {
-                                    // If clicking the current tab, pop to root
-                                    if mainViewState.selectedTab == item {
-                                        popToRoot(for: item)
-                                    } else {
-                                        mainViewState.selectedTab = item
-                                    }
+                                // If clicking the current tab, pop to root
+                                if mainViewState.selectedTab == item {
+                                    popToRoot(for: item)
+                                } else {
+                                    // Instant tab switch - no animation needed
+                                    mainViewState.selectedTab = item
                                 }
                             }
                         )
@@ -269,10 +303,10 @@ struct MainView: View {
                         Label("Settings", systemImage: "gear")
                     }
 
-                    Button(action: {
-                        Task {
-                            await sessionManager.logout()
-                        }
+                    Divider()
+
+                    Button(role: .destructive, action: {
+                        showingSignOutConfirmation = true
                     }) {
                         Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
                     }
@@ -307,6 +341,20 @@ struct MainView: View {
                 mainViewState.selectedTab = .home
                 router.homePath = NavigationPath()
             }
+        }
+        .confirmationDialog(
+            "Sign Out",
+            isPresented: $showingSignOutConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Sign Out", role: .destructive) {
+                Task {
+                    await sessionManager.logout()
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Are you sure you want to sign out?")
         }
         .onChange(of: profileSettings.showNewPopularTab) { newValue in
             // If New & Popular tab is hidden while on that tab, switch to Home
@@ -345,22 +393,28 @@ struct MainView: View {
         }
     }
 
-    @ViewBuilder
-    private func destinationView(for item: NavItem) -> some View {
-        switch item {
-        case .home:
-            HomeView()
-        case .search:
-            SearchView()
-        case .library:
-            LibraryView()
-        case .myList:
-            MyListView()
-        case .newPopular:
-            NewPopularView()
-        case .downloads:
-            DownloadsView()
-        }
+}
+
+// MARK: - Navigation Destinations Extension
+extension View {
+    /// Common navigation destinations for all tabs
+    func navigationDestinations() -> some View {
+        self
+            .navigationDestination(for: MediaItem.self) { item in
+                PlayerView(item: item)
+                    .toolbar(.hidden, for: .windowToolbar)
+                    .ignoresSafeArea(.all, edges: .all)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .navigationDestination(for: DetailsNavigationItem.self) { navItem in
+                DetailsView(item: navItem.item)
+            }
+            .navigationDestination(for: OfflineMediaItem.self) { item in
+                PlayerView(offlineItem: item)
+                    .toolbar(.hidden, for: .windowToolbar)
+                    .ignoresSafeArea(.all, edges: .all)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
     }
 }
 

@@ -226,11 +226,12 @@ public class PlexServerService {
     /// Get continue watching items (deduplicated by GUID)
     /// Returns items grouped by TMDB/IMDB GUID, keeping only the most recently watched version
     /// Sorted by lastViewedAt in descending order (most recently watched first)
-    public func getContinueWatching() async throws -> ContinueWatchingResult {
+    /// - Parameter bypassCache: If true, skip cache and fetch fresh data (useful for polling)
+    public func getContinueWatching(bypassCache: Bool = false) async throws -> ContinueWatchingResult {
         let response: PlexMediaContainerResponse<PlexMediaItem> = try await get(
             path: "/hubs/continueWatching/items",
             params: ["includeGuids": "1"],
-            ttl: CacheTTL.short
+            ttl: bypassCache ? CacheTTL.none : CacheTTL.short
         )
         let items = response.MediaContainer.Metadata ?? []
         var result = deduplicateContinueWatching(items)
@@ -313,14 +314,17 @@ public class PlexServerService {
     }
 
     /// Get recently added items
-    public func getRecentlyAdded(libraryKey: String? = nil) async throws -> [PlexMediaItem] {
+    /// - Parameters:
+    ///   - libraryKey: Optional library key to filter by
+    ///   - bypassCache: If true, skip cache and fetch fresh data (useful for polling)
+    public func getRecentlyAdded(libraryKey: String? = nil, bypassCache: Bool = false) async throws -> [PlexMediaItem] {
         let path = libraryKey != nil
             ? "/library/sections/\(libraryKey!)/recentlyAdded"
             : "/library/recentlyAdded"
 
         let response: PlexMediaContainerResponse<PlexMediaItem> = try await get(
             path: path,
-            ttl: CacheTTL.dynamic
+            ttl: bypassCache ? CacheTTL.none : CacheTTL.dynamic
         )
         return response.MediaContainer.Metadata ?? []
     }

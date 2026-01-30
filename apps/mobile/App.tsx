@@ -1,4 +1,9 @@
 import "react-native-gesture-handler";
+import { enableScreens } from 'react-native-screens';
+
+// Enable native screens for better Android performance
+enableScreens(true);
+
 import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -391,9 +396,9 @@ const Tabs = React.memo(() => {
         tabBarShowLabel: true,
         tabBarActiveTintColor: '#fff',
         tabBarInactiveTintColor: '#bdbdbd',
-        lazy: false,
-        freezeOnBlur: false,
-        animation: 'fade',
+        lazy: true,
+        freezeOnBlur: Platform.OS === 'android', // Freeze inactive tabs on Android for performance
+        animation: Platform.OS === 'android' ? 'none' : 'fade', // Disable tab animation on Android
         tabBarStyle: tabBarVisible ? {
           position: 'absolute' as const,
           left: 0,
