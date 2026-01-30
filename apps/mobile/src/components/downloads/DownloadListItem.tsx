@@ -17,6 +17,7 @@ import { useNavigation } from '@react-navigation/native';
 import { DownloadStatus, DownloadedMetadata, DownloadedMedia, DownloadProgress as DownloadProgressType } from '../../types/downloads';
 import { downloadService, useDownloadStatus } from '../../services/downloads';
 import DownloadProgressBar from './DownloadProgressBar';
+import { getFlixorCore } from '../../core';
 
 interface DownloadListItemProps {
   globalKey: string;
@@ -126,9 +127,21 @@ function DownloadListItem({ globalKey, metadata, media }: DownloadListItemProps)
   };
 
   // Artwork source
-  const artworkSource = metadata.localThumbPath
-    ? { uri: `file://${metadata.localThumbPath}` }
-    : undefined;
+  let artworkSource: { uri: string } | undefined;
+  if (metadata.localThumbPath) {
+    const uri = metadata.localThumbPath.startsWith('file://')
+      ? metadata.localThumbPath
+      : `file://${metadata.localThumbPath}`;
+    artworkSource = { uri };
+  } else if (metadata.thumb) {
+    try {
+      const core = getFlixorCore();
+      const url = core.plexServer.getImageUrl(metadata.thumb, 300);
+      if (url) artworkSource = { uri: url };
+    } catch {
+      artworkSource = undefined;
+    }
+  }
 
   return (
     <View style={styles.container}>

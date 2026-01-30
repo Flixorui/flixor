@@ -552,6 +552,11 @@ function AppContent() {
                 options={{ presentation: 'card', animation: 'slide_from_right' }}
               />
               <Stack.Screen
+                name="Player"
+                component={Player}
+                options={{ presentation: 'fullScreenModal', animation: 'fade' }}
+              />
+              <Stack.Screen
                 name="ProfileSelect"
                 options={{
                   presentation: 'modal',

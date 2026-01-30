@@ -322,6 +322,69 @@ export function useDownloads() {
   };
 }
 
+// Cached result for useDownloadSummary to keep stable references
+let cachedDownloadSummary = {
+  activeCount: 0,
+  totalDownloadedBytes: 0,
+  activeDownloadedBytes: 0,
+  activeTotalBytes: 0,
+};
+
+/**
+ * Hook for summary info across all downloads (stable reference)
+ */
+export function useDownloadSummary() {
+  return React.useSyncExternalStore(
+    downloadStore.subscribe,
+    () => {
+      let activeCount = 0;
+      let totalDownloadedBytes = 0;
+      let activeDownloadedBytes = 0;
+      let activeTotalBytes = 0;
+
+      state.media.forEach((media) => {
+        if (media.status === DownloadStatus.COMPLETED) {
+          totalDownloadedBytes += media.downloadedBytes || 0;
+        } else if (
+          media.status === DownloadStatus.DOWNLOADING ||
+          media.status === DownloadStatus.QUEUED ||
+          media.status === DownloadStatus.PAUSED
+        ) {
+          activeCount += 1;
+        }
+      });
+
+      state.downloads.forEach((progress) => {
+        if (
+          progress.status === DownloadStatus.DOWNLOADING ||
+          progress.status === DownloadStatus.QUEUED ||
+          progress.status === DownloadStatus.PAUSED
+        ) {
+          activeDownloadedBytes += progress.downloadedBytes || 0;
+          activeTotalBytes += progress.totalBytes || 0;
+        }
+      });
+
+      if (
+        cachedDownloadSummary.activeCount !== activeCount ||
+        cachedDownloadSummary.totalDownloadedBytes !== totalDownloadedBytes ||
+        cachedDownloadSummary.activeDownloadedBytes !== activeDownloadedBytes ||
+        cachedDownloadSummary.activeTotalBytes !== activeTotalBytes
+      ) {
+        cachedDownloadSummary = {
+          activeCount,
+          totalDownloadedBytes,
+          activeDownloadedBytes,
+          activeTotalBytes,
+        };
+      }
+
+      return cachedDownloadSummary;
+    },
+    () => cachedDownloadSummary
+  );
+}
+
 // Cache for useDownloadStatus results per globalKey
 const statusCache = new Map<string, {
   progress: DownloadProgress | undefined;

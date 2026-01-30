@@ -27,10 +27,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { DownloadListItem } from '../components/downloads';
+import DownloadProgressBar from '../components/downloads/DownloadProgressBar';
+import { useAppSettings } from '../hooks/useAppSettings';
 import {
   useDownloads,
   downloadStore,
   downloadService,
+  useDownloadSummary,
 } from '../services/downloads';
 import { DownloadedMetadata, DownloadedShow, DownloadStatus } from '../types/downloads';
 
@@ -55,10 +58,20 @@ type Tab = 'movies' | 'shows';
 export default function Downloads() {
   const insets = useSafeAreaInsets();
   const nav: any = useNavigation();
+  const { settings } = useAppSettings();
   const { isLoading, downloadedMovies, downloadedShows, error, refresh } = useDownloads();
   const [activeTab, setActiveTab] = useState<Tab>('movies');
   const [refreshing, setRefreshing] = useState(false);
   const [expandedShow, setExpandedShow] = useState<string | null>(null);
+  const downloadSummary = useDownloadSummary();
+
+  const formatBytes = useCallback((bytes: number): string => {
+    if (!bytes) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+  }, []);
 
   // Initialize downloads on mount
   useEffect(() => {
@@ -150,6 +163,11 @@ export default function Downloads() {
 
       const showKey = `${item.serverId}:${item.grandparentRatingKey}`;
       const isExpanded = expandedShow === showKey;
+      const showDownloadedBytes = item.episodes.reduce((sum, ep) => {
+        const epGlobalKey = `${item.serverId}:${ep.ratingKey}`;
+        const epMedia = downloadStore.getState().media.get(epGlobalKey);
+        return sum + (epMedia?.downloadedBytes || 0);
+      }, 0);
 
       return (
         <View>
@@ -179,6 +197,7 @@ export default function Downloads() {
               </Text>
               <Text style={styles.showSubtitle}>
                 {item.downloadedEpisodes} episode{item.downloadedEpisodes !== 1 ? 's' : ''} downloaded
+                {showDownloadedBytes > 0 ? ` • ${formatBytes(showDownloadedBytes)}` : ''}
               </Text>
             </View>
             <Pressable
@@ -225,7 +244,32 @@ export default function Downloads() {
                           S{ep.parentIndex || 1}E{ep.index || 1} - {ep.title}
                         </Text>
                         <Text style={styles.episodeStatus}>
-                          {isCompleted ? 'Downloaded' : epMedia?.status || 'Unknown'}
+                          {(() => {
+                            if (!epMedia) return 'Unknown';
+                            if (epMedia.status === DownloadStatus.COMPLETED) {
+                              const size = epMedia.downloadedBytes ? formatBytes(epMedia.downloadedBytes) : '';
+                              return ['Downloaded', size].filter(Boolean).join(' • ');
+                            }
+                            if (epMedia.status === DownloadStatus.PAUSED) {
+                              if (epMedia.totalBytes && epMedia.downloadedBytes) {
+                                return `Paused • ${formatBytes(epMedia.downloadedBytes)} / ${formatBytes(epMedia.totalBytes)}`;
+                              }
+                              return 'Paused';
+                            }
+                            if (
+                              epMedia.status === DownloadStatus.DOWNLOADING ||
+                              epMedia.status === DownloadStatus.QUEUED
+                            ) {
+                              if (epMedia.totalBytes && epMedia.downloadedBytes) {
+                                return `Downloading • ${formatBytes(epMedia.downloadedBytes)} / ${formatBytes(epMedia.totalBytes)}`;
+                              }
+                              return 'Downloading';
+                            }
+                            if (epMedia.status === DownloadStatus.FAILED) {
+                              return epMedia.errorMessage || 'Failed';
+                            }
+                            return epMedia.status || 'Unknown';
+                          })()}
                         </Text>
                       </View>
                       {isCompleted && (
@@ -247,7 +291,7 @@ export default function Downloads() {
         </View>
       );
     },
-    [nav, expandedShow, handleDeleteEpisode, handleDeleteShow]
+    [nav, expandedShow, handleDeleteEpisode, handleDeleteShow, formatBytes]
   );
 
   // Get key extractor
@@ -281,7 +325,20 @@ export default function Downloads() {
   // Header component
   const renderHeader = () => (
     <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-      <Text style={styles.headerTitle}>Downloads</Text>
+      <View style={styles.headerTopRow}>
+        {!settings.showDownloadsTab && (
+          <Pressable
+            onPress={() => nav.goBack()}
+            hitSlop={8}
+            style={({ pressed }) => [styles.backButton, pressed && styles.backButtonPressed]}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+          >
+            <Ionicons name="chevron-back" size={26} color="#fff" />
+          </Pressable>
+        )}
+        <Text style={[styles.headerTitle, !settings.showDownloadsTab && styles.headerTitleWithBack]}>Downloads</Text>
+      </View>
 
       {/* Tab selector */}
       <View style={styles.tabContainer}>
@@ -317,6 +374,35 @@ export default function Downloads() {
             TV Shows
           </Text>
         </Pressable>
+      </View>
+
+      <View style={styles.summaryCard}>
+        <View style={styles.summaryRow}>
+          <Text style={styles.summaryLabel}>Total downloaded</Text>
+          <Text style={styles.summaryValue}>{formatBytes(downloadSummary.totalDownloadedBytes)}</Text>
+        </View>
+        {downloadSummary.activeCount > 0 && (
+          <>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>
+                Downloading ({downloadSummary.activeCount})
+              </Text>
+              <Text style={styles.summaryValue}>
+                {downloadSummary.activeTotalBytes > 0
+                  ? `${formatBytes(downloadSummary.activeDownloadedBytes)} / ${formatBytes(downloadSummary.activeTotalBytes)}`
+                  : 'In progress'}
+              </Text>
+            </View>
+            <DownloadProgressBar
+              progress={downloadSummary.activeTotalBytes > 0
+                ? (downloadSummary.activeDownloadedBytes / downloadSummary.activeTotalBytes) * 100
+                : 0}
+              height={6}
+              backgroundColor="#2a2a2a"
+              progressColor="#e50914"
+            />
+          </>
+        )}
       </View>
     </View>
   );
@@ -420,11 +506,26 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     backgroundColor: '#0a0a0a',
   },
+  headerTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  backButton: {
+    marginRight: 6,
+    padding: 4,
+    borderRadius: 18,
+  },
+  backButtonPressed: {
+    opacity: 0.6,
+  },
   headerTitle: {
     color: '#fff',
     fontSize: 28,
     fontWeight: 'bold',
-    marginBottom: 16,
+  },
+  headerTitleWithBack: {
+    marginTop: 1,
   },
   tabContainer: {
     flexDirection: 'row',
@@ -448,6 +549,30 @@ const styles = StyleSheet.create({
   },
   tabTextActive: {
     color: '#fff',
+  },
+  summaryCard: {
+    marginTop: 12,
+    backgroundColor: '#121212',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  summaryLabel: {
+    color: '#bdbdbd',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  summaryValue: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
   },
   emptyContainer: {
     flex: 1,

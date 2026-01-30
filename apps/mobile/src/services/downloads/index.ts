@@ -9,4 +9,4 @@ export * from './OfflineMetadataService';
 
 // Re-export the singleton instances
 export { downloadService } from './DownloadService';
-export { downloadStore, useDownloadStore, useDownloads, useDownloadStatus } from './DownloadStore';
+export { downloadStore, useDownloadStore, useDownloads, useDownloadStatus, useDownloadSummary } from './DownloadStore';

@@ -198,6 +198,17 @@ class DownloadServiceClass {
     await saveDownloadMedia(globalKey, media);
     await saveDownloadMetadata(globalKey, downloadMetadata);
 
+    // Download artwork early so it shows in Downloads list while downloading
+    try {
+      const artworkLocalPath = await this.downloadArtwork(globalKey, downloadMetadata, '');
+      if (artworkLocalPath) {
+        downloadMetadata.localThumbPath = artworkLocalPath;
+        await saveDownloadMetadata(globalKey, downloadMetadata);
+      }
+    } catch (e) {
+      console.log('[DownloadService] Early artwork download failed:', e);
+    }
+
     // Update download list
     const list = await loadDownloadList();
     if (!list.includes(globalKey)) {
