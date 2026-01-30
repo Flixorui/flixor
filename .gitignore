@@ -25,3 +25,7 @@ Pods/
 *.aar
 libmpv/
 *.apk
+
+# Xcode / Swift PM user-specific
+xcuserdata/
+*.xcuserdatad

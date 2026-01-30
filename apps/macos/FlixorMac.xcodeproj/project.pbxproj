@@ -141,7 +141,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		234624854A3AE7BEDC53EB9A /* MpvConfigModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MpvConfigModels.swift; path = MpvConfigModels.swift; sourceTree = "<group>"; };
+		234624854A3AE7BEDC53EB9A /* MpvConfigModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MpvConfigModels.swift; sourceTree = "<group>"; };
 		24D1F05E6981A2EDAFAC5859 /* PinEntryView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PinEntryView.swift; sourceTree = "<group>"; };
 		28F2733407E54826B6E93AC2 /* subtitles.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = subtitles.png; sourceTree = "<group>"; };
 		2C8C098BA66E3B1327863916 /* DownloadFileService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DownloadFileService.swift; path = Downloads/DownloadFileService.swift; sourceTree = "<group>"; };
@@ -150,8 +150,8 @@
 		5170360C6E9CB0E5C7FC9138 /* ProfileManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProfileManager.swift; sourceTree = "<group>"; };
 		5F6BC834C21606D91C967707 /* AppLogger.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppLogger.swift; sourceTree = "<group>"; };
 		7CB1C29CA6CFB52E468383D8 /* PerformanceStats.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PerformanceStats.swift; sourceTree = "<group>"; };
-		89419B4257304E4E31113CDA /* CollectionRowsSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CollectionRowsSettingsView.swift; path = CollectionRowsSettingsView.swift; sourceTree = "<group>"; };
-		9911C3B9537F9629E5086F4A /* PlayerSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PlayerSettingsView.swift; path = PlayerSettingsView.swift; sourceTree = "<group>"; };
+		89419B4257304E4E31113CDA /* CollectionRowsSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CollectionRowsSettingsView.swift; sourceTree = "<group>"; };
+		9911C3B9537F9629E5086F4A /* PlayerSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlayerSettingsView.swift; sourceTree = "<group>"; };
 		A551E079C93FFCF1E765E133 /* ProfileSettings.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProfileSettings.swift; sourceTree = "<group>"; };
 		B001 /* FlixorMacApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlixorMacApp.swift; sourceTree = "<group>"; };
 		B002 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
@@ -261,10 +261,10 @@
 		D4BBF226E4D1FFC47369CF00 /* DownloadModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DownloadModels.swift; sourceTree = "<group>"; };
 		D5ACF60CF7141B291B519FA5 /* DownloadsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DownloadsView.swift; path = Downloads/DownloadsView.swift; sourceTree = "<group>"; };
 		DB41AA1177EF05D19E278916 /* ServerSelectView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ServerSelectView.swift; sourceTree = "<group>"; };
-		DC5CC48F0840B10DB094145A /* MpvConfigView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MpvConfigView.swift; path = MpvConfigView.swift; sourceTree = "<group>"; };
+		DC5CC48F0840B10DB094145A /* MpvConfigView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MpvConfigView.swift; sourceTree = "<group>"; };
 		E059C76C45BC6B2E47E6D5D9 /* LogsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LogsView.swift; sourceTree = "<group>"; };
 		F156FB11282DDE8678B19A78 /* EndpointSelectView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EndpointSelectView.swift; sourceTree = "<group>"; };
-		F5602C0E02D02A79ABE8837A /* TrackPreferenceService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TrackPreferenceService.swift; path = TrackPreferenceService.swift; sourceTree = "<group>"; };
+		F5602C0E02D02A79ABE8837A /* TrackPreferenceService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TrackPreferenceService.swift; sourceTree = "<group>"; };
 		F85A04CB3691DE34BF4E4666 /* ServerEndpointFlowView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ServerEndpointFlowView.swift; sourceTree = "<group>"; };
 		MPVMETAL002 /* MPVMetalLayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MPVMetalLayer.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -636,7 +636,6 @@
 				46B9A47EEF39400D55626597 /* ProfileAvatarView.swift */,
 				24D1F05E6981A2EDAFAC5859 /* PinEntryView.swift */,
 			);
-			name = Profile;
 			path = Profile;
 			sourceTree = "<group>";
 		};
@@ -690,7 +689,7 @@
 			);
 			mainGroup = D001;
 			packageReferences = (
-				FKPR0001 /* XCLocalSwiftPackageReference "FlixorKit" */,
+				FKPR0001 /* XCLocalSwiftPackageReference "../../shared/FlixorKit" */,
 				YTPK0001 /* XCRemoteSwiftPackageReference "YouTubePlayerKit" */,
 				MPVK0001 /* XCRemoteSwiftPackageReference "MPVKit" */,
 			);
@@ -979,11 +978,12 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				AUTOMATION_APPLE_EVENTS = NO;
 				CODE_SIGN_ENTITLEMENTS = FlixorMac/FlixorMac.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
-				DEVELOPMENT_TEAM = GGZ5B2R5VP;
+				DEVELOPMENT_TEAM = J592WQNBU4;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
@@ -1026,11 +1026,12 @@
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
 				AUTOMATION_APPLE_EVENTS = NO;
 				CODE_SIGN_ENTITLEMENTS = FlixorMac/FlixorMac.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
-				DEVELOPMENT_TEAM = GGZ5B2R5VP;
+				DEVELOPMENT_TEAM = J592WQNBU4;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_RESOURCE_ACCESS_AUDIO_INPUT = NO;
@@ -1088,7 +1089,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		FKPR0001 /* XCLocalSwiftPackageReference "FlixorKit" */ = {
+		FKPR0001 /* XCLocalSwiftPackageReference "../../shared/FlixorKit" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = ../../shared/FlixorKit;
 		};

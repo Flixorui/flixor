@@ -43,6 +43,9 @@ public struct MediaItem: Identifiable, Codable, Hashable {
     public let parentTitle: String?
     public let leafCount: Int?
     public let viewedLeafCount: Int?
+    
+    // Edition title
+    public let editionTitle: String?
 
     public init(
         id: String,
@@ -64,7 +67,8 @@ public struct MediaItem: Identifiable, Codable, Hashable {
         parentRatingKey: String? = nil,
         parentTitle: String? = nil,
         leafCount: Int? = nil,
-        viewedLeafCount: Int? = nil
+        viewedLeafCount: Int? = nil,
+        editionTitle: String? = nil
     ) {
         self.id = id
         self.title = title
@@ -86,6 +90,7 @@ public struct MediaItem: Identifiable, Codable, Hashable {
         self.parentTitle = parentTitle
         self.leafCount = leafCount
         self.viewedLeafCount = viewedLeafCount
+        self.editionTitle = editionTitle
     }
 
     public enum CodingKeys: String, CodingKey {
@@ -109,6 +114,7 @@ public struct MediaItem: Identifiable, Codable, Hashable {
         case parentTitle
         case leafCount
         case viewedLeafCount
+        case editionTitle
     }
 }
 
@@ -194,6 +200,25 @@ public struct MediaItemFull: Codable {
     public let librarySectionID: Int?
     public let librarySectionTitle: String?
     public let librarySectionUUID: String?
+    
+    public let editionTitle: String?
+    public struct MediaEntry: Codable {
+        public let id: Int?
+        public let duration: Int?
+        public let bitrate: Int?
+        public let width: Int?
+        public let height: Int?
+        public let aspectRatio: Double?
+        public let videoCodec: String?
+        public let audioCodec: String?
+        public let audioChannels: Int?
+        public let videoResolution: String?
+        public let container: String?
+        public let videoFrameRate: String?
+        public let optimizedForStreaming: Int?
+        public let editionTitle: String?
+    }
+    public let Media: [MediaEntry]?
 
     public struct GuidEntry: Codable { public let id: String }
     public let Guid: [GuidEntry]?
@@ -207,12 +232,18 @@ public struct MediaItemFull: Codable {
         case grandparentTitle, grandparentThumb, grandparentArt, grandparentRatingKey
         case parentIndex, index, parentRatingKey, parentTitle, leafCount, viewedLeafCount
         case allowSync, librarySectionID, librarySectionTitle, librarySectionUUID
-        case Guid, guid, slug, tmdbGuid
+        case Guid, guid, slug, tmdbGuid, editionTitle, Media
     }
 
     public func toMediaItem() -> MediaItem {
         let effectiveArt: String?
         if type == "season" && (art == nil || art?.isEmpty == true) { effectiveArt = grandparentArt } else { effectiveArt = art }
+
+        let extractedEdition = EditionService.extractEditionTitle(
+            topLevelEdition: editionTitle,
+            firstMediaEdition: Media?.first?.editionTitle
+        )
+
         return MediaItem(
             id: id,
             title: title,
@@ -232,7 +263,8 @@ public struct MediaItemFull: Codable {
             parentRatingKey: parentRatingKey,
             parentTitle: parentTitle,
             leafCount: leafCount,
-            viewedLeafCount: viewedLeafCount
+            viewedLeafCount: viewedLeafCount,
+            editionTitle: extractedEdition
         )
     }
 }

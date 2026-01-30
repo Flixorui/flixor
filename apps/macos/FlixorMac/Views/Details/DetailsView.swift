@@ -252,6 +252,7 @@ struct DetailsView: View {
         .ignoresSafeArea(edges: .top)
         .background(HomeBackground(heroColors: vm.heroColors))
         .navigationTitle("")
+        .navigationBarBackButtonHidden(true)
         .task {
             await vm.load(for: item)
             // Set initial tab - DETAILS for episodes, EPISODES for TV shows/seasons
@@ -803,21 +804,32 @@ private struct DetailsHeroSection: View {
     // MARK: - Technical Metadata Row
     @ViewBuilder private var technicalMetadataRow: some View {
         HStack(spacing: 10) {
-            // Year and Edition
+            // Year
             if let year = vm.year, !year.isEmpty {
-                if let edition = vm.editionTitle, !edition.isEmpty {
-                    Text("\(year) · \(edition)")
-                } else {
-                    Text(year)
-                }
-            } else if let edition = vm.editionTitle, !edition.isEmpty {
-                Text(edition)
+                Text(year)
             }
 
             // Runtime
             if let runtime = formattedRuntime(vm.runtime) {
-                Text("·").foregroundStyle(.white.opacity(0.5))
+                if vm.year != nil {
+                    Text("·").foregroundStyle(.white.opacity(0.5))
+                }
                 Text(runtime)
+            }
+
+            // Edition badge (like mobile app)
+            if let edition = vm.editionTitle, !edition.isEmpty {
+                Text("·").foregroundStyle(.white.opacity(0.5))
+                Text(edition)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.8))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Color.white.opacity(0.15))
+                    .clipShape(RoundedRectangle(cornerRadius: 3))
+                    .layoutPriority(0)
             }
 
             // Resolution badge from technical details (4K, HD, 720p)
@@ -1200,8 +1212,9 @@ private struct DetailsHeroSection: View {
     // Content column max width for two-column layout
     private var contentColumnMaxWidth: CGFloat {
         if width < 900 { return .infinity }
-        if width < 1200 { return 500 }
-        return 600
+        if width < 1200 { return 580 }
+        if width < 1600 { return 720 }
+        return 840
     }
 
     // Credits column width for right side

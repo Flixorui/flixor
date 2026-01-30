@@ -5,6 +5,7 @@ import { AppDataSource } from '../../db/data-source';
 import { UserSettings } from '../../db/entities';
 import { decryptForUser, isEncrypted } from '../../utils/crypto';
 import crypto from 'crypto';
+import { EditionService } from './EditionService';
 
 const logger = createLogger('plex');
 
@@ -192,6 +193,17 @@ export class PlexClient {
     }
   }
 
+  private extractEditionTitle(metadata: any): string | undefined {
+    return EditionService.extractEditionTitle(metadata.editionTitle, metadata.Media);
+  }
+
+  private applyEditionExtraction(results: any[]): PlexMetadata[] {
+    return results.map((metadata: any) => ({
+      ...metadata,
+      editionTitle: this.extractEditionTitle(metadata),
+    }));
+  }
+
   /**
    * Get all libraries
    */
@@ -233,7 +245,12 @@ export class PlexClient {
       300 // 5 minutes cache
     );
 
-    return data.MediaContainer;
+    const container = data.MediaContainer;
+    if (container.Metadata && Array.isArray(container.Metadata)) {
+      container.Metadata = this.applyEditionExtraction(container.Metadata);
+    }
+
+    return container;
   }
 
   /**
@@ -250,7 +267,7 @@ export class PlexClient {
 
     return {
       ...metadata,
-      editionTitle: metadata.editionTitle || undefined, // Include edition title if available
+      editionTitle: this.extractEditionTitle(metadata),
     };
   }
 
@@ -264,7 +281,7 @@ export class PlexClient {
       300 // 5 minutes cache
     );
 
-    return data.MediaContainer.Metadata || [];
+    return this.applyEditionExtraction(data.MediaContainer.Metadata || []);
   }
 
   /**
@@ -275,7 +292,7 @@ export class PlexClient {
     if (type) params.set('type', String(type));
     const key = `${this.server.id}:search:${type || 'all'}:${query}`;
     const data = await this.cachedRequest<any>(`/search?${params.toString()}`, key, 300);
-    return data.MediaContainer.Metadata || [];
+    return this.applyEditionExtraction(data.MediaContainer.Metadata || []);
   }
 
   /**
@@ -288,7 +305,7 @@ export class PlexClient {
       60 // 1 minute cache
     );
 
-    return data.MediaContainer.Metadata || [];
+    return this.applyEditionExtraction(data.MediaContainer.Metadata || []);
   }
 
   /**
@@ -301,7 +318,7 @@ export class PlexClient {
       60 // 1 minute cache
     );
 
-    return data.MediaContainer.Metadata || [];
+    return this.applyEditionExtraction(data.MediaContainer.Metadata || []);
   }
 
   /**
@@ -318,7 +335,7 @@ export class PlexClient {
       300 // 5 minutes cache
     );
 
-    return data.MediaContainer.Metadata || [];
+    return this.applyEditionExtraction(data.MediaContainer.Metadata || []);
   }
 
   /**
@@ -428,7 +445,13 @@ export class PlexClient {
     const fullPath = `/library/metadata/${ratingKey}${usp.size ? `?${usp.toString()}` : ''}`;
     const key = `${this.server.id}:metadata:${ratingKey}:${usp.toString()}`;
     const data = await this.cachedRequest<any>(fullPath, key, 3600);
-    return data.MediaContainer.Metadata?.[0];
+    const metadata = data.MediaContainer.Metadata?.[0];
+    
+    if (metadata) {
+      metadata.editionTitle = this.extractEditionTitle(metadata);
+    }
+    
+    return metadata;
   }
 
   /**

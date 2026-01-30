@@ -207,6 +207,7 @@ class DetailsViewModel: ObservableObject {
         let Media: [PlexMedia]?
         let Collection: [PlexTag]?       // Plex collections
         let studio: String?              // Studio name
+        let editionTitle: String?
 
         // Ratings from Plex metadata
         let Rating: [PlexRating]?
@@ -380,7 +381,7 @@ class DetailsViewModel: ObservableObject {
                     if let media = meta.Media, !media.isEmpty {
                         appendTechnicalBadges(from: media)
                         hydrateVersions(from: media)
-                        extractEditionTitle(from: media)
+                        extractEditionTitle(from: media, topLevelEdition: meta.editionTitle)
                     }
                     // Extract collections
                     collections = (meta.Collection ?? []).compactMap { $0.tag }.filter { !$0.isEmpty }
@@ -478,7 +479,7 @@ class DetailsViewModel: ObservableObject {
                     if let media = meta.Media, !media.isEmpty {
                         appendTechnicalBadges(from: media)
                         hydrateVersions(from: media)
-                        extractEditionTitle(from: media)
+                        extractEditionTitle(from: media, topLevelEdition: meta.editionTitle)
                     }
                     // Extract collections
                     collections = (meta.Collection ?? []).compactMap { $0.tag }.filter { !$0.isEmpty }
@@ -1106,25 +1107,11 @@ class DetailsViewModel: ObservableObject {
         addBadges(extra)
     }
 
-    private func extractEditionTitle(from media: [PlexMedia]) {
-        guard let first = media.first else { return }
-        // Priority 1: Use explicit editionTitle from API
-        if let edition = first.editionTitle, !edition.isEmpty {
-            self.editionTitle = edition
-            return
-        }
-        // Priority 2: Parse from filename {edition-XXX} pattern
-        if let filePath = first.Part?.first?.file {
-            if let match = filePath.range(of: #"\{edition-([^}]+)\}"#, options: .regularExpression) {
-                let fullMatch = String(filePath[match])
-                // Extract the edition name between {edition- and }
-                let start = fullMatch.index(fullMatch.startIndex, offsetBy: 9) // "{edition-".count
-                let end = fullMatch.index(fullMatch.endIndex, offsetBy: -1) // remove "}"
-                self.editionTitle = String(fullMatch[start..<end])
-                return
-            }
-        }
-        self.editionTitle = nil
+    private func extractEditionTitle(from media: [PlexMedia], topLevelEdition: String? = nil) {
+        self.editionTitle = EditionService.extractEditionTitle(
+            topLevelEdition: topLevelEdition,
+            firstMediaEdition: media.first?.editionTitle
+        )
     }
 
     private func hydrateVersions(from media: [PlexMedia]) {
@@ -1505,7 +1492,7 @@ class DetailsViewModel: ObservableObject {
         if let media = meta.Media, !media.isEmpty {
             appendTechnicalBadges(from: media)
             hydrateVersions(from: media)
-            extractEditionTitle(from: media)
+            extractEditionTitle(from: media, topLevelEdition: meta.editionTitle)
         }
 
         addBadge("Plex")
@@ -2226,6 +2213,7 @@ class DetailsViewModel: ObservableObject {
             },
             Collection: item.collections.map { PlexTag(tag: $0.tag) },
             studio: item.studio,
+            editionTitle: item.editionTitle,
             Rating: item.ratings.map { PlexRating(image: $0.image, value: $0.value, type: $0.type) },
             rating: item.rating,
             audienceRating: item.audienceRating,

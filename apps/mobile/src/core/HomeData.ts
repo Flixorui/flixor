@@ -14,6 +14,7 @@ export type RowItem = {
   image?: string;
   mediaType?: 'movie' | 'tv';
   subtitle?: string; // Optional subtitle (e.g., "3 new episodes" for grouped series)
+  editionTitle?: string; // Movie edition (e.g., "Director's Cut")
 };
 
 // Extended type for Trakt Continue Watching with backdrop and progress
@@ -217,6 +218,7 @@ export async function fetchPlexWatchlist(): Promise<RowItem[]> {
           ? core.plexServer.getImageUrl(item.thumb, 300)
           : undefined,
         mediaType,
+        editionTitle: item.editionTitle || item.Media?.[0]?.editionTitle,
       };
     });
   } catch (e) {
@@ -248,6 +250,7 @@ export async function fetchPlexGenreRow(type: 'movie' | 'show', genre: string): 
       title: m.title || m.grandparentTitle || 'Untitled',
       image: core.plexServer.getImageUrl(m.thumb, 300),
       mediaType: type === 'movie' ? 'movie' as const : 'tv' as const,
+      editionTitle: m.editionTitle || m.Media?.[0]?.editionTitle,
     }));
   } catch (e) {
     console.log('[HomeData] fetchPlexGenreRow error:', e);
@@ -1176,6 +1179,7 @@ export async function fetchCollectionRowsForHome(
               title: item.title || 'Untitled',
               image: core.plexServer.getImageUrl(item.thumb, 300),
               mediaType: item.type === 'movie' ? 'movie' as const : 'tv' as const,
+              editionTitle: item.editionTitle || item.Media?.[0]?.editionTitle,
             })),
           });
         }
@@ -1243,6 +1247,7 @@ export async function fetchRecentlyAddedPerLibrary(
               title: item.title || item.grandparentTitle || 'Untitled',
               image: core.plexServer.getImageUrl(item.thumb, 300),
               mediaType: item.type === 'movie' ? 'movie' as const : 'tv' as const,
+              editionTitle: item.editionTitle || item.Media?.[0]?.editionTitle,
             }));
           }
 

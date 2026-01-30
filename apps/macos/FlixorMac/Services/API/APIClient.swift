@@ -252,12 +252,31 @@ class APIClient: ObservableObject {
             let offset = params["offset"].flatMap { Int($0) } ?? params["X-Plex-Container-Start"].flatMap { Int($0) }
             let genre = params["genre"]
             let result = try await plexServer.getLibraryItemsWithPagination(key: key, type: type, sort: sort, limit: limit, offset: offset, genre: genre)
+            
+            // Enrich movies with edition metadata by fetching full details
+            var enrichedItems: [FlixorKit.PlexMediaItem] = []
+            for item in result.items {
+                if item.type == "movie" && item.editionTitle == nil {
+                    // Fetch full metadata to get edition from Media array
+                    do {
+                        let fullItem = try await plexServer.getMetadata(ratingKey: item.ratingKey ?? item.key ?? "")
+                        // Use full metadata to get effective edition
+                        enrichedItems.append(fullItem)
+                    } catch {
+                        // Fall back to original item if metadata fetch fails
+                        enrichedItems.append(item)
+                    }
+                } else {
+                    enrichedItems.append(item)
+                }
+            }
+            
             // Wrap in response format expected by LibraryViewModel
             let response = LibraryItemsResponse(
                 size: result.size,
                 totalSize: result.totalSize,
                 offset: result.offset,
-                Metadata: result.items
+                Metadata: enrichedItems
             )
             return try encodeAndDecode(response)
         }

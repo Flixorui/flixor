@@ -387,6 +387,12 @@ class HomeViewModel: ObservableObject {
     // MARK: - Convert PlexMediaItem to MediaItem
 
     private func toMediaItem(_ plex: FlixorKit.PlexMediaItem) -> MediaItem {
+        // Extract edition from Media array if present
+        var editionTitle = plex.editionTitle
+        if editionTitle == nil, let media = plex.Media, !media.isEmpty {
+            editionTitle = media[0].editionTitle
+        }
+        
         return MediaItem(
             id: plex.ratingKey ?? plex.key ?? "",
             title: plex.title ?? "Unknown",
@@ -408,7 +414,7 @@ class HomeViewModel: ObservableObject {
             parentTitle: plex.parentTitle,
             leafCount: plex.leafCount,
             viewedLeafCount: plex.viewedLeafCount,
-            media: plex.Media
+            editionTitle: editionTitle
         )
     }
 
