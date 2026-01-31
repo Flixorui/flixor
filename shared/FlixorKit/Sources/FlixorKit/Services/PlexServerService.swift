@@ -925,6 +925,7 @@ public struct PlexMediaItem: Codable, Identifiable {
     public let Marker: [PlexMarker]?
     public let Collection: [PlexTag]?
     public let studio: String?
+    public let editionTitle: String?
 
     public var id: String { ratingKey ?? key ?? UUID().uuidString }
 
@@ -950,6 +951,62 @@ public struct PlexMediaItem: Codable, Identifiable {
 
     public var collections: [PlexTag] {
         Collection ?? []
+    }
+
+    public func getEffectiveEditionTitle() -> String? {
+        return EditionService.extractEditionTitle(
+            topLevelEdition: editionTitle,
+            media: Media
+        )
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        let effectiveEdition = getEffectiveEditionTitle()
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(ratingKey, forKey: .ratingKey)
+        try container.encodeIfPresent(key, forKey: .key)
+        try container.encodeIfPresent(type, forKey: .type)
+        try container.encodeIfPresent(title, forKey: .title)
+        try container.encodeIfPresent(summary, forKey: .summary)
+        try container.encodeIfPresent(year, forKey: .year)
+        try container.encodeIfPresent(thumb, forKey: .thumb)
+        try container.encodeIfPresent(art, forKey: .art)
+        try container.encodeIfPresent(duration, forKey: .duration)
+        try container.encodeIfPresent(viewOffset, forKey: .viewOffset)
+        try container.encodeIfPresent(viewCount, forKey: .viewCount)
+        try container.encodeIfPresent(contentRating, forKey: .contentRating)
+        try container.encodeIfPresent(originallyAvailableAt, forKey: .originallyAvailableAt)
+        try container.encodeIfPresent(lastViewedAt, forKey: .lastViewedAt)
+        try container.encodeIfPresent(Rating, forKey: .Rating)
+        try container.encodeIfPresent(rating, forKey: .rating)
+        try container.encodeIfPresent(audienceRating, forKey: .audienceRating)
+        try container.encodeIfPresent(grandparentTitle, forKey: .grandparentTitle)
+        try container.encodeIfPresent(grandparentThumb, forKey: .grandparentThumb)
+        try container.encodeIfPresent(grandparentArt, forKey: .grandparentArt)
+        try container.encodeIfPresent(grandparentRatingKey, forKey: .grandparentRatingKey)
+        try container.encodeIfPresent(parentTitle, forKey: .parentTitle)
+        try container.encodeIfPresent(parentRatingKey, forKey: .parentRatingKey)
+        try container.encodeIfPresent(parentIndex, forKey: .parentIndex)
+        try container.encodeIfPresent(index, forKey: .index)
+        try container.encodeIfPresent(leafCount, forKey: .leafCount)
+        try container.encodeIfPresent(viewedLeafCount, forKey: .viewedLeafCount)
+        try container.encodeIfPresent(Media, forKey: .Media)
+        try container.encodeIfPresent(Guid, forKey: .Guid)
+        try container.encodeIfPresent(Genre, forKey: .Genre)
+        try container.encodeIfPresent(Role, forKey: .Role)
+        try container.encodeIfPresent(Marker, forKey: .Marker)
+        try container.encodeIfPresent(Collection, forKey: .Collection)
+        try container.encodeIfPresent(studio, forKey: .studio)
+        try container.encodeIfPresent(effectiveEdition, forKey: .editionTitle)
+    }
+    
+    enum CodingKeys: String, CodingKey {
+        case ratingKey, key, type, title, summary, year, thumb, art, duration, viewOffset
+        case viewCount, contentRating, originallyAvailableAt, lastViewedAt
+        case Rating, rating, audienceRating
+        case grandparentTitle, grandparentThumb, grandparentArt, grandparentRatingKey
+        case parentTitle, parentRatingKey, parentIndex, index, leafCount, viewedLeafCount
+        case Media, Guid, Genre, Role, Marker, Collection, studio, editionTitle
     }
 }
 

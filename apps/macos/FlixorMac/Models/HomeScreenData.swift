@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import FlixorKit
 
 struct HomeScreenData {
     let billboard: [MediaItem]
@@ -137,6 +138,8 @@ struct MediaItemFull: Identifiable, Codable {
     // Media info
     let Media: [MediaEntry]?
 
+    let editionTitle: String?
+
     // Library metadata
     let allowSync: Bool?
     let librarySectionID: Int?
@@ -176,6 +179,7 @@ struct MediaItemFull: Identifiable, Codable {
         case slug
         case tmdbGuid
         case Media
+        case editionTitle
         case allowSync
         case librarySectionID
         case librarySectionTitle
@@ -217,29 +221,18 @@ struct MediaItemFull: Identifiable, Codable {
         tmdbGuid = try container.decodeIfPresent(String.self, forKey: .tmdbGuid)
         // Safely decode Media - if it fails, just set to nil
         Media = try? container.decodeIfPresent([MediaEntry].self, forKey: .Media)
+        editionTitle = try container.decodeIfPresent(String.self, forKey: .editionTitle)
         allowSync = try container.decodeIfPresent(Bool.self, forKey: .allowSync)
         librarySectionID = try container.decodeIfPresent(Int.self, forKey: .librarySectionID)
         librarySectionTitle = try container.decodeIfPresent(String.self, forKey: .librarySectionTitle)
         librarySectionUUID = try container.decodeIfPresent(String.self, forKey: .librarySectionUUID)
     }
 
-    // Extract edition title from Media array
     private func extractEditionTitle() -> String? {
-        // Priority 1: Use explicit editionTitle from API
-        if let edition = Media?.first?.editionTitle, !edition.isEmpty {
-            return edition
-        }
-        // Priority 2: Parse from filename {edition-XXX} pattern
-        if let filePath = Media?.first?.Part?.first?.file {
-            if let match = filePath.range(of: #"\{edition-([^}]+)\}"#, options: .regularExpression) {
-                let fullMatch = String(filePath[match])
-                // Extract the edition name between {edition- and }
-                let start = fullMatch.index(fullMatch.startIndex, offsetBy: 9) // "{edition-".count
-                let end = fullMatch.index(fullMatch.endIndex, offsetBy: -1) // remove "}"
-                return String(fullMatch[start..<end])
-            }
-        }
-        return nil
+        return EditionService.extractEditionTitle(
+            topLevelEdition: editionTitle,
+            firstMediaEdition: Media?.first?.editionTitle
+        )
     }
 
     // Convert to MediaItem

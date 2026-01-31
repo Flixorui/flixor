@@ -1,3 +1,4 @@
+export { EditionService } from './EditionService';
 export { PlexAuthService } from './PlexAuthService';
 export { PlexServerService } from './PlexServerService';
 export { PlexTvService } from './PlexTvService';

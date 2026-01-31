@@ -1070,6 +1070,8 @@ export default function Details({ route }: RouteParams) {
           {hasAD ? <TechBadge type="ad" size={10} /> : null}
           {matchedPlex ? <BadgePill label="Plex" /> : null}
           {!matchedPlex && params.type === 'tmdb' ? <BadgePill label="No local source" /> : null}
+          {/* Edition Badge */}
+          {meta?.editionTitle ? <BadgePill label={meta.editionTitle} /> : null}
           {/* Ratings - controlled by settings */}
           {detailsSettings.showIMDbRating && typeof imdbRating === 'number' ? (
             <View style={{ flexDirection:'row', alignItems:'center', backgroundColor:'rgba(255,255,255,0.1)', paddingHorizontal:8, paddingVertical:4, borderRadius:6 }}>
@@ -1096,8 +1098,8 @@ export default function Details({ route }: RouteParams) {
           {/* Episode: Show S#E# first */}
           {meta?.type === 'episode' && meta?.parentIndex && meta?.index ? `S${meta.parentIndex} E${meta.index} • ` : ''}
           {meta?.year ? `${meta.year}` : ''}
-          {extractEditionTitle(meta?.Media) ? ` · ${extractEditionTitle(meta?.Media)}` : ''}
-          {(meta?.year || extractEditionTitle(meta?.Media)) ? ' • ' : ''}
+          {meta?.editionTitle ? ` · ${meta.editionTitle}` : ''}
+          {(meta?.year || meta?.editionTitle) ? ' • ' : ''}
           {meta?.type === 'show' ? `${meta?.leafCount || 0} Episodes` : (meta?.duration ? `${Math.round(meta.duration/60000)}m` : '')}
           {meta?.Genre?.length ? ` • ${meta.Genre.map((g:any)=>g.tag).slice(0,3).join(', ')}` : ''}
         </Text>
@@ -2216,19 +2218,6 @@ function formatDate(dateStr?: string): string | undefined {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-function extractEditionTitle(media?: any[]): string | undefined {
-  if (!media || media.length === 0) return undefined;
-  // Priority 1: Use explicit editionTitle from API
-  if (media[0]?.editionTitle) return media[0].editionTitle;
-  // Priority 2: Parse from filename {edition-XXX} pattern
-  const filePath = media[0]?.Part?.[0]?.file;
-  if (filePath) {
-    const match = filePath.match(/\{edition-([^}]+)\}/i);
-    if (match) return match[1];
-  }
-  return undefined;
-}
-
 function DetailsTab({ meta, tmdbCast, tmdbCrew, productionInfo, tmdbExtraInfo, mdblistRatings, onPersonPress, keyPrefix = '', firstEpisodeMedia }: {
   meta: any;
   tmdbCast?: Array<{ id: number; name: string; profile_path?: string }>;
@@ -2318,7 +2307,7 @@ function SeasonSelector({ seasons, seasonKey, onChange }: { seasons:any[]; seaso
           const key = String(s.ratingKey || s.key || idx);
           const active = key === seasonKey;
           return (
-            <Pressable key={key} onPress={()=> onChange(key)} style={{ marginRight:10, paddingHorizontal:12, paddingVertical:8, borderRadius:999, backgroundColor: active? '#ffffff22' : '#1a1b20', borderWidth:1, borderColor: active? '#ffffff' : '#2a2b30' }}>
+            <Pressable key={key} onPress={()=> onChange(key)} style={{ marginRight:10, paddingHorizontal:12, paddingVertical:8, borderRadius: 999, backgroundColor: active? '#ffffff22' : '#1a1b20', borderWidth:1, borderColor: active? '#ffffff' : '#2a2b30' }}>
               <Text style={{ color:'#fff', fontWeight:'700' }}>{s.title || `Season ${s.index || (idx+1)}`}</Text>
             </Pressable>
           );

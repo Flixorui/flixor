@@ -8,6 +8,7 @@
 import Foundation
 import SwiftUI
 import Combine
+import FlixorKit
 
 @MainActor
 class SearchViewModel: ObservableObject {
@@ -382,7 +383,7 @@ class SearchViewModel: ObservableObject {
             return await withTaskGroup(of: (String, SearchResult).self) { group in
                 for item in items {
                     // Extract edition before entering task group (since extractEditionTitle is on self)
-                    let edition = self.extractEditionTitle(from: item.Media)
+                    let edition = self.extractEditionTitle(from: item)
                     group.addTask {
                         let ratingKey = item.ratingKey
 
@@ -612,6 +613,7 @@ class SearchViewModel: ObservableObject {
         let thumb: String?
         let parentThumb: String?
         let grandparentThumb: String?
+        let editionTitle: String?
         let Media: [PlexSearchMedia]?
     }
 
@@ -624,23 +626,10 @@ class SearchViewModel: ObservableObject {
         let file: String?
     }
 
-    /// Extract edition title from Media array (explicit editionTitle or parsed from filename)
-    private func extractEditionTitle(from media: [PlexSearchMedia]?) -> String? {
-        guard let first = media?.first else { return nil }
-        // Priority 1: Use explicit editionTitle from API
-        if let edition = first.editionTitle, !edition.isEmpty {
-            return edition
-        }
-        // Priority 2: Parse from filename {edition-XXX} pattern
-        if let filePath = first.Part?.first?.file {
-            if let match = filePath.range(of: #"\{edition-([^}]+)\}"#, options: .regularExpression) {
-                let fullMatch = String(filePath[match])
-                // Extract the edition name between {edition- and }
-                let start = fullMatch.index(fullMatch.startIndex, offsetBy: 9) // "{edition-".count
-                let end = fullMatch.index(fullMatch.endIndex, offsetBy: -1) // remove "}"
-                return String(fullMatch[start..<end])
-            }
-        }
-        return nil
+    private func extractEditionTitle(from item: PlexSearchItem) -> String? {
+        return EditionService.extractEditionTitle(
+            topLevelEdition: item.editionTitle,
+            firstMediaEdition: item.Media?.first?.editionTitle
+        )
     }
 }
