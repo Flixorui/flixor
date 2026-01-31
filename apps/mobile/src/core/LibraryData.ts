@@ -108,19 +108,15 @@ export async function fetchLibraryItems(
 
     console.log('[LibraryData] Received', items.length, 'items from offset', offset);
 
-    const mapped: LibraryItem[] = items.map((m: PlexMediaItem) => {
-      const editionTitle = m.editionTitle || m.Media?.[0]?.editionTitle;
-
-      return {
-        ratingKey: String(m.ratingKey),
-        title: m.title || m.grandparentTitle || 'Untitled',
-        type: m.type as 'movie' | 'show' | 'episode',
-        thumb: m.thumb || m.parentThumb || m.grandparentThumb,
-        year: m.year,
-        media: m.Media,
-        editionTitle,
-      };
-    });
+    const mapped: LibraryItem[] = items.map((m: PlexMediaItem) => ({
+      ratingKey: String(m.ratingKey),
+      title: m.title || m.grandparentTitle || 'Untitled',
+      type: m.type as 'movie' | 'show' | 'episode',
+      thumb: m.thumb || m.parentThumb || m.grandparentThumb,
+      year: m.year,
+      media: m.Media,
+      editionTitle: m.editionTitle,
+    }));
 
     // Determine if there are more items
     const hasMore = mapped.length === limit;

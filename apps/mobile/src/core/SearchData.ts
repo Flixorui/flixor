@@ -72,11 +72,6 @@ export async function searchPlex(query: string): Promise<SearchResult[]> {
 
     return items.slice(0, 20).map((item: any) => {
       const thumb = item.thumb || item.parentThumb || item.grandparentThumb;
-      // Extract edition from metadata
-      let editionTitle = item.editionTitle; // Priority 1: Direct property
-      if (!editionTitle && item.Media?.[0]) {
-        editionTitle = item.Media[0].editionTitle; // Priority 2: From Media array
-      }
       return {
         id: `plex:${item.ratingKey}`,
         title: item.title || item.grandparentTitle || 'Untitled',
@@ -84,7 +79,7 @@ export async function searchPlex(query: string): Promise<SearchResult[]> {
         image: thumb ? core.plexServer.getImageUrl(thumb, 300) : undefined,
         year: item.year ? String(item.year) : undefined,
         source: 'plex' as const,
-        editionTitle,
+        editionTitle: item.editionTitle, // EditionService applied in PlexServerService
       };
     });
   } catch (e) {

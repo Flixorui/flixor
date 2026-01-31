@@ -10,6 +10,7 @@ import type {
   PlexUltraBlurResponse,
   ContinueWatchingResult,
 } from '../models/plex';
+import { EditionService } from './EditionService';
 
 /**
  * Service for communicating with a Plex Media Server
@@ -151,7 +152,7 @@ export class PlexServerService {
       params,
       CacheTTL.SHORT
     );
-    return data.MediaContainer?.Metadata || [];
+    return this.applyEditions(data.MediaContainer?.Metadata || []);
   }
 
   // ============================================
@@ -177,8 +178,7 @@ export class PlexServerService {
     const metadata = data.MediaContainer?.Metadata?.[0] || null;
 
     if (metadata) {
-      // Ensure editionTitle is included
-      metadata.editionTitle = metadata.editionTitle || undefined;
+      this.applyEdition(metadata);
     }
 
     return metadata;
@@ -193,7 +193,7 @@ export class PlexServerService {
       undefined,
       CacheTTL.DYNAMIC
     );
-    return data.MediaContainer?.Metadata || [];
+    return this.applyEditions(data.MediaContainer?.Metadata || []);
   }
 
   /**
@@ -205,7 +205,7 @@ export class PlexServerService {
       undefined,
       CacheTTL.TRENDING
     );
-    return data.MediaContainer?.Metadata || [];
+    return this.applyEditions(data.MediaContainer?.Metadata || []);
   }
 
   // ============================================
@@ -222,7 +222,7 @@ export class PlexServerService {
       { includeGuids: '1' }, // Include external GUIDs (TMDB, IMDB, etc.)
       CacheTTL.SHORT
     );
-    const items = data.MediaContainer?.Metadata || [];
+    const items = this.applyEditions(data.MediaContainer?.Metadata || []);
     console.log('[PlexServerService] getContinueWatching raw items:', items.length);
     const result = this.deduplicateContinueWatching(items);
     return result;
@@ -294,7 +294,7 @@ export class PlexServerService {
       undefined,
       CacheTTL.SHORT
     );
-    return data.MediaContainer?.Metadata || [];
+    return this.applyEditions(data.MediaContainer?.Metadata || []);
   }
 
   /**
@@ -310,7 +310,7 @@ export class PlexServerService {
       undefined,
       CacheTTL.DYNAMIC
     );
-    return data.MediaContainer?.Metadata || [];
+    return this.applyEditions(data.MediaContainer?.Metadata || []);
   }
 
   // ============================================
@@ -365,7 +365,7 @@ export class PlexServerService {
 
       if (results.length > 0) {
         console.log(`[PlexServerService] Total search results: ${results.length}`);
-        return results;
+        return this.applyEditions(results);
       }
     } catch (e) {
       console.log('[PlexServerService] Section search failed:', e);
@@ -383,7 +383,7 @@ export class PlexServerService {
       );
       const items = data.MediaContainer?.Metadata || [];
       console.log(`[PlexServerService] Global search returned ${items.length} results`);
-      return items;
+      return this.applyEditions(items);
     } catch (e) {
       console.log('[PlexServerService] Global search failed:', e);
       return [];
@@ -424,7 +424,7 @@ export class PlexServerService {
       }
     }
 
-    return results;
+    return this.applyEditions(results);
   }
 
   // ============================================
@@ -441,7 +441,7 @@ export class PlexServerService {
         {},
         CacheTTL.TRENDING
       );
-      return data.MediaContainer?.Metadata || [];
+      return this.applyEditions(data.MediaContainer?.Metadata || []);
     } catch (e) {
       console.log('[PlexServerService] getCollections error:', e);
       return [];
@@ -493,7 +493,7 @@ export class PlexServerService {
         params,
         CacheTTL.DYNAMIC
       );
-      return data.MediaContainer?.Metadata || [];
+      return this.applyEditions(data.MediaContainer?.Metadata || []);
     } catch (e) {
       console.log('[PlexServerService] getCollectionItems error:', e);
       return [];
@@ -576,7 +576,7 @@ export class PlexServerService {
       params,
       CacheTTL.DYNAMIC
     );
-    return data.MediaContainer?.Metadata || [];
+    return this.applyEditions(data.MediaContainer?.Metadata || []);
   }
 
   // ============================================
@@ -1082,5 +1082,27 @@ export class PlexServerService {
    */
   async invalidateItem(ratingKey: string): Promise<void> {
     await this.cache.invalidatePattern(`plex:${this.baseUrl}:/library/metadata/${ratingKey}*`);
+  }
+
+  // ============================================
+  // Edition Extraction
+  // ============================================
+
+  /**
+   * Apply edition extraction to a single item
+   */
+  private applyEdition(item: PlexMediaItem): PlexMediaItem {
+    item.editionTitle = EditionService.extractEditionTitle(
+      item.editionTitle,
+      item.Media
+    );
+    return item;
+  }
+
+  /**
+   * Apply edition extraction to an array of items
+   */
+  private applyEditions(items: PlexMediaItem[]): PlexMediaItem[] {
+    return items.map(item => this.applyEdition(item));
   }
 }

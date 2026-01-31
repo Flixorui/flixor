@@ -103,6 +103,7 @@ export interface PlexMediaItem {
 
   // Media info
   Media?: PlexMedia[];
+  editionTitle?: string; // Movie edition (e.g., "Director's Cut")
 
   // GUIDs for external matching
   Guid?: Array<{ id: string }>;
