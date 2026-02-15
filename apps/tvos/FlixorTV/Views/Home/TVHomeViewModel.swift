@@ -28,8 +28,8 @@ final class TVHomeViewModel: ObservableObject {
     static let defaultRowColors = UltraBlurColors(
         topLeft: "3d1813",
         topRight: "1c2628",
-        bottomLeft: "4d1e1a",
-        bottomRight: "55231f"
+        bottomRight: "55231f",
+        bottomLeft: "4d1e1a"
     )
 
     func load() async {
@@ -178,8 +178,8 @@ final class TVHomeViewModel: ObservableObject {
                             id: "tmdb:tv:\(result.id)",
                             title: result.name ?? result.title ?? "Untitled",
                             type: "show",
-                            thumb: ImageService.shared.tmdbImageURL(path: result.poster_path, size: .w500)?.absoluteString,
-                            art: ImageService.shared.tmdbImageURL(path: result.backdrop_path, size: .original)?.absoluteString,
+                            thumb: await ImageService.shared.tmdbImageURL(path: result.poster_path, size: .w500)?.absoluteString,
+                            art: await ImageService.shared.tmdbImageURL(path: result.backdrop_path, size: .original)?.absoluteString,
                             logo: logo,
                             year: nil, rating: nil, duration: nil, viewOffset: nil, summary: nil,
                             grandparentTitle: nil, grandparentThumb: nil, grandparentArt: nil,
@@ -213,8 +213,8 @@ final class TVHomeViewModel: ObservableObject {
                             id: "tmdb:movie:\(result.id)",
                             title: result.title ?? result.name ?? "Untitled",
                             type: "movie",
-                            thumb: ImageService.shared.tmdbImageURL(path: result.poster_path, size: .w500)?.absoluteString,
-                            art: ImageService.shared.tmdbImageURL(path: result.backdrop_path, size: .original)?.absoluteString,
+                            thumb: await ImageService.shared.tmdbImageURL(path: result.poster_path, size: .w500)?.absoluteString,
+                            art: await ImageService.shared.tmdbImageURL(path: result.backdrop_path, size: .original)?.absoluteString,
                             logo: logo,
                             year: nil, rating: nil, duration: nil, viewOffset: nil, summary: nil,
                             grandparentTitle: nil, grandparentThumb: nil, grandparentArt: nil,
@@ -246,14 +246,14 @@ final class TVHomeViewModel: ObservableObject {
                     group.addTask {
                         let baseItem = m.toMediaItem()
 
-                        // Use backend-enriched tmdbGuid if available, otherwise use original Plex ID
+                        // Use pre-enriched tmdbGuid if available, otherwise resolve from Plex metadata
                         var outId = baseItem.id
                         var logo: String? = nil
 
                         if let tmdbGuid = m.tmdbGuid {
-                            // Backend already formatted as "tmdb:movie:123" or "tmdb:tv:456"
+                            // Already formatted as "tmdb:movie:123" or "tmdb:tv:456"
                             outId = tmdbGuid
-                            print("✅ [TVHome] Using backend-enriched TMDB ID for \(m.title): \(tmdbGuid)")
+                            print("✅ [TVHome] Using mapped TMDB ID for \(m.title): \(tmdbGuid)")
 
                             // Extract TMDB ID and media type from tmdbGuid
                             if let (mediaType, tmdbId) = self.extractTMDBInfoFromGuid(tmdbGuid) {
@@ -318,14 +318,18 @@ final class TVHomeViewModel: ObservableObject {
     // MARK: - UltraBlur Colors
 
     func fetchUltraBlurColors(for item: MediaItem) async {
-        guard let artURL = item.art ?? item.thumb else {
+        let resolvedURL = ImageService.shared.continueWatchingURL(for: item, width: 1920, height: 1080)?.absoluteString
+            ?? ImageService.shared.artURL(for: item, width: 1920, height: 1080)?.absoluteString
+            ?? ImageService.shared.thumbURL(for: item, width: 1920, height: 1080)?.absoluteString
+
+        guard let resolvedURL else {
             print("⚠️ [TVHome] No art URL for ultrablur colors")
             return
         }
 
         do {
-            print("🎨 [TVHome] Fetching ultrablur colors for: \(artURL)")
-            let colors = try await APIClient.shared.getUltraBlurColors(imageUrl: artURL)
+            print("🎨 [TVHome] Fetching ultrablur colors for: \(resolvedURL)")
+            let colors = try await APIClient.shared.getUltraBlurColors(imageUrl: resolvedURL)
             await MainActor.run {
                 self.billboardUltraBlurColors = colors
             }
@@ -338,15 +342,15 @@ final class TVHomeViewModel: ObservableObject {
     // MARK: - Plex Genre Sections
 
     private func fetchGenreSections() async throws -> [HomeSection] {
-        struct DirContainer: Codable { let MediaContainer: DirMC }
-        struct DirMC: Codable { let Directory: [DirEntry]? }
-        struct DirTop: Codable { let Directory: [DirEntry]? }
-        struct DirEntry: Codable { let key: String; let title: String; let fastKey: String? }
-        struct MetaResponse: Codable {
-            let MediaContainer: MetaMC?
+        struct DirectoryEntry: Codable { let key: String?; let title: String? }
+        struct DirectoryContainer: Codable { let Directory: [DirectoryEntry]? }
+        struct DirectoryResponse: Codable {
+            let MediaContainer: DirectoryContainer?
+            let Directory: [DirectoryEntry]?
+        }
+        struct LibraryResponse: Codable {
             let Metadata: [MediaItemFull]?
         }
-        struct MetaMC: Codable { let Metadata: [MediaItemFull]? }
 
         let genreRows: [(label: String, type: String, genre: String)] = [
             ("TV Shows - Children", "show", "Children"),
@@ -369,27 +373,26 @@ final class TVHomeViewModel: ObservableObject {
             let lib = (spec.type == "movie") ? movieLib : showLib
             guard let libKey = lib?.key else { continue }
             do {
-                // Try top-level Directory first
-                if let top: DirTop = try? await APIClient.shared.get("/api/plex/library/\(libKey)/genre"),
-                   let dir = top.Directory?.first(where: { $0.title.lowercased() == spec.genre.lowercased() }) {
-                    let target = normalizedGenreRequest(dir.fastKey, libKey: libKey, rawKey: dir.key)
-                    let meta: MetaResponse = try await APIClient.shared.get("/api/plex/dir\(target.path)", queryItems: target.queryItems)
-                    let items = (meta.MediaContainer?.Metadata ?? meta.Metadata ?? []).map { $0.toMediaItem() }
-                    if !items.isEmpty {
-                        out.append(HomeSection(
-                            id: "genre-\(spec.genre.lowercased())",
-                            title: spec.label,
-                            items: Array(items.prefix(12))
-                        ))
-                    }
+                let dirs: DirectoryResponse = try await APIClient.shared.get("/api/plex/library/\(libKey)/genre")
+                let entries = dirs.MediaContainer?.Directory ?? dirs.Directory ?? []
+                guard let genreEntry = entries.first(where: {
+                    ($0.title ?? "").lowercased() == spec.genre.lowercased()
+                }), let genreKey = genreEntry.key else {
                     continue
                 }
-                // Fallback to MediaContainer.Directory
-                let dirs: DirContainer = try await APIClient.shared.get("/api/plex/library/\(libKey)/genre")
-                guard let dir = dirs.MediaContainer.Directory?.first(where: { $0.title.lowercased() == spec.genre.lowercased() }) else { continue }
-                let target = normalizedGenreRequest(dir.fastKey, libKey: libKey, rawKey: dir.key)
-                let meta: MetaResponse = try await APIClient.shared.get("/api/plex/dir\(target.path)", queryItems: target.queryItems)
-                let items = (meta.MediaContainer?.Metadata ?? meta.Metadata ?? []).map { $0.toMediaItem() }
+
+                let type = spec.type == "movie" ? 1 : 2
+                let response: LibraryResponse = try await APIClient.shared.get(
+                    "/api/plex/library/\(libKey)/all",
+                    queryItems: [
+                        URLQueryItem(name: "type", value: String(type)),
+                        URLQueryItem(name: "sort", value: "addedAt:desc"),
+                        URLQueryItem(name: "offset", value: "0"),
+                        URLQueryItem(name: "limit", value: "24"),
+                        URLQueryItem(name: "genre", value: genreKey),
+                    ]
+                )
+                let items = (response.Metadata ?? []).map { $0.toMediaItem() }
                 if !items.isEmpty {
                     out.append(HomeSection(
                         id: "genre-\(spec.genre.lowercased())",
@@ -402,24 +405,6 @@ final class TVHomeViewModel: ObservableObject {
             }
         }
         return out
-    }
-
-    private func normalizedGenreRequest(_ fastKey: String?, libKey: String, rawKey: String) -> (path: String, queryItems: [URLQueryItem]?) {
-        var key = fastKey ?? "/library/sections/\(libKey)/all?genre=\(rawKey)"
-        if !key.hasPrefix("/") { key = "/\(key)" }
-
-        if let questionIndex = key.firstIndex(of: "?") {
-            let path = String(key[..<questionIndex])
-            let query = String(key[key.index(after: questionIndex)...])
-            let components = query.split(separator: "&").map { pair -> URLQueryItem in
-                let parts = pair.split(separator: "=", maxSplits: 1).map(String.init)
-                let name = parts.first ?? ""
-                let value = parts.count > 1 ? parts[1] : nil
-                return URLQueryItem(name: name, value: value)
-            }
-            return (path, components)
-        }
-        return (key, nil)
     }
 
     // MARK: - Trakt Sections

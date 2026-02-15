@@ -400,8 +400,8 @@ public class FlixorCore: ObservableObject {
 
     /// Authenticate with Plex using PIN code
     /// Returns the PIN info for user to enter at plex.tv/link
-    public func createPlexPin() async throws -> PlexPin {
-        return try await plexAuth.createPin()
+    public func createPlexPin(strong: Bool = true) async throws -> PlexPin {
+        return try await plexAuth.createPin(strong: strong)
     }
 
     /// Wait for PIN authorization and complete auth

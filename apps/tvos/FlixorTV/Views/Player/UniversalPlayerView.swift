@@ -18,7 +18,7 @@ struct UniversalPlayerView: View {
     private let testVideos = [
         ("MP4 1080p (DirectPlay)", "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"),
         ("MP4 Sample 2", "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4"),
-        ("4K Plex MKV (DirectStream)", "http://192.168.51.14:32400/library/metadata/9080859?X-Plex-Token=yFGyeFjjZwavbUGiAzs9"),
+        ("4K Plex MKV (DirectStream)", "http://192.168.51.14:32400/library/parts/31500979/1770632162/file.mkv?X-Plex-Token=AgkiZUxDqzRggxxpyuio"),
     ]
 
     var body: some View {
@@ -92,7 +92,7 @@ struct UniversalPlayerView: View {
                     AVKitPlayerView(controller: controller)
                         .ignoresSafeArea()
                 } else if playerSettings.backend == .mpv, let controller = mpvController {
-                    MPVMetalView(mpvController: controller)
+                    MPVPlayerView(coordinator: controller.coordinator)
                         .ignoresSafeArea()
                 }
 
@@ -129,6 +129,9 @@ struct UniversalPlayerView: View {
         }
         .onAppear {
             print("🧪 [Test] Universal Player View appeared")
+        }
+        .onDisappear {
+            cleanup()
         }
     }
 
@@ -173,10 +176,7 @@ struct UniversalPlayerView: View {
                 }
             }
 
-            // MPV needs a delay for view setup
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                controller.loadFile(urlString)
-            }
+            controller.loadFile(urlString)
         }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {

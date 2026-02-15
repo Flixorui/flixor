@@ -26,7 +26,7 @@ enum StreamingProtocol: String, Codable, CaseIterable {
 /// Player settings (persisted via AppStorage)
 class PlayerSettings: ObservableObject {
     /// Selected player backend
-    @AppStorage("playerBackend") var backend: PlayerBackend = .avkit
+    @AppStorage("playerBackend") var backend: PlayerBackend = .mpv
 
     // MARK: - Playback Quality
 
@@ -68,7 +68,7 @@ class PlayerSettings: ObservableObject {
 
     /// Reset to defaults
     func resetToDefaults() {
-        backend = .avkit
+        backend = .mpv
         preferDirectPlay = true
         allowDirectStream = true
         maxBitrate = 0

@@ -80,8 +80,8 @@ struct UltraBlurGradientBackground_Previews: PreviewProvider {
             colors: UltraBlurColors(
                 topLeft: "2c2d33",
                 topRight: "0b0209",
-                bottomLeft: "19191b",
-                bottomRight: "0b090b"
+                bottomRight: "0b090b",
+                bottomLeft: "19191b"
             )
         )
     }

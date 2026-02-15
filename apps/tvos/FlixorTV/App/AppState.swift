@@ -7,9 +7,7 @@ final class AppState: ObservableObject {
 
     @Published var phase: Phase = .unauthenticated
     @Published var selectedTab: MainTVView.Tab = .home
-    @Published var backendHealthy: Bool = false
 
     func startLinking() { phase = .linking }
     func completeAuth() { phase = .authenticated; selectedTab = .home }
 }
-

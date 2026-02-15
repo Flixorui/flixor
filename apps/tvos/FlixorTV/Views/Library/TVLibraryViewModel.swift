@@ -519,14 +519,17 @@ final class TVLibraryViewModel: ObservableObject {
     // MARK: - UltraBlur Colors
 
     func fetchUltraBlurColors(for item: MediaItem) async {
-        guard let artURL = item.art ?? item.thumb else {
+        let resolvedURL = ImageService.shared.artURL(for: item, width: 1920, height: 1080)?.absoluteString
+            ?? ImageService.shared.thumbURL(for: item, width: 1920, height: 1080)?.absoluteString
+
+        guard let resolvedURL else {
             print("⚠️ [Library] No art URL for UltraBlur colors")
             return
         }
 
         do {
-            print("🎨 [Library] Fetching UltraBlur colors for: \(item.title) (url: \(artURL))")
-            let colors = try await api.getUltraBlurColors(imageUrl: artURL)
+            print("🎨 [Library] Fetching UltraBlur colors for: \(item.title) (url: \(resolvedURL))")
+            let colors = try await api.getUltraBlurColors(imageUrl: resolvedURL)
             print("✅ [Library] UltraBlur colors fetched: TL=\(colors.topLeft) TR=\(colors.topRight)")
             currentUltraBlurColors = colors
         } catch {

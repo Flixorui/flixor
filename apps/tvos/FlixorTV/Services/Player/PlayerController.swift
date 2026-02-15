@@ -67,7 +67,7 @@ protocol PlayerController: ObservableObject {
     // MARK: - Playback Control
 
     /// Load a video file or stream URL
-    /// - Parameter url: URL string (local file, HTTP URL, or Plex URL)
+    /// - Parameter url: URL string (local file, HTTP URL, metadata URL, or `plex:<ratingKey>`)
     func loadFile(_ url: String)
 
     /// Resume playback

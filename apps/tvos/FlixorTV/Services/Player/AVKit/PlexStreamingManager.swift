@@ -14,7 +14,6 @@ class PlexStreamingManager {
     private let baseUrl: String
     private let token: String
     private let clientId: String
-    private let isBackendProxy: Bool
 
     // MARK: - Types
 
@@ -60,10 +59,9 @@ class PlexStreamingManager {
     init(baseUrl: String, token: String) {
         self.baseUrl = baseUrl.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         self.token = token
-        self.isBackendProxy = (token == "backend-proxy")
         self.clientId = Self.getOrCreateClientId()
 
-        print("📡 [PlexStreaming] Initialized: \(baseUrl) (backend proxy: \(isBackendProxy))")
+        print("📡 [PlexStreaming] Initialized: \(baseUrl)")
     }
 
     // MARK: - Decision API
@@ -170,8 +168,7 @@ class PlexStreamingManager {
         options: StreamingOptions,
         sessionId: String
     ) -> URLRequest {
-        let path = isBackendProxy ? "/plex/video/:/transcode/universal/decision" : "/video/:/transcode/universal/decision"
-        var components = URLComponents(string: "\(baseUrl)\(path)")!
+        var components = URLComponents(string: "\(baseUrl)/video/:/transcode/universal/decision")!
 
         var params: [URLQueryItem] = [
             URLQueryItem(name: "path", value: "/library/metadata/\(ratingKey)"),
@@ -185,10 +182,7 @@ class PlexStreamingManager {
             URLQueryItem(name: "session", value: sessionId),
         ]
 
-        // Add token only for direct Plex (backend handles auth internally)
-        if !isBackendProxy {
-            params.append(URLQueryItem(name: "X-Plex-Token", value: token))
-        }
+        params.append(URLQueryItem(name: "X-Plex-Token", value: token))
 
         // Add quality settings
         if let bitrate = options.maxVideoBitrate {
@@ -221,8 +215,7 @@ class PlexStreamingManager {
         sessionId: String
     ) -> String {
         let ext = options.streamingProtocol == "hls" ? "m3u8" : "mpd"
-        let path = isBackendProxy ? "/plex/video/:/transcode/universal/start.\(ext)" : "/video/:/transcode/universal/start.\(ext)"
-        var components = URLComponents(string: "\(baseUrl)\(path)")!
+        var components = URLComponents(string: "\(baseUrl)/video/:/transcode/universal/start.\(ext)")!
 
         var params: [URLQueryItem] = [
             URLQueryItem(name: "hasMDE", value: "1"),
@@ -241,10 +234,7 @@ class PlexStreamingManager {
             URLQueryItem(name: "session", value: sessionId),
         ]
 
-        // Add token only for direct Plex (backend handles auth internally)
-        if !isBackendProxy {
-            params.append(URLQueryItem(name: "X-Plex-Token", value: token))
-        }
+        params.append(URLQueryItem(name: "X-Plex-Token", value: token))
 
         // Add X-Plex client identification (required for streaming)
         params.append(URLQueryItem(name: "X-Plex-Client-Identifier", value: clientId))
@@ -274,11 +264,7 @@ class PlexStreamingManager {
     /// Get DirectPlay URL (raw file)
     private func getDirectPlayURL(ratingKey: String) async throws -> String {
         // Fetch metadata to get file path
-        let metaPath = isBackendProxy ? "/plex/library/metadata/\(ratingKey)" : "/library/metadata/\(ratingKey)"
-        var metaURLString = "\(baseUrl)\(metaPath)"
-        if !isBackendProxy {
-            metaURLString += "?X-Plex-Token=\(token)"
-        }
+        let metaURLString = "\(baseUrl)/library/metadata/\(ratingKey)?X-Plex-Token=\(token)"
 
         let metaURL = URL(string: metaURLString)!
 
@@ -305,11 +291,7 @@ class PlexStreamingManager {
             )
         }
 
-        if isBackendProxy {
-            return "\(baseUrl)/plex\(partKey)"
-        } else {
-            return "\(baseUrl)\(partKey)?X-Plex-Token=\(token)"
-        }
+        return "\(baseUrl)\(partKey)?X-Plex-Token=\(token)"
     }
 
     /// Add X-Plex headers to request with device capabilities

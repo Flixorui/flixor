@@ -13,6 +13,7 @@ import Foundation
 public struct PlexPin: Codable {
     public let id: Int
     public let code: String
+    public let expiresIn: Int?
 
     public var authUrl: String {
         "https://app.plex.tv/auth#?clientID=\(code)&code=\(code)&context%5Bdevice%5D%5Bproduct%5D=Flixor"
@@ -22,6 +23,7 @@ public struct PlexPin: Codable {
 public struct PlexPinResponse: Codable {
     public let id: Int
     public let code: String
+    public let expiresIn: Int?
     public let authToken: String?
 }
 
@@ -159,8 +161,9 @@ public class PlexAuthService {
 
     /// Create a new PIN for authentication
     /// User should visit plex.tv/link and enter the code
-    public func createPin() async throws -> PlexPin {
-        guard let url = URL(string: "\(plexTvUrl)/api/v2/pins?strong=true") else {
+    public func createPin(strong: Bool = true) async throws -> PlexPin {
+        let endpoint = strong ? "\(plexTvUrl)/api/v2/pins?strong=true" : "\(plexTvUrl)/api/v2/pins"
+        guard let url = URL(string: endpoint) else {
             throw PlexAuthError.invalidURL
         }
 
@@ -189,7 +192,7 @@ public class PlexAuthService {
         }
 
         let pinResponse = try JSONDecoder().decode(PlexPinResponse.self, from: data)
-        return PlexPin(id: pinResponse.id, code: pinResponse.code)
+        return PlexPin(id: pinResponse.id, code: pinResponse.code, expiresIn: pinResponse.expiresIn)
     }
 
     /// Check if PIN has been authorized

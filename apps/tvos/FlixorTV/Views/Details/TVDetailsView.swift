@@ -23,7 +23,7 @@ struct TVDetailsView: View {
 
     // Player state
     @State private var showPlayer = false
-    @State private var playbackURL: String?
+    @State private var playbackItem: MediaItem?
 
     // Focus namespaces per section
     @Namespace private var nsTabs
@@ -53,20 +53,15 @@ struct TVDetailsView: View {
         return parts
     }
 
+    private var hasPlexSource: Bool {
+        vm.playableId != nil || vm.plexRatingKey != nil
+    }
+
     var body: some View {
         ZStack {
             // Layer 1: Full-page backdrop image (edge-to-edge, corner-to-corner)
-            AsyncImage(url: vm.backdropURL) { phase in
-                switch phase {
-                case .success(let image):
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                case .empty, .failure:
-                    Color.black.opacity(0.3)
-                @unknown default:
-                    Color.black.opacity(0.3)
-                }
+            CachedAsyncImage(url: vm.backdropURL, contentMode: .fill) {
+                Color.black.opacity(0.3)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .ignoresSafeArea(edges: .all)
@@ -107,30 +102,18 @@ struct TVDetailsView: View {
                         VStack(alignment: .leading, spacing: 0) {
                             // Logo (if available), otherwise show title
                             if let logo = vm.logoURL {
-                                AsyncImage(url: logo) { phase in
-                                    switch phase {
-                                    case .success(let image):
-                                        image.resizable().aspectRatio(contentMode: .fit)
-                                            .frame(
-                                                maxWidth: isCollapsed ? 80 : 320,
-                                                maxHeight: isCollapsed ? 40 : 100,
-                                                alignment: .leading
-                                            )
-                                            .shadow(color: .black.opacity(0.6), radius: 8, y: 4)
-                                    case .empty, .failure:
-                                        // Fallback to title if logo fails to load
-                                        Text(vm.title.isEmpty ? item.title : vm.title)
-                                            .font(.system(size: isCollapsed ? 20 : 48, weight: .bold))
-                                            .foregroundStyle(.white)
-                                            .lineLimit(2)
-                                    @unknown default:
-                                        // Fallback to title
-                                        Text(vm.title.isEmpty ? item.title : vm.title)
-                                            .font(.system(size: isCollapsed ? 20 : 48, weight: .bold))
-                                            .foregroundStyle(.white)
-                                            .lineLimit(2)
-                                    }
+                                CachedAsyncImage(url: logo, contentMode: .fit, showsErrorView: false) {
+                                    Text(vm.title.isEmpty ? item.title : vm.title)
+                                        .font(.system(size: isCollapsed ? 20 : 48, weight: .bold))
+                                        .foregroundStyle(.white)
+                                        .lineLimit(2)
                                 }
+                                .frame(
+                                    maxWidth: isCollapsed ? 80 : 320,
+                                    maxHeight: isCollapsed ? 40 : 100,
+                                    alignment: .leading
+                                )
+                                .shadow(color: .black.opacity(0.6), radius: 8, y: 4)
                                 .padding(.bottom, isCollapsed ? 0 : 12)
                             } else {
                                 // No logo available, show title
@@ -279,8 +262,8 @@ struct TVDetailsView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .ignoresSafeArea(edges: .all)
         .fullScreenCover(isPresented: $showPlayer) {
-            if let url = playbackURL {
-                PlayerView(playbackURL: url)
+            if let playbackItem {
+                PlayerView(item: playbackItem)
             }
         }
         .task {
@@ -374,7 +357,7 @@ struct TVDetailsView: View {
     }
 
     @ViewBuilder private var heroActionButtons: some View {
-        HeroPlayButton(isDefaultFocusTarget: true, focusNS: heroFocusNS, action: playContent)
+        HeroPlayButton(isDefaultFocusTarget: true, focusNS: heroFocusNS, isEnabled: hasPlexSource, action: playContent)
             .focused($focusedHeroButton, equals: .play)
         HeroTrailerButton(focusNS: heroFocusNS)
             .focused($focusedHeroButton, equals: .trailer)
@@ -386,26 +369,58 @@ struct TVDetailsView: View {
 
     private func playContent() {
         print("🎬 [TVDetails] Play button tapped")
+        guard hasPlexSource else {
+            print("❌ [TVDetails] Play ignored: no Plex source")
+            return
+        }
 
-        // Build playback URL from Plex ratingKey
-        guard let ratingKey = vm.plexRatingKey else {
+        let ratingKey = vm.plexRatingKey
+            ?? vm.playableId?.replacingOccurrences(of: "plex:", with: "")
+
+        guard let ratingKey, !ratingKey.isEmpty else {
             print("❌ [TVDetails] No playable content available")
             return
         }
 
-        // Get Plex server info from APIClient
-        let api = APIClient.shared
-        let baseURL = api.baseURL.absoluteString.replacingOccurrences(of: "/api", with: "")
-
-        // TODO: Get actual Plex token from session
-        // For now, this will need to be wired up with proper auth
-        guard let plexURL = URL(string: "\(baseURL)/plex/library/metadata/\(ratingKey)") else {
-            print("❌ [TVDetails] Failed to construct Plex URL")
-            return
+        let playbackId: String
+        if let playableId = vm.playableId, playableId.hasPrefix("plex:") {
+            playbackId = playableId
+        } else {
+            playbackId = "plex:\(ratingKey)"
         }
+        let playbackType: String = {
+            if item.type == "episode" { return "episode" }
+            if item.type == "season" { return "season" }
+            if vm.mediaKind == "movie" { return "movie" }
+            if vm.mediaKind == "tv" { return "show" }
+            return item.type
+        }()
 
-        print("✅ [TVDetails] Playing: \(plexURL.absoluteString)")
-        playbackURL = plexURL.absoluteString
+        let candidate = MediaItem(
+            id: playbackId,
+            title: vm.title.isEmpty ? item.title : vm.title,
+            type: playbackType,
+            thumb: item.thumb,
+            art: item.art,
+            logo: item.logo,
+            year: vm.year.flatMap { Int($0) } ?? item.year,
+            rating: item.rating,
+            duration: vm.runtime.map { $0 * 60000 } ?? item.duration,
+            viewOffset: item.viewOffset,
+            summary: vm.overview.isEmpty ? item.summary : vm.overview,
+            grandparentTitle: item.grandparentTitle,
+            grandparentThumb: item.grandparentThumb,
+            grandparentArt: item.grandparentArt,
+            parentIndex: item.parentIndex,
+            index: item.index,
+            parentRatingKey: item.parentRatingKey,
+            parentTitle: item.parentTitle,
+            leafCount: item.leafCount,
+            viewedLeafCount: item.viewedLeafCount
+        )
+
+        print("✅ [TVDetails] Playing Plex item: \(candidate.id)")
+        playbackItem = candidate
         showPlayer = true
     }
 }
@@ -584,6 +599,7 @@ private struct PreferredDefaultDetailsFocusModifier: ViewModifier {
 private struct HeroPlayButton: View {
     var isDefaultFocusTarget: Bool = false
     var focusNS: Namespace.ID? = nil
+    var isEnabled: Bool = true
     var action: (() -> Void)? = nil
     @FocusState private var isFocused: Bool
     @State private var focusId: UUID? = nil
@@ -599,18 +615,27 @@ private struct HeroPlayButton: View {
                 Text("PLAY")
                     .font(.system(size: 24, weight: .semibold))
             }
-            .foregroundStyle(isFocused ? Color.white : Color.black)
+            .foregroundStyle(
+                isEnabled
+                    ? (isFocused ? Color.white : Color.black)
+                    : Color.gray
+            )
             .padding(.horizontal, 32)
             .padding(.vertical, 16)
             .frame(width: 180, height: 56)
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(isFocused ? Color.black : Color.white)
+                    .fill(
+                        isEnabled
+                            ? (isFocused ? Color.black : Color.white)
+                            : Color.white.opacity(0.55)
+                    )
             )
         }
+        .disabled(!isEnabled)
         .buttonStyle(.card)
-        .scaleEffect(isFocused ? 1.08 : 1.0)
-        .shadow(color: .black.opacity(isFocused ? 0.4 : 0.2), radius: isFocused ? 16 : 8, y: isFocused ? 8 : 4)
+        .scaleEffect(isEnabled && isFocused ? 1.08 : 1.0)
+        .shadow(color: .black.opacity(isEnabled ? (isFocused ? 0.4 : 0.2) : 0.12), radius: isEnabled ? (isFocused ? 16 : 8) : 4, y: isEnabled ? (isFocused ? 8 : 4) : 2)
         .focused($isFocused)
         .onChange(of: isFocused) { focused in
             if focused {

@@ -16,7 +16,6 @@
 		1A1C1D1E1F20000900010001 /* TVSeasonsStrip.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1C1D1E1F20000900010000 /* TVSeasonsStrip.swift */; };
 		1A1C1D1E1F20000B00010001 /* TVEpisodesRail.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1C1D1E1F20000B00010000 /* TVEpisodesRail.swift */; };
 		1E81C2A91B881B4AEA6F9B91 /* PlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C5E45CA963A9DD412F2AB1A /* PlayerView.swift */; };
-		289FBF812BA741EBAB1175E7 /* MPVMetalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D44541942A6D42C98F0EFB23 /* MPVMetalView.swift */; };
 		2B2C2D2E2F30000100010001 /* TVLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B2C2D2E2F30000100010000 /* TVLibraryView.swift */; };
 		2B2C2D2E2F30000300010001 /* TVLibraryViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B2C2D2E2F30000300010000 /* TVLibraryViewModel.swift */; };
 		2B2C2D2E2F30000500010001 /* TVLibraryFilterBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B2C2D2E2F30000500010000 /* TVLibraryFilterBar.swift */; };
@@ -31,7 +30,6 @@
 		4E0756DBD30823475ABD47BB /* AVKitPlayerController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79CA2D70E4A73517E82D3A26 /* AVKitPlayerController.swift */; };
 		5DC80F90B2AC958400600CB4 /* TVBillboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B34545FBF16E94C672651FBD /* TVBillboardView.swift */; };
 		5E5F5F5F5F60000100010001 /* MPVTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E5F5F5F5F60000100010000 /* MPVTypes.swift */; };
-		610D36FD610140EABA745E8A /* MPVMetalLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D1CD3BA87CA4603967F2F07 /* MPVMetalLayer.swift */; };
 		6F6F6F6F6F70000100010001 /* MPVPlayerController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F6F6F6F6F70000100010000 /* MPVPlayerController.swift */; };
 		7322C892CD5A6930B58C307D /* TVCarouselRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A7E3CFE272780A78553EA7A /* TVCarouselRow.swift */; };
 		741E53CACE516C2FDFC5E8A0 /* AVKitPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EB9D931BF4259DD9A02FC4F /* AVKitPlayerView.swift */; };
@@ -40,37 +38,28 @@
 		802912855B2E25460FBFF4EC /* TVDetailsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A13E40EFDCF43AA806E198BC /* TVDetailsViewModel.swift */; };
 		8C9B3E25A9F10CF2B3B26544 /* PlexStreamingManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A9616674FFAC797B4B00C38 /* PlexStreamingManager.swift */; };
 		8E44EC6D1A85EE59AFA2FB5D /* TVAuthLinkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1363F127165B6A9AC55441C /* TVAuthLinkView.swift */; };
-		9B9B9B9B9B9C000100010001 /* MPVMetalShaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = 8A8A8A8A8A8B000100010000 /* MPVMetalShaders.metal */; };
 		9BAB0C88EAA3E53BFF894AF1 /* TVHomeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D982341DFFB7A5B14F7E7E8 /* TVHomeViewModel.swift */; };
 		9CC843FD21FC20E2A688504A /* MainTVView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A560351FB7F36D1273F8DFA3 /* MainTVView.swift */; };
-		AAAA0001000000010001 /* Libmpv.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAAA000100000001 /* Libmpv.xcframework */; };
-		AAAA0002000000010001 /* Libavcodec.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAAA000200000001 /* Libavcodec.xcframework */; };
-		AAAA0003000000010001 /* Libavformat.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAAA000300000001 /* Libavformat.xcframework */; };
-		AAAA0004000000010001 /* Libavutil.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAAA000400000001 /* Libavutil.xcframework */; };
-		AAAA0005000000010001 /* Libswscale.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAAA000500000001 /* Libswscale.xcframework */; };
-		AAAA0006000000010001 /* Libswresample.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAAA000600000001 /* Libswresample.xcframework */; };
-		AAAA0007000000010001 /* Libass.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAAA000700000001 /* Libass.xcframework */; };
-		AAAA0008000000010001 /* Libfreetype.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAAA000800000001 /* Libfreetype.xcframework */; };
-		AAAA0009000000010001 /* Libfribidi.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAAA000900000001 /* Libfribidi.xcframework */; };
-		AAAA000A000000010001 /* Libharfbuzz.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAAA000A00000001 /* Libharfbuzz.xcframework */; };
-		AAAA000B000000010002 /* Libplacebo.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAAA000B00000002 /* Libplacebo.xcframework */; };
-		AAAA000C000000010001 /* Libshaderc_combined.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAAA000C00000001 /* Libshaderc_combined.xcframework */; };
-		AAAA000E000000010001 /* MoltenVK.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAAA000E00000001 /* MoltenVK.xcframework */; };
-		AAAA000F000000010001 /* Libuchardet.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAAA000F00000001 /* Libuchardet.xcframework */; };
-		AAAA0010000000010001 /* Libpng.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAAA001000000001 /* Libpng.xcframework */; };
-		AAAA0011000000010001 /* Libdav1d.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAAA001100000001 /* Libdav1d.xcframework */; };
-		AAAA0012000000010001 /* Liblcms2.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAAA001200000001 /* Liblcms2.xcframework */; };
-		AAAA0013000000010001 /* Libavfilter.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAAA001300000001 /* Libavfilter.xcframework */; };
-		AAAA0014000000010001 /* Libavdevice.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAAA001400000001 /* Libavdevice.xcframework */; };
-		AAAA0015000000010001 /* Libssl.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAAA001500000001 /* Libssl.xcframework */; };
-		AAAA0016000000010001 /* Libcrypto.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = AAAA001600000001 /* Libcrypto.xcframework */; };
+		A10000000000000000000001 /* MPVPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000011 /* MPVPlayerView.swift */; };
+		A10000000000000000000002 /* MPVPlayerViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000012 /* MPVPlayerViewController.swift */; };
+		A10000000000000000000003 /* MetalLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000013 /* MetalLayer.swift */; };
+		A10000000000000000000004 /* MPVPlayerDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000014 /* MPVPlayerDelegate.swift */; };
+		A10000000000000000000005 /* MPVProperty.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000015 /* MPVProperty.swift */; };
+		A10000000000000000000006 /* PlayerProperty.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000016 /* PlayerProperty.swift */; };
+		A10000000000000000000007 /* PlayerTrack.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000017 /* PlayerTrack.swift */; };
+		A10000000000000000000008 /* PlayerOptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000018 /* PlayerOptions.swift */; };
+		A10000000000000000000009 /* PlayerCoordinating.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000019 /* PlayerCoordinating.swift */; };
+		A1000000000000000000000A /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000001A /* APIClient.swift */; };
+		A1000000000000000000000B /* SessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000001B /* SessionManager.swift */; };
+		A1000000000000000000000C /* MPVKit-GPL in Frameworks */ = {isa = PBXBuildFile; productRef = A10000000000000000000031 /* MPVKit-GPL */; };
+		A1000000000000000000000D /* ImageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000001C /* ImageService.swift */; };
+		A1000000000000000000000E /* CachedAsyncImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000001D /* CachedAsyncImage.swift */; };
 		B13D9D0474B2E7577E7C7416 /* PlayerSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC7A3AEB169E727C4394EC77 /* PlayerSettings.swift */; };
 		C0600A369C9BB3EC7F66B320 /* UniversalPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C03CCA45295916815C223056 /* UniversalPlayerView.swift */; };
 		C196CA26AB88809CD97F25B1 /* TVHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4374B38CC057026BF7C73418 /* TVHomeView.swift */; };
 		C898CFC0A58E2042F32B5DF6 /* TVCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA640CCCC115D09CBAF9F0B3 /* TVCards.swift */; };
 		C8C170392E9F24490069DAD7 /* Nuke in Frameworks */ = {isa = PBXBuildFile; productRef = C8C170382E9F24490069DAD7 /* Nuke */; };
 		E089E4E7EB1F43D781D42DD2 /* UltraBlurGradientBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56116A558CCA485F8D0934B0 /* UltraBlurGradientBackground.swift */; };
-		E5C6E58087C8E18C8B79FDF0 /* MPVOpenGLBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CB2934A10406D735FBC903A /* MPVOpenGLBridge.swift */; };
 		F6856300E4C815027BDE6733 /* PlayerBackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7142CD0619D6F21B1723390F /* PlayerBackend.swift */; };
 /* End PBXBuildFile section */
 
@@ -87,7 +76,6 @@
 		3616010CF268C0F1FAB2DA89 /* TopNavBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TopNavBar.swift; sourceTree = "<group>"; };
 		3C3D3E3F3F40000100010000 /* Skeletons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Skeletons.swift; sourceTree = "<group>"; };
 		3C5E45CA963A9DD412F2AB1A /* PlayerView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlayerView.swift; sourceTree = "<group>"; };
-		3D1CD3BA87CA4603967F2F07 /* MPVMetalLayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MPVMetalLayer.swift; sourceTree = "<group>"; };
 		3EB9D931BF4259DD9A02FC4F /* AVKitPlayerView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AVKitPlayerView.swift; sourceTree = "<group>"; };
 		4374B38CC057026BF7C73418 /* TVHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVHomeView.swift; sourceTree = "<group>"; };
 		4D4E4F4F4F50000100010000 /* Shimmer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shimmer.swift; sourceTree = "<group>"; };
@@ -100,38 +88,27 @@
 		6F6F6F6F6F70000100010000 /* MPVPlayerController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MPVPlayerController.swift; sourceTree = "<group>"; };
 		7142CD0619D6F21B1723390F /* PlayerBackend.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlayerBackend.swift; sourceTree = "<group>"; };
 		79CA2D70E4A73517E82D3A26 /* AVKitPlayerController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AVKitPlayerController.swift; sourceTree = "<group>"; };
-		7E7F7F7F7F80000100010000 /* FlixorTV-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "FlixorTV-Bridging-Header.h"; sourceTree = "<group>"; };
 		8027AFA9FD3E569E95633108 /* FlixorTVApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlixorTVApp.swift; sourceTree = "<group>"; };
-		8A8A8A8A8A8B000100010000 /* MPVMetalShaders.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = MPVMetalShaders.metal; sourceTree = "<group>"; };
 		8A9616674FFAC797B4B00C38 /* PlexStreamingManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlexStreamingManager.swift; sourceTree = "<group>"; };
 		8D507523162726478CEECCED /* DesignTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignTokens.swift; sourceTree = "<group>"; };
-		9CB2934A10406D735FBC903A /* MPVOpenGLBridge.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MPVOpenGLBridge.swift; sourceTree = "<group>"; };
 		9D18BCB551C52B6EF378D089 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		A10000000000000000000011 /* MPVPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MPVPlayerView.swift; sourceTree = "<group>"; };
+		A10000000000000000000012 /* MPVPlayerViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MPVPlayerViewController.swift; sourceTree = "<group>"; };
+		A10000000000000000000013 /* MetalLayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalLayer.swift; sourceTree = "<group>"; };
+		A10000000000000000000014 /* MPVPlayerDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MPVPlayerDelegate.swift; sourceTree = "<group>"; };
+		A10000000000000000000015 /* MPVProperty.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MPVProperty.swift; sourceTree = "<group>"; };
+		A10000000000000000000016 /* PlayerProperty.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerProperty.swift; sourceTree = "<group>"; };
+		A10000000000000000000017 /* PlayerTrack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerTrack.swift; sourceTree = "<group>"; };
+		A10000000000000000000018 /* PlayerOptions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerOptions.swift; sourceTree = "<group>"; };
+		A10000000000000000000019 /* PlayerCoordinating.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerCoordinating.swift; sourceTree = "<group>"; };
+		A1000000000000000000001A /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
+		A1000000000000000000001B /* SessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionManager.swift; sourceTree = "<group>"; };
+		A1000000000000000000001C /* ImageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageService.swift; sourceTree = "<group>"; };
+		A1000000000000000000001D /* CachedAsyncImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CachedAsyncImage.swift; sourceTree = "<group>"; };
 		A13E40EFDCF43AA806E198BC /* TVDetailsViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TVDetailsViewModel.swift; sourceTree = "<group>"; };
 		A409FFB5441617D6FD5F3F05 /* FlixorTV.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = FlixorTV.xcodeproj; sourceTree = "<group>"; };
 		A4B42D166FB2D68A1B927884 /* FlixorTV.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FlixorTV.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A560351FB7F36D1273F8DFA3 /* MainTVView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTVView.swift; sourceTree = "<group>"; };
-		AAAA000100000001 /* Libmpv.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = Libmpv.xcframework; sourceTree = "<group>"; };
-		AAAA000200000001 /* Libavcodec.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = Libavcodec.xcframework; sourceTree = "<group>"; };
-		AAAA000300000001 /* Libavformat.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = Libavformat.xcframework; sourceTree = "<group>"; };
-		AAAA000400000001 /* Libavutil.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = Libavutil.xcframework; sourceTree = "<group>"; };
-		AAAA000500000001 /* Libswscale.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = Libswscale.xcframework; sourceTree = "<group>"; };
-		AAAA000600000001 /* Libswresample.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = Libswresample.xcframework; sourceTree = "<group>"; };
-		AAAA000700000001 /* Libass.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = Libass.xcframework; sourceTree = "<group>"; };
-		AAAA000800000001 /* Libfreetype.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = Libfreetype.xcframework; sourceTree = "<group>"; };
-		AAAA000900000001 /* Libfribidi.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = Libfribidi.xcframework; sourceTree = "<group>"; };
-		AAAA000A00000001 /* Libharfbuzz.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = Libharfbuzz.xcframework; sourceTree = "<group>"; };
-		AAAA000B00000002 /* Libplacebo.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = Libplacebo.xcframework; sourceTree = "<group>"; };
-		AAAA000C00000001 /* Libshaderc_combined.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = Libshaderc_combined.xcframework; sourceTree = "<group>"; };
-		AAAA000E00000001 /* MoltenVK.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = MoltenVK.xcframework; sourceTree = "<group>"; };
-		AAAA000F00000001 /* Libuchardet.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = Libuchardet.xcframework; sourceTree = "<group>"; };
-		AAAA001000000001 /* Libpng.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = Libpng.xcframework; sourceTree = "<group>"; };
-		AAAA001100000001 /* Libdav1d.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = Libdav1d.xcframework; sourceTree = "<group>"; };
-		AAAA001200000001 /* Liblcms2.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = Liblcms2.xcframework; sourceTree = "<group>"; };
-		AAAA001300000001 /* Libavfilter.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = Libavfilter.xcframework; sourceTree = "<group>"; };
-		AAAA001400000001 /* Libavdevice.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = Libavdevice.xcframework; sourceTree = "<group>"; };
-		AAAA001500000001 /* Libssl.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = Libssl.xcframework; sourceTree = "<group>"; };
-		AAAA001600000001 /* Libcrypto.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = Libcrypto.xcframework; sourceTree = "<group>"; };
 		B34545FBF16E94C672651FBD /* TVBillboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVBillboardView.swift; sourceTree = "<group>"; };
 		BC7A3AEB169E727C4394EC77 /* PlayerSettings.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlayerSettings.swift; sourceTree = "<group>"; };
 		C0092F3794E12E5F2884741E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -140,7 +117,6 @@
 		C54BA4F810D1021F4D3F6B5D /* TVSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVSettingsView.swift; sourceTree = "<group>"; };
 		CA640CCCC115D09CBAF9F0B3 /* TVCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVCards.swift; sourceTree = "<group>"; };
 		D3B483312332111548480C95 /* FlixorKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = FlixorKit; path = ../../shared/FlixorKit; sourceTree = SOURCE_ROOT; };
-		D44541942A6D42C98F0EFB23 /* MPVMetalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MPVMetalView.swift; sourceTree = "<group>"; };
 		F4F2C8722FA2BA6702E97881 /* TVDetailsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TVDetailsView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -151,27 +127,7 @@
 			files = (
 				48C257F2BB22944EBA58BDC1 /* FlixorKit in Frameworks */,
 				C8C170392E9F24490069DAD7 /* Nuke in Frameworks */,
-				AAAA0001000000010001 /* Libmpv.xcframework in Frameworks */,
-				AAAA0002000000010001 /* Libavcodec.xcframework in Frameworks */,
-				AAAA0003000000010001 /* Libavformat.xcframework in Frameworks */,
-				AAAA0004000000010001 /* Libavutil.xcframework in Frameworks */,
-				AAAA0005000000010001 /* Libswscale.xcframework in Frameworks */,
-				AAAA0006000000010001 /* Libswresample.xcframework in Frameworks */,
-				AAAA0007000000010001 /* Libass.xcframework in Frameworks */,
-				AAAA0008000000010001 /* Libfreetype.xcframework in Frameworks */,
-				AAAA0009000000010001 /* Libfribidi.xcframework in Frameworks */,
-				AAAA000A000000010001 /* Libharfbuzz.xcframework in Frameworks */,
-				AAAA000B000000010002 /* Libplacebo.xcframework in Frameworks */,
-				AAAA000C000000010001 /* Libshaderc_combined.xcframework in Frameworks */,
-				AAAA000E000000010001 /* MoltenVK.xcframework in Frameworks */,
-				AAAA000F000000010001 /* Libuchardet.xcframework in Frameworks */,
-				AAAA0010000000010001 /* Libpng.xcframework in Frameworks */,
-				AAAA0011000000010001 /* Libdav1d.xcframework in Frameworks */,
-				AAAA0012000000010001 /* Liblcms2.xcframework in Frameworks */,
-				AAAA0013000000010001 /* Libavfilter.xcframework in Frameworks */,
-				AAAA0014000000010001 /* Libavdevice.xcframework in Frameworks */,
-				AAAA0015000000010001 /* Libssl.xcframework in Frameworks */,
-				AAAA0016000000010001 /* Libcrypto.xcframework in Frameworks */,
+				A1000000000000000000000C /* MPVKit-GPL in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -234,7 +190,6 @@
 				3EB9D931BF4259DD9A02FC4F /* AVKitPlayerView.swift */,
 				8A9616674FFAC797B4B00C38 /* PlexStreamingManager.swift */,
 			);
-			name = AVKit;
 			path = AVKit;
 			sourceTree = "<group>";
 		};
@@ -274,7 +229,6 @@
 			isa = PBXGroup;
 			children = (
 				86D9C76A8E562862682EE298 /* FlixorTV */,
-				AAAA000B00000001 /* Frameworks */,
 				E77B3E5AF37C0BDE8BC0197D /* Packages */,
 				2E80A1657223959690B4D45B /* Products */,
 			);
@@ -294,7 +248,6 @@
 				C0092F3794E12E5F2884741E /* Assets.xcassets */,
 				A409FFB5441617D6FD5F3F05 /* FlixorTV.xcodeproj */,
 				6D6DB6CA3ABEE2740792235F /* Info.plist */,
-				7E7F7F7F7F80000100010000 /* FlixorTV-Bridging-Header.h */,
 				4DE18658CB336B32CB53030A /* App */,
 				85C3A10F3B32F5AFB1E035D7 /* Theme */,
 				A51518E1F7DB644AD3CC6409 /* Views */,
@@ -306,6 +259,8 @@
 		8F8F8F8F8F90000100010000 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				A10000000000000000000021 /* API */,
+				A10000000000000000000022 /* Auth */,
 				9F9F9F9F9FA0000100010000 /* Player */,
 			);
 			path = Services;
@@ -324,10 +279,15 @@
 			children = (
 				5E5F5F5F5F60000100010000 /* MPVTypes.swift */,
 				6F6F6F6F6F70000100010000 /* MPVPlayerController.swift */,
-				3D1CD3BA87CA4603967F2F07 /* MPVMetalLayer.swift */,
-				D44541942A6D42C98F0EFB23 /* MPVMetalView.swift */,
-				9CB2934A10406D735FBC903A /* MPVOpenGLBridge.swift */,
-				8A8A8A8A8A8B000100010000 /* MPVMetalShaders.metal */,
+				A10000000000000000000012 /* MPVPlayerViewController.swift */,
+				A10000000000000000000011 /* MPVPlayerView.swift */,
+				A10000000000000000000013 /* MetalLayer.swift */,
+				A10000000000000000000014 /* MPVPlayerDelegate.swift */,
+				A10000000000000000000015 /* MPVProperty.swift */,
+				A10000000000000000000016 /* PlayerProperty.swift */,
+				A10000000000000000000017 /* PlayerTrack.swift */,
+				A10000000000000000000018 /* PlayerOptions.swift */,
+				A10000000000000000000019 /* PlayerCoordinating.swift */,
 				45303628ED888BECA4430C6E /* AVKit */,
 				546DF9EC3092DB28DF47B277 /* PlayerController.swift */,
 				7142CD0619D6F21B1723390F /* PlayerBackend.swift */,
@@ -336,10 +296,28 @@
 			path = Player;
 			sourceTree = "<group>";
 		};
+		A10000000000000000000021 /* API */ = {
+			isa = PBXGroup;
+			children = (
+				A1000000000000000000001A /* APIClient.swift */,
+				A1000000000000000000001C /* ImageService.swift */,
+			);
+			path = API;
+			sourceTree = "<group>";
+		};
+		A10000000000000000000022 /* Auth */ = {
+			isa = PBXGroup;
+			children = (
+				A1000000000000000000001B /* SessionManager.swift */,
+			);
+			path = Auth;
+			sourceTree = "<group>";
+		};
 		A51518E1F7DB644AD3CC6409 /* Views */ = {
 			isa = PBXGroup;
 			children = (
 				94B9710C9CBB41B76C3D11ED /* Auth */,
+				A10000000000000000000024 /* Common */,
 				3D9FC1E51286B7B3697BE715 /* Home */,
 				4A6C3FDAE7A35DBF8E50211B /* Settings */,
 				B0E6D5C36D284196C65BF361 /* Details */,
@@ -349,34 +327,13 @@
 			path = Views;
 			sourceTree = "<group>";
 		};
-		AAAA000B00000001 /* Frameworks */ = {
+		A10000000000000000000024 /* Common */ = {
 			isa = PBXGroup;
 			children = (
-				AAAA000100000001 /* Libmpv.xcframework */,
-				AAAA000200000001 /* Libavcodec.xcframework */,
-				AAAA000300000001 /* Libavformat.xcframework */,
-				AAAA000400000001 /* Libavutil.xcframework */,
-				AAAA000500000001 /* Libswscale.xcframework */,
-				AAAA000600000001 /* Libswresample.xcframework */,
-				AAAA000700000001 /* Libass.xcframework */,
-				AAAA000800000001 /* Libfreetype.xcframework */,
-				AAAA000900000001 /* Libfribidi.xcframework */,
-				AAAA000A00000001 /* Libharfbuzz.xcframework */,
-				AAAA000B00000002 /* Libplacebo.xcframework */,
-				AAAA000C00000001 /* Libshaderc_combined.xcframework */,
-				AAAA000E00000001 /* MoltenVK.xcframework */,
-				AAAA000F00000001 /* Libuchardet.xcframework */,
-				AAAA001000000001 /* Libpng.xcframework */,
-				AAAA001100000001 /* Libdav1d.xcframework */,
-				AAAA001200000001 /* Liblcms2.xcframework */,
-				AAAA001300000001 /* Libavfilter.xcframework */,
-				AAAA001400000001 /* Libavdevice.xcframework */,
-				AAAA001500000001 /* Libssl.xcframework */,
-				AAAA001600000001 /* Libcrypto.xcframework */,
+				A1000000000000000000001D /* CachedAsyncImage.swift */,
 			);
-			name = Frameworks;
-			path = deps/lib;
-			sourceTree = SOURCE_ROOT;
+			path = Common;
+			sourceTree = "<group>";
 		};
 		B0E6D5C36D284196C65BF361 /* Details */ = {
 			isa = PBXGroup;
@@ -424,6 +381,7 @@
 			packageProductDependencies = (
 				053E11F404F57C6E7904947B /* FlixorKit */,
 				C8C170382E9F24490069DAD7 /* Nuke */,
+				A10000000000000000000031 /* MPVKit-GPL */,
 			);
 			productName = FlixorTV;
 			productReference = A4B42D166FB2D68A1B927884 /* FlixorTV.app */;
@@ -449,8 +407,9 @@
 			mainGroup = 6F3094E809818D91315D926B;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				3D891FE5C2F3875CF39B6A30 /* XCLocalSwiftPackageReference "FlixorKit" */,
+				3D891FE5C2F3875CF39B6A30 /* XCLocalSwiftPackageReference "../../shared/FlixorKit" */,
 				C8C170372E9F24490069DAD7 /* XCRemoteSwiftPackageReference "Nuke" */,
+				A10000000000000000000030 /* XCRemoteSwiftPackageReference "MPVKit" */,
 			);
 			productRefGroup = 2E80A1657223959690B4D45B /* Products */;
 			projectDirPath = "";
@@ -506,18 +465,27 @@
 				4D4E4F4F4F50000100010001 /* Shimmer.swift in Sources */,
 				5E5F5F5F5F60000100010001 /* MPVTypes.swift in Sources */,
 				6F6F6F6F6F70000100010001 /* MPVPlayerController.swift in Sources */,
-				610D36FD610140EABA745E8A /* MPVMetalLayer.swift in Sources */,
-				289FBF812BA741EBAB1175E7 /* MPVMetalView.swift in Sources */,
-				E5C6E58087C8E18C8B79FDF0 /* MPVOpenGLBridge.swift in Sources */,
-				9B9B9B9B9B9C000100010001 /* MPVMetalShaders.metal in Sources */,
+				A10000000000000000000002 /* MPVPlayerViewController.swift in Sources */,
+				A10000000000000000000001 /* MPVPlayerView.swift in Sources */,
+				A10000000000000000000003 /* MetalLayer.swift in Sources */,
+				A10000000000000000000004 /* MPVPlayerDelegate.swift in Sources */,
+				A10000000000000000000005 /* MPVProperty.swift in Sources */,
+				A10000000000000000000006 /* PlayerProperty.swift in Sources */,
+				A10000000000000000000007 /* PlayerTrack.swift in Sources */,
+				A10000000000000000000008 /* PlayerOptions.swift in Sources */,
+				A10000000000000000000009 /* PlayerCoordinating.swift in Sources */,
 				40994DD1426412F21A0FC395 /* PlayerController.swift in Sources */,
 				F6856300E4C815027BDE6733 /* PlayerBackend.swift in Sources */,
 				B13D9D0474B2E7577E7C7416 /* PlayerSettings.swift in Sources */,
+				A1000000000000000000000A /* APIClient.swift in Sources */,
+				A1000000000000000000000D /* ImageService.swift in Sources */,
+				A1000000000000000000000B /* SessionManager.swift in Sources */,
 				4E0756DBD30823475ABD47BB /* AVKitPlayerController.swift in Sources */,
 				741E53CACE516C2FDFC5E8A0 /* AVKitPlayerView.swift in Sources */,
 				8C9B3E25A9F10CF2B3B26544 /* PlexStreamingManager.swift in Sources */,
 				1E81C2A91B881B4AEA6F9B91 /* PlayerView.swift in Sources */,
 				C0600A369C9BB3EC7F66B320 /* UniversalPlayerView.swift in Sources */,
+				A1000000000000000000000E /* CachedAsyncImage.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -552,24 +520,13 @@
 					"-framework",
 					AudioToolbox,
 					"$(inherited)",
-					"$(PROJECT_DIR)/deps/lib/Libmpv.xcframework/tvos-arm64$(TV_SIMULATOR_SUFFIX)/libmpv.a",
-					"$(PROJECT_DIR)/deps/lib/MoltenVK.xcframework/tvos-arm64$(TV_MOLTENVK_SUFFIX)/libMoltenVK.a",
-					"$(PROJECT_DIR)/deps/lib/Libplacebo.xcframework/tvos-arm64$(TV_SIMULATOR_SUFFIX)/libplacebo.a",
-					"$(PROJECT_DIR)/deps/lib/Libshaderc_combined.xcframework/tvos-arm64$(TV_SIMULATOR_SUFFIX)/libshaderc_combined.a",
-					"$(PROJECT_DIR)/deps/lib/Libluajit-5.1.xcframework/tvos-arm64$(TV_SIMULATOR_SUFFIX)/libluajit-5.1.a",
-					"$(PROJECT_DIR)/deps/lib/Libbluray.xcframework/tvos-arm64$(TV_SIMULATOR_SUFFIX)/libbluray.a",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = xyz.flixor.tv;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = appletvos;
-				SWIFT_OBJC_BRIDGING_HEADER = "FlixorTV/FlixorTV-Bridging-Header.h";
 				SWIFT_VERSION = 5.9;
 				TARGETED_DEVICE_FAMILY = 3;
 				TVOS_DEPLOYMENT_TARGET = 16.0;
-				"TV_MOLTENVK_SUFFIX[sdk=appletvos*]" = _arm64e;
-				"TV_MOLTENVK_SUFFIX[sdk=appletvsimulator*]" = "_x86_64-simulator";
-				"TV_SIMULATOR_SUFFIX[sdk=appletvos*]" = "";
-				"TV_SIMULATOR_SUFFIX[sdk=appletvsimulator*]" = "_x86_64-simulator";
 			};
 			name = Release;
 		};
@@ -656,24 +613,13 @@
 					"-framework",
 					AudioToolbox,
 					"$(inherited)",
-					"$(PROJECT_DIR)/deps/lib/Libmpv.xcframework/tvos-arm64$(TV_SIMULATOR_SUFFIX)/libmpv.a",
-					"$(PROJECT_DIR)/deps/lib/MoltenVK.xcframework/tvos-arm64$(TV_MOLTENVK_SUFFIX)/libMoltenVK.a",
-					"$(PROJECT_DIR)/deps/lib/Libplacebo.xcframework/tvos-arm64$(TV_SIMULATOR_SUFFIX)/libplacebo.a",
-					"$(PROJECT_DIR)/deps/lib/Libshaderc_combined.xcframework/tvos-arm64$(TV_SIMULATOR_SUFFIX)/libshaderc_combined.a",
-					"$(PROJECT_DIR)/deps/lib/Libluajit-5.1.xcframework/tvos-arm64$(TV_SIMULATOR_SUFFIX)/libluajit-5.1.a",
-					"$(PROJECT_DIR)/deps/lib/Libbluray.xcframework/tvos-arm64$(TV_SIMULATOR_SUFFIX)/libbluray.a",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = xyz.flixor.tv;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = appletvos;
-				SWIFT_OBJC_BRIDGING_HEADER = "FlixorTV/FlixorTV-Bridging-Header.h";
 				SWIFT_VERSION = 5.9;
 				TARGETED_DEVICE_FAMILY = 3;
 				TVOS_DEPLOYMENT_TARGET = 16.0;
-				"TV_MOLTENVK_SUFFIX[sdk=appletvos*]" = _arm64e;
-				"TV_MOLTENVK_SUFFIX[sdk=appletvsimulator*]" = "_x86_64-simulator";
-				"TV_SIMULATOR_SUFFIX[sdk=appletvos*]" = "";
-				"TV_SIMULATOR_SUFFIX[sdk=appletvsimulator*]" = "_x86_64-simulator";
 			};
 			name = Debug;
 		};
@@ -763,13 +709,21 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		3D891FE5C2F3875CF39B6A30 /* XCLocalSwiftPackageReference "FlixorKit" */ = {
+		3D891FE5C2F3875CF39B6A30 /* XCLocalSwiftPackageReference "../../shared/FlixorKit" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = ../../shared/FlixorKit;
 		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		A10000000000000000000030 /* XCRemoteSwiftPackageReference "MPVKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/wunax/MPVKit";
+			requirement = {
+				kind = exactVersion;
+				version = 0.41.2;
+			};
+		};
 		C8C170372E9F24490069DAD7 /* XCRemoteSwiftPackageReference "Nuke" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/kean/Nuke";
@@ -784,6 +738,11 @@
 		053E11F404F57C6E7904947B /* FlixorKit */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = FlixorKit;
+		};
+		A10000000000000000000031 /* MPVKit-GPL */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A10000000000000000000030 /* XCRemoteSwiftPackageReference "MPVKit" */;
+			productName = "MPVKit-GPL";
 		};
 		C8C170382E9F24490069DAD7 /* Nuke */ = {
 			isa = XCSwiftPackageProductDependency;

@@ -6,9 +6,10 @@
 //
 
 import SwiftUI
+import FlixorKit
 
 struct PlayerView: View {
-    let playbackURL: String
+    let item: MediaItem
     @StateObject private var playerSettings = PlayerSettings()
     @State private var avkitController: AVKitPlayerController?
     @State private var mpvController: MPVPlayerController?
@@ -23,7 +24,7 @@ struct PlayerView: View {
                 AVKitPlayerView(controller: controller)
                     .ignoresSafeArea()
             } else if playerSettings.backend == .mpv, let controller = mpvController {
-                MPVMetalView(mpvController: controller)
+                MPVPlayerView(coordinator: controller.coordinator)
                     .ignoresSafeArea()
             }
 
@@ -57,8 +58,11 @@ struct PlayerView: View {
             }
         }
         .onAppear {
-            print("🎬 [PlayerView] Loading: \(playbackURL)")
+            print("🎬 [PlayerView] Loading item: \(item.id)")
             loadVideo()
+        }
+        .onDisappear {
+            cleanup()
         }
     }
 
@@ -81,7 +85,7 @@ struct PlayerView: View {
                 }
             }
 
-            controller.loadFile(playbackURL)
+            controller.loadFile(item.id)
 
         case .mpv:
             let controller = MPVPlayerController()
@@ -100,10 +104,7 @@ struct PlayerView: View {
                 }
             }
 
-            // MPV needs a delay for view setup
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                controller.loadFile(playbackURL)
-            }
+            controller.loadFile(item.id)
         }
     }
 

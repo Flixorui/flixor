@@ -83,8 +83,8 @@ struct TVLibraryView: View {
         UltraBlurColors(
             topLeft: "#1a1a2e",
             topRight: "#16213e",
-            bottomLeft: "#0f3460",
-            bottomRight: "#0a1929"
+            bottomRight: "#0a1929",
+            bottomLeft: "#0f3460"
         )
     }
 

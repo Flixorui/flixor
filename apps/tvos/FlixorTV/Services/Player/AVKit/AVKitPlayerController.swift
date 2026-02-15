@@ -89,8 +89,8 @@ class AVKitPlayerController: ObservableObject, PlayerController {
         print("📺 [AVKit] Loading: \(url)")
         state = .loading
 
-        // Check if this is a Plex URL (metadata URL from backend or direct Plex server)
-        if url.contains("/library/metadata/") {
+        // Accept either `plex:<ratingKey>` IDs or metadata URLs.
+        if url.hasPrefix("plex:") || url.contains("/library/metadata/") {
             loadPlexContent(url)
         } else {
             loadDirectURL(url)
@@ -118,8 +118,7 @@ class AVKitPlayerController: ObservableObject, PlayerController {
     }
 
     private func loadPlexContent(_ urlString: String) {
-        // Parse URL to extract ratingKey
-        // URL format: http://backend:3001/plex/library/metadata/13624
+        // Parse input to extract ratingKey.
         guard let ratingKey = parsePlexRatingKey(urlString) else {
             print("❌ [AVKit] Failed to extract rating key from URL")
             state = .error(NSError(domain: "AVKit", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid Plex URL"]))
@@ -135,7 +134,7 @@ class AVKitPlayerController: ObservableObject, PlayerController {
 
         Task {
             do {
-                // Get Plex server info from backend (like macOS app)
+                // Resolve server connection from FlixorCore-backed API facade.
                 let api = APIClient.shared
                 let servers = try await api.getPlexServers()
                 guard let activeServer = servers.first(where: { $0.isActive == true }) else {
@@ -818,8 +817,10 @@ class AVKitPlayerController: ObservableObject, PlayerController {
     // MARK: - URL Parsing
 
     private func parsePlexRatingKey(_ url: String) -> String? {
-        // Extract ratingKey from URL
-        // URL format: http://backend:3001/plex/library/metadata/13624
+        if url.hasPrefix("plex:") {
+            let key = String(url.dropFirst("plex:".count))
+            return key.isEmpty ? nil : key
+        }
 
         guard let urlComponents = URLComponents(string: url) else { return nil }
 

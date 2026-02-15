@@ -1,6 +1,15 @@
 {
   "pins" : [
     {
+      "identity" : "mpvkit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/wunax/MPVKit",
+      "state" : {
+        "revision" : "5e10c5a69e0fd94043087ef28fa24addf603f41e",
+        "version" : "0.41.2"
+      }
+    },
+    {
       "identity" : "nuke",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/kean/Nuke",

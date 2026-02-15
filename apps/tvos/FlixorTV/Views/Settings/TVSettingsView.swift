@@ -6,10 +6,16 @@ struct TVSettingsView: View {
     @EnvironmentObject private var session: SessionManager
     @EnvironmentObject private var appState: AppState
 
-    @State private var baseURL: String = ""
-    @State private var showingCode = false
     @State private var error: String?
+    @State private var statusMessage: String?
     @State private var showTestPlayer = false
+    @State private var servers: [PlexServer] = []
+    @State private var loadingServers = false
+    @State private var connectingServerId: String?
+
+    private var activeServer: PlexServer? {
+        servers.first(where: { $0.isActive == true })
+    }
 
     var body: some View {
         ScrollView {
@@ -18,44 +24,100 @@ struct TVSettingsView: View {
                     .font(.system(size: 46, weight: .bold))
                     .foregroundStyle(.white)
 
-                backendSection
+                plexServerSection
                 authSection
                 debugSection
             }
             .padding(40)
         }
         .background(Color.black)
-        .onAppear { baseURL = api.baseURL.absoluteString }
+        .task { await refreshServers(autoSelectIfMissing: true) }
+#if DEBUG
         .fullScreenCover(isPresented: $showTestPlayer) {
             UniversalPlayerView()
         }
+#endif
     }
 
-    private var backendSection: some View {
+    private var plexServerSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Backend URL")
+            Text("Plex Server")
                 .font(.title2.weight(.semibold))
                 .foregroundStyle(.white)
 
-            HStack(spacing: 12) {
-                TextField("http://server:3001", text: $baseURL)
-                    .font(.title3)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(RoundedRectangle(cornerRadius: 12).fill(Color.white.opacity(0.12)))
-                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.white.opacity(0.2), lineWidth: 1))
-                    .frame(width: 820)
-                    .onSubmit { api.setBaseURL(baseURL) }
-                Button("Save") { api.setBaseURL(baseURL) }
-                    .buttonStyle(.borderedProminent)
-                Button(action: { Task { await testBackend() } }) {
-                    if testing { ProgressView().tint(.white) } else { Text(statusOK ? "Connected" : "Test") }
+            if !session.isAuthenticated {
+                Text("Sign in to Plex to select and connect a server.")
+                    .foregroundStyle(.white.opacity(0.7))
+            } else if loadingServers {
+                ProgressView("Loading servers...")
+                    .tint(.white)
+                    .foregroundStyle(.white)
+            } else if servers.isEmpty {
+                Text("No Plex servers found for this account.")
+                    .foregroundStyle(.orange)
+            } else {
+                if let active = activeServer {
+                    Text("Connected to \(active.name)")
+                        .foregroundStyle(.green)
+                } else {
+                    Text("No active server selected.")
+                        .foregroundStyle(.orange)
                 }
-                .buttonStyle(.bordered)
-                .tint(statusOK ? .green : .blue)
+
+                HStack(spacing: 10) {
+                    Button("Refresh") {
+                        Task { await refreshServers(autoSelectIfMissing: false) }
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(loadingServers)
+
+                    if activeServer == nil, let fallback = servers.first(where: { $0.owned == true }) ?? servers.first {
+                        Button("Connect \(fallback.name)") {
+                            Task { await connect(to: fallback) }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(connectingServerId != nil)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(servers, id: \.id) { server in
+                        HStack(spacing: 10) {
+                            Text(server.name)
+                                .foregroundStyle(.white)
+
+                            if server.isActive == true {
+                                Text("Active")
+                                    .font(.caption)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 2)
+                                    .background(Color.green.opacity(0.25), in: Capsule())
+                                    .foregroundStyle(.green)
+                            }
+
+                            Spacer()
+
+                            if server.isActive != true {
+                                Button(connectingServerId == server.id ? "Connecting..." : "Connect") {
+                                    Task { await connect(to: server) }
+                                }
+                                .buttonStyle(.bordered)
+                                .disabled(connectingServerId != nil)
+                            }
+                        }
+                    }
+                }
             }
 
-            if let error { Text(error).foregroundStyle(.orange) }
+            if let statusMessage {
+                Text(statusMessage)
+                    .foregroundStyle(.white.opacity(0.75))
+            }
+
+            if let error {
+                Text(error)
+                    .foregroundStyle(.orange)
+            }
         }
     }
 
@@ -72,17 +134,22 @@ struct TVSettingsView: View {
             }
 
             if session.isAuthenticated {
-                Button("Sign Out") { Task { await session.logout() } }
+                Button("Sign Out") {
+                    Task {
+                        await session.logout()
+                        await refreshServers(autoSelectIfMissing: false)
+                    }
+                }
                     .buttonStyle(.bordered)
             } else {
                 Button("Sign in with Code") { appState.startLinking() }
                     .buttonStyle(.borderedProminent)
-                .disabled(!statusOK)
             }
         }
     }
 
     private var debugSection: some View {
+#if DEBUG
         VStack(alignment: .leading, spacing: 14) {
             Text("Developer & Testing")
                 .font(.title2.weight(.semibold))
@@ -105,21 +172,49 @@ struct TVSettingsView: View {
                 .tint(.purple)
             }
         }
+#else
+        EmptyView()
+#endif
     }
 
-    // MARK: - backend status
-    @State private var statusOK: Bool = false
-    @State private var testing = false
+    private func refreshServers(autoSelectIfMissing: Bool) async {
+        guard session.isAuthenticated else {
+            servers = []
+            statusMessage = nil
+            return
+        }
 
-    private func testBackend() async {
-        testing = true
-        defer { testing = false }
+        loadingServers = true
+        defer { loadingServers = false }
+
         do {
-            _ = try await api.healthCheck()
-            statusOK = true
+            error = nil
+            var fetched = try await api.getPlexServers()
+
+            if autoSelectIfMissing, fetched.first(where: { $0.isActive == true }) == nil,
+               let preferred = fetched.first(where: { $0.owned == true }) ?? fetched.first {
+                _ = try await api.setCurrentPlexServer(serverId: preferred.id)
+                fetched = try await api.getPlexServers()
+                statusMessage = "Connected to \(preferred.name)"
+            }
+
+            servers = fetched
         } catch {
-            statusOK = false
-            self.error = "Backend not reachable: \(error.localizedDescription)"
+            self.error = "Failed to load Plex servers: \(error.localizedDescription)"
+        }
+    }
+
+    private func connect(to server: PlexServer) async {
+        connectingServerId = server.id
+        defer { connectingServerId = nil }
+
+        do {
+            _ = try await api.setCurrentPlexServer(serverId: server.id)
+            statusMessage = "Connected to \(server.name)"
+            error = nil
+            await refreshServers(autoSelectIfMissing: false)
+        } catch {
+            self.error = "Unable to connect \(server.name): \(error.localizedDescription)"
         }
     }
 }

@@ -15,7 +15,7 @@ struct TVAuthLinkView: View {
     @State private var error: String?
     @State private var pollTask: Task<Void, Never>?
     @State private var startedAt = Date()
-    @State private var secondsRemaining: Int = 300 // default TTL fallback
+    @State private var secondsRemaining: Int = 900 // default TTL fallback
 
     private let context = CIContext()
     private let filter = CIFilter.qrCodeGenerator()
@@ -31,7 +31,7 @@ struct TVAuthLinkView: View {
 
                 if let code = pin?.code.uppercased() {
                     HStack(spacing: 14) {
-                        ForEach(Array(code), id: \.self) { ch in
+                        ForEach(Array(code.enumerated()), id: \.offset) { _, ch in
                             Text(String(ch))
                                 .font(.system(size: 48, weight: .heavy, design: .monospaced))
                                 .foregroundStyle(.black)
@@ -86,7 +86,7 @@ struct TVAuthLinkView: View {
             await MainActor.run {
                 self.pin = p
                 self.startedAt = Date()
-                self.secondsRemaining = 300
+                self.secondsRemaining = p.expiresIn
             }
             startTimersAndPolling()
         } catch {
@@ -107,10 +107,15 @@ struct TVAuthLinkView: View {
                     do {
                         let status = try await api.authPlexPinStatus(id: String(pin.id), clientId: pin.clientId)
                         if status.authenticated == true {
+                            await connectDefaultServerIfNeeded()
                             await session.restoreSession()
-                            appState.completeAuth()
-                            cancelAndDismiss()
-                            break
+                            if session.isAuthenticated {
+                                appState.completeAuth()
+                                cancelAndDismiss()
+                                break
+                            } else {
+                                error = "Signed in to Plex, but no server could be connected. Check server settings and retry."
+                            }
                         }
                     } catch {
                         // keep polling quietly
@@ -123,6 +128,25 @@ struct TVAuthLinkView: View {
     }
 
     private func cancelAndDismiss() { pollTask?.cancel(); isPresented = false }
+
+    private func connectDefaultServerIfNeeded() async {
+        if FlixorCore.shared.isPlexServerConnected {
+            return
+        }
+
+        do {
+            let servers = try await api.getPlexServers()
+            guard let preferred = servers.first(where: { $0.isActive == true })
+                ?? servers.first(where: { $0.owned == true })
+                ?? servers.first else {
+                return
+            }
+
+            _ = try await api.setCurrentPlexServer(serverId: preferred.id)
+        } catch {
+            print("⚠️ [TVAuth] Unable to auto-connect Plex server after auth: \(error)")
+        }
+    }
 
     private func qrImage(for string: String) -> UIImage? {
         filter.message = Data(string.utf8)

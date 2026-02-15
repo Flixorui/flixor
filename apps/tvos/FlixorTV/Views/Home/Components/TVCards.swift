@@ -30,29 +30,39 @@ struct TVImage: View {
                     LinearGradient(colors: [Color.black.opacity(0.2), Color.black.opacity(0.0)], startPoint: .bottom, endPoint: .top)
                         .clipShape(shape)
                 )
-            // Use AsyncImage when URL is provided; otherwise keep placeholder
+            // Use cached image loading for TV surfaces.
             if let url = url {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .empty:
-                        Color.white.opacity(0.04)
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .scaledToFill()
-                    case .failure:
-                        Color.white.opacity(0.04)
-                    @unknown default:
-                        Color.white.opacity(0.04)
-                    }
+                CachedAsyncImage(url: url, contentMode: .fill) {
+                    Color.white.opacity(0.04)
                 }
                 .clipShape(shape)
+            } else {
+                Color.white.opacity(0.04)
+                    .clipShape(shape)
             }
         }
         .modifier(LayoutModifier(layout: layout))
         .clipShape(shape)
         .overlay(shape.stroke(Color.white.opacity(0.12), lineWidth: 1))
         .contentShape(shape)
+    }
+}
+
+private struct TVLogoImage: View {
+    let url: URL
+    let maxWidth: CGFloat
+    let maxHeight: CGFloat
+    let fallbackText: String
+    let fallbackFont: Font
+
+    var body: some View {
+        CachedAsyncImage(url: url, contentMode: .fit, showsErrorView: false) {
+            Text(fallbackText)
+                .font(fallbackFont)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: maxWidth, maxHeight: maxHeight, alignment: .leading)
+        .shadow(color: .black.opacity(0.7), radius: 8, x: 0, y: 2)
     }
 }
 
@@ -95,29 +105,13 @@ struct TVPosterCard: View {
                 VStack(alignment: .leading, spacing: 6) {
                     // Series logo or series title
                     if let logoURL = item.logo, let url = URL(string: logoURL) {
-                        AsyncImage(url: url) { phase in
-                            switch phase {
-                            case .success(let image):
-                                image
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fit)
-                                    .frame(maxWidth: 160, maxHeight: 50, alignment: .leading)
-                                    .shadow(color: .black.opacity(0.7), radius: 6, x: 0, y: 2)
-                            case .failure, .empty:
-                                // Fallback to series title
-                                if let seriesTitle = item.grandparentTitle {
-                                    Text(seriesTitle)
-                                        .font(.system(size: 18, weight: .semibold))
-                                        .lineLimit(1)
-                                }
-                            @unknown default:
-                                if let seriesTitle = item.grandparentTitle {
-                                    Text(seriesTitle)
-                                        .font(.system(size: 18, weight: .semibold))
-                                        .lineLimit(1)
-                                }
-                            }
-                        }
+                        TVLogoImage(
+                            url: url,
+                            maxWidth: 160,
+                            maxHeight: 50,
+                            fallbackText: item.grandparentTitle ?? item.title,
+                            fallbackFont: .system(size: 18, weight: .semibold)
+                        )
                     } else if let seriesTitle = item.grandparentTitle {
                         // No logo, show series title
                         Text(seriesTitle)
@@ -200,29 +194,13 @@ struct TVLandscapeCard: View {
                 if item.type == "episode" {
                     // Series logo or series title
                     if let logoURL = item.logo, let url = URL(string: logoURL) {
-                        AsyncImage(url: url) { phase in
-                            switch phase {
-                            case .success(let image):
-                                image
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fit)
-                                    .frame(maxWidth: 280, maxHeight: 80, alignment: .leading)
-                                    .shadow(color: .black.opacity(0.7), radius: 8, x: 0, y: 2)
-                            case .failure, .empty:
-                                // Fallback to series title
-                                if let seriesTitle = item.grandparentTitle {
-                                    Text(seriesTitle)
-                                        .font(.system(size: 28, weight: .semibold))
-                                        .lineLimit(1)
-                                }
-                            @unknown default:
-                                if let seriesTitle = item.grandparentTitle {
-                                    Text(seriesTitle)
-                                        .font(.system(size: 28, weight: .semibold))
-                                        .lineLimit(1)
-                                }
-                            }
-                        }
+                        TVLogoImage(
+                            url: url,
+                            maxWidth: 280,
+                            maxHeight: 80,
+                            fallbackText: item.grandparentTitle ?? item.title,
+                            fallbackFont: .system(size: 28, weight: .semibold)
+                        )
                     } else if let seriesTitle = item.grandparentTitle {
                         // No logo, show series title
                         Text(seriesTitle)
@@ -245,25 +223,13 @@ struct TVLandscapeCard: View {
                 } else {
                     // For non-episodes: display clear logo if available, otherwise fallback to text title
                     if let logoURL = item.logo, let url = URL(string: logoURL) {
-                        AsyncImage(url: url) { phase in
-                            switch phase {
-                            case .success(let image):
-                                image
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fit)
-                                    .frame(maxWidth: 280, maxHeight: 80, alignment: .leading)
-                                    .shadow(color: .black.opacity(0.7), radius: 8, x: 0, y: 2)
-                            case .failure, .empty:
-                                // Fallback to text if logo fails to load
-                                Text(item.title)
-                                    .font(.system(size: 28, weight: .semibold))
-                                    .lineLimit(1)
-                            @unknown default:
-                                Text(item.title)
-                                    .font(.system(size: 28, weight: .semibold))
-                                    .lineLimit(1)
-                            }
-                        }
+                        TVLogoImage(
+                            url: url,
+                            maxWidth: 280,
+                            maxHeight: 80,
+                            fallbackText: item.title,
+                            fallbackFont: .system(size: 28, weight: .semibold)
+                        )
                     } else {
                         // No logo available, use text title
                         Text(item.title)
@@ -321,6 +287,7 @@ struct TVLandscapeCard: View {
         )
     }
 }
+
 
 // MARK: - Expanded Preview (morph target)
 struct TVExpandedPreviewCard: View {

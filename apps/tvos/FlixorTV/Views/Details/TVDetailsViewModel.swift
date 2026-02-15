@@ -9,6 +9,18 @@ import Foundation
 import SwiftUI
 import FlixorKit
 
+private enum FlexibleStringID {
+    static func decode<K: CodingKey>(_ container: KeyedDecodingContainer<K>, forKey key: K) -> String? {
+        if let stringValue = try? container.decodeIfPresent(String.self, forKey: key) {
+            return stringValue
+        }
+        if let intValue = try? container.decodeIfPresent(Int.self, forKey: key) {
+            return String(intValue)
+        }
+        return nil
+    }
+}
+
 @MainActor
 class TVDetailsViewModel: ObservableObject {
     // Core
@@ -81,7 +93,7 @@ class TVDetailsViewModel: ObservableObject {
     private var lastFetchedRatingsKey: String?
 
     func fetchUltraBlurColors() async {
-        guard let rawURL = rawBackdropURL else {
+        guard let rawURL = rawBackdropURL ?? backdropURL?.absoluteString else {
             print("⚠️ [TVDetails] No raw backdrop URL for ultrablur colors")
             return
         }
@@ -107,8 +119,8 @@ class TVDetailsViewModel: ObservableObject {
     struct PlexTag: Codable { let tag: String? }
     struct PlexRole: Codable { let tag: String?; let thumb: String? }
     struct PlexGuid: Codable { let id: String? }
-    struct PlexMedia: Codable {
-        let id: Int?
+    struct PlexMedia: Decodable {
+        let id: String?
         let width: Int?
         let height: Int?
         let duration: Int?
@@ -119,21 +131,65 @@ class TVDetailsViewModel: ObservableObject {
         let audioCodec: String?
         let audioProfile: String?
         let Part: [PlexPart]?
+
+        private enum CodingKeys: String, CodingKey {
+            case id, width, height, duration, bitrate, videoCodec, videoProfile, audioChannels, audioCodec, audioProfile, Part
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            id = FlexibleStringID.decode(container, forKey: .id)
+            width = try container.decodeIfPresent(Int.self, forKey: .width)
+            height = try container.decodeIfPresent(Int.self, forKey: .height)
+            duration = try container.decodeIfPresent(Int.self, forKey: .duration)
+            bitrate = try container.decodeIfPresent(Int.self, forKey: .bitrate)
+            videoCodec = try container.decodeIfPresent(String.self, forKey: .videoCodec)
+            videoProfile = try container.decodeIfPresent(String.self, forKey: .videoProfile)
+            audioChannels = try container.decodeIfPresent(Int.self, forKey: .audioChannels)
+            audioCodec = try container.decodeIfPresent(String.self, forKey: .audioCodec)
+            audioProfile = try container.decodeIfPresent(String.self, forKey: .audioProfile)
+            Part = try container.decodeIfPresent([PlexPart].self, forKey: .Part)
+        }
     }
-    struct PlexPart: Codable {
-        let id: Int?
+    struct PlexPart: Decodable {
+        let id: String?
         let size: Int?
         let key: String?
         let Stream: [PlexStream]?
+
+        private enum CodingKeys: String, CodingKey {
+            case id, size, key, Stream
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            id = FlexibleStringID.decode(container, forKey: .id)
+            size = try container.decodeIfPresent(Int.self, forKey: .size)
+            key = try container.decodeIfPresent(String.self, forKey: .key)
+            Stream = try container.decodeIfPresent([PlexStream].self, forKey: .Stream)
+        }
     }
-    struct PlexStream: Codable {
-        let id: Int?
+    struct PlexStream: Decodable {
+        let id: String?
         let streamType: Int?
         let displayTitle: String?
         let language: String?
         let languageTag: String?
+
+        private enum CodingKeys: String, CodingKey {
+            case id, streamType, displayTitle, language, languageTag
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            id = FlexibleStringID.decode(container, forKey: .id)
+            streamType = try container.decodeIfPresent(Int.self, forKey: .streamType)
+            displayTitle = try container.decodeIfPresent(String.self, forKey: .displayTitle)
+            language = try container.decodeIfPresent(String.self, forKey: .language)
+            languageTag = try container.decodeIfPresent(String.self, forKey: .languageTag)
+        }
     }
-    struct PlexMeta: Codable {
+    struct PlexMeta: Decodable {
         let ratingKey: String?
         let type: String?
         let title: String?
@@ -204,6 +260,7 @@ class TVDetailsViewModel: ObservableObject {
 
         do {
             if item.id.hasPrefix("tmdb:") {
+                print("🧭 [TVDetails] Source kind: tmdb, resolved ratingKey: n/a")
                 print("📺 [TVDetails] Loading TMDB item")
                 let parts = item.id.split(separator: ":")
                 if parts.count == 3 {
@@ -211,144 +268,16 @@ class TVDetailsViewModel: ObservableObject {
                     let tid = String(parts[2])
                     mediaKind = media
                     tmdbId = tid
-                    playableId = item.id // may be remapped later
                     try await fetchTMDBDetails(media: media, id: tid, skipPlexMapping: false)
                 }
-            } else if item.id.hasPrefix("plex:") {
-                print("📀 [TVDetails] Loading native Plex item (prefixed)")
-                let rk = String(item.id.dropFirst(5))
-                plexRatingKey = rk
-                do {
-                    print("📦 [TVDetails] Fetching Plex metadata for ratingKey: \(rk)")
-                    let meta: PlexMeta = try await api.get("/api/plex/metadata/\(rk)")
-
-                    // Check if type is season
-                    if meta.type == "season" {
-                        await loadSeasonDirect(meta: meta, ratingKey: rk)
-                        return
-                    }
-
-                    mediaKind = (meta.type == "movie") ? "movie" : "tv"
-                    title = meta.title ?? item.title
-                    overview = meta.summary ?? ""
-                    if let y = meta.year { year = String(y) } else { year = nil }
-                    rating = meta.contentRating
-                    if let ms = meta.duration { runtime = Int(ms/60000) } else { runtime = nil }
-                    let gs = (meta.Genre ?? []).compactMap { $0.tag }.filter { !$0.isEmpty }
-                    if !gs.isEmpty {
-                        genres = gs
-                        moodTags = deriveTags(from: gs)
-                    } else {
-                        genres = []
-                        moodTags = []
-                    }
-                    if let roles = meta.Role, !roles.isEmpty {
-                        cast = roles.prefix(12).map { r in
-                            let name = r.tag ?? ""
-                            return Person(id: name, name: name, profile: ImageService.shared.plexImageURL(path: r.thumb, width: 200, height: 200))
-                        }
-                    }
-                    if let art = meta.art,
-                       let u = ImageService.shared.plexImageURL(path: art, width: 1920, height: 1080) {
-                        backdropURL = u
-                    }
-                    if let thumb = meta.thumb,
-                       let u = ImageService.shared.plexImageURL(path: thumb, width: 600, height: 900) {
-                        posterURL = u
-                    }
-                    if let media = meta.Media, !media.isEmpty {
-                        appendTechnicalBadges(from: media)
-                        hydrateVersions(from: media)
-                    }
-                    addBadge("Plex")
-                    playableId = item.id // Set playableId FIRST
-                    print("✅ [TVDetails] Plex metadata loaded, playableId set to: \(playableId ?? "nil")")
-                    await fetchExternalRatings(ratingKey: rk)
-
-                    // If we have a TMDB GUID, fetch TMDB enhancements (logo, recommendations)
-                    // but DON'T try to map back to Plex (we already have it!)
-                    if let tm = meta.Guid?.compactMap({ $0.id }).first(where: { s in s.contains("tmdb://") || s.contains("themoviedb://") }),
-                       let tid = tm.components(separatedBy: "://").last {
-                        tmdbId = tid
-                        plexGuid = tm
-                        print("📺 [TVDetails] Found TMDB GUID: \(tid), fetching enhancements (skip Plex mapping)")
-                        try await fetchTMDBDetails(media: mediaKind ?? "movie", id: tid, skipPlexMapping: true)
-                    }
-
-                    // Load seasons/episodes for TV shows
-                    if mediaKind == "tv" {
-                        print("📺 [TVDetails] Loading seasons for Plex show: \(rk)")
-                        await loadSeasonsAndEpisodes()
-                    }
-                } catch {
-                    print("❌ [TVDetails] Failed to load Plex metadata: \(error)")
-                    throw error
-                }
             } else {
-                // Treat plain IDs (like "37357") as Plex ratingKeys
-                print("📀 [TVDetails] Loading native Plex item (plain ID)")
-                let rk = item.id
+                let isPrefixed = item.id.hasPrefix("plex:")
+                let sourceKind = isPrefixed ? "plex-prefixed" : "plex-plain"
+                let rk = isPrefixed ? String(item.id.dropFirst(5)) : item.id
+                print("🧭 [TVDetails] Source kind: \(sourceKind), resolved ratingKey: \(rk)")
                 do {
-                    print("📦 [TVDetails] Fetching Plex metadata for ratingKey: \(rk)")
-                    let meta: PlexMeta = try await api.get("/api/plex/metadata/\(rk)")
-
-                    // Check if type is season
-                    if meta.type == "season" {
-                        await loadSeasonDirect(meta: meta, ratingKey: rk)
-                        return
-                    }
-
-                    mediaKind = (meta.type == "movie") ? "movie" : "tv"
-                    title = meta.title ?? item.title
-                    overview = meta.summary ?? ""
-                    if let y = meta.year { year = String(y) } else { year = nil }
-                    rating = meta.contentRating
-                    if let ms = meta.duration { runtime = Int(ms/60000) } else { runtime = nil }
-                    let gs = (meta.Genre ?? []).compactMap { $0.tag }.filter { !$0.isEmpty }
-                    if !gs.isEmpty {
-                        genres = gs
-                        moodTags = deriveTags(from: gs)
-                    } else {
-                        genres = []
-                        moodTags = []
-                    }
-                    if let roles = meta.Role, !roles.isEmpty {
-                        cast = roles.prefix(12).map { r in
-                            let name = r.tag ?? ""
-                            return Person(id: name, name: name, profile: ImageService.shared.plexImageURL(path: r.thumb, width: 200, height: 200))
-                        }
-                    }
-                    if let art = meta.art,
-                       let u = ImageService.shared.plexImageURL(path: art, width: 1920, height: 1080) {
-                        backdropURL = u
-                    }
-                    if let thumb = meta.thumb,
-                       let u = ImageService.shared.plexImageURL(path: thumb, width: 600, height: 900) {
-                        posterURL = u
-                    }
-                    if let media = meta.Media, !media.isEmpty {
-                        appendTechnicalBadges(from: media)
-                        hydrateVersions(from: media)
-                    }
-                    addBadge("Plex")
-                    playableId = "plex:\(rk)" // Set playableId with prefix
-                    plexRatingKey = rk // Set plexRatingKey for playback
-                    print("✅ [TVDetails] Plex metadata loaded, playableId set to: \(playableId ?? "nil"), plexRatingKey set to: \(rk)")
-                    await fetchExternalRatings(ratingKey: rk)
-
-                    // If we have a TMDB GUID, fetch TMDB enhancements (logo, recommendations)
-                    if let tm = meta.Guid?.compactMap({ $0.id }).first(where: { s in s.contains("tmdb://") || s.contains("themoviedb://") }),
-                       let tid = tm.components(separatedBy: "://").last {
-                        tmdbId = tid
-                        print("📺 [TVDetails] Found TMDB GUID: \(tid), fetching enhancements (skip Plex mapping)")
-                        try await fetchTMDBDetails(media: mediaKind ?? "movie", id: tid, skipPlexMapping: true)
-                    }
-
-                    // Load seasons/episodes for TV shows
-                    if mediaKind == "tv" {
-                        print("📺 [TVDetails] Loading seasons for Plex show: \(rk)")
-                        await loadSeasonsAndEpisodes()
-                    }
+                    print("📀 [TVDetails] Loading native Plex item (\(sourceKind))")
+                    try await loadPlexMetadata(ratingKey: rk, fallbackItem: item)
                 } catch {
                     print("❌ [TVDetails] Failed to load Plex metadata: \(error)")
                     throw error
@@ -360,6 +289,72 @@ class TVDetailsViewModel: ObservableObject {
         } catch {
             print("❌ [TVDetails] Load failed: \(error)")
             self.error = error.localizedDescription
+        }
+    }
+
+    private func loadPlexMetadata(ratingKey rk: String, fallbackItem item: MediaItem) async throws {
+        print("📦 [TVDetails] Fetching Plex metadata for ratingKey: \(rk)")
+        let meta: PlexMeta = try await api.get("/api/plex/metadata/\(rk)")
+
+        // Check if type is season
+        if meta.type == "season" {
+            await loadSeasonDirect(meta: meta, ratingKey: rk)
+            return
+        }
+
+        mediaKind = (meta.type == "movie") ? "movie" : "tv"
+        title = meta.title ?? item.title
+        overview = meta.summary ?? ""
+        if let y = meta.year { year = String(y) } else { year = nil }
+        rating = meta.contentRating
+        if let ms = meta.duration { runtime = Int(ms/60000) } else { runtime = nil }
+        let gs = (meta.Genre ?? []).compactMap { $0.tag }.filter { !$0.isEmpty }
+        if !gs.isEmpty {
+            genres = gs
+            moodTags = deriveTags(from: gs)
+        } else {
+            genres = []
+            moodTags = []
+        }
+        if let roles = meta.Role, !roles.isEmpty {
+            cast = roles.prefix(12).map { r in
+                let name = r.tag ?? ""
+                return Person(id: name, name: name, profile: ImageService.shared.plexImageURL(path: r.thumb, width: 200, height: 200))
+            }
+        }
+        if let art = meta.art,
+           let u = ImageService.shared.plexImageURL(path: art, width: 1920, height: 1080) {
+            backdropURL = u
+            rawBackdropURL = u.absoluteString
+        }
+        if let thumb = meta.thumb,
+           let u = ImageService.shared.plexImageURL(path: thumb, width: 600, height: 900) {
+            posterURL = u
+        }
+        if let media = meta.Media, !media.isEmpty {
+            appendTechnicalBadges(from: media)
+            hydrateVersions(from: media)
+        }
+        addBadge("Plex")
+        plexRatingKey = rk
+        playableId = "plex:\(rk)"
+        print("✅ [TVDetails] Plex metadata loaded, canonical playableId set to: \(playableId ?? "nil"), plexRatingKey: \(rk)")
+        await fetchExternalRatings(ratingKey: rk)
+
+        // If we have a TMDB GUID, fetch TMDB enhancements (logo, recommendations)
+        // but DON'T try to map back to Plex (we already have it!)
+        if let tm = meta.Guid?.compactMap({ $0.id }).first(where: { s in s.contains("tmdb://") || s.contains("themoviedb://") }),
+           let tid = tm.components(separatedBy: "://").last {
+            tmdbId = tid
+            plexGuid = tm
+            print("📺 [TVDetails] Found TMDB GUID: \(tid), fetching enhancements (skip Plex mapping)")
+            try await fetchTMDBDetails(media: mediaKind ?? "movie", id: tid, skipPlexMapping: true)
+        }
+
+        // Load seasons/episodes for TV shows
+        if mediaKind == "tv" {
+            print("📺 [TVDetails] Loading seasons for Plex show: \(rk)")
+            await loadSeasonsAndEpisodes()
         }
     }
 
@@ -484,12 +479,12 @@ class TVDetailsViewModel: ObservableObject {
         print("🔍 [mapToPlex] Starting TMDB → Plex mapping for '\(title)' (year: \(year ?? "nil"), tmdbId: \(tmdbId), media: \(media))")
 
         // First: Title search (as requested)
-        struct SearchResponse: Codable {
+        struct SearchResponse: Decodable {
             let MediaContainer: SearchContainer?
             let Metadata: [SearchItem]?
 
             init(from decoder: Decoder) throws {
-                // First, try to decode as a plain array (backend sometimes returns this)
+                // First, try to decode as a plain array (some call paths return this shape)
                 if let array = try? decoder.singleValueContainer().decode([SearchItem].self) {
                     self.MediaContainer = nil
                     self.Metadata = array
@@ -511,20 +506,10 @@ class TVDetailsViewModel: ObservableObject {
                     self.Metadata = nil
                 }
             }
-
-            init(MediaContainer: SearchContainer?, Metadata: [SearchItem]?) {
-                self.MediaContainer = MediaContainer
-                self.Metadata = Metadata
-            }
-
             private enum CodingKeys: String, CodingKey { case MediaContainer, Metadata }
         }
-        struct SearchContainer: Codable {
+        struct SearchContainer: Decodable {
             let Metadata: [SearchItem]
-
-            init(Metadata: [SearchItem]) {
-                self.Metadata = Metadata
-            }
 
             init(from decoder: Decoder) throws {
                 let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -537,14 +522,9 @@ class TVDetailsViewModel: ObservableObject {
                 }
             }
 
-            func encode(to encoder: Encoder) throws {
-                var container = encoder.container(keyedBy: CodingKeys.self)
-                try container.encode(Metadata, forKey: .Metadata)
-            }
-
             private enum CodingKeys: String, CodingKey { case Metadata }
         }
-        struct SearchItem: Codable {
+        struct SearchItem: Decodable {
             let ratingKey: String
             let title: String?
             let grandparentTitle: String?
@@ -675,7 +655,10 @@ class TVDetailsViewModel: ObservableObject {
         self.addBadge("Plex")
         // Prefer Plex backdrop
         let art = match.art ?? match.thumb ?? match.parentThumb ?? match.grandparentThumb ?? ""
-        if let u = ImageService.shared.plexImageURL(path: art, width: 1920, height: 1080) { self.backdropURL = u }
+        if let u = ImageService.shared.plexImageURL(path: art, width: 1920, height: 1080) {
+            self.backdropURL = u
+            self.rawBackdropURL = u.absoluteString
+        }
         if posterURL == nil {
             let poster = match.thumb ?? match.parentThumb ?? match.grandparentThumb
             if let poster = poster,
@@ -749,7 +732,7 @@ class TVDetailsViewModel: ObservableObject {
         print("🎞️ [hydrateVersions] Processing \(media.count) media item(s)")
         var vds: [VersionDetail] = []
         for (idx, mm) in media.enumerated() {
-            let id = String(mm.id ?? idx)
+            let id = mm.id ?? String(idx)
             let width = mm.width ?? 0
             let height = mm.height ?? 0
             let resoLabel: String? = {
@@ -766,11 +749,11 @@ class TVDetailsViewModel: ObservableObject {
             let streams = part?.Stream ?? []
             let audio = streams.enumerated().filter { $0.element.streamType == 2 }.map { offset, stream -> Track in
                 let name = stream.displayTitle ?? stream.languageTag ?? stream.language ?? "Audio \(offset + 1)"
-                return Track(id: String(stream.id ?? offset), name: name, language: stream.languageTag ?? stream.language)
+                return Track(id: stream.id ?? String(offset), name: name, language: stream.languageTag ?? stream.language)
             }
             let subs = streams.enumerated().filter { $0.element.streamType == 3 }.map { offset, stream -> Track in
                 let name = stream.displayTitle ?? stream.languageTag ?? stream.language ?? "Sub \(offset + 1)"
-                return Track(id: String(stream.id ?? offset), name: name, language: stream.languageTag ?? stream.language)
+                return Track(id: stream.id ?? String(offset), name: name, language: stream.languageTag ?? stream.language)
             }
             let sizeMB = part?.size.map { Double($0) / (1024.0 * 1024.0) }
             let tech = VersionDetail.TechnicalInfo(
@@ -848,6 +831,7 @@ class TVDetailsViewModel: ObservableObject {
         if let art = meta.art,
            let u = ImageService.shared.plexImageURL(path: art, width: 1920, height: 1080) {
             backdropURL = u
+            rawBackdropURL = u.absoluteString
         }
 
         addBadge("Plex")
