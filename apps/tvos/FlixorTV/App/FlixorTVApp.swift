@@ -7,6 +7,7 @@ struct FlixorTVApp: App {
     @StateObject private var session = SessionManager.shared
     @StateObject private var appState = AppState()
     @StateObject private var profileSettings = TVProfileSettings.shared
+    @StateObject private var watchlistController = TVWatchlistController.shared
 
     init() {
         let clientId = getOrCreateClientId()
@@ -34,6 +35,7 @@ struct FlixorTVApp: App {
                 .environmentObject(session)
                 .environmentObject(appState)
                 .environmentObject(profileSettings)
+                .environmentObject(watchlistController)
                 .task {
                     // Initialize FlixorCore first (restore tokens/services)
                     _ = await FlixorCore.shared.initialize()

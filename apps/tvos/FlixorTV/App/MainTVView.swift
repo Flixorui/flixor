@@ -8,6 +8,7 @@ enum MainTVDestination: String, CaseIterable, Identifiable {
     case movies
     case myList
     case search
+    case newPopular
     case settings
 
     var id: String { rawValue }
@@ -19,6 +20,7 @@ enum MainTVDestination: String, CaseIterable, Identifiable {
         case .movies: return "Movies"
         case .myList: return "My List"
         case .search: return "Search"
+        case .newPopular: return "New & Popular"
         case .settings: return "Settings"
         }
     }
@@ -30,16 +32,8 @@ enum MainTVDestination: String, CaseIterable, Identifiable {
         case .movies: return "film.fill"
         case .myList: return "plus.circle.fill"
         case .search: return "magnifyingglass"
+        case .newPopular: return "sparkles.tv.fill"
         case .settings: return "gearshape.fill"
-        }
-    }
-
-    var isImplemented: Bool {
-        switch self {
-        case .myList, .search:
-            return false
-        default:
-            return true
         }
     }
 }
@@ -48,9 +42,14 @@ struct MainTVView: View {
     @State private var selected: MainTVDestination = .home
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var session: SessionManager
+    @EnvironmentObject private var profileSettings: TVProfileSettings
+    @EnvironmentObject private var watchlistController: TVWatchlistController
     @StateObject private var homeViewModel = TVHomeViewModel()
     @StateObject private var showsLibraryViewModel = TVLibraryViewModel()
     @StateObject private var moviesLibraryViewModel = TVLibraryViewModel()
+    @StateObject private var myListViewModel = TVMyListViewModel()
+    @StateObject private var searchViewModel = TVSearchViewModel()
+    @StateObject private var newPopularViewModel = TVNewPopularViewModel()
     @State private var homeFocusHandoffToken: UUID?
     @State private var comingSoonMessage: String?
     @State private var comingSoonDismissTask: Task<Void, Never>?
@@ -99,7 +98,8 @@ struct MainTVView: View {
                             systemImage: MainTVDestination.myList.systemImage,
                             value: MainTVDestination.myList
                         ) {
-                            DisabledDestinationView(title: MainTVDestination.myList.title)
+                            TVMyListView(viewModel: myListViewModel)
+                                .environmentObject(watchlistController)
                         }
                         .tabPlacement(.sidebarOnly)
 
@@ -109,9 +109,21 @@ struct MainTVView: View {
                             value: MainTVDestination.search,
                             role: .search
                         ) {
-                            DisabledDestinationView(title: MainTVDestination.search.title)
+                            TVSearchView(viewModel: searchViewModel)
                         }
                         .tabPlacement(.sidebarOnly)
+
+                        if shouldShowNewPopularDestination {
+                            Tab(
+                                MainTVDestination.newPopular.title,
+                                systemImage: MainTVDestination.newPopular.systemImage,
+                                value: MainTVDestination.newPopular
+                            ) {
+                                TVNewPopularView(viewModel: newPopularViewModel)
+                                    .environmentObject(watchlistController)
+                            }
+                            .tabPlacement(.sidebarOnly)
+                        }
 
                         Tab(
                             MainTVDestination.settings.title,
@@ -158,6 +170,12 @@ struct MainTVView: View {
         .onChange(of: session.isAuthenticated) { authed in
             Task { await updatePhaseFromSession() }
         }
+        .onChange(of: profileSettings.showNewPopularTab) { _ in
+            enforceDestinationAvailability()
+        }
+        .onChange(of: profileSettings.discoveryDisabled) { _ in
+            enforceDestinationAvailability()
+        }
         .onDisappear {
             comingSoonDismissTask?.cancel()
             comingSoonDismissTask = nil
@@ -179,8 +197,11 @@ struct MainTVView: View {
         Binding(
             get: { selected },
             set: { destination in
-                guard destination.isImplemented else {
+                if destination == .newPopular, !shouldShowNewPopularDestination {
                     showComingSoon(for: destination)
+                    selected = .home
+                    appState.selectedDestination = .home
+                    dispatchHomeFocusHandoff()
                     return
                 }
 
@@ -196,6 +217,18 @@ struct MainTVView: View {
                 }
             }
         )
+    }
+
+    private var shouldShowNewPopularDestination: Bool {
+        profileSettings.showNewPopularTab && !profileSettings.discoveryDisabled
+    }
+
+    private func enforceDestinationAvailability() {
+        if selected == .newPopular, !shouldShowNewPopularDestination {
+            selected = .home
+            appState.selectedDestination = .home
+            dispatchHomeFocusHandoff()
+        }
     }
 
     private func showComingSoon(for destination: MainTVDestination) {
@@ -228,25 +261,5 @@ struct MainTVView: View {
             }
         } catch {
         }
-    }
-}
-
-private struct DisabledDestinationView: View {
-    let title: String
-
-    var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "clock.fill")
-                .font(.system(size: 48, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.6))
-            Text(title)
-                .font(.system(size: 42, weight: .bold))
-                .foregroundStyle(.white)
-            Text("Coming soon")
-                .font(.system(size: 24, weight: .medium))
-                .foregroundStyle(.white.opacity(0.7))
-        }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.black)
     }
 }

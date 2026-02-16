@@ -180,6 +180,7 @@ struct TVLandscapeCard: View {
     let showBadges: Bool
     var isFocused: Bool = false
     var outlined: Bool = false
+    var focusOutlineOnFocus: Bool = false
     var heightOverride: CGFloat? = nil
     var overrideURL: URL? = nil
 
@@ -279,7 +280,7 @@ struct TVLandscapeCard: View {
         }
         .overlay(
             Group {
-                if outlined {
+                if outlined || (focusOutlineOnFocus && isFocused) {
                     RoundedRectangle(cornerRadius: UX.landscapeRadius, style: .continuous)
                         .stroke(Color.white.opacity(0.85), lineWidth: 3)
                 }

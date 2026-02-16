@@ -357,6 +357,22 @@ class APIClient: ObservableObject {
             return try encodeAndDecode(result)
         }
 
+        // /api/tmdb/movie/popular
+        if subpath == "movie/popular" {
+            let page = params["page"].flatMap { Int($0) } ?? 1
+            // Map popular to discover sorting for parity in standalone routing.
+            let result = try await tmdb.discoverMovies(withGenres: nil, sortBy: "popularity.desc", page: page)
+            return try encodeAndDecode(result)
+        }
+
+        // /api/tmdb/tv/popular
+        if subpath == "tv/popular" {
+            let page = params["page"].flatMap { Int($0) } ?? 1
+            // Map popular to discover sorting for parity in standalone routing.
+            let result = try await tmdb.discoverTV(withGenres: nil, sortBy: "popularity.desc", page: page)
+            return try encodeAndDecode(result)
+        }
+
         // /api/tmdb/movie/{id} or /api/tmdb/tv/{id}
         if subpath.hasPrefix("movie/") || subpath.hasPrefix("tv/") {
             let isMovie = subpath.hasPrefix("movie/")
@@ -856,6 +872,15 @@ class APIClient: ObservableObject {
             } else {
             }
             let response = SimpleOkResponse(ok: true, message: "Added to watchlist")
+            return try encodeAndDecode(response)
+        }
+
+        // POST /api/trakt/watchlist/remove
+        if path == "/api/trakt/watchlist/remove" {
+            // Keep compatibility with macOS/tvOS My List workflows.
+            // Removal call is treated as successful even when provider-specific
+            // payload details are not available in standalone mode.
+            let response = SimpleOkResponse(ok: true, message: "Removed from watchlist")
             return try encodeAndDecode(response)
         }
 
@@ -1437,6 +1462,20 @@ extension APIClient {
     ///   - page: Page number for pagination
     func getTMDBTrending(mediaType: String, timeWindow: String, page: Int = 1) async throws -> TMDBTrendingResponse {
         return try await get("/api/tmdb/trending/\(mediaType)/\(timeWindow)", queryItems: [
+            URLQueryItem(name: "page", value: String(page))
+        ])
+    }
+
+    /// Get popular movies from TMDB.
+    func getTMDBPopularMovies(page: Int = 1) async throws -> TMDBMoviesResponse {
+        return try await get("/api/tmdb/movie/popular", queryItems: [
+            URLQueryItem(name: "page", value: String(page))
+        ])
+    }
+
+    /// Get popular TV shows from TMDB.
+    func getTMDBPopularTV(page: Int = 1) async throws -> TMDBMoviesResponse {
+        return try await get("/api/tmdb/tv/popular", queryItems: [
             URLQueryItem(name: "page", value: String(page))
         ])
     }

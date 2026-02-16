@@ -12,6 +12,7 @@ struct TVCarouselRow: View {
     var defaultFocus: Bool = false
     var preferredFocusItemId: String? = nil
     var sectionId: String = ""
+    var landscapeFocusOutline: Bool = false
     var onSelect: ((MediaItem) -> Void)? = nil
 
     @FocusState private var focusedID: String?
@@ -60,7 +61,12 @@ struct TVCarouselRow: View {
                                         .transition(.opacity)
                                     }
                                 } else {
-                                    TVLandscapeCard(item: item, showBadges: false, isFocused: focusedID == item.id)
+                                    TVLandscapeCard(
+                                        item: item,
+                                        showBadges: false,
+                                        isFocused: focusedID == item.id,
+                                        focusOutlineOnFocus: landscapeFocusOutline
+                                    )
                                 }
                             }
                             .frame(width: itemWidth, height: itemHeight, alignment: .bottom)
