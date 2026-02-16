@@ -17,16 +17,28 @@ struct TVDetailsView: View {
     @State private var scrollY: CGFloat = 0
     @State private var contentSectionHasFocus: Bool = false
 
+    private let compactHeaderHeight: CGFloat = 86
+
     private var hasPlexSource: Bool {
         vm.playableId != nil || vm.plexRatingKey != nil
     }
 
+    private var collapsedHeaderOpacity: Double {
+        let scrollProgress = Double(min(max((scrollY - 36) / 96, 0), 1))
+        let focusProgress = contentSectionHasFocus ? 1.0 : 0
+        return max(scrollProgress, focusProgress)
+    }
+
     private var shouldShowCollapsedHeader: Bool {
-        contentSectionHasFocus || scrollY > 200
+        collapsedHeaderOpacity > 0.01
+    }
+
+    private var collapsedHeaderInset: CGFloat {
+        CGFloat(collapsedHeaderOpacity) * compactHeaderHeight
     }
 
     private var shouldShowBlur: Bool {
-        contentSectionHasFocus || scrollY > 300
+        contentSectionHasFocus || scrollY > 140
     }
 
     var body: some View {
@@ -63,106 +75,108 @@ struct TVDetailsView: View {
             .animation(.easeInOut(duration: 0.4), value: shouldShowBlur)
             .ignoresSafeArea(edges: .all)
 
-            // Layer 4: Condensed header (shows when focus leaves hero or scrolled past hero)
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 38) {
+                    GeometryReader { geo in
+                        Color.clear
+                            .preference(key: DetailsScrollOffsetKey.self, value: -geo.frame(in: .named("detailsScroll")).minY)
+                    }
+                    .frame(height: 0)
+
+                    TVDetailsHeroSection(
+                        vm: vm,
+                        item: item,
+                        focusNS: heroFocusNS,
+                        hasPlexSource: hasPlexSource,
+                        onPlay: playContent,
+                        onTrailerTapped: { trailer in
+                            selectedTrailer = trailer
+                        },
+                        onFocusChange: { heroHasFocus in
+                            if heroHasFocus {
+                                contentSectionHasFocus = false
+                            }
+                        }
+                    )
+                    .id("details-hero")
+
+                    if (vm.mediaKind == "tv" || vm.isSeason) && !vm.isEpisode {
+                        VStack(alignment: .leading, spacing: 14) {
+                            Text("Episodes")
+                                .font(.system(size: 30, weight: .bold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 80)
+                            TVEpisodesRail(vm: vm, focusNS: nsEpisodes)
+                                .focusScope(nsEpisodes)
+                        }
+                    }
+
+                    if !vm.isSeason && !vm.isEpisode {
+                        SuggestedSection(vm: vm, focusNS: nsSuggested, onFocusChange: { focused in
+                            contentSectionHasFocus = focused
+                        })
+                            .focusScope(nsSuggested)
+                            .id("suggested-section")
+                    }
+
+                    TVDetailsInfoGrid(vm: vm, focusNS: nsDetails, onFocusChange: { focused in
+                        contentSectionHasFocus = focused
+                    })
+                        .focusScope(nsDetails)
+                        .id("details-info")
+                }
+                .padding(.bottom, 80)
+            }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                Color.clear
+                    .frame(height: collapsedHeaderInset)
+                    .allowsHitTesting(false)
+            }
+            .animation(.easeOut(duration: 0.22), value: collapsedHeaderInset)
+            .coordinateSpace(name: "detailsScroll")
+
+            // Layer 4: Pinned compact header (always above content, fades by focus/scroll)
             if shouldShowCollapsedHeader {
                 VStack {
                     HStack {
                         if let logo = vm.logoURL {
                             CachedAsyncImage(url: logo, contentMode: .fit, showsErrorView: false) {
                                 Text(vm.title.isEmpty ? item.title : vm.title)
-                                    .font(.system(size: 24, weight: .bold))
+                                    .font(.system(size: 22, weight: .bold))
                                     .foregroundStyle(.white)
                                     .lineLimit(1)
                             }
-                            .frame(maxWidth: 160, maxHeight: 50, alignment: .leading)
-                            .shadow(color: .black.opacity(0.5), radius: 4, y: 2)
+                            .frame(maxWidth: 180, maxHeight: 46, alignment: .leading)
+                            .shadow(color: .black.opacity(0.45), radius: 4, y: 2)
                         } else {
                             Text(vm.title.isEmpty ? item.title : vm.title)
-                                .font(.system(size: 24, weight: .bold))
+                                .font(.system(size: 22, weight: .bold))
                                 .foregroundStyle(.white)
                                 .lineLimit(1)
                         }
                         Spacer()
                     }
                     .padding(.horizontal, 80)
-                    .padding(.top, 50)
-                    .padding(.bottom, 16)
+                    .padding(.top, 28)
+                    .padding(.bottom, 14)
                     .background(
-                        LinearGradient(
-                            colors: [Color.black.opacity(0.85), Color.black.opacity(0.4), .clear],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
+                        ZStack {
+                            Rectangle()
+                                .fill(.ultraThinMaterial)
+                            LinearGradient(
+                                colors: [Color.black.opacity(0.58), Color.black.opacity(0.24), .clear],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        }
                     )
                     Spacer()
                 }
-                .transition(.opacity.combined(with: .move(edge: .top)))
-                .animation(.easeOut(duration: 0.3), value: shouldShowCollapsedHeader)
+                .opacity(collapsedHeaderOpacity)
+                .animation(.easeOut(duration: 0.22), value: collapsedHeaderOpacity)
+                .allowsHitTesting(false)
                 .ignoresSafeArea(edges: .top)
-            }
-
-            ScrollViewReader { scrollProxy in
-                ScrollView(.vertical, showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 38) {
-                        GeometryReader { geo in
-                            Color.clear
-                                .preference(key: DetailsScrollOffsetKey.self, value: -geo.frame(in: .named("detailsScroll")).minY)
-                        }
-                        .frame(height: 0)
-
-                        TVDetailsHeroSection(
-                            vm: vm,
-                            item: item,
-                            focusNS: heroFocusNS,
-                            hasPlexSource: hasPlexSource,
-                            onPlay: playContent,
-                            onTrailerTapped: { trailer in
-                                selectedTrailer = trailer
-                            },
-                            onFocusChange: { heroHasFocus in
-                                if heroHasFocus {
-                                    contentSectionHasFocus = false
-                                }
-                            }
-                        )
-                        .id("details-hero")
-
-                        // Spacer for collapsed header (120px header height)
-                        Color.clear
-                            .frame(height: 120)
-                            .id("content-anchor")
-
-                        if (vm.mediaKind == "tv" || vm.isSeason) && !vm.isEpisode {
-                            VStack(alignment: .leading, spacing: 14) {
-                                Text("Episodes")
-                                    .font(.system(size: 30, weight: .bold))
-                                    .foregroundStyle(.white)
-                                    .padding(.horizontal, 80)
-                                TVEpisodesRail(vm: vm, focusNS: nsEpisodes)
-                                    .focusScope(nsEpisodes)
-                            }
-                        }
-
-                        if !vm.isSeason && !vm.isEpisode {
-                            SuggestedSection(vm: vm, focusNS: nsSuggested, onFocusChange: { focused in
-                                contentSectionHasFocus = focused
-                                if focused {
-                                    withAnimation(.easeOut(duration: 0.35)) {
-                                        scrollProxy.scrollTo("content-anchor", anchor: .top)
-                                    }
-                                }
-                            })
-                                .focusScope(nsSuggested)
-                        }
-
-                        TVDetailsInfoGrid(vm: vm, focusNS: nsDetails, onFocusChange: { focused in
-                            contentSectionHasFocus = focused
-                        })
-                            .focusScope(nsDetails)
-                    }
-                    .padding(.bottom, 80)
-                }
-                .coordinateSpace(name: "detailsScroll")
+                .zIndex(500)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
