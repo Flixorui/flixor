@@ -100,17 +100,11 @@ struct TVDetailsInfoGrid: View {
             }
             onFocusChange?(true)
         }
-        .overlay(alignment: .center) {
-            if let selectedModal,
-               let payload = modalPayload(for: selectedModal) {
+        .fullScreenCover(item: $selectedModal) { modalType in
+            if let payload = modalPayload(for: modalType) {
                 TVDetailsSectionModal(payload: payload) {
                     closeModal()
                 }
-            }
-        }
-        .onExitCommand {
-            if selectedModal != nil {
-                closeModal()
             }
         }
     }
@@ -158,15 +152,15 @@ struct TVDetailsInfoGrid: View {
                     }
                     .padding(20)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.white.opacity(0.08)))
-                    .overlay(
+                    .background(
                         RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .stroke(Color.white.opacity(focusedSection == .about ? 0.72 : 0.0), lineWidth: 2)
+                            .fill(Color.white.opacity(focusedSection == .about ? 0.12 : 0.06))
                     )
+                    .shadow(color: .black.opacity(focusedSection == .about ? 0.6 : 0.15), radius: focusedSection == .about ? 24 : 8, y: focusedSection == .about ? 14 : 4)
                     .scaleEffect(focusedSection == .about ? 1.02 : 1.0)
-                    .animation(.easeOut(duration: UX.focusDur), value: focusedSection)
+                    .animation(.easeOut(duration: 0.2), value: focusedSection)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(NoHighlightButtonStyle())
                 .focused($focusedSection, equals: .about)
                 .prefersDefaultFocus(true, in: focusNS)
 
@@ -193,65 +187,25 @@ struct TVDetailsInfoGrid: View {
     }
 
     private var castSection: some View {
-        Button(action: { openModal(.cast) }) {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack {
-                    Text(vm.isEpisode && !vm.guestStars.isEmpty ? "Guest Stars" : "Cast & Crew")
-                        .font(.system(size: 32, weight: .bold))
-                        .foregroundStyle(.white)
-                    Spacer()
-                    Text("MORE")
-                        .font(.system(size: 18, weight: .heavy))
-                        .foregroundStyle(.white.opacity(0.9))
-                }
+        VStack(alignment: .leading, spacing: 14) {
+            Text(vm.isEpisode && !vm.guestStars.isEmpty ? "Guest Stars" : "Cast & Crew")
+                .font(.system(size: 32, weight: .bold))
+                .foregroundStyle(.white)
 
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 18) {
-                        ForEach(castAndCrew.prefix(12)) { person in
-                            VStack(spacing: 10) {
-                                Group {
-                                    if let image = person.image {
-                                        CachedAsyncImage(url: image, contentMode: .fill) {
-                                            Circle().fill(Color.white.opacity(0.1))
-                                        }
-                                    } else {
-                                        Circle().fill(Color.white.opacity(0.1))
-                                    }
-                                }
-                                .frame(width: 110, height: 110)
-                                .clipShape(Circle())
-                                .overlay(Circle().stroke(Color.white.opacity(0.2), lineWidth: 1))
-
-                                Text(person.name)
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundStyle(.white)
-                                    .lineLimit(1)
-
-                                if let role = person.role, !role.isEmpty {
-                                    Text(role)
-                                        .font(.system(size: 13, weight: .regular))
-                                        .foregroundStyle(.white.opacity(0.65))
-                                        .lineLimit(1)
-                                }
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 18) {
+                    ForEach(castAndCrew.prefix(12)) { person in
+                        CastCrewCard(person: person, onFocusChange: { focused in
+                            if focused && !isFocused {
+                                isFocused = true
+                                onFocusChange?(true)
                             }
-                            .frame(width: 130)
-                        }
+                        })
                     }
-                    .padding(.vertical, 2)
                 }
+                .padding(.vertical, 8)
             }
-            .padding(14)
-            .background(Color.white.opacity(focusedSection == .cast ? 0.08 : 0.001))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(Color.white.opacity(focusedSection == .cast ? 0.72 : 0.0), lineWidth: 2)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .scaleEffect(focusedSection == .cast ? 1.01 : 1.0)
-            .animation(.easeOut(duration: UX.focusDur), value: focusedSection)
         }
-        .buttonStyle(.plain)
-        .focused($focusedSection, equals: .cast)
     }
 
     private func companySection(title: String, items: [TVDetailsViewModel.ProductionCompany]) -> some View {
@@ -302,19 +256,19 @@ struct TVDetailsInfoGrid: View {
                 }
             }
             .padding(14)
-            .background(Color.white.opacity((title == "Networks" ? focusedSection == .networks : focusedSection == .production) ? 0.08 : 0.001))
-            .overlay(
+            .background(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(
-                        Color.white.opacity((title == "Networks" ? focusedSection == .networks : focusedSection == .production) ? 0.72 : 0.0),
-                        lineWidth: 2
-                    )
+                    .fill(Color.white.opacity((title == "Networks" ? focusedSection == .networks : focusedSection == .production) ? 0.12 : 0.06))
             )
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .scaleEffect((title == "Networks" ? focusedSection == .networks : focusedSection == .production) ? 1.01 : 1.0)
-            .animation(.easeOut(duration: UX.focusDur), value: focusedSection)
+            .shadow(
+                color: .black.opacity((title == "Networks" ? focusedSection == .networks : focusedSection == .production) ? 0.6 : 0.15),
+                radius: (title == "Networks" ? focusedSection == .networks : focusedSection == .production) ? 24 : 8,
+                y: (title == "Networks" ? focusedSection == .networks : focusedSection == .production) ? 14 : 4
+            )
+            .scaleEffect((title == "Networks" ? focusedSection == .networks : focusedSection == .production) ? 1.02 : 1.0)
+            .animation(.easeOut(duration: 0.2), value: focusedSection)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(NoHighlightButtonStyle())
         .focused($focusedSection, equals: title == "Networks" ? .networks : .production)
     }
 
@@ -372,16 +326,15 @@ struct TVDetailsInfoGrid: View {
                 }
             }
             .padding(18)
-            .background(Color.white.opacity(focusedSection == .information ? 0.08 : 0.001))
-            .overlay(
+            .background(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(Color.white.opacity(focusedSection == .information ? 0.72 : 0.0), lineWidth: 2)
+                    .fill(Color.white.opacity(focusedSection == .information ? 0.12 : 0.06))
             )
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .scaleEffect(focusedSection == .information ? 1.01 : 1.0)
-            .animation(.easeOut(duration: UX.focusDur), value: focusedSection)
+            .shadow(color: .black.opacity(focusedSection == .information ? 0.6 : 0.15), radius: focusedSection == .information ? 24 : 8, y: focusedSection == .information ? 14 : 4)
+            .scaleEffect(focusedSection == .information ? 1.02 : 1.0)
+            .animation(.easeOut(duration: 0.2), value: focusedSection)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(NoHighlightButtonStyle())
         .focused($focusedSection, equals: .information)
     }
 
@@ -412,16 +365,15 @@ struct TVDetailsInfoGrid: View {
                 }
             }
             .padding(18)
-            .background(Color.white.opacity(focusedSection == .languages ? 0.08 : 0.001))
-            .overlay(
+            .background(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(Color.white.opacity(focusedSection == .languages ? 0.72 : 0.0), lineWidth: 2)
+                    .fill(Color.white.opacity(focusedSection == .languages ? 0.12 : 0.06))
             )
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .scaleEffect(focusedSection == .languages ? 1.01 : 1.0)
-            .animation(.easeOut(duration: UX.focusDur), value: focusedSection)
+            .shadow(color: .black.opacity(focusedSection == .languages ? 0.6 : 0.15), radius: focusedSection == .languages ? 24 : 8, y: focusedSection == .languages ? 14 : 4)
+            .scaleEffect(focusedSection == .languages ? 1.02 : 1.0)
+            .animation(.easeOut(duration: 0.2), value: focusedSection)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(NoHighlightButtonStyle())
         .focused($focusedSection, equals: .languages)
     }
 
@@ -454,16 +406,15 @@ struct TVDetailsInfoGrid: View {
                 }
             }
             .padding(18)
-            .background(Color.white.opacity(focusedSection == .technical ? 0.08 : 0.001))
-            .overlay(
+            .background(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(Color.white.opacity(focusedSection == .technical ? 0.72 : 0.0), lineWidth: 2)
+                    .fill(Color.white.opacity(focusedSection == .technical ? 0.12 : 0.06))
             )
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .scaleEffect(focusedSection == .technical ? 1.01 : 1.0)
-            .animation(.easeOut(duration: UX.focusDur), value: focusedSection)
+            .shadow(color: .black.opacity(focusedSection == .technical ? 0.6 : 0.15), radius: focusedSection == .technical ? 24 : 8, y: focusedSection == .technical ? 14 : 4)
+            .scaleEffect(focusedSection == .technical ? 1.02 : 1.0)
+            .animation(.easeOut(duration: 0.2), value: focusedSection)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(NoHighlightButtonStyle())
         .focused($focusedSection, equals: .technical)
     }
 
@@ -746,6 +697,72 @@ private struct PersonCardModel: Identifiable {
     let name: String
     let role: String?
     let image: URL?
+}
+
+private struct CastCrewCard: View {
+    let person: PersonCardModel
+    var onFocusChange: ((Bool) -> Void)?
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        Button(action: {}) {
+            VStack(spacing: 10) {
+                Group {
+                    if let image = person.image {
+                        CachedAsyncImage(url: image, contentMode: .fill) {
+                            Circle().fill(Color.white.opacity(0.1))
+                        }
+                    } else {
+                        Circle().fill(Color.white.opacity(0.15))
+                            .overlay(
+                                Text(initials)
+                                    .font(.system(size: 32, weight: .semibold))
+                                    .foregroundStyle(.white.opacity(0.6))
+                            )
+                    }
+                }
+                .frame(width: 110, height: 110)
+                .clipShape(Circle())
+
+                Text(person.name)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+
+                if let role = person.role, !role.isEmpty {
+                    Text(role)
+                        .font(.system(size: 13, weight: .regular))
+                        .foregroundStyle(.white.opacity(0.65))
+                        .lineLimit(1)
+                }
+            }
+            .frame(width: 130)
+        }
+        .buttonStyle(NoHighlightButtonStyle())
+        .focused($isFocused)
+        .scaleEffect(isFocused ? 1.08 : 1.0)
+        .shadow(color: .black.opacity(isFocused ? 0.5 : 0.1), radius: isFocused ? 16 : 4, y: isFocused ? 10 : 2)
+        .animation(.easeOut(duration: 0.18), value: isFocused)
+        .onChange(of: isFocused) { newValue in
+            if newValue {
+                onFocusChange?(true)
+            }
+        }
+    }
+
+    private var initials: String {
+        let parts = person.name.split(separator: " ")
+        if parts.count >= 2 {
+            return String(parts[0].prefix(1) + parts[1].prefix(1)).uppercased()
+        }
+        return String(person.name.prefix(2)).uppercased()
+    }
+}
+
+private struct NoHighlightButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+    }
 }
 
 private struct TVDetailsSectionModal: View {

@@ -37,14 +37,10 @@ struct TVTrailerCard: View {
             }
             .frame(width: 196, height: 112)
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(Color.white.opacity(isFocused ? 0.65 : 0.2), lineWidth: isFocused ? 2 : 1)
-            )
-            .shadow(color: .black.opacity(isFocused ? 0.5 : 0.22), radius: isFocused ? 14 : 7)
-            .scaleEffect(isFocused ? 1.04 : 1)
+            .shadow(color: .black.opacity(isFocused ? 0.6 : 0.2), radius: isFocused ? 18 : 6, y: isFocused ? 10 : 4)
+            .scaleEffect(isFocused ? 1.08 : 1)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(NoHighlightButtonStyle())
         .focused($isFocused)
         .animation(.easeOut(duration: 0.18), value: isFocused)
         .onChange(of: isFocused) { newValue in
@@ -52,5 +48,11 @@ struct TVTrailerCard: View {
                 onFocusChange?(true)
             }
         }
+    }
+}
+
+private struct NoHighlightButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
     }
 }
