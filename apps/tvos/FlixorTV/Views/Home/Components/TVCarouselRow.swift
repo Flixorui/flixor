@@ -17,6 +17,8 @@ struct TVCarouselRow: View {
     @FocusState private var focusedID: String?
     @State private var expandedID: String?
     @State private var scrollProxy: ScrollViewProxy?
+    @State private var expansionTask: Task<Void, Never>?
+    @State private var lastFocusedIndex: Int?
 
     private var posterSize: CGSize { .init(width: UX.posterWidth, height: UX.posterHeight) }
     private var landscapeSize: CGSize { .init(width: UX.landscapeWidth, height: UX.landscapeHeight) }
@@ -62,7 +64,6 @@ struct TVCarouselRow: View {
                                 }
                             }
                             .frame(width: itemWidth, height: itemHeight, alignment: .bottom)
-                            .animation(.easeOut(duration: 0.18), value: itemWidth)
                             .id(item.id)
                             .focusable(true)
                             .focused($focusedID, equals: item.id)
@@ -73,8 +74,7 @@ struct TVCarouselRow: View {
                             ))
                             .scaleEffect(neighborScale, anchor: .bottom)
                             .opacity(neighborOpacity)
-                            .animation(.easeOut(duration: 0.18), value: neighborScale)
-                            .animation(.easeOut(duration: 0.18), value: neighborOpacity)
+                            .animation(.easeOut(duration: 0.18), value: expandedID)
                         }
                     }
                     .padding(.horizontal, UX.gridH)
@@ -83,22 +83,41 @@ struct TVCarouselRow: View {
                 .onAppear { scrollProxy = proxy }
                 .onChange(of: focusedID) { newValue in
                     guard kind == .poster else { return }
+                    expansionTask?.cancel()
 
                     // Handle focus loss - collapse expansion
                     guard let id = newValue else {
                         withAnimation(.easeOut(duration: 0.2)) { expandedID = nil }
+                        lastFocusedIndex = nil
                         return
                     }
 
-                    // Scroll to focused item - use center for first item to avoid hiding under padding
-                    if let sp = scrollProxy {
-                        let isFirstItem = id == items.first?.id
-                        sp.scrollTo(id, anchor: isFirstItem ? .center : .leading)
-                    }
+                    // Defer expansion slightly so rapid focus changes don't force reflow on every tick.
+                    expansionTask = Task {
+                        try? await Task.sleep(nanoseconds: 80_000_000)
+                        guard !Task.isCancelled else { return }
+                        guard let currentIndex = items.firstIndex(where: { $0.id == id }) else { return }
 
-                    // Expand the focused item (using stable ZStack overlay approach)
-                    withAnimation(.easeOut(duration: 0.18)) {
-                        expandedID = id
+                        if let sp = scrollProxy {
+                            let shouldScroll: Bool
+                            if id == items.first?.id {
+                                shouldScroll = true
+                            } else if let previousIndex = lastFocusedIndex {
+                                shouldScroll = abs(currentIndex - previousIndex) > 2
+                            } else {
+                                shouldScroll = true
+                            }
+
+                            if shouldScroll {
+                                let isFirstItem = id == items.first?.id
+                                sp.scrollTo(id, anchor: isFirstItem ? .center : .leading)
+                            }
+                        }
+
+                        withAnimation(.easeOut(duration: 0.18)) {
+                            expandedID = id
+                        }
+                        lastFocusedIndex = currentIndex
                     }
 
                     // Prefetch next items (±2) to keep scroll smooth
@@ -127,12 +146,8 @@ struct TVCarouselRow: View {
                 if newValue {
                     let targetItemId = preferredFocusItemId ?? items.first?.id
                     if let targetId = targetItemId {
-                        // Reset focus immediately, even if tvOS already set it to another item
-                        DispatchQueue.main.async {
-                            if focusedID != targetId {
-                                focusedID = targetId
-                                print("🎯 [TVCarousel] Programmatically corrected focus from \(focusedID ?? "nil") to: \(targetId) in row: \(sectionId)")
-                            }
+                        if focusedID != targetId {
+                            focusedID = targetId
                         }
                     }
                 }
@@ -176,9 +191,10 @@ private struct DefaultFocusModifier: ViewModifier {
     }
 }
 
-// Lightweight prefetch to avoid external cross-file dependency issues
+private enum TVRowImagePrefetch {
+    static let shared = ImagePrefetcher(pipeline: ImagePipeline.shared)
+}
+
 private func prefetchImages(_ urls: [URL]) {
-    let prefetcher = ImagePrefetcher(pipeline: ImagePipeline.shared)
-    prefetcher.startPrefetching(with: urls)
-    // We don't keep a strong reference intentionally – Nuke will fetch quickly
+    TVRowImagePrefetch.shared.startPrefetching(with: urls)
 }

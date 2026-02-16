@@ -1,6 +1,22 @@
 import SwiftUI
 import FlixorKit
 
+// MARK: - Progress bar (avoids GeometryReader per card)
+private struct ProgressCapsule: View {
+    let progress: CGFloat
+    var body: some View {
+        Capsule().fill(Color.white.opacity(0.25))
+            .frame(height: 6)
+            .overlay(alignment: .leading) {
+                Capsule().fill(Color.white)
+                    .frame(width: nil)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .scaleEffect(x: max(0.01, min(progress, 1.0)), anchor: .leading)
+            }
+            .clipShape(Capsule())
+    }
+}
+
 // MARK: - Image helper
 struct TVImage: View {
     enum Layout { case aspect(CGFloat), heightFixed(CGFloat) }
@@ -22,29 +38,25 @@ struct TVImage: View {
     }
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: corner, style: .continuous)
         ZStack {
-            shape
-                .fill(Color.white.opacity(0.06))
-                .overlay(
-                    LinearGradient(colors: [Color.black.opacity(0.2), Color.black.opacity(0.0)], startPoint: .bottom, endPoint: .top)
-                        .clipShape(shape)
-                )
-            // Use cached image loading for TV surfaces.
+            Color.white.opacity(0.06)
+            LinearGradient(colors: [Color.black.opacity(0.2), Color.black.opacity(0.0)], startPoint: .bottom, endPoint: .top)
+
             if let url = url {
                 CachedAsyncImage(url: url, contentMode: .fill) {
                     Color.white.opacity(0.04)
                 }
-                .clipShape(shape)
             } else {
                 Color.white.opacity(0.04)
-                    .clipShape(shape)
             }
         }
         .modifier(LayoutModifier(layout: layout))
-        .clipShape(shape)
-        .overlay(shape.stroke(Color.white.opacity(0.12), lineWidth: 1))
-        .contentShape(shape)
+        .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: corner, style: .continuous)
+                .stroke(Color.white.opacity(0.12), lineWidth: 1)
+        )
+        .contentShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
     }
 }
 
@@ -142,16 +154,11 @@ struct TVPosterCard: View {
 
             // Progress overlay for Continue Watching items
             if let viewOffset = item.viewOffset, let duration = item.duration, duration > 0 {
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(Color.white.opacity(0.25))
-                        Capsule().fill(Color.white)
-                            .frame(width: max(2, geo.size.width * CGFloat(viewOffset) / CGFloat(duration)))
-                    }
-                    .frame(height: 6)
-                    .padding(.horizontal, 10)
-                    .padding(.bottom, 10)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                VStack {
+                    Spacer()
+                    ProgressCapsule(progress: CGFloat(viewOffset) / CGFloat(duration))
+                        .padding(.horizontal, 10)
+                        .padding(.bottom, 10)
                 }
             }
         }
@@ -250,15 +257,8 @@ struct TVLandscapeCard: View {
                 }
 
                 if let viewOffset = item.viewOffset, let duration = item.duration, duration > 0 {
-                    GeometryReader { geo in
-                        ZStack(alignment: .leading) {
-                            Capsule().fill(Color.white.opacity(0.25))
-                            Capsule().fill(Color.white)
-                                .frame(width: max(2, geo.size.width * CGFloat(viewOffset) / CGFloat(duration)))
-                        }
-                    }
-                    .frame(height: 6)
-                    .padding(.top, 6)
+                    ProgressCapsule(progress: CGFloat(viewOffset) / CGFloat(duration))
+                        .padding(.top, 6)
 
                     // time-left pill overlay for Continue Watching parity
                     if duration > viewOffset {

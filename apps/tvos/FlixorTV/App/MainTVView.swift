@@ -6,6 +6,9 @@ struct MainTVView: View {
     @State private var selected: Tab = .home
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var session: SessionManager
+    @StateObject private var homeViewModel = TVHomeViewModel()
+    @StateObject private var showsLibraryViewModel = TVLibraryViewModel()
+    @StateObject private var moviesLibraryViewModel = TVLibraryViewModel()
     @State private var showSettings = false
 
     var body: some View {
@@ -25,9 +28,9 @@ struct MainTVView: View {
                             // Content behind nav bar
                             Group {
                                 switch selected {
-                                case .home: TVHomeView()
-                                case .shows: TVLibraryView(preferredKind: .show)
-                                case .movies: TVLibraryView(preferredKind: .movie)
+                                case .home: TVHomeView(viewModel: homeViewModel)
+                                case .shows: TVLibraryView(preferredKind: .show, viewModel: showsLibraryViewModel)
+                                case .movies: TVLibraryView(preferredKind: .movie, viewModel: moviesLibraryViewModel)
                                 case .myNetflix: PlaceholderView(title: "My List")
                                 case .search: PlaceholderView(title: "Search")
                                 }
@@ -88,11 +91,9 @@ struct MainTVView: View {
         do {
             let servers = try await APIClient.shared.getPlexServers()
             if let first = servers.first(where: { $0.owned == true }) ?? servers.first {
-                print("📡 [MainTVView] Setting current server: \(first.name)")
                 _ = try? await APIClient.shared.setCurrentPlexServer(serverId: first.id)
             }
         } catch {
-            print("⚠️ [MainTVView] Failed to set server: \(error)")
         }
     }
 }

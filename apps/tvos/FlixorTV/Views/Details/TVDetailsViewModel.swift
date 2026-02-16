@@ -91,21 +91,26 @@ class TVDetailsViewModel: ObservableObject {
 
     private let api = APIClient.shared
     private var lastFetchedRatingsKey: String?
+    private var ultraBlurCache: [String: UltraBlurColors] = [:]
+    private var ultraBlurTask: Task<Void, Never>?
 
     func fetchUltraBlurColors() async {
         guard let rawURL = rawBackdropURL ?? backdropURL?.absoluteString else {
-            print("⚠️ [TVDetails] No raw backdrop URL for ultrablur colors")
             return
         }
-        do {
-            print("🎨 [TVDetails] Fetching ultrablur colors for: \(rawURL)")
-            let colors = try await api.getUltraBlurColors(imageUrl: rawURL)
-            await MainActor.run {
-                self.ultraBlurColors = colors
+        if let cached = ultraBlurCache[rawURL] {
+            ultraBlurColors = cached
+            return
+        }
+        ultraBlurTask?.cancel()
+        ultraBlurTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            guard !Task.isCancelled else { return }
+            if let colors = try? await api.getUltraBlurColors(imageUrl: rawURL) {
+                guard !Task.isCancelled else { return }
+                ultraBlurCache[rawURL] = colors
+                ultraBlurColors = colors
             }
-            print("✅ [TVDetails] UltraBlur colors fetched: TL=\(colors.topLeft) TR=\(colors.topRight)")
-        } catch {
-            print("⚠️ [TVDetails] Failed to fetch ultrablur colors: \(error)")
         }
     }
 
@@ -215,7 +220,6 @@ class TVDetailsViewModel: ObservableObject {
 
     func load(for item: MediaItem) async {
         guard !isLoading else {
-            print("⚠️ [TVDetails] Already loading, skipping duplicate request")
             return
         }
         isLoading = true
@@ -256,12 +260,9 @@ class TVDetailsViewModel: ObservableObject {
         episodeCount = nil
         watchedCount = nil
 
-        print("🎬 [TVDetails] Loading details for item: \(item.id), title: \(item.title)")
 
         do {
             if item.id.hasPrefix("tmdb:") {
-                print("🧭 [TVDetails] Source kind: tmdb, resolved ratingKey: n/a")
-                print("📺 [TVDetails] Loading TMDB item")
                 let parts = item.id.split(separator: ":")
                 if parts.count == 3 {
                     let media = (parts[1] == "movie") ? "movie" : "tv"
@@ -274,12 +275,9 @@ class TVDetailsViewModel: ObservableObject {
                 let isPrefixed = item.id.hasPrefix("plex:")
                 let sourceKind = isPrefixed ? "plex-prefixed" : "plex-plain"
                 let rk = isPrefixed ? String(item.id.dropFirst(5)) : item.id
-                print("🧭 [TVDetails] Source kind: \(sourceKind), resolved ratingKey: \(rk)")
                 do {
-                    print("📀 [TVDetails] Loading native Plex item (\(sourceKind))")
                     try await loadPlexMetadata(ratingKey: rk, fallbackItem: item)
                 } catch {
-                    print("❌ [TVDetails] Failed to load Plex metadata: \(error)")
                     throw error
                 }
             }
@@ -287,13 +285,11 @@ class TVDetailsViewModel: ObservableObject {
             // Fetch UltraBlur colors after all data is loaded
             await fetchUltraBlurColors()
         } catch {
-            print("❌ [TVDetails] Load failed: \(error)")
             self.error = error.localizedDescription
         }
     }
 
     private func loadPlexMetadata(ratingKey rk: String, fallbackItem item: MediaItem) async throws {
-        print("📦 [TVDetails] Fetching Plex metadata for ratingKey: \(rk)")
         let meta: PlexMeta = try await api.get("/api/plex/metadata/\(rk)")
 
         // Check if type is season
@@ -338,7 +334,6 @@ class TVDetailsViewModel: ObservableObject {
         addBadge("Plex")
         plexRatingKey = rk
         playableId = "plex:\(rk)"
-        print("✅ [TVDetails] Plex metadata loaded, canonical playableId set to: \(playableId ?? "nil"), plexRatingKey: \(rk)")
         await fetchExternalRatings(ratingKey: rk)
 
         // If we have a TMDB GUID, fetch TMDB enhancements (logo, recommendations)
@@ -347,13 +342,11 @@ class TVDetailsViewModel: ObservableObject {
            let tid = tm.components(separatedBy: "://").last {
             tmdbId = tid
             plexGuid = tm
-            print("📺 [TVDetails] Found TMDB GUID: \(tid), fetching enhancements (skip Plex mapping)")
             try await fetchTMDBDetails(media: mediaKind ?? "movie", id: tid, skipPlexMapping: true)
         }
 
         // Load seasons/episodes for TV shows
         if mediaKind == "tv" {
-            print("📺 [TVDetails] Loading seasons for Plex show: \(rk)")
             await loadSeasonsAndEpisodes()
         }
     }
@@ -465,7 +458,6 @@ class TVDetailsViewModel: ObservableObject {
                 self.addBadge("No local source")
             }
         } else {
-            print("⏭️ [TVDetails] Skipping Plex mapping (already have native Plex data)")
         }
 
         // Load seasons/episodes
@@ -476,7 +468,6 @@ class TVDetailsViewModel: ObservableObject {
 
     // MARK: - TMDB -> Plex mapping (web parity)
     private func mapToPlex(media: String, tmdbId: String, title: String, year: String?) async throws {
-        print("🔍 [mapToPlex] Starting TMDB → Plex mapping for '\(title)' (year: \(year ?? "nil"), tmdbId: \(tmdbId), media: \(media))")
 
         // First: Title search (as requested)
         struct SearchResponse: Decodable {
@@ -548,12 +539,9 @@ class TVDetailsViewModel: ObservableObject {
             if !merged.isEmpty {
                 var seen = Set<String>()
                 candidates = merged.filter { seen.insert($0.ratingKey).inserted }
-                print("📋 [mapToPlex] Title search found \(candidates.count) candidates: \(candidates.map { "\($0.title ?? "?") (\($0.ratingKey))" }.joined(separator: ", "))")
             } else {
-                print("⚠️ [mapToPlex] Title search returned no results")
             }
         } catch {
-            print("❌ [mapToPlex] Title search failed: \(error)")
         }
 
         func norm(_ s: String) -> String { s.lowercased().replacingOccurrences(of: "[^a-z0-9]", with: "", options: .regularExpression) }
@@ -579,20 +567,16 @@ class TVDetailsViewModel: ObservableObject {
             if let imdb = ex.imdb_id, !imdb.isEmpty { guids.append("imdb://\(imdb)") }
             if media == "tv", let tvdb = ex.tvdb_id { guids.append("tvdb://\(tvdb)") }
         } catch {
-            print("⚠️ [mapToPlex] Failed to fetch external IDs")
         }
-        print("🔑 [mapToPlex] GUID list: \(guids.joined(separator: ", "))")
         var guidHits: [SearchItem] = []
         for g in guids {
             do {
                 let res: SearchResponse = try await api.get("/api/plex/findByGuid", queryItems: [URLQueryItem(name: "guid", value: g), URLQueryItem(name: "type", value: String(t))])
                 let matches = res.MediaContainer?.Metadata ?? res.Metadata ?? []
                 if !matches.isEmpty {
-                    print("✅ [mapToPlex] GUID '\(g)' found \(matches.count) match(es): \(matches.map { "\($0.title ?? "?") (\($0.ratingKey))" }.joined(separator: ", "))")
                     guidHits.append(contentsOf: matches)
                 }
             } catch {
-                print("❌ [mapToPlex] GUID lookup failed for '\(g)': \(error)")
             }
         }
         if !guidHits.isEmpty {
@@ -602,13 +586,10 @@ class TVDetailsViewModel: ObservableObject {
                     pool.append(item)
                 }
             }
-            print("🔀 [mapToPlex] Merged GUID hits into pool. Total pool size: \(pool.count)")
         } else {
-            print("⚠️ [mapToPlex] No GUID matches found")
         }
 
         guard !pool.isEmpty else {
-            print("❌ [mapToPlex] No candidates in pool, mapping failed")
             throw NSError(domain: "map", code: 404)
         }
 
@@ -619,28 +600,23 @@ class TVDetailsViewModel: ObservableObject {
         })
 
         if let exactMatch = match {
-            print("🎯 [mapToPlex] Found exact TMDB GUID match: '\(exactMatch.title ?? "?")' (ratingKey: \(exactMatch.ratingKey))")
         }
 
         // Score-based fallback
         if match == nil {
-            print("🔢 [mapToPlex] No exact GUID match, using score-based matching...")
             var bestScore = -1
             for c in pool {
                 let sc = score(c)
-                print("   - '\(c.title ?? "?")' (\(c.ratingKey)): score \(sc)")
                 if sc > bestScore {
                     bestScore = sc
                     match = c
                 }
             }
             if let scoreMatch = match {
-                print("🏆 [mapToPlex] Best score match: '\(scoreMatch.title ?? "?")' (ratingKey: \(scoreMatch.ratingKey), score: \(bestScore))")
             }
         }
 
         guard let match = match else {
-            print("❌ [mapToPlex] No suitable match found in pool")
             throw NSError(domain: "map", code: 404)
         }
 
@@ -651,7 +627,6 @@ class TVDetailsViewModel: ObservableObject {
         if let firstGuid = match.Guid?.compactMap({ $0.id }).first {
             self.plexGuid = firstGuid
         }
-        print("✨ [mapToPlex] Setting playableId to: \(self.playableId ?? "nil")")
         self.addBadge("Plex")
         // Prefer Plex backdrop
         let art = match.art ?? match.thumb ?? match.parentThumb ?? match.grandparentThumb ?? ""
@@ -683,13 +658,10 @@ class TVDetailsViewModel: ObservableObject {
         if let mediaArr = match.Media {
             appendTechnicalBadges(from: mediaArr)
             hydrateVersions(from: mediaArr)
-            print("📊 [mapToPlex] Loaded \(mediaArr.count) media version(s) for technical details")
         } else {
-            print("⚠️ [mapToPlex] No media versions found in Plex match")
         }
         await fetchExternalRatings(ratingKey: rk)
         await loadPlexExtras(ratingKey: rk)
-        print("✅ [mapToPlex] TMDB → Plex mapping complete for '\(match.title ?? title)' (ratingKey: \(rk))")
     }
 
     private func addBadge(_ badge: String) {
@@ -729,7 +701,6 @@ class TVDetailsViewModel: ObservableObject {
     }
 
     private func hydrateVersions(from media: [PlexMedia]) {
-        print("🎞️ [hydrateVersions] Processing \(media.count) media item(s)")
         var vds: [VersionDetail] = []
         for (idx, mm) in media.enumerated() {
             let id = mm.id ?? String(idx)
@@ -777,10 +748,7 @@ class TVDetailsViewModel: ObservableObject {
             }
             audioTracks = vds.first?.audioTracks ?? []
             subtitleTracks = vds.first?.subtitleTracks ?? []
-            print("✅ [hydrateVersions] Successfully populated \(vds.count) version(s): \(vds.map { $0.label }.joined(separator: ", "))")
-            print("   Active version: \(activeVersionId ?? "nil"), \(audioTracks.count) audio track(s), \(subtitleTracks.count) subtitle(s)")
         } else {
-            print("⚠️ [hydrateVersions] No versions created from media array")
         }
     }
 
@@ -799,14 +767,12 @@ class TVDetailsViewModel: ObservableObject {
             let rtModel = res.rottenTomatoes.map { ExternalRatings.RottenTomatoes(critic: $0.critic, audience: $0.audience) }
             externalRatings = ExternalRatings(imdb: imdbModel, rottenTomatoes: rtModel)
         } catch {
-            print("⚠️ [TVDetails] Ratings fetch failed: \(error)")
         }
     }
 
     // MARK: - Season Direct Load
 
     private func loadSeasonDirect(meta: PlexMeta, ratingKey: String) async {
-        print("🎬 [loadSeasonDirect] Loading season-only view for: \(meta.title ?? "Season")")
 
         isSeason = true
         mediaKind = "tv"
@@ -843,11 +809,9 @@ class TVDetailsViewModel: ObservableObject {
            let tid = tm.components(separatedBy: "://").last {
             tmdbId = tid
             plexGuid = tm
-            print("📺 [loadSeasonDirect] Found TMDB GUID: \(tid), fetching enhancements")
             do {
                 try await fetchTMDBSeasonEnhancements(tmdbId: tid, seasonNumber: meta.index)
             } catch {
-                print("⚠️ [loadSeasonDirect] TMDB enhancements failed: \(error)")
             }
         }
 
@@ -856,7 +820,6 @@ class TVDetailsViewModel: ObservableObject {
         selectedSeasonKey = nil  // Null = season-only mode
         await loadPlexEpisodes(seasonKey: ratingKey)
 
-        print("✅ [loadSeasonDirect] Season-only view loaded successfully")
     }
 
     // MARK: - TMDB Season Enhancements
@@ -878,21 +841,17 @@ class TVDetailsViewModel: ObservableObject {
             let still_path: String?
         }
 
-        print("📡 [fetchTMDBSeasonEnhancements] Fetching TMDB season \(num) for show \(tmdbId)")
         let season: TMDBSeason = try await api.get("/api/tmdb/tv/\(tmdbId)/season/\(num)")
 
         // Use TMDB data if better
         if let name = season.name, !name.isEmpty {
             title = title.replacingOccurrences(of: "Season \(num)", with: name)
-            print("✅ [fetchTMDBSeasonEnhancements] Updated title from TMDB: \(name)")
         }
         if let overview = season.overview, !overview.isEmpty {
             self.overview = overview
-            print("✅ [fetchTMDBSeasonEnhancements] Updated overview from TMDB")
         }
         if let poster = season.poster_path {
             posterURL = ImageService.shared.proxyImageURL(url: "https://image.tmdb.org/t/p/w500\(poster)")
-            print("✅ [fetchTMDBSeasonEnhancements] Updated poster from TMDB")
         }
     }
 
@@ -929,16 +888,12 @@ class TVDetailsViewModel: ObservableObject {
         await MainActor.run { self.episodesLoading = true }
         // Prefer Plex if mapped
         if let pid = playableId, pid.hasPrefix("plex:"), let showKey = pid.split(separator: ":").last.map(String.init) {
-            print("📺 [loadSeasonsAndEpisodes] Loading Plex seasons for showKey: \(showKey)")
             await loadPlexSeasons(showKey: showKey)
             if seasons.isEmpty {
-                print("⚠️ [loadSeasonsAndEpisodes] Plex seasons empty, but we have Plex mapping - NOT falling back to TMDB")
                 await MainActor.run { self.episodesLoading = false }
             } else {
-                print("✅ [loadSeasonsAndEpisodes] Loaded \(seasons.count) Plex season(s)")
             }
         } else {
-            print("📺 [loadSeasonsAndEpisodes] No Plex mapping, loading TMDB seasons")
             await loadTMDBSeasons()
         }
     }
@@ -951,10 +906,8 @@ class TVDetailsViewModel: ObservableObject {
                 let size: Int?
             }
             struct M: Codable { let ratingKey: String; let title: String }
-            print("📡 [loadPlexSeasons] Fetching Plex seasons for show: \(showKey)")
             let ch: MC = try await api.get("/api/plex/dir/library/metadata/\(showKey)/children")
             let ss = (ch.Metadata ?? []).map { Season(id: $0.ratingKey, title: $0.title, source: "plex") }
-            print("📺 [loadPlexSeasons] Found \(ss.count) season(s): \(ss.map { $0.title }.joined(separator: ", "))")
             await MainActor.run {
                 self.seasons = ss
                 self.selectedSeasonKey = ss.first?.id
@@ -971,13 +924,11 @@ class TVDetailsViewModel: ObservableObject {
                 }
             } catch {}
         } catch {
-            print("❌ [loadPlexSeasons] Failed: \(error)")
         }
     }
 
     private func loadPlexEpisodes(seasonKey: String?) async {
         guard let seasonKey = seasonKey else {
-            print("⚠️ [loadPlexEpisodes] No season key provided")
             return
         }
         do {
@@ -987,7 +938,6 @@ class TVDetailsViewModel: ObservableObject {
                 let size: Int?
             }
             struct ME: Codable { let ratingKey: String; let title: String; let summary: String?; let thumb: String?; let parentThumb: String?; let duration: Int?; let viewOffset: Int?; let viewCount: Int? }
-            print("📡 [loadPlexEpisodes] Fetching episodes for season: \(seasonKey)")
             let ch: MC = try await api.get("/api/plex/dir/library/metadata/\(seasonKey)/children?nocache=\(Date().timeIntervalSince1970)")
             let eps: [Episode] = (ch.Metadata ?? []).map { e in
                 let url = ImageService.shared.plexImageURL(path: e.thumb ?? e.parentThumb, width: 600, height: 338)
@@ -1016,13 +966,11 @@ class TVDetailsViewModel: ObservableObject {
                 }()
                 return Episode(id: "plex:\(e.ratingKey)", title: e.title, overview: e.summary, image: url, durationMin: dur, progressPct: pct, viewOffset: e.viewOffset)
             }
-            print("✅ [loadPlexEpisodes] Loaded \(eps.count) episode(s) with Plex IDs")
             await MainActor.run {
                 self.episodes = eps
                 self.episodesLoading = false
             }
         } catch {
-            print("❌ [loadPlexEpisodes] Failed: \(error)")
             await MainActor.run { self.episodesLoading = false }
         }
     }

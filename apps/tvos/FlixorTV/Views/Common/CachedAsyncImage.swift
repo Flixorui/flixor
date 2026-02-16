@@ -7,6 +7,7 @@
 
 import SwiftUI
 import UIKit
+import CryptoKit
 
 struct CachedAsyncImage<Placeholder: View>: View {
     let url: URL?
@@ -18,6 +19,7 @@ struct CachedAsyncImage<Placeholder: View>: View {
     @State private var image: UIImage?
     @State private var isLoading = false
     @State private var error: Error?
+    @State private var loadedURL: URL?
 
     init(
         url: URL?,
@@ -52,7 +54,7 @@ struct CachedAsyncImage<Placeholder: View>: View {
             }
         }
         .task(id: url) {
-            await loadImage(reset: true)
+            await loadImage()
         }
     }
 
@@ -67,37 +69,60 @@ struct CachedAsyncImage<Placeholder: View>: View {
         }
     }
 
-    private func loadImage(reset: Bool = false) async {
-        guard let url = url else { return }
-
-        if reset {
+    private func loadImage() async {
+        guard let url = url else {
             await MainActor.run {
                 self.image = nil
+                self.loadedURL = nil
                 self.error = nil
                 self.isLoading = false
             }
+            return
         }
 
-        if let cachedImage = ImageCache.shared.get(url: url) {
+        // Keep currently rendered image when task re-runs for same URL.
+        if loadedURL == url, image != nil {
+            return
+        }
+
+        if let cachedImage = await Task.detached(priority: .userInitiated, operation: {
+            ImageCache.shared.get(url: url)
+        }).value {
             await MainActor.run {
                 self.image = cachedImage
+                self.loadedURL = url
+                self.error = nil
+                self.isLoading = false
             }
             return
         }
 
         await MainActor.run {
+            // Only clear image if the URL changed and we don't have a cache hit.
+            if self.loadedURL != url {
+                self.image = nil
+                self.loadedURL = nil
+            }
+            self.error = nil
             self.isLoading = true
         }
 
         do {
-            let (data, _) = try await URLSession.shared.data(from: url)
-            guard let uiImage = UIImage(data: data) else {
-                throw URLError(.cannotDecodeContentData)
-            }
+            let data = try await ImageRequestCoordinator.shared.data(for: url)
+            let decodedImage = try await Task.detached(priority: .userInitiated) {
+                guard let uiImage = UIImage(data: data) else {
+                    throw URLError(.cannotDecodeContentData)
+                }
+                return uiImage
+            }.value
 
-            ImageCache.shared.set(image: uiImage, url: url)
+            await Task.detached(priority: .utility) {
+                ImageCache.shared.set(image: decodedImage, url: url, rawData: data)
+            }.value
+
             await MainActor.run {
-                self.image = uiImage
+                self.image = decodedImage
+                self.loadedURL = url
                 self.isLoading = false
             }
         } catch {
@@ -109,23 +134,30 @@ struct CachedAsyncImage<Placeholder: View>: View {
     }
 }
 
-final class ImageCache {
+final class ImageCache: @unchecked Sendable {
     static let shared = ImageCache()
 
     private var cache = NSCache<NSURL, UIImage>()
     private let fileManager = FileManager.default
-    private lazy var diskCacheURL: URL? = {
-        guard let cacheDir = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first else {
-            return nil
-        }
-        let url = cacheDir.appendingPathComponent("ImageCache", isDirectory: true)
-        try? fileManager.createDirectory(at: url, withIntermediateDirectories: true)
-        return url
-    }()
+    private let diskCacheURL: URL?
 
     private init() {
-        cache.countLimit = 100
-        cache.totalCostLimit = 100 * 1024 * 1024
+        cache.countLimit = 400
+        cache.totalCostLimit = 300 * 1024 * 1024
+
+        if let cacheDir = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first {
+            let url = cacheDir.appendingPathComponent("ImageCache", isDirectory: true)
+            try? fileManager.createDirectory(at: url, withIntermediateDirectories: true)
+            diskCacheURL = url
+        } else {
+            diskCacheURL = nil
+        }
+    }
+
+    /// Hash URL to a fixed-length, filesystem-safe filename.
+    private func cacheFilename(for url: URL) -> String {
+        let digest = SHA256.hash(data: Data(url.absoluteString.utf8))
+        return digest.map { String(format: "%02x", $0) }.joined()
     }
 
     func get(url: URL) -> UIImage? {
@@ -142,10 +174,15 @@ final class ImageCache {
     }
 
     func set(image: UIImage, url: URL) {
-        cache.setObject(image, forKey: url as NSURL)
+        set(image: image, url: url, rawData: nil)
+    }
+
+    func set(image: UIImage, url: URL, rawData: Data?) {
+        let cost = Int(image.size.width * image.size.height * image.scale * image.scale * 4)
+        cache.setObject(image, forKey: url as NSURL, cost: cost)
 
         Task.detached {
-            await self.setDiskImage(image, url: url)
+            await self.setDiskImage(image, url: url, rawData: rawData)
         }
     }
 
@@ -161,23 +198,56 @@ final class ImageCache {
     private func getDiskImage(url: URL) -> UIImage? {
         guard let diskCacheURL = diskCacheURL else { return nil }
 
-        let filename = url.absoluteString.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? UUID().uuidString
+        let filename = cacheFilename(for: url)
         let fileURL = diskCacheURL.appendingPathComponent(filename)
 
-        guard let data = try? Data(contentsOf: fileURL) else { return nil }
+        guard let data = try? Data(contentsOf: fileURL, options: [.mappedIfSafe]) else { return nil }
         return UIImage(data: data)
     }
 
-    private func setDiskImage(_ image: UIImage, url: URL) async {
+    private func setDiskImage(_ image: UIImage, url: URL, rawData: Data?) async {
         guard let diskCacheURL = diskCacheURL else { return }
 
-        let data = image.pngData() ?? image.jpegData(compressionQuality: 0.9)
+        let data = rawData ?? image.jpegData(compressionQuality: 0.85)
         guard let data = data else { return }
 
-        let filename = url.absoluteString.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? UUID().uuidString
+        let filename = cacheFilename(for: url)
         let fileURL = diskCacheURL.appendingPathComponent(filename)
 
         try? data.write(to: fileURL)
+    }
+}
+
+actor ImageRequestCoordinator {
+    static let shared = ImageRequestCoordinator()
+
+    private var inFlight: [URL: Task<Data, Error>] = [:]
+    private let session: URLSession
+
+    init() {
+        let config = URLSessionConfiguration.default
+        config.requestCachePolicy = .returnCacheDataElseLoad
+        config.urlCache = URLCache(
+            memoryCapacity: 128 * 1024 * 1024,
+            diskCapacity: 512 * 1024 * 1024
+        )
+        config.timeoutIntervalForRequest = 30
+        config.timeoutIntervalForResource = 60
+        self.session = URLSession(configuration: config)
+    }
+
+    func data(for url: URL) async throws -> Data {
+        if let task = inFlight[url] {
+            return try await task.value
+        }
+
+        let task = Task<Data, Error> {
+            let (data, _) = try await session.data(from: url)
+            return data
+        }
+        inFlight[url] = task
+        defer { inFlight[url] = nil }
+        return try await task.value
     }
 }
 

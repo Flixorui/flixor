@@ -23,6 +23,11 @@ final class TVHomeViewModel: ObservableObject {
     @Published var billboardUltraBlurColors: UltraBlurColors?
 
     private var loadTask: Task<Void, Never>?
+    private var additionalSectionsTask: Task<Void, Never>?
+    private var logoEnrichmentTask: Task<Void, Never>?
+    private var ultraBlurTask: Task<Void, Never>?
+    private var ultraBlurColorCache: [String: UltraBlurColors] = [:]
+    private var hasLoadedOnce = false
 
     // Default colors for row sections
     static let defaultRowColors = UltraBlurColors(
@@ -32,74 +37,105 @@ final class TVHomeViewModel: ObservableObject {
         bottomLeft: "4d1e1a"
     )
 
+    func loadIfNeeded() async {
+        if hasLoadedOnce,
+           (!continueWatching.isEmpty || !onDeck.isEmpty || !recentlyAdded.isEmpty || !additionalSections.isEmpty) {
+            return
+        }
+        await load()
+    }
+
     func load() async {
-        // Prevent duplicate loads
-        if loadTask != nil {
-            print("⚠️ [TVHome] Already loading, skipping")
+        // Prevent duplicate loads and await the in-flight refresh.
+        if let inFlight = loadTask {
+            await inFlight.value
             return
         }
 
-        loadTask = Task {}
+        additionalSectionsTask?.cancel()
+        logoEnrichmentTask?.cancel()
+
         isLoading = true
         error = nil
-        print("🏠 [TVHome] Starting home screen load...")
 
-        // Fire parallel tasks for each section
-        Task {
-            do {
-                let items = try await fetchContinueWatching()
-                await MainActor.run {
-                    self.continueWatching = Array(items.prefix(12))
-                    if self.billboardItems.isEmpty && !items.isEmpty {
-                        self.billboardItems = Array(items.prefix(5))
-                    }
-                }
-            } catch {
-                print("⚠️ [TVHome] Continue watching failed: \(error)")
-            }
+        let task = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.performLoad()
         }
-
-        Task {
-            do {
-                let items = try await fetchOnDeck()
-                await MainActor.run {
-                    self.onDeck = Array(items.prefix(12))
-                    if self.billboardItems.isEmpty && !items.isEmpty {
-                        self.billboardItems = Array(items.prefix(5))
-                    }
-                }
-            } catch {
-                print("⚠️ [TVHome] On deck failed: \(error)")
-            }
-        }
-
-        Task {
-            do {
-                let items = try await fetchRecentlyAdded()
-                await MainActor.run {
-                    self.recentlyAdded = Array(items.prefix(12))
-                    if self.billboardItems.isEmpty && !items.isEmpty {
-                        self.billboardItems = Array(items.prefix(5))
-                    }
-                }
-            } catch {
-                print("⚠️ [TVHome] Recently added failed: \(error)")
-            }
-        }
-
-        // Load additional sections (TMDB, Plex.tv watchlist)
-        Task {
-            await loadAdditionalSections()
-        }
-
-        // Wait a bit for initial data then mark done loading
-        try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
-        isLoading = false
-        loadTask = nil
-        print("✅ [TVHome] Home screen load complete")
+        loadTask = task
+        await task.value
     }
 
-    private func loadAdditionalSections() async {
+    private func performLoad() async {
+        defer {
+            isLoading = false
+            loadTask = nil
+        }
+
+        async let continueWatchingResult = fetchContinueWatchingSafe()
+        async let onDeckResult = fetchOnDeckSafe()
+        async let recentlyAddedResult = fetchRecentlyAddedSafe()
+
+        let (continueItems, onDeckItems, recentlyAddedItems) = await (
+            continueWatchingResult,
+            onDeckResult,
+            recentlyAddedResult
+        )
+
+        continueWatching = Array(continueItems.prefix(12))
+        onDeck = Array(onDeckItems.prefix(12))
+        recentlyAdded = Array(recentlyAddedItems.prefix(12))
+
+        if billboardItems.isEmpty {
+            if !continueItems.isEmpty {
+                billboardItems = Array(continueItems.prefix(5))
+            } else if !onDeckItems.isEmpty {
+                billboardItems = Array(onDeckItems.prefix(5))
+            } else if !recentlyAddedItems.isEmpty {
+                billboardItems = Array(recentlyAddedItems.prefix(5))
+            }
+        }
+
+        hasLoadedOnce = true
+        scheduleDeferredLogoEnrichment()
+
+        additionalSectionsTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            let sections = await self.fetchAdditionalSections()
+            guard !Task.isCancelled else { return }
+            self.additionalSections = sections
+            if self.billboardItems.isEmpty,
+               let firstNonEmpty = sections.first(where: { !$0.items.isEmpty }) {
+                self.billboardItems = Array(firstNonEmpty.items.prefix(3))
+            }
+        }
+    }
+
+    private func fetchContinueWatchingSafe() async -> [MediaItem] {
+        do {
+            return try await fetchContinueWatching()
+        } catch {
+            return []
+        }
+    }
+
+    private func fetchOnDeckSafe() async -> [MediaItem] {
+        do {
+            return try await fetchOnDeck()
+        } catch {
+            return []
+        }
+    }
+
+    private func fetchRecentlyAddedSafe() async -> [MediaItem] {
+        do {
+            return try await fetchRecentlyAdded()
+        } catch {
+            return []
+        }
+    }
+
+    private func fetchAdditionalSections() async -> [HomeSection] {
         var sections: [HomeSection] = []
 
         // TMDB sections
@@ -111,61 +147,38 @@ final class TVHomeViewModel: ObservableObject {
         do {
             let genreSections = try await fetchGenreSections()
             sections.append(contentsOf: genreSections)
-        } catch {
-            print("⚠️ [TVHome] Genre sections failed: \(error)")
-        }
+        } catch {}
 
         // Trakt sections
         do {
             let traktSections = try await fetchTraktSections()
             sections.append(contentsOf: traktSections)
-        } catch {
-            print("⚠️ [TVHome] Trakt sections failed: \(error)")
-        }
+        } catch {}
 
-        await MainActor.run {
-            self.additionalSections = sections
-
-            // If main sections are empty, use fallbacks for billboard
-            if billboardItems.isEmpty && !sections.isEmpty {
-                if let firstNonEmpty = sections.first(where: { !$0.items.isEmpty }) {
-                    self.billboardItems = Array(firstNonEmpty.items.prefix(3))
-                }
-            }
-        }
+        return sections
     }
 
     // MARK: - Fetch Methods
 
     private func fetchContinueWatching() async throws -> [MediaItem] {
-        print("📦 [TVHome] Fetching continue watching...")
         let items = try await APIClient.shared.getPlexContinueList()
-        print("✅ [TVHome] Received \(items.count) continue watching items")
-        let baseItems = items.map { $0.toMediaItem() }
-        return await enrichPlexItemsWithLogos(baseItems)
+        return items.map { $0.toMediaItem() }
     }
 
     private func fetchOnDeck() async throws -> [MediaItem] {
-        print("📦 [TVHome] Fetching on deck...")
         let items = try await APIClient.shared.getPlexOnDeckList()
-        print("✅ [TVHome] Received \(items.count) on deck items")
-        let baseItems = items.map { $0.toMediaItem() }
-        return await enrichPlexItemsWithLogos(baseItems)
+        return items.map { $0.toMediaItem() }
     }
 
     private func fetchRecentlyAdded() async throws -> [MediaItem] {
-        print("📦 [TVHome] Fetching recently added...")
         let items = try await APIClient.shared.getPlexRecentList()
-        print("✅ [TVHome] Received \(items.count) recently added items")
-        let baseItems = items.map { $0.toMediaItem() }
-        return await enrichPlexItemsWithLogos(baseItems)
+        return items.map { $0.toMediaItem() }
     }
 
     // MARK: - Additional Sections
 
     private func fetchTMDBTrendingSection() async -> HomeSection? {
         do {
-            print("📦 [TVHome] Fetching TMDB trending TV...")
             let response = try await APIClient.shared.getTMDBTrending(mediaType: "tv", timeWindow: "week")
 
             // Fetch items with logos
@@ -190,17 +203,12 @@ final class TVHomeViewModel: ObservableObject {
                 for await maybe in group { if let m = maybe { items.append(m) } }
             }
 
-            print("✅ [TVHome] TMDB trending: \(items.count) items")
             return HomeSection(id: "tmdb-trending", title: "Trending Now", items: items)
-        } catch {
-            print("⚠️ [TVHome] TMDB trending failed: \(error)")
-            return nil
-        }
+        } catch { return nil }
     }
 
     private func fetchTMDBPopularMoviesSection() async -> HomeSection? {
         do {
-            print("📦 [TVHome] Fetching TMDB trending movies...")
             let response = try await APIClient.shared.getTMDBTrending(mediaType: "movie", timeWindow: "week")
 
             // Fetch items with logos
@@ -225,117 +233,125 @@ final class TVHomeViewModel: ObservableObject {
                 for await maybe in group { if let m = maybe { items.append(m) } }
             }
 
-            print("✅ [TVHome] TMDB popular movies: \(items.count) items")
             return HomeSection(id: "tmdb-popular-movies", title: "Popular on Plex", items: items)
-        } catch {
-            print("⚠️ [TVHome] TMDB popular movies failed: \(error)")
-            return nil
-        }
+        } catch { return nil }
     }
 
     private func fetchPlexWatchlistSection() async -> HomeSection? {
         do {
-            print("📦 [TVHome] Fetching Plex.tv watchlist...")
             let envelope = try await APIClient.shared.getPlexTvWatchlist()
             let metadata = envelope.MediaContainer.Metadata ?? []
 
-            // Fetch items with logos using task group
-            var items: [MediaItem] = []
-            await withTaskGroup(of: MediaItem?.self) { group in
-                for m in metadata.prefix(20) {
-                    group.addTask {
-                        let baseItem = m.toMediaItem()
-
-                        // Use pre-enriched tmdbGuid if available, otherwise resolve from Plex metadata
-                        var outId = baseItem.id
-                        var logo: String? = nil
-
-                        if let tmdbGuid = m.tmdbGuid {
-                            // Already formatted as "tmdb:movie:123" or "tmdb:tv:456"
-                            outId = tmdbGuid
-                            print("✅ [TVHome] Using mapped TMDB ID for \(m.title): \(tmdbGuid)")
-
-                            // Extract TMDB ID and media type from tmdbGuid
-                            if let (mediaType, tmdbId) = self.extractTMDBInfoFromGuid(tmdbGuid) {
-                                logo = try? await self.fetchTMDBLogo(mediaType: mediaType, id: tmdbId)
-                                print("🎨 [TVHome] Fetched logo for \(m.title): \(logo != nil ? "✅" : "❌")")
-                            }
-                        } else {
-                            print("⚠️ [TVHome] No TMDB ID available for \(m.title), using Plex enrichment")
-                            // Try to fetch logo via Plex metadata path
-                            logo = try? await self.resolveTMDBLogoForPlexItem(baseItem)
-                        }
-
-                        // Create MediaItem with logo
-                        return MediaItem(
-                            id: outId,
-                            title: baseItem.title,
-                            type: baseItem.type,
-                            thumb: baseItem.thumb,
-                            art: baseItem.art,
-                            logo: logo,
-                            year: baseItem.year,
-                            rating: baseItem.rating,
-                            duration: baseItem.duration,
-                            viewOffset: baseItem.viewOffset,
-                            summary: baseItem.summary,
-                            grandparentTitle: baseItem.grandparentTitle,
-                            grandparentThumb: baseItem.grandparentThumb,
-                            grandparentArt: baseItem.grandparentArt,
-                            parentIndex: baseItem.parentIndex,
-                            index: baseItem.index,
-                            parentRatingKey: baseItem.parentRatingKey,
-                            parentTitle: baseItem.parentTitle,
-                            leafCount: baseItem.leafCount,
-                            viewedLeafCount: baseItem.viewedLeafCount
-                        )
-                    }
-                }
-                for await maybe in group { if let m = maybe { items.append(m) } }
+            let items: [MediaItem] = metadata.prefix(12).map { m in
+                let baseItem = m.toMediaItem()
+                let outId = m.tmdbGuid ?? baseItem.id
+                return copy(baseItem, id: outId)
             }
-
-            print("✅ [TVHome] Plex.tv watchlist: \(items.count) items with logos enriched")
             if items.isEmpty { return nil }
             return HomeSection(id: "plex-watchlist", title: "My List", items: Array(items.prefix(12)))
-        } catch {
-            print("⚠️ [TVHome] Plex.tv watchlist failed: \(error)")
-            return nil
+        } catch { return nil }
+    }
+
+    private func scheduleDeferredLogoEnrichment() {
+        logoEnrichmentTask?.cancel()
+        let continueSnapshot = continueWatching
+        let onDeckSnapshot = onDeck
+        let recentSnapshot = recentlyAdded
+
+        logoEnrichmentTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            async let continueTask = self.enrichVisibleLogos(in: continueSnapshot, eagerCount: 5)
+            async let onDeckTask = self.enrichVisibleLogos(in: onDeckSnapshot, eagerCount: 5)
+            async let recentTask = self.enrichVisibleLogos(in: recentSnapshot, eagerCount: 5)
+            let (enrichedContinue, enrichedOnDeck, enrichedRecent) = await (continueTask, onDeckTask, recentTask)
+            guard !Task.isCancelled else { return }
+            continueWatching = enrichedContinue
+            onDeck = enrichedOnDeck
+            recentlyAdded = enrichedRecent
+
+            if let currentBillboard = billboardItems.first {
+                if let fromContinue = enrichedContinue.first(where: { $0.id == currentBillboard.id }) {
+                    billboardItems[0] = fromContinue
+                } else if let fromOnDeck = enrichedOnDeck.first(where: { $0.id == currentBillboard.id }) {
+                    billboardItems[0] = fromOnDeck
+                } else if let fromRecent = enrichedRecent.first(where: { $0.id == currentBillboard.id }) {
+                    billboardItems[0] = fromRecent
+                }
+            }
         }
     }
 
-    // Helper to extract media type and TMDB ID from "tmdb:movie:123" or "tmdb:tv:456" format
-    nonisolated private func extractTMDBInfoFromGuid(_ guid: String) -> (mediaType: String, tmdbId: Int)? {
-        let components = guid.split(separator: ":")
-        guard components.count == 3,
-              components[0] == "tmdb",
-              let tmdbId = Int(components[2]) else {
-            return nil
+    private func enrichVisibleLogos(in items: [MediaItem], eagerCount: Int) async -> [MediaItem] {
+        guard !items.isEmpty else { return items }
+        let limit = min(eagerCount, items.count)
+        var updated = items
+
+        await withTaskGroup(of: (Int, String?).self) { group in
+            for idx in 0..<limit {
+                let item = items[idx]
+                guard item.logo == nil else { continue }
+                group.addTask {
+                    let logo = try? await self.resolveTMDBLogoForPlexItem(item)
+                    return (idx, logo)
+                }
+            }
+
+            for await (idx, logo) in group {
+                guard let logo else { continue }
+                updated[idx] = copy(updated[idx], logo: logo)
+            }
         }
-        let mediaType = String(components[1]) // "movie" or "tv"
-        return (mediaType, tmdbId)
+
+        return updated
+    }
+
+    private func copy(_ item: MediaItem, id: String? = nil, logo: String? = nil) -> MediaItem {
+        MediaItem(
+            id: id ?? item.id,
+            title: item.title,
+            type: item.type,
+            thumb: item.thumb,
+            art: item.art,
+            logo: logo ?? item.logo,
+            year: item.year,
+            rating: item.rating,
+            duration: item.duration,
+            viewOffset: item.viewOffset,
+            summary: item.summary,
+            grandparentTitle: item.grandparentTitle,
+            grandparentThumb: item.grandparentThumb,
+            grandparentArt: item.grandparentArt,
+            parentIndex: item.parentIndex,
+            index: item.index,
+            parentRatingKey: item.parentRatingKey,
+            parentTitle: item.parentTitle,
+            leafCount: item.leafCount,
+            viewedLeafCount: item.viewedLeafCount
+        )
     }
 
     // MARK: - UltraBlur Colors
 
     func fetchUltraBlurColors(for item: MediaItem) async {
+        if let cached = ultraBlurColorCache[item.id] {
+            billboardUltraBlurColors = cached
+            return
+        }
+
         let resolvedURL = ImageService.shared.continueWatchingURL(for: item, width: 1920, height: 1080)?.absoluteString
             ?? ImageService.shared.artURL(for: item, width: 1920, height: 1080)?.absoluteString
             ?? ImageService.shared.thumbURL(for: item, width: 1920, height: 1080)?.absoluteString
 
-        guard let resolvedURL else {
-            print("⚠️ [TVHome] No art URL for ultrablur colors")
-            return
-        }
-
-        do {
-            print("🎨 [TVHome] Fetching ultrablur colors for: \(resolvedURL)")
-            let colors = try await APIClient.shared.getUltraBlurColors(imageUrl: resolvedURL)
-            await MainActor.run {
-                self.billboardUltraBlurColors = colors
+        guard let resolvedURL else { return }
+        ultraBlurTask?.cancel()
+        ultraBlurTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            guard !Task.isCancelled else { return }
+            if let colors = try? await APIClient.shared.getUltraBlurColors(imageUrl: resolvedURL) {
+                guard !Task.isCancelled else { return }
+                ultraBlurColorCache[item.id] = colors
+                billboardUltraBlurColors = colors
             }
-            print("✅ [TVHome] UltraBlur colors fetched: TL=\(colors.topLeft) TR=\(colors.topRight)")
-        } catch {
-            print("⚠️ [TVHome] Failed to fetch ultrablur colors: \(error)")
         }
     }
 
@@ -363,7 +379,6 @@ final class TVHomeViewModel: ObservableObject {
             ("Movies - Animation", "movie", "Animation"),
         ]
 
-        print("📦 [TVHome] Fetching libraries for genre rows...")
         let libraries = try await APIClient.shared.getPlexLibraries()
         let movieLib = libraries.first { $0.type == "movie" }
         let showLib = libraries.first { $0.type == "show" }
@@ -400,9 +415,7 @@ final class TVHomeViewModel: ObservableObject {
                         items: Array(items.prefix(12))
                     ))
                 }
-            } catch {
-                print("⚠️ [TVHome] Genre fetch failed for \(spec.label): \(error)")
-            }
+            } catch {}
         }
         return out
     }
@@ -422,7 +435,7 @@ final class TVHomeViewModel: ObservableObject {
                     items: items
                 ))
             }
-        } catch { print("⚠️ [TVHome] Trakt trending movies failed: \(error)") }
+        } catch {}
 
         // Trending TV Shows
         do {
@@ -434,7 +447,7 @@ final class TVHomeViewModel: ObservableObject {
                     items: items
                 ))
             }
-        } catch { print("⚠️ [TVHome] Trakt trending shows failed: \(error)") }
+        } catch {}
 
         // Your Trakt Watchlist
         if let wl = try? await fetchTraktWatchlist() {
@@ -479,7 +492,7 @@ final class TVHomeViewModel: ObservableObject {
                     items: items
                 ))
             }
-        } catch { print("⚠️ [TVHome] Trakt popular shows failed: \(error)") }
+        } catch {}
 
         return sections
     }
@@ -608,60 +621,10 @@ final class TVHomeViewModel: ObservableObject {
         return nil
     }
 
-    // MARK: - Plex Item Logo Enrichment
-
-    private func enrichPlexItemsWithLogos(_ items: [MediaItem]) async -> [MediaItem] {
-        print("🎨 [TVHome] Enriching \(items.count) Plex items with TMDB logos...")
-
-        return await withTaskGroup(of: (Int, MediaItem).self) { group in
-            for (index, item) in items.enumerated() {
-                group.addTask {
-                    if let logoURL = try? await self.resolveTMDBLogoForPlexItem(item) {
-                        // Create new MediaItem with logo
-                        let enriched = MediaItem(
-                            id: item.id,
-                            title: item.title,
-                            type: item.type,
-                            thumb: item.thumb,
-                            art: item.art,
-                            logo: logoURL,
-                            year: item.year,
-                            rating: item.rating,
-                            duration: item.duration,
-                            viewOffset: item.viewOffset,
-                            summary: item.summary,
-                            grandparentTitle: item.grandparentTitle,
-                            grandparentThumb: item.grandparentThumb,
-                            grandparentArt: item.grandparentArt,
-                            parentIndex: item.parentIndex,
-                            index: item.index,
-                            parentRatingKey: item.parentRatingKey,
-                            parentTitle: item.parentTitle,
-                            leafCount: item.leafCount,
-                            viewedLeafCount: item.viewedLeafCount
-                        )
-                        return (index, enriched)
-                    }
-                    // Return original item if logo fetch fails
-                    return (index, item)
-                }
-            }
-
-            // Collect results and maintain order
-            var enrichedItems: [(Int, MediaItem)] = []
-            for await result in group {
-                enrichedItems.append(result)
-            }
-
-            // Sort by original index and return just the items
-            let sorted = enrichedItems.sorted { $0.0 < $1.0 }.map { $0.1 }
-            print("✅ [TVHome] Enriched \(sorted.count) items with TMDB logos")
-            return sorted
-        }
-    }
-
     private func resolveTMDBLogoForPlexItem(_ item: MediaItem) async throws -> String? {
-        print("🔍 [TVHome] Resolving TMDB logo for: \(item.title) (id: \(item.id), type: \(item.type))")
+        if item.id.hasPrefix("tmdb:") || item.id.hasPrefix("trakt:") {
+            return nil
+        }
 
         // Extract rating key from plex: prefix or use raw ID
         let normalizedId: String
@@ -681,26 +644,22 @@ final class TVHomeViewModel: ObservableObject {
 
             // For seasons, fetch the parent show's logo instead
             if fullItem.type == "season", let parentRatingKey = fullItem.parentRatingKey {
-                print("📺 [TVHome] Season detected, fetching parent show logo (parentKey: \(parentRatingKey))")
                 let showItem: MediaItemFull = try await APIClient.shared.get("/api/plex/metadata/\(parentRatingKey)")
 
                 // Extract TMDB ID from parent show's Guid array
                 if let tmdbId = extractTMDBIdFromGuidArray(showItem.Guid) ?? extractTMDBIdFromString(showItem.guid) {
                     let logo = try await fetchTMDBLogo(mediaType: "tv", id: tmdbId)
-                    print("✅ [TVHome] TMDB logo resolved for season \(item.title) from parent show: \(logo ?? "nil")")
                     return logo
                 }
             }
 
             // For TV episodes, fetch the parent series metadata instead
             if fullItem.type == "episode", let grandparentRatingKey = fullItem.grandparentRatingKey {
-                print("📺 [TVHome] Episode detected, fetching parent series metadata for \(item.title)")
                 let seriesItem: MediaItemFull = try await APIClient.shared.get("/api/plex/metadata/\(grandparentRatingKey)")
 
                 // Extract TMDB ID from series Guid array
                 if let tmdbId = extractTMDBIdFromGuidArray(seriesItem.Guid) ?? extractTMDBIdFromString(seriesItem.guid) {
                     let logo = try await fetchTMDBLogo(mediaType: "tv", id: tmdbId)
-                    print("✅ [TVHome] TMDB logo resolved for \(item.title) from series: \(logo ?? "nil")")
                     return logo
                 }
             }
@@ -709,14 +668,9 @@ final class TVHomeViewModel: ObservableObject {
             if let tmdbId = extractTMDBIdFromGuidArray(fullItem.Guid) ?? extractTMDBIdFromString(fullItem.guid) {
                 let mediaType = (fullItem.type == "movie") ? "movie" : "tv"
                 let logo = try await fetchTMDBLogo(mediaType: mediaType, id: tmdbId)
-                print("✅ [TVHome] TMDB logo resolved for \(item.title): \(logo ?? "nil")")
                 return logo
             }
-
-            print("⚠️ [TVHome] No TMDB ID found for \(item.title)")
-        } catch {
-            print("❌ [TVHome] Failed to fetch metadata for \(item.title): \(error)")
-        }
+        } catch {}
 
         return nil
     }

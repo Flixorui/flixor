@@ -8,54 +8,49 @@ struct UltraBlurGradientBackground: View {
     init(colors: UltraBlurColors, opacity: Double = 0.85) {
         self.colors = colors
         self.opacity = opacity
-        print("🌈 [UltraBlur] Initialized with TL=\(colors.topLeft) TR=\(colors.topRight)")
     }
 
     var body: some View {
         ZStack {
-            // Create 4-corner gradient using layered approach
-            GeometryReader { geometry in
-                ZStack {
-                    // Horizontal gradient (top)
-                    LinearGradient(
-                        stops: [
-                            .init(color: hexToColor(colors.topLeft), location: 0.0),
-                            .init(color: hexToColor(colors.topRight), location: 1.0)
-                        ],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                    .frame(height: geometry.size.height / 2)
-                    .frame(maxHeight: .infinity, alignment: .top)
+            // Top half gradient
+            LinearGradient(
+                stops: [
+                    .init(color: hexToColor(colors.topLeft), location: 0.0),
+                    .init(color: hexToColor(colors.topRight), location: 1.0)
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+            .frame(maxHeight: .infinity, alignment: .top)
 
-                    // Horizontal gradient (bottom)
-                    LinearGradient(
-                        stops: [
-                            .init(color: hexToColor(colors.bottomLeft), location: 0.0),
-                            .init(color: hexToColor(colors.bottomRight), location: 1.0)
-                        ],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                    .frame(height: geometry.size.height / 2)
-                    .frame(maxHeight: .infinity, alignment: .bottom)
-
-                    // Vertical gradient overlay to blend top and bottom
-                    LinearGradient(
-                        stops: [
-                            .init(color: hexToColor(colors.topLeft).opacity(0.6), location: 0.0),
-                            .init(color: Color.clear, location: 0.5),
-                            .init(color: hexToColor(colors.bottomLeft).opacity(0.6), location: 1.0)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .blendMode(.normal)
-                }
+            // Bottom half gradient
+            VStack(spacing: 0) {
+                Color.clear
+                LinearGradient(
+                    stops: [
+                        .init(color: hexToColor(colors.bottomLeft), location: 0.0),
+                        .init(color: hexToColor(colors.bottomRight), location: 1.0)
+                    ],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
             }
+
+            // Vertical blend overlay
+            LinearGradient(
+                stops: [
+                    .init(color: hexToColor(colors.topLeft).opacity(0.6), location: 0.0),
+                    .init(color: Color.clear, location: 0.5),
+                    .init(color: hexToColor(colors.bottomLeft).opacity(0.6), location: 1.0)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
         }
+        .compositingGroup()
         .opacity(opacity)
         .blur(radius: 120)
+        .drawingGroup()
         .ignoresSafeArea()
     }
 

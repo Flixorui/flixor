@@ -92,7 +92,6 @@ struct TVLibraryFilterBar: View {
                 genres: viewModel.genres,
                 selected: viewModel.selectedGenre,
                 onSelect: { genre in
-                    print("🎬 [FilterBar] Genre selected in sheet: \(genre?.label ?? "All")")
                     viewModel.updateGenre(genre)
                     showGenrePicker = false
                 }
@@ -262,7 +261,6 @@ private struct GenrePickerSheet: View {
             List {
                 // "All" option
                 Button {
-                    print("🔘 [GenrePicker] 'All Genres' button tapped")
                     onSelect(nil)
                 } label: {
                     HStack {
@@ -280,7 +278,6 @@ private struct GenrePickerSheet: View {
                 // Genre options
                 ForEach(genres) { genre in
                     Button {
-                        print("🔘 [GenrePicker] '\(genre.label)' button tapped")
                         onSelect(genre)
                     } label: {
                         HStack {

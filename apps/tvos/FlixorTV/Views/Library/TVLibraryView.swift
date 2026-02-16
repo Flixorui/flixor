@@ -11,7 +11,7 @@ import FlixorKit
 struct TVLibraryView: View {
     let preferredKind: TVLibraryViewModel.LibrarySectionSummary.Kind?
 
-    @StateObject private var viewModel = TVLibraryViewModel()
+    @ObservedObject private var viewModel: TVLibraryViewModel
     @Namespace private var contentNS
     @State private var selectedItem: MediaItem?
     @FocusState private var focusedID: String?
@@ -19,8 +19,12 @@ struct TVLibraryView: View {
 
     private let gridColumns = Array(repeating: GridItem(.flexible(), spacing: UX.itemSpacing), count: 5)
 
-    init(preferredKind: TVLibraryViewModel.LibrarySectionSummary.Kind? = nil) {
+    init(
+        preferredKind: TVLibraryViewModel.LibrarySectionSummary.Kind? = nil,
+        viewModel: TVLibraryViewModel
+    ) {
         self.preferredKind = preferredKind
+        self._viewModel = ObservedObject(wrappedValue: viewModel)
     }
 
     var body: some View {
@@ -51,31 +55,23 @@ struct TVLibraryView: View {
 
             // If no item is focused, do nothing
             guard let focusedID = newFocusedID else {
-                print("🎯 [Library] Focus cleared")
                 return
             }
 
             // Find the focused item
             guard let focusedEntry = viewModel.visibleItems.first(where: { $0.id == focusedID }) else {
-                print("⚠️ [Library] Focused item not found: \(focusedID)")
                 return
             }
 
-            print("🎯 [Library] Focus changed to: \(focusedEntry.media.title) - starting 2s timer")
-
-            // Start a new 2-second debounce task
+            // Start a short debounce task to avoid recoloring during fast focus movement.
             focusDebounceTask = Task {
-                do {
-                    try await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
-
-                    // If we weren't cancelled, fetch the colors
-                    print("✅ [Library] 2s elapsed - fetching colors for: \(focusedEntry.media.title)")
-                    await viewModel.fetchUltraBlurColors(for: focusedEntry.media)
-                } catch {
-                    // Task was cancelled (user moved to another item)
-                    print("❌ [Library] Timer cancelled - user moved before 2s")
-                }
+                try? await Task.sleep(nanoseconds: 350_000_000)
+                guard !Task.isCancelled else { return }
+                await viewModel.fetchUltraBlurColors(for: focusedEntry.media)
             }
+        }
+        .onDisappear {
+            focusDebounceTask?.cancel()
         }
     }
 
@@ -129,18 +125,19 @@ struct TVLibraryView: View {
         ScrollView {
             LazyVGrid(columns: gridColumns, spacing: UX.railV) {
                 ForEach(viewModel.visibleItems) { entry in
-                    TVPosterCard(item: entry.media, isFocused: focusedID == entry.id)
+                    let isFocused = focusedID == entry.id
+                    TVPosterCard(item: entry.media, isFocused: isFocused)
                         .frame(width: UX.posterWidth, height: UX.posterHeight)
                         .id(entry.id)
                         .focusable(true)
                         .focused($focusedID, equals: entry.id)
-                        .scaleEffect(focusedID == entry.id ? UX.focusScale : 1.0)
+                        .scaleEffect(isFocused ? UX.focusScale : 1.0)
                         .shadow(
-                            color: .black.opacity(focusedID == entry.id ? 0.4 : 0.2),
-                            radius: focusedID == entry.id ? 16 : 8,
-                            y: focusedID == entry.id ? 8 : 4
+                            color: .black.opacity(isFocused ? 0.4 : 0.2),
+                            radius: isFocused ? 16 : 8,
+                            y: isFocused ? 8 : 4
                         )
-                        .animation(.easeOut(duration: UX.focusDur), value: focusedID == entry.id)
+                        .animation(.easeOut(duration: UX.focusDur), value: focusedID)
                         .onTapGesture {
                             selectedItem = entry.media
                         }

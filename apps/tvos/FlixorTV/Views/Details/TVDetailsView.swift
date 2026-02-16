@@ -16,6 +16,8 @@ struct TVDetailsView: View {
     // Collapse state
     @State private var isCollapsed: Bool = false
     @State private var requestExpand: Bool = false
+    @State private var heroExpandTask: Task<Void, Never>?
+    @State private var tabScrollTask: Task<Void, Never>?
 
     // Hero button focus
     enum HeroButton: Hashable { case play, trailer, add }
@@ -274,16 +276,8 @@ struct TVDetailsView: View {
         .onChange(of: vm.mediaKind) { _ in
             if vm.mediaKind == "tv" || vm.isSeason { activeTab = .episodes } else { activeTab = .suggested }
         }
-        .onChange(of: vm.ultraBlurColors) { colors in
-            if let colors = colors {
-                print("🎨 [TVDetails] UltraBlur colors updated: TL=\(colors.topLeft) TR=\(colors.topRight) BL=\(colors.bottomLeft) BR=\(colors.bottomRight)")
-            } else {
-                print("🎨 [TVDetails] UltraBlur colors cleared")
-            }
-        }
         .onChange(of: tabsHaveFocus) { hasFocus in
             if hasFocus && !isCollapsed && focusedHeroButton == nil {
-                print("🎯 [TVDetails] Tabs gained focus - collapsing hero")
                 withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) {
                     isCollapsed = true
                 }
@@ -292,7 +286,6 @@ struct TVDetailsView: View {
         .onChange(of: focusedHeroButton) { button in
             if button != nil && isCollapsed {
                 // If hero button gains focus while collapsed, expand automatically
-                print("🎯 [TVDetails] Hero button focused while collapsed - expanding")
                 withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) {
                     isCollapsed = false
                 }
@@ -300,30 +293,28 @@ struct TVDetailsView: View {
         }
         .onChange(of: requestExpand) { shouldExpand in
             if shouldExpand && isCollapsed {
-                print("🎯 [TVDetails] Expand requested - expanding hero")
-                // Cancel any ongoing animations by immediately setting state
+                heroExpandTask?.cancel()
                 withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) {
                     isCollapsed = false
                 }
-                // Auto-focus first hero button after expansion animation
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+
+                heroExpandTask = Task {
+                    try? await Task.sleep(nanoseconds: 300_000_000)
+                    guard !Task.isCancelled else { return }
                     focusedHeroButton = .play
-                }
-                // Reset scroll position
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+
+                    try? await Task.sleep(nanoseconds: 100_000_000)
+                    guard !Task.isCancelled else { return }
                     scrollProxy?.scrollTo("content-\(activeTab.rawValue.lowercased())", anchor: .top)
-                }
-                // Reset request flag
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+
+                    try? await Task.sleep(nanoseconds: 500_000_000)
+                    guard !Task.isCancelled else { return }
                     requestExpand = false
                 }
             } else if shouldExpand && !isCollapsed {
                 // Already expanded, just reset flag
                 requestExpand = false
             }
-        }
-        .onChange(of: isCollapsed) { collapsed in
-            print("🎯 [TVDetails] Hero collapse state changed: \(collapsed ? "COLLAPSED" : "EXPANDED")")
         }
         .onChange(of: activeTab) { newTab in
             if isCollapsed {
@@ -332,10 +323,17 @@ struct TVDetailsView: View {
                     // Animation context for transition
                 }
                 // Reset scroll position for new tab
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                tabScrollTask?.cancel()
+                tabScrollTask = Task {
+                    try? await Task.sleep(nanoseconds: 100_000_000)
+                    guard !Task.isCancelled else { return }
                     scrollProxy?.scrollTo("content-\(newTab.rawValue.lowercased())", anchor: .top)
                 }
             }
+        }
+        .onDisappear {
+            heroExpandTask?.cancel()
+            tabScrollTask?.cancel()
         }
     }
 
@@ -368,9 +366,7 @@ struct TVDetailsView: View {
     // MARK: - Playback
 
     private func playContent() {
-        print("🎬 [TVDetails] Play button tapped")
         guard hasPlexSource else {
-            print("❌ [TVDetails] Play ignored: no Plex source")
             return
         }
 
@@ -378,7 +374,6 @@ struct TVDetailsView: View {
             ?? vm.playableId?.replacingOccurrences(of: "plex:", with: "")
 
         guard let ratingKey, !ratingKey.isEmpty else {
-            print("❌ [TVDetails] No playable content available")
             return
         }
 
@@ -419,7 +414,6 @@ struct TVDetailsView: View {
             viewedLeafCount: item.viewedLeafCount
         )
 
-        print("✅ [TVDetails] Playing Plex item: \(candidate.id)")
         playbackItem = candidate
         showPlayer = true
     }
@@ -436,6 +430,7 @@ private struct SuggestedSection: View {
     @State private var focusedRowId: String?
     @State private var rowLastFocusedItem: [String: String] = [:]
     @State private var nextRowToReceiveFocus: String?
+    @State private var clearNextRowTask: Task<Void, Never>?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
@@ -469,7 +464,10 @@ private struct SuggestedSection: View {
             if previousId != newId {
                 nextRowToReceiveFocus = newId
                 focusedRowId = newId
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                clearNextRowTask?.cancel()
+                clearNextRowTask = Task {
+                    try? await Task.sleep(nanoseconds: 200_000_000)
+                    guard !Task.isCancelled else { return }
                     nextRowToReceiveFocus = nil
                 }
             }
@@ -481,6 +479,9 @@ private struct SuggestedSection: View {
         }
         .preference(key: ContentAreaFocusKey.self, value: focusedRowId != nil)
         .fullScreenCover(item: $selected) { item in TVDetailsView(item: item) }
+        .onDisappear {
+            clearNextRowTask?.cancel()
+        }
     }
 }
 
@@ -606,7 +607,6 @@ private struct HeroPlayButton: View {
 
     var body: some View {
         Button(action: {
-            print("🎬 [HeroPlayButton] Button tapped!")
             action?()
         }) {
             HStack(spacing: 10) {

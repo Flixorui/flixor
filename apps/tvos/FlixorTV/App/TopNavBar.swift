@@ -53,8 +53,11 @@ struct TopNavBar: View {
         .background(.clear)
         .focusSection()
         .onAppear { focusedTab = selected }
-        .onChange(of: focusedTab) { newTab in
-            if let newTab = newTab { selected = newTab }
+        .onChange(of: selected) { newValue in
+            // Keep visual focus aligned when selected tab changes externally.
+            if tabs.contains(newValue) && focusedTab != newValue {
+                focusedTab = newValue
+            }
         }
     }
 }

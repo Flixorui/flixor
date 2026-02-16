@@ -52,7 +52,6 @@ class APIClient: ObservableObject {
     // MARK: - FlixorCore Router
 
     private func routeRequest<T: Decodable>(path: String, queryItems: [URLQueryItem]?, bypassCache: Bool = false) async throws -> T {
-        print("🔀 [APIClient] Routing: \(path)\(bypassCache ? " (bypassCache)" : "")")
 
         // Parse query items into dictionary
         var params: [String: String] = [:]
@@ -72,7 +71,6 @@ class APIClient: ObservableObject {
         } else if path.hasPrefix("/api/plextv/") {
             return try await routePlexTvRequest(path: path, params: params)
         } else {
-            print("❌ [APIClient] Unknown route: \(path)")
             throw APIError.invalidURL
         }
     }
@@ -323,7 +321,6 @@ class APIClient: ObservableObject {
             return try encodeAndDecode(items)
         }
 
-        print("❌ [APIClient] Unhandled Plex route: \(subpath)")
         throw APIError.invalidURL
     }
 
@@ -485,7 +482,6 @@ class APIClient: ObservableObject {
             return try encodeAndDecode(result)
         }
 
-        print("❌ [APIClient] Unhandled TMDB route: \(subpath)")
         throw APIError.invalidURL
     }
 
@@ -542,7 +538,6 @@ class APIClient: ObservableObject {
 
         // /api/trakt/users/me/watchlist/movies
         if subpath == "users/me/watchlist/movies" {
-            print("🎬 [Trakt] Fetching watchlist/movies, isAuthenticated: \(trakt.isAuthenticated)")
             // Return empty if not authenticated
             guard trakt.isAuthenticated else {
                 let empty: [TraktWatchlistEntryWrapper] = []
@@ -550,7 +545,6 @@ class APIClient: ObservableObject {
             }
             do {
                 let result = try await trakt.getWatchlist(type: "movies")
-                print("🎬 [Trakt] Got \(result.count) watchlist movies")
                 // Map FlixorKit types to wrapper types expected by MyListViewModel
                 let mapped = result.map { item -> TraktWatchlistEntryWrapper in
                     let movieWrapper = item.movie.map { movie -> TraktMovieWrapper in
@@ -568,7 +562,6 @@ class APIClient: ObservableObject {
                 }
                 return try encodeAndDecode(mapped)
             } catch {
-                print("⚠️ [APIClient] Trakt watchlist/movies error: \(error)")
                 let empty: [TraktWatchlistEntryWrapper] = []
                 return try encodeAndDecode(empty)
             }
@@ -576,7 +569,6 @@ class APIClient: ObservableObject {
 
         // /api/trakt/users/me/watchlist/shows
         if subpath == "users/me/watchlist/shows" {
-            print("🎬 [Trakt] Fetching watchlist/shows, isAuthenticated: \(trakt.isAuthenticated)")
             // Return empty if not authenticated
             guard trakt.isAuthenticated else {
                 let empty: [TraktWatchlistEntryWrapper] = []
@@ -584,7 +576,6 @@ class APIClient: ObservableObject {
             }
             do {
                 let result = try await trakt.getWatchlist(type: "shows")
-                print("🎬 [Trakt] Got \(result.count) watchlist shows")
                 // Map FlixorKit types to wrapper types expected by MyListViewModel
                 let mapped = result.map { item -> TraktWatchlistEntryWrapper in
                     let showWrapper = item.show.map { show -> TraktShowWrapper in
@@ -602,7 +593,6 @@ class APIClient: ObservableObject {
                 }
                 return try encodeAndDecode(mapped)
             } catch {
-                print("⚠️ [APIClient] Trakt watchlist/shows error: \(error)")
                 let empty: [TraktWatchlistEntryWrapper] = []
                 return try encodeAndDecode(empty)
             }
@@ -728,7 +718,6 @@ class APIClient: ObservableObject {
             }
         }
 
-        print("❌ [APIClient] Unhandled Trakt route: \(subpath)")
         throw APIError.invalidURL
     }
 
@@ -740,15 +729,12 @@ class APIClient: ObservableObject {
         // /api/plextv/watchlist
         if subpath == "watchlist" {
             guard let plexTv = FlixorCore.shared.plexTv else {
-                print("❌ [Watchlist] Not authenticated with Plex.tv")
                 // Return empty watchlist instead of throwing
                 let container = PlexWatchlistContainer(MediaContainer: PlexWatchlistMC(Metadata: []))
                 return try encodeAndDecode(container)
             }
-            print("✅ [Watchlist] Fetching Plex.tv watchlist...")
             do {
                 let items = try await plexTv.getWatchlist()
-                print("✅ [Watchlist] Got \(items.count) items from Plex.tv")
 
                 // Enrich items with TMDB IDs by fetching full metadata for each
                 var wrappedItems: [WatchlistItemWrapper] = []
@@ -756,9 +742,7 @@ class APIClient: ObservableObject {
                     // Try to get TMDB ID from full metadata
                     let tmdbGuid = await plexTv.getTMDBIdForWatchlistItem(item)
                     if let tmdbGuid = tmdbGuid {
-                        print("✅ [Watchlist] Enriched \(item.title) with TMDB: \(tmdbGuid)")
                     } else {
-                        print("⚠️ [Watchlist] No TMDB ID for \(item.title)")
                     }
 
                     let guid = item.guids.first // Use first guid as primary
@@ -782,13 +766,11 @@ class APIClient: ObservableObject {
                 let container = PlexWatchlistContainer(MediaContainer: PlexWatchlistMC(Metadata: wrappedItems))
                 return try encodeAndDecode(container)
             } catch {
-                print("⚠️ [Watchlist] Plex.tv watchlist error: \(error)")
                 let container = PlexWatchlistContainer(MediaContainer: PlexWatchlistMC(Metadata: []))
                 return try encodeAndDecode(container)
             }
         }
 
-        print("❌ [APIClient] Unhandled PlexTV route: \(subpath)")
         throw APIError.invalidURL
     }
 
@@ -802,7 +784,6 @@ class APIClient: ObservableObject {
     }
 
     func post<T: Decodable>(_ path: String, body: Encodable? = nil) async throws -> T {
-        print("🔀 [APIClient] POST Routing: \(path)")
 
         // Handle Plex progress reporting
         if path == "/api/plex/progress" {
@@ -831,15 +812,12 @@ class APIClient: ObservableObject {
 
         // POST /api/trakt/watchlist - Add to Trakt watchlist
         if path == "/api/trakt/watchlist" {
-            print("🎬 [APIClient] Trakt watchlist add - isAuthenticated: \(FlixorCore.shared.trakt.isAuthenticated)")
             guard FlixorCore.shared.trakt.isAuthenticated else {
-                print("❌ [APIClient] Trakt not authenticated")
                 throw APIError.unauthorized
             }
             if let body = body {
                 let encoder = JSONEncoder()
                 let data = try encoder.encode(body)
-                print("📦 [APIClient] Trakt request body: \(String(data: data, encoding: .utf8) ?? "nil")")
                 if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
                     var tmdbId: Int?
                     var mediaType: String = "movie"
@@ -867,31 +845,24 @@ class APIClient: ObservableObject {
                     }
 
                     if let tmdbId = tmdbId {
-                        print("📝 [APIClient] Adding to Trakt watchlist: tmdbId=\(tmdbId), type=\(mediaType)")
                         do {
                             try await FlixorCore.shared.trakt.addToWatchlist(tmdbId: tmdbId, type: mediaType)
-                            print("✅ [APIClient] Added to Trakt watchlist: \(tmdbId)")
                         } catch {
-                            print("❌ [APIClient] Trakt addToWatchlist error: \(error)")
                             throw error
                         }
                     } else {
-                        print("⚠️ [APIClient] No tmdbId found in request body")
                     }
                 }
             } else {
-                print("⚠️ [APIClient] No body in Trakt watchlist request")
             }
             let response = SimpleOkResponse(ok: true, message: "Added to watchlist")
             return try encodeAndDecode(response)
         }
 
-        print("⚠️ [APIClient] POST not supported: \(path)")
         throw APIError.invalidURL
     }
 
     func put<T: Decodable>(_ path: String, body: Encodable? = nil) async throws -> T {
-        print("🔀 [APIClient] PUT Routing: \(path)")
 
         // PUT /api/plextv/watchlist/:id - Add to Plex.tv watchlist
         if path.hasPrefix("/api/plextv/watchlist/") {
@@ -903,7 +874,6 @@ class APIClient: ObservableObject {
             let idPart = String(path.dropFirst("/api/plextv/watchlist/".count))
             let decodedId = idPart.removingPercentEncoding ?? idPart
 
-            print("📝 [APIClient] Adding to Plex.tv watchlist: \(decodedId)")
 
             // The ID might be a TMDB ID like "tmdb://812583" or a Plex rating key
             // Plex.tv watchlist uses the discover API which can accept TMDB IDs
@@ -927,7 +897,6 @@ class APIClient: ObservableObject {
 
                     if let tmdbId = tmdbId {
                         try await FlixorCore.shared.trakt.addToWatchlist(tmdbId: tmdbId, type: mediaType)
-                        print("✅ [APIClient] Added to Trakt watchlist: \(tmdbId)")
                     }
                 }
             }
@@ -935,12 +904,10 @@ class APIClient: ObservableObject {
             return try encodeAndDecode(response)
         }
 
-        print("⚠️ [APIClient] PUT not supported: \(path)")
         throw APIError.invalidURL
     }
 
     func delete<T: Decodable>(_ path: String) async throws -> T {
-        print("🔀 [APIClient] DELETE Routing: \(path)")
 
         // DELETE /api/plextv/watchlist/:id - Remove from Plex.tv watchlist
         if path.hasPrefix("/api/plextv/watchlist/") {
@@ -951,7 +918,6 @@ class APIClient: ObservableObject {
             let idPart = String(path.dropFirst("/api/plextv/watchlist/".count))
             let decodedId = idPart.removingPercentEncoding ?? idPart
 
-            print("🗑️ [APIClient] Removing from Plex.tv watchlist: \(decodedId)")
             try await plexTv.removeFromWatchlist(ratingKey: decodedId)
 
             let response = SimpleOkResponse(ok: true, message: "Removed from Plex.tv watchlist")
@@ -966,7 +932,6 @@ class APIClient: ObservableObject {
             return try encodeAndDecode(response)
         }
 
-        print("⚠️ [APIClient] DELETE not supported: \(path)")
         throw APIError.invalidURL
     }
 
@@ -1064,9 +1029,7 @@ class APIClient: ObservableObject {
                 // But we need to persist them to storage
                 do {
                     try await FlixorCore.shared.saveTraktTokens(tokens)
-                    print("✅ [APIClient] Trakt tokens saved to storage successfully")
                 } catch {
-                    print("❌ [APIClient] Failed to save Trakt tokens: \(error)")
                 }
                 return TraktTokenPollResponse(
                     ok: true,
@@ -1083,7 +1046,6 @@ class APIClient: ObservableObject {
                 )
             }
         } catch {
-            print("❌ [APIClient] Trakt pollDeviceCode error: \(error)")
             return TraktTokenPollResponse(
                 ok: false,
                 tokens: nil,
@@ -1141,7 +1103,6 @@ class APIClient: ObservableObject {
         // Actually connect to the server with this endpoint via FlixorCore
         // This persists the connection and updates the PlexServerService
         _ = try await FlixorCore.shared.connectToPlexServerWithUri(server, uri: uri)
-        print("✅ [APIClient] Endpoint updated and connected: \(uri)")
 
         return PlexEndpointUpdateResponse(
             message: "Endpoint updated",
@@ -1369,12 +1330,9 @@ extension APIClient {
     func getPlexMarkers(ratingKey: String) async throws -> [PlexMarker] {
         let encoded = ratingKey.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? ratingKey
         let path = "/api/plex/markers/\(encoded)"
-        print("🔍 [API] Fetching markers from: \(path)")
 
         let markers: [PlexMarker] = try await get(path)
-        print("🔍 [API] Markers response: count=\(markers.count)")
         for marker in markers {
-            print("   📌 Marker: type=\(marker.type ?? "?"), start=\(marker.startTimeOffset ?? 0)ms, end=\(marker.endTimeOffset ?? 0)ms")
         }
         return markers
     }

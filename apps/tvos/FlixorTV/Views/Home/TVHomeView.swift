@@ -2,18 +2,21 @@ import SwiftUI
 import FlixorKit
 
 struct TVHomeView: View {
-    @StateObject private var vm = TVHomeViewModel()
+    @ObservedObject private var vm: TVHomeViewModel
     @Namespace private var contentFocusNS
     @EnvironmentObject private var session: SessionManager
-    @FocusState private var focusedSection: String?
 
     @State private var focusedRowId: String?
-    @State private var rowsVisitedBefore: Set<String> = []
     @State private var rowLastFocusedItem: [String: String] = [:]
     @State private var nextRowToReceiveFocus: String?
     @State private var showingDetails: MediaItem?
     @State private var currentGradientColors: UltraBlurColors?
-    @State private var isBillboardFocused: Bool = false
+    @State private var clearNextRowFocusTask: Task<Void, Never>?
+    @State private var gradientDebounceTask: Task<Void, Never>?
+
+    init(viewModel: TVHomeViewModel) {
+        self._vm = ObservedObject(wrappedValue: viewModel)
+    }
 
     var body: some View {
         ZStack {
@@ -27,12 +30,11 @@ struct TVHomeView: View {
 
                 // Billboard
                 if let first = vm.billboardItems.first {
-                    TVBillboardView(item: first, focusNS: contentFocusNS, defaultFocus: focusedSection == nil)
+                    TVBillboardView(item: first, focusNS: contentFocusNS, defaultFocus: true)
                         .padding(.top, UX.billboardTopPadding)
                         .id("billboard")
                         .onAppear {
                             // When billboard appears, ensure we're showing billboard colors
-                            print("🎯 [TVHome] Billboard appeared")
                             if focusedRowId != nil {
                                 focusedRowId = nil
                             }
@@ -189,10 +191,10 @@ struct TVHomeView: View {
                 nextRowToReceiveFocus = newId
 
                 focusedRowId = newId
-                print("🎯 [TVHome] Focus changed from \(previousId ?? "billboard") to \(newId ?? "billboard")")
-
-                // Clear nextRowToReceiveFocus after a short delay (after focus settles)
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                clearNextRowFocusTask?.cancel()
+                clearNextRowFocusTask = Task {
+                    try? await Task.sleep(nanoseconds: 200_000_000)
+                    guard !Task.isCancelled else { return }
                     nextRowToReceiveFocus = nil
                 }
             }
@@ -205,7 +207,6 @@ struct TVHomeView: View {
             }
         }
         .onPreferenceChange(BillboardFocusKey.self) { hasFocus in
-            isBillboardFocused = hasFocus
             // Keep billboard at top when it has focus
             if hasFocus {
                 withAnimation(.easeInOut(duration: 0.24)) {
@@ -217,7 +218,6 @@ struct TVHomeView: View {
             // Track which item is focused in which row
             if let rowId = value.rowId, let itemId = value.itemId {
                 rowLastFocusedItem[rowId] = itemId
-                print("🎯 [TVHome] Row \(rowId) focused item: \(itemId)")
             }
         }
         }
@@ -228,14 +228,9 @@ struct TVHomeView: View {
             TVDetailsView(item: item)
         }
         .task {
-            await vm.load()
-            // Wait a moment for billboard items to populate, then fetch colors
-            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
-            if let first = vm.billboardItems.first {
-                print("🎨 [TVHome] Initial billboard load - fetching colors")
+            await vm.loadIfNeeded()
+            if vm.billboardUltraBlurColors == nil, let first = vm.billboardItems.first {
                 await vm.fetchUltraBlurColors(for: first)
-            } else {
-                print("⚠️ [TVHome] No billboard items found for color fetch")
             }
         }
         .onChange(of: session.isAuthenticated) { authed in
@@ -243,34 +238,43 @@ struct TVHomeView: View {
         }
         .onChange(of: vm.billboardItems.first?.id) { newId in
             if let first = vm.billboardItems.first {
-                print("🎨 [TVHome] Billboard item changed (id: \(newId ?? "nil")) - fetching colors")
                 Task { await vm.fetchUltraBlurColors(for: first) }
             }
         }
         .onChange(of: focusedRowId) { rowId in
-            // When a row is focused, use default row colors
-            // When no row is focused (billboard visible), use billboard colors
-            if rowId != nil {
-                let rowColors = TVHomeViewModel.defaultRowColors
-                print("🎨 [TVHome] Switching to row colors (focused: \(rowId!))")
-                print("   → Setting colors: TL=\(rowColors.topLeft) TR=\(rowColors.topRight)")
-                currentGradientColors = rowColors
-            } else if let billboardColors = vm.billboardUltraBlurColors {
-                print("🎨 [TVHome] Switching to billboard colors")
-                print("   → Setting colors: TL=\(billboardColors.topLeft) TR=\(billboardColors.topRight)")
-                currentGradientColors = billboardColors
+            // Debounce gradient color changes to avoid recomputes during fast scrolling
+            gradientDebounceTask?.cancel()
+            gradientDebounceTask = Task {
+                try? await Task.sleep(nanoseconds: 200_000_000) // 200ms debounce
+                guard !Task.isCancelled else { return }
+                if rowId != nil {
+                    let rowColors = TVHomeViewModel.defaultRowColors
+                    if !colorsEqual(currentGradientColors, rowColors) {
+                        currentGradientColors = rowColors
+                    }
+                } else if let billboardColors = vm.billboardUltraBlurColors {
+                    if !colorsEqual(currentGradientColors, billboardColors) {
+                        currentGradientColors = billboardColors
+                    }
+                }
             }
-            print("   → Current gradient: \(currentGradientColors?.topLeft ?? "nil")")
         }
         .onChange(of: vm.billboardUltraBlurColors) { billboardColors in
             // Update gradient to billboard colors only if no row is focused
             if focusedRowId == nil, let colors = billboardColors {
-                print("🎨 [TVHome] Billboard colors loaded, applying (no row focused)")
-                currentGradientColors = colors
-            } else {
-                print("🎨 [TVHome] Billboard colors loaded but row is focused, skipping")
+                if !colorsEqual(currentGradientColors, colors) {
+                    currentGradientColors = colors
+                }
             }
         }
+    }
+
+    private func colorsEqual(_ lhs: UltraBlurColors?, _ rhs: UltraBlurColors) -> Bool {
+        guard let lhs else { return false }
+        return lhs.topLeft == rhs.topLeft
+            && lhs.topRight == rhs.topRight
+            && lhs.bottomRight == rhs.bottomRight
+            && lhs.bottomLeft == rhs.bottomLeft
     }
 
     private var placeholderBillboard: some View {

@@ -32,8 +32,7 @@ struct TVDetailsTabsBar: View {
 
             if previousFocused == nil && newTab != active {
                 // When entering the tabs from above/below, ensure focus lands on current selection.
-                print("🎯 [TVDetailsTabsBar] Correcting focus to active tab: \(active.rawValue)")
-                DispatchQueue.main.async {
+                Task { @MainActor in
                     focused = active
                 }
             } else {
@@ -44,7 +43,6 @@ struct TVDetailsTabsBar: View {
         }
         .onMoveCommand { direction in
             if direction == .up && focused != nil {
-                print("🎯 [TVDetailsTabsBar] UP pressed - requesting hero expand")
                 requestExpand = true
             }
         }
