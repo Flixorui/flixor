@@ -27,6 +27,8 @@ final class TVHomeViewModel: ObservableObject {
     private var logoEnrichmentTask: Task<Void, Never>?
     private var ultraBlurTask: Task<Void, Never>?
     private var ultraBlurColorCache: [String: UltraBlurColors] = [:]
+    private var resolvedPlexLogoCache: [String: String] = [:]
+    private var attemptedPlexLogoKeys: Set<String> = []
     private var hasLoadedOnce = false
 
     // Default colors for row sections
@@ -108,6 +110,7 @@ final class TVHomeViewModel: ObservableObject {
                let firstNonEmpty = sections.first(where: { !$0.items.isEmpty }) {
                 self.billboardItems = Array(firstNonEmpty.items.prefix(3))
             }
+            self.scheduleDeferredLogoEnrichment()
         }
     }
 
@@ -257,17 +260,20 @@ final class TVHomeViewModel: ObservableObject {
         let continueSnapshot = continueWatching
         let onDeckSnapshot = onDeck
         let recentSnapshot = recentlyAdded
+        let additionalSnapshot = additionalSections
 
         logoEnrichmentTask = Task { @MainActor [weak self] in
             guard let self else { return }
-            async let continueTask = self.enrichVisibleLogos(in: continueSnapshot, eagerCount: 5)
-            async let onDeckTask = self.enrichVisibleLogos(in: onDeckSnapshot, eagerCount: 5)
-            async let recentTask = self.enrichVisibleLogos(in: recentSnapshot, eagerCount: 5)
-            let (enrichedContinue, enrichedOnDeck, enrichedRecent) = await (continueTask, onDeckTask, recentTask)
+            async let continueTask = self.enrichVisibleLogos(in: continueSnapshot, eagerCount: 12)
+            async let onDeckTask = self.enrichVisibleLogos(in: onDeckSnapshot, eagerCount: 12)
+            async let recentTask = self.enrichVisibleLogos(in: recentSnapshot, eagerCount: 12)
+            async let additionalTask = self.enrichSectionLogos(in: additionalSnapshot, eagerCount: 12)
+            let (enrichedContinue, enrichedOnDeck, enrichedRecent, enrichedAdditional) = await (continueTask, onDeckTask, recentTask, additionalTask)
             guard !Task.isCancelled else { return }
             continueWatching = enrichedContinue
             onDeck = enrichedOnDeck
             recentlyAdded = enrichedRecent
+            additionalSections = enrichedAdditional
 
             if let currentBillboard = billboardItems.first {
                 if let fromContinue = enrichedContinue.first(where: { $0.id == currentBillboard.id }) {
@@ -276,9 +282,35 @@ final class TVHomeViewModel: ObservableObject {
                     billboardItems[0] = fromOnDeck
                 } else if let fromRecent = enrichedRecent.first(where: { $0.id == currentBillboard.id }) {
                     billboardItems[0] = fromRecent
+                } else {
+                    for section in enrichedAdditional {
+                        if let fromAdditional = section.items.first(where: { $0.id == currentBillboard.id }) {
+                            billboardItems[0] = fromAdditional
+                            break
+                        }
+                    }
                 }
             }
         }
+    }
+
+    private func enrichSectionLogos(in sections: [HomeSection], eagerCount: Int) async -> [HomeSection] {
+        guard !sections.isEmpty else { return sections }
+        var updatedSections = sections
+
+        for index in sections.indices {
+            let section = sections[index]
+            // Focus enrichment effort on Plex-backed rows.
+            let isPlexBackedSection = section.id.hasPrefix("genre-") || section.id.hasPrefix("plex-")
+            guard isPlexBackedSection else { continue }
+            let enrichedItems = await enrichVisibleLogos(in: section.items, eagerCount: eagerCount)
+            updatedSections[index] = HomeSection(
+                id: section.id,
+                title: section.title,
+                items: enrichedItems
+            )
+        }
+        return updatedSections
     }
 
     private func enrichVisibleLogos(in items: [MediaItem], eagerCount: Int) async -> [MediaItem] {
@@ -289,7 +321,7 @@ final class TVHomeViewModel: ObservableObject {
         await withTaskGroup(of: (Int, String?).self) { group in
             for idx in 0..<limit {
                 let item = items[idx]
-                guard item.logo == nil else { continue }
+                guard item.logo?.isEmpty != false else { continue }
                 group.addTask {
                     let logo = try? await self.resolveTMDBLogoForPlexItem(item)
                     return (idx, logo)
@@ -303,6 +335,20 @@ final class TVHomeViewModel: ObservableObject {
         }
 
         return updated
+    }
+
+    private func cacheKeyForPlexLogoLookup(_ item: MediaItem) -> String? {
+        if item.id.hasPrefix("tmdb:") || item.id.hasPrefix("trakt:") {
+            return nil
+        }
+
+        let normalizedId: String
+        if item.id.hasPrefix("plex:") {
+            normalizedId = item.id
+        } else {
+            normalizedId = "plex:\(item.id)"
+        }
+        return normalizedId
     }
 
     private func copy(_ item: MediaItem, id: String? = nil, logo: String? = nil) -> MediaItem {
@@ -611,18 +657,39 @@ final class TVHomeViewModel: ObservableObject {
         struct TMDBImage: Codable { let file_path: String?; let iso_639_1: String?; let vote_average: Double? }
         struct TMDBImages: Codable { let logos: [TMDBImage]? }
 
-        let imgs: TMDBImages = try await APIClient.shared.get("/api/tmdb/\(mediaType)/\(id)/images", queryItems: [URLQueryItem(name: "language", value: "en,hi,null")])
+        let imgs: TMDBImages = try await APIClient.shared.get("/api/tmdb/\(mediaType)/\(id)/images")
+        let logos = imgs.logos ?? []
 
-        // Priority: English > Hindi > any language > no language
-        if let logo = (imgs.logos ?? []).first(where: { $0.iso_639_1 == "en" || $0.iso_639_1 == "hi" }) ?? imgs.logos?.first,
-           let p = logo.file_path {
-            return "https://image.tmdb.org/t/p/w500\(p)"
+        func bestLogo(from candidates: [TMDBImage]) -> TMDBImage? {
+            candidates
+                .filter { ($0.file_path?.isEmpty == false) }
+                .sorted { ($0.vote_average ?? 0) > ($1.vote_average ?? 0) }
+                .first
+        }
+
+        // macOS parity: English > null language > any language.
+        let englishLogo = bestLogo(from: logos.filter { $0.iso_639_1?.lowercased() == "en" })
+        let nullLanguageLogo = bestLogo(from: logos.filter {
+            let code = $0.iso_639_1?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return code.isEmpty
+        })
+        let anyLogo = bestLogo(from: logos)
+
+        if let selected = englishLogo ?? nullLanguageLogo ?? anyLogo,
+           let path = selected.file_path {
+            return ImageService.shared.tmdbImageURL(path: path, size: .w500)?.absoluteString
         }
         return nil
     }
 
     private func resolveTMDBLogoForPlexItem(_ item: MediaItem) async throws -> String? {
-        if item.id.hasPrefix("tmdb:") || item.id.hasPrefix("trakt:") {
+        guard let cacheKey = cacheKeyForPlexLogoLookup(item) else {
+            return nil
+        }
+        if let cached = resolvedPlexLogoCache[cacheKey] {
+            return cached
+        }
+        if attemptedPlexLogoKeys.contains(cacheKey) {
             return nil
         }
 
@@ -649,6 +716,10 @@ final class TVHomeViewModel: ObservableObject {
                 // Extract TMDB ID from parent show's Guid array
                 if let tmdbId = extractTMDBIdFromGuidArray(showItem.Guid) ?? extractTMDBIdFromString(showItem.guid) {
                     let logo = try await fetchTMDBLogo(mediaType: "tv", id: tmdbId)
+                    if let logo {
+                        resolvedPlexLogoCache[cacheKey] = logo
+                    }
+                    attemptedPlexLogoKeys.insert(cacheKey)
                     return logo
                 }
             }
@@ -660,6 +731,10 @@ final class TVHomeViewModel: ObservableObject {
                 // Extract TMDB ID from series Guid array
                 if let tmdbId = extractTMDBIdFromGuidArray(seriesItem.Guid) ?? extractTMDBIdFromString(seriesItem.guid) {
                     let logo = try await fetchTMDBLogo(mediaType: "tv", id: tmdbId)
+                    if let logo {
+                        resolvedPlexLogoCache[cacheKey] = logo
+                    }
+                    attemptedPlexLogoKeys.insert(cacheKey)
                     return logo
                 }
             }
@@ -668,9 +743,15 @@ final class TVHomeViewModel: ObservableObject {
             if let tmdbId = extractTMDBIdFromGuidArray(fullItem.Guid) ?? extractTMDBIdFromString(fullItem.guid) {
                 let mediaType = (fullItem.type == "movie") ? "movie" : "tv"
                 let logo = try await fetchTMDBLogo(mediaType: mediaType, id: tmdbId)
+                if let logo {
+                    resolvedPlexLogoCache[cacheKey] = logo
+                }
+                attemptedPlexLogoKeys.insert(cacheKey)
                 return logo
             }
         } catch {}
+
+        attemptedPlexLogoKeys.insert(cacheKey)
 
         return nil
     }

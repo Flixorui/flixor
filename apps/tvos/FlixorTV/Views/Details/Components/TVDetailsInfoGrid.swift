@@ -6,6 +6,41 @@ struct TVDetailsInfoGrid: View {
     var focusNS: Namespace.ID
     var onFocusChange: ((Bool) -> Void)?
     @State private var isFocused: Bool = false
+    @State private var selectedModal: DetailsSectionModalType?
+    @State private var lastFocusedSection: FocusableDetailsSection = .about
+    @FocusState private var focusedSection: FocusableDetailsSection?
+
+    private enum FocusableDetailsSection: Hashable {
+        case about
+        case cast
+        case production
+        case networks
+        case information
+        case languages
+        case technical
+    }
+
+    private enum DetailsSectionModalType: Identifiable {
+        case about
+        case cast
+        case production
+        case networks
+        case information
+        case languages
+        case technical
+
+        var id: String {
+            switch self {
+            case .about: return "about"
+            case .cast: return "cast"
+            case .production: return "production"
+            case .networks: return "networks"
+            case .information: return "information"
+            case .languages: return "languages"
+            case .technical: return "technical"
+            }
+        }
+    }
 
     private var castAndCrew: [PersonCardModel] {
         var people: [PersonCardModel] = []
@@ -57,6 +92,27 @@ struct TVDetailsInfoGrid: View {
                 onFocusChange?(true)
             }
         }
+        .onChange(of: focusedSection) { newValue in
+            guard let newValue else { return }
+            lastFocusedSection = newValue
+            if !isFocused {
+                isFocused = true
+            }
+            onFocusChange?(true)
+        }
+        .overlay(alignment: .center) {
+            if let selectedModal,
+               let payload = modalPayload(for: selectedModal) {
+                TVDetailsSectionModal(payload: payload) {
+                    closeModal()
+                }
+            }
+        }
+        .onExitCommand {
+            if selectedModal != nil {
+                closeModal()
+            }
+        }
     }
 
     private var aboutSection: some View {
@@ -73,27 +129,46 @@ struct TVDetailsInfoGrid: View {
             }
 
             HStack(alignment: .top, spacing: 18) {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text(vm.title)
-                        .font(.system(size: 28, weight: .semibold))
-                        .foregroundStyle(.white)
+                Button(action: { openModal(.about) }) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(vm.title)
+                            .font(.system(size: 28, weight: .semibold))
+                            .foregroundStyle(.white)
 
-                    if !vm.genres.isEmpty {
-                        Text(vm.genres.joined(separator: ", ").uppercased())
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.62))
-                    }
+                        if !vm.genres.isEmpty {
+                            Text(vm.genres.joined(separator: ", ").uppercased())
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(.white.opacity(0.62))
+                        }
 
-                    if !vm.overview.isEmpty {
-                        Text(vm.overview)
-                            .font(.system(size: 20, weight: .regular))
-                            .foregroundStyle(.white.opacity(0.86))
-                            .lineSpacing(4)
+                        if !vm.overview.isEmpty {
+                            Text(vm.overview)
+                                .font(.system(size: 20, weight: .regular))
+                                .foregroundStyle(.white.opacity(0.86))
+                                .lineSpacing(4)
+                                .lineLimit(4)
+                        }
+
+                        HStack {
+                            Spacer()
+                            Text("MORE")
+                                .font(.system(size: 18, weight: .heavy))
+                                .foregroundStyle(.white.opacity(0.9))
+                        }
                     }
+                    .padding(20)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.white.opacity(0.08)))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .stroke(Color.white.opacity(focusedSection == .about ? 0.72 : 0.0), lineWidth: 2)
+                    )
+                    .scaleEffect(focusedSection == .about ? 1.02 : 1.0)
+                    .animation(.easeOut(duration: UX.focusDur), value: focusedSection)
                 }
-                .padding(20)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.white.opacity(0.08)))
+                .buttonStyle(.plain)
+                .focused($focusedSection, equals: .about)
+                .prefersDefaultFocus(true, in: focusNS)
 
                 if let rating = vm.rating, !rating.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
@@ -115,105 +190,147 @@ struct TVDetailsInfoGrid: View {
                 }
             }
         }
-        .focusable(true) { focused in
-            if focused && !isFocused {
-                isFocused = true
-            }
-        }
-        .prefersDefaultFocus(true, in: focusNS)
     }
 
     private var castSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text(vm.isEpisode && !vm.guestStars.isEmpty ? "Guest Stars" : "Cast & Crew")
-                .font(.system(size: 32, weight: .bold))
-                .foregroundStyle(.white)
+        Button(action: { openModal(.cast) }) {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    Text(vm.isEpisode && !vm.guestStars.isEmpty ? "Guest Stars" : "Cast & Crew")
+                        .font(.system(size: 32, weight: .bold))
+                        .foregroundStyle(.white)
+                    Spacer()
+                    Text("MORE")
+                        .font(.system(size: 18, weight: .heavy))
+                        .foregroundStyle(.white.opacity(0.9))
+                }
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 18) {
-                    ForEach(castAndCrew) { person in
-                        VStack(spacing: 10) {
-                            Group {
-                                if let image = person.image {
-                                    CachedAsyncImage(url: image, contentMode: .fill) {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 18) {
+                        ForEach(castAndCrew.prefix(12)) { person in
+                            VStack(spacing: 10) {
+                                Group {
+                                    if let image = person.image {
+                                        CachedAsyncImage(url: image, contentMode: .fill) {
+                                            Circle().fill(Color.white.opacity(0.1))
+                                        }
+                                    } else {
                                         Circle().fill(Color.white.opacity(0.1))
                                     }
-                                } else {
-                                    Circle().fill(Color.white.opacity(0.1))
+                                }
+                                .frame(width: 110, height: 110)
+                                .clipShape(Circle())
+                                .overlay(Circle().stroke(Color.white.opacity(0.2), lineWidth: 1))
+
+                                Text(person.name)
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundStyle(.white)
+                                    .lineLimit(1)
+
+                                if let role = person.role, !role.isEmpty {
+                                    Text(role)
+                                        .font(.system(size: 13, weight: .regular))
+                                        .foregroundStyle(.white.opacity(0.65))
+                                        .lineLimit(1)
                                 }
                             }
-                            .frame(width: 110, height: 110)
-                            .clipShape(Circle())
-                            .overlay(Circle().stroke(Color.white.opacity(0.2), lineWidth: 1))
-
-                            Text(person.name)
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(.white)
-                                .lineLimit(1)
-
-                            if let role = person.role, !role.isEmpty {
-                                Text(role)
-                                    .font(.system(size: 13, weight: .regular))
-                                    .foregroundStyle(.white.opacity(0.65))
-                                    .lineLimit(1)
-                            }
-                        }
-                        .frame(width: 130)
-                        .focusable(true) { focused in
-                            if focused && !isFocused {
-                                isFocused = true
-                            }
+                            .frame(width: 130)
                         }
                     }
+                    .padding(.vertical, 2)
                 }
-                .padding(.vertical, 2)
             }
+            .padding(14)
+            .background(Color.white.opacity(focusedSection == .cast ? 0.08 : 0.001))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(Color.white.opacity(focusedSection == .cast ? 0.72 : 0.0), lineWidth: 2)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .scaleEffect(focusedSection == .cast ? 1.01 : 1.0)
+            .animation(.easeOut(duration: UX.focusDur), value: focusedSection)
         }
+        .buttonStyle(.plain)
+        .focused($focusedSection, equals: .cast)
     }
 
     private func companySection(title: String, items: [TVDetailsViewModel.ProductionCompany]) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(title)
-                .font(.system(size: 28, weight: .semibold))
-                .foregroundStyle(.white)
+        Button(action: {
+            if title == "Networks" {
+                openModal(.networks)
+            } else {
+                openModal(.production)
+            }
+        }) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text(title)
+                        .font(.system(size: 28, weight: .semibold))
+                        .foregroundStyle(.white)
+                    Spacer()
+                    Text("MORE")
+                        .font(.system(size: 18, weight: .heavy))
+                        .foregroundStyle(.white.opacity(0.9))
+                }
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
-                    ForEach(items.prefix(8)) { item in
-                        Group {
-                            if let logo = item.logoURL {
-                                CachedAsyncImage(url: logo, contentMode: .fit) {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        ForEach(items.prefix(8)) { item in
+                            Group {
+                                if let logo = item.logoURL {
+                                    CachedAsyncImage(url: logo, contentMode: .fit) {
+                                        Text(item.name)
+                                            .font(.system(size: 14, weight: .semibold))
+                                            .foregroundStyle(.black)
+                                            .padding(.horizontal, 12)
+                                    }
+                                    .frame(width: 110, height: 38)
+                                } else {
                                     Text(item.name)
                                         .font(.system(size: 14, weight: .semibold))
                                         .foregroundStyle(.black)
-                                        .padding(.horizontal, 12)
+                                        .lineLimit(1)
+                                        .padding(.horizontal, 14)
+                                        .frame(height: 38)
                                 }
-                                .frame(width: 110, height: 38)
-                            } else {
-                                Text(item.name)
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundStyle(.black)
-                                    .lineLimit(1)
-                                    .padding(.horizontal, 14)
-                                    .frame(height: 38)
                             }
-                        }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 10)
-                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.white))
-                        .focusable(true) { focused in
-                            if focused && !isFocused {
-                                isFocused = true
-                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 10)
+                            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.white))
                         }
                     }
                 }
             }
+            .padding(14)
+            .background(Color.white.opacity((title == "Networks" ? focusedSection == .networks : focusedSection == .production) ? 0.08 : 0.001))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(
+                        Color.white.opacity((title == "Networks" ? focusedSection == .networks : focusedSection == .production) ? 0.72 : 0.0),
+                        lineWidth: 2
+                    )
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .scaleEffect((title == "Networks" ? focusedSection == .networks : focusedSection == .production) ? 1.01 : 1.0)
+            .animation(.easeOut(duration: UX.focusDur), value: focusedSection)
         }
+        .buttonStyle(.plain)
+        .focused($focusedSection, equals: title == "Networks" ? .networks : .production)
     }
 
     private var columnsSection: some View {
         HStack(alignment: .top, spacing: 46) {
+            informationColumn
+                .frame(maxWidth: .infinity, alignment: .leading)
+            languagesColumn
+                .frame(maxWidth: .infinity, alignment: .leading)
+            technicalColumn
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var informationColumn: some View {
+        Button(action: { openModal(.information) }) {
             VStack(alignment: .leading, spacing: 18) {
                 Text("Information")
                     .font(.system(size: 26, weight: .bold))
@@ -246,9 +363,30 @@ struct TVDetailsInfoGrid: View {
                         if let writer = vm.episodeWriter, !writer.isEmpty { infoRow("Written By", writer) }
                     }
                 }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
 
+                HStack {
+                    Spacer()
+                    Text("MORE")
+                        .font(.system(size: 17, weight: .heavy))
+                        .foregroundStyle(.white.opacity(0.9))
+                }
+            }
+            .padding(18)
+            .background(Color.white.opacity(focusedSection == .information ? 0.08 : 0.001))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(Color.white.opacity(focusedSection == .information ? 0.72 : 0.0), lineWidth: 2)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .scaleEffect(focusedSection == .information ? 1.01 : 1.0)
+            .animation(.easeOut(duration: UX.focusDur), value: focusedSection)
+        }
+        .buttonStyle(.plain)
+        .focused($focusedSection, equals: .information)
+    }
+
+    private var languagesColumn: some View {
+        Button(action: { openModal(.languages) }) {
             VStack(alignment: .leading, spacing: 18) {
                 Text("Languages")
                     .font(.system(size: 26, weight: .bold))
@@ -265,9 +403,30 @@ struct TVDetailsInfoGrid: View {
                         infoRow("Subtitles", vm.subtitleTracks.map { $0.name }.joined(separator: ", "))
                     }
                 }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
 
+                HStack {
+                    Spacer()
+                    Text("MORE")
+                        .font(.system(size: 17, weight: .heavy))
+                        .foregroundStyle(.white.opacity(0.9))
+                }
+            }
+            .padding(18)
+            .background(Color.white.opacity(focusedSection == .languages ? 0.08 : 0.001))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(Color.white.opacity(focusedSection == .languages ? 0.72 : 0.0), lineWidth: 2)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .scaleEffect(focusedSection == .languages ? 1.01 : 1.0)
+            .animation(.easeOut(duration: UX.focusDur), value: focusedSection)
+        }
+        .buttonStyle(.plain)
+        .focused($focusedSection, equals: .languages)
+    }
+
+    private var technicalColumn: some View {
+        Button(action: { openModal(.technical) }) {
             VStack(alignment: .leading, spacing: 18) {
                 Text("Technical")
                     .font(.system(size: 26, weight: .bold))
@@ -286,14 +445,26 @@ struct TVDetailsInfoGrid: View {
                         if let fileSizeMB = version.technical.fileSizeMB { infoRow("File Size", fileSize(fileSizeMB)) }
                     }
                 }
+
+                HStack {
+                    Spacer()
+                    Text("MORE")
+                        .font(.system(size: 17, weight: .heavy))
+                        .foregroundStyle(.white.opacity(0.9))
+                }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(18)
+            .background(Color.white.opacity(focusedSection == .technical ? 0.08 : 0.001))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(Color.white.opacity(focusedSection == .technical ? 0.72 : 0.0), lineWidth: 2)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .scaleEffect(focusedSection == .technical ? 1.01 : 1.0)
+            .animation(.easeOut(duration: UX.focusDur), value: focusedSection)
         }
-        .focusable(true) { focused in
-            if focused && !isFocused {
-                isFocused = true
-            }
-        }
+        .buttonStyle(.plain)
+        .focused($focusedSection, equals: .technical)
     }
 
     private var collectionsSection: some View {
@@ -367,6 +538,148 @@ struct TVDetailsInfoGrid: View {
         }
     }
 
+    private func openModal(_ type: DetailsSectionModalType) {
+        selectedModal = type
+    }
+
+    private func closeModal() {
+        selectedModal = nil
+        let returnFocus = lastFocusedSection
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+            focusedSection = returnFocus
+        }
+    }
+
+    private func modalPayload(for type: DetailsSectionModalType) -> TVDetailsSectionModal.Payload? {
+        switch type {
+        case .about:
+            var blocks: [TVDetailsSectionModal.Payload.Block] = []
+            if !vm.title.isEmpty {
+                blocks.append(.init(title: "Title", value: vm.title))
+            }
+            if !vm.genres.isEmpty {
+                blocks.append(.init(title: "Genres", value: vm.genres.joined(separator: ", ")))
+            }
+            if let tagline = vm.tagline, !tagline.isEmpty {
+                blocks.append(.init(title: "Tagline", value: tagline))
+            }
+            if let rating = vm.rating, !rating.isEmpty {
+                blocks.append(.init(title: "Content Rating", value: rating))
+            }
+            if !vm.overview.isEmpty {
+                blocks.append(.init(title: "Synopsis", value: vm.overview))
+            }
+            return TVDetailsSectionModal.Payload(
+                title: "About",
+                subtitle: vm.title,
+                blocks: blocks
+            )
+        case .cast:
+            let castLines = castAndCrew.map { person in
+                if let role = person.role, !role.isEmpty {
+                    return "\(person.name) — \(role)"
+                }
+                return person.name
+            }.joined(separator: "\n")
+            return TVDetailsSectionModal.Payload(
+                title: vm.isEpisode && !vm.guestStars.isEmpty ? "Guest Stars & Crew" : "Cast & Crew",
+                subtitle: vm.title,
+                blocks: [
+                    .init(title: "People", value: castLines.isEmpty ? "Not available" : castLines)
+                ]
+            )
+        case .production:
+            let value = vm.productionCompanies.map(\.name).joined(separator: "\n")
+            return TVDetailsSectionModal.Payload(
+                title: "Production",
+                subtitle: vm.title,
+                blocks: [
+                    .init(title: "Companies", value: value.isEmpty ? "Not available" : value)
+                ]
+            )
+        case .networks:
+            let value = vm.networks.map(\.name).joined(separator: "\n")
+            return TVDetailsSectionModal.Payload(
+                title: "Networks",
+                subtitle: vm.title,
+                blocks: [
+                    .init(title: "Networks", value: value.isEmpty ? "Not available" : value)
+                ]
+            )
+        case .information:
+            var lines: [String] = []
+            if let year = vm.year { lines.append("Released: \(year)") }
+            if let runtime = vm.runtime { lines.append("Run Time: \(formattedRuntime(runtime))") }
+            if let rating = vm.rating { lines.append("Rated: \(rating)") }
+            if let status = vm.status, !status.isEmpty, !vm.isEpisode { lines.append("Status: \(status)") }
+            if vm.mediaKind == "tv", !vm.isEpisode {
+                if let seasons = vm.numberOfSeasons { lines.append("Seasons: \(seasons)") }
+                if let episodes = vm.numberOfEpisodes { lines.append("Episodes: \(episodes)") }
+            }
+            if vm.mediaKind == "movie" {
+                if let budget = vm.budget { lines.append("Budget: \(formatCurrency(budget))") }
+                if let revenue = vm.revenue { lines.append("Box Office: \(formatCurrency(revenue))") }
+            }
+            if let studio = vm.studio, !studio.isEmpty { lines.append("Studio: \(studio)") }
+            if !vm.creators.isEmpty && vm.mediaKind == "tv" { lines.append("Created By: \(vm.creators.joined(separator: ", "))") }
+            if !vm.directors.isEmpty { lines.append("\(vm.directors.count > 1 ? "Directors" : "Director"): \(vm.directors.joined(separator: ", "))") }
+            if !vm.writers.isEmpty { lines.append("\(vm.writers.count > 1 ? "Writers" : "Writer"): \(vm.writers.joined(separator: ", "))") }
+            if vm.isEpisode {
+                if let showTitle = vm.showTitle, !showTitle.isEmpty { lines.append("Show: \(showTitle)") }
+                if let season = vm.seasonNumber, let episode = vm.episodeNumber {
+                    lines.append("Episode: Season \(season), Episode \(episode)")
+                }
+                if let airDate = vm.airDate, !airDate.isEmpty { lines.append("Air Date: \(formatAirDate(airDate))") }
+                if let director = vm.episodeDirector, !director.isEmpty { lines.append("Directed By: \(director)") }
+                if let writer = vm.episodeWriter, !writer.isEmpty { lines.append("Written By: \(writer)") }
+            }
+            return TVDetailsSectionModal.Payload(
+                title: "Information",
+                subtitle: vm.title,
+                blocks: [
+                    .init(title: "Details", value: lines.joined(separator: "\n"))
+                ]
+            )
+        case .languages:
+            let original = (vm.originalLanguage?.isEmpty == false) ? languageName(for: vm.originalLanguage ?? "") : "Not available"
+            let audio = vm.audioTracks.map(\.name).joined(separator: ", ")
+            let subtitles = vm.subtitleTracks.map(\.name).joined(separator: ", ")
+            return TVDetailsSectionModal.Payload(
+                title: "Languages",
+                subtitle: vm.title,
+                blocks: [
+                    .init(title: "Original Audio", value: original),
+                    .init(title: "Audio", value: audio.isEmpty ? "Not available" : audio),
+                    .init(title: "Subtitles", value: subtitles.isEmpty ? "Not available" : subtitles)
+                ]
+            )
+        case .technical:
+            var lines: [String] = []
+            if let version = vm.activeVersionDetail {
+                if let resolution = version.technical.resolution { lines.append("Resolution: \(resolution)") }
+                if let video = version.technical.videoCodec { lines.append("Video: \(video.uppercased())") }
+                if let audio = version.technical.audioCodec {
+                    let channels = version.technical.audioChannels.map { " \($0)ch" } ?? ""
+                    lines.append("Audio: \(audio.uppercased())\(channels)")
+                }
+                if let hdr = hdrLabel(for: version.technical.videoProfile) { lines.append("HDR: \(hdr)") }
+                if let bitrate = version.technical.bitrate { lines.append("Bitrate: \(bitrate / 1000) Mbps") }
+                if let fileSizeMB = version.technical.fileSizeMB { lines.append("File Size: \(fileSize(fileSizeMB))") }
+                if let container = version.technical.container { lines.append("Container: \(container.uppercased())") }
+            }
+            if !vm.badges.isEmpty {
+                lines.append("Badges: \(vm.badges.joined(separator: ", "))")
+            }
+            return TVDetailsSectionModal.Payload(
+                title: "Technical",
+                subtitle: vm.title,
+                blocks: [
+                    .init(title: "Media Info", value: lines.isEmpty ? "Not available" : lines.joined(separator: "\n"))
+                ]
+            )
+        }
+    }
+
     private func infoRow(_ label: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: 5) {
             Text(label)
@@ -433,4 +746,86 @@ private struct PersonCardModel: Identifiable {
     let name: String
     let role: String?
     let image: URL?
+}
+
+private struct TVDetailsSectionModal: View {
+    struct Payload {
+        struct Block: Identifiable {
+            let id = UUID()
+            let title: String
+            let value: String
+        }
+
+        let title: String
+        let subtitle: String?
+        let blocks: [Block]
+    }
+
+    let payload: Payload
+    let onClose: () -> Void
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.58)
+                .ignoresSafeArea()
+
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .fill(.ultraThinMaterial)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 30, style: .continuous)
+                        .stroke(Color.white.opacity(0.28), lineWidth: 1)
+                )
+                .frame(width: 980, height: 760)
+                .overlay(alignment: .topLeading) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(alignment: .top) {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(payload.title)
+                                    .font(.system(size: 42, weight: .bold))
+                                    .foregroundStyle(.white)
+                                if let subtitle = payload.subtitle, !subtitle.isEmpty {
+                                    Text(subtitle)
+                                        .font(.system(size: 22, weight: .medium))
+                                        .foregroundStyle(.white.opacity(0.72))
+                                        .lineLimit(1)
+                                }
+                            }
+                            Spacer()
+                            Button(action: onClose) {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 20, weight: .bold))
+                                    .foregroundStyle(.white)
+                                    .frame(width: 48, height: 48)
+                                    .background(Circle().fill(Color.white.opacity(0.18)))
+                            }
+                            .buttonStyle(.card)
+                        }
+
+                        ScrollView(.vertical, showsIndicators: false) {
+                            VStack(alignment: .leading, spacing: 22) {
+                                ForEach(payload.blocks) { block in
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        Text(block.title)
+                                            .font(.system(size: 30, weight: .bold))
+                                            .foregroundStyle(.white)
+                                        Text(block.value)
+                                            .font(.system(size: 30, weight: .regular))
+                                            .foregroundStyle(.white.opacity(0.9))
+                                            .lineSpacing(6)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                    }
+                                }
+                            }
+                            .padding(.bottom, 12)
+                        }
+                    }
+                    .padding(.horizontal, 42)
+                    .padding(.vertical, 32)
+                }
+        }
+        .transition(.opacity)
+        .onExitCommand {
+            onClose()
+        }
+    }
 }
