@@ -153,10 +153,12 @@ struct TVDetailsInfoGrid: View {
                     .padding(20)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .fill(Color.white.opacity(focusedSection == .about ? 0.12 : 0.06))
+                        sectionCardBackground(
+                            cornerRadius: 16,
+                            isFocused: focusedSection == .about
+                        )
                     )
-                    .shadow(color: .black.opacity(focusedSection == .about ? 0.6 : 0.15), radius: focusedSection == .about ? 24 : 8, y: focusedSection == .about ? 14 : 4)
+                    .shadow(color: .black.opacity(focusedSection == .about ? 0.55 : 0.14), radius: focusedSection == .about ? 24 : 8, y: focusedSection == .about ? 14 : 4)
                     .scaleEffect(focusedSection == .about ? 1.02 : 1.0)
                     .animation(.easeOut(duration: 0.2), value: focusedSection)
                 }
@@ -257,11 +259,13 @@ struct TVDetailsInfoGrid: View {
             }
             .padding(14)
             .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(Color.white.opacity((title == "Networks" ? focusedSection == .networks : focusedSection == .production) ? 0.12 : 0.06))
+                sectionCardBackground(
+                    cornerRadius: 16,
+                    isFocused: title == "Networks" ? focusedSection == .networks : focusedSection == .production
+                )
             )
             .shadow(
-                color: .black.opacity((title == "Networks" ? focusedSection == .networks : focusedSection == .production) ? 0.6 : 0.15),
+                color: .black.opacity((title == "Networks" ? focusedSection == .networks : focusedSection == .production) ? 0.55 : 0.14),
                 radius: (title == "Networks" ? focusedSection == .networks : focusedSection == .production) ? 24 : 8,
                 y: (title == "Networks" ? focusedSection == .networks : focusedSection == .production) ? 14 : 4
             )
@@ -327,10 +331,12 @@ struct TVDetailsInfoGrid: View {
             }
             .padding(18)
             .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Color.white.opacity(focusedSection == .information ? 0.12 : 0.06))
+                sectionCardBackground(
+                    cornerRadius: 14,
+                    isFocused: focusedSection == .information
+                )
             )
-            .shadow(color: .black.opacity(focusedSection == .information ? 0.6 : 0.15), radius: focusedSection == .information ? 24 : 8, y: focusedSection == .information ? 14 : 4)
+            .shadow(color: .black.opacity(focusedSection == .information ? 0.55 : 0.14), radius: focusedSection == .information ? 24 : 8, y: focusedSection == .information ? 14 : 4)
             .scaleEffect(focusedSection == .information ? 1.02 : 1.0)
             .animation(.easeOut(duration: 0.2), value: focusedSection)
         }
@@ -366,10 +372,12 @@ struct TVDetailsInfoGrid: View {
             }
             .padding(18)
             .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Color.white.opacity(focusedSection == .languages ? 0.12 : 0.06))
+                sectionCardBackground(
+                    cornerRadius: 14,
+                    isFocused: focusedSection == .languages
+                )
             )
-            .shadow(color: .black.opacity(focusedSection == .languages ? 0.6 : 0.15), radius: focusedSection == .languages ? 24 : 8, y: focusedSection == .languages ? 14 : 4)
+            .shadow(color: .black.opacity(focusedSection == .languages ? 0.55 : 0.14), radius: focusedSection == .languages ? 24 : 8, y: focusedSection == .languages ? 14 : 4)
             .scaleEffect(focusedSection == .languages ? 1.02 : 1.0)
             .animation(.easeOut(duration: 0.2), value: focusedSection)
         }
@@ -407,10 +415,12 @@ struct TVDetailsInfoGrid: View {
             }
             .padding(18)
             .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Color.white.opacity(focusedSection == .technical ? 0.12 : 0.06))
+                sectionCardBackground(
+                    cornerRadius: 14,
+                    isFocused: focusedSection == .technical
+                )
             )
-            .shadow(color: .black.opacity(focusedSection == .technical ? 0.6 : 0.15), radius: focusedSection == .technical ? 24 : 8, y: focusedSection == .technical ? 14 : 4)
+            .shadow(color: .black.opacity(focusedSection == .technical ? 0.55 : 0.14), radius: focusedSection == .technical ? 24 : 8, y: focusedSection == .technical ? 14 : 4)
             .scaleEffect(focusedSection == .technical ? 1.02 : 1.0)
             .animation(.easeOut(duration: 0.2), value: focusedSection)
         }
@@ -690,6 +700,15 @@ struct TVDetailsInfoGrid: View {
         if value.contains("hdr") { return "HDR" }
         return nil
     }
+
+    private func sectionCardBackground(cornerRadius: CGFloat, isFocused: Bool) -> some View {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .fill(Color.white.opacity(isFocused ? 0.08 : 0.05))
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(Color.white.opacity(isFocused ? 0.85 : 0.12), lineWidth: isFocused ? 3 : 1)
+            )
+    }
 }
 
 private struct PersonCardModel: Identifiable {
@@ -723,6 +742,11 @@ private struct CastCrewCard: View {
                 }
                 .frame(width: 110, height: 110)
                 .clipShape(Circle())
+                .overlay(
+                    Circle()
+                        .stroke(Color.white.opacity(isFocused ? 0.88 : 0.12), lineWidth: isFocused ? 3 : 1)
+                )
+                .shadow(color: Color.white.opacity(isFocused ? 0.22 : 0.0), radius: isFocused ? 10 : 0, y: 0)
 
                 Text(person.name)
                     .font(.system(size: 16, weight: .semibold))
