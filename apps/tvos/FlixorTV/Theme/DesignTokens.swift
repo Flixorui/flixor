@@ -34,7 +34,15 @@ enum UX {
 
     // Billboard layout
     static let billboardSide: CGFloat = 8
-    static let billboardTopPadding: CGFloat = 60
+    static let billboardTopPadding: CGFloat = -48
+    static let homeHeroTopPadding: CGFloat = 0
+    static let heroFullBleedHeight: CGFloat = 1080
+    static let heroContentLeadingInset: CGFloat = 64
+    static let heroContentBottomInset: CGFloat = 150
+    static let heroRowOverlap: CGFloat = 96
+    static let heroBottomScrimHeight: CGFloat = 220
+    static let heroDotsBottomInset: CGFloat = 118
+    static let heroNextButtonSize: CGFloat = 86
 
     // Sizes
     static let posterWidth: CGFloat = 320

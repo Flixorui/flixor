@@ -11,6 +11,7 @@ struct TVHomeView: View {
     @State private var nextRowToReceiveFocus: String?
     @State private var showingDetails: MediaItem?
     @State private var currentGradientColors: UltraBlurColors?
+    @State private var billboardIndex: Int = 0
     @State private var clearNextRowFocusTask: Task<Void, Never>?
     @State private var gradientDebounceTask: Task<Void, Never>?
 
@@ -29,9 +30,17 @@ struct TVHomeView: View {
             LazyVStack(spacing: 40) {
 
                 // Billboard
-                if let first = vm.billboardItems.first {
-                    TVBillboardView(item: first, focusNS: contentFocusNS, defaultFocus: true)
-                        .padding(.top, UX.billboardTopPadding)
+                if !vm.billboardItems.isEmpty {
+                    TVHeroCarouselView(
+                        items: vm.billboardItems,
+                        focusNS: contentFocusNS,
+                        defaultFocus: true,
+                        chrome: .appleMinimal,
+                        currentIndex: $billboardIndex
+                    )
+                        .padding(.top, UX.homeHeroTopPadding)
+                        // Keep overlap static so focus transitions do not relayout the entire stack.
+                        .padding(.bottom, -(UX.heroRowOverlap + 40))
                         .id("billboard")
                         .onAppear {
                             // When billboard appears, ensure we're showing billboard colors
@@ -41,7 +50,8 @@ struct TVHomeView: View {
                         }
                 } else if vm.isLoading {
                     placeholderBillboard
-                        .padding(.top, UX.billboardTopPadding)
+                        .padding(.top, UX.homeHeroTopPadding)
+                        .padding(.bottom, -(UX.heroRowOverlap + 40))
                         .id("billboard-placeholder")
                 }
 
@@ -58,7 +68,7 @@ struct TVHomeView: View {
                         sectionId: myList.id,
                         onSelect: { showingDetails = $0 }
                     )
-                    .padding(.top, focusedRowId == myList.id ? UX.rowSnapTopPadding : 0) // snap padding
+                    .padding(.top, focusedRowId == myList.id ? UX.rowSnapTopPadding : 0)
                     .id("row-\(myList.id)")
                 }
 
@@ -74,7 +84,7 @@ struct TVHomeView: View {
                         sectionId: "continue-watching",
                         onSelect: { showingDetails = $0 }
                     )
-                    .padding(.top, focusedRowId == "continue-watching" ? UX.rowSnapTopPadding : 0) // snap padding
+                    .padding(.top, focusedRowId == "continue-watching" ? UX.rowSnapTopPadding : 0)
                     .id("row-continue-watching")
                 }
 
@@ -90,7 +100,7 @@ struct TVHomeView: View {
                         sectionId: "recently-added",
                         onSelect: { showingDetails = $0 }
                     )
-                    .padding(.top, focusedRowId == "recently-added" ? UX.rowSnapTopPadding : 0) // snap padding
+                    .padding(.top, focusedRowId == "recently-added" ? UX.rowSnapTopPadding : 0)
                     .id("row-recently-added")
                 }
 
@@ -106,7 +116,7 @@ struct TVHomeView: View {
                         sectionId: popular.id,
                         onSelect: { showingDetails = $0 }
                     )
-                    .padding(.top, focusedRowId == popular.id ? UX.rowSnapTopPadding : 0) // snap padding
+                    .padding(.top, focusedRowId == popular.id ? UX.rowSnapTopPadding : 0)
                     .id("row-\(popular.id)")
                 }
 
@@ -122,7 +132,7 @@ struct TVHomeView: View {
                         sectionId: trending.id,
                         onSelect: { showingDetails = $0 }
                     )
-                    .padding(.top, focusedRowId == trending.id ? UX.rowSnapTopPadding : 0) // snap padding
+                    .padding(.top, focusedRowId == trending.id ? UX.rowSnapTopPadding : 0)
                     .id("row-\(trending.id)")
                 }
 
@@ -138,7 +148,7 @@ struct TVHomeView: View {
                         sectionId: "on-deck",
                         onSelect: { showingDetails = $0 }
                     )
-                    .padding(.top, focusedRowId == "on-deck" ? UX.rowSnapTopPadding : 0) // snap padding
+                    .padding(.top, focusedRowId == "on-deck" ? UX.rowSnapTopPadding : 0)
                     .id("row-on-deck")
                 }
 
@@ -154,7 +164,7 @@ struct TVHomeView: View {
                         sectionId: section.id,
                         onSelect: { showingDetails = $0 }
                     )
-                    .padding(.top, focusedRowId == section.id ? UX.rowSnapTopPadding : 0) // snap padding
+                    .padding(.top, focusedRowId == section.id ? UX.rowSnapTopPadding : 0)
                     .id("row-\(section.id)")
                 }
 
@@ -182,6 +192,7 @@ struct TVHomeView: View {
             }
             .padding(.bottom, 80)
         }
+        .ignoresSafeArea(edges: .top)
         // no permanent inset; content can scroll under the transparent tab bar
         .onPreferenceChange(RowFocusKey.self) { newId in
             // Update focused row ID (nil when billboard is focused, sectionId when row is focused)
@@ -200,7 +211,7 @@ struct TVHomeView: View {
             }
 
             // Scroll to row if focused
-            if let rid = newId, rid != previousId {
+            if let rid = newId, rid != previousId, rid != firstVisibleRowId {
                 withAnimation(.easeInOut(duration: 0.24)) {
                     vProxy.scrollTo("row-\(rid)", anchor: .top)
                 }
@@ -208,7 +219,7 @@ struct TVHomeView: View {
         }
         .onPreferenceChange(BillboardFocusKey.self) { hasFocus in
             // Keep billboard at top when it has focus
-            if hasFocus {
+            if hasFocus, focusedRowId != nil {
                 withAnimation(.easeInOut(duration: 0.24)) {
                     vProxy.scrollTo("billboard", anchor: .top)
                 }
@@ -229,16 +240,24 @@ struct TVHomeView: View {
         }
         .task {
             await vm.loadIfNeeded()
-            if vm.billboardUltraBlurColors == nil, let first = vm.billboardItems.first {
-                await vm.fetchUltraBlurColors(for: first)
+            if vm.billboardUltraBlurColors == nil, let active = currentBillboardItem {
+                await vm.fetchUltraBlurColors(for: active)
             }
         }
         .onChange(of: session.isAuthenticated) { authed in
             if authed { Task { await vm.load() } }
         }
-        .onChange(of: vm.billboardItems.first?.id) { newId in
-            if let first = vm.billboardItems.first {
-                Task { await vm.fetchUltraBlurColors(for: first) }
+        .onChange(of: vm.billboardItems.map(\.id)) { _ in
+            if billboardIndex >= vm.billboardItems.count {
+                billboardIndex = max(0, vm.billboardItems.count - 1)
+            }
+            if let active = currentBillboardItem {
+                Task { await vm.fetchUltraBlurColors(for: active) }
+            }
+        }
+        .onChange(of: billboardIndex) { _ in
+            if let active = currentBillboardItem {
+                Task { await vm.fetchUltraBlurColors(for: active) }
             }
         }
         .onChange(of: focusedRowId) { rowId in
@@ -277,11 +296,39 @@ struct TVHomeView: View {
             && lhs.bottomLeft == rhs.bottomLeft
     }
 
+    private var currentBillboardItem: MediaItem? {
+        guard !vm.billboardItems.isEmpty else { return nil }
+        let clamped = min(max(billboardIndex, 0), vm.billboardItems.count - 1)
+        return vm.billboardItems[clamped]
+    }
+
+    private var firstVisibleRowId: String? {
+        if let myList = vm.additionalSections.first(where: { $0.id == "plex-watchlist" && !$0.items.isEmpty }) {
+            return myList.id
+        }
+        if !vm.continueWatching.isEmpty { return "continue-watching" }
+        if !vm.recentlyAdded.isEmpty { return "recently-added" }
+        if let popular = vm.additionalSections.first(where: { $0.id == "tmdb-popular-movies" && !$0.items.isEmpty }) {
+            return popular.id
+        }
+        if let trending = vm.additionalSections.first(where: { $0.id == "tmdb-trending" && !$0.items.isEmpty }) {
+            return trending.id
+        }
+        if !vm.onDeck.isEmpty { return "on-deck" }
+        if let section = vm.additionalSections
+            .filter({ !["plex-watchlist", "tmdb-popular-movies", "tmdb-trending"].contains($0.id) })
+            .first(where: { !$0.items.isEmpty }) {
+            return section.id
+        }
+        return nil
+    }
+
     private var placeholderBillboard: some View {
         RoundedRectangle(cornerRadius: 26, style: .continuous)
             .fill(Color.white.opacity(0.06))
-            .frame(height: 820)
-            .padding(.horizontal, 40)
+            .frame(height: UX.heroFullBleedHeight)
+            .frame(maxWidth: .infinity)
+            .ignoresSafeArea(.container, edges: .horizontal)
     }
 }
 

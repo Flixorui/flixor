@@ -6,261 +6,154 @@ enum DetailsTab: String { case suggested = "SUGGESTED", details = "DETAILS", epi
 struct TVDetailsView: View {
     let item: MediaItem
     @StateObject private var vm = TVDetailsViewModel()
-    @State private var activeTab: DetailsTab = .suggested
-    @Namespace private var heroFocusNS
-    @State private var scrollProxy: ScrollViewProxy?
-    @State private var tabsHaveFocus = false
-    @State private var contentAreaHasFocus = false
-    @State private var heroFocusId: UUID = UUID()
 
-    // Collapse state
-    @State private var isCollapsed: Bool = false
-    @State private var requestExpand: Bool = false
-    @State private var heroExpandTask: Task<Void, Never>?
-    @State private var tabScrollTask: Task<Void, Never>?
-
-    // Hero button focus
-    enum HeroButton: Hashable { case play, trailer, add }
-    @FocusState private var focusedHeroButton: HeroButton?
-
-    // Player state
     @State private var showPlayer = false
     @State private var playbackItem: MediaItem?
+    @State private var selectedTrailer: TVTrailer?
 
-    // Focus namespaces per section
-    @Namespace private var nsTabs
+    @Namespace private var heroFocusNS
     @Namespace private var nsSuggested
-    @Namespace private var nsDetails
     @Namespace private var nsEpisodes
-    @Namespace private var nsExtras
-
-    private var tabs: [DetailsTab] {
-        var out: [DetailsTab] = []
-        // TV or season → Episodes first
-        if vm.mediaKind == "tv" || vm.isSeason { out.append(.episodes) }
-        // Season-only hides Suggested/Extras
-        if !vm.isSeason { out.append(.suggested) }
-        out.append(.details)
-        if !vm.isSeason { out.append(.extras) }
-        return out
-    }
-
-    private var metaItems: [String] {
-        var parts: [String] = []
-        if let y = vm.year, !y.isEmpty { parts.append(y) }
-        if let rt = vm.runtime, rt > 0 {
-            if rt >= 60 { parts.append("\(rt/60)h \(rt%60)m") } else { parts.append("\(rt)m") }
-        }
-        if let cr = vm.rating, !cr.isEmpty { parts.append(cr) }
-        return parts
-    }
+    @Namespace private var nsDetails
+    @State private var scrollY: CGFloat = 0
+    @State private var contentSectionHasFocus: Bool = false
 
     private var hasPlexSource: Bool {
         vm.playableId != nil || vm.plexRatingKey != nil
     }
 
+    private var isScrolledPastHero: Bool {
+        scrollY > 200
+    }
+
+    private var shouldShowBlur: Bool {
+        contentSectionHasFocus || scrollY > 300
+    }
+
     var body: some View {
         ZStack {
-            // Layer 1: Full-page backdrop image (edge-to-edge, corner-to-corner)
+            // Layer 1: Full-page backdrop image
             CachedAsyncImage(url: vm.backdropURL, contentMode: .fill) {
-                Color.black.opacity(0.3)
+                Color.black.opacity(0.35)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .ignoresSafeArea(edges: .all)
 
-            // Layer 2: Full-screen gradient overlay for text readability
+            // Layer 2: Subtle left-to-right gradient for text readability (hero area only)
             LinearGradient(
                 gradient: Gradient(stops: [
-                    .init(color: Color.black.opacity(0.7), location: 0.0),
-                    .init(color: Color.black.opacity(0.3), location: 0.35),
-                    .init(color: .clear, location: 0.6)
+                    .init(color: Color.black.opacity(0.65), location: 0.0),
+                    .init(color: Color.black.opacity(0.25), location: 0.4),
+                    .init(color: .clear, location: 0.7)
                 ]),
-                startPoint: .leading, endPoint: .trailing
+                startPoint: .leading,
+                endPoint: .trailing
             )
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .ignoresSafeArea(edges: .all)
 
-            // Layer 3: Conditional frosted glass blur (only when collapsed)
-            if isCollapsed, let colors = vm.ultraBlurColors {
-                ZStack {
-                    // Frosted glass material effect
-                    Rectangle()
-                        .fill(.ultraThinMaterial)
+            // Layer 3: Frosted glass blur (shows when content sections have focus or scrolled past hero)
+            ZStack {
+                Rectangle()
+                    .fill(.ultraThinMaterial)
 
-                    // Color overlay from extracted backdrop colors
+                if let colors = vm.ultraBlurColors {
                     UltraBlurGradientBackground(colors: colors, opacity: 0.6)
                 }
-                .ignoresSafeArea(edges: .all)
-                .transition(.opacity)
             }
+            .opacity(shouldShowBlur ? 1 : 0)
+            .animation(.easeInOut(duration: 0.4), value: shouldShowBlur)
+            .ignoresSafeArea(edges: .all)
 
-            // Layer 4: Content - VStack with collapsing hero
-            VStack(spacing: 0) {
-                // HERO - Collapsible section
-                ZStack(alignment: .topLeading) {
-
-                    // Content Overlay: Fixed-width column on left
-                    HStack(spacing: 0) {
-                        VStack(alignment: .leading, spacing: 0) {
-                            // Logo (if available), otherwise show title
-                            if let logo = vm.logoURL {
-                                CachedAsyncImage(url: logo, contentMode: .fit, showsErrorView: false) {
-                                    Text(vm.title.isEmpty ? item.title : vm.title)
-                                        .font(.system(size: isCollapsed ? 20 : 48, weight: .bold))
-                                        .foregroundStyle(.white)
-                                        .lineLimit(2)
-                                }
-                                .frame(
-                                    maxWidth: isCollapsed ? 80 : 320,
-                                    maxHeight: isCollapsed ? 40 : 100,
-                                    alignment: .leading
-                                )
-                                .shadow(color: .black.opacity(0.6), radius: 8, y: 4)
-                                .padding(.bottom, isCollapsed ? 0 : 12)
-                            } else {
-                                // No logo available, show title
+            // Layer 4: Condensed header (shows when scrolled past hero)
+            if isScrolledPastHero {
+                VStack {
+                    HStack {
+                        if let logo = vm.logoURL {
+                            CachedAsyncImage(url: logo, contentMode: .fit, showsErrorView: false) {
                                 Text(vm.title.isEmpty ? item.title : vm.title)
-                                    .font(.system(size: isCollapsed ? 20 : 48, weight: .bold))
+                                    .font(.system(size: 24, weight: .bold))
                                     .foregroundStyle(.white)
-                                    .lineLimit(2)
-                                    .padding(.bottom, isCollapsed ? 0 : 16)
+                                    .lineLimit(1)
                             }
-
-                            // Meta badges (TV-14, HD, 5.1, CC style) and meta text combined
-                            if !isCollapsed {
-                                HStack(spacing: 8) {
-                                    // Technical badges
-                                    if !vm.badges.isEmpty {
-                                        ForEach(vm.badges, id: \.self) { badge in
-                                            Text(badge)
-                                                .font(.system(size: 14, weight: .medium))
-                                                .foregroundStyle(.white.opacity(0.9))
-                                                .padding(.horizontal, 8)
-                                                .padding(.vertical, 4)
-                                                .overlay(
-                                                    RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                                        .stroke(Color.white.opacity(0.4), lineWidth: 1)
-                                                )
-                                        }
-                                    }
-                                }
-                                .padding(.bottom, 12)
-                                .opacity(isCollapsed ? 0 : 1)
-
-                                // Rating badges (IMDB, Rotten Tomatoes)
-                                if let ratings = vm.externalRatings {
-                                    TVRatingsStrip(ratings: ratings)
-                                        .padding(.bottom, 8)
-                                        .opacity(isCollapsed ? 0 : 1)
-                                }
-
-                                // Meta text line (year, runtime, rating)
-                                if !metaItems.isEmpty {
-                                    Text(metaItems.joined(separator: " • "))
-                                        .font(.system(size: 20, weight: .medium))
-                                        .foregroundStyle(.white.opacity(0.75))
-                                        .padding(.bottom, 20)
-                                        .opacity(isCollapsed ? 0 : 1)
-                                }
-
-                                // Overview
-                                if !vm.overview.isEmpty {
-                                    Text(vm.overview)
-                                        .font(.system(size: 20, weight: .regular))
-                                        .foregroundStyle(.white.opacity(0.85))
-                                        .lineLimit(4)
-                                        .lineSpacing(4)
-                                        .padding(.bottom, 24)
-                                        .opacity(isCollapsed ? 0 : 1)
-                                }
-
-                                // Action Buttons
-                                HStack(spacing: 16) { heroActionButtons }
-                                    .focusSection()
-                                    .opacity(isCollapsed ? 0 : 1)
-                            }
+                            .frame(maxWidth: 160, maxHeight: 50, alignment: .leading)
+                            .shadow(color: .black.opacity(0.5), radius: 4, y: 2)
+                        } else {
+                            Text(vm.title.isEmpty ? item.title : vm.title)
+                                .font(.system(size: 24, weight: .bold))
+                                .foregroundStyle(.white)
+                                .lineLimit(1)
                         }
-                        .onPreferenceChange(HeroActionButtonFocusIdKey.self) { newId in
-                            if let newId = newId {
-                                heroFocusId = newId
-                            }
-                        }
-                        .frame(width: isCollapsed ? 200 : 550)
-                        .padding(.leading, isCollapsed ? 60 : 80)
-                        .padding(.top, isCollapsed ? 40 : (UX.billboardTopPadding + 100))
-                        .padding(.bottom, isCollapsed ? 0 : 100)
-
                         Spacer()
                     }
-                }
-                .frame(maxWidth: .infinity)
-                .frame(height: isCollapsed ? 120 : (900 + UX.billboardTopPadding))
-                .clipped()
-                .id("hero")
-                .focusSection()
-                .animation(.spring(response: 0.5, dampingFraction: 0.75), value: isCollapsed)
-
-                // TAB BAR - Fixed position below hero
-                TVDetailsTabsBar(tabs: tabs, active: $activeTab, reportFocus: $tabsHaveFocus, requestExpand: $requestExpand)
-                    .frame(height: 60)
                     .padding(.horizontal, 80)
-                    .id("tabs")
-                    .focusSection()
+                    .padding(.top, 50)
+                    .padding(.bottom, 16)
+                    .background(
+                        LinearGradient(
+                            colors: [Color.black.opacity(0.85), Color.black.opacity(0.4), .clear],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    Spacer()
+                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
+                .animation(.easeOut(duration: 0.25), value: isScrolledPastHero)
+                .ignoresSafeArea(edges: .top)
+            }
 
-                // CONTENT - Scrollable area
-                ScrollViewReader { proxy in
-                    ScrollView(.vertical, showsIndicators: false) {
-                        VStack(spacing: 28) {
-                            switch activeTab {
-                            case .suggested:
-                                Color.clear.frame(height: 1).id("content-suggested")
-                                SuggestedSection(vm: vm, focusNS: nsSuggested)
-                                    .focusScope(nsSuggested)
-                                    .transition(.asymmetric(
-                                        insertion: .opacity.combined(with: .move(edge: .trailing)),
-                                        removal: .opacity.combined(with: .move(edge: .leading))
-                                    ))
-                            case .details:
-                                Color.clear.frame(height: 1).id("content-details")
-                                TVDetailsInfoGrid(vm: vm, focusNS: nsDetails)
-                                    .focusScope(nsDetails)
-                                    .preference(key: ContentAreaFocusKey.self, value: true)
-                                    .transition(.asymmetric(
-                                        insertion: .opacity.combined(with: .move(edge: .trailing)),
-                                        removal: .opacity.combined(with: .move(edge: .leading))
-                                    ))
-                            case .episodes:
-                                VStack(alignment: .leading, spacing: 24) {
-                                    Color.clear.frame(height: 1).id("content-episodes")
-                                    TVEpisodesRail(vm: vm, focusNS: nsEpisodes)
-                                }
-                                .focusScope(nsEpisodes)
-                                .preference(key: ContentAreaFocusKey.self, value: true)
-                                .transition(.asymmetric(
-                                    insertion: .opacity.combined(with: .move(edge: .trailing)),
-                                    removal: .opacity.combined(with: .move(edge: .leading))
-                                ))
-                            case .extras:
-                                Color.clear.frame(height: 1).id("content-extras")
-                                ExtrasSection(vm: vm, focusNS: nsExtras)
-                                    .focusScope(nsExtras)
-                                    .transition(.asymmetric(
-                                        insertion: .opacity.combined(with: .move(edge: .trailing)),
-                                        removal: .opacity.combined(with: .move(edge: .leading))
-                                    ))
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 38) {
+                    GeometryReader { geo in
+                        Color.clear
+                            .preference(key: DetailsScrollOffsetKey.self, value: -geo.frame(in: .named("detailsScroll")).minY)
+                    }
+                    .frame(height: 0)
+
+                    TVDetailsHeroSection(
+                        vm: vm,
+                        item: item,
+                        focusNS: heroFocusNS,
+                        hasPlexSource: hasPlexSource,
+                        onPlay: playContent,
+                        onTrailerTapped: { trailer in
+                            selectedTrailer = trailer
+                        },
+                        onFocusChange: { heroHasFocus in
+                            if heroHasFocus {
+                                contentSectionHasFocus = false
                             }
                         }
-                        .padding(.bottom, 80)
-                        .frame(minHeight: 800)
-                        .onPreferenceChange(ContentAreaFocusKey.self) { hasFocus in
-                            contentAreaHasFocus = hasFocus
+                    )
+                    .id("details-hero")
+
+                    if (vm.mediaKind == "tv" || vm.isSeason) && !vm.isEpisode {
+                        VStack(alignment: .leading, spacing: 14) {
+                            Text("Episodes")
+                                .font(.system(size: 30, weight: .bold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 80)
+                            TVEpisodesRail(vm: vm, focusNS: nsEpisodes)
+                                .focusScope(nsEpisodes)
                         }
                     }
-                    .disabled(!isCollapsed)
-                    .onAppear { scrollProxy = proxy }
+
+                    if !vm.isSeason && !vm.isEpisode {
+                        SuggestedSection(vm: vm, focusNS: nsSuggested, onFocusChange: { focused in
+                            contentSectionHasFocus = focused
+                        })
+                            .focusScope(nsSuggested)
+                    }
+
+                    TVDetailsInfoGrid(vm: vm, focusNS: nsDetails, onFocusChange: { focused in
+                        contentSectionHasFocus = focused
+                    })
+                        .focusScope(nsDetails)
                 }
-            }  // End main VStack
-        }  // End ZStack
+                .padding(.bottom, 80)
+            }
+            .coordinateSpace(name: "detailsScroll")
+        }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .ignoresSafeArea(edges: .all)
         .fullScreenCover(isPresented: $showPlayer) {
@@ -268,102 +161,18 @@ struct TVDetailsView: View {
                 PlayerView(item: playbackItem)
             }
         }
+        .fullScreenCover(item: $selectedTrailer) { trailer in
+            TVTrailerModal(trailer: trailer, onClose: {
+                selectedTrailer = nil
+            })
+        }
         .task {
             await vm.load(for: item)
-            // Default tab depending on mediaKind
-            if vm.mediaKind == "tv" || vm.isSeason { activeTab = .episodes } else { activeTab = .suggested }
         }
-        .onChange(of: vm.mediaKind) { _ in
-            if vm.mediaKind == "tv" || vm.isSeason { activeTab = .episodes } else { activeTab = .suggested }
-        }
-        .onChange(of: tabsHaveFocus) { hasFocus in
-            if hasFocus && !isCollapsed && focusedHeroButton == nil {
-                withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) {
-                    isCollapsed = true
-                }
-            }
-        }
-        .onChange(of: focusedHeroButton) { button in
-            if button != nil && isCollapsed {
-                // If hero button gains focus while collapsed, expand automatically
-                withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) {
-                    isCollapsed = false
-                }
-            }
-        }
-        .onChange(of: requestExpand) { shouldExpand in
-            if shouldExpand && isCollapsed {
-                heroExpandTask?.cancel()
-                withAnimation(.spring(response: 0.5, dampingFraction: 0.75)) {
-                    isCollapsed = false
-                }
-
-                heroExpandTask = Task {
-                    try? await Task.sleep(nanoseconds: 300_000_000)
-                    guard !Task.isCancelled else { return }
-                    focusedHeroButton = .play
-
-                    try? await Task.sleep(nanoseconds: 100_000_000)
-                    guard !Task.isCancelled else { return }
-                    scrollProxy?.scrollTo("content-\(activeTab.rawValue.lowercased())", anchor: .top)
-
-                    try? await Task.sleep(nanoseconds: 500_000_000)
-                    guard !Task.isCancelled else { return }
-                    requestExpand = false
-                }
-            } else if shouldExpand && !isCollapsed {
-                // Already expanded, just reset flag
-                requestExpand = false
-            }
-        }
-        .onChange(of: activeTab) { newTab in
-            if isCollapsed {
-                // Animate tab content transitions when collapsed
-                withAnimation(.easeInOut(duration: 0.3)) {
-                    // Animation context for transition
-                }
-                // Reset scroll position for new tab
-                tabScrollTask?.cancel()
-                tabScrollTask = Task {
-                    try? await Task.sleep(nanoseconds: 100_000_000)
-                    guard !Task.isCancelled else { return }
-                    scrollProxy?.scrollTo("content-\(newTab.rawValue.lowercased())", anchor: .top)
-                }
-            }
-        }
-        .onDisappear {
-            heroExpandTask?.cancel()
-            tabScrollTask?.cancel()
+        .onPreferenceChange(DetailsScrollOffsetKey.self) { value in
+            scrollY = max(0, value)
         }
     }
-
-    @ViewBuilder private var metaRow: some View {
-        if !metaItems.isEmpty {
-            Text(metaItems.joined(separator: " • "))
-                .font(.system(size: 22, weight: .medium))
-                .opacity(0.9)
-        }
-        ForEach(vm.badges, id: \.self) { b in
-            TVMetaPill(text: b)
-        }
-        if let ratings = vm.externalRatings { TVRatingsStrip(ratings: ratings) }
-    }
-
-    @ViewBuilder private var actionButtons: some View {
-        DetailsCTA(title: vm.playableId != nil ? "Play" : "Play", systemName: "play.fill", primary: false, isDefaultFocusTarget: true, focusNS: heroFocusNS)
-        DetailsCTA(title: "My List", systemName: "plus")
-    }
-
-    @ViewBuilder private var heroActionButtons: some View {
-        HeroPlayButton(isDefaultFocusTarget: true, focusNS: heroFocusNS, isEnabled: hasPlexSource, action: playContent)
-            .focused($focusedHeroButton, equals: .play)
-        HeroTrailerButton(focusNS: heroFocusNS)
-            .focused($focusedHeroButton, equals: .trailer)
-        HeroAddButton(focusNS: heroFocusNS)
-            .focused($focusedHeroButton, equals: .add)
-    }
-
-    // MARK: - Playback
 
     private func playContent() {
         guard hasPlexSource else {
@@ -383,9 +192,10 @@ struct TVDetailsView: View {
         } else {
             playbackId = "plex:\(ratingKey)"
         }
+
         let playbackType: String = {
-            if item.type == "episode" { return "episode" }
-            if item.type == "season" { return "season" }
+            if item.type == "episode" || vm.isEpisode { return "episode" }
+            if item.type == "season" || vm.isSeason { return "season" }
             if vm.mediaKind == "movie" { return "movie" }
             if vm.mediaKind == "tv" { return "show" }
             return item.type
@@ -403,11 +213,11 @@ struct TVDetailsView: View {
             duration: vm.runtime.map { $0 * 60000 } ?? item.duration,
             viewOffset: item.viewOffset,
             summary: vm.overview.isEmpty ? item.summary : vm.overview,
-            grandparentTitle: item.grandparentTitle,
+            grandparentTitle: vm.showTitle ?? item.grandparentTitle,
             grandparentThumb: item.grandparentThumb,
             grandparentArt: item.grandparentArt,
-            parentIndex: item.parentIndex,
-            index: item.index,
+            parentIndex: vm.seasonNumber ?? item.parentIndex,
+            index: vm.episodeNumber ?? item.index,
             parentRatingKey: item.parentRatingKey,
             parentTitle: item.parentTitle,
             leafCount: item.leafCount,
@@ -419,28 +229,388 @@ struct TVDetailsView: View {
     }
 }
 
-// MARK: - Tabs
-// Old inline tabs replaced by TVDetailsTabsBar component
+private struct TVDetailsHeroSection: View {
+    @ObservedObject var vm: TVDetailsViewModel
+    let item: MediaItem
+    let focusNS: Namespace.ID
+    let hasPlexSource: Bool
+    let onPlay: () -> Void
+    let onTrailerTapped: (TVTrailer) -> Void
+    var onFocusChange: ((Bool) -> Void)?
 
-// MARK: - Suggested
+    @FocusState private var focusedButton: HeroAction?
+
+    enum HeroAction: Hashable {
+        case play
+        case trailer
+        case myList
+    }
+
+    private var metaItems: [String] {
+        var values: [String] = []
+        if let year = vm.year, !year.isEmpty { values.append(year) }
+        if let runtime = vm.runtime {
+            if runtime >= 60 {
+                values.append("\(runtime / 60)h \(runtime % 60)m")
+            } else {
+                values.append("\(runtime)m")
+            }
+        }
+        return values
+    }
+
+    private var resolutionBadge: String? {
+        guard let raw = vm.activeVersionDetail?.technical.resolution else { return nil }
+        let lower = raw.lowercased()
+        if lower.contains("2160") || lower.contains("4k") || lower.contains("uhd") { return "4K" }
+        if lower.contains("1080") || lower.contains("fhd") { return "HD" }
+        if lower.contains("720") || lower == "hd" || lower.contains("hd ready") { return "HD" }
+
+        let parts = raw.split(separator: "x")
+        if parts.count == 2,
+           let width = Int(parts[0]),
+           let height = Int(parts[1]) {
+            if width >= 3800 || height >= 2100 { return "4K" }
+            if width >= 1900 || height >= 1000 { return "HD" }
+            if width >= 1260 || height >= 700 { return "HD" }
+        }
+        return nil
+    }
+
+    private var hdrBadgeValue: String? {
+        if let technicalHDR = vm.activeVersionDetail?.technical.hdrFormat {
+            return technicalHDR
+        }
+
+        for badge in vm.badges {
+            let lower = badge.lowercased()
+            if lower.contains("dolby vision") || lower == "dv" || lower.contains("dovi") { return "Dolby Vision" }
+            if lower.contains("hdr10+") { return "HDR10+" }
+            if lower.contains("hdr10") { return "HDR10" }
+            if lower.contains("hlg") { return "HLG" }
+            if lower == "hdr" || lower.contains(" hdr") { return "HDR" }
+        }
+        return nil
+    }
+
+    private var containerBadge: String? {
+        guard let container = vm.activeVersionDetail?.technical.container?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !container.isEmpty else { return nil }
+        return container.uppercased()
+    }
+
+    private var accessibilityBadges: [String] {
+        let subtitleTokens = vm.subtitleTracks
+            .map { ($0.name + " " + ($0.language ?? "")).lowercased() }
+            .joined(separator: " ")
+        let audioTokens = vm.audioTracks
+            .map { ($0.name + " " + ($0.language ?? "")).lowercased() }
+            .joined(separator: " ")
+
+        var badges: [String] = []
+        if !vm.subtitleTracks.isEmpty || subtitleTokens.contains("cc") || subtitleTokens.contains("closed caption") { badges.append("CC") }
+        if subtitleTokens.contains("sdh") || subtitleTokens.contains("hard of hearing") || subtitleTokens.contains("deaf") { badges.append("SDH") }
+        if audioTokens.contains("audio description") || audioTokens.contains("descriptive") || audioTokens.contains("ad") { badges.append("AD") }
+        return badges
+    }
+
+    private var filteredTechnicalBadges: [String] {
+        var output: [String] = []
+        for badge in vm.badges {
+            let lower = badge.lowercased()
+            if lower == "plex" || lower.contains("no local") { continue }
+            if lower.contains("2160") || lower.contains("4k") || lower.contains("1080") || lower.contains("720") || lower == "hd" { continue }
+            if lower.contains("hdr") || lower.contains("dolby vision") || lower == "dv" || lower.contains("dovi") { continue }
+            if lower.contains("atmos") || lower.contains("truehd") {
+                output.append("Dolby Atmos")
+                continue
+            }
+            if lower == "cc" || lower.contains("closed caption") {
+                output.append("CC")
+                continue
+            }
+            if lower == "sdh" || lower.contains("hard of hearing") || lower.contains("deaf") {
+                output.append("SDH")
+                continue
+            }
+            if lower == "ad" || lower.contains("audio description") {
+                output.append("AD")
+                continue
+            }
+        }
+
+        output.append(contentsOf: accessibilityBadges)
+        var seen = Set<String>()
+        return output.filter { seen.insert($0).inserted }
+    }
+
+    private var effectiveRatings: TVDetailsViewModel.ExternalRatings? {
+        let baseIMDb = vm.externalRatings?.imdb?.score ?? vm.plexImdbRating ?? vm.tmdbRating
+        let baseVotes = vm.externalRatings?.imdb?.votes
+        let critic = vm.externalRatings?.rottenTomatoes?.critic
+        let audience = vm.externalRatings?.rottenTomatoes?.audience ?? vm.plexAudienceRating
+
+        let hasIMDb = baseIMDb != nil || baseVotes != nil
+        let hasRT = critic != nil || audience != nil
+        guard hasIMDb || hasRT else { return nil }
+
+        return TVDetailsViewModel.ExternalRatings(
+            imdb: hasIMDb ? TVDetailsViewModel.ExternalRatings.IMDb(score: baseIMDb, votes: baseVotes) : nil,
+            rottenTomatoes: hasRT ? TVDetailsViewModel.ExternalRatings.RottenTomatoes(critic: critic, audience: audience) : nil
+        )
+    }
+
+    private var hasPlexAvailability: Bool {
+        vm.badges.contains(where: { $0.lowercased() == "plex" }) || vm.plexRatingKey != nil
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .bottomLeading) {
+                HStack(alignment: .bottom, spacing: 40) {
+                    VStack(alignment: .leading, spacing: 16) {
+                        if let logo = vm.logoURL {
+                            CachedAsyncImage(url: logo, contentMode: .fit, showsErrorView: false) {
+                                Text(vm.title.isEmpty ? item.title : vm.title)
+                                    .font(.system(size: 68, weight: .heavy))
+                                    .foregroundStyle(.white)
+                                    .lineLimit(2)
+                            }
+                            .frame(maxWidth: 520, maxHeight: 120, alignment: .leading)
+                            .shadow(color: .black.opacity(0.7), radius: 12, y: 6)
+                        } else {
+                            Text(vm.title.isEmpty ? item.title : vm.title)
+                                .font(.system(size: 68, weight: .heavy))
+                                .foregroundStyle(.white)
+                                .lineLimit(2)
+                        }
+
+                        typeGenreRow
+
+                        if !vm.overview.isEmpty {
+                            Text(vm.overview)
+                                .font(.system(size: 24, weight: .regular))
+                                .foregroundStyle(.white.opacity(0.86))
+                                .lineLimit(4)
+                                .frame(maxWidth: 780, alignment: .leading)
+                        }
+
+                        technicalRow
+
+                        HStack(spacing: 14) {
+                            Button(action: onPlay) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "play.fill")
+                                    Text(hasPlexSource ? "Play" : "Unavailable")
+                                }
+                                .font(.system(size: 26, weight: .semibold))
+                                .foregroundStyle(hasPlexSource ? Color.black : Color.gray)
+                                .padding(.horizontal, 28)
+                                .padding(.vertical, 14)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 11, style: .continuous)
+                                        .fill(hasPlexSource ? Color.white : Color.white.opacity(0.5))
+                                )
+                            }
+                            .buttonStyle(.card)
+                            .disabled(!hasPlexSource)
+                            .focused($focusedButton, equals: .play)
+                            .prefersDefaultFocus(true, in: focusNS)
+
+                            Button(action: {
+                                if let first = vm.trailers.first {
+                                    onTrailerTapped(first)
+                                }
+                            }) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "play.rectangle.fill")
+                                    Text("Trailer")
+                                }
+                                .font(.system(size: 24, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 24)
+                                .padding(.vertical, 14)
+                                .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(Color.white.opacity(0.24)))
+                            }
+                            .buttonStyle(.card)
+                            .disabled(vm.trailers.isEmpty)
+                            .focused($focusedButton, equals: .trailer)
+
+                            Button(action: {}) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "plus")
+                                    Text("My List")
+                                }
+                                .font(.system(size: 24, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 24)
+                                .padding(.vertical, 14)
+                                .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(Color.white.opacity(0.14)))
+                            }
+                            .buttonStyle(.card)
+                            .focused($focusedButton, equals: .myList)
+                        }
+
+                        if !vm.trailers.isEmpty {
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 12) {
+                                    ForEach(vm.trailers.prefix(5)) { trailer in
+                                        TVTrailerCard(trailer: trailer, onPlay: {
+                                            onTrailerTapped(trailer)
+                                        }, onFocusChange: { focused in
+                                            if focused {
+                                                onFocusChange?(true)
+                                            }
+                                        })
+                                    }
+                                }
+                                .padding(.vertical, 2)
+                            }
+                        }
+                    }
+                    .frame(maxWidth: 930, alignment: .leading)
+
+                    Spacer(minLength: 20)
+
+                    VStack(alignment: .trailing, spacing: 18) {
+                        if !vm.castShort.isEmpty {
+                            creditsBlock(title: "Starring", value: vm.castShort.map { $0.name }.joined(separator: ", "))
+                        }
+                        if !vm.directors.isEmpty {
+                            creditsBlock(title: vm.directors.count > 1 ? "Directors" : "Director", value: vm.directors.prefix(2).joined(separator: ", "))
+                        }
+                        if vm.mediaKind == "tv", !vm.creators.isEmpty {
+                            creditsBlock(title: vm.creators.count > 1 ? "Creators" : "Creator", value: vm.creators.prefix(2).joined(separator: ", "))
+                        }
+                    }
+                    .frame(maxWidth: 420, alignment: .trailing)
+                    .padding(.bottom, 36)
+                }
+                .padding(.horizontal, 80)
+                .padding(.top, 120)
+                .padding(.bottom, 70)
+            }
+            .clipShape(Rectangle())
+        }
+        .frame(height: 840)
+        .onChange(of: focusedButton) { newValue in
+            // Only report when hero gains focus (to reset blur)
+            if newValue != nil {
+                onFocusChange?(true)
+            }
+        }
+    }
+
+    private var typeGenreRow: some View {
+        HStack(spacing: 8) {
+            HStack(spacing: 4) {
+                Image(systemName: vm.isEpisode ? "tv" : (vm.mediaKind == "movie" ? "film" : "tv"))
+                    .font(.system(size: 14))
+                Text(vm.isEpisode ? "Episode" : (vm.mediaKind == "movie" ? "Movie" : (vm.isSeason ? "Season" : "Series")))
+            }
+            .font(.system(size: 16, weight: .medium))
+            .foregroundStyle(.white.opacity(0.9))
+
+            if vm.isEpisode, let season = vm.seasonNumber, let episode = vm.episodeNumber {
+                Text("·")
+                    .foregroundStyle(.white.opacity(0.5))
+                Text("S\(season) E\(episode)")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.9))
+            }
+
+            if !vm.genres.isEmpty {
+                Text("·")
+                    .foregroundStyle(.white.opacity(0.5))
+                Text(vm.genres.prefix(3).joined(separator: " · "))
+                    .font(.system(size: 16, weight: .regular))
+                    .foregroundStyle(.white.opacity(0.88))
+            }
+
+            if let rating = vm.rating, !rating.isEmpty {
+                TVContentRatingBadge(rating: rating)
+            }
+        }
+    }
+
+    private var technicalRow: some View {
+        HStack(spacing: 10) {
+            if !metaItems.isEmpty {
+                Text(metaItems.joined(separator: " • "))
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.8))
+            }
+
+            if let resolution = resolutionBadge {
+                TVTechnicalBadge(text: resolution)
+            }
+
+            if let hdr = hdrBadgeValue {
+                TVTechnicalBadge(text: hdr)
+            }
+
+            if let container = containerBadge {
+                TVTechnicalBadge(text: container)
+            }
+
+            ForEach(filteredTechnicalBadges, id: \.self) { badge in
+                TVTechnicalBadge(text: badge)
+            }
+
+            if hasPlexAvailability {
+                Label("Available", systemImage: "checkmark.seal.fill")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.green.opacity(0.95))
+            } else if vm.tmdbId != nil {
+                Label("Not available", systemImage: "exclamationmark.triangle.fill")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.orange.opacity(0.95))
+            }
+
+            if let ratings = effectiveRatings {
+                TVRatingsStrip(ratings: ratings)
+            }
+        }
+    }
+
+    private func creditsBlock(title: String, value: String) -> some View {
+        VStack(alignment: .trailing, spacing: 4) {
+            Text(title)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(.white.opacity(0.55))
+            Text(value)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.92))
+                .multilineTextAlignment(.trailing)
+                .lineLimit(2)
+        }
+    }
+
+}
+
 private struct SuggestedSection: View {
     @ObservedObject var vm: TVDetailsViewModel
     var focusNS: Namespace.ID
+    var onFocusChange: (Bool) -> Void
     @State private var selected: MediaItem?
     @State private var focusedRowId: String?
     @State private var rowLastFocusedItem: [String: String] = [:]
     @State private var nextRowToReceiveFocus: String?
+    @State private var hasEstablishedInitialFocus = false
     @State private var clearNextRowTask: Task<Void, Never>?
+    @State private var isSectionFocused: Bool = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
+        VStack(alignment: .leading, spacing: 20) {
             if !vm.related.isEmpty {
                 TVCarouselRow(
-                    title: "Because you watched",
+                    title: "Because You Watched",
                     items: vm.related,
                     kind: .poster,
                     focusNS: focusNS,
-                    defaultFocus: focusedRowId == "because-you-watched" || nextRowToReceiveFocus == "because-you-watched" || focusedRowId == nil,
+                    defaultFocus: focusedRowId == "because-you-watched"
+                        || nextRowToReceiveFocus == "because-you-watched"
+                        || (!hasEstablishedInitialFocus && focusedRowId == nil),
                     preferredFocusItemId: rowLastFocusedItem["because-you-watched"],
                     sectionId: "because-you-watched",
                     onSelect: { selected = $0 }
@@ -448,11 +618,13 @@ private struct SuggestedSection: View {
             }
             if !vm.similar.isEmpty {
                 TVCarouselRow(
-                    title: "More like this",
+                    title: "More Like This",
                     items: vm.similar,
                     kind: .poster,
                     focusNS: focusNS,
-                    defaultFocus: focusedRowId == "more-like-this" || nextRowToReceiveFocus == "more-like-this" || (vm.related.isEmpty && focusedRowId == nil),
+                    defaultFocus: focusedRowId == "more-like-this"
+                        || nextRowToReceiveFocus == "more-like-this"
+                        || (!hasEstablishedInitialFocus && vm.related.isEmpty && focusedRowId == nil),
                     preferredFocusItemId: rowLastFocusedItem["more-like-this"],
                     sectionId: "more-like-this",
                     onSelect: { selected = $0 }
@@ -461,7 +633,13 @@ private struct SuggestedSection: View {
         }
         .onPreferenceChange(RowFocusKey.self) { newId in
             let previousId = focusedRowId
+            let wasFocused = isSectionFocused
+            let nowFocused = newId != nil
+
             if previousId != newId {
+                if newId != nil {
+                    hasEstablishedInitialFocus = true
+                }
                 nextRowToReceiveFocus = newId
                 focusedRowId = newId
                 clearNextRowTask?.cancel()
@@ -471,269 +649,33 @@ private struct SuggestedSection: View {
                     nextRowToReceiveFocus = nil
                 }
             }
+
+            // Only report when gaining focus, not when losing
+            // Hero section is responsible for resetting contentSectionHasFocus
+            if nowFocused && !wasFocused {
+                isSectionFocused = true
+                onFocusChange(true)
+            } else if !nowFocused {
+                isSectionFocused = false
+            }
         }
         .onPreferenceChange(RowItemFocusKey.self) { value in
             if let rowId = value.rowId, let itemId = value.itemId {
                 rowLastFocusedItem[rowId] = itemId
             }
         }
-        .preference(key: ContentAreaFocusKey.self, value: focusedRowId != nil)
-        .fullScreenCover(item: $selected) { item in TVDetailsView(item: item) }
+        .fullScreenCover(item: $selected) { selectedItem in
+            TVDetailsView(item: selectedItem)
+        }
         .onDisappear {
             clearNextRowTask?.cancel()
         }
     }
 }
 
-// MARK: - Details Info
-// InfoSection replaced by TVDetailsInfoGrid component
-
-// MARK: - Episodes
-// Episodes section handled by redesigned TVEpisodesRail (with integrated season sidebar)
-
-// MARK: - Extras placeholder
-private struct ExtrasSection: View {
-    @ObservedObject var vm: TVDetailsViewModel
-    var focusNS: Namespace.ID
-    @State private var hasFocus = false
-
-    var body: some View {
-        if vm.extras.isEmpty {
-            Text("No extras available").foregroundStyle(.white.opacity(0.8)).padding(.horizontal, 48)
-        } else {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 18) {
-                    ForEach(Array(vm.extras.enumerated()), id: \.element.id) { index, ex in
-                        TVImage(url: ex.image, corner: 16, aspect: 16/9)
-                            .frame(width: 960 * 0.6, height: 540 * 0.6)
-                            .focusable(true) { focused in
-                                if focused { hasFocus = true }
-                            }
-                            .prefersDefaultFocus(index == 0, in: focusNS)
-                    }
-                }.padding(.horizontal, 48)
-            }
-            .preference(key: ContentAreaFocusKey.self, value: hasFocus)
-        }
-    }
-}
-
-// Local CTA button replicating Home hero style
-private struct DetailsCTA: View {
-    let title: String
-    let systemName: String
-    var primary: Bool = false
-    var isDefaultFocusTarget: Bool = false
-    var focusNS: Namespace.ID? = nil
-    @State private var focused: Bool = false
-    @State private var focusId: UUID? = nil
-
-    // Computed property for background color
-    private var backgroundColor: Color {
-        if focused {
-            return Color.white  // Full white when focused
-        } else if primary {
-            return Color.white.opacity(0.55)  // 55% white when primary but not focused
-        } else {
-            return Color.white.opacity(focused ? 0.18 : 0.10)  // 10-18% white for secondary
-        }
-    }
-
-    // Computed property for text color
-    private var textColor: Color {
-        if focused {
-            return Color.black  // Black when focused (any button)
-        } else if primary {
-            return Color.black  // Black for primary when not focused
-        } else {
-            return Color.white.opacity(0.85)  // Dimmed white for secondary when not focused
-        }
-    }
-
-    // Show stroke only when focused
-    private var strokeOpacity: Double {
-        focused ? 0.4 : 0.0
-    }
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: systemName)
-            Text(title)
-        }
-        .font(.system(size: 22, weight: .semibold))
-        .foregroundStyle(textColor)
-        .padding(.horizontal, 18)
-        .padding(.vertical, 10)
-        .background(Capsule().fill(backgroundColor))
-        .overlay(Capsule().stroke(Color.white.opacity(strokeOpacity), lineWidth: 2))
-        .focusable(true) { f in
-            focused = f
-            if f {
-                focusId = UUID()
-            } else {
-                focusId = nil
-            }
-        }
-        .preference(key: HeroActionButtonFocusIdKey.self, value: focusId)
-        .modifier(PreferredDefaultDetailsFocusModifier(enabled: isDefaultFocusTarget, ns: focusNS))
-        .scaleEffect(focused ? 1.06 : 1.0)
-        .shadow(color: .black.opacity(focused ? 0.35 : 0.0), radius: 12, y: 4)
-        .animation(.easeOut(duration: 0.18), value: focused)
-    }
-}
-
-private struct PreferredDefaultDetailsFocusModifier: ViewModifier {
-    let enabled: Bool
-    let ns: Namespace.ID?
-    func body(content: Content) -> some View {
-        if let ns, enabled {
-            content.prefersDefaultFocus(true, in: ns)
-        } else {
-            content
-        }
-    }
-}
-
-// MARK: - Hero Action Buttons
-
-// Primary PLAY button - solid white background, black text
-private struct HeroPlayButton: View {
-    var isDefaultFocusTarget: Bool = false
-    var focusNS: Namespace.ID? = nil
-    var isEnabled: Bool = true
-    var action: (() -> Void)? = nil
-    @FocusState private var isFocused: Bool
-    @State private var focusId: UUID? = nil
-
-    var body: some View {
-        Button(action: {
-            action?()
-        }) {
-            HStack(spacing: 10) {
-                Image(systemName: "play.fill")
-                    .font(.system(size: 20, weight: .bold))
-                Text("PLAY")
-                    .font(.system(size: 24, weight: .semibold))
-            }
-            .foregroundStyle(
-                isEnabled
-                    ? (isFocused ? Color.white : Color.black)
-                    : Color.gray
-            )
-            .padding(.horizontal, 32)
-            .padding(.vertical, 16)
-            .frame(width: 180, height: 56)
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(
-                        isEnabled
-                            ? (isFocused ? Color.black : Color.white)
-                            : Color.white.opacity(0.55)
-                    )
-            )
-        }
-        .disabled(!isEnabled)
-        .buttonStyle(.card)
-        .scaleEffect(isEnabled && isFocused ? 1.08 : 1.0)
-        .shadow(color: .black.opacity(isEnabled ? (isFocused ? 0.4 : 0.2) : 0.12), radius: isEnabled ? (isFocused ? 16 : 8) : 4, y: isEnabled ? (isFocused ? 8 : 4) : 2)
-        .focused($isFocused)
-        .onChange(of: isFocused) { focused in
-            if focused {
-                focusId = UUID()
-            } else {
-                focusId = nil
-            }
-        }
-        .preference(key: HeroActionButtonFocusIdKey.self, value: focusId)
-        .modifier(PreferredDefaultDetailsFocusModifier(enabled: isDefaultFocusTarget, ns: focusNS))
-        .animation(.easeOut(duration: 0.18), value: isFocused)
-    }
-}
-
-// Secondary TRAILER button - dark gray background, white text
-private struct HeroTrailerButton: View {
-    var focusNS: Namespace.ID? = nil
-    @State private var focused: Bool = false
-    @State private var focusId: UUID? = nil
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Text("TRAILER")
-                .font(.system(size: 24, weight: .semibold))
-        }
-        .foregroundStyle(.white.opacity(focused ? 1.0 : 0.9))
-        .padding(.horizontal, 32)
-        .padding(.vertical, 16)
-        .frame(width: 200, height: 56)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color.white.opacity(focused ? 0.35 : 0.25))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(Color.white.opacity(focused ? 0.5 : 0.2), lineWidth: focused ? 2 : 1)
-        )
-        .scaleEffect(focused ? 1.08 : 1.0)
-        .shadow(color: .black.opacity(focused ? 0.4 : 0.0), radius: focused ? 16 : 0, y: focused ? 8 : 0)
-        .focusable(true) { f in
-            focused = f
-            if f {
-                focusId = UUID()
-            } else {
-                focusId = nil
-            }
-        }
-        .preference(key: HeroActionButtonFocusIdKey.self, value: focusId)
-        .animation(.easeOut(duration: 0.18), value: focused)
-    }
-}
-
-// Circular ADD button - dark background, plus icon only
-private struct HeroAddButton: View {
-    var focusNS: Namespace.ID? = nil
-    @State private var focused: Bool = false
-    @State private var focusId: UUID? = nil
-
-    var body: some View {
-        Image(systemName: "plus")
-            .font(.system(size: 28, weight: .semibold))
-            .foregroundStyle(.white.opacity(focused ? 1.0 : 0.9))
-            .frame(width: 56, height: 56)
-            .background(
-                Circle()
-                    .fill(Color.white.opacity(focused ? 0.35 : 0.25))
-            )
-            .overlay(
-                Circle()
-                    .stroke(Color.white.opacity(focused ? 0.5 : 0.2), lineWidth: focused ? 2 : 1)
-            )
-            .scaleEffect(focused ? 1.12 : 1.0)
-            .shadow(color: .black.opacity(focused ? 0.4 : 0.0), radius: focused ? 16 : 0, y: focused ? 8 : 0)
-            .focusable(true) { f in
-                focused = f
-                if f {
-                    focusId = UUID()
-                } else {
-                    focusId = nil
-                }
-            }
-            .preference(key: HeroActionButtonFocusIdKey.self, value: focusId)
-            .animation(.easeOut(duration: 0.18), value: focused)
-    }
-}
-
-// Preference key for hero action button focus (carries UUID to detect any focus change)
-struct HeroActionButtonFocusIdKey: PreferenceKey {
-    static var defaultValue: UUID? = nil
-    static func reduce(value: inout UUID?, nextValue: () -> UUID?) {
-        value = nextValue() ?? value
-    }
-}
-
-// Preference key for tracking content area focus
-struct ContentAreaFocusKey: PreferenceKey {
-    static var defaultValue: Bool = false
-    static func reduce(value: inout Bool, nextValue: () -> Bool) {
-        value = value || nextValue()
+private struct DetailsScrollOffsetKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }

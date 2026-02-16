@@ -1,10 +1,16 @@
 import SwiftUI
 import FlixorKit
 
+enum TVHeroLayoutMode {
+    case fullBleed
+    case card
+}
+
 struct TVBillboardView: View {
     let item: MediaItem
     var focusNS: Namespace.ID? = nil
     var defaultFocus: Bool = false
+    var layout: TVHeroLayoutMode = .fullBleed
 
     @State private var showingDetails: MediaItem?
 
@@ -14,94 +20,17 @@ struct TVBillboardView: View {
     @State private var isHeroFocused: Bool = false
 
     var body: some View {
-        ZStack(alignment: .bottomLeading) {
-            // Backdrop
-            TVImage(
-                url: ImageService.shared.artURL(for: item, width: 1920, height: 1080),
-                corner: UX.billboardRadius,
-                height: 800
-            )
-            .overlay(
-                // 3-stop gradient per spec: 0.55 → 0.1 → 0 alpha
-                LinearGradient(
-                    gradient: Gradient(stops: [
-                        .init(color: Color.black.opacity(0.65), location: 0.0),
-                        .init(color: Color.black.opacity(0.18), location: 0.55),
-                        .init(color: .clear, location: 1.0)
-                    ]),
-                    startPoint: .bottom,
-                    endPoint: .top
-                )
-                .clipShape(RoundedRectangle(cornerRadius: UX.billboardRadius, style: .continuous))
-            )
-            .overlay(
-                // Subtle outer stroke to lift the billboard
-                RoundedRectangle(cornerRadius: UX.billboardRadius, style: .continuous)
-                    .stroke(Color.white.opacity(0.06), lineWidth: 1)
-            )
-            .shadow(color: .black.opacity(0.35), radius: 18, y: 8)
-
-            // Text + actions
-            VStack(alignment: .leading, spacing: 14) {
-                // Display clear logo if available, otherwise fallback to text title
-                if let logoURL = item.logo, let url = URL(string: logoURL) {
-                    CachedAsyncImage(url: url, contentMode: .fit, showsErrorView: false) {
-                        Text(item.title)
-                            .font(.system(size: 56, weight: .bold))
-                            .lineLimit(2)
-                    }
-                    .frame(maxWidth: 500, maxHeight: 140, alignment: .leading)
-                    .shadow(color: .black.opacity(0.8), radius: 12, x: 0, y: 4)
-                } else {
-                    // No logo available, use text title
-                    Text(item.title)
-                        .font(.system(size: 56, weight: .bold))
-                        .lineLimit(2)
-                }
-
-                MetaLine(item: item)
-                    .font(.system(size: 22, weight: .medium))
-                    .opacity(0.9)
-
-                if let summary = item.summary, !summary.isEmpty {
-                    Text(summary)
-                        .font(.system(size: 22))
-                        .opacity(0.85)
-                        .lineLimit(3)
-                        .frame(maxWidth: 1000, alignment: .leading)
-                }
-
-                HStack(spacing: 16) {
-                    CTAButton(title: item.viewOffset != nil ? "Resume" : "Play", systemName: "play.fill", style: .secondary, isDefaultFocusTarget: true, focusNS: focusNS)
-                        .focused($focusedButton, equals: .play)
-                        .applyDefaultBillboardFocus(ns: focusNS, enabled: true)
-
-                    CTAButton(title: "More Info", systemName: "info.circle", style: .secondary)
-                        .focused($focusedButton, equals: .moreInfo)
-                        .onTapGesture { showingDetails = item }
-
-                    CTAButton(title: "My List", systemName: "plus", style: .secondary)
-                        .focused($focusedButton, equals: .myList)
-                }
-                .offset(y: isHeroFocused ? 0 : 50)
-                .opacity(isHeroFocused ? 1.0 : 0.0)
-                .animation(.easeInOut(duration: 0.3).delay(isHeroFocused ? 0.1 : 0), value: isHeroFocused)
-                .focusSection()
-                .padding(.top, 8)
+        Group {
+            switch layout {
+            case .fullBleed:
+                fullBleedHero
+            case .card:
+                cardHero
             }
-            .foregroundStyle(.white)
-            .padding(.horizontal, 28)
-            .padding(.top, 28)
-            .padding(.bottom, 20)
         }
-        .overlay(
-            RoundedRectangle(cornerRadius: UX.billboardRadius, style: .continuous)
-                .stroke(Color.white.opacity(isHeroFocused ? 0.35 : 0.0), lineWidth: 3)
-        )
-        .animation(.easeInOut(duration: 0.3), value: isHeroFocused)
-        .padding(.horizontal, UX.billboardSide)
-        .frame(height: 820)
-        .focusSection()
+        .frame(height: layout == .fullBleed ? UX.heroFullBleedHeight : 820)
+        // Note: focusSection is on the CTA buttons HStack, not the entire hero,
+        // so focus can escape downward to rows below
         .fullScreenCover(item: $showingDetails) { item in
             TVDetailsView(item: item)
         }
@@ -109,6 +38,196 @@ struct TVBillboardView: View {
             isHeroFocused = (newValue != nil)
         }
         .preference(key: BillboardFocusKey.self, value: focusedButton != nil)
+    }
+
+    private var fullBleedHero: some View {
+        ZStack(alignment: .bottomLeading) {
+            heroBackdrop(cornerRadius: 0)
+
+            // Bottom and side scrims improve readability over bright artwork.
+            ZStack {
+                VStack(spacing: 0) {
+                    Spacer()
+                    LinearGradient(
+                        gradient: Gradient(stops: [
+                            .init(color: .clear, location: 0.0),
+                            .init(color: Color.black.opacity(0.45), location: 0.68),
+                            .init(color: Color.black.opacity(0.66), location: 1.0)
+                        ]),
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: UX.heroBottomScrimHeight)
+                }
+
+                HStack(spacing: 0) {
+                    LinearGradient(
+                        gradient: Gradient(stops: [
+                            .init(color: Color.black.opacity(0.78), location: 0.0),
+                            .init(color: Color.black.opacity(0.58), location: 0.42),
+                            .init(color: .clear, location: 1.0)
+                        ]),
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                    .frame(width: 760)
+                    Spacer(minLength: 0)
+                }
+            }
+
+            heroContent(
+                leadingInset: UX.heroContentLeadingInset,
+                topInset: 34,
+                bottomInset: UX.heroContentBottomInset,
+                maxSummaryWidth: 860,
+                maxLogoWidth: 620,
+                titleSize: 70
+            )
+        }
+        .clipped()
+        .ignoresSafeArea(.container, edges: [.top, .horizontal])
+    }
+
+    private var cardHero: some View {
+        ZStack(alignment: .bottomLeading) {
+            heroBackdrop(cornerRadius: UX.billboardRadius)
+                .overlay(
+                    RoundedRectangle(cornerRadius: UX.billboardRadius, style: .continuous)
+                        .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                )
+                .shadow(color: .black.opacity(0.35), radius: 18, y: 8)
+
+            heroContent(
+                leadingInset: 28,
+                topInset: 28,
+                bottomInset: 20,
+                maxSummaryWidth: 1000,
+                maxLogoWidth: 500,
+                titleSize: 56
+            )
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: UX.billboardRadius, style: .continuous)
+                .stroke(Color.white.opacity(isHeroFocused ? 0.35 : 0.0), lineWidth: 3)
+        )
+        .animation(.easeInOut(duration: 0.3), value: isHeroFocused)
+        .padding(.horizontal, UX.billboardSide)
+    }
+
+    private func heroBackdrop(cornerRadius: CGFloat) -> some View {
+        GeometryReader { proxy in
+            ZStack {
+                if let url = ImageService.shared.artURL(for: item, width: 2200, height: 1240) {
+                    CachedAsyncImage(url: url, contentMode: .fill) {
+                        Color.black
+                    }
+                    .frame(width: proxy.size.width, height: proxy.size.height)
+                    .clipped()
+                } else {
+                    Color.black
+                }
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .overlay(
+            // Global top-to-bottom tone curve for more consistent title contrast.
+            LinearGradient(
+                gradient: Gradient(stops: [
+                    .init(color: Color.black.opacity(0.14), location: 0.0),
+                    .init(color: Color.black.opacity(0.16), location: 0.55),
+                    .init(color: .clear, location: 1.0)
+                ]),
+                startPoint: .bottom,
+                endPoint: .top
+            )
+        )
+        .modifier(HeroCornerClipModifier(cornerRadius: cornerRadius))
+    }
+
+    private func heroContent(
+        leadingInset: CGFloat,
+        topInset: CGFloat,
+        bottomInset: CGFloat,
+        maxSummaryWidth: CGFloat,
+        maxLogoWidth: CGFloat,
+        titleSize: CGFloat
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            heroLogoOrTitle(maxLogoWidth: maxLogoWidth, titleSize: titleSize)
+
+            MetaLine(item: item)
+                .font(.system(size: 22, weight: .medium))
+                .opacity(0.9)
+
+            if let summary = item.summary, !summary.isEmpty {
+                Text(summary)
+                    .font(.system(size: 22))
+                    .opacity(0.9)
+                    .lineLimit(3)
+                    .frame(maxWidth: maxSummaryWidth, alignment: .leading)
+            }
+
+            HStack(spacing: 16) {
+                CTAButton(
+                    title: item.viewOffset != nil ? "Resume" : "Play",
+                    systemName: "play.fill",
+                    style: .secondary,
+                    isDefaultFocusTarget: true,
+                    focusNS: focusNS
+                )
+                .focused($focusedButton, equals: .play)
+                .applyDefaultBillboardFocus(ns: focusNS, enabled: defaultFocus)
+
+                CTAButton(title: "More Info", systemName: "info.circle", style: .secondary)
+                    .focused($focusedButton, equals: .moreInfo)
+                    .onTapGesture { showingDetails = item }
+
+                CTAButton(title: "My List", systemName: "plus", style: .secondary)
+                    .focused($focusedButton, equals: .myList)
+            }
+            .offset(y: isHeroFocused ? 0 : 50)
+            .opacity(isHeroFocused ? 1.0 : 0.0)
+            .animation(.easeInOut(duration: 0.3).delay(isHeroFocused ? 0.1 : 0), value: isHeroFocused)
+            .focusSection()
+            .padding(.top, 8)
+        }
+        .foregroundStyle(.white)
+        .padding(.leading, leadingInset)
+        .padding(.trailing, 44)
+        .padding(.top, topInset)
+        .padding(.bottom, bottomInset)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+    }
+
+    @ViewBuilder
+    private func heroLogoOrTitle(maxLogoWidth: CGFloat, titleSize: CGFloat) -> some View {
+        if let logoURL = item.logo, let url = URL(string: logoURL) {
+            CachedAsyncImage(url: url, contentMode: .fit, showsErrorView: false) {
+                Text(item.title)
+                    .font(.system(size: titleSize, weight: .bold))
+                    .lineLimit(2)
+            }
+            .frame(maxWidth: maxLogoWidth, maxHeight: 170, alignment: .leading)
+            .shadow(color: .black.opacity(0.8), radius: 12, x: 0, y: 4)
+        } else {
+            Text(item.title)
+                .font(.system(size: titleSize, weight: .bold))
+                .lineLimit(2)
+                .shadow(color: .black.opacity(0.85), radius: 10, x: 0, y: 3)
+        }
+    }
+}
+
+private struct HeroCornerClipModifier: ViewModifier {
+    let cornerRadius: CGFloat
+
+    func body(content: Content) -> some View {
+        if cornerRadius > 0 {
+            content.clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        } else {
+            content
+        }
     }
 }
 
