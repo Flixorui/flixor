@@ -25,6 +25,16 @@ struct PlayerView: View {
     @State private var isPaused = true
     @State private var supportsHDR = false
     @State private var hasLoadedPlayback = false
+    @State private var audioTracks: [PlayerTrack] = []
+    @State private var subtitleTracks: [PlayerTrack] = []
+    @State private var settingsAudioTracks: [TVPlaybackSettingsTrack] = []
+    @State private var settingsSubtitleTracks: [TVPlaybackSettingsTrack] = []
+    @State private var selectedAudioTrackID: String?
+    @State private var selectedSubtitleTrackID: String?
+    @State private var availableQualities: [PlaybackQuality] = PlaybackQuality.allCases
+    @State private var selectedQuality: PlaybackQuality = .original
+    @State private var playbackRate: Float = 1.0
+    @State private var activeSettingsSheet: TVPlayerSettingsSheet?
 
     private let controlsHideDelay: TimeInterval = 3.0
     private let seekBackwardSeconds = 10
@@ -103,6 +113,10 @@ struct PlayerView: View {
                             seekForwardSeconds: seekForwardSeconds,
                             onSeekBackward: { jump(by: -Double(seekBackwardSeconds)) },
                             onSeekForward: { jump(by: Double(seekForwardSeconds)) },
+                            onShowSpeedSettings: showSpeedSettings,
+                            onShowQualitySettings: showQualitySettings,
+                            onShowAudioSettings: showAudioSettings,
+                            onShowSubtitleSettings: showSubtitleSettings,
                             onPlayPause: togglePlayPause,
                             onScrubbingChanged: handleScrubbing(editing:),
                             onUserInteraction: { showControls(temporarily: true) }
@@ -127,6 +141,41 @@ struct PlayerView: View {
         }
         .onExitCommand {
             closePlayer()
+        }
+        .sheet(item: $activeSettingsSheet) { sheet in
+            switch sheet {
+            case .audio:
+                TVPlayerTrackSelectionView(
+                    title: "Audio",
+                    tracks: settingsAudioTracks,
+                    selectedTrackID: selectedAudioTrackID,
+                    showOffOption: false,
+                    onSelect: selectAudioTrack(_:),
+                    onClose: { activeSettingsSheet = nil }
+                )
+            case .subtitle:
+                TVPlayerTrackSelectionView(
+                    title: "Subtitles",
+                    tracks: settingsSubtitleTracks,
+                    selectedTrackID: selectedSubtitleTrackID,
+                    showOffOption: true,
+                    onSelect: selectSubtitleTrack(_:),
+                    onClose: { activeSettingsSheet = nil }
+                )
+            case .speed:
+                TVPlayerPlaybackSettingsView(
+                    selectedRate: playbackRate,
+                    onSelect: selectPlaybackRate(_:),
+                    onClose: { activeSettingsSheet = nil }
+                )
+            case .quality:
+                TVPlayerQualitySelectionView(
+                    selectedQuality: selectedQuality,
+                    availableQualities: availableQualities,
+                    onSelectQuality: selectPlaybackQuality(_:),
+                    onClose: { activeSettingsSheet = nil }
+                )
+            }
         }
     }
 
@@ -193,6 +242,9 @@ struct PlayerView: View {
 
             controller.onEvent = { event in
                 print("🎬 [PlayerView/MPV] Event: \(event)")
+                if event == "file-loaded" {
+                    refreshTracks()
+                }
             }
 
             controller.onHDRDetected = { isHDR, gamma, primaries in
@@ -230,6 +282,9 @@ struct PlayerView: View {
                 }
             }
 
+            controller.setPlaybackRate(playbackRate)
+            selectedQuality = controller.selectedQuality
+            availableQualities = controller.availableQualities()
             controller.loadFile(item.id)
             showControls(temporarily: true)
         }
@@ -241,6 +296,117 @@ struct PlayerView: View {
             controller.play()
         } else {
             controller.pause()
+        }
+        showControls(temporarily: true)
+    }
+
+    private func showAudioSettings() {
+        refreshTracks()
+        activeSettingsSheet = .audio
+        showControls(temporarily: true)
+    }
+
+    private func showSubtitleSettings() {
+        refreshTracks()
+        activeSettingsSheet = .subtitle
+        showControls(temporarily: true)
+    }
+
+    private func showSpeedSettings() {
+        activeSettingsSheet = .speed
+        showControls(temporarily: true)
+    }
+
+    private func showQualitySettings() {
+        activeSettingsSheet = .quality
+        showControls(temporarily: true)
+    }
+
+    private func refreshTracks() {
+        guard let controller = mpvController else { return }
+
+        availableQualities = controller.availableQualities()
+        selectedQuality = controller.selectedQuality
+
+        let audioOptions = controller.audioOptions()
+        let subtitleOptions = controller.subtitleOptions()
+
+        settingsAudioTracks = audioOptions.map(TVPlaybackSettingsTrack.init(audioOption:))
+        settingsSubtitleTracks = subtitleOptions.map(TVPlaybackSettingsTrack.init(subtitleOption:))
+
+        if let activeAudio = audioOptions.first(where: { $0.isSelected })?.id {
+            selectedAudioTrackID = activeAudio
+        } else if selectedAudioTrackID == nil {
+            selectedAudioTrackID = audioOptions.first?.id
+        }
+
+        if let activeSubtitle = subtitleOptions.first(where: { $0.isSelected })?.id {
+            selectedSubtitleTrackID = activeSubtitle
+        }
+
+        if !settingsAudioTracks.isEmpty || !settingsSubtitleTracks.isEmpty {
+            return
+        }
+
+        let tracks = controller.trackList()
+        let audio = tracks.filter { $0.type == .audio }
+        let subtitles = tracks.filter { $0.type == .subtitle }
+
+        audioTracks = audio
+        subtitleTracks = subtitles
+        settingsAudioTracks = audio.map(TVPlaybackSettingsTrack.init(track:))
+        settingsSubtitleTracks = subtitles.map(TVPlaybackSettingsTrack.init(track:))
+
+        if let activeAudio = audio.first(where: { $0.isSelected })?.id {
+            selectedAudioTrackID = "mpv-audio-\(activeAudio)"
+        } else if selectedAudioTrackID == nil {
+            selectedAudioTrackID = audio.first.map { "mpv-audio-\($0.id)" }
+        }
+
+        if let activeSubtitle = subtitles.first(where: { $0.isSelected })?.id {
+            selectedSubtitleTrackID = "mpv-sub-\(activeSubtitle)"
+        } else if selectedSubtitleTrackID == nil {
+            selectedSubtitleTrackID = nil
+        }
+    }
+
+    private func selectAudioTrack(_ id: String?) {
+        selectedAudioTrackID = id
+        guard let controller = mpvController else { return }
+        guard let id, let option = controller.audioOptions().first(where: { $0.id == id }) else { return }
+        Task {
+            await controller.selectAudioOption(option)
+            refreshTracks()
+        }
+        showControls(temporarily: true)
+    }
+
+    private func selectSubtitleTrack(_ id: String?) {
+        selectedSubtitleTrackID = id
+        guard let controller = mpvController else { return }
+        Task {
+            if let id, let option = controller.subtitleOptions().first(where: { $0.id == id }) {
+                await controller.selectSubtitleOption(option)
+            } else {
+                await controller.selectSubtitleOption(nil)
+            }
+            refreshTracks()
+        }
+        showControls(temporarily: true)
+    }
+
+    private func selectPlaybackRate(_ rate: Float) {
+        playbackRate = rate
+        mpvController?.setPlaybackRate(rate)
+        showControls(temporarily: true)
+    }
+
+    private func selectPlaybackQuality(_ quality: PlaybackQuality) {
+        selectedQuality = quality
+        guard let controller = mpvController else { return }
+        Task {
+            await controller.changeQuality(to: quality)
+            refreshTracks()
         }
         showControls(temporarily: true)
     }
@@ -303,6 +469,16 @@ struct PlayerView: View {
         mpvController?.shutdown()
         mpvController = nil
 
+        audioTracks = []
+        subtitleTracks = []
+        settingsAudioTracks = []
+        settingsSubtitleTracks = []
+        selectedAudioTrackID = nil
+        selectedSubtitleTrackID = nil
+        availableQualities = PlaybackQuality.allCases
+        selectedQuality = .original
+        activeSettingsSheet = nil
+
         hasLoadedPlayback = false
     }
 }
@@ -321,6 +497,10 @@ private struct TVPlayerControlsOverlay: View {
     let seekForwardSeconds: Int
     let onSeekBackward: () -> Void
     let onSeekForward: () -> Void
+    let onShowSpeedSettings: () -> Void
+    let onShowQualitySettings: () -> Void
+    let onShowAudioSettings: () -> Void
+    let onShowSubtitleSettings: () -> Void
     let onPlayPause: () -> Void
     let onScrubbingChanged: (Bool) -> Void
     let onUserInteraction: () -> Void
@@ -383,19 +563,45 @@ private struct TVPlayerControlsOverlay: View {
                 onEditingChanged: onScrubbingChanged
             )
 
-            HStack(spacing: 30) {
-                TVPlayerIconButton(
-                    systemName: iconName(prefix: "gobackward", seconds: seekBackwardSeconds),
-                    action: onSeekBackward
-                )
+            ZStack {
+                HStack(spacing: 16) {
+                    TVPlayerSettingButton(
+                        systemName: "speedometer",
+                        action: onShowSpeedSettings
+                    )
 
-                TVPlayPauseButton(isPaused: isPaused, action: onPlayPause)
-                    .focused($focusedControl, equals: .playPause)
+                    TVPlayerSettingButton(
+                        systemName: "slider.horizontal.3",
+                        action: onShowQualitySettings
+                    )
 
-                TVPlayerIconButton(
-                    systemName: iconName(prefix: "goforward", seconds: seekForwardSeconds),
-                    action: onSeekForward
-                )
+                    TVPlayerSettingButton(
+                        systemName: "speaker.wave.2",
+                        action: onShowAudioSettings
+                    )
+
+                    TVPlayerSettingButton(
+                        systemName: "captions.bubble",
+                        action: onShowSubtitleSettings
+                    )
+
+                    Spacer()
+                }
+
+                HStack(spacing: 30) {
+                    TVPlayerIconButton(
+                        systemName: iconName(prefix: "gobackward", seconds: seekBackwardSeconds),
+                        action: onSeekBackward
+                    )
+
+                    TVPlayPauseButton(isPaused: isPaused, action: onPlayPause)
+                        .focused($focusedControl, equals: .playPause)
+
+                    TVPlayerIconButton(
+                        systemName: iconName(prefix: "goforward", seconds: seekForwardSeconds),
+                        action: onSeekForward
+                    )
+                }
             }
             .frame(maxWidth: .infinity)
         }
@@ -607,7 +813,7 @@ private struct TVPlayerIconButton: View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.title2.weight(.semibold))
-                .foregroundStyle(.white)
+                .foregroundStyle(.foreground)
                 .frame(width: 88, height: 88)
         }
     }
@@ -621,8 +827,22 @@ private struct TVPlayPauseButton: View {
         Button(action: action) {
             Image(systemName: isPaused ? "play.fill" : "pause.fill")
                 .font(.largeTitle.weight(.black))
-                .foregroundStyle(.white)
+                .foregroundStyle(.foreground)
                 .frame(width: 108, height: 108)
+        }
+    }
+}
+
+private struct TVPlayerSettingButton: View {
+    let systemName: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .foregroundStyle(.foreground)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
         }
     }
 }
@@ -662,6 +882,232 @@ private struct TVPlayerBadge: View {
             Capsule()
                 .stroke(Color.white.opacity(0.25), lineWidth: 1)
         )
+    }
+}
+
+private enum TVPlayerSettingsSheet: String, Identifiable {
+    case audio
+    case subtitle
+    case speed
+    case quality
+
+    var id: String { rawValue }
+}
+
+private struct TVPlaybackSettingsTrack: Identifiable, Hashable {
+    let id: String
+    let title: String
+    let subtitle: String?
+
+    init(track: PlayerTrack) {
+        self.id = track.type == .audio ? "mpv-audio-\(track.id)" : "mpv-sub-\(track.id)"
+        self.title = track.displayName
+
+        var tokens: [String] = []
+        if let language = track.language, !language.isEmpty {
+            tokens.append(language.uppercased())
+        }
+        if let codec = track.codec, !codec.isEmpty {
+            tokens.append(codec.uppercased())
+        }
+        if track.isDefault {
+            tokens.append("DEFAULT")
+        }
+        self.subtitle = tokens.isEmpty ? nil : tokens.joined(separator: " • ")
+    }
+
+    init(audioOption: PlayerAudioOption) {
+        id = audioOption.id
+        title = audioOption.title
+        subtitle = audioOption.subtitle
+    }
+
+    init(subtitleOption: PlayerSubtitleOption) {
+        id = subtitleOption.id
+        title = subtitleOption.title
+        subtitle = subtitleOption.subtitle
+    }
+}
+
+private struct TVPlayerTrackSelectionView: View {
+    let title: String
+    let tracks: [TVPlaybackSettingsTrack]
+    let selectedTrackID: String?
+    let showOffOption: Bool
+    let onSelect: (String?) -> Void
+    let onClose: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if showOffOption {
+                    TVTrackSelectionRow(
+                        title: "Off",
+                        subtitle: "Disable subtitles",
+                        isSelected: selectedTrackID == nil
+                    ) {
+                        onSelect(nil)
+                    }
+                    .padding(.horizontal, 24)
+                }
+
+                if tracks.isEmpty, !showOffOption {
+                    Text("No audio tracks available")
+                        .foregroundStyle(.secondary)
+                } else {
+                    VStack {
+                        ForEach(tracks) { track in
+                            TVTrackSelectionRow(
+                                title: track.title,
+                                subtitle: track.subtitle,
+                                isSelected: selectedTrackID == track.id
+                            ) {
+                                onSelect(track.id)
+                            }
+                            .padding(.horizontal, 24)
+                        }
+                    }
+                }
+            }
+            .listStyle(.automatic)
+            .navigationTitle(title)
+            .onExitCommand(perform: onClose)
+        }
+    }
+}
+
+private struct TVPlayerPlaybackSettingsView: View {
+    let selectedRate: Float
+    let onSelect: (Float) -> Void
+    let onClose: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(TVPlaybackSpeedOption.allCases) { option in
+                    TVTrackSelectionRow(
+                        title: option.title,
+                        subtitle: nil,
+                        isSelected: abs(selectedRate - option.rate) < 0.001
+                    ) {
+                        onSelect(option.rate)
+                    }
+                    .padding(.horizontal, 24)
+                }
+            }
+            .listStyle(.automatic)
+            .navigationTitle("Playback Speed")
+            .onExitCommand(perform: onClose)
+        }
+    }
+}
+
+private struct TVPlayerQualitySelectionView: View {
+    let selectedQuality: PlaybackQuality
+    let availableQualities: [PlaybackQuality]
+    let onSelectQuality: (PlaybackQuality) -> Void
+    let onClose: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(availableQualities) { quality in
+                    TVTrackSelectionRow(
+                        title: quality.rawValue,
+                        subtitle: quality == .original ? "Direct Play" : "Transcode",
+                        isSelected: selectedQuality == quality
+                    ) {
+                        onSelectQuality(quality)
+                    }
+                    .padding(.horizontal, 24)
+                }
+            }
+            .listStyle(.automatic)
+            .navigationTitle("Playback Quality")
+            .onExitCommand(perform: onClose)
+        }
+    }
+}
+
+private struct TVTrackSelectionRow: View {
+    let title: String
+    let subtitle: String?
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .foregroundStyle(.primary)
+                    if let subtitle, !subtitle.isEmpty {
+                        Text(subtitle)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Spacer()
+
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.blue)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private enum TVPlaybackSpeedOption: CaseIterable, Identifiable {
+    case quarter
+    case half
+    case threeQuarter
+    case normal
+    case oneQuarter
+    case oneHalf
+    case twoX
+
+    var id: String { title }
+
+    var rate: Float {
+        switch self {
+        case .quarter:
+            return 0.25
+        case .half:
+            return 0.5
+        case .threeQuarter:
+            return 0.75
+        case .normal:
+            return 1.0
+        case .oneQuarter:
+            return 1.25
+        case .oneHalf:
+            return 1.5
+        case .twoX:
+            return 2.0
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .quarter:
+            return "0.25x"
+        case .half:
+            return "0.5x"
+        case .threeQuarter:
+            return "0.75x"
+        case .normal:
+            return "Normal"
+        case .oneQuarter:
+            return "1.25x"
+        case .oneHalf:
+            return "1.5x"
+        case .twoX:
+            return "2x"
+        }
     }
 }
 

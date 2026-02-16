@@ -196,6 +196,14 @@ class PlexStreamingManager {
         }
         // DO NOT send empty string - that makes Plex default to 1080p!
 
+        if let audioStreamID = options.audioStreamID, !audioStreamID.isEmpty {
+            params.append(URLQueryItem(name: "audioStreamID", value: audioStreamID))
+        }
+
+        if let subtitleStreamID = options.subtitleStreamID, !subtitleStreamID.isEmpty {
+            params.append(URLQueryItem(name: "subtitleStreamID", value: subtitleStreamID))
+        }
+
         components.queryItems = params
 
         // Create URLRequest with proper HTTP headers
@@ -255,6 +263,14 @@ class PlexStreamingManager {
         }
         // DO NOT send empty string - that makes Plex default to 1080p!
 
+        if let audioStreamID = options.audioStreamID, !audioStreamID.isEmpty {
+            params.append(URLQueryItem(name: "audioStreamID", value: audioStreamID))
+        }
+
+        if let subtitleStreamID = options.subtitleStreamID, !subtitleStreamID.isEmpty {
+            params.append(URLQueryItem(name: "subtitleStreamID", value: subtitleStreamID))
+        }
+
         components.queryItems = params
         let finalURL = components.url!.absoluteString
         print("🔗 [PlexStreaming] Stream URL: \(finalURL)")
@@ -310,7 +326,7 @@ class PlexStreamingManager {
         var profileParts: [String] = []
 
         // 1. Add DirectPlay profile for MP4/MOV containers
-        profileParts.append("add-direct-play-profile(type=videoProfile&container=mp4,mov&videoCodec=hevc,h264&audioCodec=aac,ac3,eac3,mp3&subtitleCodec=*)")
+        profileParts.append("add-direct-play-profile(type=videoProfile&container=mp4,mov,mkv&videoCodec=hevc,h264&audioCodec=aac,ac3,eac3,mp3&subtitleCodec=*)")
 
         // 2. Add DirectPlay profile for MPEG-TS (HLS)
         profileParts.append("add-direct-play-profile(type=videoProfile&container=mpegts&videoCodec=hevc,h264&audioCodec=aac,ac3,eac3,mp3&subtitleCodec=*)")

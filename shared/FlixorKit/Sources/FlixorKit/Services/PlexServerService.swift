@@ -1051,6 +1051,11 @@ public struct PlexPart: Codable {
 public struct PlexStream: Codable {
     public let id: String?  // Can be Int or String from different Plex APIs
     public let streamType: Int?
+    public let index: Int?
+    public let selected: Bool?
+    public let isDefault: Bool?
+    public let forced: Bool?
+    public let title: String?
     public let displayTitle: String?
     public let language: String?
     public let languageTag: String?
@@ -1069,6 +1074,11 @@ public struct PlexStream: Codable {
         }
 
         streamType = try container.decodeIfPresent(Int.self, forKey: .streamType)
+        index = try container.decodeIfPresent(Int.self, forKey: .index)
+        selected = try container.decodeIfPresent(Bool.self, forKey: .selected)
+        isDefault = try container.decodeIfPresent(Bool.self, forKey: .isDefault)
+        forced = try container.decodeIfPresent(Bool.self, forKey: .forced)
+        title = try container.decodeIfPresent(String.self, forKey: .title)
         displayTitle = try container.decodeIfPresent(String.self, forKey: .displayTitle)
         language = try container.decodeIfPresent(String.self, forKey: .language)
         languageTag = try container.decodeIfPresent(String.self, forKey: .languageTag)
@@ -1076,7 +1086,8 @@ public struct PlexStream: Codable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, streamType, displayTitle, language, languageTag, codec
+        case id, streamType, index, selected, forced, title, displayTitle, language, languageTag, codec
+        case isDefault = "default"
     }
 }
 
