@@ -12,10 +12,12 @@ struct TVLibraryView: View {
     let preferredKind: TVLibraryViewModel.LibrarySectionSummary.Kind?
 
     @ObservedObject private var viewModel: TVLibraryViewModel
+    @EnvironmentObject private var profileSettings: TVProfileSettings
     @Namespace private var contentNS
     @State private var selectedItem: MediaItem?
     @FocusState private var focusedID: String?
     @State private var focusDebounceTask: Task<Void, Never>?
+    @State private var settingsRefreshTask: Task<Void, Never>?
 
     private let gridColumns = Array(repeating: GridItem(.flexible(), spacing: UX.itemSpacing), count: 5)
 
@@ -70,8 +72,17 @@ struct TVLibraryView: View {
                 await viewModel.fetchUltraBlurColors(for: focusedEntry.media)
             }
         }
+        .onReceive(profileSettings.objectWillChange) { _ in
+            settingsRefreshTask?.cancel()
+            settingsRefreshTask = Task {
+                try? await Task.sleep(nanoseconds: 300_000_000)
+                guard !Task.isCancelled else { return }
+                await viewModel.retry()
+            }
+        }
         .onDisappear {
             focusDebounceTask?.cancel()
+            settingsRefreshTask?.cancel()
         }
     }
 
@@ -89,8 +100,13 @@ struct TVLibraryView: View {
         if let error = viewModel.errorMessage {
             errorState(message: error)
         } else if viewModel.contentTab == .collections {
-            // Collections view (Phase 3)
-            emptyState(message: "Collections view coming soon")
+            TVCollectionsGridView(
+                collections: viewModel.collections,
+                isLoading: viewModel.isLoadingCollections,
+                onSelect: { collection in
+                    Task { await viewModel.openCollection(collection) }
+                }
+            )
         } else {
             libraryContent
         }
@@ -102,6 +118,8 @@ struct TVLibraryView: View {
             skeletonGrid
         } else if viewModel.visibleItems.isEmpty {
             emptyState(message: "No titles found")
+        } else if viewModel.viewMode == .list {
+            listView
         } else {
             gridView
         }
@@ -123,6 +141,17 @@ struct TVLibraryView: View {
 
     private var gridView: some View {
         ScrollView {
+            if let activeCollectionTitle = viewModel.activeCollectionTitle {
+                HStack {
+                    Text(activeCollectionTitle)
+                        .font(.system(size: 34, weight: .bold))
+                        .foregroundStyle(.white)
+                    Spacer()
+                }
+                .padding(.horizontal, UX.gridH)
+                .padding(.top, 16)
+            }
+
             LazyVGrid(columns: gridColumns, spacing: UX.railV) {
                 ForEach(viewModel.visibleItems) { entry in
                     let isFocused = focusedID == entry.id
@@ -157,6 +186,59 @@ struct TVLibraryView: View {
             }
         }
         .focusScope(contentNS)
+    }
+
+    private var listView: some View {
+        ScrollView {
+            LazyVStack(spacing: 14) {
+                ForEach(viewModel.visibleItems) { entry in
+                    Button {
+                        selectedItem = entry.media
+                    } label: {
+                        HStack(spacing: 16) {
+                            CachedAsyncImage(url: ImageService.shared.thumbURL(for: entry.media, width: 240, height: 360))
+                                .aspectRatio(2/3, contentMode: .fill)
+                                .frame(width: 130, height: 195)
+                                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(entry.media.title)
+                                    .font(.system(size: 30, weight: .semibold))
+                                    .foregroundStyle(.white)
+                                Text(infoText(for: entry))
+                                    .font(.system(size: 20))
+                                    .foregroundStyle(.white.opacity(0.75))
+                                    .lineLimit(1)
+                                if let summary = entry.media.summary, !summary.isEmpty {
+                                    Text(summary)
+                                        .font(.system(size: 18))
+                                        .foregroundStyle(.white.opacity(0.65))
+                                        .lineLimit(2)
+                                }
+                            }
+                            Spacer()
+                        }
+                        .padding(18)
+                        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .onAppear { viewModel.loadMoreIfNeeded(currentItem: entry) }
+                }
+            }
+            .padding(.horizontal, UX.gridH)
+            .padding(.vertical, 24)
+        }
+    }
+
+    private func infoText(for entry: TVLibraryViewModel.LibraryEntry) -> String {
+        var pieces: [String] = []
+        if let year = entry.year {
+            pieces.append(String(year))
+        }
+        if let rating = entry.rating {
+            pieces.append(String(format: "%.1f", rating))
+        }
+        return pieces.joined(separator: " · ")
     }
 
     private func emptyState(message: String) -> some View {
@@ -208,5 +290,78 @@ struct TVLibraryView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(80)
+    }
+}
+
+private struct TVCollectionsGridView: View {
+    let collections: [TVLibraryViewModel.CollectionEntry]
+    let isLoading: Bool
+    var onSelect: (TVLibraryViewModel.CollectionEntry) -> Void
+
+    private let columns = [GridItem(.adaptive(minimum: 420), spacing: 24)]
+
+    var body: some View {
+        if isLoading {
+            ScrollView {
+                LazyVGrid(columns: columns, spacing: 24) {
+                    ForEach(0..<6, id: \.self) { _ in
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .fill(Color.white.opacity(0.08))
+                            .frame(height: 240)
+                    }
+                }
+                .padding(.horizontal, UX.gridH)
+                .padding(.vertical, 28)
+            }
+        } else if collections.isEmpty {
+            VStack(spacing: 12) {
+                Image(systemName: "square.stack.3d.up")
+                    .font(.system(size: 48))
+                    .foregroundStyle(.white.opacity(0.5))
+                Text("No collections available")
+                    .font(.system(size: 30, weight: .semibold))
+                    .foregroundStyle(.white)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            ScrollView {
+                LazyVGrid(columns: columns, spacing: 24) {
+                    ForEach(collections) { collection in
+                        Button {
+                            onSelect(collection)
+                        } label: {
+                            ZStack(alignment: .bottomLeading) {
+                                CachedAsyncImage(url: collection.artwork)
+                                    .aspectRatio(16/9, contentMode: .fill)
+                                    .frame(height: 240)
+                                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                                    .overlay(
+                                        LinearGradient(
+                                            colors: [Color.black.opacity(0.72), Color.clear],
+                                            startPoint: .bottom,
+                                            endPoint: .top
+                                        )
+                                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                                    )
+
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text(collection.title)
+                                        .font(.system(size: 30, weight: .bold))
+                                        .foregroundStyle(.white)
+                                        .lineLimit(2)
+                                    Text("\(collection.count) items")
+                                        .font(.system(size: 18, weight: .medium))
+                                        .foregroundStyle(.white.opacity(0.85))
+                                }
+                                .padding(18)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, UX.gridH)
+                .padding(.vertical, 28)
+            }
+        }
     }
 }

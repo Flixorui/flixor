@@ -40,8 +40,20 @@ struct TVLibraryFilterBar: View {
                 .focusSection()
             }
 
-            // Row 2: Filter buttons
-            HStack(spacing: 24) {
+            // Row 2: Search + filter buttons
+            HStack(spacing: 16) {
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(.white.opacity(0.6))
+                    TextField("Search library", text: $viewModel.searchQuery)
+                        .textFieldStyle(.plain)
+                        .foregroundStyle(.white)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(Color.white.opacity(0.10), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .frame(width: 360)
+
                 // Genre filter
                 FilterButton(
                     title: "Genre",
@@ -69,6 +81,24 @@ struct TVLibraryFilterBar: View {
                 )
                 .onTapGesture {
                     showSortPicker = true
+                }
+
+                // Grid/List
+                FilterButton(
+                    title: "View",
+                    value: viewModel.viewMode == .grid ? "Grid" : "List"
+                )
+                .onTapGesture {
+                    viewModel.viewMode = (viewModel.viewMode == .grid ? .list : .grid)
+                }
+
+                // Library/Collections
+                FilterButton(
+                    title: "Tab",
+                    value: viewModel.contentTab == .library ? "Library" : "Collections"
+                )
+                .onTapGesture {
+                    viewModel.contentTab = (viewModel.contentTab == .library ? .collections : .library)
                 }
 
                 // Clear filters (only show if filters are active)

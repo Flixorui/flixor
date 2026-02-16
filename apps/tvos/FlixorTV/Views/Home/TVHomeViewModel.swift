@@ -7,6 +7,14 @@ struct HomeSection: Identifiable {
     let items: [MediaItem]
 }
 
+enum HomeSectionLoadState: Equatable {
+    case idle
+    case loading
+    case loaded
+    case empty
+    case error(String)
+}
+
 // MARK: - Trakt Models
 struct TraktIDs: Codable { let tmdb: Int?; let trakt: Int?; let imdb: String?; let tvdb: Int? }
 struct TraktMedia: Codable { let title: String?; let year: Int?; let ids: TraktIDs }
@@ -16,13 +24,20 @@ final class TVHomeViewModel: ObservableObject {
     @Published var billboardItems: [MediaItem] = []
     @Published var continueWatching: [MediaItem] = []
     @Published var onDeck: [MediaItem] = []
-    @Published var recentlyAdded: [MediaItem] = []
+    @Published var recentlyAddedSections: [HomeSection] = []
+    @Published var collectionSections: [HomeSection] = []
     @Published var additionalSections: [HomeSection] = []
     @Published var isLoading = true
     @Published var error: String?
     @Published var billboardUltraBlurColors: UltraBlurColors?
+    @Published var continueWatchingState: HomeSectionLoadState = .idle
+    @Published var onDeckState: HomeSectionLoadState = .idle
+    @Published var recentlyAddedState: HomeSectionLoadState = .idle
+    @Published var collectionRowsState: HomeSectionLoadState = .idle
+    @Published var extraSectionsState: HomeSectionLoadState = .idle
 
     private var loadTask: Task<Void, Never>?
+    private var dynamicPollingTask: Task<Void, Never>?
     private var additionalSectionsTask: Task<Void, Never>?
     private var logoEnrichmentTask: Task<Void, Never>?
     private var ultraBlurTask: Task<Void, Never>?
@@ -30,6 +45,9 @@ final class TVHomeViewModel: ObservableObject {
     private var resolvedPlexLogoCache: [String: String] = [:]
     private var attemptedPlexLogoKeys: Set<String> = []
     private var hasLoadedOnce = false
+    private var isRefreshingDynamicSections = false
+    private let profileSettings = TVProfileSettings.shared
+    private let dynamicPollingIntervalSeconds: TimeInterval = 45
 
     // Default colors for row sections
     static let defaultRowColors = UltraBlurColors(
@@ -41,7 +59,7 @@ final class TVHomeViewModel: ObservableObject {
 
     func loadIfNeeded() async {
         if hasLoadedOnce,
-           (!continueWatching.isEmpty || !onDeck.isEmpty || !recentlyAdded.isEmpty || !additionalSections.isEmpty) {
+           (!continueWatching.isEmpty || !onDeck.isEmpty || !recentlyAddedSections.isEmpty || !additionalSections.isEmpty || !collectionSections.isEmpty) {
             return
         }
         await load()
@@ -59,6 +77,11 @@ final class TVHomeViewModel: ObservableObject {
 
         isLoading = true
         error = nil
+        continueWatchingState = .loading
+        onDeckState = .loading
+        recentlyAddedState = .loading
+        collectionRowsState = .loading
+        extraSectionsState = .loading
 
         let task = Task { @MainActor [weak self] in
             guard let self else { return }
@@ -66,6 +89,53 @@ final class TVHomeViewModel: ObservableObject {
         }
         loadTask = task
         await task.value
+    }
+
+    func startDynamicSectionPolling() {
+        guard dynamicPollingTask == nil else { return }
+        dynamicPollingTask = Task { [weak self] in
+            guard let self else { return }
+            while !Task.isCancelled {
+                let interval = max(dynamicPollingIntervalSeconds, 15)
+                let sleepNanos = UInt64(interval * 1_000_000_000)
+                try? await Task.sleep(nanoseconds: sleepNanos)
+                guard !Task.isCancelled else { break }
+                await self.refreshDynamicHomeSections()
+            }
+        }
+    }
+
+    func stopDynamicSectionPolling() {
+        dynamicPollingTask?.cancel()
+        dynamicPollingTask = nil
+    }
+
+    func refreshDynamicHomeSections() async {
+        if loadTask != nil || isLoading || isRefreshingDynamicSections {
+            return
+        }
+
+        isRefreshingDynamicSections = true
+        defer { isRefreshingDynamicSections = false }
+
+        async let continueWatchingResult = fetchContinueWatchingSafe()
+        async let recentlyAddedResult = fetchRecentlyAddedSectionsSafe()
+        let (continueItems, recentlyAddedRows) = await (continueWatchingResult, recentlyAddedResult)
+
+        continueWatching = Array(continueItems.prefix(12))
+        recentlyAddedSections = recentlyAddedRows
+        continueWatchingState = continueItems.isEmpty ? .empty : .loaded
+        recentlyAddedState = recentlyAddedRows.isEmpty ? .empty : .loaded
+
+        if billboardItems.isEmpty {
+            if !continueItems.isEmpty {
+                billboardItems = Array(continueItems.prefix(5))
+            } else if let firstRecent = recentlyAddedRows.first, !firstRecent.items.isEmpty {
+                billboardItems = Array(firstRecent.items.prefix(5))
+            }
+        }
+
+        scheduleDeferredLogoEnrichment()
     }
 
     private func performLoad() async {
@@ -76,25 +146,32 @@ final class TVHomeViewModel: ObservableObject {
 
         async let continueWatchingResult = fetchContinueWatchingSafe()
         async let onDeckResult = fetchOnDeckSafe()
-        async let recentlyAddedResult = fetchRecentlyAddedSafe()
+        async let recentlyAddedResult = fetchRecentlyAddedSectionsSafe()
+        async let collectionRowsResult = fetchCollectionRowsSafe()
 
-        let (continueItems, onDeckItems, recentlyAddedItems) = await (
+        let (continueItems, onDeckItems, recentlyAddedRows, collectionRows) = await (
             continueWatchingResult,
             onDeckResult,
-            recentlyAddedResult
+            recentlyAddedResult,
+            collectionRowsResult
         )
 
         continueWatching = Array(continueItems.prefix(12))
         onDeck = Array(onDeckItems.prefix(12))
-        recentlyAdded = Array(recentlyAddedItems.prefix(12))
+        recentlyAddedSections = recentlyAddedRows
+        collectionSections = collectionRows
+        continueWatchingState = continueItems.isEmpty ? .empty : .loaded
+        onDeckState = onDeckItems.isEmpty ? .empty : .loaded
+        recentlyAddedState = recentlyAddedRows.isEmpty ? .empty : .loaded
+        collectionRowsState = collectionRows.isEmpty ? .empty : .loaded
 
         if billboardItems.isEmpty {
             if !continueItems.isEmpty {
                 billboardItems = Array(continueItems.prefix(5))
             } else if !onDeckItems.isEmpty {
                 billboardItems = Array(onDeckItems.prefix(5))
-            } else if !recentlyAddedItems.isEmpty {
-                billboardItems = Array(recentlyAddedItems.prefix(5))
+            } else if let firstRecent = recentlyAddedRows.first, !firstRecent.items.isEmpty {
+                billboardItems = Array(firstRecent.items.prefix(5))
             }
         }
 
@@ -106,6 +183,7 @@ final class TVHomeViewModel: ObservableObject {
             let sections = await self.fetchAdditionalSections()
             guard !Task.isCancelled else { return }
             self.additionalSections = sections
+            self.extraSectionsState = sections.isEmpty ? .empty : .loaded
             if self.billboardItems.isEmpty,
                let firstNonEmpty = sections.first(where: { !$0.items.isEmpty }) {
                 self.billboardItems = Array(firstNonEmpty.items.prefix(3))
@@ -126,39 +204,99 @@ final class TVHomeViewModel: ObservableObject {
         do {
             return try await fetchOnDeck()
         } catch {
+            onDeckState = .error(error.localizedDescription)
             return []
         }
     }
 
-    private func fetchRecentlyAddedSafe() async -> [MediaItem] {
+    private func fetchRecentlyAddedSectionsSafe() async -> [HomeSection] {
         do {
-            return try await fetchRecentlyAdded()
+            return try await fetchRecentlyAddedPerLibrarySections()
         } catch {
+            recentlyAddedState = .error(error.localizedDescription)
+            return []
+        }
+    }
+
+    private func fetchCollectionRowsSafe() async -> [HomeSection] {
+        do {
+            return try await fetchCollectionRows()
+        } catch {
+            collectionRowsState = .error(error.localizedDescription)
             return []
         }
     }
 
     private func fetchAdditionalSections() async -> [HomeSection] {
-        var sections: [HomeSection] = []
+        var ordered: [HomeSection] = []
+        var staticRows: [String: HomeSection] = [:]
+        var traktRows: [String: HomeSection] = [:]
 
-        // TMDB sections
-        if let tmdbSection = await fetchTMDBTrendingSection() { sections.append(tmdbSection) }
-        if let watchlistSection = await fetchPlexWatchlistSection() { sections.append(watchlistSection) }
-        if let popularMoviesSection = await fetchTMDBPopularMoviesSection() { sections.append(popularMoviesSection) }
+        if !profileSettings.discoveryDisabled, profileSettings.showPlexPopular,
+           let popularMoviesSection = await fetchTMDBPopularMoviesSection() {
+            staticRows["Popular on Plex"] = popularMoviesSection
+        }
+        if !profileSettings.discoveryDisabled, profileSettings.showTrendingRows,
+           let trendingSection = await fetchTMDBTrendingSection() {
+            staticRows["Trending Now"] = trendingSection
+        }
+        if profileSettings.showWatchlist,
+           let watchlistSection = await fetchCombinedWatchlistSection() {
+            staticRows["Watchlist"] = watchlistSection
+        }
 
-        // Genre sections
         do {
             let genreSections = try await fetchGenreSections()
-            sections.append(contentsOf: genreSections)
+            for section in genreSections {
+                staticRows[section.title] = section
+            }
         } catch {}
 
-        // Trakt sections
-        do {
-            let traktSections = try await fetchTraktSections()
-            sections.append(contentsOf: traktSections)
-        } catch {}
+        if !profileSettings.discoveryDisabled, profileSettings.showTraktRows {
+            do {
+                for section in try await fetchTraktSections() {
+                    traktRows[section.title] = section
+                }
+            } catch {}
+        }
 
-        return sections
+        func append(_ title: String, from source: [String: HomeSection]) {
+            if let section = source[title], !section.items.isEmpty {
+                ordered.append(section)
+            }
+        }
+
+        append("Popular on Plex", from: staticRows)
+        append("Trending Now", from: staticRows)
+        append("Watchlist", from: staticRows)
+
+        let desiredGenres = [
+            "TV Shows - Children",
+            "Movie - Music",
+            "Movies - Documentary",
+            "Movies - History",
+            "TV Shows - Reality",
+            "Movies - Drama",
+            "TV Shows - Suspense",
+            "Movies - Animation",
+        ]
+        for label in desiredGenres {
+            append(label, from: staticRows)
+        }
+
+        let desiredTrakt = [
+            "Trending Movies on Trakt",
+            "Trending TV Shows on Trakt",
+            "Your Trakt Watchlist",
+            "Recently Watched",
+            "Recommended for You",
+            "Popular TV Shows on Trakt",
+        ]
+        for label in desiredTrakt {
+            append(label, from: traktRows)
+        }
+
+        return ordered
     }
 
     // MARK: - Fetch Methods
@@ -173,9 +311,72 @@ final class TVHomeViewModel: ObservableObject {
         return items.map { $0.toMediaItem() }
     }
 
-    private func fetchRecentlyAdded() async throws -> [MediaItem] {
-        let items = try await APIClient.shared.getPlexRecentList()
-        return items.map { $0.toMediaItem() }
+    private func fetchRecentlyAddedPerLibrarySections() async throws -> [HomeSection] {
+        let libraries = try await APIClient.shared.getPlexLibraries()
+        let enabledKeys = Set(profileSettings.enabledLibraryKeys)
+        let filteredLibraries = libraries.filter { library in
+            enabledKeys.isEmpty || enabledKeys.contains(library.key)
+        }
+
+        var sections: [HomeSection] = []
+        for library in filteredLibraries {
+            let mediaType: Int
+            switch library.type {
+            case "movie":
+                mediaType = 1
+            case "show":
+                mediaType = 2
+            default:
+                continue
+            }
+
+            let response = try await APIClient.shared.getPlexLibraryAll(
+                sectionKey: library.key,
+                type: mediaType,
+                sort: "addedAt:desc",
+                offset: 0,
+                limit: 24
+            )
+            let items = (response.Metadata ?? []).map(mapAPIPlexMedia)
+            guard !items.isEmpty else { continue }
+            sections.append(
+                HomeSection(
+                    id: "recent-\(library.key)",
+                    title: library.title ?? "Recently Added",
+                    items: Array(items.prefix(12))
+                )
+            )
+        }
+        return sections
+    }
+
+    private func fetchCollectionRows() async throws -> [HomeSection] {
+        guard profileSettings.showCollectionRows else { return [] }
+        guard let plexServer = FlixorCore.shared.plexServer else { return [] }
+
+        let hidden = Set(profileSettings.hiddenCollectionKeys)
+        let collections = try await plexServer.getAllCollections()
+            .filter { !hidden.contains($0.ratingKey) }
+            .sorted { ($0.childCount ?? 0) > ($1.childCount ?? 0) }
+
+        var sections: [HomeSection] = []
+        for collection in collections.prefix(5) {
+            do {
+                let items = try await plexServer.getCollectionItems(ratingKey: collection.ratingKey, size: 15)
+                guard !items.isEmpty else { continue }
+                sections.append(
+                    HomeSection(
+                        id: "collection-\(collection.ratingKey)",
+                        title: collection.title ?? "Collection",
+                        items: Array(items.map(mapCorePlexMedia).prefix(12))
+                    )
+                )
+            } catch {
+                continue
+            }
+        }
+
+        return sections
     }
 
     // MARK: - Additional Sections
@@ -240,39 +441,50 @@ final class TVHomeViewModel: ObservableObject {
         } catch { return nil }
     }
 
-    private func fetchPlexWatchlistSection() async -> HomeSection? {
-        do {
-            let envelope = try await APIClient.shared.getPlexTvWatchlist()
-            let metadata = envelope.MediaContainer.Metadata ?? []
+    private func fetchCombinedWatchlistSection() async -> HomeSection? {
+        var deduped: [String: MediaItem] = [:]
 
-            let items: [MediaItem] = metadata.prefix(12).map { m in
-                let baseItem = m.toMediaItem()
-                let outId = m.tmdbGuid ?? baseItem.id
-                return copy(baseItem, id: outId)
+        if let envelope = try? await APIClient.shared.getPlexTvWatchlist() {
+            let metadata = envelope.MediaContainer.Metadata ?? []
+            for item in metadata.prefix(24) {
+                let baseItem = item.toMediaItem()
+                let outId = item.tmdbGuid ?? baseItem.id
+                deduped[outId] = copy(baseItem, id: outId)
             }
-            if items.isEmpty { return nil }
-            return HomeSection(id: "plex-watchlist", title: "My List", items: Array(items.prefix(12)))
-        } catch { return nil }
+        }
+
+        if let traktItems = try? await fetchTraktWatchlist() {
+            for item in traktItems {
+                deduped[item.id] = deduped[item.id] ?? item
+            }
+        }
+
+        let values = Array(deduped.values)
+        guard !values.isEmpty else { return nil }
+        return HomeSection(id: "plex-watchlist", title: "Watchlist", items: Array(values.prefix(12)))
     }
 
     private func scheduleDeferredLogoEnrichment() {
         logoEnrichmentTask?.cancel()
         let continueSnapshot = continueWatching
         let onDeckSnapshot = onDeck
-        let recentSnapshot = recentlyAdded
+        let recentSnapshot = recentlyAddedSections
+        let collectionsSnapshot = collectionSections
         let additionalSnapshot = additionalSections
 
         logoEnrichmentTask = Task { @MainActor [weak self] in
             guard let self else { return }
             async let continueTask = self.enrichVisibleLogos(in: continueSnapshot, eagerCount: 12)
             async let onDeckTask = self.enrichVisibleLogos(in: onDeckSnapshot, eagerCount: 12)
-            async let recentTask = self.enrichVisibleLogos(in: recentSnapshot, eagerCount: 12)
+            async let recentTask = self.enrichSectionLogos(in: recentSnapshot, eagerCount: 12)
+            async let collectionTask = self.enrichSectionLogos(in: collectionsSnapshot, eagerCount: 12)
             async let additionalTask = self.enrichSectionLogos(in: additionalSnapshot, eagerCount: 12)
-            let (enrichedContinue, enrichedOnDeck, enrichedRecent, enrichedAdditional) = await (continueTask, onDeckTask, recentTask, additionalTask)
+            let (enrichedContinue, enrichedOnDeck, enrichedRecent, enrichedCollections, enrichedAdditional) = await (continueTask, onDeckTask, recentTask, collectionTask, additionalTask)
             guard !Task.isCancelled else { return }
             continueWatching = enrichedContinue
             onDeck = enrichedOnDeck
-            recentlyAdded = enrichedRecent
+            recentlyAddedSections = enrichedRecent
+            collectionSections = enrichedCollections
             additionalSections = enrichedAdditional
 
             if let currentBillboard = billboardItems.first {
@@ -280,8 +492,10 @@ final class TVHomeViewModel: ObservableObject {
                     billboardItems[0] = fromContinue
                 } else if let fromOnDeck = enrichedOnDeck.first(where: { $0.id == currentBillboard.id }) {
                     billboardItems[0] = fromOnDeck
-                } else if let fromRecent = enrichedRecent.first(where: { $0.id == currentBillboard.id }) {
+                } else if let fromRecent = enrichedRecent.flatMap(\.items).first(where: { $0.id == currentBillboard.id }) {
                     billboardItems[0] = fromRecent
+                } else if let fromCollection = enrichedCollections.flatMap(\.items).first(where: { $0.id == currentBillboard.id }) {
+                    billboardItems[0] = fromCollection
                 } else {
                     for section in enrichedAdditional {
                         if let fromAdditional = section.items.first(where: { $0.id == currentBillboard.id }) {
@@ -301,7 +515,10 @@ final class TVHomeViewModel: ObservableObject {
         for index in sections.indices {
             let section = sections[index]
             // Focus enrichment effort on Plex-backed rows.
-            let isPlexBackedSection = section.id.hasPrefix("genre-") || section.id.hasPrefix("plex-")
+            let isPlexBackedSection = section.id.hasPrefix("genre-")
+                || section.id.hasPrefix("plex-")
+                || section.id.hasPrefix("recent-")
+                || section.id.hasPrefix("collection-")
             guard isPlexBackedSection else { continue }
             let enrichedItems = await enrichVisibleLogos(in: section.items, eagerCount: eagerCount)
             updatedSections[index] = HomeSection(
@@ -376,6 +593,53 @@ final class TVHomeViewModel: ObservableObject {
         )
     }
 
+    private func mapAPIPlexMedia(_ metadata: PlexMediaItem) -> MediaItem {
+        let prefixedId = metadata.ratingKey.hasPrefix("plex:") ? metadata.ratingKey : "plex:\(metadata.ratingKey)"
+        return MediaItem(
+            id: prefixedId,
+            title: metadata.title ?? "Untitled",
+            type: metadata.type ?? "movie",
+            thumb: metadata.thumb ?? metadata.parentThumb,
+            art: metadata.art,
+            year: metadata.year,
+            rating: nil,
+            duration: nil,
+            viewOffset: nil,
+            summary: nil,
+            grandparentTitle: metadata.grandparentTitle,
+            grandparentThumb: metadata.grandparentThumb,
+            grandparentArt: nil,
+            parentIndex: nil,
+            index: nil
+        )
+    }
+
+    private func mapCorePlexMedia(_ metadata: FlixorKit.PlexMediaItem) -> MediaItem {
+        let baseId = metadata.ratingKey ?? metadata.key ?? UUID().uuidString
+        let prefixedId = baseId.hasPrefix("plex:") ? baseId : "plex:\(baseId)"
+        return MediaItem(
+            id: prefixedId,
+            title: metadata.title ?? "Untitled",
+            type: metadata.type ?? "movie",
+            thumb: metadata.thumb,
+            art: metadata.art,
+            year: metadata.year,
+            rating: metadata.rating,
+            duration: metadata.duration,
+            viewOffset: metadata.viewOffset,
+            summary: metadata.summary,
+            grandparentTitle: metadata.grandparentTitle,
+            grandparentThumb: metadata.grandparentThumb,
+            grandparentArt: metadata.grandparentArt,
+            parentIndex: metadata.parentIndex,
+            index: metadata.index,
+            parentRatingKey: metadata.parentRatingKey,
+            parentTitle: metadata.parentTitle,
+            leafCount: metadata.leafCount,
+            viewedLeafCount: metadata.viewedLeafCount
+        )
+    }
+
     // MARK: - UltraBlur Colors
 
     func fetchUltraBlurColors(for item: MediaItem) async {
@@ -426,8 +690,10 @@ final class TVHomeViewModel: ObservableObject {
         ]
 
         let libraries = try await APIClient.shared.getPlexLibraries()
-        let movieLib = libraries.first { $0.type == "movie" }
-        let showLib = libraries.first { $0.type == "show" }
+        let enabledKeys = Set(profileSettings.enabledLibraryKeys)
+        let filteredLibraries = libraries.filter { enabledKeys.isEmpty || enabledKeys.contains($0.key) }
+        let movieLib = filteredLibraries.first { $0.type == "movie" }
+        let showLib = filteredLibraries.first { $0.type == "show" }
 
         var out: [HomeSection] = []
         for spec in genreRows {
@@ -781,5 +1047,13 @@ final class TVHomeViewModel: ObservableObject {
             }
         }
         return nil
+    }
+
+    deinit {
+        loadTask?.cancel()
+        dynamicPollingTask?.cancel()
+        additionalSectionsTask?.cancel()
+        logoEnrichmentTask?.cancel()
+        ultraBlurTask?.cancel()
     }
 }

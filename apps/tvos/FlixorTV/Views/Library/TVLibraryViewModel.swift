@@ -66,6 +66,13 @@ final class TVLibraryViewModel: ObservableObject {
         }
     }
 
+    enum ViewMode: String, CaseIterable, Identifiable {
+        case grid
+        case list
+
+        var id: String { rawValue }
+    }
+
     struct LibrarySectionSummary: Identifiable, Equatable {
         enum Kind: String {
             case movie
@@ -112,6 +119,8 @@ final class TVLibraryViewModel: ObservableObject {
         didSet { applyFilters() }
     }
 
+    @Published var viewMode: ViewMode = .grid
+
     @Published var contentTab: ContentTab = .library {
         didSet {
             guard contentTab == .collections else { return }
@@ -138,6 +147,7 @@ final class TVLibraryViewModel: ObservableObject {
     @Published var hasMore: Bool = false
     @Published var errorMessage: String?
     @Published private(set) var currentUltraBlurColors: UltraBlurColors?
+    @Published private(set) var activeCollectionTitle: String?
 
     // MARK: - Private
 
@@ -218,7 +228,30 @@ final class TVLibraryViewModel: ObservableObject {
         sectionsLoaded = false
         selectedGenre = nil
         selectedYear = nil
+        activeCollectionTitle = nil
         await loadIfNeeded()
+    }
+
+    func openCollection(_ collection: CollectionEntry) async {
+        guard let plexServer = FlixorCore.shared.plexServer else {
+            errorMessage = "No active Plex server connected."
+            return
+        }
+
+        isLoading = true
+        defer { isLoading = false }
+
+        do {
+            let items = try await plexServer.getCollectionItems(ratingKey: collection.id, size: 200)
+            let mapped = items.map { mapPlexMedia($0) }
+            self.items = mapped
+            self.visibleItems = mapped
+            self.hasMore = false
+            self.activeCollectionTitle = collection.title
+            self.contentTab = .library
+        } catch {
+            errorMessage = "Unable to open collection: \(error.localizedDescription)"
+        }
     }
 
     // MARK: - Data Loading
@@ -249,6 +282,7 @@ final class TVLibraryViewModel: ObservableObject {
     private func reloadCurrentSection(clearFilters: Bool = false) async {
         guard let section = activeSection else { return }
         isLoading = true
+        activeCollectionTitle = nil
         items = []
         visibleItems = []
         offsets[section.id] = 0
@@ -416,6 +450,33 @@ final class TVLibraryViewModel: ObservableObject {
             rating: metadata.rating,
             year: metadata.year
         )
+    }
+
+    private func mapPlexMedia(_ metadata: FlixorKit.PlexMediaItem) -> LibraryEntry {
+        let baseId = metadata.ratingKey ?? metadata.key ?? UUID().uuidString
+        let prefixedId = baseId.hasPrefix("plex:") ? baseId : "plex:\(baseId)"
+        let media = MediaItem(
+            id: prefixedId,
+            title: metadata.title ?? "Unknown",
+            type: metadata.type ?? "movie",
+            thumb: metadata.thumb,
+            art: metadata.art,
+            year: metadata.year,
+            rating: metadata.rating,
+            duration: metadata.duration,
+            viewOffset: metadata.viewOffset,
+            summary: metadata.summary,
+            grandparentTitle: metadata.grandparentTitle,
+            grandparentThumb: metadata.grandparentThumb,
+            grandparentArt: metadata.grandparentArt,
+            parentIndex: metadata.parentIndex,
+            index: metadata.index,
+            parentRatingKey: metadata.parentRatingKey,
+            parentTitle: metadata.parentTitle,
+            leafCount: metadata.leafCount,
+            viewedLeafCount: metadata.viewedLeafCount
+        )
+        return LibraryEntry(id: media.id, media: media, rating: nil, year: media.year)
     }
 
     private func applyFilters() {

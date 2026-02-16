@@ -8,9 +8,13 @@
 import Foundation
 
 /// Available player backends
-enum PlayerBackend: String, CaseIterable, Codable {
+enum PlayerBackend: String, CaseIterable, Codable, Hashable, Identifiable {
     case avkit = "AVKit (Native)"
     case mpv = "MPV (FFmpeg)"
+
+    var id: String { rawValue }
+
+    var displayName: String { rawValue }
 
     var description: String {
         switch self {

@@ -7,6 +7,7 @@ struct TVHomeView: View {
     let focusHandoffToken: UUID?
     @Namespace private var contentFocusNS
     @EnvironmentObject private var session: SessionManager
+    @EnvironmentObject private var profileSettings: TVProfileSettings
 
     @State private var focusedRowId: String?
     @State private var rowLastFocusedItem: [String: String] = [:]
@@ -60,117 +61,87 @@ struct TVHomeView: View {
                         .id("billboard-placeholder")
                 }
 
-                // Row Order per spec
-                // 1) My List (poster)
-                if let myList = vm.additionalSections.first(where: { $0.id == "plex-watchlist" }), !myList.items.isEmpty {
-                    TVCarouselRow(
+                // 1) Watchlist / My List
+                if let myList = vm.additionalSections.first(where: { $0.id == "plex-watchlist" }),
+                   profileSettings.showWatchlist,
+                   !myList.items.isEmpty {
+                    rowView(
                         title: "My List",
                         items: myList.items,
-                        kind: .poster,
-                        focusNS: contentFocusNS,
-                        defaultFocus: focusedRowId == myList.id || nextRowToReceiveFocus == myList.id,
-                        preferredFocusItemId: rowLastFocusedItem[myList.id],
-                        sectionId: myList.id,
-                        onSelect: { showingDetails = $0 }
+                        kind: effectiveRowKind,
+                        sectionId: myList.id
                     )
-                    .padding(.top, focusedRowId == myList.id ? UX.rowSnapTopPadding : 0)
-                    .id("row-\(myList.id)")
                 }
 
-                // 2) Continue Watching — poster rail with inline expansion
-                if !vm.continueWatching.isEmpty {
-                    TVCarouselRow(
+                // 2) Continue Watching
+                if profileSettings.showContinueWatching, !vm.continueWatching.isEmpty {
+                    rowView(
                         title: "Continue Watching",
                         items: vm.continueWatching,
-                        kind: .poster,
-                        focusNS: contentFocusNS,
-                        defaultFocus: focusedRowId == "continue-watching" || nextRowToReceiveFocus == "continue-watching",
-                        preferredFocusItemId: rowLastFocusedItem["continue-watching"],
-                        sectionId: "continue-watching",
-                        onSelect: { showingDetails = $0 }
+                        kind: continueWatchingRowKind,
+                        sectionId: "continue-watching"
                     )
-                    .padding(.top, focusedRowId == "continue-watching" ? UX.rowSnapTopPadding : 0)
-                    .id("row-continue-watching")
                 }
 
-                // 3) New on Flixor (Recently Added) — poster rail with inline expansion
-                if !vm.recentlyAdded.isEmpty {
-                    TVCarouselRow(
-                        title: "New on Flixor",
-                        items: vm.recentlyAdded,
-                        kind: .poster,
-                        focusNS: contentFocusNS,
-                        defaultFocus: focusedRowId == "recently-added" || nextRowToReceiveFocus == "recently-added",
-                        preferredFocusItemId: rowLastFocusedItem["recently-added"],
-                        sectionId: "recently-added",
-                        onSelect: { showingDetails = $0 }
-                    )
-                    .padding(.top, focusedRowId == "recently-added" ? UX.rowSnapTopPadding : 0)
-                    .id("row-recently-added")
-                }
-
-                // 4) Popular on Plex (TMDB popular movies)
-                if let popular = vm.additionalSections.first(where: { $0.id == "tmdb-popular-movies" }), !popular.items.isEmpty {
-                    TVCarouselRow(
-                        title: "Popular on Plex",
-                        items: popular.items,
-                        kind: .poster,
-                        focusNS: contentFocusNS,
-                        defaultFocus: focusedRowId == popular.id || nextRowToReceiveFocus == popular.id,
-                        preferredFocusItemId: rowLastFocusedItem[popular.id],
-                        sectionId: popular.id,
-                        onSelect: { showingDetails = $0 }
-                    )
-                    .padding(.top, focusedRowId == popular.id ? UX.rowSnapTopPadding : 0)
-                    .id("row-\(popular.id)")
-                }
-
-                // 5) Trending Now (TMDB trending TV)
-                if let trending = vm.additionalSections.first(where: { $0.id == "tmdb-trending" }), !trending.items.isEmpty {
-                    TVCarouselRow(
-                        title: "Trending Now",
-                        items: trending.items,
-                        kind: .poster,
-                        focusNS: contentFocusNS,
-                        defaultFocus: focusedRowId == trending.id || nextRowToReceiveFocus == trending.id,
-                        preferredFocusItemId: rowLastFocusedItem[trending.id],
-                        sectionId: trending.id,
-                        onSelect: { showingDetails = $0 }
-                    )
-                    .padding(.top, focusedRowId == trending.id ? UX.rowSnapTopPadding : 0)
-                    .id("row-\(trending.id)")
-                }
-
-                // 6) On Deck — poster rail with inline expansion
-                if !vm.onDeck.isEmpty {
-                    TVCarouselRow(
-                        title: "On Deck",
-                        items: vm.onDeck,
-                        kind: .poster,
-                        focusNS: contentFocusNS,
-                        defaultFocus: focusedRowId == "on-deck" || nextRowToReceiveFocus == "on-deck",
-                        preferredFocusItemId: rowLastFocusedItem["on-deck"],
-                        sectionId: "on-deck",
-                        onSelect: { showingDetails = $0 }
-                    )
-                    .padding(.top, focusedRowId == "on-deck" ? UX.rowSnapTopPadding : 0)
-                    .id("row-on-deck")
-                }
-
-                // Any remaining sections (Genre, Trakt, etc.) not already displayed
-                ForEach(vm.additionalSections.filter { !["plex-watchlist","tmdb-popular-movies","tmdb-trending"].contains($0.id) }) { section in
-                    TVCarouselRow(
+                // 3) Recently added per library rows
+                ForEach(vm.recentlyAddedSections) { section in
+                    rowView(
                         title: section.title,
                         items: section.items,
-                        kind: .poster,
-                        focusNS: contentFocusNS,
-                        defaultFocus: focusedRowId == section.id || nextRowToReceiveFocus == section.id,
-                        preferredFocusItemId: rowLastFocusedItem[section.id],
-                        sectionId: section.id,
-                        onSelect: { showingDetails = $0 }
+                        kind: effectiveRowKind,
+                        sectionId: section.id
                     )
-                    .padding(.top, focusedRowId == section.id ? UX.rowSnapTopPadding : 0)
-                    .id("row-\(section.id)")
+                }
+
+                // 4) Collection rows
+                if profileSettings.showCollectionRows {
+                    ForEach(vm.collectionSections) { section in
+                        rowView(
+                            title: section.title,
+                            items: section.items,
+                            kind: effectiveRowKind,
+                            sectionId: section.id
+                        )
+                    }
+                }
+
+                // 5) Popular + trending
+                if let popular = vm.additionalSections.first(where: { $0.id == "tmdb-popular-movies" }), !popular.items.isEmpty {
+                    rowView(
+                        title: "Popular on Plex",
+                        items: popular.items,
+                        kind: effectiveRowKind,
+                        sectionId: popular.id
+                    )
+                }
+
+                if let trending = vm.additionalSections.first(where: { $0.id == "tmdb-trending" }), !trending.items.isEmpty {
+                    rowView(
+                        title: "Trending Now",
+                        items: trending.items,
+                        kind: effectiveRowKind,
+                        sectionId: trending.id
+                    )
+                }
+
+                // 6) tvOS compatibility row (optional)
+                if profileSettings.showOnDeckRow, !vm.onDeck.isEmpty {
+                    rowView(
+                        title: "On Deck",
+                        items: vm.onDeck,
+                        kind: effectiveRowKind,
+                        sectionId: "on-deck"
+                    )
+                }
+
+                // 7) Remaining rows (genres, Trakt)
+                ForEach(vm.additionalSections.filter { !["plex-watchlist", "tmdb-popular-movies", "tmdb-trending"].contains($0.id) }) { section in
+                    rowView(
+                        title: section.title,
+                        items: section.items,
+                        kind: effectiveRowKind,
+                        sectionId: section.id
+                    )
                 }
 
                 // Error message
@@ -257,12 +228,18 @@ struct TVHomeView: View {
         }
         .task {
             await vm.loadIfNeeded()
+            vm.startDynamicSectionPolling()
             if vm.billboardUltraBlurColors == nil, let active = currentBillboardItem {
                 await vm.fetchUltraBlurColors(for: active)
             }
         }
         .onChange(of: session.isAuthenticated) { authed in
-            if authed { Task { await vm.load() } }
+            if authed {
+                Task { await vm.load() }
+                vm.startDynamicSectionPolling()
+            } else {
+                vm.stopDynamicSectionPolling()
+            }
         }
         .onChange(of: vm.billboardItems.map(\.id)) { _ in
             if billboardIndex >= vm.billboardItems.count {
@@ -303,6 +280,11 @@ struct TVHomeView: View {
                 }
             }
         }
+        .onDisappear {
+            clearNextRowFocusTask?.cancel()
+            gradientDebounceTask?.cancel()
+            vm.stopDynamicSectionPolling()
+        }
     }
 
     private func colorsEqual(_ lhs: UltraBlurColors?, _ rhs: UltraBlurColors) -> Bool {
@@ -313,6 +295,37 @@ struct TVHomeView: View {
             && lhs.bottomLeft == rhs.bottomLeft
     }
 
+    private var effectiveRowKind: TVRowCardKind {
+        profileSettings.rowLayout == "landscape" ? .landscape : .poster
+    }
+
+    private var continueWatchingRowKind: TVRowCardKind {
+        profileSettings.continueWatchingLayout == "landscape" ? .landscape : .poster
+    }
+
+    @ViewBuilder
+    private func rowView(
+        title: String,
+        items: [MediaItem],
+        kind: TVRowCardKind,
+        sectionId: String
+    ) -> some View {
+        if !items.isEmpty {
+            TVCarouselRow(
+                title: title,
+                items: items,
+                kind: kind,
+                focusNS: contentFocusNS,
+                defaultFocus: focusedRowId == sectionId || nextRowToReceiveFocus == sectionId,
+                preferredFocusItemId: rowLastFocusedItem[sectionId],
+                sectionId: sectionId,
+                onSelect: { showingDetails = $0 }
+            )
+            .padding(.top, focusedRowId == sectionId ? UX.rowSnapTopPadding : 0)
+            .id("row-\(sectionId)")
+        }
+    }
+
     private var currentBillboardItem: MediaItem? {
         guard !vm.billboardItems.isEmpty else { return nil }
         let clamped = min(max(billboardIndex, 0), vm.billboardItems.count - 1)
@@ -320,18 +333,23 @@ struct TVHomeView: View {
     }
 
     private var firstVisibleRowId: String? {
-        if let myList = vm.additionalSections.first(where: { $0.id == "plex-watchlist" && !$0.items.isEmpty }) {
+        if let myList = vm.additionalSections.first(where: { $0.id == "plex-watchlist" && !$0.items.isEmpty }),
+           profileSettings.showWatchlist {
             return myList.id
         }
-        if !vm.continueWatching.isEmpty { return "continue-watching" }
-        if !vm.recentlyAdded.isEmpty { return "recently-added" }
+        if profileSettings.showContinueWatching, !vm.continueWatching.isEmpty { return "continue-watching" }
+        if let firstRecent = vm.recentlyAddedSections.first(where: { !$0.items.isEmpty }) { return firstRecent.id }
+        if profileSettings.showCollectionRows,
+           let firstCollection = vm.collectionSections.first(where: { !$0.items.isEmpty }) {
+            return firstCollection.id
+        }
         if let popular = vm.additionalSections.first(where: { $0.id == "tmdb-popular-movies" && !$0.items.isEmpty }) {
             return popular.id
         }
         if let trending = vm.additionalSections.first(where: { $0.id == "tmdb-trending" && !$0.items.isEmpty }) {
             return trending.id
         }
-        if !vm.onDeck.isEmpty { return "on-deck" }
+        if profileSettings.showOnDeckRow, !vm.onDeck.isEmpty { return "on-deck" }
         if let section = vm.additionalSections
             .filter({ !["plex-watchlist", "tmdb-popular-movies", "tmdb-trending"].contains($0.id) })
             .first(where: { !$0.items.isEmpty }) {
