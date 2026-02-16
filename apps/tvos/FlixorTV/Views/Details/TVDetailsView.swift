@@ -7,7 +7,6 @@ struct TVDetailsView: View {
     let item: MediaItem
     @StateObject private var vm = TVDetailsViewModel()
 
-    @State private var showPlayer = false
     @State private var playbackItem: MediaItem?
     @State private var selectedTrailer: TVTrailer?
 
@@ -168,10 +167,8 @@ struct TVDetailsView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .ignoresSafeArea(edges: .all)
-        .fullScreenCover(isPresented: $showPlayer) {
-            if let playbackItem {
-                PlayerView(item: playbackItem)
-            }
+        .fullScreenCover(item: $playbackItem) { item in
+            PlayerView(item: item)
         }
         .fullScreenCover(item: $selectedTrailer) { trailer in
             TVTrailerModal(trailer: trailer, onClose: {
@@ -187,7 +184,13 @@ struct TVDetailsView: View {
     }
 
     private func playContent() {
+        print("🎬 [TVDetailsView] playContent called")
+        print("🎬 [TVDetailsView] hasPlexSource: \(hasPlexSource)")
+        print("🎬 [TVDetailsView] vm.playableId: \(vm.playableId ?? "nil")")
+        print("🎬 [TVDetailsView] vm.plexRatingKey: \(vm.plexRatingKey ?? "nil")")
+
         guard hasPlexSource else {
+            print("🎬 [TVDetailsView] No Plex source, returning")
             return
         }
 
@@ -195,8 +198,11 @@ struct TVDetailsView: View {
             ?? vm.playableId?.replacingOccurrences(of: "plex:", with: "")
 
         guard let ratingKey, !ratingKey.isEmpty else {
+            print("🎬 [TVDetailsView] No ratingKey, returning")
             return
         }
+
+        print("🎬 [TVDetailsView] ratingKey: \(ratingKey)")
 
         let playbackId: String
         if let playableId = vm.playableId, playableId.hasPrefix("plex:") {
@@ -236,8 +242,8 @@ struct TVDetailsView: View {
             viewedLeafCount: item.viewedLeafCount
         )
 
+        print("🎬 [TVDetailsView] Setting playbackItem with id: \(candidate.id)")
         playbackItem = candidate
-        showPlayer = true
     }
 }
 
