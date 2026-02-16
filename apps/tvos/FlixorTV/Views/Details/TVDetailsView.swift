@@ -22,8 +22,8 @@ struct TVDetailsView: View {
         vm.playableId != nil || vm.plexRatingKey != nil
     }
 
-    private var isScrolledPastHero: Bool {
-        scrollY > 200
+    private var shouldShowCollapsedHeader: Bool {
+        contentSectionHasFocus || scrollY > 200
     }
 
     private var shouldShowBlur: Bool {
@@ -64,8 +64,8 @@ struct TVDetailsView: View {
             .animation(.easeInOut(duration: 0.4), value: shouldShowBlur)
             .ignoresSafeArea(edges: .all)
 
-            // Layer 4: Condensed header (shows when scrolled past hero)
-            if isScrolledPastHero {
+            // Layer 4: Condensed header (shows when focus leaves hero or scrolled past hero)
+            if shouldShowCollapsedHeader {
                 VStack {
                     HStack {
                         if let logo = vm.logoURL {
@@ -98,61 +98,73 @@ struct TVDetailsView: View {
                     Spacer()
                 }
                 .transition(.opacity.combined(with: .move(edge: .top)))
-                .animation(.easeOut(duration: 0.25), value: isScrolledPastHero)
+                .animation(.easeOut(duration: 0.3), value: shouldShowCollapsedHeader)
                 .ignoresSafeArea(edges: .top)
             }
 
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 38) {
-                    GeometryReader { geo in
-                        Color.clear
-                            .preference(key: DetailsScrollOffsetKey.self, value: -geo.frame(in: .named("detailsScroll")).minY)
-                    }
-                    .frame(height: 0)
+            ScrollViewReader { scrollProxy in
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 38) {
+                        GeometryReader { geo in
+                            Color.clear
+                                .preference(key: DetailsScrollOffsetKey.self, value: -geo.frame(in: .named("detailsScroll")).minY)
+                        }
+                        .frame(height: 0)
 
-                    TVDetailsHeroSection(
-                        vm: vm,
-                        item: item,
-                        focusNS: heroFocusNS,
-                        hasPlexSource: hasPlexSource,
-                        onPlay: playContent,
-                        onTrailerTapped: { trailer in
-                            selectedTrailer = trailer
-                        },
-                        onFocusChange: { heroHasFocus in
-                            if heroHasFocus {
-                                contentSectionHasFocus = false
+                        TVDetailsHeroSection(
+                            vm: vm,
+                            item: item,
+                            focusNS: heroFocusNS,
+                            hasPlexSource: hasPlexSource,
+                            onPlay: playContent,
+                            onTrailerTapped: { trailer in
+                                selectedTrailer = trailer
+                            },
+                            onFocusChange: { heroHasFocus in
+                                if heroHasFocus {
+                                    contentSectionHasFocus = false
+                                }
+                            }
+                        )
+                        .id("details-hero")
+
+                        // Spacer for collapsed header (120px header height)
+                        Color.clear
+                            .frame(height: 120)
+                            .id("content-anchor")
+
+                        if (vm.mediaKind == "tv" || vm.isSeason) && !vm.isEpisode {
+                            VStack(alignment: .leading, spacing: 14) {
+                                Text("Episodes")
+                                    .font(.system(size: 30, weight: .bold))
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 80)
+                                TVEpisodesRail(vm: vm, focusNS: nsEpisodes)
+                                    .focusScope(nsEpisodes)
                             }
                         }
-                    )
-                    .id("details-hero")
 
-                    if (vm.mediaKind == "tv" || vm.isSeason) && !vm.isEpisode {
-                        VStack(alignment: .leading, spacing: 14) {
-                            Text("Episodes")
-                                .font(.system(size: 30, weight: .bold))
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 80)
-                            TVEpisodesRail(vm: vm, focusNS: nsEpisodes)
-                                .focusScope(nsEpisodes)
+                        if !vm.isSeason && !vm.isEpisode {
+                            SuggestedSection(vm: vm, focusNS: nsSuggested, onFocusChange: { focused in
+                                contentSectionHasFocus = focused
+                                if focused {
+                                    withAnimation(.easeOut(duration: 0.35)) {
+                                        scrollProxy.scrollTo("content-anchor", anchor: .top)
+                                    }
+                                }
+                            })
+                                .focusScope(nsSuggested)
                         }
-                    }
 
-                    if !vm.isSeason && !vm.isEpisode {
-                        SuggestedSection(vm: vm, focusNS: nsSuggested, onFocusChange: { focused in
+                        TVDetailsInfoGrid(vm: vm, focusNS: nsDetails, onFocusChange: { focused in
                             contentSectionHasFocus = focused
                         })
-                            .focusScope(nsSuggested)
+                            .focusScope(nsDetails)
                     }
-
-                    TVDetailsInfoGrid(vm: vm, focusNS: nsDetails, onFocusChange: { focused in
-                        contentSectionHasFocus = focused
-                    })
-                        .focusScope(nsDetails)
+                    .padding(.bottom, 80)
                 }
-                .padding(.bottom, 80)
+                .coordinateSpace(name: "detailsScroll")
             }
-            .coordinateSpace(name: "detailsScroll")
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .ignoresSafeArea(edges: .all)
@@ -242,7 +254,6 @@ private struct TVDetailsHeroSection: View {
 
     enum HeroAction: Hashable {
         case play
-        case trailer
         case myList
     }
 
@@ -397,7 +408,7 @@ private struct TVDetailsHeroSection: View {
 
                         technicalRow
 
-                        HStack(spacing: 14) {
+                        HStack(spacing: 28) {
                             Button(action: onPlay) {
                                 HStack(spacing: 8) {
                                     Image(systemName: "play.fill")
@@ -417,25 +428,6 @@ private struct TVDetailsHeroSection: View {
                             .focused($focusedButton, equals: .play)
                             .prefersDefaultFocus(true, in: focusNS)
 
-                            Button(action: {
-                                if let first = vm.trailers.first {
-                                    onTrailerTapped(first)
-                                }
-                            }) {
-                                HStack(spacing: 8) {
-                                    Image(systemName: "play.rectangle.fill")
-                                    Text("Trailer")
-                                }
-                                .font(.system(size: 24, weight: .semibold))
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 24)
-                                .padding(.vertical, 14)
-                                .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(Color.white.opacity(0.24)))
-                            }
-                            .buttonStyle(.card)
-                            .disabled(vm.trailers.isEmpty)
-                            .focused($focusedButton, equals: .trailer)
-
                             Button(action: {}) {
                                 HStack(spacing: 8) {
                                     Image(systemName: "plus")
@@ -453,7 +445,7 @@ private struct TVDetailsHeroSection: View {
 
                         if !vm.trailers.isEmpty {
                             ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 12) {
+                                HStack(spacing: 16) {
                                     ForEach(vm.trailers.prefix(5)) { trailer in
                                         TVTrailerCard(trailer: trailer, onPlay: {
                                             onTrailerTapped(trailer)
@@ -464,8 +456,11 @@ private struct TVDetailsHeroSection: View {
                                         })
                                     }
                                 }
-                                .padding(.vertical, 2)
+                                .padding(.leading, 12)
+                                .padding(.trailing, 20)
+                                .padding(.vertical, 14)
                             }
+                            .padding(.leading, -12)
                         }
                     }
                     .frame(maxWidth: 930, alignment: .leading)
@@ -601,7 +596,7 @@ private struct SuggestedSection: View {
     @State private var isSectionFocused: Bool = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: 28) {
             if !vm.related.isEmpty {
                 TVCarouselRow(
                     title: "Because You Watched",
@@ -631,6 +626,7 @@ private struct SuggestedSection: View {
                 )
             }
         }
+        .padding(.vertical, 16)
         .onPreferenceChange(RowFocusKey.self) { newId in
             let previousId = focusedRowId
             let wasFocused = isSectionFocused

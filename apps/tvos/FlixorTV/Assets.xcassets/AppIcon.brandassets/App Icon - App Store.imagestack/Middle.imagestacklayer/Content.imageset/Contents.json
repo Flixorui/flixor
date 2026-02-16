@@ -1,0 +1,12 @@
+{
+  "images" : [
+    {
+      "filename" : "tvos_logo_flixor.png",
+      "idiom" : "tv"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}
