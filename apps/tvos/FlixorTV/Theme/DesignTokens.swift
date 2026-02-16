@@ -12,7 +12,7 @@ enum UX {
     static let leftPeek: CGFloat = 40
     static let rowSnapInset: CGFloat = 8
     static let rowSnapTopPadding: CGFloat = 40 // snap padding
-    static let tabHeight: CGFloat = 92
+    static let homeBottomOverscan: CGFloat = 250
 
     // Radii
     static let posterRadius: CGFloat = 16

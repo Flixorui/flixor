@@ -1,6 +1,7 @@
 import SwiftUI
 import FlixorKit
 import Nuke
+import Foundation
 
 enum TVHeroChromeStyle {
     case appleMinimal
@@ -14,10 +15,12 @@ struct TVHeroCarouselView: View {
     var defaultFocus: Bool = false
     var chrome: TVHeroChromeStyle = .appleMinimal
     @Binding var currentIndex: Int
+    var focusRequestToken: UUID? = nil
 
     @State private var autoAdvanceTask: Task<Void, Never>?
     @State private var isBillboardFocused = false
-    @State private var hasReceivedInitialFocus = false
+    @State private var shouldRequestDefaultFocus = false
+    @State private var focusRequestTask: Task<Void, Never>?
 
     private let autoAdvanceSeconds: UInt64 = 20
 
@@ -33,8 +36,7 @@ struct TVHeroCarouselView: View {
                 TVBillboardView(
                     item: item,
                     focusNS: focusNS,
-                    // Only set default focus on first load, not when carousel advances
-                    defaultFocus: defaultFocus && !hasReceivedInitialFocus,
+                    defaultFocus: shouldRequestDefaultFocus,
                     layout: .fullBleed
                 )
                     .transition(.opacity)
@@ -52,10 +54,15 @@ struct TVHeroCarouselView: View {
             clampIndex()
             prefetchAdjacentHeroImages()
             restartAutoAdvance()
+            if defaultFocus {
+                requestDefaultFocus()
+            }
         }
         .onDisappear {
             autoAdvanceTask?.cancel()
             autoAdvanceTask = nil
+            focusRequestTask?.cancel()
+            focusRequestTask = nil
         }
         .onChange(of: items.map(\.id)) { _ in
             clampIndex()
@@ -69,11 +76,12 @@ struct TVHeroCarouselView: View {
         .onChange(of: isBillboardFocused) { _ in
             restartAutoAdvance()
         }
+        .onChange(of: focusRequestToken) { token in
+            guard token != nil else { return }
+            requestDefaultFocus()
+        }
         .onPreferenceChange(BillboardFocusKey.self) { hasFocus in
             isBillboardFocused = hasFocus
-            if hasFocus && !hasReceivedInitialFocus {
-                hasReceivedInitialFocus = true
-            }
         }
     }
 
@@ -188,6 +196,16 @@ struct TVHeroCarouselView: View {
             ImageService.shared.artURL(for: items[idx], width: 2200, height: 1240)
         }
         TVHeroImagePrefetch.shared.startPrefetching(with: urls)
+    }
+
+    private func requestDefaultFocus() {
+        focusRequestTask?.cancel()
+        shouldRequestDefaultFocus = true
+        focusRequestTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 150_000_000)
+            guard !Task.isCancelled else { return }
+            shouldRequestDefaultFocus = false
+        }
     }
 }
 

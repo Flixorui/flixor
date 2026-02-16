@@ -1,16 +1,16 @@
 import SwiftUI
 
 struct TopNavBar: View {
-    @Binding var selected: MainTVView.Tab
+    @Binding var selected: MainTVDestination
     var onProfileTapped: () -> Void
     var onSearchTapped: () -> Void
 
-    @FocusState private var focusedTab: MainTVView.Tab?
+    @FocusState private var focusedTab: MainTVDestination?
     @State private var profileFocused = false
     @State private var searchFocused = false
 
     // Netflix-style center tabs; Search moved to icon, Settings moved to profile
-    private let tabs: [MainTVView.Tab] = [.home, .shows, .movies, .myNetflix]
+    private let tabs: [MainTVDestination] = [.home, .shows, .movies, .myList]
 
     var body: some View {
         HStack(alignment: .center, spacing: 0) {
@@ -30,7 +30,7 @@ struct TopNavBar: View {
             // Center tabs with pill selection
             HStack(spacing: 24) {
                 ForEach(tabs, id: \.self) { tab in
-                    NavPill(title: tab.rawValue, isSelected: tab == selected, isFocused: focusedTab == tab)
+                    NavPill(title: tab.title, isSelected: tab == selected, isFocused: focusedTab == tab)
                         .focusable(true) { focused in
                             if focused { focusedTab = tab }
                         }

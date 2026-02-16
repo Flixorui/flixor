@@ -1,8 +1,10 @@
 import SwiftUI
 import FlixorKit
+import Foundation
 
 struct TVHomeView: View {
     @ObservedObject private var vm: TVHomeViewModel
+    let focusHandoffToken: UUID?
     @Namespace private var contentFocusNS
     @EnvironmentObject private var session: SessionManager
 
@@ -12,11 +14,13 @@ struct TVHomeView: View {
     @State private var showingDetails: MediaItem?
     @State private var currentGradientColors: UltraBlurColors?
     @State private var billboardIndex: Int = 0
+    @State private var heroFocusRequestToken: UUID?
     @State private var clearNextRowFocusTask: Task<Void, Never>?
     @State private var gradientDebounceTask: Task<Void, Never>?
 
-    init(viewModel: TVHomeViewModel) {
+    init(viewModel: TVHomeViewModel, focusHandoffToken: UUID? = nil) {
         self._vm = ObservedObject(wrappedValue: viewModel)
+        self.focusHandoffToken = focusHandoffToken
     }
 
     var body: some View {
@@ -36,7 +40,8 @@ struct TVHomeView: View {
                         focusNS: contentFocusNS,
                         defaultFocus: true,
                         chrome: .appleMinimal,
-                        currentIndex: $billboardIndex
+                        currentIndex: $billboardIndex,
+                        focusRequestToken: heroFocusRequestToken
                     )
                         .padding(.top, UX.homeHeroTopPadding)
                         // Keep overlap static so focus transitions do not relayout the entire stack.
@@ -187,13 +192,13 @@ struct TVHomeView: View {
                     loadingSkeletons
                 }
 
-                // Provide extra trailing space so the last row can snap under the tab bar
-                Color.clear.frame(height: UX.tabHeight + UX.rowSnapInset + 150)
+                // Provide extra trailing space for comfortable overscan snap at the bottom.
+                Color.clear.frame(height: UX.homeBottomOverscan + UX.rowSnapInset)
             }
             .padding(.bottom, 80)
         }
         .ignoresSafeArea(edges: .top)
-        // no permanent inset; content can scroll under the transparent tab bar
+        // no permanent inset; content can scroll edge-to-edge under the native sidebar shell
         .onPreferenceChange(RowFocusKey.self) { newId in
             // Update focused row ID (nil when billboard is focused, sectionId when row is focused)
             let previousId = focusedRowId
@@ -230,6 +235,18 @@ struct TVHomeView: View {
             if let rowId = value.rowId, let itemId = value.itemId {
                 rowLastFocusedItem[rowId] = itemId
             }
+        }
+        .onChange(of: focusHandoffToken) { token in
+            guard let token else { return }
+            heroFocusRequestToken = token
+            focusedRowId = nil
+            nextRowToReceiveFocus = nil
+            withAnimation(.easeInOut(duration: 0.22)) {
+                vProxy.scrollTo("billboard", anchor: .top)
+            }
+            #if DEBUG
+            print("🎯 [Home] Received sidebar focus handoff: \(token.uuidString)")
+            #endif
         }
         }
         }
