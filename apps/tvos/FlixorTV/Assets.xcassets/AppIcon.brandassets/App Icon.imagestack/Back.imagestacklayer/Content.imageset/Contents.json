@@ -1,12 +1,12 @@
 {
   "images" : [
     {
-      "filename" : "tvos_logo_flixor.png",
+      "filename" : "back.png",
       "idiom" : "tv",
       "scale" : "1x"
     },
     {
-      "filename" : "tvos_logo_flixor 1.png",
+      "filename" : "back 1.png",
       "idiom" : "tv",
       "scale" : "2x"
     }
