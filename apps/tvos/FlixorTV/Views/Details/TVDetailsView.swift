@@ -6,6 +6,7 @@ enum DetailsTab: String { case suggested = "SUGGESTED", details = "DETAILS", epi
 struct TVDetailsView: View {
     let item: MediaItem
     @StateObject private var vm = TVDetailsViewModel()
+    @EnvironmentObject private var profileSettings: TVProfileSettings
 
     @State private var playbackItem: MediaItem?
     @State private var selectedTrailer: TVTrailer?
@@ -111,7 +112,7 @@ struct TVDetailsView: View {
                         }
                     }
 
-                    if !vm.isSeason && !vm.isEpisode {
+                    if profileSettings.showRelatedContent && !vm.isSeason && !vm.isEpisode {
                         SuggestedSection(vm: vm, focusNS: nsSuggested, onFocusChange: { focused in
                             contentSectionHasFocus = focused
                         })
@@ -269,6 +270,7 @@ private struct TVDetailsHeroSection: View {
     let onPlay: () -> Void
     let onTrailerTapped: (TVTrailer) -> Void
     var onFocusChange: ((Bool) -> Void)?
+    @EnvironmentObject private var profileSettings: TVProfileSettings
 
     @FocusState private var focusedButton: HeroAction?
 
@@ -381,13 +383,18 @@ private struct TVDetailsHeroSection: View {
         let critic = vm.externalRatings?.rottenTomatoes?.critic
         let audience = vm.externalRatings?.rottenTomatoes?.audience ?? vm.plexAudienceRating
 
-        let hasIMDb = baseIMDb != nil || baseVotes != nil
-        let hasRT = critic != nil || audience != nil
+        let imdbScore = profileSettings.showIMDbRating ? baseIMDb : nil
+        let imdbVotes = profileSettings.showIMDbRating ? baseVotes : nil
+        let rtCritic = profileSettings.showRottenTomatoesCritic ? critic : nil
+        let rtAudience = profileSettings.showRottenTomatoesAudience ? audience : nil
+
+        let hasIMDb = imdbScore != nil || imdbVotes != nil
+        let hasRT = rtCritic != nil || rtAudience != nil
         guard hasIMDb || hasRT else { return nil }
 
         return TVDetailsViewModel.ExternalRatings(
-            imdb: hasIMDb ? TVDetailsViewModel.ExternalRatings.IMDb(score: baseIMDb, votes: baseVotes) : nil,
-            rottenTomatoes: hasRT ? TVDetailsViewModel.ExternalRatings.RottenTomatoes(critic: critic, audience: audience) : nil
+            imdb: hasIMDb ? TVDetailsViewModel.ExternalRatings.IMDb(score: imdbScore, votes: imdbVotes) : nil,
+            rottenTomatoes: hasRT ? TVDetailsViewModel.ExternalRatings.RottenTomatoes(critic: rtCritic, audience: rtAudience) : nil
         )
     }
 
@@ -487,19 +494,21 @@ private struct TVDetailsHeroSection: View {
 
                     Spacer(minLength: 20)
 
-                    VStack(alignment: .trailing, spacing: 18) {
-                        if !vm.castShort.isEmpty {
-                            creditsBlock(title: "Starring", value: vm.castShort.map { $0.name }.joined(separator: ", "))
+                    if profileSettings.showCastCrew {
+                        VStack(alignment: .trailing, spacing: 18) {
+                            if !vm.castShort.isEmpty {
+                                creditsBlock(title: "Starring", value: vm.castShort.map { $0.name }.joined(separator: ", "))
+                            }
+                            if !vm.directors.isEmpty {
+                                creditsBlock(title: vm.directors.count > 1 ? "Directors" : "Director", value: vm.directors.prefix(2).joined(separator: ", "))
+                            }
+                            if vm.mediaKind == "tv", !vm.creators.isEmpty {
+                                creditsBlock(title: vm.creators.count > 1 ? "Creators" : "Creator", value: vm.creators.prefix(2).joined(separator: ", "))
+                            }
                         }
-                        if !vm.directors.isEmpty {
-                            creditsBlock(title: vm.directors.count > 1 ? "Directors" : "Director", value: vm.directors.prefix(2).joined(separator: ", "))
-                        }
-                        if vm.mediaKind == "tv", !vm.creators.isEmpty {
-                            creditsBlock(title: vm.creators.count > 1 ? "Creators" : "Creator", value: vm.creators.prefix(2).joined(separator: ", "))
-                        }
+                        .frame(maxWidth: 420, alignment: .trailing)
+                        .padding(.bottom, 36)
                     }
-                    .frame(maxWidth: 420, alignment: .trailing)
-                    .padding(.bottom, 36)
                 }
                 .padding(.horizontal, 80)
                 .padding(.top, 120)

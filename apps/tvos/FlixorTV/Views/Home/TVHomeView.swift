@@ -35,30 +35,33 @@ struct TVHomeView: View {
             LazyVStack(spacing: 40) {
 
                 // Billboard
-                if !vm.billboardItems.isEmpty {
-                    TVHeroCarouselView(
-                        items: vm.billboardItems,
-                        focusNS: contentFocusNS,
-                        defaultFocus: true,
-                        chrome: .appleMinimal,
-                        currentIndex: $billboardIndex,
-                        focusRequestToken: heroFocusRequestToken
-                    )
-                        .padding(.top, UX.homeHeroTopPadding)
-                        // Keep overlap static so focus transitions do not relayout the entire stack.
-                        .padding(.bottom, -(UX.heroRowOverlap + 40))
-                        .id("billboard")
-                        .onAppear {
-                            // When billboard appears, ensure we're showing billboard colors
-                            if focusedRowId != nil {
-                                focusedRowId = nil
+                if profileSettings.showHeroSection {
+                    if !vm.billboardItems.isEmpty {
+                        TVHeroCarouselView(
+                            items: profileSettings.heroLayout == "billboard" ? Array(vm.billboardItems.prefix(1)) : vm.billboardItems,
+                            focusNS: contentFocusNS,
+                            defaultFocus: true,
+                            chrome: profileSettings.heroLayout == "billboard" ? .focusOnly : .appleMinimal,
+                            autoAdvanceEnabled: profileSettings.heroAutoRotate && profileSettings.heroLayout != "billboard",
+                            currentIndex: $billboardIndex,
+                            focusRequestToken: heroFocusRequestToken
+                        )
+                            .padding(.top, UX.homeHeroTopPadding)
+                            // Keep overlap static so focus transitions do not relayout the entire stack.
+                            .padding(.bottom, -(UX.heroRowOverlap + 40))
+                            .id("billboard")
+                            .onAppear {
+                                // When billboard appears, ensure we're showing billboard colors
+                                if focusedRowId != nil {
+                                    focusedRowId = nil
+                                }
                             }
-                        }
-                } else if vm.isLoading {
-                    placeholderBillboard
-                        .padding(.top, UX.homeHeroTopPadding)
-                        .padding(.bottom, -(UX.heroRowOverlap + 40))
-                        .id("billboard-placeholder")
+                    } else if vm.isLoading {
+                        placeholderBillboard
+                            .padding(.top, UX.homeHeroTopPadding)
+                            .padding(.bottom, -(UX.heroRowOverlap + 40))
+                            .id("billboard-placeholder")
+                    }
                 }
 
                 // 1) Watchlist / My List
@@ -209,11 +212,17 @@ struct TVHomeView: View {
         }
         .onChange(of: focusHandoffToken) { token in
             guard let token else { return }
-            heroFocusRequestToken = token
             focusedRowId = nil
             nextRowToReceiveFocus = nil
-            withAnimation(.easeInOut(duration: 0.22)) {
-                vProxy.scrollTo("billboard", anchor: .top)
+            if profileSettings.showHeroSection, !vm.billboardItems.isEmpty {
+                heroFocusRequestToken = token
+                withAnimation(.easeInOut(duration: 0.22)) {
+                    vProxy.scrollTo("billboard", anchor: .top)
+                }
+            } else if let firstRowId = firstVisibleRowId {
+                withAnimation(.easeInOut(duration: 0.22)) {
+                    vProxy.scrollTo("row-\(firstRowId)", anchor: .top)
+                }
             }
             #if DEBUG
             print("🎯 [Home] Received sidebar focus handoff: \(token.uuidString)")

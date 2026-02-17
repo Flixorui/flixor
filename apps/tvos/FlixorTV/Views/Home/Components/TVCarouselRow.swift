@@ -20,10 +20,22 @@ struct TVCarouselRow: View {
     @State private var scrollProxy: ScrollViewProxy?
     @State private var expansionTask: Task<Void, Never>?
     @State private var lastFocusedIndex: Int?
+    @EnvironmentObject private var profileSettings: TVProfileSettings
 
-    private var posterSize: CGSize { .init(width: UX.posterWidth, height: UX.posterHeight) }
+    private var posterScale: CGFloat {
+        switch profileSettings.posterSize {
+        case "small":
+            return 0.86
+        case "large":
+            return 1.14
+        default:
+            return 1.0
+        }
+    }
+
+    private var posterSize: CGSize { .init(width: UX.posterWidth * posterScale, height: UX.posterHeight * posterScale) }
     private var landscapeSize: CGSize { .init(width: UX.landscapeWidth, height: UX.landscapeHeight) }
-    private var expandedWidth: CGFloat { UX.posterHeight * (16.0/9.0) }
+    private var expandedWidth: CGFloat { posterSize.height * (16.0/9.0) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {

@@ -19,7 +19,34 @@ struct TVLibraryView: View {
     @State private var focusDebounceTask: Task<Void, Never>?
     @State private var settingsRefreshTask: Task<Void, Never>?
 
-    private let gridColumns = Array(repeating: GridItem(.flexible(), spacing: UX.itemSpacing), count: 5)
+    private var posterScale: CGFloat {
+        switch profileSettings.posterSize {
+        case "small":
+            return 0.86
+        case "large":
+            return 1.14
+        default:
+            return 1.0
+        }
+    }
+
+    private var libraryPosterWidth: CGFloat { UX.posterWidth * posterScale }
+    private var libraryPosterHeight: CGFloat { UX.posterHeight * posterScale }
+
+    private var gridColumnCount: Int {
+        switch profileSettings.posterSize {
+        case "small":
+            return 6
+        case "large":
+            return 4
+        default:
+            return 5
+        }
+    }
+
+    private var gridColumns: [GridItem] {
+        Array(repeating: GridItem(.flexible(), spacing: UX.itemSpacing), count: gridColumnCount)
+    }
 
     init(
         preferredKind: TVLibraryViewModel.LibrarySectionSummary.Kind? = nil,
@@ -130,7 +157,7 @@ struct TVLibraryView: View {
             LazyVGrid(columns: gridColumns, spacing: UX.railV) {
                 ForEach(0..<15, id: \.self) { _ in
                     SkeletonPoster()
-                        .frame(width: UX.posterWidth, height: UX.posterHeight)
+                        .frame(width: libraryPosterWidth, height: libraryPosterHeight)
                 }
             }
             .padding(.horizontal, UX.gridH)
@@ -155,8 +182,8 @@ struct TVLibraryView: View {
             LazyVGrid(columns: gridColumns, spacing: UX.railV) {
                 ForEach(viewModel.visibleItems) { entry in
                     let isFocused = focusedID == entry.id
-                    TVPosterCard(item: entry.media, isFocused: isFocused)
-                        .frame(width: UX.posterWidth, height: UX.posterHeight)
+                    TVPosterCard(item: entry.media, isFocused: isFocused, respectLibraryTitles: true)
+                        .frame(width: libraryPosterWidth, height: libraryPosterHeight)
                         .id(entry.id)
                         .focusable(true)
                         .focused($focusedID, equals: entry.id)
@@ -202,9 +229,11 @@ struct TVLibraryView: View {
                                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
                             VStack(alignment: .leading, spacing: 6) {
-                                Text(entry.media.title)
-                                    .font(.system(size: 30, weight: .semibold))
-                                    .foregroundStyle(.white)
+                                if profileSettings.showLibraryTitles {
+                                    Text(entry.media.title)
+                                        .font(.system(size: 30, weight: .semibold))
+                                        .foregroundStyle(.white)
+                                }
                                 Text(infoText(for: entry))
                                     .font(.system(size: 20))
                                     .foregroundStyle(.white.opacity(0.75))

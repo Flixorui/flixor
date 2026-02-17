@@ -25,3 +25,4 @@ Pods/
 *.aar
 libmpv/
 *.apk
+*.xcuserstate

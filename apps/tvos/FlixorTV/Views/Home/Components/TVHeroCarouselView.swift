@@ -14,6 +14,7 @@ struct TVHeroCarouselView: View {
     var focusNS: Namespace.ID? = nil
     var defaultFocus: Bool = false
     var chrome: TVHeroChromeStyle = .appleMinimal
+    var autoAdvanceEnabled: Bool = true
     @Binding var currentIndex: Int
     var focusRequestToken: UUID? = nil
 
@@ -174,6 +175,7 @@ struct TVHeroCarouselView: View {
     private func restartAutoAdvance() {
         autoAdvanceTask?.cancel()
         autoAdvanceTask = nil
+        guard autoAdvanceEnabled else { return }
         guard items.count > 1 else { return }
         guard !isBillboardFocused else { return }
         autoAdvanceTask = Task { @MainActor in

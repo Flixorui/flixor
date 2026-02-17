@@ -11,6 +11,7 @@ import FlixorKit
 struct PlayerView: View {
     let item: MediaItem
     @StateObject private var playerSettings = PlayerSettings()
+    @EnvironmentObject private var profileSettings: TVProfileSettings
     @State private var avkitController: AVKitPlayerController?
     @State private var mpvController: MPVPlayerController?
     @Environment(\.dismiss) private var dismiss
@@ -37,8 +38,8 @@ struct PlayerView: View {
     @State private var activeSettingsSheet: TVPlayerSettingsSheet?
 
     private let controlsHideDelay: TimeInterval = 3.0
-    private let seekBackwardSeconds = 10
-    private let seekForwardSeconds = 10
+    private var seekBackwardSeconds: Int { max(1, profileSettings.seekTimeSmall) }
+    private var seekForwardSeconds: Int { max(1, profileSettings.seekTimeSmall) }
 
     private var isMPVActive: Bool {
         playerSettings.backend == .mpv && mpvController != nil
@@ -215,6 +216,10 @@ struct PlayerView: View {
     private func loadVideoIfNeeded() {
         guard !hasLoadedPlayback else { return }
         hasLoadedPlayback = true
+        playbackRate = Float(profileSettings.defaultPlaybackSpeed)
+        if profileSettings.defaultQuality >= 0 && profileSettings.defaultQuality < PlaybackQuality.allCases.count {
+            selectedQuality = PlaybackQuality.allCases[profileSettings.defaultQuality]
+        }
 
         switch playerSettings.backend {
         case .avkit:
@@ -239,6 +244,9 @@ struct PlayerView: View {
         case .mpv:
             let controller = MPVPlayerController()
             mpvController = controller
+            Task {
+                await controller.changeQuality(to: selectedQuality)
+            }
 
             controller.onEvent = { event in
                 print("🎬 [PlayerView/MPV] Event: \(event)")

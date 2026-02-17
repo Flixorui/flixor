@@ -5,6 +5,7 @@ struct TVDetailsInfoGrid: View {
     @ObservedObject var vm: TVDetailsViewModel
     var focusNS: Namespace.ID
     var onFocusChange: ((Bool) -> Void)?
+    @EnvironmentObject private var profileSettings: TVProfileSettings
     @State private var isFocused: Bool = false
     @State private var selectedModal: DetailsSectionModalType?
     @State private var lastFocusedSection: FocusableDetailsSection = .about
@@ -64,7 +65,7 @@ struct TVDetailsInfoGrid: View {
         VStack(alignment: .leading, spacing: 44) {
             aboutSection
 
-            if !castAndCrew.isEmpty {
+            if profileSettings.showCastCrew && !castAndCrew.isEmpty {
                 castSection
             }
 

@@ -96,6 +96,8 @@ private struct LayoutModifier: ViewModifier {
 struct TVPosterCard: View {
     let item: MediaItem
     let isFocused: Bool
+    var respectLibraryTitles: Bool = false
+    @EnvironmentObject private var profileSettings: TVProfileSettings
 
     // For episodes, use series poster (grandparentThumb)
     private var posterURL: URL? {
@@ -105,14 +107,35 @@ struct TVPosterCard: View {
         return ImageService.shared.thumbURL(for: item, width: 360, height: 540)
     }
 
+    private var posterCornerRadius: CGFloat {
+        switch profileSettings.posterCornerRadius {
+        case "none":
+            return 0
+        case "small":
+            return 10
+        case "large":
+            return 20
+        default:
+            return UX.posterRadius
+        }
+    }
+
+    private var shouldShowFocusedTitle: Bool {
+        guard isFocused, profileSettings.showPosterTitles else { return false }
+        if respectLibraryTitles {
+            return profileSettings.showLibraryTitles
+        }
+        return true
+    }
+
     var body: some View {
         ZStack(alignment: .bottomLeading) {
-            TVImage(url: posterURL, corner: UX.posterRadius, aspect: 2/3)
+            TVImage(url: posterURL, corner: posterCornerRadius, aspect: 2/3)
 
             // For episodes: show series logo + episode title
             if item.type == "episode" {
                 LinearGradient(colors: [Color.black.opacity(0.7), .clear], startPoint: .bottom, endPoint: .top)
-                    .clipShape(RoundedRectangle(cornerRadius: UX.posterRadius, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: posterCornerRadius, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 6) {
                     // Series logo or series title
@@ -142,9 +165,9 @@ struct TVPosterCard: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 // For non-episodes: show title on focus only
-                if isFocused {
+                if shouldShowFocusedTitle {
                     LinearGradient(colors: [Color.black.opacity(0.6), .clear], startPoint: .bottom, endPoint: .top)
-                        .clipShape(RoundedRectangle(cornerRadius: UX.posterRadius, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: posterCornerRadius, style: .continuous))
                     Text(item.title)
                         .font(.system(size: 22, weight: .semibold))
                         .foregroundStyle(.white)
@@ -165,7 +188,7 @@ struct TVPosterCard: View {
         .overlay(
             Group {
                 if isFocused {
-                    RoundedRectangle(cornerRadius: UX.posterRadius, style: .continuous)
+                    RoundedRectangle(cornerRadius: posterCornerRadius, style: .continuous)
                         .stroke(Color.white.opacity(0.85), lineWidth: 3)
                 }
             }
