@@ -867,6 +867,16 @@ public class FlixorCore: ObservableObject {
     public func clearTraktCache() async {
         await cache.invalidatePattern("trakt:*")
     }
+
+    /// Update TMDB language at runtime without resetting Plex/Trakt sessions.
+    public func updateTMDBLanguage(_ language: String) async {
+        guard var config else { return }
+        config.language = language
+        self.config = config
+        _tmdb = TMDBService(apiKey: config.tmdbApiKey, cache: cache, language: language)
+        await clearTmdbCache()
+        print("✅ [FlixorCore] Updated TMDB language: \(language)")
+    }
 }
 
 // MARK: - Errors

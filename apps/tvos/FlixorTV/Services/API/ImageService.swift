@@ -19,6 +19,11 @@ final class ImageService {
     func plexImageURL(path: String?, width: Int? = nil, height: Int? = nil, format: String = "webp", quality: Int? = nil) -> URL? {
         guard let path = path, !path.isEmpty else { return nil }
 
+        // Search/metadata payloads may already contain absolute URLs.
+        if path.hasPrefix("http://") || path.hasPrefix("https://") {
+            return URL(string: path)
+        }
+
         // Use FlixorCore's PlexServerService for image URLs.
         guard let plexServer = FlixorCore.shared.plexServer else {
             #if DEBUG

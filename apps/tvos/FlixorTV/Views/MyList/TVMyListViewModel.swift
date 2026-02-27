@@ -184,6 +184,7 @@ final class TVMyListViewModel: ObservableObject {
             }
 
             if (item.source == .trakt || item.source == .both),
+               UserDefaults.standard.traktSyncWatchlist,
                let tmdbId = item.tmdbId {
                 struct TraktRemovePayload: Codable {
                     struct IDs: Codable { let tmdb: Int? }

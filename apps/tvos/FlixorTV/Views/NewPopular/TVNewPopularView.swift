@@ -371,6 +371,9 @@ struct TVNewPopularView: View {
     }
 
     private func addHeroToWatchlist(_ hero: TVNewPopularViewModel.HeroData) async {
+        guard profileSettings.traktSyncWatchlist else {
+            return
+        }
         guard hero.id.hasPrefix("tmdb:"),
               let tmdbId = Int(hero.id.split(separator: ":").last ?? "") else { return }
 

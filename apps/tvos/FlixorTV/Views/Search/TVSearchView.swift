@@ -226,6 +226,7 @@ struct TVSearchView: View {
                 focusNS: focusNS,
                 defaultFocus: defaultFocus,
                 sectionId: sectionId,
+                landscapeFocusOutline: kind == .landscape,
                 onSelect: { selectedItem = $0 }
             )
         }

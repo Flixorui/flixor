@@ -64,7 +64,17 @@ struct TVHomeView: View {
                     }
                 }
 
-                // 1) Watchlist / My List
+                // 1) Continue Watching (top-most row)
+                if profileSettings.showContinueWatching, !vm.continueWatching.isEmpty {
+                    rowView(
+                        title: "Continue Watching",
+                        items: vm.continueWatching,
+                        kind: continueWatchingRowKind,
+                        sectionId: "continue-watching"
+                    )
+                }
+
+                // 2) Watchlist / My List
                 if let myList = vm.additionalSections.first(where: { $0.id == "plex-watchlist" }),
                    profileSettings.showWatchlist,
                    !myList.items.isEmpty {
@@ -73,16 +83,6 @@ struct TVHomeView: View {
                         items: myList.items,
                         kind: effectiveRowKind,
                         sectionId: myList.id
-                    )
-                }
-
-                // 2) Continue Watching
-                if profileSettings.showContinueWatching, !vm.continueWatching.isEmpty {
-                    rowView(
-                        title: "Continue Watching",
-                        items: vm.continueWatching,
-                        kind: continueWatchingRowKind,
-                        sectionId: "continue-watching"
                     )
                 }
 
@@ -250,6 +250,12 @@ struct TVHomeView: View {
                 vm.stopDynamicSectionPolling()
             }
         }
+        .onChange(of: profileSettings.groupRecentlyAddedEpisodes) { _ in
+            Task { await vm.load() }
+        }
+        .onChange(of: profileSettings.enabledLibraryKeys) { _ in
+            Task { await vm.load() }
+        }
         .onChange(of: vm.billboardItems.map(\.id)) { _ in
             if billboardIndex >= vm.billboardItems.count {
                 billboardIndex = max(0, vm.billboardItems.count - 1)
@@ -328,6 +334,7 @@ struct TVHomeView: View {
                 defaultFocus: focusedRowId == sectionId || nextRowToReceiveFocus == sectionId,
                 preferredFocusItemId: rowLastFocusedItem[sectionId],
                 sectionId: sectionId,
+                landscapeFocusOutline: kind == .landscape,
                 onSelect: { showingDetails = $0 }
             )
             .padding(.top, focusedRowId == sectionId ? UX.rowSnapTopPadding : 0)
@@ -381,8 +388,8 @@ extension TVHomeView {
     @ViewBuilder
     var loadingSkeletons: some View {
         VStack(spacing: 32) {
-            skeletonRow(title: "My List", poster: true)
             skeletonRow(title: "Continue Watching", poster: false)
+            skeletonRow(title: "My List", poster: true)
             skeletonRow(title: "New on Flixor", poster: true)
         }
     }

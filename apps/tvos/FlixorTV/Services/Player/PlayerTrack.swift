@@ -62,7 +62,7 @@ enum PlaybackQuality: String, CaseIterable, Identifiable, Codable {
     }
 }
 
-enum MPVSessionMode: String {
+enum MPVSessionMode: String, Codable {
     case directPlay
     case directStream
     case transcode

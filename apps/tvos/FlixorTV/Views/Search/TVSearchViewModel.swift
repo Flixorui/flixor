@@ -22,19 +22,23 @@ final class TVSearchViewModel: ObservableObject {
         let title: String
         let type: MediaType
         let imageURL: URL?
+        let logoURL: URL?
         let year: String?
         let overview: String?
         let available: Bool
         let genreIds: [Int]
         let editionTitle: String?
+        let rawThumbPath: String?
+        let rawArtPath: String?
 
         var mediaItem: MediaItem {
             MediaItem(
                 id: id,
                 title: title,
                 type: type == .movie ? "movie" : "show",
-                thumb: imageURL?.absoluteString,
-                art: imageURL?.absoluteString,
+                thumb: imageURL?.absoluteString ?? rawThumbPath,
+                art: imageURL?.absoluteString ?? rawArtPath ?? rawThumbPath,
+                logo: logoURL?.absoluteString,
                 year: year.flatMap(Int.init),
                 rating: nil,
                 duration: nil,
@@ -139,11 +143,14 @@ final class TVSearchViewModel: ObservableObject {
                         title: item.title ?? "",
                         type: .movie,
                         imageURL: imageURL,
+                        logoURL: await fetchTMDBLogo(mediaType: "movie", id: item.id),
                         year: item.release_date?.prefix(4).description,
                         overview: item.overview,
                         available: false,
                         genreIds: item.genre_ids ?? [],
-                        editionTitle: nil
+                        editionTitle: nil,
+                        rawThumbPath: nil,
+                        rawArtPath: nil
                     )
                 )
             }
@@ -161,11 +168,14 @@ final class TVSearchViewModel: ObservableObject {
                         title: item.name ?? "",
                         type: .tv,
                         imageURL: imageURL,
+                        logoURL: await fetchTMDBLogo(mediaType: "tv", id: item.id),
                         year: item.first_air_date?.prefix(4).description,
                         overview: item.overview,
                         available: false,
                         genreIds: item.genre_ids ?? [],
-                        editionTitle: nil
+                        editionTitle: nil,
+                        rawThumbPath: nil,
+                        rawArtPath: nil
                     )
                 )
             }
@@ -184,43 +194,55 @@ final class TVSearchViewModel: ObservableObject {
             async let shows = api.getTMDBTrending(mediaType: "tv", timeWindow: "week")
             let (movieResponse, showResponse) = try await (movies, shows)
 
-            let movieItems: [SearchResult] = movieResponse.results.prefix(8).map { item in
+            var movieItems: [SearchResult] = []
+            for item in movieResponse.results.prefix(8) {
                 let imageURL = ImageService.shared.proxyImageURL(
                     url: item.backdrop_path.flatMap { "https://image.tmdb.org/t/p/w780\($0)" }
                 ) ?? ImageService.shared.proxyImageURL(
                     url: item.poster_path.flatMap { "https://image.tmdb.org/t/p/w500\($0)" }
                 )
 
-                return SearchResult(
-                    id: "tmdb:movie:\(item.id)",
-                    title: item.title ?? "",
-                    type: .movie,
-                    imageURL: imageURL,
-                    year: item.release_date?.prefix(4).description,
-                    overview: item.overview,
-                    available: false,
-                    genreIds: item.genre_ids ?? [],
-                    editionTitle: nil
+                movieItems.append(
+                    SearchResult(
+                        id: "tmdb:movie:\(item.id)",
+                        title: item.title ?? "",
+                        type: .movie,
+                        imageURL: imageURL,
+                        logoURL: await fetchTMDBLogo(mediaType: "movie", id: item.id),
+                        year: item.release_date?.prefix(4).description,
+                        overview: item.overview,
+                        available: false,
+                        genreIds: item.genre_ids ?? [],
+                        editionTitle: nil,
+                        rawThumbPath: nil,
+                        rawArtPath: nil
+                    )
                 )
             }
 
-            let showItems: [SearchResult] = showResponse.results.prefix(8).map { item in
+            var showItems: [SearchResult] = []
+            for item in showResponse.results.prefix(8) {
                 let imageURL = ImageService.shared.proxyImageURL(
                     url: item.backdrop_path.flatMap { "https://image.tmdb.org/t/p/w780\($0)" }
                 ) ?? ImageService.shared.proxyImageURL(
                     url: item.poster_path.flatMap { "https://image.tmdb.org/t/p/w500\($0)" }
                 )
 
-                return SearchResult(
-                    id: "tmdb:tv:\(item.id)",
-                    title: item.name ?? "",
-                    type: .tv,
-                    imageURL: imageURL,
-                    year: item.first_air_date?.prefix(4).description,
-                    overview: item.overview,
-                    available: false,
-                    genreIds: item.genre_ids ?? [],
-                    editionTitle: nil
+                showItems.append(
+                    SearchResult(
+                        id: "tmdb:tv:\(item.id)",
+                        title: item.name ?? "",
+                        type: .tv,
+                        imageURL: imageURL,
+                        logoURL: await fetchTMDBLogo(mediaType: "tv", id: item.id),
+                        year: item.first_air_date?.prefix(4).description,
+                        overview: item.overview,
+                        available: false,
+                        genreIds: item.genre_ids ?? [],
+                        editionTitle: nil,
+                        rawThumbPath: nil,
+                        rawArtPath: nil
+                    )
                 )
             }
 
@@ -317,11 +339,29 @@ final class TVSearchViewModel: ObservableObject {
                             if let backdrop = tmdbMatch.backdropUrl {
                                 imageURL = await ImageService.shared.proxyImageURL(url: backdrop)
                             }
+                            let logoURL = await ImageService.shared.proxyImageURL(url: tmdbMatch.logoUrl)
+                            return (
+                                ratingKey,
+                                SearchResult(
+                                    id: "plex:\(ratingKey)",
+                                    title: item.title ?? "",
+                                    type: type == 1 ? .movie : .tv,
+                                    imageURL: imageURL,
+                                    logoURL: logoURL,
+                                    year: item.year.map(String.init),
+                                    overview: item.summary,
+                                    available: true,
+                                    genreIds: [],
+                                    editionTitle: edition,
+                                    rawThumbPath: item.thumb ?? item.parentThumb ?? item.grandparentThumb,
+                                    rawArtPath: item.art ?? item.grandparentArt ?? item.thumb ?? item.parentThumb ?? item.grandparentThumb
+                                )
+                            )
                         } catch {
                         }
 
                         if imageURL == nil {
-                            let fallbackPath = item.art ?? item.thumb ?? item.parentThumb ?? item.grandparentThumb
+                            let fallbackPath = item.art ?? item.grandparentArt ?? item.thumb ?? item.parentThumb ?? item.grandparentThumb
                             imageURL = await ImageService.shared.plexImageURL(path: fallbackPath, width: 780, height: 439)
                         }
 
@@ -330,11 +370,14 @@ final class TVSearchViewModel: ObservableObject {
                             title: item.title ?? "",
                             type: type == 1 ? .movie : .tv,
                             imageURL: imageURL,
+                            logoURL: nil,
                             year: item.year.map(String.init),
                             overview: item.summary,
                             available: true,
                             genreIds: [],
-                            editionTitle: edition
+                            editionTitle: edition,
+                            rawThumbPath: item.thumb ?? item.parentThumb ?? item.grandparentThumb,
+                            rawArtPath: item.art ?? item.grandparentArt ?? item.thumb ?? item.parentThumb ?? item.grandparentThumb
                         )
                         return (ratingKey, result)
                     }
@@ -397,11 +440,14 @@ final class TVSearchViewModel: ObservableObject {
                     title: item.title ?? item.name ?? "",
                     type: mediaType,
                     imageURL: imageURL,
+                    logoURL: await fetchTMDBLogo(mediaType: item.media_type == "movie" ? "movie" : "tv", id: item.id),
                     year: (item.release_date ?? item.first_air_date)?.prefix(4).description,
                     overview: item.overview,
                     available: false,
                     genreIds: genreIds,
-                    editionTitle: nil
+                    editionTitle: nil,
+                    rawThumbPath: nil,
+                    rawArtPath: nil
                 )
 
                 if mediaType == .movie {
@@ -456,35 +502,47 @@ final class TVSearchViewModel: ObservableObject {
 
                 let (movieResult, showResult) = try await (moviesRes, showsRes)
 
-                let movies: [SearchResult] = movieResult.results.prefix(8).map { item in
-                    SearchResult(
-                        id: "tmdb:movie:\(item.id)",
-                        title: item.title ?? "",
-                        type: .movie,
-                        imageURL: ImageService.shared.proxyImageURL(
-                            url: item.poster_path.flatMap { "https://image.tmdb.org/t/p/w500\($0)" }
-                        ),
-                        year: item.release_date?.prefix(4).description,
-                        overview: nil,
-                        available: false,
-                        genreIds: [genreId],
-                        editionTitle: nil
+                var movies: [SearchResult] = []
+                for item in movieResult.results.prefix(8) {
+                    movies.append(
+                        SearchResult(
+                            id: "tmdb:movie:\(item.id)",
+                            title: item.title ?? "",
+                            type: .movie,
+                            imageURL: ImageService.shared.proxyImageURL(
+                                url: item.poster_path.flatMap { "https://image.tmdb.org/t/p/w500\($0)" }
+                            ),
+                            logoURL: await fetchTMDBLogo(mediaType: "movie", id: item.id),
+                            year: item.release_date?.prefix(4).description,
+                            overview: nil,
+                            available: false,
+                            genreIds: [genreId],
+                            editionTitle: nil,
+                            rawThumbPath: nil,
+                            rawArtPath: nil
+                        )
                     )
                 }
 
-                let shows: [SearchResult] = showResult.results.prefix(8).map { item in
-                    SearchResult(
-                        id: "tmdb:tv:\(item.id)",
-                        title: item.name ?? "",
-                        type: .tv,
-                        imageURL: ImageService.shared.proxyImageURL(
-                            url: item.poster_path.flatMap { "https://image.tmdb.org/t/p/w500\($0)" }
-                        ),
-                        year: item.first_air_date?.prefix(4).description,
-                        overview: nil,
-                        available: false,
-                        genreIds: [genreId],
-                        editionTitle: nil
+                var shows: [SearchResult] = []
+                for item in showResult.results.prefix(8) {
+                    shows.append(
+                        SearchResult(
+                            id: "tmdb:tv:\(item.id)",
+                            title: item.name ?? "",
+                            type: .tv,
+                            imageURL: ImageService.shared.proxyImageURL(
+                                url: item.poster_path.flatMap { "https://image.tmdb.org/t/p/w500\($0)" }
+                            ),
+                            logoURL: await fetchTMDBLogo(mediaType: "tv", id: item.id),
+                            year: item.first_air_date?.prefix(4).description,
+                            overview: nil,
+                            available: false,
+                            genreIds: [genreId],
+                            editionTitle: nil,
+                            rawThumbPath: nil,
+                            rawArtPath: nil
+                        )
                     )
                 }
 
@@ -506,6 +564,7 @@ final class TVSearchViewModel: ObservableObject {
         let year: Int?
         let summary: String?
         let art: String?
+        let grandparentArt: String?
         let thumb: String?
         let parentThumb: String?
         let grandparentThumb: String?
@@ -536,5 +595,19 @@ final class TVSearchViewModel: ObservableObject {
         }
 
         return nil
+    }
+
+    private func fetchTMDBLogo(mediaType: String, id: Int) async -> URL? {
+        do {
+            let images = try await api.getTMDBImages(mediaType: mediaType, id: String(id))
+            let logos = images.logos ?? []
+            let picked = logos.first { $0.iso_639_1 == "en" }
+                ?? logos.first { ($0.iso_639_1 ?? "").isEmpty }
+                ?? logos.first
+            guard let filePath = picked?.file_path else { return nil }
+            return ImageService.shared.proxyImageURL(url: "https://image.tmdb.org/t/p/w500\(filePath)")
+        } catch {
+            return nil
+        }
     }
 }

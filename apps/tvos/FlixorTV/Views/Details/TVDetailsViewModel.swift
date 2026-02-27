@@ -108,8 +108,13 @@ class TVDetailsViewModel: ObservableObject {
     @Published var audioTracks: [Track] = []
     @Published var subtitleTracks: [Track] = []
     @Published var externalRatings: ExternalRatings?
+    @Published var mdblistRatings: TVMDBListRatings?
     @Published var plexRatingKey: String?
     @Published var plexGuid: String?
+    @Published var overseerrStatus: TVOverseerrMediaStatus = .notConfigured
+    @Published var overseerrRequestMessage: String?
+    @Published var isSubmittingOverseerrRequest = false
+    @Published var traktRatingValue: Int?
 
     // Context
     @Published var tmdbId: String?
@@ -135,9 +140,27 @@ class TVDetailsViewModel: ObservableObject {
     @Published var ultraBlurColors: UltraBlurColors?
 
     private let api = APIClient.shared
+    private let profileSettings = TVProfileSettings.shared
     private var lastFetchedRatingsKey: String?
     private var ultraBlurCache: [String: UltraBlurColors] = [:]
     private var ultraBlurTask: Task<Void, Never>?
+
+    var suggestedTraktRating: Int? {
+        if let explicit = traktRatingValue {
+            return explicit
+        }
+        if let tmdb = tmdbRating, tmdb > 0 {
+            return min(max(Int(round(tmdb)), 1), 10)
+        }
+        if let imdb = plexImdbRating, imdb > 0 {
+            return min(max(Int(round(imdb)), 1), 10)
+        }
+        if let imdb = mdblistRatings?.imdb, imdb > 0 {
+            let normalized = imdb > 10 ? imdb / 10.0 : imdb
+            return min(max(Int(round(normalized)), 1), 10)
+        }
+        return nil
+    }
 
     func fetchUltraBlurColors() async {
         guard let rawURL = rawBackdropURL ?? backdropURL?.absoluteString else {
@@ -292,6 +315,7 @@ class TVDetailsViewModel: ObservableObject {
         error = nil
         badges = []
         externalRatings = nil
+        mdblistRatings = nil
         lastFetchedRatingsKey = nil
         tmdbId = nil
         imdbId = nil
@@ -323,6 +347,10 @@ class TVDetailsViewModel: ObservableObject {
         subtitleTracks = []
         plexRatingKey = nil
         plexGuid = nil
+        overseerrStatus = .notConfigured
+        overseerrRequestMessage = nil
+        isSubmittingOverseerrRequest = false
+        traktRatingValue = nil
         isSeason = false
         isEpisode = false
         parentShowKey = nil
@@ -380,6 +408,8 @@ class TVDetailsViewModel: ObservableObject {
             }
 
             // Fetch UltraBlur colors after all data is loaded
+            await loadMDBListRatingsIfNeeded()
+            await refreshOverseerrStatusIfNeeded()
             await fetchUltraBlurColors()
         } catch {
             self.error = error.localizedDescription
@@ -456,7 +486,7 @@ class TVDetailsViewModel: ObservableObject {
             try await fetchTMDBDetails(media: mediaKind ?? "movie", id: tid, skipPlexMapping: true)
         }
 
-        if trailers.isEmpty {
+        if profileSettings.tmdbEnrichMetadata, trailers.isEmpty {
             await loadTMDBTrailers()
         }
 
@@ -469,6 +499,7 @@ class TVDetailsViewModel: ObservableObject {
     }
 
     private func fetchTMDBDetails(media: String, id: String, skipPlexMapping: Bool = false) async throws {
+        let shouldEnrich = profileSettings.tmdbEnrichMetadata
         // Details
         struct TDetails: Codable {
             let title: String?
@@ -526,38 +557,40 @@ class TVDetailsViewModel: ObservableObject {
         self.creators = (d.created_by ?? []).compactMap { $0.name }
         self.tmdbRating = (d.vote_average ?? 0) > 0 ? d.vote_average : nil
 
-        // Images (logo preferred en)
-        struct TImage: Codable { let file_path: String?; let iso_639_1: String?; let vote_average: Double? }
-        struct TImages: Codable { let logos: [TImage]?; let backdrops: [TImage]? }
-        let imgs: TImages = try await api.get("/api/tmdb/\(media)/\(id)/images", queryItems: [URLQueryItem(name: "include_image_language", value: "en,hi,ja,ko,zh,es,fr,de,pt,it,ru,ar,null")])
-        if let logo = (imgs.logos ?? []).first(where: { $0.iso_639_1 == "en" }) ?? (imgs.logos ?? []).first(where: { ($0.iso_639_1 ?? "").isEmpty }) ?? imgs.logos?.first,
-           let p = logo.file_path {
-            self.logoURL = ImageService.shared.proxyImageURL(url: "https://image.tmdb.org/t/p/w500\(p)")
-        }
-
-        // Credits (cast top 12)
-        struct TCast: Codable { let id: Int?; let name: String?; let character: String?; let profile_path: String? }
-        struct TCrew: Codable { let id: Int?; let name: String?; let job: String?; let department: String?; let profile_path: String? }
-        struct TCredits: Codable { let cast: [TCast]?; let crew: [TCrew]? }
-        let cr: TCredits = try await api.get("/api/tmdb/\(media)/\(id)/credits")
-        self.cast = (cr.cast ?? []).prefix(12).map { c in
-            Person(id: String(c.id ?? 0), name: c.name ?? "", role: c.character, profile: ImageService.shared.proxyImageURL(url: c.profile_path.flatMap { "https://image.tmdb.org/t/p/w500\($0)" }))
-        }
-        self.crew = (cr.crew ?? []).prefix(12).map { x in
-            CrewPerson(id: String(x.id ?? 0), name: x.name ?? "", job: x.job, profile: ImageService.shared.proxyImageURL(url: x.profile_path.flatMap { "https://image.tmdb.org/t/p/w500\($0)" }))
-        }
-        let allCrew = cr.crew ?? []
-        self.directors = allCrew
-            .filter { ($0.job?.lowercased() ?? "").contains("director") && ($0.department?.lowercased() ?? "") == "directing" }
-            .compactMap { $0.name }
-            .removingDuplicates()
-        self.writers = allCrew
-            .filter {
-                let job = ($0.job?.lowercased() ?? "")
-                return job.contains("writer") || job.contains("screenplay") || job.contains("story")
+        if shouldEnrich {
+            // Images (logo preferred en)
+            struct TImage: Codable { let file_path: String?; let iso_639_1: String?; let vote_average: Double? }
+            struct TImages: Codable { let logos: [TImage]?; let backdrops: [TImage]? }
+            let imgs: TImages = try await api.get("/api/tmdb/\(media)/\(id)/images", queryItems: [URLQueryItem(name: "include_image_language", value: "en,hi,ja,ko,zh,es,fr,de,pt,it,ru,ar,null")])
+            if let logo = (imgs.logos ?? []).first(where: { $0.iso_639_1 == "en" }) ?? (imgs.logos ?? []).first(where: { ($0.iso_639_1 ?? "").isEmpty }) ?? imgs.logos?.first,
+               let p = logo.file_path {
+                self.logoURL = ImageService.shared.proxyImageURL(url: "https://image.tmdb.org/t/p/w500\(p)")
             }
-            .compactMap { $0.name }
-            .removingDuplicates()
+
+            // Credits (cast top 12)
+            struct TCast: Codable { let id: Int?; let name: String?; let character: String?; let profile_path: String? }
+            struct TCrew: Codable { let id: Int?; let name: String?; let job: String?; let department: String?; let profile_path: String? }
+            struct TCredits: Codable { let cast: [TCast]?; let crew: [TCrew]? }
+            let cr: TCredits = try await api.get("/api/tmdb/\(media)/\(id)/credits")
+            self.cast = (cr.cast ?? []).prefix(12).map { c in
+                Person(id: String(c.id ?? 0), name: c.name ?? "", role: c.character, profile: ImageService.shared.proxyImageURL(url: c.profile_path.flatMap { "https://image.tmdb.org/t/p/w500\($0)" }))
+            }
+            self.crew = (cr.crew ?? []).prefix(12).map { x in
+                CrewPerson(id: String(x.id ?? 0), name: x.name ?? "", job: x.job, profile: ImageService.shared.proxyImageURL(url: x.profile_path.flatMap { "https://image.tmdb.org/t/p/w500\($0)" }))
+            }
+            let allCrew = cr.crew ?? []
+            self.directors = allCrew
+                .filter { ($0.job?.lowercased() ?? "").contains("director") && ($0.department?.lowercased() ?? "") == "directing" }
+                .compactMap { $0.name }
+                .removingDuplicates()
+            self.writers = allCrew
+                .filter {
+                    let job = ($0.job?.lowercased() ?? "")
+                    return job.contains("writer") || job.contains("screenplay") || job.contains("story")
+                }
+                .compactMap { $0.name }
+                .removingDuplicates()
+        }
 
         self.productionCompanies = (d.production_companies ?? []).compactMap { company in
             guard let id = company.id, let name = company.name, !name.isEmpty else { return nil }
@@ -570,72 +603,76 @@ class TVDetailsViewModel: ObservableObject {
             return ProductionCompany(id: id, name: name, logoURL: logo)
         }
 
-        struct ExternalIDs: Codable {
-            let imdb_id: String?
-        }
-        if let ext: ExternalIDs = try? await api.get("/api/tmdb/\(media)/\(id)/external_ids"),
-           let imdb = ext.imdb_id,
-           !imdb.isEmpty {
-            imdbId = imdb
-        }
+        if shouldEnrich {
+            struct ExternalIDs: Codable {
+                let imdb_id: String?
+            }
+            if let ext: ExternalIDs = try? await api.get("/api/tmdb/\(media)/\(id)/external_ids"),
+               let imdb = ext.imdb_id,
+               !imdb.isEmpty {
+                imdbId = imdb
+            }
 
-        // Recommendations + Similar (rows)
-        struct TRes: Codable { let results: [TResItem]? }
-        struct TResItem: Codable { let id: Int?; let title: String?; let name: String?; let backdrop_path: String?; let poster_path: String? }
-        let recs: TRes = try await api.get("/api/tmdb/\(media)/\(id)/recommendations")
-        let sim: TRes = try await api.get("/api/tmdb/\(media)/\(id)/similar")
-        self.related = (recs.results ?? []).prefix(12).map { i in
-            MediaItem(
-                id: "tmdb:\(media):\(i.id ?? 0)",
-                title: i.title ?? i.name ?? "",
-                type: media == "movie" ? "movie" : "show",
-                thumb: i.poster_path.map { "https://image.tmdb.org/t/p/w500\($0)" },
-                art: i.backdrop_path.map { "https://image.tmdb.org/t/p/w780\($0)" },
-                year: nil,
-                rating: nil,
-                duration: nil,
-                viewOffset: nil,
-                summary: nil,
-                grandparentTitle: nil,
-                grandparentThumb: nil,
-                grandparentArt: nil,
-                parentIndex: nil,
-                index: nil,
-                parentRatingKey: nil,
-                parentTitle: nil,
-                leafCount: nil,
-                viewedLeafCount: nil
-            )
-        }
-        self.similar = (sim.results ?? []).prefix(12).map { i in
-            MediaItem(
-                id: "tmdb:\(media):\(i.id ?? 0)",
-                title: i.title ?? i.name ?? "",
-                type: media == "movie" ? "movie" : "show",
-                thumb: i.poster_path.map { "https://image.tmdb.org/t/p/w500\($0)" },
-                art: i.backdrop_path.map { "https://image.tmdb.org/t/p/w780\($0)" },
-                year: nil,
-                rating: nil,
-                duration: nil,
-                viewOffset: nil,
-                summary: nil,
-                grandparentTitle: nil,
-                grandparentThumb: nil,
-                grandparentArt: nil,
-                parentIndex: nil,
-                index: nil,
-                parentRatingKey: nil,
-                parentTitle: nil,
-                leafCount: nil,
-                viewedLeafCount: nil
-            )
+            // Recommendations + Similar (rows)
+            struct TRes: Codable { let results: [TResItem]? }
+            struct TResItem: Codable { let id: Int?; let title: String?; let name: String?; let backdrop_path: String?; let poster_path: String? }
+            let recs: TRes = try await api.get("/api/tmdb/\(media)/\(id)/recommendations")
+            let sim: TRes = try await api.get("/api/tmdb/\(media)/\(id)/similar")
+            self.related = (recs.results ?? []).prefix(12).map { i in
+                MediaItem(
+                    id: "tmdb:\(media):\(i.id ?? 0)",
+                    title: i.title ?? i.name ?? "",
+                    type: media == "movie" ? "movie" : "show",
+                    thumb: i.poster_path.map { "https://image.tmdb.org/t/p/w500\($0)" },
+                    art: i.backdrop_path.map { "https://image.tmdb.org/t/p/w780\($0)" },
+                    year: nil,
+                    rating: nil,
+                    duration: nil,
+                    viewOffset: nil,
+                    summary: nil,
+                    grandparentTitle: nil,
+                    grandparentThumb: nil,
+                    grandparentArt: nil,
+                    parentIndex: nil,
+                    index: nil,
+                    parentRatingKey: nil,
+                    parentTitle: nil,
+                    leafCount: nil,
+                    viewedLeafCount: nil
+                )
+            }
+            self.similar = (sim.results ?? []).prefix(12).map { i in
+                MediaItem(
+                    id: "tmdb:\(media):\(i.id ?? 0)",
+                    title: i.title ?? i.name ?? "",
+                    type: media == "movie" ? "movie" : "show",
+                    thumb: i.poster_path.map { "https://image.tmdb.org/t/p/w500\($0)" },
+                    art: i.backdrop_path.map { "https://image.tmdb.org/t/p/w780\($0)" },
+                    year: nil,
+                    rating: nil,
+                    duration: nil,
+                    viewOffset: nil,
+                    summary: nil,
+                    grandparentTitle: nil,
+                    grandparentThumb: nil,
+                    grandparentArt: nil,
+                    parentIndex: nil,
+                    index: nil,
+                    parentRatingKey: nil,
+                    parentTitle: nil,
+                    leafCount: nil,
+                    viewedLeafCount: nil
+                )
+            }
         }
         // TODO: Phase 3B - uncomment when BrowseContext is ported
         // let mediaType: TMDBMediaType = (media == "movie") ? .movie : .tv
         // self.relatedBrowseContext = .tmdb(kind: .recommendations, media: mediaType, id: id, displayTitle: self.title)
         // self.similarBrowseContext = .tmdb(kind: .similar, media: mediaType, id: id, displayTitle: self.title)
 
-        await loadTMDBTrailers()
+        if shouldEnrich {
+            await loadTMDBTrailers()
+        }
 
         // Attempt Plex source mapping (GUIDs + external IDs + title search)
         // Skip if we already have Plex data (native Plex items requesting TMDB enhancements)
@@ -1213,6 +1250,123 @@ class TVDetailsViewModel: ObservableObject {
         }
     }
 
+    private func loadMDBListRatingsIfNeeded() async {
+        guard profileSettings.mdblistEnabled else {
+            mdblistRatings = nil
+            return
+        }
+        guard let imdbId, !imdbId.isEmpty else {
+            mdblistRatings = nil
+            return
+        }
+
+        let mediaType = (mediaKind == "tv" || mediaKind == "show") ? "show" : "movie"
+        guard let ratings = await TVMDBListService.shared.fetchRatings(imdbId: imdbId, mediaType: mediaType) else {
+            mdblistRatings = nil
+            return
+        }
+
+        mdblistRatings = ratings
+
+        let fallbackIMDbScore: Double? = {
+            guard let score = ratings.imdb else { return nil }
+            if score > 10 { return score / 10.0 }
+            return score
+        }()
+
+        let fallbackCritic: Int? = {
+            guard let value = ratings.tomatoes else { return nil }
+            if value > 100 { return 100 }
+            if value <= 10 { return Int(round(value * 10)) }
+            return Int(round(value))
+        }()
+
+        let fallbackAudience: Int? = {
+            guard let value = ratings.audience else { return nil }
+            if value > 100 { return 100 }
+            if value <= 10 { return Int(round(value * 10)) }
+            return Int(round(value))
+        }()
+
+        let mergedIMDb = ExternalRatings.IMDb(
+            score: externalRatings?.imdb?.score ?? fallbackIMDbScore,
+            votes: externalRatings?.imdb?.votes
+        )
+        let mergedRT = ExternalRatings.RottenTomatoes(
+            critic: externalRatings?.rottenTomatoes?.critic ?? fallbackCritic,
+            audience: externalRatings?.rottenTomatoes?.audience ?? fallbackAudience
+        )
+        let hasIMDb = mergedIMDb.score != nil || mergedIMDb.votes != nil
+        let hasRT = mergedRT.critic != nil || mergedRT.audience != nil
+        if hasIMDb || hasRT {
+            externalRatings = ExternalRatings(
+                imdb: hasIMDb ? mergedIMDb : nil,
+                rottenTomatoes: hasRT ? mergedRT : nil
+            )
+        }
+    }
+
+    private func refreshOverseerrStatusIfNeeded() async {
+        guard profileSettings.overseerrEnabled else {
+            overseerrStatus = .notConfigured
+            return
+        }
+        guard let tmdbId, let numericTMDB = Int(tmdbId), numericTMDB > 0 else {
+            overseerrStatus = .notConfigured
+            return
+        }
+        let kind = (mediaKind == "tv" || mediaKind == "show" || mediaKind == "episode" || mediaKind == "season") ? "tv" : "movie"
+        overseerrStatus = await TVOverseerrService.shared.getMediaStatus(tmdbId: numericTMDB, mediaType: kind)
+    }
+
+    func requestInOverseerr() async {
+        guard !isSubmittingOverseerrRequest else { return }
+        guard profileSettings.overseerrEnabled else {
+            overseerrRequestMessage = "Enable Overseerr in Settings first."
+            return
+        }
+        guard let tmdbId, let numericTMDB = Int(tmdbId), numericTMDB > 0 else {
+            overseerrRequestMessage = "No TMDB ID available for this title."
+            return
+        }
+
+        isSubmittingOverseerrRequest = true
+        defer { isSubmittingOverseerrRequest = false }
+
+        let kind = (mediaKind == "tv" || mediaKind == "show" || mediaKind == "episode" || mediaKind == "season") ? "tv" : "movie"
+        let result = await TVOverseerrService.shared.requestMedia(tmdbId: numericTMDB, mediaType: kind, seasons: nil, is4k: false)
+        if result.success {
+            overseerrRequestMessage = "Request submitted."
+            await refreshOverseerrStatusIfNeeded()
+        } else {
+            overseerrRequestMessage = result.error ?? "Unable to submit request."
+        }
+    }
+
+    func submitTraktRating(_ rating: Int) async -> Bool {
+        guard UserDefaults.standard.traktSyncRatings else { return false }
+        guard FlixorCore.shared.isTraktAuthenticated else { return false }
+        guard (1...10).contains(rating) else { return false }
+
+        let mediaType: String
+        if mediaKind == "tv" || mediaKind == "show" || mediaKind == "episode" || mediaKind == "season" {
+            mediaType = "show"
+        } else {
+            mediaType = "movie"
+        }
+        let tmdbInt = tmdbId.flatMap(Int.init)
+        let ok = await TVTraktSyncCoordinator.shared.rateIfEnabled(
+            mediaType: mediaType,
+            tmdbId: tmdbInt,
+            imdbId: imdbId,
+            rating: rating
+        )
+        if ok {
+            traktRatingValue = rating
+        }
+        return ok
+    }
+
     // MARK: - Season Direct Load
 
     private func loadSeasonDirect(meta: PlexMeta, ratingKey: String) async {
@@ -1260,7 +1414,9 @@ class TVDetailsViewModel: ObservableObject {
             }
         }
 
-        await loadTMDBTrailers()
+        if profileSettings.tmdbEnrichMetadata {
+            await loadTMDBTrailers()
+        }
 
         // Load episodes directly (NO season picker)
         seasons = []
@@ -1532,5 +1688,459 @@ class TVDetailsViewModel: ObservableObject {
         var seen = Set<String>()
         let out = tags.filter { seen.insert($0).inserted }
         return Array(out.prefix(4))
+    }
+}
+
+struct TVMDBListRatings: Codable {
+    var imdb: Double?
+    var tmdb: Double?
+    var trakt: Double?
+    var letterboxd: Double?
+    var tomatoes: Double?
+    var audience: Double?
+    var metacritic: Double?
+
+    var hasAnyRating: Bool {
+        imdb != nil || tmdb != nil || trakt != nil || letterboxd != nil || tomatoes != nil || audience != nil || metacritic != nil
+    }
+}
+
+private struct TVMDBListRatingResponse: Codable {
+    let ratings: [TVMDBListRatingItem]?
+}
+
+private struct TVMDBListRatingItem: Codable {
+    let id: String?
+    let rating: Double?
+}
+
+@MainActor
+final class TVMDBListService {
+    static let shared = TVMDBListService()
+
+    private let defaults = UserDefaults.standard
+    private let baseURL = "https://api.mdblist.com"
+    private let cacheTTL: TimeInterval = 24 * 60 * 60
+    private var cache: [String: (ratings: TVMDBListRatings?, timestamp: Date)] = [:]
+
+    private init() {}
+
+    var isReady: Bool {
+        defaults.mdblistEnabled && !defaults.mdblistApiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    func clearCache() {
+        cache.removeAll()
+    }
+
+    func fetchRatings(imdbId: String, mediaType: String) async -> TVMDBListRatings? {
+        guard defaults.mdblistEnabled else { return nil }
+        let apiKey = defaults.mdblistApiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !apiKey.isEmpty else { return nil }
+
+        let normalizedIMDb = imdbId.hasPrefix("tt") ? imdbId : "tt\(imdbId)"
+        guard normalizedIMDb.range(of: "^tt\\d+$", options: .regularExpression) != nil else { return nil }
+
+        let cacheKey = "\(mediaType):\(normalizedIMDb)"
+        if let cached = cache[cacheKey], Date().timeIntervalSince(cached.timestamp) < cacheTTL {
+            return cached.ratings
+        }
+
+        let ratingTypes = ["imdb", "tmdb", "trakt", "letterboxd", "tomatoes", "audience", "metacritic"]
+        var merged = TVMDBListRatings()
+
+        await withTaskGroup(of: (String, Double?).self) { group in
+            for type in ratingTypes {
+                group.addTask {
+                    await self.fetchSingleRating(
+                        mediaType: mediaType,
+                        ratingType: type,
+                        imdbId: normalizedIMDb,
+                        apiKey: apiKey
+                    )
+                }
+            }
+
+            for await (type, rating) in group {
+                switch type {
+                case "imdb": merged.imdb = rating
+                case "tmdb": merged.tmdb = rating
+                case "trakt": merged.trakt = rating
+                case "letterboxd": merged.letterboxd = rating
+                case "tomatoes": merged.tomatoes = rating
+                case "audience": merged.audience = rating
+                case "metacritic": merged.metacritic = rating
+                default: break
+                }
+            }
+        }
+
+        let final = merged.hasAnyRating ? merged : nil
+        cache[cacheKey] = (final, Date())
+        return final
+    }
+
+    private func fetchSingleRating(
+        mediaType: String,
+        ratingType: String,
+        imdbId: String,
+        apiKey: String
+    ) async -> (String, Double?) {
+        guard let url = URL(string: "\(baseURL)/rating/\(mediaType)/\(ratingType)?apikey=\(apiKey)") else {
+            return (ratingType, nil)
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try? JSONSerialization.data(withJSONObject: [
+            "ids": [imdbId],
+            "provider": "imdb"
+        ])
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+                return (ratingType, nil)
+            }
+            let decoded = try JSONDecoder().decode(TVMDBListRatingResponse.self, from: data)
+            return (ratingType, decoded.ratings?.first?.rating)
+        } catch {
+            return (ratingType, nil)
+        }
+    }
+}
+
+enum TVOverseerrAuthMethodKind: String, Codable {
+    case apiKey = "api_key"
+    case plex = "plex"
+}
+
+enum TVOverseerrStatus: String, Codable {
+    case notRequested = "not_requested"
+    case pending
+    case approved
+    case declined
+    case processing
+    case partiallyAvailable = "partially_available"
+    case available
+    case unknown
+}
+
+struct TVOverseerrMediaStatus: Equatable {
+    let status: TVOverseerrStatus
+    let requestId: Int?
+    let canRequest: Bool
+
+    init(status: TVOverseerrStatus, requestId: Int? = nil, canRequest: Bool? = nil) {
+        self.status = status
+        self.requestId = requestId
+        self.canRequest = canRequest ?? Self.defaultCanRequest(for: status)
+    }
+
+    static let notConfigured = TVOverseerrMediaStatus(status: .unknown, canRequest: false)
+
+    private static func defaultCanRequest(for status: TVOverseerrStatus) -> Bool {
+        switch status {
+        case .notRequested, .declined, .partiallyAvailable, .unknown:
+            return true
+        default:
+            return false
+        }
+    }
+}
+
+struct TVOverseerrConnectionResult {
+    let valid: Bool
+    let username: String?
+    let error: String?
+}
+
+struct TVOverseerrRequestResult {
+    let success: Bool
+    let requestId: Int?
+    let status: TVOverseerrStatus?
+    let error: String?
+}
+
+private struct TVOverseerrUser: Codable {
+    let id: Int
+    let email: String?
+    let username: String?
+    let plexUsername: String?
+}
+
+private struct TVOverseerrMediaRequest: Codable {
+    let id: Int
+    let status: Int
+}
+
+private struct TVOverseerrMediaInfo: Codable {
+    let status: Int
+    let requests: [TVOverseerrMediaRequest]?
+}
+
+private struct TVOverseerrMovieDetails: Codable {
+    let mediaInfo: TVOverseerrMediaInfo?
+}
+
+private struct TVOverseerrTVDetails: Codable {
+    let mediaInfo: TVOverseerrMediaInfo?
+}
+
+@MainActor
+final class TVOverseerrService {
+    static let shared = TVOverseerrService()
+
+    private let defaults = UserDefaults.standard
+    private let cacheTTL: TimeInterval = 5 * 60
+    private var cache: [String: (TVOverseerrMediaStatus, Date)] = [:]
+
+    private init() {}
+
+    private var isEnabled: Bool { defaults.overseerrEnabled }
+    private var serverURL: String {
+        defaults.overseerrUrl.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    private var authMethod: TVOverseerrAuthMethod { defaults.overseerrAuthMethod }
+    private var apiKey: String {
+        defaults.overseerrApiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    private var sessionCookie: String {
+        defaults.overseerrSessionCookie.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    func isReady() -> Bool {
+        guard isEnabled, !serverURL.isEmpty else { return false }
+        switch authMethod {
+        case .apiKey:
+            return !apiKey.isEmpty
+        case .plex:
+            return !sessionCookie.isEmpty
+        }
+    }
+
+    func clearCache() {
+        cache.removeAll()
+    }
+
+    func signOut() {
+        defaults.clearOverseerrAuth()
+        clearCache()
+    }
+
+    func validateConnection(url: String, apiKey: String) async -> TVOverseerrConnectionResult {
+        let normalized = normalize(url)
+        guard let requestURL = URL(string: "\(normalized)/api/v1/auth/me") else {
+            return TVOverseerrConnectionResult(valid: false, username: nil, error: "Invalid URL")
+        }
+
+        var request = URLRequest(url: requestURL)
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(apiKey, forHTTPHeaderField: "X-Api-Key")
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse else {
+                return TVOverseerrConnectionResult(valid: false, username: nil, error: "Invalid response")
+            }
+            guard httpResponse.statusCode == 200 else {
+                let message = httpResponse.statusCode == 401 || httpResponse.statusCode == 403
+                    ? "Invalid API key"
+                    : "Server error (\(httpResponse.statusCode))"
+                return TVOverseerrConnectionResult(valid: false, username: nil, error: message)
+            }
+            let user = try JSONDecoder().decode(TVOverseerrUser.self, from: data)
+            return TVOverseerrConnectionResult(valid: true, username: user.username ?? user.email, error: nil)
+        } catch {
+            return TVOverseerrConnectionResult(valid: false, username: nil, error: "Connection failed")
+        }
+    }
+
+    func authenticateWithPlex(url: String) async -> TVOverseerrConnectionResult {
+        guard let plexToken = FlixorCore.shared.plexToken else {
+            return TVOverseerrConnectionResult(valid: false, username: nil, error: "Not signed in to Plex")
+        }
+        let normalized = normalize(url)
+        guard let authURL = URL(string: "\(normalized)/api/v1/auth/plex") else {
+            return TVOverseerrConnectionResult(valid: false, username: nil, error: "Invalid URL")
+        }
+
+        do {
+            var request = URLRequest(url: authURL)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try JSONEncoder().encode(["authToken": plexToken])
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse else {
+                return TVOverseerrConnectionResult(valid: false, username: nil, error: "Invalid response")
+            }
+            guard (200..<300).contains(httpResponse.statusCode) else {
+                return TVOverseerrConnectionResult(valid: false, username: nil, error: "Authentication failed (\(httpResponse.statusCode))")
+            }
+
+            if let headers = httpResponse.allHeaderFields as? [String: String],
+               let setCookie = headers["Set-Cookie"] ?? headers["set-cookie"],
+               let range = setCookie.range(of: "connect\\.sid=([^;]+)", options: .regularExpression) {
+                let cookie = String(setCookie[range])
+                defaults.overseerrSessionCookie = cookie
+            }
+
+            let user = try JSONDecoder().decode(TVOverseerrUser.self, from: data)
+            let username = user.username ?? user.plexUsername ?? user.email ?? "Plex User"
+            defaults.overseerrPlexUsername = username
+            return TVOverseerrConnectionResult(valid: !defaults.overseerrSessionCookie.isEmpty, username: username, error: defaults.overseerrSessionCookie.isEmpty ? "Session cookie not received" : nil)
+        } catch {
+            return TVOverseerrConnectionResult(valid: false, username: nil, error: "Authentication failed")
+        }
+    }
+
+    func validatePlexSession(url: String) async -> TVOverseerrConnectionResult {
+        guard !sessionCookie.isEmpty else {
+            return TVOverseerrConnectionResult(valid: false, username: nil, error: "No session found")
+        }
+        let normalized = normalize(url)
+        guard let requestURL = URL(string: "\(normalized)/api/v1/auth/me") else {
+            return TVOverseerrConnectionResult(valid: false, username: nil, error: "Invalid URL")
+        }
+
+        var request = URLRequest(url: requestURL)
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(sessionCookie, forHTTPHeaderField: "Cookie")
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse else {
+                return TVOverseerrConnectionResult(valid: false, username: nil, error: "Invalid response")
+            }
+            guard httpResponse.statusCode == 200 else {
+                return TVOverseerrConnectionResult(valid: false, username: nil, error: httpResponse.statusCode == 401 ? "Session expired" : "Server error (\(httpResponse.statusCode))")
+            }
+            let user = try JSONDecoder().decode(TVOverseerrUser.self, from: data)
+            return TVOverseerrConnectionResult(valid: true, username: user.username ?? user.plexUsername ?? user.email, error: nil)
+        } catch {
+            return TVOverseerrConnectionResult(valid: false, username: nil, error: "Connection failed")
+        }
+    }
+
+    func getMediaStatus(tmdbId: Int, mediaType: String) async -> TVOverseerrMediaStatus {
+        guard isReady() else { return .notConfigured }
+
+        let cacheKey = "\(mediaType):\(tmdbId)"
+        if let cached = cache[cacheKey], Date().timeIntervalSince(cached.1) < cacheTTL {
+            return cached.0
+        }
+
+        let endpoint = mediaType == "movie" ? "/movie/\(tmdbId)" : "/tv/\(tmdbId)"
+        do {
+            let data = try await makeRequest(endpoint: endpoint)
+            let status: TVOverseerrMediaStatus
+            if mediaType == "movie" {
+                let details = try JSONDecoder().decode(TVOverseerrMovieDetails.self, from: data)
+                status = parseStatus(mediaInfo: details.mediaInfo)
+            } else {
+                let details = try JSONDecoder().decode(TVOverseerrTVDetails.self, from: data)
+                status = parseStatus(mediaInfo: details.mediaInfo)
+            }
+            cache[cacheKey] = (status, Date())
+            return status
+        } catch {
+            return TVOverseerrMediaStatus(status: .unknown, canRequest: true)
+        }
+    }
+
+    func requestMedia(tmdbId: Int, mediaType: String, seasons: [Int]? = nil, is4k: Bool = false) async -> TVOverseerrRequestResult {
+        guard isReady() else {
+            return TVOverseerrRequestResult(success: false, requestId: nil, status: nil, error: "Overseerr not configured")
+        }
+
+        var payload: [String: Any] = [
+            "mediaType": mediaType,
+            "mediaId": tmdbId
+        ]
+        if is4k {
+            payload["is4k"] = true
+        }
+        if mediaType == "tv", let seasons, !seasons.isEmpty {
+            payload["seasons"] = seasons
+        }
+
+        do {
+            let body = try JSONSerialization.data(withJSONObject: payload)
+            let data = try await makeRequest(endpoint: "/request", method: "POST", body: body)
+
+            struct Response: Codable {
+                let id: Int?
+                let status: Int?
+            }
+            let decoded = try JSONDecoder().decode(Response.self, from: data)
+            clearCache()
+            return TVOverseerrRequestResult(
+                success: true,
+                requestId: decoded.id,
+                status: mapStatusCode(decoded.status),
+                error: nil
+            )
+        } catch {
+            return TVOverseerrRequestResult(success: false, requestId: nil, status: nil, error: error.localizedDescription)
+        }
+    }
+
+    private func normalize(_ url: String) -> String {
+        var value = url.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !value.hasPrefix("http://") && !value.hasPrefix("https://") {
+            value = "https://\(value)"
+        }
+        return value.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+    }
+
+    private func makeRequest(endpoint: String, method: String = "GET", body: Data? = nil) async throws -> Data {
+        let normalized = normalize(serverURL)
+        guard let url = URL(string: "\(normalized)/api/v1\(endpoint)") else {
+            throw NSError(domain: "Overseerr", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid URL"])
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = body
+
+        switch authMethod {
+        case .apiKey:
+            request.setValue(apiKey, forHTTPHeaderField: "X-Api-Key")
+        case .plex:
+            request.setValue(sessionCookie, forHTTPHeaderField: "Cookie")
+        }
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NSError(domain: "Overseerr", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid response"])
+        }
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            let message = String(data: data, encoding: .utf8) ?? "Request failed"
+            throw NSError(domain: "Overseerr", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: message])
+        }
+        return data
+    }
+
+    private func parseStatus(mediaInfo: TVOverseerrMediaInfo?) -> TVOverseerrMediaStatus {
+        guard let mediaInfo else {
+            return TVOverseerrMediaStatus(status: .notRequested, requestId: nil, canRequest: true)
+        }
+        let status = mapStatusCode(mediaInfo.status)
+        let requestId = mediaInfo.requests?.first?.id
+        return TVOverseerrMediaStatus(status: status, requestId: requestId)
+    }
+
+    private func mapStatusCode(_ code: Int?) -> TVOverseerrStatus {
+        guard let code else { return .unknown }
+        switch code {
+        case 1: return .unknown
+        case 2: return .pending
+        case 3: return .processing
+        case 4: return .partiallyAvailable
+        case 5: return .available
+        default: return .unknown
+        }
     }
 }

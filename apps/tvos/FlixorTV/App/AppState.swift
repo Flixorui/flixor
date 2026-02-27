@@ -2,6 +2,11 @@ import Foundation
 import SwiftUI
 import FlixorKit
 
+enum TVOverseerrAuthMethod: String, CaseIterable {
+    case apiKey = "api_key"
+    case plex = "plex"
+}
+
 final class AppState: ObservableObject {
     enum Phase { case unauthenticated, linking, authenticated }
 
@@ -82,8 +87,14 @@ final class TVProfileSettings: ObservableObject {
     @Published var mdblistApiKey: String { didSet { defaults.mdblistApiKey = mdblistApiKey } }
     @Published var overseerrEnabled: Bool { didSet { defaults.overseerrEnabled = overseerrEnabled } }
     @Published var overseerrUrl: String { didSet { defaults.overseerrUrl = overseerrUrl } }
+    @Published var overseerrAuthMethod: TVOverseerrAuthMethod { didSet { defaults.overseerrAuthMethod = overseerrAuthMethod } }
+    @Published var overseerrApiKey: String { didSet { defaults.overseerrApiKey = overseerrApiKey } }
+    @Published var overseerrSessionCookie: String { didSet { defaults.overseerrSessionCookie = overseerrSessionCookie } }
+    @Published var overseerrPlexUsername: String { didSet { defaults.overseerrPlexUsername = overseerrPlexUsername } }
 
     private init() {
+        defaults.runTVSettingsMigrationIfNeeded()
+
         discoveryDisabled = defaults.discoveryDisabled
         showNewPopularTab = defaults.showNewPopularTab
         includeTmdbInSearch = defaults.includeTmdbInSearch
@@ -141,6 +152,10 @@ final class TVProfileSettings: ObservableObject {
         mdblistApiKey = defaults.mdblistApiKey
         overseerrEnabled = defaults.overseerrEnabled
         overseerrUrl = defaults.overseerrUrl
+        overseerrAuthMethod = defaults.overseerrAuthMethod
+        overseerrApiKey = defaults.overseerrApiKey
+        overseerrSessionCookie = defaults.overseerrSessionCookie
+        overseerrPlexUsername = defaults.overseerrPlexUsername
     }
 
     func setDiscoveryDisabled(_ disabled: Bool) {
@@ -208,6 +223,10 @@ extension UserDefaults {
         static let mdblistApiKey = "tvos.mdblistApiKey"
         static let overseerrEnabled = "tvos.overseerrEnabled"
         static let overseerrUrl = "tvos.overseerrUrl"
+        static let overseerrAuthMethod = "tvos.overseerrAuthMethod"
+        static let overseerrApiKey = "tvos.overseerrApiKey"
+        static let overseerrSessionCookie = "tvos.overseerrSessionCookie"
+        static let overseerrPlexUsername = "tvos.overseerrPlexUsername"
         static let tmdbApiKey = "tvos.tmdbApiKey"
         static let traktClientId = "tvos.traktClientId"
         static let traktClientSecret = "tvos.traktClientSecret"
@@ -250,8 +269,8 @@ extension UserDefaults {
     var streamCacheTTL: Int { get { object(forKey: TVKeys.streamCacheTTL) as? Int ?? 3600 } set { set(newValue, forKey: TVKeys.streamCacheTTL) } }
     var defaultQuality: Int { get { object(forKey: TVKeys.defaultQuality) as? Int ?? 0 } set { set(newValue, forKey: TVKeys.defaultQuality) } }
     var autoPlayNext: Bool { get { object(forKey: TVKeys.autoPlayNext) as? Bool ?? true } set { set(newValue, forKey: TVKeys.autoPlayNext) } }
-    var skipIntroAutomatically: Bool { get { object(forKey: TVKeys.skipIntroAutomatically) as? Bool ?? false } set { set(newValue, forKey: TVKeys.skipIntroAutomatically) } }
-    var skipCreditsAutomatically: Bool { get { object(forKey: TVKeys.skipCreditsAutomatically) as? Bool ?? false } set { set(newValue, forKey: TVKeys.skipCreditsAutomatically) } }
+    var skipIntroAutomatically: Bool { get { object(forKey: TVKeys.skipIntroAutomatically) as? Bool ?? true } set { set(newValue, forKey: TVKeys.skipIntroAutomatically) } }
+    var skipCreditsAutomatically: Bool { get { object(forKey: TVKeys.skipCreditsAutomatically) as? Bool ?? true } set { set(newValue, forKey: TVKeys.skipCreditsAutomatically) } }
     var seekTimeSmall: Int { get { object(forKey: TVKeys.seekTimeSmall) as? Int ?? 10 } set { set(newValue, forKey: TVKeys.seekTimeSmall) } }
     var seekTimeLarge: Int { get { object(forKey: TVKeys.seekTimeLarge) as? Int ?? 30 } set { set(newValue, forKey: TVKeys.seekTimeLarge) } }
     var defaultPlaybackSpeed: Double { get { object(forKey: TVKeys.defaultPlaybackSpeed) as? Double ?? 1.0 } set { set(newValue, forKey: TVKeys.defaultPlaybackSpeed) } }
@@ -268,6 +287,19 @@ extension UserDefaults {
     var mdblistApiKey: String { get { string(forKey: TVKeys.mdblistApiKey) ?? "" } set { set(newValue, forKey: TVKeys.mdblistApiKey) } }
     var overseerrEnabled: Bool { get { object(forKey: TVKeys.overseerrEnabled) as? Bool ?? false } set { set(newValue, forKey: TVKeys.overseerrEnabled) } }
     var overseerrUrl: String { get { string(forKey: TVKeys.overseerrUrl) ?? "" } set { set(newValue, forKey: TVKeys.overseerrUrl) } }
+    var overseerrAuthMethod: TVOverseerrAuthMethod {
+        get {
+            guard let raw = string(forKey: TVKeys.overseerrAuthMethod),
+                  let method = TVOverseerrAuthMethod(rawValue: raw) else {
+                return .plex
+            }
+            return method
+        }
+        set { set(newValue.rawValue, forKey: TVKeys.overseerrAuthMethod) }
+    }
+    var overseerrApiKey: String { get { string(forKey: TVKeys.overseerrApiKey) ?? "" } set { set(newValue, forKey: TVKeys.overseerrApiKey) } }
+    var overseerrSessionCookie: String { get { string(forKey: TVKeys.overseerrSessionCookie) ?? "" } set { set(newValue, forKey: TVKeys.overseerrSessionCookie) } }
+    var overseerrPlexUsername: String { get { string(forKey: TVKeys.overseerrPlexUsername) ?? "" } set { set(newValue, forKey: TVKeys.overseerrPlexUsername) } }
     var tmdbApiKey: String { get { string(forKey: TVKeys.tmdbApiKey) ?? "" } set { set(newValue, forKey: TVKeys.tmdbApiKey) } }
     var traktClientId: String { get { string(forKey: TVKeys.traktClientId) ?? "" } set { set(newValue, forKey: TVKeys.traktClientId) } }
     var traktClientSecret: String { get { string(forKey: TVKeys.traktClientSecret) ?? "" } set { set(newValue, forKey: TVKeys.traktClientSecret) } }
@@ -278,4 +310,25 @@ extension UserDefaults {
     var preferDirectPlay: Bool { get { object(forKey: TVKeys.preferDirectPlay) as? Bool ?? true } set { set(newValue, forKey: TVKeys.preferDirectPlay) } }
     var allowDirectStream: Bool { get { object(forKey: TVKeys.allowDirectStream) as? Bool ?? true } set { set(newValue, forKey: TVKeys.allowDirectStream) } }
     var showDebugInfo: Bool { get { object(forKey: TVKeys.showDebugInfo) as? Bool ?? false } set { set(newValue, forKey: TVKeys.showDebugInfo) } }
+
+    func clearOverseerrAuth() {
+        overseerrApiKey = ""
+        overseerrSessionCookie = ""
+        overseerrPlexUsername = ""
+    }
+
+    private enum TVMigrationKeys {
+        static let settingsV2Applied = "tvos.settingsMigration.v2.applied"
+    }
+
+    func runTVSettingsMigrationIfNeeded() {
+        guard object(forKey: TVMigrationKeys.settingsV2Applied) as? Bool != true else { return }
+        if object(forKey: TVKeys.skipIntroAutomatically) == nil {
+            set(true, forKey: TVKeys.skipIntroAutomatically)
+        }
+        if object(forKey: TVKeys.skipCreditsAutomatically) == nil {
+            set(true, forKey: TVKeys.skipCreditsAutomatically)
+        }
+        set(true, forKey: TVMigrationKeys.settingsV2Applied)
+    }
 }

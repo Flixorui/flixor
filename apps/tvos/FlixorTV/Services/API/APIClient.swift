@@ -226,6 +226,7 @@ class APIClient: ObservableObject {
             // Fetch TMDB images if we have an ID
             var backdropUrl: String?
             var posterUrl: String?
+            var logoUrl: String?
             if let tmdbId = tmdbId {
                 let images = try await FlixorCore.shared.tmdb.getImages(mediaType: mediaType, id: tmdbId)
                 if let backdrop = images.backdrops.first {
@@ -234,12 +235,18 @@ class APIClient: ObservableObject {
                 if let poster = images.posters.first {
                     posterUrl = "https://image.tmdb.org/t/p/w500\(poster.filePath)"
                 }
+                if let logo = images.logos.first(where: { $0.iso6391 == "en" })
+                    ?? images.logos.first(where: { ($0.iso6391 ?? "").isEmpty })
+                    ?? images.logos.first {
+                    logoUrl = "https://image.tmdb.org/t/p/w500\(logo.filePath)"
+                }
             }
 
             let response = TMDBMatchResponse(
                 tmdbId: tmdbId,
                 backdropUrl: backdropUrl,
-                posterUrl: posterUrl
+                posterUrl: posterUrl,
+                logoUrl: logoUrl
             )
             return try encodeAndDecode(response)
         }
@@ -877,9 +884,36 @@ class APIClient: ObservableObject {
 
         // POST /api/trakt/watchlist/remove
         if path == "/api/trakt/watchlist/remove" {
-            // Keep compatibility with macOS/tvOS My List workflows.
-            // Removal call is treated as successful even when provider-specific
-            // payload details are not available in standalone mode.
+            guard FlixorCore.shared.trakt.isAuthenticated else {
+                throw APIError.unauthorized
+            }
+
+            if let body = body {
+                let encoder = JSONEncoder()
+                let data = try encoder.encode(body)
+                if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                    // movies format: {"movies":[{"ids":{"tmdb":123,"imdb":"tt..."}}]}
+                    if let movies = json["movies"] as? [[String: Any]] {
+                        for movie in movies {
+                            guard let ids = movie["ids"] as? [String: Any] else { continue }
+                            let tmdbId = ids["tmdb"] as? Int
+                            let imdbId = ids["imdb"] as? String
+                            try await FlixorCore.shared.trakt.removeMovieFromWatchlist(tmdbId: tmdbId, imdbId: imdbId)
+                        }
+                    }
+
+                    // shows format: {"shows":[{"ids":{"tmdb":123,"imdb":"tt..."}}]}
+                    if let shows = json["shows"] as? [[String: Any]] {
+                        for show in shows {
+                            guard let ids = show["ids"] as? [String: Any] else { continue }
+                            let tmdbId = ids["tmdb"] as? Int
+                            let imdbId = ids["imdb"] as? String
+                            try await FlixorCore.shared.trakt.removeShowFromWatchlist(tmdbId: tmdbId, imdbId: imdbId)
+                        }
+                    }
+                }
+            }
+
             let response = SimpleOkResponse(ok: true, message: "Removed from watchlist")
             return try encodeAndDecode(response)
         }
@@ -1148,6 +1182,7 @@ struct TMDBMatchResponse: Codable {
     let tmdbId: Int?
     let backdropUrl: String?
     let posterUrl: String?
+    let logoUrl: String?
 }
 
 struct PlexChildrenResponse: Codable {
@@ -1618,8 +1653,18 @@ struct PlexMediaItem: Decodable {
     let lastViewedAt: Int?
     let viewCount: Int?
     let grandparentTitle: String?
+    let grandparentRatingKey: String?
     let grandparentThumb: String?
+    let grandparentArt: String?
     let parentThumb: String?
+    let parentTitle: String?
+    let parentRatingKey: String?
+    let parentIndex: Int?
+    let index: Int?
+    let summary: String?
+    let duration: Int?
+    let leafCount: Int?
+    let viewedLeafCount: Int?
 }
 
 // MARK: - tvOS Compatibility Models

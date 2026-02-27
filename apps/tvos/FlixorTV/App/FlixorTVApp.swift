@@ -15,6 +15,7 @@ struct FlixorTVApp: App {
         let tmdbApiKey = defaults.tmdbApiKey.isEmpty ? APIKeys.tmdbApiKey : defaults.tmdbApiKey
         let traktClientId = defaults.traktClientId.isEmpty ? APIKeys.traktClientId : defaults.traktClientId
         let traktClientSecret = defaults.traktClientSecret.isEmpty ? APIKeys.traktClientSecret : defaults.traktClientSecret
+        let effectiveTMDBLanguage = defaults.tmdbLocalizedMetadata ? Self.normalizedTMDBLanguage(defaults.tmdbLanguage) : "en-US"
 
         FlixorCore.shared.configure(
             clientId: clientId,
@@ -24,7 +25,8 @@ struct FlixorTVApp: App {
             productName: "Flixor",
             productVersion: Bundle.main.appVersion,
             platform: "tvOS",
-            deviceName: "Flixor TV"
+            deviceName: "Flixor TV",
+            language: effectiveTMDBLanguage
         )
     }
 
@@ -42,7 +44,30 @@ struct FlixorTVApp: App {
                     // Restore session on app launch
                     await session.restoreSession()
                 }
+                .onChange(of: profileSettings.tmdbLanguage) { _ in
+                    Task { await applyTMDBLanguagePolicy() }
+                }
+                .onChange(of: profileSettings.tmdbLocalizedMetadata) { _ in
+                    Task { await applyTMDBLanguagePolicy() }
+                }
         }
+    }
+
+    @MainActor
+    private func applyTMDBLanguagePolicy() async {
+        let effective = profileSettings.tmdbLocalizedMetadata
+            ? Self.normalizedTMDBLanguage(profileSettings.tmdbLanguage)
+            : "en-US"
+        await FlixorCore.shared.updateTMDBLanguage(effective)
+    }
+
+    private static func normalizedTMDBLanguage(_ value: String) -> String {
+        let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return "en-US" }
+        if normalized.contains("-") {
+            return normalized
+        }
+        return "\(normalized)-US"
     }
 
     private func getOrCreateClientId() -> String {

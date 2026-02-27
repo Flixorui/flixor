@@ -161,7 +161,6 @@ struct TVSettingsView: View {
     @EnvironmentObject private var profileSettings: TVProfileSettings
 
     @State private var selectedCategory: TVSettingsCategory = .plex
-    @State private var searchText = ""
 
     @State private var error: String?
     @State private var statusMessage: String?
@@ -177,6 +176,9 @@ struct TVSettingsView: View {
     @State private var traktExpiresAt: Date?
     @State private var traktPollingTask: Task<Void, Never>?
     @State private var traktMessage: String?
+    @State private var mdblistMessage: String?
+    @State private var overseerrMessage: String?
+    @State private var overseerrTesting = false
     @FocusState private var focusedSidebarCategory: TVSettingsCategory?
 
     private let playbackSpeedOptions: [Double] = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
@@ -215,19 +217,7 @@ struct TVSettingsView: View {
         )
     }
 
-    private var filteredSidebarSections: [TVSettingsSidebarSection] {
-        guard !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return TVSettingsSidebarSection.all
-        }
-
-        let term = searchText.lowercased()
-        return TVSettingsSidebarSection.all.compactMap { section in
-            let matches = section.categories.filter {
-                $0.title.lowercased().contains(term) || $0.description.lowercased().contains(term)
-            }
-            return matches.isEmpty ? nil : TVSettingsSidebarSection(title: section.title, categories: matches)
-        }
-    }
+    private var filteredSidebarSections: [TVSettingsSidebarSection] { TVSettingsSidebarSection.all }
 
     var body: some View {
         ZStack {
@@ -250,9 +240,6 @@ struct TVSettingsView: View {
             await loadLibraries()
             ensureSelectedCategoryIsVisible()
             focusedSidebarCategory = selectedCategory
-        }
-        .onChange(of: searchText) { _ in
-            ensureSelectedCategoryIsVisible()
         }
         .onChange(of: selectedCategory) { _, newValue in
             let allowed = Set(filteredSidebarSections.flatMap(\.categories))
@@ -279,29 +266,6 @@ struct TVSettingsView: View {
             Text("macOS parity audit + tvOS controls")
                 .font(.system(size: 17, weight: .medium))
                 .foregroundStyle(.white.opacity(0.65))
-
-            HStack(spacing: 10) {
-                Image(systemName: "magnifyingglass")
-                    .foregroundStyle(.white.opacity(0.6))
-                TextField("Search settings", text: $searchText)
-                    .textFieldStyle(.plain)
-                    .foregroundStyle(.white)
-                if !searchText.isEmpty {
-                    Button {
-                        searchText = ""
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.white.opacity(0.6))
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color.white.opacity(0.08))
-            )
 
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 14) {
@@ -393,21 +357,6 @@ struct TVSettingsView: View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 20) {
                 contentHeader
-                if parityState(for: selectedCategory) == .partial {
-                    Text("Some options in this section are persisted but still being fully wired to runtime behavior on tvOS.")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(.orange.opacity(0.95))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 9)
-                        .background(
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .fill(Color.orange.opacity(0.14))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                        .stroke(Color.orange.opacity(0.35), lineWidth: 1)
-                                )
-                        )
-                }
 
                 switch selectedCategory {
                 case .plex: plexSection
@@ -495,12 +444,8 @@ struct TVSettingsView: View {
     }
 
     private func parityState(for category: TVSettingsCategory) -> TVSettingsParityState {
-        switch category {
-        case .player, .rowsSettings, .tmdb, .trakt, .mdblist, .overseerr:
-            return .partial
-        default:
-            return .complete
-        }
+        _ = category
+        return .complete
     }
 
     private var plexSection: some View {
@@ -903,7 +848,7 @@ struct TVSettingsView: View {
     }
 
     private var mdblistSection: some View {
-        TVSettingsPanel(title: "MDBList", subtitle: "Stored and ready for integration") {
+        TVSettingsPanel(title: "MDBList", subtitle: "External ratings enrichment") {
             TVSettingsToggleRow(title: "Enable MDBList", subtitle: "Enable MDBList rating enrichment", isOn: $profileSettings.mdblistEnabled)
 
             TVSettingsFieldBlock(title: "API Key") {
@@ -916,14 +861,35 @@ struct TVSettingsView: View {
                     .opacity(profileSettings.mdblistEnabled ? 1 : 0.5)
             }
 
-            Text("Status: tvOS stores these settings; full request/rating integration is partially wired.")
-                .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(.white.opacity(0.62))
+            HStack(spacing: 10) {
+                Button("Clear Ratings Cache") {
+                    TVMDBListService.shared.clearCache()
+                    mdblistMessage = "MDBList cache cleared."
+                }
+                .buttonStyle(.bordered)
+                .disabled(!profileSettings.mdblistEnabled)
+
+                if TVMDBListService.shared.isReady {
+                    Text("Ready")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(.green)
+                } else {
+                    Text("Not ready")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(.orange)
+                }
+            }
+
+            if let mdblistMessage {
+                Text(mdblistMessage)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.68))
+            }
         }
     }
 
     private var overseerrSection: some View {
-        TVSettingsPanel(title: "Overseerr", subtitle: "Stored and ready for integration") {
+        TVSettingsPanel(title: "Overseerr", subtitle: "Request workflow") {
             TVSettingsToggleRow(title: "Enable Overseerr", subtitle: "Enable request integration", isOn: $profileSettings.overseerrEnabled)
 
             TVSettingsFieldBlock(title: "Server URL") {
@@ -936,9 +902,65 @@ struct TVSettingsView: View {
                     .opacity(profileSettings.overseerrEnabled ? 1 : 0.5)
             }
 
-            Text("Status: tvOS stores these settings; full request flow parity is partial.")
-                .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(.white.opacity(0.62))
+            TVSettingsChoiceRow(
+                title: "Auth Method",
+                subtitle: "API key or Plex session login",
+                selection: $profileSettings.overseerrAuthMethod,
+                options: [
+                    TVSettingsChoice(value: TVOverseerrAuthMethod.apiKey, label: "API Key"),
+                    TVSettingsChoice(value: TVOverseerrAuthMethod.plex, label: "Plex Session")
+                ]
+            )
+            .opacity(profileSettings.overseerrEnabled ? 1 : 0.5)
+            .disabled(!profileSettings.overseerrEnabled)
+
+            if profileSettings.overseerrAuthMethod == .apiKey {
+                TVSettingsFieldBlock(title: "API Key") {
+                    SecureField("Overseerr API Key", text: $profileSettings.overseerrApiKey)
+                        .textFieldStyle(.plain)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.white.opacity(0.08)))
+                        .disabled(!profileSettings.overseerrEnabled)
+                        .opacity(profileSettings.overseerrEnabled ? 1 : 0.5)
+                }
+            } else {
+                TVSettingsFieldBlock(title: "Plex Session") {
+                    Text(profileSettings.overseerrSessionCookie.isEmpty ? "No session cookie stored" : "Session cookie stored")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.74))
+                    if !profileSettings.overseerrPlexUsername.isEmpty {
+                        Text("User: \(profileSettings.overseerrPlexUsername)")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.6))
+                    }
+                }
+            }
+
+            HStack(spacing: 10) {
+                Button(overseerrTesting ? "Testing..." : "Test Connection") {
+                    Task { await testOverseerrConnection() }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(!profileSettings.overseerrEnabled || overseerrTesting)
+
+                if profileSettings.overseerrAuthMethod == .plex {
+                    Button("Sign Out") {
+                        TVOverseerrService.shared.signOut()
+                        profileSettings.overseerrSessionCookie = ""
+                        profileSettings.overseerrPlexUsername = ""
+                        overseerrMessage = "Signed out from Overseerr."
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(overseerrTesting)
+                }
+            }
+
+            if let overseerrMessage {
+                Text(overseerrMessage)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.68))
+            }
         }
     }
 
@@ -1110,6 +1132,63 @@ struct TVSettingsView: View {
             }
         }
     }
+
+    private func testOverseerrConnection() async {
+        guard profileSettings.overseerrEnabled else {
+            overseerrMessage = "Enable Overseerr first."
+            return
+        }
+
+        let url = profileSettings.overseerrUrl.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !url.isEmpty else {
+            overseerrMessage = "Enter an Overseerr URL."
+            return
+        }
+
+        overseerrTesting = true
+        defer { overseerrTesting = false }
+
+        if profileSettings.overseerrAuthMethod == .apiKey {
+            let key = profileSettings.overseerrApiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !key.isEmpty else {
+                overseerrMessage = "Enter an API key."
+                return
+            }
+            let result = await TVOverseerrService.shared.validateConnection(url: url, apiKey: key)
+            if result.valid {
+                overseerrMessage = "Connected as \(result.username ?? "user")."
+            } else {
+                overseerrMessage = result.error ?? "Connection failed."
+            }
+            return
+        }
+
+        // Plex-session auth flow
+        if profileSettings.overseerrSessionCookie.isEmpty {
+            let auth = await TVOverseerrService.shared.authenticateWithPlex(url: url)
+            if auth.valid {
+                if let username = auth.username {
+                    profileSettings.overseerrPlexUsername = username
+                }
+                profileSettings.overseerrSessionCookie = UserDefaults.standard.overseerrSessionCookie
+                overseerrMessage = "Connected as \(auth.username ?? "Plex user")."
+            } else {
+                overseerrMessage = auth.error ?? "Authentication failed."
+            }
+        } else {
+            let result = await TVOverseerrService.shared.validatePlexSession(url: url)
+            if result.valid {
+                if let username = result.username {
+                    profileSettings.overseerrPlexUsername = username
+                }
+                overseerrMessage = "Session valid for \(result.username ?? "Plex user")."
+            } else {
+                profileSettings.overseerrSessionCookie = ""
+                profileSettings.overseerrPlexUsername = ""
+                overseerrMessage = result.error ?? "Session invalid."
+            }
+        }
+    }
 }
 
 private struct TVSettingsPanel<Content: View>: View {
@@ -1230,11 +1309,12 @@ private struct TVSettingsChoiceRow<Value: Hashable>: View {
     var subtitle: String? = nil
     @Binding var selection: Value
     let options: [TVSettingsChoice<Value>]
-    @FocusState private var focusedOptionId: String?
+    @State private var showPicker = false
+    @FocusState private var controlFocused: Bool
     @Environment(\.isEnabled) private var isEnabled
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        HStack(alignment: .center, spacing: 18) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
                     .font(.system(size: 20, weight: .semibold))
@@ -1245,58 +1325,159 @@ private struct TVSettingsChoiceRow<Value: Hashable>: View {
                         .foregroundStyle(.white.opacity(0.62))
                 }
             }
+            Spacer()
 
-            ScrollView(.horizontal, showsIndicators: false) {
+            Button {
+                showPicker = true
+            } label: {
                 HStack(spacing: 10) {
-                    ForEach(options) { option in
-                        let selected = option.value == selection
-                        let focused = focusedOptionId == option.id
-                        Button {
-                            selection = option.value
-                        } label: {
-                            TVSettingsChoiceChip(
-                                label: option.label,
-                                isSelected: selected,
-                                isFocused: focused
-                            )
-                            .noSystemFocusChrome()
-                        }
-                        .buttonStyle(.plain)
-                        .hoverEffectDisabled(true)
-                        .noSystemFocusChrome()
-                        .focused($focusedOptionId, equals: option.id)
-                        .scaleEffect(focused ? 1.04 : 1.0)
-                        .animation(.easeOut(duration: 0.16), value: focused)
-                        .disabled(!isEnabled)
-                    }
+                    Text(selectedLabel)
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.75))
                 }
-                .padding(.vertical, 2)
+                .padding(.horizontal, 18)
+                .padding(.vertical, 11)
+                .frame(minWidth: 208, alignment: .center)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(Color.white.opacity(0.08))
+                        .overlay(
+                            Capsule(style: .continuous)
+                                .stroke(Color.white.opacity(0.16), lineWidth: 1)
+                        )
+                )
+                .overlay(
+                    Capsule(style: .continuous)
+                        .stroke(controlFocused ? Color.white.opacity(0.55) : .clear, lineWidth: 2)
+                )
+                .clipShape(Capsule(style: .continuous))
+                .noSystemFocusChrome()
             }
+            .buttonStyle(.plain)
+            .hoverEffectDisabled(true)
+            .noSystemFocusChrome()
+            .focused($controlFocused)
+            .scaleEffect(controlFocused ? 1.04 : 1.0)
             .opacity(isEnabled ? 1.0 : 0.45)
+            .animation(.easeOut(duration: 0.16), value: controlFocused)
+            .disabled(!isEnabled)
+            .sheet(isPresented: $showPicker) {
+                TVSettingsChoicePickerSheet(
+                    title: title,
+                    subtitle: subtitle,
+                    selection: $selection,
+                    options: options
+                )
+            }
         }
         .padding(.vertical, 4)
     }
+
+    private var selectedLabel: String {
+        options.first(where: { $0.value == selection })?.label ?? "Select"
+    }
 }
 
-private struct TVSettingsChoiceChip: View {
-    let label: String
-    let isSelected: Bool
-    let isFocused: Bool
+private struct TVSettingsChoicePickerSheet<Value: Hashable>: View {
+    let title: String
+    var subtitle: String?
+    @Binding var selection: Value
+    let options: [TVSettingsChoice<Value>]
+
+    @Environment(\.dismiss) private var dismiss
+    @FocusState private var focusedOptionId: String?
 
     var body: some View {
-        let fillColor: Color = isSelected ? Color.white.opacity(0.16) : Color.white.opacity(0.06)
-        let borderColor: Color = isSelected ? Color.white.opacity(0.38) : Color.white.opacity(0.14)
-        let focusColor: Color = isFocused ? Color.white.opacity(0.55) : .clear
+        ZStack {
+            LinearGradient(
+                colors: [
+                    Color(hex: "0A0F1B"),
+                    Color(hex: "11182A"),
+                    Color(hex: "0A0F1B")
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
 
-        Text(label)
-            .font(.system(size: 18, weight: .semibold))
-            .foregroundColor(isSelected ? .white : .white.opacity(0.9))
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .lineLimit(1)
-            .background(Capsule(style: .continuous).fill(fillColor))
-            .overlay(Capsule(style: .continuous).stroke(borderColor, lineWidth: 1))
-            .overlay(Capsule(style: .continuous).stroke(focusColor, lineWidth: 2))
+            VStack(alignment: .leading, spacing: 18) {
+                HStack(alignment: .center, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(title)
+                            .font(.system(size: 34, weight: .bold))
+                            .foregroundStyle(.white)
+                        if let subtitle {
+                            Text(subtitle)
+                                .font(.system(size: 18, weight: .medium))
+                                .foregroundStyle(.white.opacity(0.68))
+                        }
+                    }
+                    Spacer()
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .buttonStyle(.bordered)
+                }
+                .padding(.horizontal, 34)
+                .padding(.top, 28)
+
+                ScrollView {
+                    LazyVStack(spacing: 10) {
+                        ForEach(options) { option in
+                            let isSelected = option.value == selection
+                            let isFocused = focusedOptionId == option.id
+                            Button {
+                                selection = option.value
+                                dismiss()
+                            } label: {
+                                HStack(spacing: 12) {
+                                    Text(option.label)
+                                        .font(.system(size: 22, weight: .semibold))
+                                        .foregroundStyle(.white)
+                                        .lineLimit(1)
+                                    Spacer()
+                                    if isSelected {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .font(.system(size: 20, weight: .bold))
+                                            .foregroundStyle(.green)
+                                    }
+                                }
+                                .padding(.horizontal, 18)
+                                .padding(.vertical, 14)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                        .fill(isSelected ? Color.white.opacity(0.14) : Color.white.opacity(0.08))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                                .stroke(isSelected ? Color.white.opacity(0.44) : Color.white.opacity(0.18), lineWidth: 1)
+                                        )
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                        .stroke(isFocused ? Color.white.opacity(0.58) : .clear, lineWidth: 2)
+                                )
+                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                .noSystemFocusChrome()
+                            }
+                            .buttonStyle(.plain)
+                            .hoverEffectDisabled(true)
+                            .noSystemFocusChrome()
+                            .focused($focusedOptionId, equals: option.id)
+                            .scaleEffect(isFocused ? 1.03 : 1.0)
+                            .animation(.easeOut(duration: 0.16), value: isFocused)
+                        }
+                    }
+                    .padding(.horizontal, 34)
+                    .padding(.bottom, 28)
+                }
+            }
+        }
     }
 }
 

@@ -36,10 +36,19 @@ struct PlayerView: View {
     @State private var selectedQuality: PlaybackQuality = .original
     @State private var playbackRate: Float = 1.0
     @State private var activeSettingsSheet: TVPlayerSettingsSheet?
+    @State private var activeItem: MediaItem?
+    @State private var currentRatingKey: String?
 
     private let controlsHideDelay: TimeInterval = 3.0
     private var seekBackwardSeconds: Int { max(1, profileSettings.seekTimeSmall) }
     private var seekForwardSeconds: Int { max(1, profileSettings.seekTimeSmall) }
+    private let scrobbler = TVTraktScrobbler.shared
+    private let traktSync = TVTraktSyncCoordinator.shared
+    private let progressReporter = TVPlaybackProgressReporter()
+
+    private var currentItem: MediaItem {
+        activeItem ?? item
+    }
 
     private var isMPVActive: Bool {
         playerSettings.backend == .mpv && mpvController != nil
@@ -51,17 +60,17 @@ struct PlayerView: View {
 
     private var effectiveDuration: Double {
         if duration > 0 { return duration }
-        if let ms = item.duration, ms > 0 { return Double(ms) / 1000.0 }
+        if let ms = currentItem.duration, ms > 0 { return Double(ms) / 1000.0 }
         return 0
     }
 
     private var titleText: String {
-        if !item.title.isEmpty { return item.title }
+        if !currentItem.title.isEmpty { return currentItem.title }
         return "Now Playing"
     }
 
     private var subtitleText: String? {
-        let parts = [item.grandparentTitle, item.parentTitle].compactMap { value -> String? in
+        let parts = [currentItem.grandparentTitle, currentItem.parentTitle].compactMap { value -> String? in
             guard let value, !value.isEmpty else { return nil }
             return value
         }
@@ -130,6 +139,8 @@ struct PlayerView: View {
             }
         }
         .onAppear {
+            activeItem = item
+            currentRatingKey = extractRatingKey(from: item.id)
             print("🎬 [PlayerView] Loading item: \(item.id)")
             loadVideoIfNeeded()
         }
@@ -239,7 +250,7 @@ struct PlayerView: View {
                 }
             }
 
-            controller.loadFile(item.id)
+            controller.loadFile(currentItem.id)
 
         case .mpv:
             let controller = MPVPlayerController()
@@ -252,6 +263,15 @@ struct PlayerView: View {
                 print("🎬 [PlayerView/MPV] Event: \(event)")
                 if event == "file-loaded" {
                     refreshTracks()
+                    Task { await startScrobblingIfNeeded() }
+                } else if event == "file-ended" {
+                    Task { await handlePlaybackEnded() }
+                }
+            }
+
+            controller.onPlaybackCompleted = { _, time, total in
+                Task { @MainActor in
+                    await finishProgressAndScrobble(currentTime: time, duration: total)
                 }
             }
 
@@ -268,7 +288,17 @@ struct PlayerView: View {
                 switch property {
                 case PlayerProperty.pause.rawValue:
                     if let paused = value as? Bool {
+                        let wasPaused = isPaused
                         isPaused = paused
+                        if paused != wasPaused {
+                            Task {
+                                if paused {
+                                    await scrobbler.pauseScrobble(progress: currentProgressPercent)
+                                } else {
+                                    await scrobbler.resumeScrobble(progress: currentProgressPercent)
+                                }
+                            }
+                        }
                     }
                 case PlayerProperty.timePos.rawValue:
                     if let time = value as? Double {
@@ -276,6 +306,7 @@ struct PlayerView: View {
                         if !isScrubbing {
                             timelinePosition = time
                         }
+                        reportPlaybackProgressIfNeeded(state: isPaused ? "paused" : "playing")
                     }
                 case PlayerProperty.duration.rawValue:
                     if let total = value as? Double {
@@ -293,7 +324,7 @@ struct PlayerView: View {
             controller.setPlaybackRate(playbackRate)
             selectedQuality = controller.selectedQuality
             availableQualities = controller.availableQualities()
-            controller.loadFile(item.id)
+            controller.loadFile(currentItem.id)
             showControls(temporarily: true)
         }
     }
@@ -460,6 +491,7 @@ struct PlayerView: View {
     }
 
     private func closePlayer() {
+        Task { await finishProgressAndScrobble(currentTime: currentTime, duration: effectiveDuration) }
         cleanup()
         dismiss()
     }
@@ -470,6 +502,16 @@ struct PlayerView: View {
 
         guard hasLoadedPlayback || avkitController != nil || mpvController != nil else { return }
         print("🧹 [PlayerView] Cleaning up player")
+
+        Task {
+            await scrobbler.stopScrobble(progress: currentProgressPercent)
+            await progressReporter.flush(
+                ratingKey: currentRatingKey,
+                currentTime: currentTime,
+                duration: effectiveDuration,
+                state: "stopped"
+            )
+        }
 
         avkitController?.shutdown()
         avkitController = nil
@@ -486,8 +528,176 @@ struct PlayerView: View {
         availableQualities = PlaybackQuality.allCases
         selectedQuality = .original
         activeSettingsSheet = nil
+        currentRatingKey = nil
 
         hasLoadedPlayback = false
+    }
+
+    private var currentProgressPercent: Double {
+        guard effectiveDuration > 0 else { return 0 }
+        return min(max((currentTime / effectiveDuration) * 100, 0), 100)
+    }
+
+    private func extractRatingKey(from id: String) -> String? {
+        if id.hasPrefix("plex:") {
+            let key = String(id.dropFirst("plex:".count))
+            return key.isEmpty ? nil : key
+        }
+        return id.allSatisfy(\.isNumber) ? id : nil
+    }
+
+    private func startScrobblingIfNeeded() async {
+        guard profileSettings.traktScrobbleEnabled else { return }
+        await scrobbler.startScrobble(for: currentItem, initialProgress: currentProgressPercent)
+    }
+
+    private func finishProgressAndScrobble(currentTime: Double, duration: Double) async {
+        let progress = duration > 0 ? min(max((currentTime / duration) * 100, 0), 100) : 0
+        await scrobbler.stopScrobble(progress: progress)
+        await progressReporter.flush(
+            ratingKey: currentRatingKey,
+            currentTime: currentTime,
+            duration: duration,
+            state: "stopped"
+        )
+    }
+
+    private func reportPlaybackProgressIfNeeded(state: String) {
+        Task {
+            await progressReporter.reportIfNeeded(
+                ratingKey: currentRatingKey,
+                currentTime: currentTime,
+                duration: effectiveDuration,
+                state: state
+            )
+        }
+    }
+
+    private func handlePlaybackEnded() async {
+        await finishProgressAndScrobble(currentTime: currentTime, duration: effectiveDuration)
+        if profileSettings.traktAutoSyncWatched {
+            await traktSync.markWatchedIfNeeded(item: currentItem)
+        }
+        guard profileSettings.autoPlayNext else { return }
+        guard let next = await resolveNextEpisode(from: currentItem) else { return }
+        activeItem = next
+        currentRatingKey = extractRatingKey(from: next.id)
+        timelinePosition = 0
+        currentTime = 0
+        duration = 0
+        mpvController?.loadFile(next.id)
+    }
+
+    private func resolveNextEpisode(from item: MediaItem) async -> MediaItem? {
+        guard item.type == "episode" || item.type == "show" else { return nil }
+        guard let ratingKey = extractRatingKey(from: item.id) else { return nil }
+
+        struct Meta: Decodable {
+            let type: String?
+            let parentRatingKey: String?
+            let grandparentRatingKey: String?
+            let parentIndex: Int?
+            let index: Int?
+            let grandparentTitle: String?
+        }
+        struct Children: Decodable {
+            let Metadata: [Child]?
+            let MediaContainer: Container?
+            struct Container: Decodable { let Metadata: [Child]? }
+            struct Child: Decodable {
+                let ratingKey: String?
+                let title: String?
+                let type: String?
+                let thumb: String?
+                let art: String?
+                let grandparentTitle: String?
+                let grandparentThumb: String?
+                let grandparentArt: String?
+                let parentIndex: Int?
+                let index: Int?
+                let parentRatingKey: String?
+                let parentTitle: String?
+                let year: Int?
+                let duration: Int?
+                let summary: String?
+            }
+        }
+
+        guard let currentMeta: Meta = try? await APIClient.shared.get("/api/plex/metadata/\(ratingKey)") else { return nil }
+        guard currentMeta.type == "episode",
+              let seasonKey = currentMeta.parentRatingKey,
+              let showKey = currentMeta.grandparentRatingKey else { return nil }
+
+        func childrenItems(from children: Children) -> [Children.Child] {
+            children.Metadata ?? children.MediaContainer?.Metadata ?? []
+        }
+
+        if let seasonChildren: Children = try? await APIClient.shared.get("/api/plex/dir/library/metadata/\(seasonKey)/children") {
+            let episodes = childrenItems(from: seasonChildren)
+                .filter { ($0.type ?? "").lowercased() == "episode" }
+                .sorted { ($0.index ?? 0) < ($1.index ?? 0) }
+            if let currentIndex = currentMeta.index,
+               let nextEpisode = episodes.first(where: { ($0.index ?? -1) > currentIndex }),
+               let nextItem = mediaItemFromPlexChild(nextEpisode) {
+                return nextItem
+            }
+        }
+
+        guard let showChildren: Children = try? await APIClient.shared.get("/api/plex/dir/library/metadata/\(showKey)/children") else { return nil }
+        let seasons = childrenItems(from: showChildren)
+            .filter { ($0.type ?? "").lowercased() == "season" }
+            .sorted { ($0.index ?? 0) < ($1.index ?? 0) }
+        guard let currentSeasonIndex = currentMeta.parentIndex else { return nil }
+        guard let nextSeason = seasons.first(where: { ($0.index ?? -1) > currentSeasonIndex }),
+              let nextSeasonKey = nextSeason.ratingKey else { return nil }
+
+        guard let nextSeasonChildren: Children = try? await APIClient.shared.get("/api/plex/dir/library/metadata/\(nextSeasonKey)/children") else { return nil }
+        let nextEpisodes = childrenItems(from: nextSeasonChildren)
+            .filter { ($0.type ?? "").lowercased() == "episode" }
+            .sorted { ($0.index ?? 0) < ($1.index ?? 0) }
+        guard let firstEpisode = nextEpisodes.first else { return nil }
+        return mediaItemFromPlexChild(firstEpisode)
+    }
+
+    private func mediaItemFromPlexChild(_ child: Any) -> MediaItem? {
+        let mirror = Mirror(reflecting: child)
+        func value<T>(_ key: String) -> T? {
+            mirror.children.first(where: { $0.label == key })?.value as? T
+        }
+
+        guard let ratingKey: String = value("ratingKey") else { return nil }
+        let title: String = value("title") ?? "Episode"
+        let episodeType: String = value("type") ?? "episode"
+        let thumb: String? = value("thumb")
+        let art: String? = value("art")
+        let summary: String? = value("summary")
+        let grandparentTitle: String? = value("grandparentTitle")
+        let parentRatingKey: String? = value("parentRatingKey")
+        let parentTitle: String? = value("parentTitle")
+        let parentIndex: Int? = value("parentIndex")
+        let index: Int? = value("index")
+        let year: Int? = value("year")
+        let durationMs: Int? = value("duration")
+
+        return MediaItem(
+            id: ratingKey.hasPrefix("plex:") ? ratingKey : "plex:\(ratingKey)",
+            title: title,
+            type: episodeType.isEmpty ? "episode" : episodeType,
+            thumb: thumb,
+            art: art,
+            year: year,
+            rating: nil,
+            duration: durationMs,
+            viewOffset: nil,
+            summary: summary,
+            grandparentTitle: grandparentTitle,
+            grandparentThumb: nil,
+            grandparentArt: nil,
+            parentIndex: parentIndex,
+            index: index,
+            parentRatingKey: parentRatingKey,
+            parentTitle: parentTitle
+        )
     }
 }
 
@@ -1151,4 +1361,387 @@ private struct TVPlayerControlsBackground: View {
         .ignoresSafeArea()
         .allowsHitTesting(false)
     }
+}
+
+private enum TVResolvedScrobbleMedia {
+    case movie(TraktScrobbleMovie)
+    case episode(show: TraktScrobbleShow, episode: TraktScrobbleEpisode)
+}
+
+private struct TVResolvedPlaybackIdentity {
+    let ids: TraktScrobbleIds
+    let mediaType: String
+    let season: Int?
+    let episode: Int?
+}
+
+@MainActor
+private final class TVTraktIdentityResolver {
+    static let shared = TVTraktIdentityResolver()
+    private let api = APIClient.shared
+
+    private init() {}
+
+    func resolve(for item: MediaItem) async -> TVResolvedPlaybackIdentity? {
+        if let tmdb = parseTMDBId(from: item.id) {
+            let ids = TraktScrobbleIds(imdb: nil, tmdb: tmdb, tvdb: nil)
+            let mediaType = item.type.lowercased() == "movie" ? "movie" : "show"
+            return TVResolvedPlaybackIdentity(
+                ids: ids,
+                mediaType: mediaType,
+                season: item.parentIndex,
+                episode: item.index
+            )
+        }
+
+        guard let ratingKey = parsePlexRatingKey(from: item.id) else { return nil }
+        do {
+            let full: MediaItemFull = try await api.get("/api/plex/metadata/\(ratingKey)")
+
+            var tmdbId: Int?
+            var imdbId: String?
+            var tvdbId: Int?
+
+            for guid in full.Guid ?? [] {
+                if guid.id.hasPrefix("tmdb://") {
+                    tmdbId = Int(guid.id.replacingOccurrences(of: "tmdb://", with: ""))
+                } else if guid.id.hasPrefix("imdb://") {
+                    imdbId = guid.id.replacingOccurrences(of: "imdb://", with: "")
+                } else if guid.id.hasPrefix("tvdb://") {
+                    tvdbId = Int(guid.id.replacingOccurrences(of: "tvdb://", with: ""))
+                }
+            }
+
+            if tmdbId == nil || imdbId == nil || tvdbId == nil {
+                if let mainGuid = full.guid {
+                    if tmdbId == nil, mainGuid.hasPrefix("com.plexapp.agents.themoviedb://") {
+                        let value = mainGuid
+                            .replacingOccurrences(of: "com.plexapp.agents.themoviedb://", with: "")
+                            .components(separatedBy: "?").first
+                        tmdbId = value.flatMap(Int.init)
+                    }
+                    if imdbId == nil, mainGuid.hasPrefix("com.plexapp.agents.imdb://") {
+                        imdbId = mainGuid
+                            .replacingOccurrences(of: "com.plexapp.agents.imdb://", with: "")
+                            .components(separatedBy: "?").first
+                    }
+                    if tvdbId == nil, mainGuid.hasPrefix("com.plexapp.agents.thetvdb://") {
+                        let value = mainGuid
+                            .replacingOccurrences(of: "com.plexapp.agents.thetvdb://", with: "")
+                            .components(separatedBy: "/").first
+                        tvdbId = value.flatMap(Int.init)
+                    }
+                }
+            }
+
+            guard tmdbId != nil || imdbId != nil || tvdbId != nil else { return nil }
+            let ids = TraktScrobbleIds(imdb: imdbId, tmdb: tmdbId, tvdb: tvdbId)
+            let mediaType = full.type.lowercased() == "movie" ? "movie" : "show"
+            return TVResolvedPlaybackIdentity(
+                ids: ids,
+                mediaType: mediaType,
+                season: full.parentIndex ?? item.parentIndex,
+                episode: full.index ?? item.index
+            )
+        } catch {
+            return nil
+        }
+    }
+
+    private func parsePlexRatingKey(from id: String) -> String? {
+        if id.hasPrefix("plex:") {
+            let value = String(id.dropFirst("plex:".count))
+            return value.isEmpty ? nil : value
+        }
+        return id.allSatisfy(\.isNumber) ? id : nil
+    }
+
+    private func parseTMDBId(from id: String) -> Int? {
+        guard id.hasPrefix("tmdb:") else { return nil }
+        return Int(id.split(separator: ":").last ?? "")
+    }
+}
+
+@MainActor
+final class TVTraktScrobbler: ObservableObject {
+    static let shared = TVTraktScrobbler()
+
+    @Published private(set) var isScrobbling = false
+    @Published private(set) var currentTitle: String?
+
+    private var currentMedia: TVResolvedScrobbleMedia?
+    private let identityResolver = TVTraktIdentityResolver.shared
+
+    private init() {}
+
+    func startScrobble(for item: MediaItem, initialProgress: Double = 0) async {
+        guard FlixorCore.shared.isTraktAuthenticated else { return }
+        guard UserDefaults.standard.traktScrobbleEnabled else { return }
+
+        if currentMedia != nil {
+            await stopScrobble(progress: initialProgress)
+        }
+
+        guard let resolved = await identityResolver.resolve(for: item) else { return }
+        let media = buildScrobbleMedia(item: item, resolved: resolved)
+
+        do {
+            switch media {
+            case .movie(let movie):
+                _ = try await FlixorCore.shared.trakt.scrobbleStart(movie: movie, progress: initialProgress)
+                currentTitle = movie.title ?? item.title
+            case .episode(let show, let episode):
+                _ = try await FlixorCore.shared.trakt.scrobbleStart(show: show, episode: episode, progress: initialProgress)
+                currentTitle = "\(show.title ?? item.title) S\(episode.season)E\(episode.number)"
+            }
+            currentMedia = media
+            isScrobbling = true
+        } catch {
+            #if DEBUG
+            print("⚠️ [TVTraktScrobbler] start failed: \(error)")
+            #endif
+        }
+    }
+
+    func pauseScrobble(progress: Double) async {
+        guard isScrobbling, let media = currentMedia else { return }
+        do {
+            switch media {
+            case .movie(let movie):
+                _ = try await FlixorCore.shared.trakt.scrobblePause(movie: movie, progress: progress)
+            case .episode(let show, let episode):
+                _ = try await FlixorCore.shared.trakt.scrobblePause(show: show, episode: episode, progress: progress)
+            }
+        } catch {
+            #if DEBUG
+            print("⚠️ [TVTraktScrobbler] pause failed: \(error)")
+            #endif
+        }
+    }
+
+    func resumeScrobble(progress: Double) async {
+        guard let media = currentMedia else { return }
+        do {
+            switch media {
+            case .movie(let movie):
+                _ = try await FlixorCore.shared.trakt.scrobbleStart(movie: movie, progress: progress)
+            case .episode(let show, let episode):
+                _ = try await FlixorCore.shared.trakt.scrobbleStart(show: show, episode: episode, progress: progress)
+            }
+            isScrobbling = true
+        } catch {
+            #if DEBUG
+            print("⚠️ [TVTraktScrobbler] resume failed: \(error)")
+            #endif
+        }
+    }
+
+    func stopScrobble(progress: Double? = nil) async {
+        guard let media = currentMedia else { return }
+        let finalProgress = progress ?? 0
+        do {
+            switch media {
+            case .movie(let movie):
+                _ = try await FlixorCore.shared.trakt.scrobbleStop(movie: movie, progress: finalProgress)
+            case .episode(let show, let episode):
+                _ = try await FlixorCore.shared.trakt.scrobbleStop(show: show, episode: episode, progress: finalProgress)
+            }
+        } catch {
+            #if DEBUG
+            print("⚠️ [TVTraktScrobbler] stop failed: \(error)")
+            #endif
+        }
+        currentMedia = nil
+        currentTitle = nil
+        isScrobbling = false
+    }
+
+    private func buildScrobbleMedia(item: MediaItem, resolved: TVResolvedPlaybackIdentity) -> TVResolvedScrobbleMedia {
+        if resolved.mediaType == "movie" {
+            return .movie(
+                TraktScrobbleMovie(
+                    title: item.title,
+                    year: item.year,
+                    ids: resolved.ids
+                )
+            )
+        }
+
+        let show = TraktScrobbleShow(
+            title: item.grandparentTitle ?? item.title,
+            year: item.year,
+            ids: resolved.ids
+        )
+        let episode = TraktScrobbleEpisode(
+            season: resolved.season ?? item.parentIndex ?? 1,
+            number: resolved.episode ?? item.index ?? 1,
+            title: item.title
+        )
+        return .episode(show: show, episode: episode)
+    }
+}
+
+@MainActor
+final class TVTraktSyncCoordinator {
+    static let shared = TVTraktSyncCoordinator()
+    private let identityResolver = TVTraktIdentityResolver.shared
+
+    private init() {}
+
+    func markWatchedIfNeeded(item: MediaItem) async {
+        guard UserDefaults.standard.traktAutoSyncWatched else { return }
+        guard FlixorCore.shared.isTraktAuthenticated else { return }
+
+        guard let resolved = await identityResolver.resolve(for: item) else { return }
+        do {
+            if resolved.mediaType == "movie" {
+                try await FlixorCore.shared.trakt.markMovieWatched(
+                    tmdbId: resolved.ids.tmdb,
+                    imdbId: resolved.ids.imdb
+                )
+            } else {
+                try await FlixorCore.shared.trakt.markEpisodeWatched(
+                    showTmdbId: resolved.ids.tmdb,
+                    showImdbId: resolved.ids.imdb,
+                    season: resolved.season ?? item.parentIndex ?? 1,
+                    episode: resolved.episode ?? item.index ?? 1
+                )
+            }
+        } catch {
+            #if DEBUG
+            print("⚠️ [TVTraktSync] mark watched failed: \(error)")
+            #endif
+        }
+    }
+
+    @discardableResult
+    func addToWatchlistIfEnabled(tmdbId: Int, mediaType: String) async -> Bool {
+        guard UserDefaults.standard.traktSyncWatchlist else { return false }
+        guard FlixorCore.shared.isTraktAuthenticated else { return false }
+        do {
+            try await FlixorCore.shared.trakt.addToWatchlist(tmdbId: tmdbId, type: mediaType)
+            return true
+        } catch {
+            #if DEBUG
+            print("⚠️ [TVTraktSync] add watchlist failed: \(error)")
+            #endif
+            return false
+        }
+    }
+
+    @discardableResult
+    func removeFromWatchlistIfEnabled(tmdbId: Int, mediaType: String) async -> Bool {
+        guard UserDefaults.standard.traktSyncWatchlist else { return false }
+        guard FlixorCore.shared.isTraktAuthenticated else { return false }
+        do {
+            if mediaType == "show" || mediaType == "tv" {
+                try await FlixorCore.shared.trakt.removeShowFromWatchlist(tmdbId: tmdbId)
+            } else {
+                try await FlixorCore.shared.trakt.removeMovieFromWatchlist(tmdbId: tmdbId)
+            }
+            return true
+        } catch {
+            #if DEBUG
+            print("⚠️ [TVTraktSync] remove watchlist failed: \(error)")
+            #endif
+            return false
+        }
+    }
+
+    @discardableResult
+    func rateIfEnabled(mediaType: String, tmdbId: Int?, imdbId: String?, rating: Int) async -> Bool {
+        guard UserDefaults.standard.traktSyncRatings else { return false }
+        guard FlixorCore.shared.isTraktAuthenticated else { return false }
+        do {
+            if mediaType == "tv" || mediaType == "show" {
+                try await FlixorCore.shared.trakt.rateShow(tmdbId: tmdbId, imdbId: imdbId, rating: rating)
+            } else {
+                try await FlixorCore.shared.trakt.rateMovie(tmdbId: tmdbId, imdbId: imdbId, rating: rating)
+            }
+            return true
+        } catch {
+            #if DEBUG
+            print("⚠️ [TVTraktSync] rating sync failed: \(error)")
+            #endif
+            return false
+        }
+    }
+}
+
+actor TVPlaybackProgressReporter {
+    private var lastSentAt: Date?
+    private var lastPayloadHash: String?
+    private let minimumInterval: TimeInterval = 10
+
+    func reportIfNeeded(
+        ratingKey: String?,
+        currentTime: Double,
+        duration: Double,
+        state: String
+    ) async {
+        guard let ratingKey, !ratingKey.isEmpty else { return }
+        guard duration > 0 else { return }
+
+        let now = Date()
+        let hash = "\(ratingKey)|\(Int(currentTime))|\(Int(duration))|\(state)"
+        let elapsed = now.timeIntervalSince(lastSentAt ?? .distantPast)
+        if elapsed < minimumInterval, hash == lastPayloadHash {
+            return
+        }
+        if elapsed < minimumInterval, state == "playing" {
+            return
+        }
+
+        await send(
+            ratingKey: ratingKey,
+            currentTime: currentTime,
+            duration: duration,
+            state: state
+        )
+    }
+
+    func flush(
+        ratingKey: String?,
+        currentTime: Double,
+        duration: Double,
+        state: String
+    ) async {
+        guard let ratingKey, !ratingKey.isEmpty else { return }
+        await send(
+            ratingKey: ratingKey,
+            currentTime: currentTime,
+            duration: duration,
+            state: state
+        )
+    }
+
+    private func send(
+        ratingKey: String,
+        currentTime: Double,
+        duration: Double,
+        state: String
+    ) async {
+        let payload = TVPlexProgressPayload(
+            ratingKey: ratingKey,
+            time: Int(max(currentTime, 0) * 1000),
+            duration: Int(max(duration, 0) * 1000),
+            state: state
+        )
+        do {
+            let _: EmptyResponse = try await APIClient.shared.post("/api/plex/progress", body: payload)
+            lastSentAt = Date()
+            lastPayloadHash = "\(ratingKey)|\(payload.time)|\(payload.duration)|\(state)"
+        } catch {
+            #if DEBUG
+            print("⚠️ [TVProgress] report failed: \(error)")
+            #endif
+        }
+    }
+}
+
+private struct TVPlexProgressPayload: Codable {
+    let ratingKey: String
+    let time: Int
+    let duration: Int
+    let state: String
 }

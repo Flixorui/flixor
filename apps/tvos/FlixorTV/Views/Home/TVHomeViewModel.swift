@@ -314,6 +314,7 @@ final class TVHomeViewModel: ObservableObject {
     private func fetchRecentlyAddedPerLibrarySections() async throws -> [HomeSection] {
         let libraries = try await APIClient.shared.getPlexLibraries()
         let enabledKeys = Set(profileSettings.enabledLibraryKeys)
+        let shouldGroupEpisodes = profileSettings.groupRecentlyAddedEpisodes
         let filteredLibraries = libraries.filter { library in
             enabledKeys.isEmpty || enabledKeys.contains(library.key)
         }
@@ -335,9 +336,10 @@ final class TVHomeViewModel: ObservableObject {
                 type: mediaType,
                 sort: "addedAt:desc",
                 offset: 0,
-                limit: 24
+                limit: shouldGroupEpisodes ? 40 : 24
             )
-            let items = (response.Metadata ?? []).map(mapAPIPlexMedia)
+            let rawItems = (response.Metadata ?? []).map(mapAPIPlexMedia)
+            let items = shouldGroupEpisodes ? groupEpisodesBySeries(rawItems) : rawItems
             guard !items.isEmpty else { continue }
             sections.append(
                 HomeSection(
@@ -348,6 +350,74 @@ final class TVHomeViewModel: ObservableObject {
             )
         }
         return sections
+    }
+
+    private func groupEpisodesBySeries(_ items: [MediaItem]) -> [MediaItem] {
+        var result: [MediaItem] = []
+        var seenSeriesKeys = Set<String>()
+        var seriesEpisodeCounts: [String: Int] = [:]
+
+        func seriesKey(for item: MediaItem) -> String? {
+            if let key = item.parentRatingKey, !key.isEmpty {
+                return key
+            }
+            if let title = item.grandparentTitle, !title.isEmpty {
+                return "series-title:\(title.lowercased())"
+            }
+            return nil
+        }
+
+        for item in items where item.type == "episode" {
+            if let key = seriesKey(for: item) {
+                seriesEpisodeCounts[key, default: 0] += 1
+            }
+        }
+
+        for item in items {
+            guard item.type == "episode", let key = seriesKey(for: item) else {
+                result.append(item)
+                continue
+            }
+
+            if seenSeriesKeys.contains(key) {
+                continue
+            }
+            seenSeriesKeys.insert(key)
+
+            let episodeCount = seriesEpisodeCounts[key] ?? 1
+            let seriesId: String
+            if let parent = item.parentRatingKey, !parent.isEmpty {
+                seriesId = parent.hasPrefix("plex:") ? parent : "plex:\(parent)"
+            } else {
+                seriesId = item.id
+            }
+
+            let seriesItem = MediaItem(
+                id: seriesId,
+                title: item.grandparentTitle ?? item.title,
+                type: "show",
+                thumb: item.grandparentThumb ?? item.thumb,
+                art: item.grandparentArt ?? item.art,
+                logo: item.logo,
+                year: item.year,
+                rating: item.rating,
+                duration: nil,
+                viewOffset: nil,
+                summary: episodeCount > 1 ? "\(episodeCount) new episodes" : "1 new episode",
+                grandparentTitle: nil,
+                grandparentThumb: nil,
+                grandparentArt: nil,
+                parentIndex: nil,
+                index: nil,
+                parentRatingKey: nil,
+                parentTitle: nil,
+                leafCount: episodeCount,
+                viewedLeafCount: nil
+            )
+            result.append(seriesItem)
+        }
+
+        return result
     }
 
     private func fetchCollectionRows() async throws -> [HomeSection] {
@@ -600,17 +670,21 @@ final class TVHomeViewModel: ObservableObject {
             title: metadata.title ?? "Untitled",
             type: metadata.type ?? "movie",
             thumb: metadata.thumb ?? metadata.parentThumb,
-            art: metadata.art,
+            art: metadata.art ?? metadata.grandparentArt,
             year: metadata.year,
             rating: nil,
-            duration: nil,
+            duration: metadata.duration,
             viewOffset: nil,
-            summary: nil,
+            summary: metadata.summary,
             grandparentTitle: metadata.grandparentTitle,
             grandparentThumb: metadata.grandparentThumb,
-            grandparentArt: nil,
-            parentIndex: nil,
-            index: nil
+            grandparentArt: metadata.grandparentArt,
+            parentIndex: metadata.parentIndex,
+            index: metadata.index,
+            parentRatingKey: metadata.grandparentRatingKey ?? metadata.parentRatingKey,
+            parentTitle: metadata.parentTitle,
+            leafCount: metadata.leafCount,
+            viewedLeafCount: metadata.viewedLeafCount
         )
     }
 

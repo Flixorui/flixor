@@ -496,7 +496,87 @@ struct TVDetailsInfoGrid: View {
                         .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color(red: 0.03, green: 0.21, blue: 0.33)))
                     }
                 }
+
+                if vm.overseerrStatus != .notConfigured {
+                    Button {
+                        Task { await vm.requestInOverseerr() }
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: vm.overseerrStatus.canRequest ? "paperplane.fill" : "checkmark.seal.fill")
+                                .font(.system(size: 14, weight: .semibold))
+                            Text(overseerrButtonLabel)
+                                .font(.system(size: 15, weight: .medium))
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(vm.overseerrStatus.canRequest ? Color(red: 0.12, green: 0.42, blue: 0.34) : Color.white.opacity(0.16))
+                        )
+                    }
+                    .buttonStyle(NoHighlightButtonStyle())
+                    .disabled(!vm.overseerrStatus.canRequest || vm.isSubmittingOverseerrRequest)
+                }
+
+                if profileSettings.traktSyncRatings,
+                   FlixorCore.shared.isTraktAuthenticated,
+                   let suggested = vm.suggestedTraktRating {
+                    Button {
+                        Task { _ = await vm.submitTraktRating(suggested) }
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image("trakt")
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 18, height: 18)
+                            Text(vm.traktRatingValue != nil ? "Rated \(vm.traktRatingValue!)/10 on Trakt" : "Rate \(suggested)/10 on Trakt")
+                                .font(.system(size: 15, weight: .medium))
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(Color(red: 0.16, green: 0.12, blue: 0.22))
+                        )
+                    }
+                    .buttonStyle(NoHighlightButtonStyle())
+                }
             }
+
+            if let message = vm.overseerrRequestMessage, !message.isEmpty {
+                Text(message)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.74))
+            }
+        }
+    }
+
+    private var overseerrButtonLabel: String {
+        if vm.isSubmittingOverseerrRequest {
+            return "Requesting..."
+        }
+        if vm.overseerrStatus.canRequest {
+            return "Request in Overseerr"
+        }
+        switch vm.overseerrStatus.status {
+        case .available:
+            return "Available"
+        case .pending:
+            return "Request Pending"
+        case .approved:
+            return "Request Approved"
+        case .processing:
+            return "Processing"
+        case .partiallyAvailable:
+            return "Partially Available"
+        case .declined:
+            return "Declined"
+        case .notRequested:
+            return "Not Requested"
+        case .unknown:
+            return "Overseerr Status"
         }
     }
 

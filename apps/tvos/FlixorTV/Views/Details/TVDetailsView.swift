@@ -7,6 +7,7 @@ struct TVDetailsView: View {
     let item: MediaItem
     @StateObject private var vm = TVDetailsViewModel()
     @EnvironmentObject private var profileSettings: TVProfileSettings
+    @EnvironmentObject private var watchlistController: TVWatchlistController
 
     @State private var playbackItem: MediaItem?
     @State private var selectedTrailer: TVTrailer?
@@ -90,6 +91,7 @@ struct TVDetailsView: View {
                         focusNS: heroFocusNS,
                         hasPlexSource: hasPlexSource,
                         onPlay: playContent,
+                        onMyList: addToMyList,
                         onTrailerTapped: { trailer in
                             selectedTrailer = trailer
                         },
@@ -260,6 +262,45 @@ struct TVDetailsView: View {
         print("🎬 [TVDetailsView] Setting playbackItem with id: \(candidate.id)")
         playbackItem = candidate
     }
+
+    private func addToMyList() {
+        Task {
+            if profileSettings.traktSyncWatchlist,
+               FlixorCore.shared.isTraktAuthenticated,
+               let tmdbId = vm.tmdbId,
+               let tmdbInt = Int(tmdbId) {
+                struct TraktPayload: Codable {
+                    let tmdbId: Int
+                    let mediaType: String
+                }
+                let mediaType = (vm.mediaKind == "tv" || vm.mediaKind == "show" || vm.mediaKind == "episode") ? "show" : "movie"
+                do {
+                    let _: SimpleOkResponse = try await APIClient.shared.post(
+                        "/api/trakt/watchlist",
+                        body: TraktPayload(tmdbId: tmdbInt, mediaType: mediaType)
+                    )
+                    watchlistController.registerAdd(id: "tmdb:\(mediaType == "show" ? "tv" : "movie"):\(tmdbInt)")
+                    return
+                } catch {
+                    #if DEBUG
+                    print("⚠️ [TVDetails] Trakt watchlist add failed: \(error)")
+                    #endif
+                }
+            }
+
+            guard let plexId = vm.plexGuid ?? vm.plexRatingKey else { return }
+            let encoded = plexId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? plexId
+            do {
+                let _: SimpleOkResponse = try await APIClient.shared.put("/api/plextv/watchlist/\(encoded)")
+                let canonical = vm.playableId ?? (plexId.hasPrefix("plex:") ? plexId : "plex:\(plexId)")
+                watchlistController.registerAdd(id: canonical)
+            } catch {
+                #if DEBUG
+                print("⚠️ [TVDetails] Plex watchlist add failed: \(error)")
+                #endif
+            }
+        }
+    }
 }
 
 private struct TVDetailsHeroSection: View {
@@ -268,6 +309,7 @@ private struct TVDetailsHeroSection: View {
     let focusNS: Namespace.ID
     let hasPlexSource: Bool
     let onPlay: () -> Void
+    let onMyList: () -> Void
     let onTrailerTapped: (TVTrailer) -> Void
     var onFocusChange: ((Bool) -> Void)?
     @EnvironmentObject private var profileSettings: TVProfileSettings
@@ -455,7 +497,7 @@ private struct TVDetailsHeroSection: View {
                             .focused($focusedButton, equals: .play)
                             .prefersDefaultFocus(true, in: focusNS)
 
-                            Button(action: {}) {
+                            Button(action: onMyList) {
                                 HStack(spacing: 8) {
                                     Image(systemName: "plus")
                                     Text("My List")

@@ -1,0 +1,1143 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>tvOS Parity One-Pass QA</title>
+  <style>
+    @import url("https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap");
+
+    :root {
+      --bg-0: #05070c;
+      --bg-1: #0d1323;
+      --bg-2: #181124;
+      --panel: rgba(9, 14, 24, 0.78);
+      --panel-strong: rgba(8, 12, 20, 0.9);
+      --line: rgba(166, 186, 240, 0.18);
+      --line-strong: rgba(183, 204, 255, 0.34);
+      --text: #ecf2ff;
+      --muted: #9db0d8;
+      --accent: #8ab0ff;
+      --teal: #62dbc8;
+      --pass: #29d56f;
+      --fail: #ff5f74;
+      --partial: #ffb24d;
+      --untested: #7381ab;
+      --focus: rgba(138, 176, 255, 0.9);
+      --radius: 18px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      min-height: 100%;
+    }
+
+    body {
+      margin: 0;
+      font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(1200px 700px at 8% -6%, rgba(95, 134, 255, 0.28), transparent 60%),
+        radial-gradient(1400px 900px at 100% 0%, rgba(107, 48, 86, 0.22), transparent 56%),
+        radial-gradient(900px 650px at 50% 100%, rgba(39, 143, 141, 0.15), transparent 64%),
+        linear-gradient(180deg, var(--bg-1), var(--bg-0) 45%, #06080f);
+      line-height: 1.34;
+      letter-spacing: 0.01em;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+      background-size: 28px 28px;
+      mask-image: radial-gradient(circle at 50% 20%, black, transparent 85%);
+      opacity: 0.25;
+    }
+
+    body::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background: radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.07), transparent 42%);
+      mix-blend-mode: soft-light;
+      opacity: 0.3;
+    }
+
+    .wrap {
+      width: min(1320px, 95vw);
+      margin: 26px auto 64px;
+      display: grid;
+      gap: 20px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .panel {
+      background: linear-gradient(160deg, rgba(19, 27, 44, 0.56), var(--panel));
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      backdrop-filter: blur(14px) saturate(1.05);
+      box-shadow:
+        0 24px 54px rgba(0, 0, 0, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+      overflow: clip;
+    }
+
+    .head {
+      padding: 22px;
+      display: grid;
+      gap: 16px;
+      position: relative;
+    }
+
+    .head::before {
+      content: "";
+      position: absolute;
+      inset: -1px;
+      pointer-events: none;
+      border-radius: inherit;
+      background: linear-gradient(120deg, rgba(118, 162, 255, 0.22), transparent 30%, transparent 60%, rgba(98, 219, 200, 0.16));
+      opacity: 0.8;
+      mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      mask-composite: exclude;
+      padding: 1px;
+    }
+
+    .head-top {
+      display: grid;
+      grid-template-columns: 1.35fr 0.65fr;
+      gap: 18px;
+      align-items: end;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: #b7cbff;
+      font-size: 0.76rem;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .eyebrow::before {
+      content: "";
+      width: 34px;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(174, 199, 255, 0.92));
+    }
+
+    h1 {
+      margin: 0;
+      font-family: "Bebas Neue", "Arial Narrow", sans-serif;
+      font-size: clamp(2.3rem, 6vw, 4.4rem);
+      font-weight: 400;
+      letter-spacing: 0.03em;
+      line-height: 0.92;
+      color: #f4f7ff;
+      text-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+    }
+
+    .sub {
+      color: var(--muted);
+      font-size: 0.96rem;
+      max-width: 70ch;
+      margin-top: 8px;
+    }
+
+    .run-card {
+      border: 1px solid var(--line-strong);
+      border-radius: 16px;
+      background: var(--panel-strong);
+      padding: 12px 14px;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 12px;
+      align-items: center;
+      justify-self: end;
+      min-width: 230px;
+    }
+
+    .run-ring {
+      --angle: 0deg;
+      width: 76px;
+      height: 76px;
+      border-radius: 50%;
+      background:
+        radial-gradient(circle at center, rgba(7, 11, 20, 0.96) 62%, transparent 63%),
+        conic-gradient(from -90deg, var(--teal), var(--accent), #8579ff, var(--angle), rgba(128, 149, 198, 0.22) 0deg);
+      display: grid;
+      place-items: center;
+      box-shadow: 0 0 0 1px rgba(180, 204, 255, 0.18), 0 10px 20px rgba(0, 0, 0, 0.35);
+    }
+
+    .run-ring span {
+      font-weight: 700;
+      font-size: 1rem;
+      color: #f2f6ff;
+    }
+
+    .run-text {
+      display: grid;
+      gap: 3px;
+    }
+
+    .run-text .label {
+      color: var(--muted);
+      font-size: 0.74rem;
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+      font-weight: 600;
+    }
+
+    .run-text .value {
+      font-weight: 700;
+      font-size: 1.05rem;
+    }
+
+    .meta {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(160px, 1fr));
+      gap: 10px;
+    }
+
+    .meta label {
+      display: grid;
+      gap: 5px;
+      font-size: 0.74rem;
+      color: #9fb2dc;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 600;
+    }
+
+    input[type="text"], input[type="date"], textarea {
+      width: 100%;
+      border: 1px solid rgba(156, 179, 230, 0.26);
+      background: linear-gradient(180deg, rgba(9, 14, 26, 0.92), rgba(7, 10, 20, 0.92));
+      color: var(--text);
+      border-radius: 11px;
+      padding: 10px 11px;
+      outline: none;
+      font-family: inherit;
+      transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+    }
+
+    input:focus, textarea:focus {
+      border-color: rgba(138, 176, 255, 0.92);
+      box-shadow: 0 0 0 3px rgba(138, 176, 255, 0.22);
+      transform: translateY(-1px);
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .btn {
+      border: 1px solid rgba(174, 199, 255, 0.32);
+      background: linear-gradient(180deg, rgba(29, 46, 78, 0.94), rgba(18, 28, 47, 0.94));
+      color: #f2f6ff;
+      border-radius: 999px;
+      padding: 9px 15px;
+      cursor: pointer;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      transition: transform 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+      border-color: rgba(201, 221, 255, 0.62);
+      box-shadow: 0 8px 24px rgba(12, 25, 50, 0.45);
+    }
+
+    .btn.danger {
+      border-color: rgba(255, 128, 141, 0.44);
+      background: linear-gradient(180deg, rgba(86, 26, 39, 0.96), rgba(65, 18, 30, 0.95));
+    }
+
+    .last-save {
+      margin-left: auto;
+      color: #9fb4e3;
+      font-size: 0.82rem;
+      font-weight: 500;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(120px, 1fr));
+      gap: 12px;
+    }
+
+    .stat {
+      background: linear-gradient(155deg, rgba(18, 27, 45, 0.9), rgba(10, 15, 28, 0.95));
+      border: 1px solid rgba(174, 198, 255, 0.22);
+      border-radius: 14px;
+      padding: 10px;
+      text-align: center;
+      transition: transform 120ms ease, border-color 120ms ease;
+    }
+
+    .stat:hover {
+      transform: translateY(-2px);
+      border-color: rgba(184, 207, 255, 0.42);
+    }
+
+    .stat .num {
+      font-size: 1.5rem;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .stat:nth-child(1) .num { color: #5ce395; }
+    .stat:nth-child(2) .num { color: #ff7487; }
+    .stat:nth-child(3) .num { color: #ffc067; }
+    .stat:nth-child(4) .num { color: #aebce3; }
+
+    .stat small {
+      color: #97abd7;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      font-size: 0.7rem;
+      font-weight: 700;
+    }
+
+    .sections {
+      display: grid;
+      gap: 14px;
+    }
+
+    .section {
+      padding: 16px;
+      display: grid;
+      gap: 11px;
+      animation: section-in 280ms ease both;
+    }
+
+    @keyframes section-in {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .section h2 {
+      margin: 0;
+      font-size: 1.06rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+    }
+
+    .section-actions {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .mini {
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      border: 1px solid rgba(168, 191, 242, 0.34);
+      background: rgba(16, 24, 41, 0.82);
+      color: var(--text);
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      transition: border-color 110ms ease, transform 110ms ease;
+    }
+
+    .mini:hover {
+      border-color: rgba(204, 223, 255, 0.7);
+      transform: translateY(-1px);
+    }
+
+    .group-title {
+      color: #bfd1ff;
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+      font-size: 0.7rem;
+      font-weight: 700;
+      margin-top: 4px;
+      border-top: 1px dashed rgba(169, 191, 244, 0.26);
+      padding-top: 9px;
+      opacity: 0.96;
+    }
+
+    .test {
+      border: 1px solid rgba(156, 179, 231, 0.24);
+      border-radius: 14px;
+      padding: 10px;
+      background: linear-gradient(145deg, rgba(10, 15, 27, 0.78), rgba(8, 12, 21, 0.92));
+      display: grid;
+      gap: 9px;
+      position: relative;
+    }
+
+    .test::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      pointer-events: none;
+      background: linear-gradient(120deg, rgba(138, 176, 255, 0.08), transparent 50%, rgba(98, 219, 200, 0.08));
+      opacity: 0.7;
+    }
+
+    .test-line {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: start;
+      position: relative;
+      z-index: 1;
+    }
+
+    .test-text {
+      color: #e9efff;
+      font-size: 0.93rem;
+      font-weight: 500;
+      padding-top: 2px;
+    }
+
+    .status-group {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .status-btn {
+      border-radius: 999px;
+      border: 1px solid transparent;
+      padding: 6px 10px;
+      font-size: 0.7rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      color: #edf3ff;
+      text-transform: uppercase;
+      opacity: 0.8;
+      transition: transform 120ms ease, opacity 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+    }
+
+    .status-btn:hover {
+      transform: translateY(-1px);
+      opacity: 0.95;
+    }
+
+    .status-btn[data-status="untested"] {
+      background: rgba(115, 129, 171, 0.2);
+      border-color: rgba(141, 156, 199, 0.45);
+    }
+    .status-btn[data-status="pass"] {
+      background: rgba(41, 213, 111, 0.19);
+      border-color: rgba(95, 231, 149, 0.65);
+    }
+    .status-btn[data-status="fail"] {
+      background: rgba(255, 95, 116, 0.19);
+      border-color: rgba(255, 130, 146, 0.68);
+    }
+    .status-btn[data-status="partial"] {
+      background: rgba(255, 178, 77, 0.22);
+      border-color: rgba(255, 204, 127, 0.7);
+    }
+
+    .status-btn.active {
+      opacity: 1;
+      border-color: rgba(234, 243, 255, 0.88);
+      box-shadow: 0 0 0 2px rgba(235, 243, 255, 0.14), 0 6px 16px rgba(0, 0, 0, 0.38);
+    }
+
+    .test textarea {
+      min-height: 54px;
+      resize: vertical;
+      font-size: 0.86rem;
+      color: #dce7ff;
+      position: relative;
+      z-index: 1;
+    }
+
+    .section-notes {
+      display: grid;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 0.74rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 700;
+      margin-top: 4px;
+    }
+
+    .footer {
+      padding: 18px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .footer h2 {
+      margin: 0;
+      font-size: 1.08rem;
+      letter-spacing: 0.02em;
+    }
+
+    .checkbox-row {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .checkbox-row label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #e6eeff;
+      font-size: 0.92rem;
+      cursor: pointer;
+      padding: 7px 11px;
+      border-radius: 999px;
+      border: 1px solid rgba(158, 181, 232, 0.24);
+      background: rgba(12, 18, 31, 0.66);
+    }
+
+    .checkbox-row input[type="checkbox"] {
+      width: 17px;
+      height: 17px;
+      accent-color: var(--accent);
+    }
+
+    .badge {
+      border-radius: 999px;
+      padding: 5px 11px;
+      font-size: 0.75rem;
+      color: #abc0ee;
+      border: 1px solid rgba(167, 190, 241, 0.3);
+      background: rgba(11, 17, 29, 0.75);
+      justify-self: start;
+    }
+
+    @media (max-width: 1120px) {
+      .head-top {
+        grid-template-columns: 1fr;
+      }
+
+      .run-card {
+        justify-self: start;
+      }
+
+      .meta {
+        grid-template-columns: repeat(2, minmax(140px, 1fr));
+      }
+
+      .test-line {
+        grid-template-columns: 1fr;
+      }
+
+      .status-group {
+        justify-content: flex-start;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .wrap {
+        width: min(1320px, 97vw);
+      }
+
+      .stats {
+        grid-template-columns: repeat(2, minmax(120px, 1fr));
+      }
+
+      .meta {
+        grid-template-columns: 1fr;
+      }
+
+      h1 {
+        font-size: clamp(2rem, 10vw, 3.4rem);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="panel head">
+      <div class="head-top">
+        <div>
+          <div class="eyebrow">Release Validation Console</div>
+          <h1>tvOS QA Mission Board</h1>
+          <div class="sub">Run the full parity pass, capture evidence per test, and export a clean Markdown report for handoff.</div>
+        </div>
+        <aside class="run-card" aria-label="Run progress summary">
+          <div id="run-ring" class="run-ring"><span id="gauge-percent">0%</span></div>
+          <div class="run-text">
+            <div class="label">Progress</div>
+            <div class="value"><span id="gauge-done">0</span> / <span id="gauge-total">0</span> complete</div>
+            <div class="label">Checklist coverage</div>
+          </div>
+        </aside>
+      </div>
+
+      <div class="meta">
+        <label>Date <input id="meta-date" type="date" /></label>
+        <label>Tester <input id="meta-tester" type="text" placeholder="Name" /></label>
+        <label>Build / SHA <input id="meta-build" type="text" placeholder="Commit / build number" /></label>
+        <label>Device <input id="meta-device" type="text" placeholder="Apple TV / Simulator" /></label>
+      </div>
+
+      <div class="toolbar">
+        <button id="save-btn" class="btn">Save Now</button>
+        <button id="export-btn" class="btn">Export .md</button>
+        <button id="reset-btn" class="btn danger">Reset Checklist</button>
+        <span id="last-save" class="last-save">Not saved yet</span>
+      </div>
+
+      <div class="stats">
+        <div class="stat"><div id="count-pass" class="num">0</div><small>Passed</small></div>
+        <div class="stat"><div id="count-fail" class="num">0</div><small>Failed</small></div>
+        <div class="stat"><div id="count-partial" class="num">0</div><small>Pass Incomplete</small></div>
+        <div class="stat"><div id="count-untested" class="num">0</div><small>Not Run</small></div>
+      </div>
+    </section>
+
+    <main id="sections" class="sections"></main>
+
+    <section class="panel footer">
+      <h2>Final Signoff</h2>
+      <div class="checkbox-row">
+        <label><input id="final-completed" type="checkbox" /> One-pass QA completed</label>
+        <label><input id="final-critical" type="checkbox" /> All critical checks passed</label>
+        <label><input id="final-followups" type="checkbox" /> Follow-up bugs logged</label>
+      </div>
+      <label style="display:grid;gap:6px;color:var(--muted);font-size:.83rem;text-transform:uppercase;letter-spacing:.06em;">
+        Bug IDs / Follow-ups
+        <textarea id="final-notes" placeholder="List bug IDs, owners, and next actions"></textarea>
+      </label>
+      <div class="badge">Storage key: <code>tvos-parity-one-pass-qa-v1</code></div>
+    </section>
+  </div>
+
+  <script>
+    const STORAGE_KEY = "tvos-parity-one-pass-qa-v1";
+    const STATUS_LABEL = {
+      untested: "Not Run",
+      pass: "Pass",
+      fail: "Fail",
+      partial: "Passed, Incomplete"
+    };
+    const STATUS_MD = {
+      untested: "⬜",
+      pass: "✅",
+      fail: "❌",
+      partial: "⚠️"
+    };
+
+    const CHECKLIST = [
+      {
+        id: "smoke",
+        title: "1) Smoke",
+        items: [
+          { id: "smoke_launch", text: "App launches, auth/session restores, Home loads." },
+          { id: "smoke_details", text: "Details screen opens from Home." },
+          { id: "smoke_player", text: "Player starts for one movie and one episode." },
+          { id: "smoke_settings", text: "Settings opens and categories render." },
+          { id: "smoke_nav", text: "No crash/hang during basic navigation." }
+        ]
+      },
+      {
+        id: "player",
+        title: "2) Player Settings Consumption (MPV)",
+        items: [
+          { id: "player_intro_on", group: "Intro/Credits/Next Episode", text: "`Skip Intro Automatically = ON`: intro marker auto-skips once." },
+          { id: "player_intro_off", text: "`Skip Intro Automatically = OFF`: intro does not auto-skip." },
+          { id: "player_credits_next_on", text: "`Skip Credits Automatically = ON` + `Auto Play Next = ON`: next-episode countdown appears and auto-starts." },
+          { id: "player_next_off", text: "`Auto Play Next = OFF`: no auto-start at episode end." },
+          { id: "player_track_on", group: "Track Remember", text: "`Remember Track Selections = ON`: selected audio/subtitle is remembered across next episode in same series." },
+          { id: "player_track_off", text: "`Remember Track Selections = OFF`: prior track selection is not auto-applied." },
+          { id: "player_cache_on", group: "Stream Cache", text: "`Cache Stream URLs = ON`: replay same item quickly, playback starts normally." },
+          { id: "player_cache_recover", text: "Stale/invalid cached stream recovers via fresh decision (no infinite loop)." },
+          { id: "player_exit_reenter", text: "Exiting player cleans up and re-entering playback works." }
+        ]
+      },
+      {
+        id: "rows",
+        title: "3) Home Rows: Group Recently Added Episodes",
+        items: [
+          { id: "rows_group_on", text: "`Group Recently Added Episodes = ON`: Recently Added rows consolidate episodes by series." },
+          { id: "rows_group_off", text: "`Group Recently Added Episodes = OFF`: raw episode items appear ungrouped." },
+          { id: "rows_polling", text: "Poll refresh preserves current grouping mode." }
+        ]
+      },
+      {
+        id: "tmdb",
+        title: "4) TMDB Policy Enforcement",
+        items: [
+          { id: "tmdb_localized_on", text: "`Localized Metadata = ON` with non-English language: content reflects selected language." },
+          { id: "tmdb_localized_off", text: "`Localized Metadata = OFF`: metadata falls back to English (`en-US` behavior)." },
+          { id: "tmdb_enrich_off", text: "`Enrich Metadata = OFF`: base details still load; enrichment sections reduce/hide." },
+          { id: "tmdb_enrich_on", text: "`Enrich Metadata = ON`: enrichment content (trailers/similar/extra metadata) returns." }
+        ]
+      },
+      {
+        id: "mdblist",
+        title: "5) MDBList Enrichment",
+        items: [
+          { id: "mdblist_on", text: "`Enable MDBList = ON` + valid key: external ratings appear in Details for title with IMDb ID." },
+          { id: "mdblist_off", text: "`Enable MDBList = OFF`: MDBList ratings disappear cleanly (fallback ratings remain)." },
+          { id: "mdblist_cache_clear", text: "Clear Ratings Cache works and subsequent Details load repopulates without errors." }
+        ]
+      },
+      {
+        id: "overseerr",
+        title: "6) Overseerr Workflow",
+        items: [
+          { id: "overseerr_api", group: "Settings/Auth", text: "API key mode: connection test succeeds with valid URL/key." },
+          { id: "overseerr_plex_session", text: "Plex session mode: auth + session validation succeeds." },
+          { id: "overseerr_signout", text: "Sign out in Plex mode clears session state." },
+          { id: "overseerr_status", group: "Details Request Flow", text: "For TMDB-mapped title, Overseerr status loads in Details." },
+          { id: "overseerr_request", text: "Request action submits successfully and status updates." },
+          { id: "overseerr_disabled", text: "`Enable Overseerr = OFF`: request UI is hidden/disabled and app remains stable." }
+        ]
+      },
+      {
+        id: "trakt",
+        title: "7) Trakt Toggle-Governed Runtime",
+        items: [
+          { id: "trakt_scrobble_on", group: "Scrobble", text: "`Enable Scrobbling = ON`: start/pause/resume/stop scrobble lifecycle executes." },
+          { id: "trakt_scrobble_off", text: "`Enable Scrobbling = OFF`: no scrobble lifecycle writes occur." },
+          { id: "trakt_watched_on", group: "Watched Sync", text: "`Sync Watched = ON`: completion path marks watched." },
+          { id: "trakt_watched_off", text: "`Sync Watched = OFF`: completion does not sync watched." },
+          { id: "trakt_watchlist_on", group: "Watchlist Sync", text: "`Sync Watchlist = ON`: add/remove from My List/Details/New & Popular triggers Trakt writes." },
+          { id: "trakt_watchlist_off", text: "`Sync Watchlist = OFF`: Trakt watchlist writes are gated off." },
+          { id: "trakt_rating_on", group: "Rating Sync", text: "`Sync Ratings = ON`: rating action in Details writes to Trakt." },
+          { id: "trakt_rating_off", text: "`Sync Ratings = OFF`: rating action does not write to Trakt." }
+        ]
+      },
+      {
+        id: "regression",
+        title: "8) Regression Guardrail Checks",
+        items: [
+          { id: "reg_focus", text: "Home focus/navigation remains stable (no focus traps, no repeated keypress requirement)." },
+          { id: "reg_play", text: "Details Play still launches player reliably." },
+          { id: "reg_loop", text: "No player load-cleanup-load loops without user action." },
+          { id: "reg_auth", text: "No auth/session regressions after changing integration toggles." },
+          { id: "reg_perf", text: "No major UI performance regression during scrolling/focus movement." }
+        ]
+      },
+      {
+        id: "home_search",
+        title: "9) Home + Search Recent Fixes",
+        items: [
+          { id: "hs_continue_top", group: "Home Row Order", text: "Continue Watching is the first visible content row on Home (before My List)." },
+          { id: "hs_mylist_second", text: "My List appears after Continue Watching and rows remain stable after refresh/relaunch." },
+          { id: "hs_poll_continue", group: "Dynamic Sections", text: "Periodic polling updates Continue Watching without row duplication/focus jumps." },
+          { id: "hs_poll_recent", text: "Periodic polling updates Recently Added rows and preserves grouping mode." },
+          { id: "hs_trending_logo", group: "Search Logos", text: "Search idle row: Trending Now cards show logo titles when available." },
+          { id: "hs_popular_logo", text: "Search idle row: Popular Right Now cards show logo titles when available." },
+          { id: "hs_plex_logo", text: "Search results row: Results from Your Plex cards show logo titles when available (TMDB/Plex match fallback)." },
+          { id: "hs_plex_image", group: "Search Artwork", text: "Results from Your Plex cards render artwork (no blank/missing-image cards for valid items)." },
+          { id: "hs_search_focus", group: "Search Focus", text: "Landscape cards in Trending/Popular/Results rows show proper focus indication when navigated." },
+          { id: "hs_continue_focus", text: "Continue Watching row cards show proper focus indication in Home." }
+        ]
+      },
+      {
+        id: "settings_ui",
+        title: "10) Settings UX + Focus Polish",
+        items: [
+          { id: "settings_focus_stable", group: "Category Navigation", text: "Selecting any settings category does not jump focus back to the first category." },
+          { id: "settings_no_flood", text: "No white flood highlight appears on category rows, controls, or detail panels." },
+          { id: "settings_search_removed", text: "Top search bar is removed from Settings landing screen." },
+          { id: "settings_multiselect_modal", group: "Control Layout", text: "Multi-option settings use picker/dropdown/modal style (not crowded pill groups), aligned with other right-side controls." },
+          { id: "settings_readable_layout", text: "Home Screen settings panel remains readable (labels/options not clipped or squeezed)." },
+          { id: "settings_toggle_focus", text: "Toggle-like controls show subtle focus style with rounded corners and consistent border treatment." }
+        ]
+      },
+      {
+        id: "sidebar_ui",
+        title: "11) Sidebar Focus + Geometry",
+        items: [
+          { id: "sidebar_focus_style", text: "Sidebar destinations show clear focus indication (zoom + outline) without white flood overlay." },
+          { id: "sidebar_zoom_clip", text: "Focused sidebar item zoom is not clipped on left/right edges." },
+          { id: "sidebar_height", text: "Sidebar visual height/layout feels correct and does not block access to app content." },
+          { id: "sidebar_settings_position", text: "Settings placement in sidebar matches intended IA (bottom-position behavior, if configured)." }
+        ]
+      },
+      {
+        id: "new_popular",
+        title: "12) New & Popular Screen",
+        items: [
+          { id: "np_hero_full_bleed", group: "Hero", text: "Hero backdrop extends correctly to top/full-bleed region (no awkward gap/padding)." },
+          { id: "np_tabs_focus", group: "Tabs + Filters", text: "Trending / Top 10 / Coming Soon / Worth the Wait tabs show clear focus state (no giant white flood)." },
+          { id: "np_tabs_switch", text: "Selecting each tab actually changes content section/state." },
+          { id: "np_plex_rows_focus", group: "Rows", text: "New on Your Plex and Popular on Your Plex rows have proper card focus styling." },
+          { id: "np_row_focus_memory", text: "Horizontal row focus lands on expected card (consistent with Home row behavior)." }
+        ]
+      },
+      {
+        id: "details_recent",
+        title: "13) Details Screen Recent UX",
+        items: [
+          { id: "details_unified_shell", group: "Layout", text: "Details remains unified layout (no old tabbed shell regression)." },
+          { id: "details_about_scroll", text: "Can scroll past recommendations into full About/Information body without bounce-back lock." },
+          { id: "details_single_hero_image", text: "Single hero/backdrop image path is used (no duplicate stacked hero/background images)." },
+          { id: "details_compact_header", group: "Chrome", text: "Condensed title/logo header appears when moving into body sections and hides when returning to hero." },
+          { id: "details_blur_on_sections", text: "Blur engages while focused in Suggested/About/Information sections." },
+          { id: "details_no_dark_wash", text: "No heavy black material wash over hero; readability scrims remain subtle." },
+          { id: "details_about_selectable", group: "Selectable Sections", text: "About, Information, Languages, Technical, and Production sections are focusable/selectable." },
+          { id: "details_about_modal", text: "Selecting those sections opens modal/expanded information view with complete text." },
+          { id: "details_cast_selectable", text: "Individual Cast & Crew entries are selectable with proper focused chrome (subtle, not white flood)." },
+          { id: "details_trailer_focus_style", text: "Trailer row focus style matches app polish (no harsh white border artifact)." }
+        ]
+      },
+      {
+        id: "player_recent",
+        title: "14) Player Recent Parity (MPV)",
+        items: [
+          { id: "player_icons_audio_subs", group: "Track UI", text: "Both audio and subtitle selection icons are visible in player controls." },
+          { id: "player_subtitle_detect_srt", text: "Embedded/external SRT subtitles are detected and selectable when available." },
+          { id: "player_subtitle_detect_pgs", text: "PGS/image subtitles are detected and selectable when available." },
+          { id: "player_direct_play_original", group: "Playback Mode", text: "Original quality selects direct play path when server/media allows." },
+          { id: "player_quality_override_rebuild", text: "Changing quality/track override rebuilds session cleanly (stop/cleanup/restart) and restores position/state." },
+          { id: "player_no_loop_regression", text: "No repeated load-cleanup-load loop occurs during normal playback startup." }
+        ]
+      }
+    ];
+
+    const defaults = {
+      meta: { date: "", tester: "", build: "", device: "" },
+      tests: {},
+      sectionNotes: {},
+      final: { completed: false, critical: false, followups: false, notes: "" },
+      updatedAt: ""
+    };
+
+    let state = structuredClone(defaults);
+
+    function getNowIsoDate() {
+      return new Date().toISOString().slice(0, 10);
+    }
+
+    function loadState() {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) {
+        state.meta.date = getNowIsoDate();
+        saveState();
+        return;
+      }
+      try {
+        const parsed = JSON.parse(raw);
+        state = {
+          ...structuredClone(defaults),
+          ...parsed,
+          meta: { ...defaults.meta, ...(parsed.meta || {}) },
+          final: { ...defaults.final, ...(parsed.final || {}) },
+          tests: { ...(parsed.tests || {}) },
+          sectionNotes: { ...(parsed.sectionNotes || {}) }
+        };
+      } catch {
+        state = structuredClone(defaults);
+        state.meta.date = getNowIsoDate();
+      }
+
+      if (!state.meta.date) {
+        state.meta.date = getNowIsoDate();
+      }
+    }
+
+    function saveState() {
+      state.updatedAt = new Date().toISOString();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      const stamp = document.getElementById("last-save");
+      stamp.textContent = `Saved ${new Date(state.updatedAt).toLocaleString()}`;
+      updateStats();
+    }
+
+    function getTestState(testId) {
+      return state.tests[testId] || { status: "untested", notes: "" };
+    }
+
+    function setTestStatus(testId, status) {
+      const current = getTestState(testId);
+      state.tests[testId] = { ...current, status };
+      saveState();
+      render();
+    }
+
+    function setTestNotes(testId, notes) {
+      const current = getTestState(testId);
+      state.tests[testId] = { ...current, notes };
+      saveState();
+    }
+
+    function renderMeta() {
+      const dateEl = document.getElementById("meta-date");
+      const testerEl = document.getElementById("meta-tester");
+      const buildEl = document.getElementById("meta-build");
+      const deviceEl = document.getElementById("meta-device");
+
+      dateEl.value = state.meta.date || "";
+      testerEl.value = state.meta.tester || "";
+      buildEl.value = state.meta.build || "";
+      deviceEl.value = state.meta.device || "";
+
+      dateEl.oninput = (e) => { state.meta.date = e.target.value; saveState(); };
+      testerEl.oninput = (e) => { state.meta.tester = e.target.value; saveState(); };
+      buildEl.oninput = (e) => { state.meta.build = e.target.value; saveState(); };
+      deviceEl.oninput = (e) => { state.meta.device = e.target.value; saveState(); };
+    }
+
+    function renderSection(section) {
+      const sectionEl = document.createElement("section");
+      sectionEl.className = "panel section";
+
+      const header = document.createElement("h2");
+      header.innerHTML = `<span>${section.title}</span>`;
+
+      const actions = document.createElement("div");
+      actions.className = "section-actions";
+      ["pass", "partial", "fail", "untested"].forEach((status) => {
+        const b = document.createElement("button");
+        b.className = "mini";
+        b.textContent = `Mark all ${STATUS_LABEL[status]}`;
+        b.onclick = () => {
+          section.items.forEach((item) => {
+            const current = getTestState(item.id);
+            state.tests[item.id] = { ...current, status };
+          });
+          saveState();
+          render();
+        };
+        actions.appendChild(b);
+      });
+      header.appendChild(actions);
+      sectionEl.appendChild(header);
+
+      let currentGroup = "";
+      section.items.forEach((item) => {
+        if (item.group && item.group !== currentGroup) {
+          currentGroup = item.group;
+          const group = document.createElement("div");
+          group.className = "group-title";
+          group.textContent = item.group;
+          sectionEl.appendChild(group);
+        }
+
+        const testState = getTestState(item.id);
+        const test = document.createElement("div");
+        test.className = "test";
+
+        const testLine = document.createElement("div");
+        testLine.className = "test-line";
+
+        const text = document.createElement("div");
+        text.className = "test-text";
+        text.textContent = item.text;
+
+        const statusGroup = document.createElement("div");
+        statusGroup.className = "status-group";
+        ["untested", "pass", "partial", "fail"].forEach((status) => {
+          const sb = document.createElement("button");
+          sb.className = "status-btn";
+          sb.dataset.status = status;
+          sb.textContent = STATUS_LABEL[status];
+          if (testState.status === status) sb.classList.add("active");
+          sb.onclick = () => setTestStatus(item.id, status);
+          statusGroup.appendChild(sb);
+        });
+
+        const notes = document.createElement("textarea");
+        notes.placeholder = "Notes for this test (optional)";
+        notes.value = testState.notes || "";
+        notes.oninput = (e) => setTestNotes(item.id, e.target.value);
+
+        testLine.appendChild(text);
+        testLine.appendChild(statusGroup);
+        test.appendChild(testLine);
+        test.appendChild(notes);
+        sectionEl.appendChild(test);
+      });
+
+      const sectionNotes = document.createElement("label");
+      sectionNotes.className = "section-notes";
+      sectionNotes.textContent = "Section Notes";
+      const area = document.createElement("textarea");
+      area.placeholder = "Section-level notes, blockers, links";
+      area.value = state.sectionNotes[section.id] || "";
+      area.oninput = (e) => {
+        state.sectionNotes[section.id] = e.target.value;
+        saveState();
+      };
+      sectionNotes.appendChild(area);
+      sectionEl.appendChild(sectionNotes);
+
+      return sectionEl;
+    }
+
+    function updateStats() {
+      const counts = { pass: 0, fail: 0, partial: 0, untested: 0 };
+      CHECKLIST.forEach((section) => {
+        section.items.forEach((item) => {
+          const status = getTestState(item.id).status;
+          counts[status] = (counts[status] || 0) + 1;
+        });
+      });
+      document.getElementById("count-pass").textContent = counts.pass;
+      document.getElementById("count-fail").textContent = counts.fail;
+      document.getElementById("count-partial").textContent = counts.partial;
+      document.getElementById("count-untested").textContent = counts.untested;
+
+      const total = counts.pass + counts.fail + counts.partial + counts.untested;
+      const done = counts.pass + counts.fail + counts.partial;
+      const percent = total > 0 ? Math.round((done / total) * 100) : 0;
+      const angle = Math.round((percent / 100) * 360);
+
+      const ring = document.getElementById("run-ring");
+      if (ring) ring.style.setProperty("--angle", `${angle}deg`);
+      const percentEl = document.getElementById("gauge-percent");
+      if (percentEl) percentEl.textContent = `${percent}%`;
+      const doneEl = document.getElementById("gauge-done");
+      if (doneEl) doneEl.textContent = String(done);
+      const totalEl = document.getElementById("gauge-total");
+      if (totalEl) totalEl.textContent = String(total);
+    }
+
+    function renderFinalSignoff() {
+      const completed = document.getElementById("final-completed");
+      const critical = document.getElementById("final-critical");
+      const followups = document.getElementById("final-followups");
+      const notes = document.getElementById("final-notes");
+
+      completed.checked = !!state.final.completed;
+      critical.checked = !!state.final.critical;
+      followups.checked = !!state.final.followups;
+      notes.value = state.final.notes || "";
+
+      completed.onchange = (e) => { state.final.completed = e.target.checked; saveState(); };
+      critical.onchange = (e) => { state.final.critical = e.target.checked; saveState(); };
+      followups.onchange = (e) => { state.final.followups = e.target.checked; saveState(); };
+      notes.oninput = (e) => { state.final.notes = e.target.value; saveState(); };
+    }
+
+    function exportMarkdown() {
+      const lines = [];
+      lines.push("# tvOS Parity One-Pass QA Report");
+      lines.push("");
+      lines.push(`- Date: ${state.meta.date || "-"}`);
+      lines.push(`- Tester: ${state.meta.tester || "-"}`);
+      lines.push(`- Build/SHA: ${state.meta.build || "-"}`);
+      lines.push(`- Device: ${state.meta.device || "-"}`);
+      lines.push(`- Exported: ${new Date().toLocaleString()}`);
+      lines.push("");
+
+      const counts = { pass: 0, fail: 0, partial: 0, untested: 0 };
+      CHECKLIST.forEach((section) => {
+        section.items.forEach((item) => {
+          const status = getTestState(item.id).status;
+          counts[status] = (counts[status] || 0) + 1;
+        });
+      });
+      lines.push("## Summary");
+      lines.push(`- Passed: ${counts.pass}`);
+      lines.push(`- Failed: ${counts.fail}`);
+      lines.push(`- Passed, Incomplete: ${counts.partial}`);
+      lines.push(`- Not Run: ${counts.untested}`);
+      lines.push("");
+
+      CHECKLIST.forEach((section) => {
+        lines.push(`## ${section.title}`);
+        let currentGroup = "";
+        section.items.forEach((item) => {
+          if (item.group && item.group !== currentGroup) {
+            currentGroup = item.group;
+            lines.push("");
+            lines.push(`### ${item.group}`);
+          }
+          const st = getTestState(item.id);
+          lines.push(`- ${STATUS_MD[st.status] || "⬜"} ${item.text} (${STATUS_LABEL[st.status] || "Not Run"})`);
+          if (st.notes && st.notes.trim()) {
+            lines.push(`  - Notes: ${st.notes.trim().replace(/\n/g, " ")}`);
+          }
+        });
+        const secNotes = state.sectionNotes[section.id];
+        if (secNotes && secNotes.trim()) {
+          lines.push("");
+          lines.push(`Notes: ${secNotes.trim().replace(/\n/g, "  \n")}`);
+        }
+        lines.push("");
+      });
+
+      lines.push("## Final Signoff");
+      lines.push(`- One-pass QA completed: ${state.final.completed ? "Yes" : "No"}`);
+      lines.push(`- All critical checks passed: ${state.final.critical ? "Yes" : "No"}`);
+      lines.push(`- Follow-up bugs logged: ${state.final.followups ? "Yes" : "No"}`);
+      if (state.final.notes && state.final.notes.trim()) {
+        lines.push(`- Follow-ups: ${state.final.notes.trim().replace(/\n/g, "  \n")}`);
+      }
+      lines.push("");
+
+      const md = lines.join("\n");
+      const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const safeDate = (state.meta.date || getNowIsoDate()).replace(/[^0-9-]/g, "");
+      a.href = url;
+      a.download = `tvos-parity-qa-report-${safeDate}.md`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    function resetChecklist() {
+      const ok = confirm("Reset all statuses, notes, and metadata? This cannot be undone.");
+      if (!ok) return;
+      state = structuredClone(defaults);
+      state.meta.date = getNowIsoDate();
+      saveState();
+      render();
+    }
+
+    function render() {
+      renderMeta();
+      renderFinalSignoff();
+
+      const stamp = document.getElementById("last-save");
+      if (stamp) {
+        stamp.textContent = state.updatedAt
+          ? `Saved ${new Date(state.updatedAt).toLocaleString()}`
+          : "Not saved yet";
+      }
+
+      const container = document.getElementById("sections");
+      container.innerHTML = "";
+      CHECKLIST.forEach((section) => {
+        container.appendChild(renderSection(section));
+      });
+      updateStats();
+    }
+
+    document.getElementById("save-btn").onclick = saveState;
+    document.getElementById("export-btn").onclick = exportMarkdown;
+    document.getElementById("reset-btn").onclick = resetChecklist;
+
+    loadState();
+    render();
+  </script>
+</body>
+</html>
