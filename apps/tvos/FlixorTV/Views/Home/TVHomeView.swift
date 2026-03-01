@@ -17,6 +17,7 @@ struct TVHomeView: View {
     @State private var billboardIndex: Int = 0
     @State private var heroFocusRequestToken: UUID?
     @State private var clearNextRowFocusTask: Task<Void, Never>?
+    @State private var clearRowFocusTask: Task<Void, Never>?
     @State private var gradientDebounceTask: Task<Void, Never>?
 
     init(viewModel: TVHomeViewModel, focusHandoffToken: UUID? = nil) {
@@ -46,6 +47,9 @@ struct TVHomeView: View {
                             currentIndex: $billboardIndex,
                             focusRequestToken: heroFocusRequestToken
                         )
+                            .opacity(focusedRowId == nil ? 1 : 0)
+                            .animation(.easeOut(duration: 0.16), value: focusedRowId == nil)
+                            .allowsHitTesting(focusedRowId == nil)
                             .padding(.top, UX.homeHeroTopPadding)
                             // Keep overlap static so focus transitions do not relayout the entire stack.
                             .padding(.bottom, -(UX.heroRowOverlap + 40))
@@ -174,6 +178,23 @@ struct TVHomeView: View {
         .ignoresSafeArea(edges: .top)
         // no permanent inset; content can scroll edge-to-edge under the native sidebar shell
         .onPreferenceChange(RowFocusKey.self) { newId in
+            if let newId {
+                clearRowFocusTask?.cancel()
+            } else {
+                // During horizontal focus movement, tvOS may emit brief nil focus pulses.
+                // Clear row focus only if nil persists, which indicates real exit to hero/nav.
+                clearRowFocusTask?.cancel()
+                clearRowFocusTask = Task {
+                    try? await Task.sleep(nanoseconds: 140_000_000)
+                    guard !Task.isCancelled else { return }
+                    await MainActor.run {
+                        focusedRowId = nil
+                        nextRowToReceiveFocus = nil
+                    }
+                }
+                return
+            }
+
             // Update focused row ID (nil when billboard is focused, sectionId when row is focused)
             let previousId = focusedRowId
             if previousId != newId {
@@ -190,15 +211,15 @@ struct TVHomeView: View {
             }
 
             // Scroll to row if focused
-            if let rid = newId, rid != previousId, rid != firstVisibleRowId {
+            if newId != previousId, newId != firstVisibleRowId {
                 withAnimation(.easeInOut(duration: 0.24)) {
-                    vProxy.scrollTo("row-\(rid)", anchor: .top)
+                    vProxy.scrollTo("row-\(newId)", anchor: .top)
                 }
             }
         }
         .onPreferenceChange(BillboardFocusKey.self) { hasFocus in
             // Keep billboard at top when it has focus
-            if hasFocus, focusedRowId != nil {
+            if hasFocus, focusedRowId == nil {
                 withAnimation(.easeInOut(duration: 0.24)) {
                     vProxy.scrollTo("billboard", anchor: .top)
                 }
@@ -297,6 +318,7 @@ struct TVHomeView: View {
         }
         .onDisappear {
             clearNextRowFocusTask?.cancel()
+            clearRowFocusTask?.cancel()
             gradientDebounceTask?.cancel()
             vm.stopDynamicSectionPolling()
         }
@@ -337,7 +359,6 @@ struct TVHomeView: View {
                 landscapeFocusOutline: kind == .landscape,
                 onSelect: { showingDetails = $0 }
             )
-            .padding(.top, focusedRowId == sectionId ? UX.rowSnapTopPadding : 0)
             .id("row-\(sectionId)")
         }
     }
@@ -349,11 +370,11 @@ struct TVHomeView: View {
     }
 
     private var firstVisibleRowId: String? {
+        if profileSettings.showContinueWatching, !vm.continueWatching.isEmpty { return "continue-watching" }
         if let myList = vm.additionalSections.first(where: { $0.id == "plex-watchlist" && !$0.items.isEmpty }),
            profileSettings.showWatchlist {
             return myList.id
         }
-        if profileSettings.showContinueWatching, !vm.continueWatching.isEmpty { return "continue-watching" }
         if let firstRecent = vm.recentlyAddedSections.first(where: { !$0.items.isEmpty }) { return firstRecent.id }
         if profileSettings.showCollectionRows,
            let firstCollection = vm.collectionSections.first(where: { !$0.items.isEmpty }) {
