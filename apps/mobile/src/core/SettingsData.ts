@@ -289,6 +289,12 @@ export interface AppSettings {
   useCachedStreams: boolean;
   openMetadataScreenWhenCacheDisabled: boolean;
   streamCacheTTL: number;
+  stremioPlaybackEnabled: boolean;
+  stremioAutoPlayBestSource: boolean;
+  stremioShowOnTmdbDetails: boolean;
+  stremioPreferCachedSourceResume: boolean;
+  stremioSubtitleAddonsEnabled: boolean;
+  stremioUnsupportedSourceVisibility: 'show_disabled' | 'hide';
   showHeroSection: boolean;
   showContinueWatchingRow: boolean;
   showTrendingRows: boolean;
@@ -334,6 +340,10 @@ export interface AppSettings {
   seekTimeSmall: number; // Small seek duration in seconds (1-120)
   seekTimeLarge: number; // Large seek duration in seconds (1-120)
   rememberTrackSelections: boolean; // Remember audio/subtitle language choices
+  preferredSubtitleLanguage?: string;
+  preferredAudioLanguage?: string;
+  subtitleSourcePreference?: 'internal' | 'external' | 'any';
+  enableSubtitleAutoSelect?: boolean;
 
   // Advanced settings
   enableDebugLogging: boolean; // Enable verbose debug logging
@@ -366,6 +376,12 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   useCachedStreams: false,
   openMetadataScreenWhenCacheDisabled: true,
   streamCacheTTL: 60 * 60 * 1000,
+  stremioPlaybackEnabled: false,
+  stremioAutoPlayBestSource: false,
+  stremioShowOnTmdbDetails: true,
+  stremioPreferCachedSourceResume: true,
+  stremioSubtitleAddonsEnabled: true,
+  stremioUnsupportedSourceVisibility: 'show_disabled',
   showHeroSection: true,
   showContinueWatchingRow: true,
   showTrendingRows: true,
@@ -411,6 +427,10 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   seekTimeSmall: 10, // Default: 10 seconds
   seekTimeLarge: 30, // Default: 30 seconds
   rememberTrackSelections: true, // Default: enabled
+  preferredSubtitleLanguage: 'en',
+  preferredAudioLanguage: undefined,
+  subtitleSourcePreference: 'internal',
+  enableSubtitleAutoSelect: true,
 
   // Advanced defaults
   enableDebugLogging: false, // Default: disabled

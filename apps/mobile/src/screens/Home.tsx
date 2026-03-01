@@ -62,7 +62,9 @@ import {
   checkWatchlistStatus,
   WatchlistIds,
   extractTmdbIdFromGuids,
+  extractImdbIdFromGuids,
 } from '../core/DetailsData';
+import { stremioStreamCache } from '../stremio/StremioStreamCache';
 
 interface HomeProps {
   onLogout: () => Promise<void>;
@@ -1125,9 +1127,46 @@ export default function Home({ onLogout }: HomeProps) {
     }
     return undefined;
   }, []);
-  const onContinuePress = useCallback((it: any) => {
+  const onContinuePress = useCallback(async (it: any) => {
     const ratingKey = String(it.ratingKey || it.guid || '');
     if (settings.useCachedStreams) {
+      const guids = it.Guid || [];
+      const imdbId = extractImdbIdFromGuids(guids) || undefined;
+      const tmdbId = extractTmdbIdFromGuids(guids) || undefined;
+      const baseId = imdbId || (tmdbId ? `tmdb:${tmdbId}` : undefined);
+
+      if (baseId) {
+        const contentKey =
+          it.type === 'episode'
+            ? `series:${baseId}:${it.parentIndex || 1}:${it.index || 1}`
+            : `movie:${baseId}`;
+        const cachedSource = await stremioStreamCache.get(contentKey);
+        if (cachedSource) {
+          nav.navigate('Player', {
+            type: 'stream',
+            provider: 'stremio',
+            uri: cachedSource.uri,
+            headers: cachedSource.headers,
+            title: cachedSource.title,
+            mediaType: cachedSource.mediaType,
+            contentKey: cachedSource.contentKey,
+            imdbId: cachedSource.imdbId,
+            tmdbId: cachedSource.tmdbId,
+            seasonNumber: cachedSource.seasonNumber,
+            episodeNumber: cachedSource.episodeNumber,
+            episodeTitle: cachedSource.episodeTitle,
+            backdrop: cachedSource.backdrop,
+            streamLabel: cachedSource.streamLabel,
+            streamAddonId: cachedSource.addonId,
+            streamAddonName: cachedSource.addonName,
+            availableStreams: cachedSource.availableStreams,
+            externalSubtitles: cachedSource.externalSubtitles,
+            stremioIdentity: cachedSource.stremioIdentity,
+          });
+          return;
+        }
+      }
+
       nav.navigate('Player', { type: 'plex', ratingKey });
     } else if (settings.openMetadataScreenWhenCacheDisabled) {
       nav.navigate('Details', { type: 'plex', ratingKey });

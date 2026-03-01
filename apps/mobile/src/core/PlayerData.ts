@@ -472,3 +472,63 @@ export async function stopTraktScrobble(
     console.log('[PlayerData] stopTraktScrobble error:', e);
   }
 }
+
+type GenericTraktScrobbleInput = {
+  mediaType: 'movie' | 'episode';
+  progress: number;
+  tmdbId?: number;
+  imdbId?: string;
+  seasonNumber?: number;
+  episodeNumber?: number;
+};
+
+async function withGenericTraktScrobble(
+  action: 'start' | 'pause' | 'stop',
+  input: GenericTraktScrobbleInput
+): Promise<void> {
+  if (!isTraktAuthenticated()) return;
+  if (!input.tmdbId && !input.imdbId) return;
+
+  try {
+    const core = getFlixorCore();
+    const ids = toTraktIds({ tmdbId: input.tmdbId, imdbId: input.imdbId });
+
+    if (input.mediaType === 'movie') {
+      if (action === 'start') {
+        await core.trakt.startScrobbleMovie({ ids }, input.progress);
+      } else if (action === 'pause') {
+        await core.trakt.pauseScrobbleMovie({ ids }, input.progress);
+      } else {
+        await core.trakt.stopScrobbleMovie({ ids }, input.progress);
+      }
+      return;
+    }
+
+    const episode = {
+      season: input.seasonNumber || 1,
+      number: input.episodeNumber || 1,
+    };
+
+    if (action === 'start') {
+      await core.trakt.startScrobbleEpisode({ ids }, episode, input.progress);
+    } else if (action === 'pause') {
+      await core.trakt.pauseScrobbleEpisode({ ids }, episode, input.progress);
+    } else {
+      await core.trakt.stopScrobbleEpisode({ ids }, episode, input.progress);
+    }
+  } catch (e) {
+    console.log(`[PlayerData] ${action}GenericTraktScrobble error:`, e);
+  }
+}
+
+export async function startGenericTraktScrobble(input: GenericTraktScrobbleInput): Promise<void> {
+  await withGenericTraktScrobble('start', input);
+}
+
+export async function pauseGenericTraktScrobble(input: GenericTraktScrobbleInput): Promise<void> {
+  await withGenericTraktScrobble('pause', input);
+}
+
+export async function stopGenericTraktScrobble(input: GenericTraktScrobbleInput): Promise<void> {
+  await withGenericTraktScrobble('stop', input);
+}

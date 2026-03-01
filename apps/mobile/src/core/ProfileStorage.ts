@@ -72,6 +72,13 @@ export const PROFILE_SCOPED_KEYS = {
   // Secure storage keys
   TRAKT_TOKENS: 'trakt_tokens',
 
+  // Stremio playback state
+  STREMIO_ADDONS: 'stremio_addons',
+  STREMIO_ADDON_ORDER: 'stremio_addon_order',
+  STREMIO_STREAM_CACHE: 'stremio_stream_cache',
+  STREMIO_RESUME_STATE: 'stremio_resume_state',
+  STREMIO_REMOVED_DEFAULT_ADDONS: 'stremio_removed_default_addons',
+
   // Note: plex_auth is handled specially - stores main token + profile info
 } as const;
 

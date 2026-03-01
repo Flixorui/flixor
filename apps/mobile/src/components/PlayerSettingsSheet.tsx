@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Modal, Platform }
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAppSettings } from '../hooks/useAppSettings';
+import type { StremioSubtitleCandidate } from '../stremio/types';
 // Local track types for settings sheet (compatible with MPV track format)
 type AudioTrack = {
   id: number;
@@ -40,6 +41,13 @@ export type Stream = {
 export type QualityOption = {
   label: string;
   value: number | 'original';
+};
+
+export type SourceOption = {
+  id: string;
+  label: string;
+  description?: string;
+  disabled?: boolean;
 };
 
 export type PlaybackInfo = {
@@ -103,6 +111,14 @@ type PlayerSettingsSheetProps = {
   qualityOptions?: QualityOption[];
   selectedQuality?: number | 'original';
   onQualityChange?: (quality: number | 'original') => void;
+  // Generic stream source switching
+  sourceOptions?: SourceOption[];
+  selectedSourceId?: string | null;
+  onSourceChange?: (sourceId: string) => void;
+  // External subtitles
+  externalSubtitles?: StremioSubtitleCandidate[];
+  selectedExternalSubtitleId?: string | null;
+  onExternalSubtitleSelect?: (subtitleId: string | null) => void;
   // Playback info
   playbackInfo?: PlaybackInfo;
 };
@@ -125,6 +141,12 @@ export default function PlayerSettingsSheet({
   qualityOptions = [],
   selectedQuality,
   onQualityChange,
+  sourceOptions = [],
+  selectedSourceId,
+  onSourceChange,
+  externalSubtitles = [],
+  selectedExternalSubtitleId,
+  onExternalSubtitleSelect,
   playbackInfo,
 }: PlayerSettingsSheetProps) {
   // Prefer Plex streams (legacy format with proper names) over KSPlayer tracks
@@ -192,7 +214,7 @@ export default function PlayerSettingsSheet({
               >
                 <Ionicons name="settings" size={20} color={activeTab === 'quality' ? '#fff' : '#888'} />
                 <Text style={[styles.tabText, activeTab === 'quality' && styles.tabTextActive]}>
-                  Quality
+                  {sourceOptions.length > 0 ? 'Sources' : 'Quality'}
                 </Text>
               </TouchableOpacity>
 
@@ -273,7 +295,10 @@ export default function PlayerSettingsSheet({
                       {/* None option */}
                       <TouchableOpacity
                         style={styles.option}
-                        onPress={() => onKsTextTrack?.(-1)}
+                        onPress={() => {
+                          onExternalSubtitleSelect?.(null);
+                          onKsTextTrack?.(-1);
+                        }}
                       >
                         <View style={styles.optionContent}>
                           <Text style={styles.optionTitle}>None</Text>
@@ -289,9 +314,12 @@ export default function PlayerSettingsSheet({
                         ksTextTracks.map((track) => (
                           <TouchableOpacity
                             key={track.id}
-                            style={styles.option}
-                            onPress={() => onKsTextTrack?.(track.id)}
-                          >
+                          style={styles.option}
+                          onPress={() => {
+                            onExternalSubtitleSelect?.(null);
+                            onKsTextTrack?.(track.id);
+                          }}
+                        >
                             <View style={styles.optionContent}>
                               <Text style={styles.optionTitle}>
                                 {track.name || track.language || `Track ${track.index}`}
@@ -313,7 +341,10 @@ export default function PlayerSettingsSheet({
                       {/* None option */}
                       <TouchableOpacity
                         style={styles.option}
-                        onPress={() => onSubtitleChange?.('0')}
+                        onPress={() => {
+                          onExternalSubtitleSelect?.(null);
+                          onSubtitleChange?.('0');
+                        }}
                       >
                         <View style={styles.optionContent}>
                           <Text style={styles.optionTitle}>None</Text>
@@ -329,9 +360,12 @@ export default function PlayerSettingsSheet({
                         subtitleStreams.map((stream) => (
                           <TouchableOpacity
                             key={stream.id}
-                            style={styles.option}
-                            onPress={() => onSubtitleChange?.(stream.id)}
-                          >
+                          style={styles.option}
+                          onPress={() => {
+                            onExternalSubtitleSelect?.(null);
+                            onSubtitleChange?.(stream.id);
+                          }}
+                        >
                             <View style={styles.optionContent}>
                               <Text style={styles.optionTitle}>
                                 {stream.displayTitle || stream.language || `Track ${stream.index}`}
@@ -348,12 +382,56 @@ export default function PlayerSettingsSheet({
                       )}
                     </>
                   )}
+
+                  {externalSubtitles.length > 0 ? (
+                    <>
+                      <Text style={styles.sectionLabel}>External Subtitles</Text>
+                      {externalSubtitles.map((subtitle) => (
+                        <TouchableOpacity
+                          key={subtitle.id}
+                          style={styles.option}
+                          onPress={() => onExternalSubtitleSelect?.(subtitle.id)}
+                        >
+                          <View style={styles.optionContent}>
+                            <Text style={styles.optionTitle}>
+                              {subtitle.lang} · {subtitle.addonName || 'Stremio'}
+                            </Text>
+                            <Text style={styles.optionSubtitle}>{subtitle.url}</Text>
+                          </View>
+                          {selectedExternalSubtitleId === subtitle.id && (
+                            <Ionicons name="checkmark" size={24} color="#4a9eff" />
+                          )}
+                        </TouchableOpacity>
+                      ))}
+                    </>
+                  ) : null}
                 </View>
               )}
 
               {activeTab === 'quality' && (
                 <View>
-                  {qualityOptions.length === 0 ? (
+                  {sourceOptions.length > 0 ? (
+                    sourceOptions.map((option) => (
+                      <TouchableOpacity
+                        key={option.id}
+                        style={styles.option}
+                        onPress={() => !option.disabled && onSourceChange?.(option.id)}
+                        disabled={option.disabled}
+                      >
+                        <View style={styles.optionContent}>
+                          <Text style={styles.optionTitle}>{option.label}</Text>
+                          {option.description ? (
+                            <Text style={styles.optionSubtitle}>{option.description}</Text>
+                          ) : null}
+                        </View>
+                        {selectedSourceId === option.id ? (
+                          <Ionicons name="checkmark" size={24} color="#4a9eff" />
+                        ) : option.disabled ? (
+                          <Ionicons name="close-circle-outline" size={24} color="#fca5a5" />
+                        ) : null}
+                      </TouchableOpacity>
+                    ))
+                  ) : qualityOptions.length === 0 ? (
                     <Text style={styles.emptyText}>No quality options available</Text>
                   ) : (
                     qualityOptions.map((option) => (
@@ -690,6 +768,16 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.7)',
     justifyContent: 'flex-end',
+  },
+  sectionLabel: {
+    color: '#9ca3af',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    marginTop: 12,
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    paddingHorizontal: 4,
   },
   backdropDisabled: {
     backgroundColor: 'transparent',

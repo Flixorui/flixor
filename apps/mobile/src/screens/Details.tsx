@@ -61,8 +61,13 @@ import {
   NextUpEpisode,
 } from '../core/DetailsData';
 import { getUltraBlurColors, PlexUltraBlurColors } from '../core/HomeData';
+import { appLogger } from '../core/AppLogger';
 
 import FastImage from '@d11/react-native-fast-image';
+import {
+  resolveStremioIdentityFromPlexMetadata,
+  resolveStremioIdentityFromTmdb,
+} from '../stremio/StremioContentResolver';
 
 // Optional iOS liquid glass effect with safe fallback
 let GlassViewComp: any = null;
@@ -553,10 +558,19 @@ export default function Details({ route }: RouteParams) {
             const logo = await fetchTmdbLogo(params.mediaType, Number(params.id));
 
             setMeta({
+              id: Number(params.id),
+              tmdbId: Number(params.id),
               title: det?.title || det?.name || 'Title',
+              name: det?.name,
               summary: det?.overview,
               year: year,
               type: params.mediaType === 'movie' ? 'movie' : 'show',
+              imdb_id: det?.external_ids?.imdb_id || det?.imdb_id,
+              external_ids: det?.external_ids,
+              release_date: det?.release_date,
+              first_air_date: det?.first_air_date,
+              poster_path: det?.poster_path,
+              backdrop_path: det?.backdrop_path,
               backdropUrl: back,
               Genre: genres,
               logoUrl: logo,
@@ -753,6 +767,215 @@ export default function Details({ route }: RouteParams) {
     }
   };
 
+  const openStremioSources = useCallback(
+    async (input: {
+      mode: 'plex' | 'tmdb';
+      metadata?: any;
+      tmdbMediaType?: 'movie' | 'tv';
+      tmdbId?: number;
+      seasonNumber?: number;
+      episodeNumber?: number;
+      episodeTitle?: string;
+      titleOverride?: string;
+      backdropOverride?: string;
+    }) => {
+      try {
+        appLogger.info('[Stremio] CTA tapped', {
+          mode: input.mode,
+          tmdbId: input.tmdbId,
+          plexRatingKey: input.metadata?.ratingKey,
+          seasonNumber: input.seasonNumber,
+          episodeNumber: input.episodeNumber,
+        });
+        let result;
+        if (input.mode === 'plex' && input.metadata) {
+          result = await resolveStremioIdentityFromPlexMetadata(input.metadata, {
+            seasonNumber: input.seasonNumber,
+            episodeNumber: input.episodeNumber,
+          });
+        } else if (input.mode === 'tmdb' && input.tmdbMediaType && input.tmdbId) {
+          result = await resolveStremioIdentityFromTmdb(input.tmdbMediaType, input.tmdbId, {
+            seasonNumber: input.seasonNumber,
+            episodeNumber: input.episodeNumber,
+            tmdbDetails: meta,
+          });
+        } else {
+          result = { error: 'unresolved' as const };
+        }
+
+        if (!result.identity) {
+          appLogger.warn('[Stremio] ID resolution failed', {
+            mode: input.mode,
+            error: result.error,
+            tmdbId: input.tmdbId,
+            plexRatingKey: input.metadata?.ratingKey,
+          });
+          if (result.error === 'no_stream_addons') {
+            Alert.alert(
+              'No Stremio Addons',
+              'No stream-capable Stremio addons are installed for this profile.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Open Settings',
+                  onPress: () => {
+                    const parentNav = nav.getParent?.();
+                    if (parentNav) {
+                      parentNav.navigate('SettingsTab', { screen: 'StremioSettings' });
+                    }
+                  },
+                },
+              ]
+            );
+            return;
+          }
+
+          Alert.alert('Stremio Unavailable', 'No compatible Stremio ID could be resolved for this title.');
+          return;
+        }
+
+        appLogger.info('[Stremio] ID resolved', {
+          requestId: result.identity.requestId,
+          baseId: result.identity.baseId,
+          source: result.identity.source,
+        });
+        nav.navigate('StremioSources', {
+          identity: result.identity,
+          title: input.titleOverride || meta?.title || meta?.grandparentTitle || 'Title',
+          backdrop:
+            input.backdropOverride ||
+            meta?.backdropUrl ||
+            ((meta?.art || meta?.thumb) ? getPlexImageUrl(meta?.art || meta?.thumb, 1080) : undefined),
+          mediaType: input.episodeNumber ? 'episode' : 'movie',
+          imdbId: result.identity.imdbId,
+          tmdbId: result.identity.tmdbId,
+          seasonNumber: input.seasonNumber || result.identity.seasonNumber,
+          episodeNumber: input.episodeNumber || result.identity.episodeNumber,
+          episodeTitle: input.episodeTitle,
+        });
+      } catch (e: any) {
+        appLogger.warn('[Stremio] Failed to prepare sources', {
+          error: e?.message || String(e),
+        });
+        Alert.alert('Stremio Unavailable', 'Failed to prepare Stremio sources for this title.');
+      }
+    },
+    [meta, nav]
+  );
+
+  const handleStremioFromHero = useCallback(async () => {
+    if (!settings.stremioPlaybackEnabled) {
+      return;
+    }
+
+    if (params.type === 'plex') {
+      if (meta?.type === 'movie') {
+        await openStremioSources({ mode: 'plex', metadata: meta, titleOverride: meta?.title });
+        return;
+      }
+
+      if (meta?.type === 'show') {
+        if (nextUp?.ratingKey) {
+          const nextEpisodeMeta = await fetchPlexMetadata(nextUp.ratingKey);
+          if (nextEpisodeMeta) {
+            await openStremioSources({
+              mode: 'plex',
+              metadata: nextEpisodeMeta,
+              seasonNumber: nextUp.seasonNumber,
+              episodeNumber: nextUp.episodeNumber,
+              episodeTitle: nextEpisodeMeta.title,
+              titleOverride: meta?.title,
+            });
+            return;
+          }
+        }
+
+        const firstEpisode = episodes.find((episode) => episode.ratingKey);
+        if (firstEpisode) {
+          const episodeMeta = await fetchPlexMetadata(String(firstEpisode.ratingKey));
+          if (episodeMeta) {
+            await openStremioSources({
+              mode: 'plex',
+              metadata: episodeMeta,
+              seasonNumber: firstEpisode.parentIndex,
+              episodeNumber: firstEpisode.index,
+              episodeTitle: firstEpisode.title,
+              titleOverride: meta?.title,
+            });
+            return;
+          }
+        }
+
+        Alert.alert('Choose an Episode', 'Open a specific episode to fetch Stremio sources for this show.');
+        return;
+      }
+    }
+
+    if (params.type === 'tmdb' && settings.stremioShowOnTmdbDetails && params.id) {
+      if (params.mediaType === 'movie') {
+        await openStremioSources({
+          mode: 'tmdb',
+          tmdbMediaType: 'movie',
+          tmdbId: Number(params.id),
+          titleOverride: meta?.title,
+        });
+        return;
+      }
+
+      const firstEpisode = episodes[0];
+      if (firstEpisode) {
+        await openStremioSources({
+          mode: 'tmdb',
+          tmdbMediaType: 'tv',
+          tmdbId: Number(params.id),
+          seasonNumber: firstEpisode.season_number,
+          episodeNumber: firstEpisode.episode_number,
+          episodeTitle: firstEpisode.name,
+          titleOverride: meta?.name || meta?.title,
+        });
+        return;
+      }
+
+      Alert.alert('Choose an Episode', 'Open a specific episode to fetch Stremio sources for this show.');
+    }
+  }, [episodes, meta, nextUp, openStremioSources, params.id, params.mediaType, params.type, settings.stremioPlaybackEnabled, settings.stremioShowOnTmdbDetails]);
+
+  const handleStremioEpisode = useCallback(
+    async (episode: any) => {
+      if (!settings.stremioPlaybackEnabled) {
+        return;
+      }
+
+      if (seasonSource === 'tmdb' && params.id) {
+        await openStremioSources({
+          mode: 'tmdb',
+          tmdbMediaType: 'tv',
+          tmdbId: Number(params.id),
+          seasonNumber: episode.season_number || Number(seasonKey || 1),
+          episodeNumber: episode.episode_number,
+          episodeTitle: episode.name || episode.title,
+          titleOverride: meta?.name || meta?.title,
+        });
+        return;
+      }
+
+      if (episode.ratingKey) {
+        const episodeMeta = await fetchPlexMetadata(String(episode.ratingKey));
+        if (episodeMeta) {
+          await openStremioSources({
+            mode: 'plex',
+            metadata: episodeMeta,
+            seasonNumber: episode.parentIndex,
+            episodeNumber: episode.index,
+            episodeTitle: episode.title,
+            titleOverride: meta?.title || meta?.grandparentTitle,
+          });
+        }
+      }
+    },
+    [meta, openStremioSources, params.id, seasonKey, seasonSource, settings.stremioPlaybackEnabled]
+  );
+
   // Helper to parse hex color (with or without #) to RGB
   const hexToRgb = useCallback((hex: string) => {
     // Remove # if present, handle colors without #
@@ -844,6 +1067,10 @@ export default function Details({ route }: RouteParams) {
   };
 
   const title = meta?.title || meta?.grandparentTitle || 'Title';
+  const showStremioButton =
+    settings.stremioPlaybackEnabled &&
+    (params.type === 'plex' || (params.type === 'tmdb' && settings.stremioShowOnTmdbDetails)) &&
+    (meta?.type === 'movie' || meta?.type === 'show');
   const contentRating = meta?.contentRating || 'PG';
   // Badges parsing from Plex streams (matching macOS logic)
   const media = (meta?.Media || [])[0] || {};
@@ -1129,59 +1356,75 @@ export default function Details({ route }: RouteParams) {
         )}
 
         {/* Play / Continue */}
-        <Pressable
-          disabled={!matchedPlex}
-          onPress={() => {
-            if (matchedPlex || params.type === 'plex') {
-              // For TV shows with nextUp, play that episode (with version check)
-              if (meta?.type === 'show' && nextUp) {
-                console.log('[Details] Playing next up episode:', nextUp.ratingKey, `S${nextUp.seasonNumber}E${nextUp.episodeNumber}`);
-                handlePlayWithVersionCheck(nextUp.ratingKey);
-              } else {
-                // For movies or shows without nextUp data, play the main content
-                const rk = mappedRk || params.ratingKey;
-                if (rk) {
-                  // Check for multiple versions (multi-version support)
-                  const mediaArray = meta?.Media || [];
-                  if (mediaArray.length > 1) {
-                    // Parse versions and show picker
-                    const versions = mediaArray.map((m: any, idx: number) => parseVersionDetails(m, idx));
-                    setMediaVersions(versions);
-                    setPendingPlayRatingKey(rk);
-                    setShowVersionPicker(true);
-                    console.log('[Details] Multiple versions detected:', versions.length);
-                  } else {
-                    console.log('[Details] Playing ratingKey:', rk);
-                    nav.navigate('Player', { type: 'plex', ratingKey: rk });
+        <View style={{ marginHorizontal: 16, marginTop: 12, gap: 10 }}>
+          <Pressable
+            disabled={!matchedPlex}
+            onPress={() => {
+              if (matchedPlex || params.type === 'plex') {
+                // For TV shows with nextUp, play that episode (with version check)
+                if (meta?.type === 'show' && nextUp) {
+                  console.log('[Details] Playing next up episode:', nextUp.ratingKey, `S${nextUp.seasonNumber}E${nextUp.episodeNumber}`);
+                  handlePlayWithVersionCheck(nextUp.ratingKey);
+                } else {
+                  // For movies or shows without nextUp data, play the main content
+                  const rk = mappedRk || params.ratingKey;
+                  if (rk) {
+                    // Check for multiple versions (multi-version support)
+                    const mediaArray = meta?.Media || [];
+                    if (mediaArray.length > 1) {
+                      // Parse versions and show picker
+                      const versions = mediaArray.map((m: any, idx: number) => parseVersionDetails(m, idx));
+                      setMediaVersions(versions);
+                      setPendingPlayRatingKey(rk);
+                      setShowVersionPicker(true);
+                      console.log('[Details] Multiple versions detected:', versions.length);
+                    } else {
+                      console.log('[Details] Playing ratingKey:', rk);
+                      nav.navigate('Player', { type: 'plex', ratingKey: rk });
+                    }
                   }
                 }
               }
-            }
-          }}
-          style={{
-            marginHorizontal:16,
-            marginTop:12,
-            backgroundColor: matchedPlex ? '#fff' : '#333',
-            paddingVertical:12,
-            borderRadius:12,
-            alignItems:'center'
-          }}
-        >
-          {matchedPlex ? (
-            meta?.type === 'show' && nextUp ? (
-              <Text style={{ color:'#000', fontWeight:'900', letterSpacing:1 }}>
-                {nextUp.status === 'in-progress' ? '▶  CONTINUE' : nextUp.status === 'all-watched' ? '▶  REWATCH' : '▶  PLAY'}
-                {' · '}S{nextUp.seasonNumber} E{nextUp.episodeNumber}
-              </Text>
+            }}
+            style={{
+              backgroundColor: matchedPlex ? '#fff' : '#333',
+              paddingVertical: 12,
+              borderRadius: 12,
+              alignItems: 'center',
+            }}
+          >
+            {matchedPlex ? (
+              meta?.type === 'show' && nextUp ? (
+                <Text style={{ color:'#000', fontWeight:'900', letterSpacing:1 }}>
+                  {nextUp.status === 'in-progress' ? '▶  CONTINUE' : nextUp.status === 'all-watched' ? '▶  REWATCH' : '▶  PLAY'}
+                  {' · '}S{nextUp.seasonNumber} E{nextUp.episodeNumber}
+                </Text>
+              ) : (
+                <Text style={{ color:'#000', fontWeight:'900', letterSpacing:2 }}>▶  PLAY</Text>
+              )
             ) : (
-              <Text style={{ color:'#000', fontWeight:'900', letterSpacing:2 }}>▶  PLAY</Text>
-            )
-          ) : (
-            <Text style={{ color:'#888', fontWeight:'700', fontSize:13, textAlign:'center' }}>
-              You don't own this content{'\n'}No local source found
-            </Text>
-          )}
-        </Pressable>
+              <Text style={{ color:'#888', fontWeight:'700', fontSize:13, textAlign:'center' }}>
+                You don't own this content{'\n'}No local source found
+              </Text>
+            )}
+          </Pressable>
+
+          {showStremioButton ? (
+            <Pressable
+              onPress={handleStremioFromHero}
+              style={{
+                backgroundColor: 'rgba(255,255,255,0.1)',
+                paddingVertical: 12,
+                borderRadius: 12,
+                alignItems: 'center',
+                borderWidth: 1,
+                borderColor: 'rgba(255,255,255,0.12)',
+              }}
+            >
+              <Text style={{ color: '#fff', fontWeight: '800', letterSpacing: 1 }}>STREMIO</Text>
+            </Pressable>
+          ) : null}
+        </View>
 
         {/* Actions */}
         <View style={{ flexDirection:'row', justifyContent:'space-around', marginTop:14 }}>
@@ -1299,6 +1542,8 @@ export default function Details({ route }: RouteParams) {
                     loading={episodesLoading}
                     tmdbEpisodeData={tmdbEpisodeData}
                     onPlayEpisode={handlePlayEpisode}
+                    onOpenStremioEpisode={handleStremioEpisode}
+                    stremioEnabled={settings.stremioPlaybackEnabled && (seasonSource !== 'tmdb' || settings.stremioShowOnTmdbDetails)}
                   />
                 </View>
               )}
@@ -1366,6 +1611,8 @@ export default function Details({ route }: RouteParams) {
                     loading={episodesLoading}
                     tmdbEpisodeData={tmdbEpisodeData}
                     onPlayEpisode={handlePlayEpisode}
+                    onOpenStremioEpisode={handleStremioEpisode}
+                    stremioEnabled={settings.stremioPlaybackEnabled && (seasonSource !== 'tmdb' || settings.stremioShowOnTmdbDetails)}
                   />
                 </>
               ) : null}
@@ -1469,7 +1716,27 @@ function WatchlistButton({ inWatchlist, loading, onPress }: { inWatchlist: boole
   );
 }
 
-function EpisodeList({ season, episodes, tmdbMode, tmdbId, loading, tmdbEpisodeData, onPlayEpisode }: { season: string | null; episodes: any[]; tmdbMode?: boolean; tmdbId?: string; loading?: boolean; tmdbEpisodeData?: Map<number, TMDBEpisodeData>; onPlayEpisode?: (episode: any) => void }) {
+function EpisodeList({
+  season,
+  episodes,
+  tmdbMode,
+  tmdbId,
+  loading,
+  tmdbEpisodeData,
+  onPlayEpisode,
+  onOpenStremioEpisode,
+  stremioEnabled,
+}: {
+  season: string | null;
+  episodes: any[];
+  tmdbMode?: boolean;
+  tmdbId?: string;
+  loading?: boolean;
+  tmdbEpisodeData?: Map<number, TMDBEpisodeData>;
+  onPlayEpisode?: (episode: any) => void;
+  onOpenStremioEpisode?: (episode: any) => void;
+  stremioEnabled?: boolean;
+}) {
   const nav: any = useNavigation();
   const { settings } = useAppSettings();
   const useHorizontalLayout = settings.episodeLayoutStyle === 'horizontal';
@@ -1630,6 +1897,26 @@ function EpisodeList({ season, episodes, tmdbMode, tmdbId, loading, tmdbEpisodeD
                 </View>
               ) : null}
             </View>
+            {stremioEnabled ? (
+              <Pressable
+                onPress={(event) => {
+                  event.stopPropagation();
+                  onOpenStremioEpisode?.(ep);
+                }}
+                style={{
+                  alignSelf: 'flex-start',
+                  marginTop: 10,
+                  paddingHorizontal: 10,
+                  paddingVertical: 6,
+                  borderRadius: 999,
+                  backgroundColor: 'rgba(255,255,255,0.16)',
+                }}
+              >
+                <Text style={{ color: '#fff', fontSize: 11, fontWeight: '800', letterSpacing: 0.6 }}>
+                  STREMIO
+                </Text>
+              </Pressable>
+            ) : null}
           </View>
           {showProgress ? (
             <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 4, backgroundColor: '#ffffff33' }}>
@@ -1712,6 +1999,26 @@ function EpisodeList({ season, episodes, tmdbMode, tmdbId, loading, tmdbEpisodeD
                   {durationLabel && airDate ? <Text style={{ color: '#bbb', marginHorizontal: 6 }}>•</Text> : null}
                   {airDate ? <Text style={{ color: '#bbb' }}>{airDate}</Text> : null}
                 </View>
+                {stremioEnabled ? (
+                  <Pressable
+                    onPress={(event) => {
+                      event.stopPropagation();
+                      onOpenStremioEpisode?.(ep);
+                    }}
+                    style={{
+                      alignSelf: 'flex-start',
+                      marginTop: 8,
+                      paddingHorizontal: 10,
+                      paddingVertical: 5,
+                      borderRadius: 999,
+                      backgroundColor: 'rgba(255,255,255,0.12)',
+                    }}
+                  >
+                    <Text style={{ color: '#fff', fontSize: 11, fontWeight: '800', letterSpacing: 0.6 }}>
+                      STREMIO
+                    </Text>
+                  </Pressable>
+                ) : null}
               </View>
               {/* Download button for episodes - only for Plex sources */}
               {!tmdbMode && ep.ratingKey && (

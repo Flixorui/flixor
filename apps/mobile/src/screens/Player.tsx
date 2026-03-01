@@ -33,6 +33,7 @@ type TextTrack = {
 };
 import { Stream, PlaybackInfo } from '../components/PlayerSettingsSheet';
 import { useFlixor } from '../core/FlixorContext';
+import { appLogger } from '../core/AppLogger';
 import {
   fetchPlayerMetadata,
   fetchMarkers,
@@ -48,6 +49,9 @@ import {
   stopTraktScrobble,
   isTraktAuthenticated,
   NextEpisodeInfo,
+  startGenericTraktScrobble,
+  pauseGenericTraktScrobble,
+  stopGenericTraktScrobble,
 } from '../core/PlayerData';
 import { Replay10Icon, Forward10Icon } from '../components/icons/SkipIcons';
 import { TopBarStore } from '../components/TopBarStore';
@@ -59,8 +63,19 @@ import {
   getOfflineMarkers,
   formatMarkersForPlayer,
 } from '../services/downloads';
+import type {
+  GenericStreamParams,
+  StremioPlayableStream,
+} from '../stremio/types';
+import { stremioResumeStore } from '../stremio/StremioResumeStore';
+import { useCustomSubtitles } from '../components/player/hooks/useCustomSubtitles';
+import CustomSubtitles from '../components/player/subtitles/CustomSubtitles';
+import {
+  findBestAudioTrack,
+  findBestSubtitleTrack,
+} from '../components/player/utils/trackSelectionUtils';
 
-type PlayerParams = {
+type LegacyPlayerParams = {
   type: 'plex' | 'tmdb' | 'offline';
   ratingKey?: string;
   id?: string;
@@ -75,6 +90,8 @@ type PlayerParams = {
   offlineGlobalKey?: string;
 };
 
+type PlayerParams = LegacyPlayerParams | GenericStreamParams;
+
 type RouteParams = {
   route?: {
     params?: PlayerParams;
@@ -82,7 +99,7 @@ type RouteParams = {
 };
 
 export default function Player({ route }: RouteParams) {
-  const params: Partial<PlayerParams> = route?.params || {};
+  const params = (route?.params || {}) as Partial<PlayerParams> & Record<string, any>;
   const nav = useNavigation();
   const mpvPlayerRef = useRef<MPVPlayerRef>(null); // Unified MPV player (iOS + Android)
   const videoRef = useRef<Video>(null); // expo-av fallback (unused with MPV)
@@ -95,6 +112,9 @@ export default function Player({ route }: RouteParams) {
 
   // Multi-version support: which Media to use
   const selectedMediaIndex = params.mediaIndex ?? 0;
+  const isStreamPlayback = params.type === 'stream';
+  const streamParams = isStreamPlayback ? (params as GenericStreamParams) : null;
+  const streamContentKey = streamParams?.contentKey;
 
   // Track selection state (MPV player - iOS + Android)
   const [audioTracks, setAudioTracks] = useState<AudioTrack[]>([]);
@@ -120,6 +140,7 @@ export default function Player({ route }: RouteParams) {
 
   const [loading, setLoading] = useState(true);
   const [streamUrl, setStreamUrl] = useState<string>('');
+  const [streamHeaders, setStreamHeaders] = useState<Record<string, string> | undefined>(undefined);
   const [metadata, setMetadata] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -136,7 +157,7 @@ export default function Player({ route }: RouteParams) {
   // Auto-skip state
   const [autoSkipCountdown, setAutoSkipCountdown] = useState<number | null>(null);
   const autoSkipTriggeredMarkersRef = useRef<Set<string>>(new Set());
-  const autoSkipTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const autoSkipTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Next episode for auto-play
   const [nextEpisode, setNextEpisode] = useState<NextEpisodeInfo | null>(null);
@@ -161,6 +182,7 @@ export default function Player({ route }: RouteParams) {
   // Quality selection state
   const [selectedQuality, setSelectedQuality] = useState<number | 'original'>('original');
   const [qualityOptions, setQualityOptions] = useState<Array<{ label: string; value: number | 'original' }>>([]);
+  const [selectedStreamSourceId, setSelectedStreamSourceId] = useState<string | null>(null);
 
   // Video resize mode for pinch-to-zoom (contain = letterbox, cover = fill screen)
 
@@ -170,8 +192,8 @@ export default function Player({ route }: RouteParams) {
     height: Dimensions.get('window').height,
   });
 
-  const progressInterval = useRef<NodeJS.Timeout | null>(null);
-  const controlsTimeout = useRef<NodeJS.Timeout | null>(null);
+  const progressInterval = useRef<ReturnType<typeof setInterval> | null>(null);
+  const controlsTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Store cleanup info in refs
   const cleanupInfoRef = useRef({ sessionId: '', ratingKey: '' });
@@ -185,6 +207,9 @@ export default function Player({ route }: RouteParams) {
   const metadataRef = useRef<any>(null);
   const positionRef = useRef(0);
   const durationRef = useRef(0);
+  const streamResumeSaveAtRef = useRef(0);
+  const streamSourceSelectionAppliedRef = useRef<string | null>(null);
+  const streamAutoSelectionAppliedRef = useRef<string | null>(null);
 
   // Track selection refs (to prevent duplicate calls and infinite loops)
   const lastAudioTrackRef = useRef<number | null>(null);
@@ -198,6 +223,15 @@ export default function Player({ route }: RouteParams) {
 
   // Aspect ratio mode: 0=contain, 1=cover, 2=fill
   const [aspectRatioMode, setAspectRatioMode] = useState(0);
+  const {
+    currentText: currentExternalSubtitleText,
+    selectedExternalSubtitleId,
+    isLoading: isLoadingExternalSubtitle,
+    error: externalSubtitleError,
+    setCurrentTimeMs: setExternalSubtitleTimeMs,
+    loadSubtitle: loadExternalSubtitle,
+    clear: clearExternalSubtitle,
+  } = useCustomSubtitles();
 
   // PERFORMANCE FIX: Keep JS thread active during playback to prevent iOS from throttling
   // the render loop. This is a workaround for frame drops when JS is idle.
@@ -213,18 +247,60 @@ export default function Player({ route }: RouteParams) {
     return () => clearInterval(heartbeat);
   }, [isPlaying]);
 
+  const buildStreamSourceId = useCallback((stream: StremioPlayableStream) => {
+    const providerId = stream.addonInstallationId || stream.addonId || 'stream';
+    return `${providerId}:${stream.streamIndex}`;
+  }, []);
+
+  const persistStreamResumeState = useCallback(
+    async (resumePositionMs: number, totalDurationMs: number) => {
+      if (!streamContentKey) {
+        return;
+      }
+
+      const progressRatio = totalDurationMs > 0 ? resumePositionMs / totalDurationMs : 0;
+      if (progressRatio >= 0.9) {
+        await stremioResumeStore.clear(streamContentKey);
+        return;
+      }
+
+      await stremioResumeStore.save({
+        contentKey: streamContentKey,
+        positionMs: Math.max(0, Math.floor(resumePositionMs)),
+        durationMs: Math.max(0, Math.floor(totalDurationMs)),
+        updatedAt: Date.now(),
+      });
+    },
+    [streamContentKey]
+  );
+
   // Define cleanup and playNext callbacks early so they can be used in useEffects
   const cleanup = useCallback(async () => {
     const { sessionId: sid } = cleanupInfoRef.current;
+    const progress = durationRef.current
+      ? Math.round((positionRef.current / durationRef.current) * 100)
+      : 0;
 
     // Stop Trakt scrobble
     if (traktScrobbleStarted.current && metadataRef.current) {
-      const progress = durationRef.current
-        ? Math.round((positionRef.current / durationRef.current) * 100)
-        : 0;
-      stopTraktScrobble(metadataRef.current, progress);
+      if (isStreamPlayback && streamParams) {
+        stopGenericTraktScrobble({
+          mediaType: streamParams.mediaType,
+          progress,
+          imdbId: streamParams.imdbId,
+          tmdbId: streamParams.tmdbId,
+          seasonNumber: streamParams.seasonNumber,
+          episodeNumber: streamParams.episodeNumber,
+        });
+      } else {
+        stopTraktScrobble(metadataRef.current, progress);
+      }
       lastScrobbleState.current = 'stopped';
       traktScrobbleStarted.current = false;
+    }
+
+    if (isStreamPlayback) {
+      await persistStreamResumeState(positionRef.current, durationRef.current);
     }
 
     if (sid) {
@@ -242,7 +318,7 @@ export default function Player({ route }: RouteParams) {
       // MPV player is controlled via state (paused prop), not direct method
       // Just letting the component unmount will stop playback
     } catch {}
-  }, []);
+  }, [isStreamPlayback, persistStreamResumeState, streamParams]);
 
   const playNext = useCallback(async () => {
     if (nextEpisode) {
@@ -259,6 +335,34 @@ export default function Player({ route }: RouteParams) {
       }));
     }
   }, [nextEpisode, cleanup, nav, selectedMediaIndex]);
+
+  const replaceStreamSource = useCallback(
+    async (stream: StremioPlayableStream) => {
+      if (!streamParams || !stream.url) {
+        return;
+      }
+
+      const headers = {
+        ...(stream.headers || {}),
+        ...(stream.behaviorHints?.proxyHeaders?.request || {}),
+      };
+
+      const nextRoute: GenericStreamParams = {
+        ...streamParams,
+        uri: stream.url,
+        headers: Object.keys(headers).length > 0 ? headers : undefined,
+        streamLabel: stream.name || stream.title || streamParams.streamLabel,
+        streamAddonId: stream.addonId,
+        streamAddonName: stream.addonName,
+        resumePositionMs: positionRef.current,
+      };
+
+      isReplacingRef.current = true;
+      await cleanup();
+      nav.dispatch(StackActions.replace('Player', nextRoute as any));
+    },
+    [cleanup, nav, streamParams]
+  );
 
   useEffect(() => {
     // Hide TopBar and TabBar when Player is shown
@@ -285,6 +389,9 @@ export default function Player({ route }: RouteParams) {
       } catch (e) {
         console.warn('[Player] Failed to lock orientation:', e);
       }
+
+      setStreamHeaders(undefined);
+      clearExternalSubtitle();
 
       // Handle offline playback
       if (params.type === 'offline' && params.offlineFilePath && params.offlineGlobalKey) {
@@ -348,6 +455,53 @@ export default function Player({ route }: RouteParams) {
         } catch (e: any) {
           console.error('[Player] Offline playback error:', e);
           setError(e?.message || 'Failed to load offline content');
+          setLoading(false);
+        }
+        return;
+      }
+
+      if (params.type === 'stream' && params.uri) {
+        try {
+          console.log('[Player] Stream playback mode');
+          const streamMeta = {
+            title: params.episodeTitle || params.title,
+            grandparentTitle: params.mediaType === 'episode' ? params.title : undefined,
+            type: params.mediaType,
+            viewOffset: params.resumePositionMs || 0,
+            thumb: params.backdrop,
+            parentIndex: params.seasonNumber,
+            index: params.episodeNumber,
+          };
+
+          setMetadata(streamMeta);
+          metadataRef.current = streamMeta;
+          setStreamUrl(params.uri);
+          setStreamHeaders(params.headers);
+          setSelectedQuality('original');
+          setQualityOptions([]);
+          setIsDirectPlay(true);
+
+          if (params.availableStreams?.length) {
+            const currentStream = params.availableStreams.find((stream) => {
+              const streamUrl = stream.url;
+              if (!streamUrl || streamUrl !== params.uri) {
+                return false;
+              }
+              const streamHeaders = {
+                ...(stream.headers || {}),
+                ...(stream.behaviorHints?.proxyHeaders?.request || {}),
+              };
+              return JSON.stringify(streamHeaders || {}) === JSON.stringify(params.headers || {});
+            });
+            if (currentStream) {
+              setSelectedStreamSourceId(buildStreamSourceId(currentStream));
+            }
+          }
+
+          setLoading(false);
+        } catch (e: any) {
+          console.error('[Player] Stream playback error:', e);
+          setError(e?.message || 'Failed to load stream');
           setLoading(false);
         }
         return;
@@ -700,11 +854,23 @@ export default function Player({ route }: RouteParams) {
           const progress = durationRef.current
             ? Math.round((positionRef.current / durationRef.current) * 100)
             : 0;
-          stopTraktScrobble(metadataRef.current, progress);
+          if (isStreamPlayback && streamParams) {
+            stopGenericTraktScrobble({
+              mediaType: streamParams.mediaType,
+              progress,
+              imdbId: streamParams.imdbId,
+              tmdbId: streamParams.tmdbId,
+              seasonNumber: streamParams.seasonNumber,
+              episodeNumber: streamParams.episodeNumber,
+            });
+            await persistStreamResumeState(positionRef.current, durationRef.current);
+          } else {
+            stopTraktScrobble(metadataRef.current, progress);
+          }
           lastScrobbleState.current = 'stopped';
         }
 
-        if (sid) {
+        if (params.type === 'plex' && sid) {
           try {
             await stopTranscodeSession(sid);
             console.log('[Player] Stopped transcode session:', sid);
@@ -736,13 +902,13 @@ export default function Player({ route }: RouteParams) {
       if (progressInterval.current) clearInterval(progressInterval.current);
       if (controlsTimeout.current) clearTimeout(controlsTimeout.current);
     };
-  }, [flixorLoading, isConnected]);
+  }, [clearExternalSubtitle, flixorLoading, isConnected, isStreamPlayback, params.type, persistStreamResumeState, streamParams]);
 
   // Update progress to Plex - use refs to avoid recreating interval on every position change
   const isPlayingRef = useRef(true); // Start as playing
 
   useEffect(() => {
-    if (!params.ratingKey || !isConnected) return;
+    if (params.type !== 'plex' || !params.ratingKey || !isConnected) return;
 
     const updateProgress = async () => {
       const currentPosition = positionRef.current;
@@ -774,32 +940,47 @@ export default function Player({ route }: RouteParams) {
       clearTimeout(initialTimeout);
       if (progressInterval.current) clearInterval(progressInterval.current);
     };
-  }, [params.ratingKey, isConnected]);
+  }, [isConnected, params.ratingKey, params.type]);
 
   // Cleanup on navigation
   useEffect(() => {
     const cleanup = async () => {
       const { sessionId: sid, ratingKey: rk } = cleanupInfoRef.current;
+      const progress = durationRef.current
+        ? Math.round((positionRef.current / durationRef.current) * 100)
+        : 0;
 
       // Stop Trakt scrobble
       if (traktScrobbleStarted.current && metadataRef.current) {
-        const progress = durationRef.current
-          ? Math.round((positionRef.current / durationRef.current) * 100)
-          : 0;
-        stopTraktScrobble(metadataRef.current, progress);
+        if (isStreamPlayback && streamParams) {
+          stopGenericTraktScrobble({
+            mediaType: streamParams.mediaType,
+            progress,
+            imdbId: streamParams.imdbId,
+            tmdbId: streamParams.tmdbId,
+            seasonNumber: streamParams.seasonNumber,
+            episodeNumber: streamParams.episodeNumber,
+          });
+        } else {
+          stopTraktScrobble(metadataRef.current, progress);
+        }
         lastScrobbleState.current = 'stopped';
       }
 
       // Send stopped timeline update with actual position
-      if (rk) {
+      if (params.type === 'plex' && rk) {
         try {
           console.log(`[Player] Sending stopped timeline: pos=${Math.floor(positionRef.current)}ms, dur=${Math.floor(durationRef.current)}ms`);
           await updatePlaybackTimeline(rk, 'stopped', Math.floor(positionRef.current), Math.floor(durationRef.current));
         } catch (e) {}
       }
 
+      if (isStreamPlayback) {
+        await persistStreamResumeState(positionRef.current, durationRef.current);
+      }
+
       // Stop transcode session
-      if (sid) {
+      if (params.type === 'plex' && sid) {
         try {
           await stopTranscodeSession(sid);
         } catch (e) {}
@@ -842,7 +1023,7 @@ export default function Player({ route }: RouteParams) {
     });
 
     return () => { unsubscribe(); focusSub(); blurSub(); };
-  }, [nav, params.ratingKey]);
+  }, [isStreamPlayback, nav, params.ratingKey, params.type, persistStreamResumeState, streamParams]);
 
   // Auto-hide controls
   const resetControlsTimeout = () => {
@@ -947,7 +1128,7 @@ export default function Player({ route }: RouteParams) {
 
   // Refs for countdown/end handling to prevent infinite loops
   const nextEpisodeCountdownStartedRef = useRef(false);
-  const nextEpisodeCountdownTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const nextEpisodeCountdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const movieEndTriggeredRef = useRef(false);
 
   // Next episode countdown logic - trigger 5-second countdown when credits start (or fallback)
@@ -1173,22 +1354,60 @@ export default function Player({ route }: RouteParams) {
       lastTextTrackRef.current = -1;
     }
 
-    // Resume from viewOffset if available
-    if (metadata?.viewOffset) {
-      const resumeMs = parseInt(String(metadata.viewOffset));
-      if (resumeMs > 0 && mpvPlayerRef.current) {
-        console.log('[Player] Resuming from viewOffset:', resumeMs);
+    // Resume from route or metadata viewOffset if available
+    const resumeMs = Number(streamParams?.resumePositionMs || metadata?.viewOffset || 0);
+    if (resumeMs > 0) {
+      if (mpvPlayerRef.current) {
+        console.log('[Player] Resuming from position:', resumeMs);
         mpvPlayerRef.current.seek(resumeMs / 1000); // MPV uses seconds
       }
     }
 
+    // Track the selected source in stream mode for in-player source switching
+    if (isStreamPlayback && streamParams?.availableStreams?.length) {
+      const currentStream = streamParams.availableStreams.find((stream) => stream.url === streamParams.uri);
+      if (currentStream) {
+        const sourceId = buildStreamSourceId(currentStream);
+        streamSourceSelectionAppliedRef.current = sourceId;
+        setSelectedStreamSourceId(sourceId);
+      }
+    }
+
     // Start Trakt scrobble
+    if (isStreamPlayback && streamParams && !traktScrobbleStarted.current) {
+      appLogger.info('[Stremio] Stream playback started', {
+        contentKey: streamParams.contentKey,
+        addonId: streamParams.streamAddonId,
+        addonName: streamParams.streamAddonName,
+        streamLabel: streamParams.streamLabel,
+      });
+      startGenericTraktScrobble({
+        mediaType: streamParams.mediaType,
+        progress: 0,
+        imdbId: streamParams.imdbId,
+        tmdbId: streamParams.tmdbId,
+        seasonNumber: streamParams.seasonNumber,
+        episodeNumber: streamParams.episodeNumber,
+      });
+      traktScrobbleStarted.current = true;
+      lastScrobbleState.current = 'playing';
+      return;
+    }
+
+    if (metadata?.viewOffset) {
+      const legacyResumeMs = parseInt(String(metadata.viewOffset));
+      if (legacyResumeMs > 0 && mpvPlayerRef.current) {
+        console.log('[Player] Resuming from viewOffset:', legacyResumeMs);
+        mpvPlayerRef.current.seek(legacyResumeMs / 1000); // MPV uses seconds
+      }
+    }
+
     if (metadata && !traktScrobbleStarted.current) {
       startTraktScrobble(metadata, 0);
       traktScrobbleStarted.current = true;
       lastScrobbleState.current = 'playing';
     }
-  }, [metadata]);
+  }, [buildStreamSourceId, isStreamPlayback, metadata, streamParams]);
 
   const onPlayerProgress = useCallback((data: any) => {
     const currentTimeMs = (data.currentTime || 0) * 1000;
@@ -1196,6 +1415,9 @@ export default function Player({ route }: RouteParams) {
 
     // Update position ref always for cleanup/timeline
     positionRef.current = currentTimeMs;
+    if (isStreamPlayback) {
+      setExternalSubtitleTimeMs(currentTimeMs);
+    }
 
     // Only update position state if not scrubbing (throttle to reduce renders)
     if (!isScrubbing) {
@@ -1224,13 +1446,45 @@ export default function Player({ route }: RouteParams) {
     // Handle scrobble state changes
     if (currentlyPlaying && lastScrobbleState.current !== 'playing') {
       lastScrobbleState.current = 'playing';
-      startTraktScrobble(metadataRef.current, progressPercent);
+      if (isStreamPlayback && streamParams) {
+        startGenericTraktScrobble({
+          mediaType: streamParams.mediaType,
+          progress: progressPercent,
+          imdbId: streamParams.imdbId,
+          tmdbId: streamParams.tmdbId,
+          seasonNumber: streamParams.seasonNumber,
+          episodeNumber: streamParams.episodeNumber,
+        });
+      } else {
+        startTraktScrobble(metadataRef.current, progressPercent);
+      }
       traktScrobbleStarted.current = true;
     } else if (!currentlyPlaying && wasPlaying && lastScrobbleState.current === 'playing') {
       lastScrobbleState.current = 'paused';
-      pauseTraktScrobble(metadataRef.current, progressPercent);
+      if (isStreamPlayback && streamParams) {
+        pauseGenericTraktScrobble({
+          mediaType: streamParams.mediaType,
+          progress: progressPercent,
+          imdbId: streamParams.imdbId,
+          tmdbId: streamParams.tmdbId,
+          seasonNumber: streamParams.seasonNumber,
+          episodeNumber: streamParams.episodeNumber,
+        });
+      } else {
+        pauseTraktScrobble(metadataRef.current, progressPercent);
+      }
     }
-  }, [isScrubbing]);
+
+    if (isStreamPlayback) {
+      const now = Date.now();
+      if (now - streamResumeSaveAtRef.current >= 10000) {
+        streamResumeSaveAtRef.current = now;
+        persistStreamResumeState(currentTimeMs, durationMs).catch(() => {
+          // Ignore local resume persistence failures during playback.
+        });
+      }
+    }
+  }, [isScrubbing, isStreamPlayback, persistStreamResumeState, setExternalSubtitleTimeMs, streamParams]);
 
   const onPlayerBuffering = useCallback((data: any) => {
     setBuffering(data.isBuffering || false);
@@ -1241,11 +1495,25 @@ export default function Player({ route }: RouteParams) {
     setIsPlaying(false);
 
     // Stop Trakt scrobble
-    if (traktScrobbleStarted.current && metadata) {
-      stopTraktScrobble(metadata, 100);
+    if (traktScrobbleStarted.current) {
+      if (isStreamPlayback && streamParams) {
+        stopGenericTraktScrobble({
+          mediaType: streamParams.mediaType,
+          progress: 100,
+          imdbId: streamParams.imdbId,
+          tmdbId: streamParams.tmdbId,
+          seasonNumber: streamParams.seasonNumber,
+          episodeNumber: streamParams.episodeNumber,
+        });
+        if (streamContentKey) {
+          stremioResumeStore.clear(streamContentKey);
+        }
+      } else if (metadata) {
+        stopTraktScrobble(metadata, 100);
+      }
       lastScrobbleState.current = 'stopped';
     }
-  }, [metadata]);
+  }, [isStreamPlayback, metadata, streamContentKey, streamParams]);
 
   const onPlayerError = useCallback((error: any) => {
     const errorMessage = error?.error || error?.message || 'Unknown error';
@@ -1258,8 +1526,16 @@ export default function Player({ route }: RouteParams) {
     }
 
     console.error('[Player] Actual playback error:', errorMessage);
+    if (isStreamPlayback && streamParams) {
+      appLogger.warn('[Stremio] Stream playback failed', {
+        contentKey: streamParams.contentKey,
+        addonId: streamParams.streamAddonId,
+        addonName: streamParams.streamAddonName,
+        error: errorMessage,
+      });
+    }
     setError(`Playback error: ${errorMessage}`);
-  }, []);
+  }, [isStreamPlayback, streamParams]);
 
   // expo-av playback status handler (Android fallback)
   const onPlaybackStatusUpdate = useCallback((status: AVPlaybackStatus) => {
@@ -1289,13 +1565,35 @@ export default function Player({ route }: RouteParams) {
     // Handle scrobble state changes
     if (status.isPlaying && lastScrobbleState.current !== 'playing') {
       lastScrobbleState.current = 'playing';
-      startTraktScrobble(metadata, progressPercent);
+      if (isStreamPlayback && streamParams) {
+        startGenericTraktScrobble({
+          mediaType: streamParams.mediaType,
+          progress: progressPercent,
+          imdbId: streamParams.imdbId,
+          tmdbId: streamParams.tmdbId,
+          seasonNumber: streamParams.seasonNumber,
+          episodeNumber: streamParams.episodeNumber,
+        });
+      } else {
+        startTraktScrobble(metadata, progressPercent);
+      }
       traktScrobbleStarted.current = true;
     } else if (!status.isPlaying && wasPlaying && lastScrobbleState.current === 'playing') {
       lastScrobbleState.current = 'paused';
-      pauseTraktScrobble(metadata, progressPercent);
+      if (isStreamPlayback && streamParams) {
+        pauseGenericTraktScrobble({
+          mediaType: streamParams.mediaType,
+          progress: progressPercent,
+          imdbId: streamParams.imdbId,
+          tmdbId: streamParams.tmdbId,
+          seasonNumber: streamParams.seasonNumber,
+          episodeNumber: streamParams.episodeNumber,
+        });
+      } else {
+        pauseTraktScrobble(metadata, progressPercent);
+      }
     }
-  }, [isScrubbing, isPlaying, metadata]);
+  }, [isScrubbing, isPlaying, isStreamPlayback, metadata, streamParams]);
 
   // MPV tracks changed callback (for both iOS and Android)
   const onMpvTracksChanged = useCallback((data: { audioTracks: MPVAudioTrack[]; subtitleTracks: MPVSubtitleTrack[] }) => {
@@ -1399,8 +1697,56 @@ export default function Player({ route }: RouteParams) {
       console.log('[Player] Setting subtitle track (MPV):', trackId);
       mpvPlayerRef.current.setSubtitleTrack(trackId);
       setSelectedTextTrack(trackId);
+      if (trackId !== -1 || selectedExternalSubtitleId) {
+        clearExternalSubtitle();
+      }
     }
-  }, []);
+  }, [clearExternalSubtitle, selectedExternalSubtitleId]);
+
+  useEffect(() => {
+    if (!isStreamPlayback || !streamParams) {
+      return;
+    }
+
+    const availableExternalSubtitles = streamParams.externalSubtitles || [];
+    const sourceSelectionKey = `${streamParams.contentKey}:${audioTracks.length}:${textTracks.length}:${availableExternalSubtitles.length}`;
+    if (streamAutoSelectionAppliedRef.current === sourceSelectionKey) {
+      return;
+    }
+    streamAutoSelectionAppliedRef.current = sourceSelectionKey;
+
+    const preferredAudioTrack = findBestAudioTrack(audioTracks, settings.preferredAudioLanguage);
+    if (preferredAudioTrack !== null) {
+      handleAudioTrackChange(preferredAudioTrack);
+    }
+
+    const subtitlePreference = findBestSubtitleTrack(textTracks, availableExternalSubtitles, {
+      preferredSubtitleLanguage: settings.preferredSubtitleLanguage,
+      subtitleSourcePreference: settings.subtitleSourcePreference,
+      enableSubtitleAutoSelect: settings.enableSubtitleAutoSelect,
+    });
+
+    if (subtitlePreference.type === 'internal' && subtitlePreference.internalTrackId !== undefined) {
+      clearExternalSubtitle();
+      handleTextTrackChange(subtitlePreference.internalTrackId);
+    } else if (subtitlePreference.type === 'external' && subtitlePreference.externalSubtitle) {
+      handleTextTrackChange(-1);
+      loadExternalSubtitle(subtitlePreference.externalSubtitle);
+    }
+  }, [
+    audioTracks,
+    clearExternalSubtitle,
+    handleAudioTrackChange,
+    handleTextTrackChange,
+    isStreamPlayback,
+    loadExternalSubtitle,
+    settings.enableSubtitleAutoSelect,
+    settings.preferredAudioLanguage,
+    settings.preferredSubtitleLanguage,
+    settings.subtitleSourcePreference,
+    streamParams,
+    textTracks,
+  ]);
 
   // Restart player with new settings (for transcode mode)
   // This is the most reliable way to change tracks/quality - Plex caches transcodes aggressively
@@ -1612,6 +1958,47 @@ export default function Player({ route }: RouteParams) {
     });
   };
 
+  const handleExternalSubtitleSelection = useCallback(
+    async (subtitleId: string | null) => {
+      if (!streamParams) {
+        return;
+      }
+
+      if (!subtitleId) {
+        clearExternalSubtitle();
+        return;
+      }
+
+      const subtitle = (streamParams.externalSubtitles || []).find((item) => item.id === subtitleId);
+      if (!subtitle) {
+        return;
+      }
+
+      handleTextTrackChange(-1);
+      await loadExternalSubtitle(subtitle);
+    },
+    [clearExternalSubtitle, handleTextTrackChange, loadExternalSubtitle, streamParams]
+  );
+
+  const handleStreamSourceChange = useCallback(
+    async (sourceId: string) => {
+      if (!streamParams?.availableStreams?.length) {
+        return;
+      }
+
+      const stream = streamParams.availableStreams.find(
+        (candidate) => buildStreamSourceId(candidate) === sourceId
+      );
+      if (!stream || !stream.playable) {
+        return;
+      }
+
+      setSelectedStreamSourceId(sourceId);
+      await replaceStreamSource(stream);
+    },
+    [buildStreamSourceId, replaceStreamSource, streamParams]
+  );
+
   const currentMarker = markers.find(m =>
     position >= m.startTimeOffset && position <= m.endTimeOffset
   );
@@ -1691,7 +2078,7 @@ export default function Player({ route }: RouteParams) {
           {streamUrl ? (
             <MPVPlayerComponent
               ref={mpvPlayerRef}
-              source={{ uri: streamUrl }}
+              source={{ uri: streamUrl, headers: streamHeaders }}
               style={{ width: dimensions.width, height: dimensions.height }}
               paused={!isPlaying}
               volume={1.0}
@@ -1704,6 +2091,12 @@ export default function Player({ route }: RouteParams) {
               onTracksChanged={onMpvTracksChanged}
             />
           ) : null}
+
+      <CustomSubtitles
+        enabled={Boolean(selectedExternalSubtitleId)}
+        text={currentExternalSubtitleText}
+        controlsVisible={showControls}
+      />
 
       {/* Background tap area to show/hide controls + pinch gesture detection */}
       <View style={styles.tapArea} pointerEvents="box-none">
@@ -1950,10 +2343,25 @@ export default function Player({ route }: RouteParams) {
         selectedKsTextTrack={selectedTextTrack}
         onKsAudioChange={handleAudioTrackChange}
         onKsTextTrack={handleTextTrackChange}
+        externalSubtitles={streamParams?.externalSubtitles || []}
+        selectedExternalSubtitleId={selectedExternalSubtitleId}
+        onExternalSubtitleSelect={handleExternalSubtitleSelection}
         // Quality options
         qualityOptions={qualityOptions}
         selectedQuality={selectedQuality}
         onQualityChange={handleQualityChange}
+        sourceOptions={
+          streamParams?.availableStreams?.map((stream) => ({
+            id: buildStreamSourceId(stream),
+            label: stream.name || stream.title || 'Unnamed source',
+            description: stream.addonName
+              ? `${stream.addonName}${stream.disabledReason ? ` · ${stream.disabledReason}` : ''}`
+              : stream.disabledReason,
+            disabled: !stream.playable,
+          })) || []
+        }
+        selectedSourceId={selectedStreamSourceId}
+        onSourceChange={handleStreamSourceChange}
         // Playback info (uses selectedMediaIndex for multi-version support + live performance stats)
         playbackInfo={{
           isDirectPlay,

@@ -303,6 +303,14 @@ export default function Settings({ onBack }: SettingsProps) {
         renderIcon={() => <OverseerrIcon size={18} color="#e5e7eb" />}
         renderRight={renderRightChevron}
         onPress={() => nav.navigate('OverseerrSettings')}
+        isLast={false}
+      />
+      <SettingItem
+        title="Stremio"
+        description={settings.stremioPlaybackEnabled ? 'Addon sources, subtitles, and alternate playback' : 'Disabled'}
+        icon="layers-outline"
+        renderRight={renderRightChevron}
+        onPress={() => nav.navigate('StremioSettings')}
         isLast={true}
       />
     </SettingsCard>

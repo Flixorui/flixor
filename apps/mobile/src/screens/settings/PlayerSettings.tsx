@@ -45,6 +45,109 @@ export default function PlayerSettings() {
           />
         </SettingsCard>
 
+        <SettingsCard title="TRACK PREFERENCES">
+          <View style={styles.sliderGroup}>
+            <Text style={styles.sliderLabel}>Preferred Subtitle Language</Text>
+            <Text style={styles.sliderSubtitle}>Used for embedded and addon subtitles when auto-select is enabled</Text>
+            <View style={styles.segmentedControl}>
+              {[
+                { label: 'Off', value: undefined },
+                { label: 'English', value: 'en' },
+                { label: 'Spanish', value: 'es' },
+                { label: 'French', value: 'fr' },
+              ].map((option, index) => {
+                const selected = settings.preferredSubtitleLanguage === option.value;
+                return (
+                  <Pressable
+                    key={option.label}
+                    style={[
+                      styles.segmentedChip,
+                      index > 0 && styles.segmentedChipDivider,
+                      selected && styles.segmentedChipActive,
+                    ]}
+                    onPress={() => updateSetting('preferredSubtitleLanguage', option.value)}
+                  >
+                    <Text style={[styles.segmentedChipText, selected && styles.segmentedChipTextActive]}>
+                      {option.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+          <View style={styles.sliderGroup}>
+            <Text style={styles.sliderLabel}>Preferred Audio Language</Text>
+            <Text style={styles.sliderSubtitle}>Select a preferred spoken language when multiple audio tracks exist</Text>
+            <View style={styles.segmentedControl}>
+              {[
+                { label: 'System', value: undefined },
+                { label: 'English', value: 'en' },
+                { label: 'Japanese', value: 'ja' },
+                { label: 'Spanish', value: 'es' },
+              ].map((option, index) => {
+                const selected = settings.preferredAudioLanguage === option.value;
+                return (
+                  <Pressable
+                    key={option.label}
+                    style={[
+                      styles.segmentedChip,
+                      index > 0 && styles.segmentedChipDivider,
+                      selected && styles.segmentedChipActive,
+                    ]}
+                    onPress={() => updateSetting('preferredAudioLanguage', option.value)}
+                  >
+                    <Text style={[styles.segmentedChipText, selected && styles.segmentedChipTextActive]}>
+                      {option.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+          <View style={styles.sliderGroup}>
+            <Text style={styles.sliderLabel}>Subtitle Source Preference</Text>
+            <Text style={styles.sliderSubtitle}>Choose whether internal or external subtitles are preferred during auto-select</Text>
+            <View style={styles.segmentedControl}>
+              {[
+                { label: 'Internal', value: 'internal' },
+                { label: 'External', value: 'external' },
+                { label: 'Any', value: 'any' },
+              ].map((option, index) => {
+                const selected = settings.subtitleSourcePreference === option.value;
+                return (
+                  <Pressable
+                    key={option.label}
+                    style={[
+                      styles.segmentedChip,
+                      index > 0 && styles.segmentedChipDivider,
+                      selected && styles.segmentedChipActive,
+                    ]}
+                    onPress={() =>
+                      updateSetting('subtitleSourcePreference', option.value as 'internal' | 'external' | 'any')
+                    }
+                  >
+                    <Text style={[styles.segmentedChipText, selected && styles.segmentedChipTextActive]}>
+                      {option.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+          <SettingItem
+            title="Auto-Select Subtitles"
+            description="Automatically choose subtitles based on the preferences above"
+            icon="text-outline"
+            renderRight={() => (
+              <Switch
+                value={settings.enableSubtitleAutoSelect ?? true}
+                onValueChange={(value) => updateSetting('enableSubtitleAutoSelect', value)}
+              />
+            )}
+            isLast={true}
+          />
+        </SettingsCard>
+
         {/* Auto-Skip */}
         <SettingsCard title="AUTO-SKIP">
           <SettingItem
@@ -185,6 +288,10 @@ export default function PlayerSettings() {
             updateSetting('seekTimeSmall', 10);
             updateSetting('seekTimeLarge', 30);
             updateSetting('rememberTrackSelections', true);
+            updateSetting('preferredSubtitleLanguage', 'en');
+            updateSetting('preferredAudioLanguage', undefined);
+            updateSetting('subtitleSourcePreference', 'internal');
+            updateSetting('enableSubtitleAutoSelect', true);
           }}
         >
           <Text style={styles.resetButtonText}>Reset to Defaults</Text>

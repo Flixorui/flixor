@@ -57,7 +57,7 @@ export default function ContinueWatchingSettings() {
         <SettingsCard title="PLAYBACK">
           <SettingItem
             title="Use Cached Streams"
-            description="Open the player directly using saved stream info"
+            description="Open the player directly using saved alternate stream info when it is still valid"
             icon="flash-outline"
             renderRight={() => (
               <Switch
@@ -101,7 +101,7 @@ export default function ContinueWatchingSettings() {
                 );
               })}
             </View>
-            <Text style={styles.note}>Applies to direct play from Continue Watching.</Text>
+            <Text style={styles.note}>Applies to cached alternate sources such as Stremio playback.</Text>
           </SettingsCard>
         )}
       </ScrollView>

@@ -49,6 +49,7 @@ import Browse from './src/screens/Browse';
 import NewHot from './src/screens/NewHot';
 import MyList from './src/screens/MyList';
 import Downloads from './src/screens/Downloads';
+import StremioSources from './src/screens/StremioSources';
 import Settings from './src/screens/Settings';
 import CatalogSettings from './src/screens/settings/CatalogSettings';
 import HomeScreenSettings from './src/screens/settings/HomeScreenSettings';
@@ -66,6 +67,8 @@ import PlayerSettings from './src/screens/settings/PlayerSettings';
 import LogsScreen from './src/screens/settings/LogsScreen';
 import CollectionRowsSettings from './src/screens/settings/CollectionRowsSettings';
 import LibraryMappingSettings from './src/screens/settings/LibraryMappingSettings';
+import StremioSettings from './src/screens/settings/StremioSettings';
+import StremioAddons from './src/screens/settings/StremioAddons';
 import * as Haptics from 'expo-haptics';
 import UpdatePopup from './src/components/UpdatePopup';
 import { useUpdateCheck } from './src/hooks/useUpdateCheck';
@@ -104,6 +107,9 @@ type RootStackParamList = {
   ServerSelect: undefined;
   ProfileSelect: undefined;
   Main: undefined;
+  Downloads: undefined;
+  Player: undefined;
+  StremioSources: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -117,6 +123,7 @@ const SettingsStack = createNativeStackNavigator();
 
 // Store logout handler in a ref accessible to child components
 let logoutHandlerRef: (() => Promise<void>) | null = null;
+const triggerLogout = () => logoutHandlerRef ? logoutHandlerRef() : Promise.resolve();
 
 // Define screen components OUTSIDE of AppContent to prevent recreation on every render
 // This is critical for performance - inline components cause React Navigation to do extra work
@@ -128,7 +135,7 @@ const HomeStackNavigator = React.memo(() => {
     <View style={{ flex: 1 }}>
       <HomeStack.Navigator screenOptions={{ headerShown: false }}>
         <HomeStack.Screen name="HomeScreen">
-          {() => <Home onLogout={() => logoutHandlerRef?.()} />}
+          {() => <Home onLogout={triggerLogout} />}
         </HomeStack.Screen>
         <HomeStack.Screen
           name="Details"
@@ -160,6 +167,11 @@ const HomeStackNavigator = React.memo(() => {
           component={Browse}
           options={{ presentation: 'card', animation: 'slide_from_right' }}
         />
+        <HomeStack.Screen
+          name="StremioSources"
+          component={StremioSources}
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
+        />
       </HomeStack.Navigator>
       {topBarVisible && <GlobalTopAppBar screenContext="HomeStack" />}
     </View>
@@ -182,6 +194,11 @@ const NewHotStackNavigator = React.memo(() => {
           name="Player"
           component={Player}
           options={{ presentation: 'fullScreenModal', animation: 'fade' }}
+        />
+        <NewHotStack.Screen
+          name="StremioSources"
+          component={StremioSources}
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
         />
       </NewHotStack.Navigator>
       {topBarVisible && <GlobalTopAppBar screenContext="NewHot" />}
@@ -206,6 +223,11 @@ const MyListStackNavigator = React.memo(() => {
           component={Player}
           options={{ presentation: 'fullScreenModal', animation: 'fade' }}
         />
+        <MyListStack.Screen
+          name="StremioSources"
+          component={StremioSources}
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
+        />
       </MyListStack.Navigator>
       {topBarVisible && <GlobalTopAppBar screenContext="MyList" />}
     </View>
@@ -221,6 +243,11 @@ const DownloadsStackNavigator = React.memo(() => {
           name="Player"
           component={Player}
           options={{ presentation: 'fullScreenModal', animation: 'fade' }}
+        />
+        <DownloadsStack.Screen
+          name="StremioSources"
+          component={StremioSources}
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
         />
       </DownloadsStack.Navigator>
     </View>
@@ -276,6 +303,11 @@ const SearchStackNavigator = React.memo(() => {
           component={Player}
           options={{ presentation: 'fullScreenModal', animation: 'fade' }}
         />
+        <SearchStack.Screen
+          name="StremioSources"
+          component={StremioSources}
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
+        />
       </SearchStack.Navigator>
     </View>
   );
@@ -284,7 +316,7 @@ const SearchStackNavigator = React.memo(() => {
 const SettingsTabScreen = React.memo(() => (
   <SettingsStack.Navigator screenOptions={{ headerShown: false }}>
     <SettingsStack.Screen name="SettingsMain">
-      {() => <Settings onLogout={() => logoutHandlerRef?.()} />}
+      {() => <Settings onLogout={triggerLogout} />}
     </SettingsStack.Screen>
     <SettingsStack.Screen name="CatalogSettings" component={CatalogSettings} />
     <SettingsStack.Screen name="HomeScreenSettings" component={HomeScreenSettings} />
@@ -297,13 +329,15 @@ const SettingsTabScreen = React.memo(() => (
     <SettingsStack.Screen name="MDBListSettings" component={MDBListSettings} />
     <SettingsStack.Screen name="OverseerrSettings" component={OverseerrSettings} />
     <SettingsStack.Screen name="PlexSettings">
-      {() => <PlexSettings onLogout={() => logoutHandlerRef?.()} />}
+      {() => <PlexSettings onLogout={triggerLogout} />}
     </SettingsStack.Screen>
     <SettingsStack.Screen name="UpdateSettings" component={UpdateSettings} />
     <SettingsStack.Screen name="PlayerSettings" component={PlayerSettings} />
     <SettingsStack.Screen name="LogsScreen" component={LogsScreen} />
     <SettingsStack.Screen name="CollectionRowsSettings" component={CollectionRowsSettings} />
     <SettingsStack.Screen name="LibraryMappingSettings" component={LibraryMappingSettings} />
+    <SettingsStack.Screen name="StremioSettings" component={StremioSettings} />
+    <SettingsStack.Screen name="StremioAddons" component={StremioAddons} />
   </SettingsStack.Navigator>
 ));
 
@@ -555,6 +589,11 @@ function AppContent() {
                 name="Player"
                 component={Player}
                 options={{ presentation: 'fullScreenModal', animation: 'fade' }}
+              />
+              <Stack.Screen
+                name="StremioSources"
+                component={StremioSources}
+                options={{ presentation: 'card', animation: 'slide_from_right' }}
               />
               <Stack.Screen
                 name="ProfileSelect"
