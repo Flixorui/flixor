@@ -400,7 +400,7 @@ struct DownloadedItemRow: View {
         )
 
         // Use downloadsPath since we're on the Downloads tab
-        router.downloadsPath.append(offlineItem)
+        router.downloadsPath.append(PlayerDestination.offline(offlineItem))
     }
 }
 
@@ -573,7 +573,7 @@ struct EpisodeRow: View {
         )
 
         // Use downloadsPath since we're on the Downloads tab
-        router.downloadsPath.append(offlineItem)
+        router.downloadsPath.append(PlayerDestination.offline(offlineItem))
     }
 }
 

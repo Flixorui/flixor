@@ -240,8 +240,8 @@ struct HomeView: View {
         .onChange(of: viewModel.pendingAction) { action in
             guard let action = action else { return }
             switch action {
-            case .play(let item):
-                router.homePath.append(item)
+            case .play(let destination):
+                router.homePath.append(destination)
             case .details(let item):
                 router.homePath.append(DetailsNavigationItem(item: item))
             }

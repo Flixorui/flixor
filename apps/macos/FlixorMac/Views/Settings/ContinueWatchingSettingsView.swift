@@ -77,9 +77,9 @@ struct ContinueWatchingSettingsView: View {
                     }
 
                     // Cache Section
-                    SettingsSectionHeader(title: "Stream Caching")
+                    SettingsSectionHeader(title: "Playback Source Cache")
                     SettingsGroupCard {
-                        SettingsRow(icon: "arrow.triangle.2.circlepath.circle.fill", iconColor: .blue, title: "Cache Stream URLs", showDivider: !profileSettings.useCachedStreams) {
+                        SettingsRow(icon: "arrow.triangle.2.circlepath.circle.fill", iconColor: .blue, title: "Cache Playback Sources", subtitle: "Reuse recent provider URLs for faster resume", showDivider: !profileSettings.useCachedStreams) {
                             Toggle("", isOn: $profileSettings.useCachedStreams).labelsHidden()
                         }
 
@@ -104,7 +104,7 @@ struct ContinueWatchingSettingsView: View {
                         }
                     }
 
-                    Text("Stream caching stores URLs locally for faster playback resume. Disable if you experience playback issues.")
+                    Text("Playback source caching stores recent URLs and provider metadata locally for faster resume across Plex and alternate providers such as Stremio. Disable it if you experience expired or unstable links.")
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, 4)

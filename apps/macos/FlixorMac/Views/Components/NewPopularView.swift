@@ -350,7 +350,7 @@ struct NewPopularView: View {
             leafCount: nil,
             viewedLeafCount: nil
         )
-        router.newPopularPath.append(item)
+        router.newPopularPath.append(PlayerDestination.plex(item))
     }
 }
 

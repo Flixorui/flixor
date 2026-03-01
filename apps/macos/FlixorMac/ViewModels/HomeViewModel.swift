@@ -1530,7 +1530,7 @@ class HomeViewModel: ObservableObject {
     // MARK: - Navigation
 
     func playItem(_ item: MediaItem) {
-        pendingAction = .play(item)
+        pendingAction = .play(.plex(item))
     }
 
     func showItemDetails(_ item: MediaItem) {
@@ -1553,14 +1553,14 @@ class HomeViewModel: ObservableObject {
 // MARK: - Navigation Actions
 
 enum HomeAction {
-    case play(MediaItem)
+    case play(PlayerDestination)
     case details(MediaItem)
 }
 
 extension HomeAction: Equatable {
     static func == (lhs: HomeAction, rhs: HomeAction) -> Bool {
         switch (lhs, rhs) {
-        case (.play(let a), .play(let b)): return a.id == b.id
+        case (.play(let a), .play(let b)): return a == b
         case (.details(let a), .details(let b)): return a.id == b.id
         default: return false
         }

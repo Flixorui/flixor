@@ -97,6 +97,12 @@ enum PlaybackQuality: String, CaseIterable, Identifiable, Codable {
 
 @MainActor
 class PlayerViewModel: ObservableObject {
+    private enum SourceKind {
+        case plex
+        case offline
+        case stream
+    }
+
     // MARK: - Published Properties
 
     @Published var isPlaying = false
@@ -127,8 +133,12 @@ class PlayerViewModel: ObservableObject {
     // MPV Track info (audio/subtitle)
     @Published var availableAudioTracks: [MPVTrack] = []
     @Published var availableSubtitleTracks: [MPVTrack] = []
+    @Published var availableExternalSubtitleOptions: [StremioSubtitleCandidate] = []
+    @Published var availableStremioSources: [StremioPlayableStream] = []
     @Published var currentAudioTrackId: Int? = nil
     @Published var currentSubtitleTrackId: Int? = nil
+    @Published var selectedExternalSubtitleId: String? = nil
+    @Published var currentStremioSourceId: String? = nil
 
     // Subtitle preference (persisted)
     private var subtitlesEnabled: Bool {
@@ -170,7 +180,7 @@ class PlayerViewModel: ObservableObject {
     private var nextEpisodeCountdownTimer: Timer?
 
     // Playback metadata
-    let item: MediaItem
+    private(set) var item: MediaItem
     private(set) var player: AVPlayer?
     @Published var mpvController: MPVPlayerController?
     @Published var thumbnailGenerator: MPVThumbnailGenerator?
@@ -179,9 +189,17 @@ class PlayerViewModel: ObservableObject {
     private var kvoCancellables = Set<AnyCancellable>()
     private let api = APIClient.shared
 
-    // Backend selection
-    private var playerBackend: PlayerBackend {
-        UserDefaults.standard.playerBackend
+    private var offlineFilePath: String?
+    private var streamPlaybackItem: StreamPlaybackItem?
+    private var externalSubtitleTempFiles: [URL] = []
+
+    // Backend selection is fixed to MPV on macOS
+    private var playerBackend: PlayerBackend { .mpv }
+
+    private var sourceKind: SourceKind {
+        if streamPlaybackItem != nil { return .stream }
+        if offlineFilePath != nil { return .offline }
+        return .plex
     }
 
     // Progress tracking
@@ -189,6 +207,7 @@ class PlayerViewModel: ObservableObject {
     private var lastReportedProgress: TimeInterval = 0
     private var initialSeekApplied = false
     private var serverResumeSeconds: TimeInterval?
+    private var forcedResumeSeconds: TimeInterval?
 
     // MPV error detection
     private var fileStartTime: Date?
@@ -208,8 +227,12 @@ class PlayerViewModel: ObservableObject {
     private let scrobbler = TraktScrobbler.shared
     private var scrobbleStarted = false
 
+    // Stremio resume/cache
+    private let streamCache = StremioStreamCache.shared
+    private let resumeStore = StremioResumeStore.shared
+
     // Navigation callback for next episode
-    var onPlayNext: ((MediaItem) -> Void)?
+    var onPlayNext: ((PlayerDestination) -> Void)?
 
     // Display sleep prevention
     private var displaySleepAssertion: NSObjectProtocol?
@@ -263,10 +286,41 @@ class PlayerViewModel: ObservableObject {
             viewedLeafCount: nil
         )
 
-        // Setup for offline playback
-        Task { @MainActor in
-            self.setupOfflinePlayer(filePath: offlineFilePath)
-        }
+        self.offlineFilePath = offlineFilePath
+        setupPlayer()
+        setupNowPlayingInfo()
+    }
+
+    init(streamItem: StreamPlaybackItem) {
+        self.item = MediaItem(
+            id: "stream:\(streamItem.contentKey)",
+            title: streamItem.mediaType == .episode ? (streamItem.episodeTitle ?? streamItem.title) : streamItem.title,
+            type: streamItem.mediaType == .movie ? "movie" : "episode",
+            thumb: streamItem.posterURL,
+            art: streamItem.backdropURL,
+            year: nil,
+            rating: nil,
+            duration: nil,
+            viewOffset: streamItem.resumePositionMs,
+            summary: nil,
+            grandparentTitle: streamItem.mediaType == .episode ? streamItem.title : nil,
+            grandparentThumb: streamItem.posterURL,
+            grandparentArt: streamItem.backdropURL,
+            grandparentRatingKey: nil,
+            parentIndex: streamItem.seasonNumber,
+            index: streamItem.episodeNumber,
+            parentRatingKey: nil,
+            parentTitle: nil,
+            leafCount: nil,
+            viewedLeafCount: nil
+        )
+        self.streamPlaybackItem = streamItem
+        self.availableExternalSubtitleOptions = streamItem.externalSubtitles
+        self.availableStremioSources = streamItem.availableStreams
+        self.currentStremioSourceId = streamItem.availableStreams.first(where: { $0.url == streamItem.uri && $0.addonId == streamItem.addonId })?.id
+        self.forcedResumeSeconds = TimeInterval(streamItem.resumePositionMs ?? 0) / 1000.0
+        setupPlayer()
+        setupNowPlayingInfo()
     }
 
     /// Setup player for offline file playback
@@ -326,6 +380,10 @@ class PlayerViewModel: ObservableObject {
         player?.pause()
         player = nil
         cancellables.removeAll()
+        externalSubtitleTempFiles.forEach { url in
+            try? FileManager.default.removeItem(at: url)
+        }
+        externalSubtitleTempFiles.removeAll()
 
         // Clean up display sleep assertion
         #if os(macOS)
@@ -342,17 +400,22 @@ class PlayerViewModel: ObservableObject {
 
     private func setupPlayer() {
         Task {
-            await fetchServerResumeOffset()
-
-            // Initialize backend based on user preference
-            switch playerBackend {
-            case .avplayer:
-                print("🎬 [Player] Using AVPlayer backend")
-                await loadStreamURL()
-            case .mpv:
-                print("🎬 [Player] Using MPV backend")
+            switch sourceKind {
+            case .plex:
+                await fetchServerResumeOffset()
+                print("🎬 [Player] Using MPV backend for Plex playback")
                 setupMPVController()
                 await loadStreamURL()
+            case .offline:
+                guard let offlineFilePath else { return }
+                print("🎬 [Player] Using MPV backend for offline playback")
+                setupOfflinePlayer(filePath: offlineFilePath)
+            case .stream:
+                print("🎬 [Player] Using MPV backend for direct stream playback")
+                setupMPVController()
+                if let streamPlaybackItem {
+                    await loadExternalStream(streamPlaybackItem)
+                }
             }
         }
     }
@@ -417,6 +480,11 @@ class PlayerViewModel: ObservableObject {
                     self.loadChapters()
                     // Apply subtitle styling from persisted settings
                     self.applySubtitleStyling()
+                    if self.sourceKind == .stream {
+                        Task {
+                            await self.applyStreamTrackAutoSelectionIfNeeded()
+                        }
+                    }
                     // Notify thumbnail generator
                     if let path: String = self.mpvController?.getProperty("path", type: .string) {
                         self.thumbnailGenerator?.onVideoLoaded(url: path)
@@ -486,6 +554,7 @@ class PlayerViewModel: ObservableObject {
     }
 
     private func fetchServerResumeOffset() async {
+        guard sourceKind == .plex else { return }
         // Try to get latest playstate from backend metadata if not included
         let rk = item.id.replacingOccurrences(of: "plex:", with: "")
         guard !rk.isEmpty else { return }
@@ -1049,6 +1118,75 @@ class PlayerViewModel: ObservableObject {
         }
     }
 
+    private func loadExternalStream(_ streamItem: StreamPlaybackItem) async {
+        isLoading = true
+        error = nil
+        initialSeekApplied = false
+        forcedResumeSeconds = TimeInterval(streamItem.resumePositionMs ?? 0) / 1000.0
+        currentURLIsHLS = false
+        isTranscoding = false
+        markers = []
+        currentMarker = nil
+        nextEpisode = nil
+        seasonEpisodes = []
+        nextEpisodeCountdown = nil
+        availableExternalSubtitleOptions = streamItem.externalSubtitles
+        availableStremioSources = streamItem.availableStreams
+        currentStremioSourceId = streamItem.availableStreams.first(where: { $0.url == streamItem.uri && $0.addonId == streamItem.addonId })?.id
+        selectedExternalSubtitleId = nil
+        cleanupExternalSubtitleFiles()
+
+        do {
+            guard let mpvController = self.mpvController else {
+                throw NSError(domain: "PlayerError", code: -1, userInfo: [NSLocalizedDescriptionKey: "MPV controller not initialized"])
+            }
+
+            var waitCount = 0
+            let maxWaitCount = 50
+            while !mpvController.isInitialized && waitCount < maxWaitCount {
+                try await Task.sleep(nanoseconds: 100_000_000)
+                waitCount += 1
+            }
+
+            guard mpvController.isInitialized else {
+                throw NSError(domain: "PlayerError", code: -1, userInfo: [NSLocalizedDescriptionKey: "MPV failed to initialize"])
+            }
+
+            streamURL = URL(string: streamItem.uri)
+            mpvController.loadFile(streamItem.uri, headers: Dictionary(uniqueKeysWithValues: streamItem.headers.map { ($0.name, $0.value) }))
+            startProgressTracking()
+
+            if UserDefaults.standard.useCachedStreams {
+                let now = Date()
+                await streamCache.save(
+                    CachedPlaybackSource(
+                        kind: "stream",
+                        provider: StreamProvider.stremio.rawValue,
+                        contentKey: streamItem.contentKey,
+                        playbackItem: streamItem,
+                        savedAt: now,
+                        expiresAt: now.addingTimeInterval(TimeInterval(UserDefaults.standard.streamCacheTTL))
+                    )
+                )
+            }
+
+            AppLogger.shared.info("[Stremio] Starting macOS stream playback", data: [
+                "contentKey": streamItem.contentKey,
+                "uri": streamItem.uri,
+                "addonId": streamItem.addonId ?? "",
+                "addonName": streamItem.addonName ?? "",
+            ])
+        } catch {
+            AppLogger.shared.error("[Stremio] Failed to load stream playback", data: [
+                "contentKey": streamItem.contentKey,
+                "uri": streamItem.uri,
+                "error": error.localizedDescription,
+            ])
+            self.error = "Failed to load Stremio stream: \(error.localizedDescription)"
+            self.isLoading = false
+        }
+    }
+
     // MARK: - Player Observers
 
     private func setupTimeObserver() {
@@ -1237,9 +1375,9 @@ class PlayerViewModel: ObservableObject {
 
         initialSeekApplied = true
 
-        let ms = item.viewOffset ?? 0
-        var seconds = TimeInterval(ms) / 1000.0
-        if (seconds <= 2), let s = serverResumeSeconds { seconds = s }
+        var seconds = forcedResumeSeconds ?? TimeInterval(item.viewOffset ?? 0) / 1000.0
+        forcedResumeSeconds = nil
+        if seconds <= 2, let s = serverResumeSeconds { seconds = s }
 
         // If viewOffset is at or past the duration, definitely restart from beginning
         if seconds >= duration {
@@ -1496,6 +1634,7 @@ class PlayerViewModel: ObservableObject {
     }
 
     func changeQuality(_ newQuality: PlaybackQuality) {
+        guard sourceKind == .plex else { return }
         print("🎚️ [Player] Changing quality: \(selectedQuality.rawValue) → \(newQuality.rawValue)")
 
         // No change needed
@@ -1506,8 +1645,6 @@ class PlayerViewModel: ObservableObject {
 
         isChangingQuality = true
 
-        // Check if we're switching TO a transcoded quality (not FROM)
-        let switchingToTranscode = newQuality.requiresTranscoding && !selectedQuality.requiresTranscoding
         let savedTime = currentTime > 2 ? currentTime : 0
 
         selectedQuality = newQuality
@@ -1572,16 +1709,20 @@ class PlayerViewModel: ObservableObject {
         }
 
         availableAudioTracks = mpv.getAudioTracks()
-        availableSubtitleTracks = mpv.getSubtitleTracks()
+        let subtitleTracks = mpv.getSubtitleTracks()
+        availableSubtitleTracks = subtitleTracks.filter { !$0.external }
         currentAudioTrackId = mpv.getCurrentAudioTrack()
+        currentSubtitleTrackId = mpv.getCurrentSubtitleTrack()
 
         print("🎵 [Player] Loaded \(availableAudioTracks.count) audio tracks")
-        print("💬 [Player] Loaded \(availableSubtitleTracks.count) subtitle tracks")
+        print("💬 [Player] Loaded \(subtitleTracks.count) subtitle tracks")
 
-        // Apply user's subtitle preference
+        if sourceKind == .stream {
+            print("💬 [Player] Stream subtitle options: internal=\(availableSubtitleTracks.count), external=\(availableExternalSubtitleOptions.count)")
+            return
+        }
+
         if subtitlesEnabled {
-            // User prefers subtitles on - keep MPV's auto-selected track
-            currentSubtitleTrackId = mpv.getCurrentSubtitleTrack()
             print("💬 [Player] Subtitles enabled by preference, track: \(currentSubtitleTrackId ?? -1)")
         } else {
             // User prefers subtitles off - disable them
@@ -1624,6 +1765,7 @@ class PlayerViewModel: ObservableObject {
 
         mpv.disableSubtitles()
         currentSubtitleTrackId = nil
+        selectedExternalSubtitleId = nil
         subtitlesEnabled = false  // Remember that user wants subtitles off
         print("💬 [Player] Subtitles disabled, preference saved: disabled")
     }
@@ -1653,7 +1795,11 @@ class PlayerViewModel: ObservableObject {
 
         let initialProgress = duration > 0 ? (currentTime / duration) * 100 : 0
         Task {
-            await scrobbler.startScrobble(for: item, initialProgress: initialProgress)
+            if let streamPlaybackItem {
+                await scrobbler.startScrobble(for: streamPlaybackItem, initialProgress: initialProgress)
+            } else {
+                await scrobbler.startScrobble(for: item, initialProgress: initialProgress)
+            }
         }
     }
 
@@ -1675,6 +1821,22 @@ class PlayerViewModel: ObservableObject {
 
         let progressPercent = Int((currentTime / duration) * 100)
         print("📊 [Player] Progress: \(Int(currentTime))s / \(Int(duration))s (\(progressPercent)%)")
+
+        if let streamPlaybackItem {
+            if progressPercent >= 90 {
+                await resumeStore.remove(contentKey: streamPlaybackItem.contentKey)
+            } else {
+                await resumeStore.save(
+                    ResumeState(
+                        contentKey: streamPlaybackItem.contentKey,
+                        positionMs: Int(currentTime * 1000),
+                        durationMs: Int(duration * 1000),
+                        updatedAt: Date()
+                    )
+                )
+            }
+            return
+        }
 
         do {
             let ratingKey = item.id.replacingOccurrences(of: "plex:", with: "")
@@ -1698,6 +1860,22 @@ class PlayerViewModel: ObservableObject {
 
     private func reportStopped() async {
         guard duration > 0 else { return }
+        if let streamPlaybackItem {
+            let progressPercent = Int((currentTime / duration) * 100)
+            if progressPercent >= 90 {
+                await resumeStore.remove(contentKey: streamPlaybackItem.contentKey)
+            } else {
+                await resumeStore.save(
+                    ResumeState(
+                        contentKey: streamPlaybackItem.contentKey,
+                        positionMs: Int(currentTime * 1000),
+                        durationMs: Int(duration * 1000),
+                        updatedAt: Date()
+                    )
+                )
+            }
+            return
+        }
         do {
             let ratingKey = item.id.replacingOccurrences(of: "plex:", with: "")
             struct ProgressRequest: Encodable {
@@ -1722,6 +1900,14 @@ class PlayerViewModel: ObservableObject {
         isPlaying = false
         stopProgressTracking()
         disableDisplaySleep()
+
+        if let streamPlaybackItem {
+            Task {
+                await resumeStore.remove(contentKey: streamPlaybackItem.contentKey)
+                await scrobbler.stopScrobble(progress: 100)
+            }
+            return
+        }
 
         // Mark as watched
         Task {
@@ -1884,6 +2070,8 @@ class PlayerViewModel: ObservableObject {
             // Shutdown MPV completely to stop rendering
             mpvController?.shutdown()
         }
+
+        cleanupExternalSubtitleFiles()
     }
 
     // MARK: - Cleanup
@@ -1914,14 +2102,15 @@ class PlayerViewModel: ObservableObject {
         Task { @MainActor [weak self] in
             guard let self = self else { return }
             await self.reportProgress() // Final progress snapshot
-            await self.reportStopped()  // Explicit stopped state like web
+            await self.reportStopped()
 
             // Stop Trakt scrobble
             let progress = self.duration > 0 ? (self.currentTime / self.duration) * 100 : 0
             await self.scrobbler.stopScrobble(progress: progress)
 
-            // Stop the transcode session
-            await self.stopTranscodeSession()
+            if self.sourceKind == .plex {
+                await self.stopTranscodeSession()
+            }
 
             // Clean up based on backend
             switch self.playerBackend {
@@ -1943,6 +2132,7 @@ class PlayerViewModel: ObservableObject {
 
             self.stopProgressTracking()
             self.cancellables.removeAll()
+            self.cleanupExternalSubtitleFiles()
         }
     }
 
@@ -1982,7 +2172,7 @@ class PlayerViewModel: ObservableObject {
         stopPlayback()
 
         // Call navigation callback
-        onPlayNext?(nextItem)
+        onPlayNext?(.plex(nextItem))
     }
 
     /// Play a specific episode from the season (e.g., from episode selector)
@@ -2017,13 +2207,43 @@ class PlayerViewModel: ObservableObject {
         stopPlayback()
 
         // Call navigation callback
-        onPlayNext?(episodeItem)
+        onPlayNext?(.plex(episodeItem))
     }
 
     func cancelCountdown() {
         nextEpisodeCountdownTimer?.invalidate()
         nextEpisodeCountdownTimer = nil
         nextEpisodeCountdown = nil
+    }
+
+    var isStreamPlayback: Bool {
+        sourceKind == .stream
+    }
+
+    var canSwitchStreamSources: Bool {
+        availableStremioSources.count > 1
+    }
+
+    func switchStreamSource(_ stream: StremioPlayableStream) {
+        guard sourceKind == .stream else { return }
+        Task {
+            await replaceCurrentStremioSource(with: stream)
+        }
+    }
+
+    func loadExternalSubtitle(_ subtitle: StremioSubtitleCandidate) {
+        guard sourceKind == .stream else { return }
+        Task {
+            do {
+                try await self.attachExternalSubtitle(subtitle)
+            } catch {
+                AppLogger.shared.error("[Stremio] Failed to load external subtitle", data: [
+                    "subtitleId": subtitle.id,
+                    "url": subtitle.url,
+                    "error": error.localizedDescription,
+                ])
+            }
+        }
     }
 
     private func startNextEpisodeCountdown() {
@@ -2049,6 +2269,162 @@ class PlayerViewModel: ObservableObject {
                 }
             }
         }
+    }
+
+    private func applyStreamTrackAutoSelectionIfNeeded() async {
+        guard sourceKind == .stream else { return }
+
+        if !UserDefaults.standard.preferredAudioLanguage.isEmpty,
+           let audioMatch = preferredAudioTrack() {
+            setAudioTrack(audioMatch.id)
+        }
+
+        guard UserDefaults.standard.enableSubtitleAutoSelect else { return }
+
+        let internalMatch = preferredInternalSubtitleTrack()
+        let externalMatch = preferredExternalSubtitleCandidate()
+        let preference = UserDefaults.standard.subtitleSourcePreference
+
+        switch preference {
+        case .internal:
+            if let internalMatch {
+                setSubtitleTrack(internalMatch.id)
+            } else if let externalMatch {
+                do { try await attachExternalSubtitle(externalMatch) } catch {}
+            }
+        case .external:
+            if let externalMatch {
+                do { try await attachExternalSubtitle(externalMatch) } catch {}
+            } else if let internalMatch {
+                setSubtitleTrack(internalMatch.id)
+            }
+        case .any:
+            if let internalMatch {
+                setSubtitleTrack(internalMatch.id)
+            } else if let externalMatch {
+                do { try await attachExternalSubtitle(externalMatch) } catch {}
+            }
+        }
+    }
+
+    private func preferredAudioTrack() -> MPVTrack? {
+        let preferredLanguage = UserDefaults.standard.preferredAudioLanguage.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !preferredLanguage.isEmpty else { return nil }
+        return availableAudioTracks.first { track in
+            (track.lang ?? "").lowercased().hasPrefix(preferredLanguage)
+        }
+    }
+
+    private func preferredInternalSubtitleTrack() -> MPVTrack? {
+        let preferredLanguage = UserDefaults.standard.preferredSubtitleLanguage.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !preferredLanguage.isEmpty else { return availableSubtitleTracks.first }
+        return availableSubtitleTracks.first { track in
+            (track.lang ?? "").lowercased().hasPrefix(preferredLanguage) ||
+            track.displayName.lowercased().contains(preferredLanguage)
+        }
+    }
+
+    private func preferredExternalSubtitleCandidate() -> StremioSubtitleCandidate? {
+        let preferredLanguage = UserDefaults.standard.preferredSubtitleLanguage.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !preferredLanguage.isEmpty else { return availableExternalSubtitleOptions.first }
+        return availableExternalSubtitleOptions.first { subtitle in
+            subtitle.lang.lowercased().hasPrefix(preferredLanguage)
+        }
+    }
+
+    private func replaceCurrentStremioSource(with stream: StremioPlayableStream) async {
+        guard let current = streamPlaybackItem,
+              stream.id != currentStremioSourceId,
+              let uri = stream.url else {
+            return
+        }
+
+        await reportProgress()
+
+        let resumePositionMs = Int(currentTime * 1000)
+        let replacement = StreamPlaybackItem(
+            id: "stremio-\(current.contentKey)-\(stream.id)",
+            provider: .stremio,
+            uri: uri,
+            headers: mergedHeaders(for: stream),
+            title: current.title,
+            mediaType: current.mediaType,
+            contentKey: current.contentKey,
+            imdbId: current.imdbId,
+            tmdbId: current.tmdbId,
+            seasonNumber: current.seasonNumber,
+            episodeNumber: current.episodeNumber,
+            episodeTitle: current.episodeTitle,
+            backdropURL: current.backdropURL,
+            posterURL: current.posterURL,
+            streamLabel: stream.title ?? stream.name ?? current.streamLabel,
+            addonId: stream.addonId,
+            addonName: stream.addonName,
+            availableStreams: current.availableStreams,
+            externalSubtitles: current.externalSubtitles,
+            resumePositionMs: resumePositionMs
+        )
+
+        streamPlaybackItem = replacement
+        forcedResumeSeconds = TimeInterval(resumePositionMs) / 1000.0
+        initialSeekApplied = false
+        currentStremioSourceId = stream.id
+        selectedExternalSubtitleId = nil
+        cleanupExternalSubtitleFiles()
+        await loadExternalStream(replacement)
+    }
+
+    private func mergedHeaders(for stream: StremioPlayableStream) -> [HTTPHeaderField] {
+        var headers = stream.headers ?? [:]
+        let proxy = stream.behaviorHints?.proxyHeaders?.request ?? [:]
+        for (key, value) in proxy {
+            headers[key] = value
+        }
+        return headers.keys.sorted().map { HTTPHeaderField(name: $0, value: headers[$0] ?? "") }
+    }
+
+    private func attachExternalSubtitle(_ subtitle: StremioSubtitleCandidate) async throws {
+        guard let mpv = mpvController else { throw NSError(domain: "PlayerError", code: -1, userInfo: [NSLocalizedDescriptionKey: "MPV controller unavailable"]) }
+        guard let remoteURL = URL(string: subtitle.url) else {
+            throw NSError(domain: "PlayerError", code: -2, userInfo: [NSLocalizedDescriptionKey: "Invalid subtitle URL"])
+        }
+
+        let (data, _) = try await URLSession.shared.data(from: remoteURL)
+        let tempDirectory = FileManager.default.temporaryDirectory.appendingPathComponent("FlixorMac-StremioSubs", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true, attributes: nil)
+
+        let fileExtension: String = {
+            if let format = subtitle.format, !format.isEmpty {
+                return format
+            }
+            return remoteURL.pathExtension.isEmpty ? "srt" : remoteURL.pathExtension
+        }()
+        let localURL = tempDirectory.appendingPathComponent("\(subtitle.id).\(fileExtension)")
+        try data.write(to: localURL, options: .atomic)
+
+        cleanupExternalSubtitleFiles()
+        externalSubtitleTempFiles = [localURL]
+        mpv.clearExternalSubtitleTracks()
+        mpv.addExternalSubtitleFile(path: localURL.path, title: subtitle.addonName ?? subtitle.lang.uppercased(), language: subtitle.lang, select: true)
+        selectedExternalSubtitleId = subtitle.id
+        subtitlesEnabled = true
+
+        try? await Task.sleep(nanoseconds: 200_000_000)
+        loadTracks()
+
+        AppLogger.shared.info("[Stremio] External subtitle loaded", data: [
+            "subtitleId": subtitle.id,
+            "language": subtitle.lang,
+            "path": localURL.path,
+        ])
+    }
+
+    private func cleanupExternalSubtitleFiles() {
+        externalSubtitleTempFiles.forEach { url in
+            try? FileManager.default.removeItem(at: url)
+        }
+        externalSubtitleTempFiles.removeAll()
+        mpvController?.clearExternalSubtitleTracks()
     }
 
     // MARK: - Retry
@@ -2296,7 +2672,18 @@ class PlayerViewModel: ObservableObject {
         initialSeekApplied = false
 
         Task {
-            await loadStreamURL()
+            switch sourceKind {
+            case .plex:
+                await loadStreamURL()
+            case .offline:
+                if let offlineFilePath {
+                    setupOfflinePlayer(filePath: offlineFilePath)
+                }
+            case .stream:
+                if let streamPlaybackItem {
+                    await loadExternalStream(streamPlaybackItem)
+                }
+            }
         }
     }
 }

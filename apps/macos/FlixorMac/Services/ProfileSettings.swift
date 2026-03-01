@@ -146,6 +146,32 @@ class ProfileSettings: ObservableObject {
         didSet { defaults.streamCacheTTL = streamCacheTTL }
     }
 
+    // MARK: - Stremio Settings
+
+    @Published var stremioPlaybackEnabled: Bool {
+        didSet { defaults.stremioPlaybackEnabled = stremioPlaybackEnabled }
+    }
+
+    @Published var stremioAutoPlayBestSource: Bool {
+        didSet { defaults.stremioAutoPlayBestSource = stremioAutoPlayBestSource }
+    }
+
+    @Published var stremioShowOnTmdbDetails: Bool {
+        didSet { defaults.stremioShowOnTmdbDetails = stremioShowOnTmdbDetails }
+    }
+
+    @Published var stremioPreferCachedSourceResume: Bool {
+        didSet { defaults.stremioPreferCachedSourceResume = stremioPreferCachedSourceResume }
+    }
+
+    @Published var stremioSubtitleAddonsEnabled: Bool {
+        didSet { defaults.stremioSubtitleAddonsEnabled = stremioSubtitleAddonsEnabled }
+    }
+
+    @Published var stremioUnsupportedSourceVisibility: StremioUnsupportedSourceVisibility {
+        didSet { defaults.stremioUnsupportedSourceVisibility = stremioUnsupportedSourceVisibility }
+    }
+
     // MARK: - Playback Preferences
 
     @Published var defaultQuality: Int {
@@ -192,6 +218,22 @@ class ProfileSettings: ObservableObject {
 
     @Published var rememberTrackSelections: Bool {
         didSet { defaults.rememberTrackSelections = rememberTrackSelections }
+    }
+
+    @Published var preferredSubtitleLanguage: String {
+        didSet { defaults.preferredSubtitleLanguage = preferredSubtitleLanguage }
+    }
+
+    @Published var preferredAudioLanguage: String {
+        didSet { defaults.preferredAudioLanguage = preferredAudioLanguage }
+    }
+
+    @Published var subtitleSourcePreference: SubtitleSourcePreference {
+        didSet { defaults.subtitleSourcePreference = subtitleSourcePreference }
+    }
+
+    @Published var enableSubtitleAutoSelect: Bool {
+        didSet { defaults.enableSubtitleAutoSelect = enableSubtitleAutoSelect }
     }
 
     @Published var subtitleFontSize: Int {
@@ -314,6 +356,14 @@ class ProfileSettings: ObservableObject {
         self.useCachedStreams = defaults.useCachedStreams
         self.streamCacheTTL = defaults.streamCacheTTL
 
+        // Stremio
+        self.stremioPlaybackEnabled = defaults.stremioPlaybackEnabled
+        self.stremioAutoPlayBestSource = defaults.stremioAutoPlayBestSource
+        self.stremioShowOnTmdbDetails = defaults.stremioShowOnTmdbDetails
+        self.stremioPreferCachedSourceResume = defaults.stremioPreferCachedSourceResume
+        self.stremioSubtitleAddonsEnabled = defaults.stremioSubtitleAddonsEnabled
+        self.stremioUnsupportedSourceVisibility = defaults.stremioUnsupportedSourceVisibility
+
         // Playback Preferences
         self.defaultQuality = defaults.defaultQuality
         self.autoPlayNext = defaults.autoPlayNext
@@ -328,6 +378,10 @@ class ProfileSettings: ObservableObject {
         self.autoSkipDelay = defaults.autoSkipDelay
         self.creditsCountdownFallback = defaults.creditsCountdownFallback
         self.rememberTrackSelections = defaults.rememberTrackSelections
+        self.preferredSubtitleLanguage = defaults.preferredSubtitleLanguage
+        self.preferredAudioLanguage = defaults.preferredAudioLanguage
+        self.subtitleSourcePreference = defaults.subtitleSourcePreference
+        self.enableSubtitleAutoSelect = defaults.enableSubtitleAutoSelect
         self.subtitleFontSize = defaults.subtitleFontSize
         self.subtitleBorderSize = defaults.subtitleBorderSize
         self.subtitleBackgroundOpacity = defaults.subtitleBackgroundOpacity
@@ -401,6 +455,14 @@ class ProfileSettings: ObservableObject {
         useCachedStreams = defaults.useCachedStreams
         streamCacheTTL = defaults.streamCacheTTL
 
+        // Stremio
+        stremioPlaybackEnabled = defaults.stremioPlaybackEnabled
+        stremioAutoPlayBestSource = defaults.stremioAutoPlayBestSource
+        stremioShowOnTmdbDetails = defaults.stremioShowOnTmdbDetails
+        stremioPreferCachedSourceResume = defaults.stremioPreferCachedSourceResume
+        stremioSubtitleAddonsEnabled = defaults.stremioSubtitleAddonsEnabled
+        stremioUnsupportedSourceVisibility = defaults.stremioUnsupportedSourceVisibility
+
         // Playback Preferences
         defaultQuality = defaults.defaultQuality
         autoPlayNext = defaults.autoPlayNext
@@ -415,6 +477,10 @@ class ProfileSettings: ObservableObject {
         autoSkipDelay = defaults.autoSkipDelay
         creditsCountdownFallback = defaults.creditsCountdownFallback
         rememberTrackSelections = defaults.rememberTrackSelections
+        preferredSubtitleLanguage = defaults.preferredSubtitleLanguage
+        preferredAudioLanguage = defaults.preferredAudioLanguage
+        subtitleSourcePreference = defaults.subtitleSourcePreference
+        enableSubtitleAutoSelect = defaults.enableSubtitleAutoSelect
         subtitleFontSize = defaults.subtitleFontSize
         subtitleBorderSize = defaults.subtitleBorderSize
         subtitleBackgroundOpacity = defaults.subtitleBackgroundOpacity

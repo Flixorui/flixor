@@ -21,6 +21,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
     case homeScreenAppearance
     case detailsScreen
     case tmdb
+    case stremio
     case mdblist
     case overseerr
     case trakt
@@ -41,6 +42,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         case .homeScreenAppearance: return "Home Screen"
         case .detailsScreen: return "Details Screen"
         case .tmdb: return "TMDB"
+        case .stremio: return "Stremio"
         case .mdblist: return "MDBList"
         case .overseerr: return "Overseerr"
         case .trakt: return "Trakt"
@@ -61,6 +63,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         case .homeScreenAppearance: return "Customize hero, posters and visual appearance"
         case .detailsScreen: return "Episode display and layout options"
         case .tmdb: return "The Movie Database metadata settings"
+        case .stremio: return "Addon sources, subtitles, and alternate playback"
         case .mdblist: return "Multi-source ratings aggregation"
         case .overseerr: return "Media request management integration"
         case .trakt: return "Watch history and scrobbling"
@@ -82,6 +85,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         case .homeScreenAppearance: return "house"
         case .detailsScreen: return "play.rectangle"
         case .tmdb: return "film"
+        case .stremio: return "puzzlepiece.extension.fill"
         case .mdblist: return "star"
         case .overseerr: return "arrow.down.circle"
         case .trakt: return "chart.bar"
@@ -193,6 +197,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         case .homeScreenAppearance: return .indigo
         case .detailsScreen: return .teal
         case .tmdb: return Color(hex: "042541")
+        case .stremio: return .orange
         case .mdblist: return Color(hex: "4284CA")
         case .overseerr: return Color(hex: "0B1223")
         case .trakt: return Color(hex: "ED1C24")
@@ -214,7 +219,7 @@ private struct SidebarSection {
             SidebarSection(title: "Player", categories: [.player]),
             SidebarSection(title: "Content & Discovery", categories: [.discoveryMode, .catalog, .rowsSettings, .sidebar, .search]),
             SidebarSection(title: "Appearance", categories: [.homeScreenAppearance, .detailsScreen]),
-            SidebarSection(title: "Integrations", categories: [.tmdb, .mdblist, .overseerr, .trakt]),
+            SidebarSection(title: "Integrations", categories: [.tmdb, .stremio, .mdblist, .overseerr, .trakt]),
             SidebarSection(title: "System", categories: [.advanced, .about])
         ]
     }
@@ -410,6 +415,8 @@ struct SettingsView: View {
             DetailsScreenSettingsView()
         case .tmdb:
             TMDBSettingsView()
+        case .stremio:
+            StremioSettingsView()
         case .mdblist:
             MDBListSettingsView()
         case .overseerr:
@@ -731,57 +738,31 @@ private struct SearchSettingsView: View {
 // MARK: - General Settings Content
 
 private struct GeneralSettingsContent: View {
-    // Global hardware setting - uses property from PlayerBackend.swift
-    private let defaults = UserDefaults.standard
-
-    private var playerBackendBinding: Binding<PlayerBackend> {
-        Binding(
-            get: { defaults.playerBackend },
-            set: { defaults.playerBackend = $0 }
-        )
-    }
-
     var body: some View {
         SettingsGroupCard {
             VStack(spacing: 0) {
                 SettingsRow(
                     icon: "play.rectangle.fill",
                     iconColor: .blue,
-                    title: "Player Backend",
+                    title: "Playback Engine",
                     showDivider: false
                 ) {
-                    Picker("", selection: playerBackendBinding) {
-                        ForEach(PlayerBackend.allCases) { backend in
-                            Text(backend.displayName).tag(backend)
-                        }
-                    }
-                    .labelsHidden()
-                    .frame(width: 140)
+                    Text("MPV")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.white)
                 }
             }
         }
 
-        // Player descriptions
         VStack(alignment: .leading, spacing: 8) {
-            ForEach(PlayerBackend.allCases) { backend in
-                HStack(alignment: .top, spacing: 8) {
-                    Image(systemName: backend == playerBackendBinding.wrappedValue ? "checkmark.circle.fill" : "circle")
-                        .foregroundStyle(backend == playerBackendBinding.wrappedValue ? .green : .secondary)
-                        .font(.system(size: 12))
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(backend.displayName)
-                            .font(.system(size: 12, weight: .medium))
-                        Text(backend.description)
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
+            Label("MPV is required on macOS for Plex, offline files, direct URL playback, custom headers, and Stremio streams.", systemImage: "checkmark.circle.fill")
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
         }
         .padding(.horizontal, 4)
         .padding(.top, 8)
 
-        Text("Changes will apply to new playback sessions.")
+        Text("Playback engine selection is no longer configurable on macOS.")
             .font(.system(size: 11))
             .foregroundStyle(.secondary)
             .padding(.top, 4)

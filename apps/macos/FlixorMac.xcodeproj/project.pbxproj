@@ -121,6 +121,19 @@
 		C019DBE681302896CC38DF69 /* DownloadButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2C2CCB800286E1C50AD5EFE /* DownloadButton.swift */; };
 		C329C5CF7E24F55B6309CD45 /* LogsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E059C76C45BC6B2E47E6D5D9 /* LogsView.swift */; };
 		C83F2AAE873C2E3008D7A310 /* AppLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F6BC834C21606D91C967707 /* AppLogger.swift */; };
+		STB001 /* PlayerDestination.swift in Sources */ = {isa = PBXBuildFile; fileRef = STF001 /* PlayerDestination.swift */; };
+		STB002 /* StremioModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = STF002 /* StremioModels.swift */; };
+		STB003 /* StremioStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = STF003 /* StremioStorage.swift */; };
+		STB004 /* StremioStreamCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = STF004 /* StremioStreamCache.swift */; };
+		STB005 /* StremioResumeStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = STF005 /* StremioResumeStore.swift */; };
+		STB006 /* StremioService.swift in Sources */ = {isa = PBXBuildFile; fileRef = STF006 /* StremioService.swift */; };
+		STB007 /* StremioContentResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = STF007 /* StremioContentResolver.swift */; };
+		STB008 /* StremioSourcesViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = STF008 /* StremioSourcesViewModel.swift */; };
+		STB009 /* StremioSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = STF009 /* StremioSettingsView.swift */; };
+		STB010 /* StremioAddonsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = STF010 /* StremioAddonsView.swift */; };
+		STB011 /* StremioSourcesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = STF011 /* StremioSourcesView.swift */; };
+		STB012 /* StremioStreamRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = STF012 /* StremioStreamRow.swift */; };
+		STB013 /* StremioProviderFilterBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = STF013 /* StremioProviderFilterBar.swift */; };
 		C8B8094D2F1CD3E0009BFDA0 /* YouTubePlayerKit in Frameworks */ = {isa = PBXBuildFile; productRef = YTPD0001 /* YouTubePlayerKit */; };
 		C8B8094E2F1CD3E0009BFDA0 /* MPVKit-GPL in Frameworks */ = {isa = PBXBuildFile; productRef = MPVD0001 /* MPVKit-GPL */; };
 		C8BA62692E9C5ABE00CFE44C /* NewPopularData.swift in Resources */ = {isa = PBXBuildFile; fileRef = B065 /* NewPopularData.swift */; };
@@ -153,6 +166,19 @@
 		89419B4257304E4E31113CDA /* CollectionRowsSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = CollectionRowsSettingsView.swift; path = CollectionRowsSettingsView.swift; sourceTree = "<group>"; };
 		9911C3B9537F9629E5086F4A /* PlayerSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PlayerSettingsView.swift; path = PlayerSettingsView.swift; sourceTree = "<group>"; };
 		A551E079C93FFCF1E765E133 /* ProfileSettings.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProfileSettings.swift; sourceTree = "<group>"; };
+		STF001 /* PlayerDestination.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlayerDestination.swift; sourceTree = "<group>"; };
+		STF002 /* StremioModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StremioModels.swift; sourceTree = "<group>"; };
+		STF003 /* StremioStorage.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StremioStorage.swift; sourceTree = "<group>"; };
+		STF004 /* StremioStreamCache.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StremioStreamCache.swift; sourceTree = "<group>"; };
+		STF005 /* StremioResumeStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StremioResumeStore.swift; sourceTree = "<group>"; };
+		STF006 /* StremioService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StremioService.swift; sourceTree = "<group>"; };
+		STF007 /* StremioContentResolver.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StremioContentResolver.swift; sourceTree = "<group>"; };
+		STF008 /* StremioSourcesViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StremioSourcesViewModel.swift; sourceTree = "<group>"; };
+		STF009 /* StremioSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StremioSettingsView.swift; sourceTree = "<group>"; };
+		STF010 /* StremioAddonsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StremioAddonsView.swift; sourceTree = "<group>"; };
+		STF011 /* StremioSourcesView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StremioSourcesView.swift; sourceTree = "<group>"; };
+		STF012 /* StremioStreamRow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StremioStreamRow.swift; sourceTree = "<group>"; };
+		STF013 /* StremioProviderFilterBar.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StremioProviderFilterBar.swift; sourceTree = "<group>"; };
 		B001 /* FlixorMacApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlixorMacApp.swift; sourceTree = "<group>"; };
 		B002 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		B003 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
@@ -354,6 +380,8 @@
 				B065 /* NewPopularData.swift */,
 				B042 /* PlexServer.swift */,
 				B051 /* PlayerBackend.swift */,
+				STF001 /* PlayerDestination.swift */,
+				STF002 /* StremioModels.swift */,
 				B170 /* MDBListRatings.swift */,
 				B171 /* OverseerrModels.swift */,
 				7CB1C29CA6CFB52E468383D8 /* PerformanceStats.swift */,
@@ -376,6 +404,7 @@
 				D015 /* Settings */,
 				D018 /* Details */,
 				D019 /* Player */,
+				STG001 /* Stremio */,
 				E0E97337240E54ACD3562452 /* Profile */,
 				505287A7F0EBFDEE0C86DC3E /* Downloads */,
 			);
@@ -397,6 +426,7 @@
 				B047 /* MyListViewModel.swift */,
 				B066 /* NewPopularViewModel.swift */,
 				B046 /* WatchlistController.swift */,
+				STF008 /* StremioSourcesViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -409,6 +439,7 @@
 				D017 /* Auth */,
 				D021 /* MDBList */,
 				D022 /* Overseerr */,
+				STG002 /* Stremio */,
 				B085 /* TraktScrobbler.swift */,
 				F5602C0E02D02A79ABE8837A /* TrackPreferenceService.swift */,
 				5F6BC834C21606D91C967707 /* AppLogger.swift */,
@@ -508,6 +539,8 @@
 				B251 /* DetailsScreenSettingsView.swift */,
 				B169 /* CatalogSettingsView.swift */,
 				B176 /* ContinueWatchingSettingsView.swift */,
+				STF009 /* StremioSettingsView.swift */,
+				STF010 /* StremioAddonsView.swift */,
 				9911C3B9537F9629E5086F4A /* PlayerSettingsView.swift */,
 				DC5CC48F0840B10DB094145A /* MpvConfigView.swift */,
 				E059C76C45BC6B2E47E6D5D9 /* LogsView.swift */,
@@ -590,6 +623,28 @@
 				F85A04CB3691DE34BF4E4666 /* ServerEndpointFlowView.swift */,
 			);
 			path = Onboarding;
+			sourceTree = "<group>";
+		};
+		STG001 /* Stremio */ = {
+			isa = PBXGroup;
+			children = (
+				STF011 /* StremioSourcesView.swift */,
+				STF012 /* StremioStreamRow.swift */,
+				STF013 /* StremioProviderFilterBar.swift */,
+			);
+			path = Stremio;
+			sourceTree = "<group>";
+		};
+		STG002 /* Stremio */ = {
+			isa = PBXGroup;
+			children = (
+				STF003 /* StremioStorage.swift */,
+				STF004 /* StremioStreamCache.swift */,
+				STF005 /* StremioResumeStore.swift */,
+				STF006 /* StremioService.swift */,
+				STF007 /* StremioContentResolver.swift */,
+			);
+			path = Stremio;
 			sourceTree = "<group>";
 		};
 		D099 /* Products */ = {
@@ -784,6 +839,8 @@
 				A040 /* SearchViewModel.swift in Sources */,
 				A041 /* PlayerViewModel.swift in Sources */,
 				A042 /* PlexServer.swift in Sources */,
+				STB001 /* PlayerDestination.swift in Sources */,
+				STB002 /* StremioModels.swift in Sources */,
 				A043 /* LibraryViewModel.swift in Sources */,
 				A044 /* LibraryFilterBarView.swift in Sources */,
 				A045 /* CollectionsView.swift in Sources */,
@@ -800,6 +857,7 @@
 				A065 /* NewPopularData.swift in Sources */,
 				A066 /* NewPopularViewModel.swift in Sources */,
 				A067 /* NewPopularHero.swift in Sources */,
+				STB008 /* StremioSourcesViewModel.swift in Sources */,
 				A085 /* TraktScrobbler.swift in Sources */,
 				A205 /* TMDBSettingsView.swift in Sources */,
 				A206 /* MDBListSettingsView.swift in Sources */,
@@ -815,6 +873,8 @@
 				A214 /* RequestButton.swift in Sources */,
 				A215 /* RatingsDisplay.swift in Sources */,
 				A216 /* ContinueWatchingSettingsView.swift in Sources */,
+				STB009 /* StremioSettingsView.swift in Sources */,
+				STB010 /* StremioAddonsView.swift in Sources */,
 				A217 /* HeroCarousel.swift in Sources */,
 				A218 /* ContinueWatchingLandscapeRow.swift in Sources */,
 				A219 /* ContinueWatchingPosterRow.swift in Sources */,
@@ -833,6 +893,11 @@
 				9D82BB3DA6029E023449A907 /* EndpointSelectView.swift in Sources */,
 				D593D818FCF559C1912E8893 /* ServerEndpointFlowView.swift in Sources */,
 				C83F2AAE873C2E3008D7A310 /* AppLogger.swift in Sources */,
+				STB003 /* StremioStorage.swift in Sources */,
+				STB004 /* StremioStreamCache.swift in Sources */,
+				STB005 /* StremioResumeStore.swift in Sources */,
+				STB006 /* StremioService.swift in Sources */,
+				STB007 /* StremioContentResolver.swift in Sources */,
 				C329C5CF7E24F55B6309CD45 /* LogsView.swift in Sources */,
 				485E86E1490854741ABF2104 /* ProfileSelectView.swift in Sources */,
 				1D92310802A81DB458745014 /* ProfileAvatarView.swift in Sources */,
@@ -846,6 +911,9 @@
 				273B64120BC7ED3EECB25980 /* DownloadStorageService.swift in Sources */,
 				EC00FE5B69F216F3A15A9FCE /* DownloadsView.swift in Sources */,
 				C019DBE681302896CC38DF69 /* DownloadButton.swift in Sources */,
+				STB011 /* StremioSourcesView.swift in Sources */,
+				STB012 /* StremioStreamRow.swift in Sources */,
+				STB013 /* StremioProviderFilterBar.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1116,6 +1184,7 @@
 /* Begin XCSwiftPackageProductDependency section */
 		FKPD0001 /* FlixorKit */ = {
 			isa = XCSwiftPackageProductDependency;
+			package = FKPR0001 /* XCLocalSwiftPackageReference "FlixorKit" */;
 			productName = FlixorKit;
 		};
 		MPVD0001 /* MPVKit-GPL */ = {

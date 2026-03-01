@@ -118,6 +118,45 @@ class TraktScrobbler: ObservableObject {
         }
     }
 
+    /// Start scrobbling for a direct stream item using resolved external IDs.
+    func startScrobble(for streamItem: StreamPlaybackItem, initialProgress: Double = 0) async {
+        guard FlixorCore.shared.isTraktAuthenticated else { return }
+        guard isScrobblingEnabled else { return }
+
+        if state.isScrobbling {
+            await stopScrobble()
+        }
+
+        guard let mediaType = buildScrobbleMedia(for: streamItem) else {
+            print("⚠️ [Scrobbler] Missing external IDs for stream item: \(streamItem.title)")
+            return
+        }
+
+        do {
+            let response: TraktScrobbleResponse
+            switch mediaType {
+            case .movie(let movie):
+                response = try await FlixorCore.shared.trakt.scrobbleStart(movie: movie, progress: initialProgress)
+                currentTitle = movie.title
+            case .episode(let show, let episode):
+                response = try await FlixorCore.shared.trakt.scrobbleStart(show: show, episode: episode, progress: initialProgress)
+                currentTitle = "\(show.title ?? "Unknown") S\(episode.season)E\(episode.number)"
+            }
+
+            state = ScrobbleState(
+                isScrobbling: true,
+                currentMedia: mediaType,
+                lastProgress: initialProgress,
+                startTime: Date()
+            )
+            isScrobbling = true
+
+            print("✅ [Scrobbler] Started stream scrobble: \(currentTitle ?? "unknown") - Action: \(response.action)")
+        } catch {
+            print("❌ [Scrobbler] Failed to start stream scrobble: \(error)")
+        }
+    }
+
     /// Pause scrobbling (when user pauses playback)
     func pauseScrobble(progress: Double) async {
         guard state.isScrobbling, let media = state.currentMedia else {
@@ -299,5 +338,33 @@ class TraktScrobbler: ObservableObject {
 
             return .episode(show: show, episode: episode)
         }
+    }
+
+    private func buildScrobbleMedia(for streamItem: StreamPlaybackItem) -> ScrobbleMediaType? {
+        let ids = TraktScrobbleIds(imdb: streamItem.imdbId, tmdb: streamItem.tmdbId, tvdb: nil)
+        guard ids.imdb != nil || ids.tmdb != nil else { return nil }
+
+        if streamItem.mediaType == .movie {
+            return .movie(
+                TraktScrobbleMovie(
+                    title: streamItem.title,
+                    year: nil,
+                    ids: ids
+                )
+            )
+        }
+
+        return .episode(
+            show: TraktScrobbleShow(
+                title: streamItem.title,
+                year: nil,
+                ids: ids
+            ),
+            episode: TraktScrobbleEpisode(
+                season: streamItem.seasonNumber ?? 1,
+                number: streamItem.episodeNumber ?? 1,
+                title: streamItem.episodeTitle
+            )
+        )
     }
 }

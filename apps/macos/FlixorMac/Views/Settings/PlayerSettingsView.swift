@@ -14,14 +14,6 @@ struct PlayerSettingsView: View {
     // MARK: - Global Hardware Settings (device-specific, not profile-scoped)
     private let defaults = UserDefaults.standard
 
-    // Player Backend binding (global) - uses property from PlayerBackend.swift
-    private var playerBackendBinding: Binding<PlayerBackend> {
-        Binding(
-            get: { defaults.playerBackend },
-            set: { defaults.playerBackend = $0 }
-        )
-    }
-
     // Hardware decoding binding (global)
     private var hardwareDecodingBinding: Binding<Bool> {
         Binding(
@@ -67,26 +59,21 @@ struct PlayerSettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            // Player Backend Selection
-            SettingsCard(title: "Player Backend") {
+            SettingsCard(title: "Playback Engine") {
                 SettingsRow(
                     icon: "play.rectangle.fill",
                     iconColor: .blue,
-                    title: "Video Player",
-                    subtitle: playerBackendBinding.wrappedValue.description,
+                    title: "Playback Engine",
+                    subtitle: "Stremio, Plex, and offline playback all use MPV on macOS.",
                     showDivider: false
                 ) {
-                    Picker("", selection: playerBackendBinding) {
-                        ForEach(PlayerBackend.allCases) { backend in
-                            Text(backend.displayName).tag(backend)
-                        }
-                    }
-                    .labelsHidden()
-                    .frame(width: 160)
+                    Text("MPV")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.white)
                 }
             }
 
-            Text("MPV offers better codec support and advanced features. AVPlayer is Apple's native player with better system integration.")
+            Text("MPV is the required playback engine on macOS for direct URL streams, custom headers, advanced codecs, and Stremio integration.")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 4)
@@ -204,9 +191,57 @@ struct PlayerSettingsView: View {
                     iconColor: .indigo,
                     title: "Remember Track Selection",
                     subtitle: "Remember audio/subtitle language choices",
-                    showDivider: false
+                    showDivider: true
                 ) {
                     Toggle("", isOn: $profileSettings.rememberTrackSelections)
+                        .labelsHidden()
+                }
+
+                SettingsRow(
+                    icon: "captions.bubble.fill",
+                    iconColor: .orange,
+                    title: "Preferred Subtitle Language",
+                    subtitle: "ISO language code for subtitle auto-select"
+                ) {
+                    TextField("en", text: $profileSettings.preferredSubtitleLanguage)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 80)
+                }
+
+                SettingsRow(
+                    icon: "music.note",
+                    iconColor: .pink,
+                    title: "Preferred Audio Language",
+                    subtitle: "ISO language code for audio auto-select"
+                ) {
+                    TextField("en", text: $profileSettings.preferredAudioLanguage)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 80)
+                }
+
+                SettingsRow(
+                    icon: "text.bubble.fill",
+                    iconColor: .purple,
+                    title: "Subtitle Source Preference",
+                    subtitle: "How internal and external subtitles are prioritized"
+                ) {
+                    Picker("", selection: $profileSettings.subtitleSourcePreference) {
+                        ForEach(SubtitleSourcePreference.allCases, id: \.self) { preference in
+                            Text(preference.description).tag(preference)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(width: 150)
+                }
+
+                SettingsRow(
+                    icon: "wand.and.stars",
+                    iconColor: .teal,
+                    title: "Auto-Select Subtitles",
+                    subtitle: "Automatically choose matching subtitles after playback starts",
+                    showDivider: false
+                ) {
+                    Toggle("", isOn: $profileSettings.enableSubtitleAutoSelect)
                         .labelsHidden()
                 }
             }

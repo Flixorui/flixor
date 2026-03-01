@@ -116,12 +116,33 @@ struct DetailsView: View {
     @State private var pendingPlayItem: MediaItem?
     @State private var episodeVersions: [DetailsViewModel.VersionDetail] = []
     @State private var isLoadingVersions = false
+    @State private var stremioAlertMessage: String?
+    @State private var stremioAlertOffersSettings = false
+    @State private var showStremioSettings = false
 
     // Profile-scoped layout preference
     @ObservedObject private var profileSettings = ProfileSettings.shared
 
-    private var hasPlexSource: Bool {
-        vm.playableId != nil || vm.plexRatingKey != nil
+    private var resolvedPlexPlayableId: String? {
+        if let playableId = vm.playableId, playableId.hasPrefix("plex:") {
+            return playableId
+        }
+        if let ratingKey = vm.plexRatingKey {
+            return "plex:\(ratingKey)"
+        }
+        return nil
+    }
+
+    private var hasResolvedPlexSource: Bool {
+        resolvedPlexPlayableId != nil
+    }
+
+    private var canShowStremioAction: Bool {
+        guard profileSettings.stremioPlaybackEnabled else { return false }
+        if item.id.hasPrefix("tmdb:") && !profileSettings.stremioShowOnTmdbDetails {
+            return false
+        }
+        return item.type == "movie" || item.type == "show" || item.type == "episode" || vm.mediaKind == "movie" || vm.mediaKind == "tv" || vm.isSeason || vm.isEpisode
     }
 
     var body: some View {
@@ -138,6 +159,8 @@ struct DetailsView: View {
                                 item: item,
                                 trailers: vm.trailers,
                                 onPlay: playContent,
+                                onStremio: openHeroStremioSources,
+                                showsStremioButton: canShowStremioAction,
                                 onViewShow: viewParentShow,
                                 layout: layout
                             )
@@ -161,7 +184,7 @@ struct DetailsView: View {
                                         presentPerson(person)
                                     })
                                 case "EPISODES":
-                                    EpisodesTabContent(vm: vm, layout: layout, onPlayEpisode: playEpisode, hasPlexSource: hasPlexSource)
+                                    EpisodesTabContent(vm: vm, layout: layout, onPlayEpisode: playEpisode, onStremioEpisode: openEpisodeStremioSources)
                                 default:
                                     SuggestedSections(vm: vm, layout: layout, onBrowse: { context in
                                         presentBrowse(context)
@@ -177,12 +200,7 @@ struct DetailsView: View {
                             VStack(spacing: 48) {
                                 // Episodes section (only for TV shows/seasons, NOT for single episodes)
                                 if (vm.mediaKind == "tv" || vm.isSeason) && !vm.isEpisode {
-                                    VStack(alignment: .leading, spacing: 16) {
-                                        Text("Episodes")
-                                            .font(.system(size: 20, weight: .bold))
-                                            .foregroundStyle(.white)
-                                        EpisodesTabContent(vm: vm, layout: layout, onPlayEpisode: playEpisode, hasPlexSource: hasPlexSource)
-                                    }
+                                    EpisodesTabContent(vm: vm, layout: layout, onPlayEpisode: playEpisode, onStremioEpisode: openEpisodeStremioSources)
                                 }
 
                                 // Suggested section
@@ -287,93 +305,103 @@ struct DetailsView: View {
                 }
             )
         }
+        .sheet(isPresented: $showStremioSettings) {
+            StremioSettingsView()
+        }
+        .alert("Stremio", isPresented: Binding(get: { stremioAlertMessage != nil }, set: { if !$0 { stremioAlertMessage = nil } })) {
+            if stremioAlertOffersSettings {
+                Button("Open Settings") {
+                    showStremioSettings = true
+                }
+            }
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(stremioAlertMessage ?? "")
+        }
         // Destination for PlayerView is handled at root via NavigationStack(path:)
     }
 
     private func playContent() {
-        // If we have a playableId from the ViewModel, use it
-        if let playableId = vm.playableId {
-            // CRITICAL: Preserve episode type from original item
-            // vm.mediaKind only stores "movie" or "tv", but episodes need type="episode"
-            let mediaType: String = {
-                if item.type == "episode" {
-                    return "episode"
-                }
-                return vm.mediaKind ?? item.type
-            }()
+        guard hasResolvedPlexSource, let playableId = resolvedPlexPlayableId else { return }
 
-            // For episodes, use original episode title (not the formatted display title)
-            // and ensure grandparentTitle/parentIndex/index are properly set for player formatting
-            let playerTitle: String
-            let playerGrandparentTitle: String?
-            let playerParentIndex: Int?
-            let playerIndex: Int?
-
-            if vm.isEpisode {
-                // Use original episode title to avoid duplication in player
-                playerTitle = vm.episodeTitle ?? item.title
-                playerGrandparentTitle = vm.showTitle ?? item.grandparentTitle
-                playerParentIndex = vm.seasonNumber ?? item.parentIndex
-                playerIndex = vm.episodeNumber ?? item.index
-            } else {
-                playerTitle = vm.title.isEmpty ? item.title : vm.title
-                playerGrandparentTitle = item.grandparentTitle
-                playerParentIndex = item.parentIndex
-                playerIndex = item.index
+        // CRITICAL: Preserve episode type from original item
+        // vm.mediaKind only stores "movie" or "tv", but episodes need type="episode"
+        let mediaType: String = {
+            if item.type == "episode" {
+                return "episode"
             }
+            return vm.mediaKind ?? item.type
+        }()
 
-            let playerItem = MediaItem(
-                id: playableId,
-                title: playerTitle,
-                type: mediaType,
-                thumb: item.thumb,
-                art: item.art,
-                year: vm.year.flatMap { Int($0) },
-                rating: nil,
-                duration: vm.runtime.map { $0 * 60000 },
-                viewOffset: nil,
-                summary: vm.overview.isEmpty ? nil : vm.overview,
-                grandparentTitle: playerGrandparentTitle,
-                grandparentThumb: item.grandparentThumb,
-                grandparentArt: item.grandparentArt,
-                grandparentRatingKey: vm.showRatingKey ?? item.grandparentRatingKey,
-                parentIndex: playerParentIndex,
-                index: playerIndex,
-                parentRatingKey: item.parentRatingKey,
-                parentTitle: item.parentTitle,
-                leafCount: item.leafCount,
-                viewedLeafCount: item.viewedLeafCount
-            )
+        // For episodes, use original episode title (not the formatted display title)
+        // and ensure grandparentTitle/parentIndex/index are properly set for player formatting
+        let playerTitle: String
+        let playerGrandparentTitle: String?
+        let playerParentIndex: Int?
+        let playerIndex: Int?
 
-            // For movies - use existing vm.versions
-            if vm.mediaKind == "movie" {
-                if vm.versions.count > 1 {
+        if vm.isEpisode {
+            // Use original episode title to avoid duplication in player
+            playerTitle = vm.episodeTitle ?? item.title
+            playerGrandparentTitle = vm.showTitle ?? item.grandparentTitle
+            playerParentIndex = vm.seasonNumber ?? item.parentIndex
+            playerIndex = vm.episodeNumber ?? item.index
+        } else {
+            playerTitle = vm.title.isEmpty ? item.title : vm.title
+            playerGrandparentTitle = item.grandparentTitle
+            playerParentIndex = item.parentIndex
+            playerIndex = item.index
+        }
+
+        let playerItem = MediaItem(
+            id: playableId,
+            title: playerTitle,
+            type: mediaType,
+            thumb: item.thumb,
+            art: item.art,
+            year: vm.year.flatMap { Int($0) },
+            rating: nil,
+            duration: vm.runtime.map { $0 * 60000 },
+            viewOffset: nil,
+            summary: vm.overview.isEmpty ? nil : vm.overview,
+            grandparentTitle: playerGrandparentTitle,
+            grandparentThumb: item.grandparentThumb,
+            grandparentArt: item.grandparentArt,
+            grandparentRatingKey: vm.showRatingKey ?? item.grandparentRatingKey,
+            parentIndex: playerParentIndex,
+            index: playerIndex,
+            parentRatingKey: item.parentRatingKey,
+            parentTitle: item.parentTitle,
+            leafCount: item.leafCount,
+            viewedLeafCount: item.viewedLeafCount
+        )
+
+        // For movies - use existing vm.versions
+        if vm.mediaKind == "movie" {
+            if vm.versions.count > 1 {
+                pendingPlayItem = playerItem
+                showVersionPicker = true
+            } else {
+                appendToCurrentTabPath(.plex(playerItem))
+            }
+        }
+        // For episodes/TV shows - fetch versions for the specific playable item
+        else if item.type == "episode" || vm.mediaKind == "tv" {
+            Task {
+                isLoadingVersions = true
+                let versions = await vm.fetchVersionsForItem(ratingKey: playableId)
+                isLoadingVersions = false
+
+                if versions.count > 1 {
+                    episodeVersions = versions
                     pendingPlayItem = playerItem
                     showVersionPicker = true
                 } else {
-                    appendToCurrentTabPath(playerItem)
+                    appendToCurrentTabPath(.plex(playerItem))
                 }
-            }
-            // For episodes/TV shows - fetch versions for the specific playable item
-            else if item.type == "episode" || vm.mediaKind == "tv" {
-                Task {
-                    isLoadingVersions = true
-                    let versions = await vm.fetchVersionsForItem(ratingKey: playableId)
-                    isLoadingVersions = false
-
-                    if versions.count > 1 {
-                        episodeVersions = versions
-                        pendingPlayItem = playerItem
-                        showVersionPicker = true
-                    } else {
-                        appendToCurrentTabPath(playerItem)
-                    }
-                }
-            } else {
-                appendToCurrentTabPath(playerItem)
             }
         } else {
-            appendToCurrentTabPath(item)
+            appendToCurrentTabPath(.plex(playerItem))
         }
     }
 
@@ -387,17 +415,28 @@ struct DetailsView: View {
         showVersionPicker = false
         pendingPlayItem = nil
         episodeVersions = []
-        appendToCurrentTabPath(playerItem)
+        appendToCurrentTabPath(.plex(playerItem))
     }
 
-    private func appendToCurrentTabPath(_ item: MediaItem) {
+    private func appendToCurrentTabPath(_ destination: PlayerDestination) {
         switch mainView.selectedTab {
-        case .home: router.homePath.append(item)
-        case .search: router.searchPath.append(item)
-        case .library: router.libraryPath.append(item)
-        case .myList: router.myListPath.append(item)
-        case .newPopular: router.newPopularPath.append(item)
-        case .downloads: router.downloadsPath.append(item)
+        case .home: router.homePath.append(destination)
+        case .search: router.searchPath.append(destination)
+        case .library: router.libraryPath.append(destination)
+        case .myList: router.myListPath.append(destination)
+        case .newPopular: router.newPopularPath.append(destination)
+        case .downloads: router.downloadsPath.append(destination)
+        }
+    }
+
+    private func appendToCurrentTabPath(_ destination: StremioSourcesDestination) {
+        switch mainView.selectedTab {
+        case .home: router.homePath.append(destination)
+        case .search: router.searchPath.append(destination)
+        case .library: router.libraryPath.append(destination)
+        case .myList: router.myListPath.append(destination)
+        case .newPopular: router.newPopularPath.append(destination)
+        case .downloads: router.downloadsPath.append(destination)
         }
     }
 
@@ -457,6 +496,9 @@ struct DetailsView: View {
     }
 
     private func playEpisode(_ episode: DetailsViewModel.Episode) {
+        guard episode.id.hasPrefix("plex:") else { return }
+
+        let ratingKey = String(episode.id.dropFirst(5))
         let playerItem = MediaItem(
             id: episode.id,
             title: episode.title,
@@ -483,7 +525,7 @@ struct DetailsView: View {
         // Fetch versions for this episode
         Task {
             isLoadingVersions = true
-            let versions = await vm.fetchVersionsForItem(ratingKey: episode.id)
+            let versions = await vm.fetchVersionsForItem(ratingKey: ratingKey)
             isLoadingVersions = false
 
             if versions.count > 1 {
@@ -491,9 +533,91 @@ struct DetailsView: View {
                 pendingPlayItem = playerItem
                 showVersionPicker = true
             } else {
-                appendToCurrentTabPath(playerItem)
+                appendToCurrentTabPath(.plex(playerItem))
             }
         }
+    }
+
+    private func openHeroStremioSources() {
+        if item.type == "movie" || vm.mediaKind == "movie" {
+            Task { await openStremioSources(for: nil) }
+            return
+        }
+
+        if vm.isEpisode {
+            let episode = DetailsViewModel.Episode(
+                id: item.id.replacingOccurrences(of: "plex:", with: ""),
+                title: vm.episodeTitle ?? item.title,
+                overview: vm.overview,
+                image: vm.posterURL,
+                durationMin: vm.runtime,
+                progressPct: nil,
+                viewOffset: item.viewOffset,
+                seasonNumber: vm.seasonNumber,
+                episodeNumber: vm.episodeNumber
+            )
+            Task { await openStremioSources(for: episode) }
+            return
+        }
+
+        if let onDeck = vm.onDeck {
+            Task { await openStremioSources(for: onDeck) }
+            return
+        }
+
+        if let firstEpisode = vm.episodes.first {
+            Task { await openStremioSources(for: firstEpisode) }
+            return
+        }
+
+        stremioAlertOffersSettings = false
+        stremioAlertMessage = "Choose an episode to use Stremio playback."
+        if profileSettings.detailsScreenLayout == "tabbed" {
+            activeTab = "EPISODES"
+        }
+    }
+
+    private func openEpisodeStremioSources(_ episode: DetailsViewModel.Episode) {
+        Task { await openStremioSources(for: episode) }
+    }
+
+    private func openStremioSources(for episode: DetailsViewModel.Episode?) async {
+        AppLogger.shared.info("[Stremio] Details CTA tapped", data: [
+            "itemId": item.id,
+            "episodeId": episode?.id ?? "",
+            "title": vm.title,
+        ])
+
+        let result = await StremioContentResolver.resolve(item: item, details: vm, episode: episode)
+        guard let identity = result.identity else {
+            switch result.error {
+            case .noStreamAddons:
+                stremioAlertOffersSettings = true
+                stremioAlertMessage = "No stream-capable Stremio addons are installed for this profile."
+            case .unsupportedID:
+                stremioAlertOffersSettings = false
+                stremioAlertMessage = "No installed Stremio addon supports this title’s resolved ID."
+            default:
+                stremioAlertOffersSettings = false
+                stremioAlertMessage = "No compatible Stremio ID could be resolved for this title."
+            }
+            return
+        }
+
+        let mediaType: StreamMediaType = episode != nil || vm.isEpisode ? .episode : .movie
+        let destination = StremioSourcesDestination(
+            identity: identity,
+            title: vm.title.isEmpty ? item.title : vm.title,
+            backdropURL: vm.backdropURL?.absoluteString ?? item.art,
+            posterURL: vm.posterURL?.absoluteString ?? item.thumb,
+            mediaType: mediaType,
+            imdbId: identity.imdbId,
+            tmdbId: identity.tmdbId,
+            seasonNumber: identity.seasonNumber,
+            episodeNumber: identity.episodeNumber,
+            episodeTitle: episode?.title ?? vm.episodeTitle
+        )
+        appendToCurrentTabPath(destination)
     }
 }
 
@@ -504,6 +628,8 @@ private struct DetailsHeroSection: View {
     let item: MediaItem
     let trailers: [Trailer]
     let onPlay: () -> Void
+    let onStremio: () -> Void
+    let showsStremioButton: Bool
     let onViewShow: () -> Void
     let layout: DetailsLayoutMetrics
 
@@ -541,9 +667,8 @@ private struct DetailsHeroSection: View {
         }
     }
 
-    // Check if has Plex source
-    private var hasPlexSource: Bool {
-        vm.playableId != nil || vm.plexRatingKey != nil
+    private var hasResolvedPlexSource: Bool {
+        effectivePlexRatingKey != nil
     }
 
     // Get the Plex rating key from either plexRatingKey or playableId (format: "plex:12345")
@@ -998,14 +1123,31 @@ private struct DetailsHeroSection: View {
                         Text("Play")
                             .font(.system(size: 16, weight: .semibold))
                     }
-                    .foregroundStyle(hasPlexSource ? .black : .gray)
+                    .foregroundStyle(hasResolvedPlexSource ? .black : .gray)
                     .padding(.horizontal, 32)
                     .padding(.vertical, 12)
-                    .background(hasPlexSource ? Color.white : Color.white.opacity(0.5))
+                    .background(hasResolvedPlexSource ? Color.white : Color.white.opacity(0.5))
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
                 .buttonStyle(.plain)
-                .disabled(!hasPlexSource)
+                .disabled(!hasResolvedPlexSource)
+
+                if showsStremioButton {
+                    Button(action: onStremio) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "puzzlepiece.extension.fill")
+                                .font(.system(size: 15, weight: .semibold))
+                            Text("Stremio")
+                                .font(.system(size: 15, weight: .semibold))
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 22)
+                        .padding(.vertical, 12)
+                        .background(Color.orange.opacity(0.22))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                    }
+                    .buttonStyle(.plain)
+                }
 
                 // View Show button for episodes
                 if isEpisode, item.grandparentRatingKey != nil {
@@ -1054,7 +1196,7 @@ private struct DetailsHeroSection: View {
 
                 // Download button - circular (Apple TV+ style)
                 // Only show for movies and episodes (not TV shows or seasons) with a Plex source
-                if hasPlexSource,
+                if hasResolvedPlexSource,
                    let ratingKey = effectivePlexRatingKey,
                    let serverId = FlixorCore.shared.server?.id,
                    (vm.mediaKind == "movie" || item.type == "movie" || isEpisode) {
@@ -1145,7 +1287,7 @@ private struct DetailsHeroSection: View {
     }
 
     private var canonicalWatchlistId: String? {
-        if let playable = vm.playableId { return playable }
+        if let playable = vm.playableId, playable.hasPrefix("plex:") { return playable }
         if let tmdb = vm.tmdbId {
             let prefix = (vm.mediaKind == "tv") ? "tmdb:tv:" : "tmdb:movie:"
             return prefix + tmdb
@@ -2126,12 +2268,45 @@ private struct EpisodesTabContent: View {
     @ObservedObject var vm: DetailsViewModel
     let layout: DetailsLayoutMetrics
     let onPlayEpisode: (DetailsViewModel.Episode) -> Void
-    var hasPlexSource: Bool = true
+    let onStremioEpisode: (DetailsViewModel.Episode) -> Void
 
     @ObservedObject private var profileSettings = ProfileSettings.shared
+    @State private var preferStremioEpisodeTap = false
 
     private let cardWidth: CGFloat = 340
     private var cardHeight: CGFloat { 180 }
+    private var stremioEnabled: Bool { profileSettings.stremioPlaybackEnabled }
+
+    private var currentSeasonUsesTMDBSource: Bool {
+        vm.selectedSeasonKey?.hasPrefix("tmdb:season:") == true
+    }
+
+    private func episodeRowHasPlexSource(_ episode: DetailsViewModel.Episode) -> Bool {
+        episode.id.hasPrefix("plex:")
+    }
+
+    private var episodeListHasPlexSource: Bool {
+        if !vm.episodes.isEmpty {
+            return vm.episodes.contains { episodeRowHasPlexSource($0) }
+        }
+        return !currentSeasonUsesTMDBSource && (vm.plexRatingKey != nil || (vm.playableId?.hasPrefix("plex:") == true))
+    }
+
+    private func rowTapDisabled(for episode: DetailsViewModel.Episode) -> Bool {
+        !episodeRowHasPlexSource(episode) && !stremioEnabled
+    }
+
+    private func showsExplicitStremioButton(for episode: DetailsViewModel.Episode) -> Bool {
+        episodeRowHasPlexSource(episode) && stremioEnabled && !preferStremioEpisodeTap
+    }
+
+    private func showsStremioActiveBadge(for episode: DetailsViewModel.Episode) -> Bool {
+        let episodeHasPlexSource = episodeRowHasPlexSource(episode)
+        if !episodeHasPlexSource && stremioEnabled {
+            return true
+        }
+        return episodeHasPlexSource && stremioEnabled && preferStremioEpisodeTap
+    }
 
     // Computed show info for downloads
     private var showTitle: String {
@@ -2148,8 +2323,87 @@ private struct EpisodesTabContent: View {
         FlixorCore.shared.server?.id
     }
 
+    private var episodeTapModeTitle: String {
+        preferStremioEpisodeTap ? "Stremio sources" : "Plex playback"
+    }
+
+    private func handleEpisodeSelection(_ episode: DetailsViewModel.Episode) {
+        let episodeHasPlexSource = episodeRowHasPlexSource(episode)
+
+        if !episodeHasPlexSource && !stremioEnabled {
+            return
+        }
+
+        if !episodeHasPlexSource && stremioEnabled {
+            onStremioEpisode(episode)
+            return
+        }
+
+        if stremioEnabled && preferStremioEpisodeTap {
+            onStremioEpisode(episode)
+        } else {
+            onPlayEpisode(episode)
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
+            HStack(alignment: .center, spacing: 12) {
+                Text("Episodes")
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(.white)
+
+                Spacer(minLength: 12)
+
+                if episodeListHasPlexSource && stremioEnabled {
+                    Menu {
+                        Button {
+                            preferStremioEpisodeTap = false
+                        } label: {
+                            if !preferStremioEpisodeTap {
+                                Label("Plex playback", systemImage: "checkmark")
+                            } else {
+                                Text("Plex playback")
+                            }
+                        }
+
+                        Button {
+                            preferStremioEpisodeTap = true
+                        } label: {
+                            if preferStremioEpisodeTap {
+                                Label("Stremio sources", systemImage: "checkmark")
+                            } else {
+                                Text("Stremio sources")
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "puzzlepiece.extension.fill")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(Color.orange.opacity(0.95))
+                            Text(episodeTapModeTitle)
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(.white)
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(.white.opacity(0.7))
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(Color.white.opacity(0.08))
+                                .overlay(
+                                    Capsule(style: .continuous)
+                                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                                )
+                        )
+                    }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
+                }
+            }
+
             // Season selector (hide in season-only mode)
             if !vm.isSeason && vm.seasons.count > 1 {
                 SeasonSelector(
@@ -2184,11 +2438,14 @@ private struct EpisodesTabContent: View {
                                 episodeNumber: index + 1,
                                 width: cardWidth,
                                 height: cardHeight,
-                                isDisabled: !hasPlexSource,
+                                isDisabled: rowTapDisabled(for: episode),
+                                showsStremioButton: showsExplicitStremioButton(for: episode),
+                                showsStremioActiveBadge: showsStremioActiveBadge(for: episode),
                                 showTitle: showTitle,
                                 showRatingKey: showRatingKey,
-                                serverId: serverId,
-                                onPlay: { onPlayEpisode(episode) }
+                                serverId: episodeRowHasPlexSource(episode) ? serverId : nil,
+                                onPlay: { handleEpisodeSelection(episode) },
+                                onStremio: { onStremioEpisode(episode) }
                             )
                         }
                     }
@@ -2203,11 +2460,14 @@ private struct EpisodesTabContent: View {
                             episode: episode,
                             episodeNumber: index + 1,
                             layout: layout,
-                            isDisabled: !hasPlexSource,
+                            isDisabled: rowTapDisabled(for: episode),
+                            showsStremioButton: showsExplicitStremioButton(for: episode),
+                            showsStremioActiveBadge: showsStremioActiveBadge(for: episode),
                             showTitle: showTitle,
                             showRatingKey: showRatingKey,
-                            serverId: serverId,
-                            onPlay: { onPlayEpisode(episode) }
+                            serverId: episodeRowHasPlexSource(episode) ? serverId : nil,
+                            onPlay: { handleEpisodeSelection(episode) },
+                            onStremio: { onStremioEpisode(episode) }
                         )
                     }
                 }
@@ -2251,10 +2511,13 @@ private struct HorizontalEpisodeCard: View {
     let width: CGFloat
     let height: CGFloat
     var isDisabled: Bool = false
+    var showsStremioButton: Bool = true
+    var showsStremioActiveBadge: Bool = false
     var showTitle: String = ""
     var showRatingKey: String?
     var serverId: String?
     let onPlay: () -> Void
+    let onStremio: () -> Void
 
     @State private var isHovered = false
     @StateObject private var downloadManager = DownloadManager.shared
@@ -2386,6 +2649,21 @@ private struct HorizontalEpisodeCard: View {
                                 )
                             }
 
+                            if showsStremioButton {
+                                Button(action: onStremio) {
+                                    Image(systemName: "puzzlepiece.extension.fill")
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundStyle(.white)
+                                        .frame(width: 22, height: 22)
+                                        .background(Color.orange.opacity(0.75), in: Circle())
+                                }
+                                .buttonStyle(.plain)
+                            }
+
+                            if showsStremioActiveBadge {
+                                EpisodeSourceBadge(compact: true)
+                            }
+
                             // Completed checkmark
                             if isCompleted {
                                 ZStack {
@@ -2431,10 +2709,13 @@ private struct VerticalEpisodeRow: View {
     let episodeNumber: Int
     let layout: DetailsLayoutMetrics
     var isDisabled: Bool = false
+    var showsStremioButton: Bool = true
+    var showsStremioActiveBadge: Bool = false
     var showTitle: String = ""
     var showRatingKey: String?
     var serverId: String?
     let onPlay: () -> Void
+    let onStremio: () -> Void
 
     @State private var isHovered = false
     @StateObject private var downloadManager = DownloadManager.shared
@@ -2527,6 +2808,22 @@ private struct VerticalEpisodeRow: View {
                                 )
                             }
 
+                            if showsStremioButton {
+                                Button(action: onStremio) {
+                                    Label("Stremio", systemImage: "puzzlepiece.extension.fill")
+                                        .font(.system(size: 11, weight: .semibold))
+                                        .foregroundStyle(.white)
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 5)
+                                        .background(Color.orange.opacity(0.24), in: Capsule())
+                                }
+                                .buttonStyle(.plain)
+                            }
+
+                            if showsStremioActiveBadge {
+                                EpisodeSourceBadge()
+                            }
+
                             if isCompleted {
                                 Image(systemName: "checkmark.circle.fill")
                                     .font(.system(size: 18))
@@ -2563,6 +2860,19 @@ private struct VerticalEpisodeRow: View {
                 isHovered = hovering
             }
         }
+    }
+}
+
+private struct EpisodeSourceBadge: View {
+    var compact: Bool = false
+
+    var body: some View {
+        Label("Stremio", systemImage: "puzzlepiece.extension.fill")
+            .font(.system(size: compact ? 10 : 11, weight: .semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, compact ? 8 : 10)
+            .padding(.vertical, compact ? 4 : 5)
+            .background(Color.orange.opacity(compact ? 0.5 : 0.24), in: Capsule())
     }
 }
 

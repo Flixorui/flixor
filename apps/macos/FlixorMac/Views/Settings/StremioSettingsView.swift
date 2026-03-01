@@ -1,0 +1,164 @@
+//
+//  StremioSettingsView.swift
+//  FlixorMac
+//
+//  Stremio playback and addon settings for macOS.
+//
+
+import SwiftUI
+
+struct StremioSettingsView: View {
+    @ObservedObject private var profileSettings = ProfileSettings.shared
+    @State private var addonSummaries: [StremioAddonSummary] = []
+    @State private var isLoadingAddons = false
+    @State private var showAddonManager = false
+
+    private var installedAddonCount: Int { addonSummaries.count }
+    private var streamAddonCount: Int { addonSummaries.filter(\.streamCapable).count }
+    private var subtitleAddonCount: Int { addonSummaries.filter(\.subtitleCapable).count }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            SettingsSectionHeader(title: "Playback")
+            SettingsGroupCard {
+                SettingsRow(
+                    icon: "play.fill",
+                    iconColor: .orange,
+                    title: "Enable Stremio Playback",
+                    subtitle: "Show alternate Stremio source buttons on supported details screens"
+                ) {
+                    Toggle("", isOn: $profileSettings.stremioPlaybackEnabled)
+                        .labelsHidden()
+                }
+
+                SettingsNavigationRow(
+                    icon: "puzzlepiece.extension.fill",
+                    iconColor: .orange,
+                    title: "Manage Addons",
+                    subtitle: installedAddonCount == 0
+                        ? "Install stream and subtitle addons"
+                        : "\(installedAddonCount) installed • \(streamAddonCount) stream • \(subtitleAddonCount) subtitle",
+                    showDivider: true
+                ) {
+                    showAddonManager = true
+                }
+
+                SettingsRow(
+                    icon: "bolt.fill",
+                    iconColor: .yellow,
+                    title: "Auto-Play Best Source",
+                    subtitle: "Automatically launch the best playable HTTP source after loading"
+                ) {
+                    Toggle("", isOn: $profileSettings.stremioAutoPlayBestSource)
+                        .labelsHidden()
+                }
+
+                SettingsRow(
+                    icon: "film.stack",
+                    iconColor: .blue,
+                    title: "Show On TMDB Details",
+                    subtitle: "Allow Stremio playback for TMDB-backed titles when IDs can be resolved"
+                ) {
+                    Toggle("", isOn: $profileSettings.stremioShowOnTmdbDetails)
+                        .labelsHidden()
+                }
+
+                SettingsRow(
+                    icon: "arrow.triangle.2.circlepath.circle.fill",
+                    iconColor: .cyan,
+                    title: "Prefer Cached Source Resume",
+                    subtitle: "Offer resume from the last selected Stremio source when cache is valid"
+                ) {
+                    Toggle("", isOn: $profileSettings.stremioPreferCachedSourceResume)
+                        .labelsHidden()
+                }
+
+                SettingsRow(
+                    icon: "captions.bubble.fill",
+                    iconColor: .purple,
+                    title: "Enable Subtitle Addons",
+                    subtitle: "Fetch external subtitles from Stremio subtitle addons"
+                ) {
+                    Toggle("", isOn: $profileSettings.stremioSubtitleAddonsEnabled)
+                        .labelsHidden()
+                }
+
+                SettingsRow(
+                    icon: "eye.slash.fill",
+                    iconColor: .gray,
+                    title: "Unsupported Sources",
+                    subtitle: "Choose whether unsupported Stremio stream types stay visible",
+                    showDivider: false
+                ) {
+                    Picker("", selection: $profileSettings.stremioUnsupportedSourceVisibility) {
+                        ForEach(StremioUnsupportedSourceVisibility.allCases, id: \.self) { visibility in
+                            Text(visibility.description).tag(visibility)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(width: 180)
+                }
+            }
+
+            SettingsSectionHeader(title: "Status")
+            SettingsGroupCard {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "lock.fill")
+                            .foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Plex login remains required")
+                                .font(.system(size: 13, weight: .semibold))
+                            Text("Stremio is an alternate playback provider on top of the existing Plex app session.")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                    }
+
+                    Divider()
+
+                    HStack(spacing: 12) {
+                        Image(systemName: "play.rectangle.fill")
+                            .foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Playback engine is fixed to MPV")
+                                .font(.system(size: 13, weight: .semibold))
+                            Text("Direct URL streams, custom headers, advanced codecs, and external subtitles all rely on MPV.")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                    }
+                }
+                .padding(12)
+            }
+
+            if isLoadingAddons {
+                ProgressView()
+                    .progressViewStyle(.circular)
+                    .frame(maxWidth: .infinity, alignment: .center)
+            }
+        }
+        .task {
+            await refreshAddons()
+        }
+        .onChange(of: profileSettings.stremioPlaybackEnabled) { enabled in
+            Task {
+                await StremioService.shared.ensureInitialized(installDefaults: enabled)
+                await refreshAddons()
+            }
+        }
+        .sheet(isPresented: $showAddonManager) {
+            StremioAddonsView()
+        }
+    }
+
+    @MainActor
+    private func refreshAddons() async {
+        isLoadingAddons = true
+        await StremioService.shared.ensureInitialized(installDefaults: profileSettings.stremioPlaybackEnabled)
+        addonSummaries = await StremioService.shared.getAddonSummary()
+        isLoadingAddons = false
+    }
+}

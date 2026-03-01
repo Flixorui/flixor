@@ -430,6 +430,110 @@ extension UserDefaults {
     }
 }
 
+// MARK: - Stremio Settings (Profile-Scoped)
+
+extension UserDefaults {
+    private enum StremioKeys {
+        static let playbackEnabled = "stremioPlaybackEnabled"
+        static let autoPlayBestSource = "stremioAutoPlayBestSource"
+        static let showOnTmdbDetails = "stremioShowOnTmdbDetails"
+        static let preferCachedSourceResume = "stremioPreferCachedSourceResume"
+        static let subtitleAddonsEnabled = "stremioSubtitleAddonsEnabled"
+        static let unsupportedSourceVisibility = "stremioUnsupportedSourceVisibility"
+        static let stremioAddons = "stremioAddons"
+        static let stremioAddonOrder = "stremioAddonOrder"
+        static let stremioStreamCache = "stremioStreamCache"
+        static let stremioResumeStates = "stremioResumeStates"
+        static let stremioRemovedDefaultAddons = "stremioRemovedDefaultAddons"
+    }
+
+    var stremioPlaybackEnabled: Bool {
+        get { bool(forKey: profileKey(StremioKeys.playbackEnabled)) }
+        set { set(newValue, forKey: profileKey(StremioKeys.playbackEnabled)) }
+    }
+
+    var stremioAutoPlayBestSource: Bool {
+        get { bool(forKey: profileKey(StremioKeys.autoPlayBestSource)) }
+        set { set(newValue, forKey: profileKey(StremioKeys.autoPlayBestSource)) }
+    }
+
+    var stremioShowOnTmdbDetails: Bool {
+        get { object(forKey: profileKey(StremioKeys.showOnTmdbDetails)) as? Bool ?? true }
+        set { set(newValue, forKey: profileKey(StremioKeys.showOnTmdbDetails)) }
+    }
+
+    var stremioPreferCachedSourceResume: Bool {
+        get { object(forKey: profileKey(StremioKeys.preferCachedSourceResume)) as? Bool ?? true }
+        set { set(newValue, forKey: profileKey(StremioKeys.preferCachedSourceResume)) }
+    }
+
+    var stremioSubtitleAddonsEnabled: Bool {
+        get { object(forKey: profileKey(StremioKeys.subtitleAddonsEnabled)) as? Bool ?? true }
+        set { set(newValue, forKey: profileKey(StremioKeys.subtitleAddonsEnabled)) }
+    }
+
+    var stremioUnsupportedSourceVisibility: StremioUnsupportedSourceVisibility {
+        get {
+            guard let rawValue = string(forKey: profileKey(StremioKeys.unsupportedSourceVisibility)),
+                  let visibility = StremioUnsupportedSourceVisibility(rawValue: rawValue) else {
+                return .showDisabled
+            }
+            return visibility
+        }
+        set { set(newValue.rawValue, forKey: profileKey(StremioKeys.unsupportedSourceVisibility)) }
+    }
+
+    func getStremioAddons() -> [StremioAddonManifest] {
+        guard let data = data(forKey: profileKey(StremioKeys.stremioAddons)) else { return [] }
+        return (try? JSONDecoder().decode([StremioAddonManifest].self, from: data)) ?? []
+    }
+
+    func setStremioAddons(_ addons: [StremioAddonManifest]) {
+        guard let data = try? JSONEncoder().encode(addons) else { return }
+        set(data, forKey: profileKey(StremioKeys.stremioAddons))
+    }
+
+    func getStremioAddonOrder() -> [String] {
+        guard let data = data(forKey: profileKey(StremioKeys.stremioAddonOrder)) else { return [] }
+        return (try? JSONDecoder().decode([String].self, from: data)) ?? []
+    }
+
+    func setStremioAddonOrder(_ order: [String]) {
+        guard let data = try? JSONEncoder().encode(order) else { return }
+        set(data, forKey: profileKey(StremioKeys.stremioAddonOrder))
+    }
+
+    func getStremioStreamCache() -> [String: CachedPlaybackSource] {
+        guard let data = data(forKey: profileKey(StremioKeys.stremioStreamCache)) else { return [:] }
+        return (try? JSONDecoder().decode([String: CachedPlaybackSource].self, from: data)) ?? [:]
+    }
+
+    func setStremioStreamCache(_ cache: [String: CachedPlaybackSource]) {
+        guard let data = try? JSONEncoder().encode(cache) else { return }
+        set(data, forKey: profileKey(StremioKeys.stremioStreamCache))
+    }
+
+    func getStremioResumeStates() -> [String: ResumeState] {
+        guard let data = data(forKey: profileKey(StremioKeys.stremioResumeStates)) else { return [:] }
+        return (try? JSONDecoder().decode([String: ResumeState].self, from: data)) ?? [:]
+    }
+
+    func setStremioResumeStates(_ states: [String: ResumeState]) {
+        guard let data = try? JSONEncoder().encode(states) else { return }
+        set(data, forKey: profileKey(StremioKeys.stremioResumeStates))
+    }
+
+    func getRemovedStremioDefaultAddons() -> [String] {
+        guard let data = data(forKey: profileKey(StremioKeys.stremioRemovedDefaultAddons)) else { return [] }
+        return (try? JSONDecoder().decode([String].self, from: data)) ?? []
+    }
+
+    func setRemovedStremioDefaultAddons(_ addonIds: [String]) {
+        guard let data = try? JSONEncoder().encode(addonIds) else { return }
+        set(data, forKey: profileKey(StremioKeys.stremioRemovedDefaultAddons))
+    }
+}
+
 // MARK: - Discovery Mode Settings (Profile-Scoped)
 
 extension UserDefaults {
@@ -505,6 +609,14 @@ extension UserDefaults {
         posterSize = "medium"
         showPosterTitles = true
 
+        // Reset Stremio settings
+        stremioPlaybackEnabled = false
+        stremioAutoPlayBestSource = false
+        stremioShowOnTmdbDetails = true
+        stremioPreferCachedSourceResume = true
+        stremioSubtitleAddonsEnabled = true
+        stremioUnsupportedSourceVisibility = .showDisabled
+
         // Reset player settings
         resetPlayerSettings()
     }
@@ -537,6 +649,10 @@ extension UserDefaults {
 
         // Track Preferences (Profile-Scoped)
         static let rememberTrackSelections = "rememberTrackSelections"
+        static let preferredSubtitleLanguage = "preferredSubtitleLanguage"
+        static let preferredAudioLanguage = "preferredAudioLanguage"
+        static let subtitleSourcePreference = "subtitleSourcePreference"
+        static let enableSubtitleAutoSelect = "enableSubtitleAutoSelect"
 
         // Subtitle Styling (Profile-Scoped)
         static let subtitleFontSize = "subtitleFontSize"
@@ -628,6 +744,32 @@ extension UserDefaults {
     var rememberTrackSelections: Bool {
         get { object(forKey: profileKey(PlayerKeys.rememberTrackSelections)) as? Bool ?? true }
         set { set(newValue, forKey: profileKey(PlayerKeys.rememberTrackSelections)) }
+    }
+
+    var preferredSubtitleLanguage: String {
+        get { string(forKey: profileKey(PlayerKeys.preferredSubtitleLanguage)) ?? "en" }
+        set { set(newValue, forKey: profileKey(PlayerKeys.preferredSubtitleLanguage)) }
+    }
+
+    var preferredAudioLanguage: String {
+        get { string(forKey: profileKey(PlayerKeys.preferredAudioLanguage)) ?? "" }
+        set { set(newValue, forKey: profileKey(PlayerKeys.preferredAudioLanguage)) }
+    }
+
+    var subtitleSourcePreference: SubtitleSourcePreference {
+        get {
+            guard let rawValue = string(forKey: profileKey(PlayerKeys.subtitleSourcePreference)),
+                  let preference = SubtitleSourcePreference(rawValue: rawValue) else {
+                return .internal
+            }
+            return preference
+        }
+        set { set(newValue.rawValue, forKey: profileKey(PlayerKeys.subtitleSourcePreference)) }
+    }
+
+    var enableSubtitleAutoSelect: Bool {
+        get { object(forKey: profileKey(PlayerKeys.enableSubtitleAutoSelect)) as? Bool ?? true }
+        set { set(newValue, forKey: profileKey(PlayerKeys.enableSubtitleAutoSelect)) }
     }
 
     // MARK: Subtitle Styling (Profile-Scoped)
@@ -737,6 +879,10 @@ extension UserDefaults {
         autoSkipDelay = 5
         creditsCountdownFallback = 30
         rememberTrackSelections = true
+        preferredSubtitleLanguage = "en"
+        preferredAudioLanguage = ""
+        subtitleSourcePreference = .internal
+        enableSubtitleAutoSelect = true
         subtitleFontSize = 55
         subtitleTextColor = "#FFFFFF"
         subtitleBorderSize = 3.0

@@ -26,20 +26,22 @@ struct PlayerView: View {
     @State private var mpvPiPViewController: NSViewController?
     @State private var keyboardMonitor: Any?
 
-    // Global hardware setting - uses property from PlayerBackend.swift
-    private var playerBackend: PlayerBackend {
-        UserDefaults.standard.playerBackend
+    // Playback is fixed to MPV on macOS.
+    private var playerBackend: PlayerBackend { .mpv }
+
+    private init(resolvedItem: MediaItem, viewModel: PlayerViewModel) {
+        self.item = resolvedItem
+        _viewModel = StateObject(wrappedValue: viewModel)
     }
 
     init(item: MediaItem) {
-        self.item = item
-        _viewModel = StateObject(wrappedValue: PlayerViewModel(item: item))
+        self.init(resolvedItem: item, viewModel: PlayerViewModel(item: item))
     }
 
     /// Initialize with an offline (downloaded) media item
     init(offlineItem: OfflineMediaItem) {
         // Create a minimal MediaItem from the offline item
-        self.item = MediaItem(
+        let item = MediaItem(
             id: offlineItem.ratingKey,
             title: offlineItem.title,
             type: offlineItem.type,
@@ -61,7 +63,43 @@ struct PlayerView: View {
             leafCount: nil,
             viewedLeafCount: nil
         )
-        _viewModel = StateObject(wrappedValue: PlayerViewModel(offlineFilePath: offlineItem.filePath, title: offlineItem.displayTitle))
+        self.init(
+            resolvedItem: item,
+            viewModel: PlayerViewModel(offlineFilePath: offlineItem.filePath, title: offlineItem.displayTitle)
+        )
+    }
+
+    init(destination: PlayerDestination) {
+        switch destination {
+        case .plex(let item):
+            self.init(item: item)
+        case .offline(let offlineItem):
+            self.init(offlineItem: offlineItem)
+        case .stream(let streamItem):
+            let item = MediaItem(
+                id: "stream:\(streamItem.contentKey)",
+                title: streamItem.mediaType == .episode ? (streamItem.episodeTitle ?? streamItem.title) : streamItem.title,
+                type: streamItem.mediaType == .movie ? "movie" : "episode",
+                thumb: streamItem.posterURL,
+                art: streamItem.backdropURL,
+                year: nil,
+                rating: nil,
+                duration: nil,
+                viewOffset: streamItem.resumePositionMs,
+                summary: nil,
+                grandparentTitle: streamItem.mediaType == .episode ? streamItem.title : nil,
+                grandparentThumb: streamItem.posterURL,
+                grandparentArt: streamItem.backdropURL,
+                grandparentRatingKey: nil,
+                parentIndex: streamItem.seasonNumber,
+                index: streamItem.episodeNumber,
+                parentRatingKey: nil,
+                parentTitle: nil,
+                leafCount: nil,
+                viewedLeafCount: nil
+            )
+            self.init(resolvedItem: item, viewModel: PlayerViewModel(streamItem: streamItem))
+        }
     }
 
     var body: some View {
@@ -70,29 +108,15 @@ struct PlayerView: View {
 
             // Video Player - Switch based on backend
             Group {
-                switch playerBackend {
-                case .avplayer:
-                    if let player = viewModel.player {
-                        VideoPlayerView(player: player, pipController: $pipController, isPiPActive: $isPiPActive)
-                            .ignoresSafeArea()
-                            .onTapGesture {
-                                viewModel.togglePlayPause()
-                            }
-                            .onTapGesture(count: 2) {
-                                toggleFullScreen()
-                            }
-                    }
-                case .mpv:
-                    if let mpvController = viewModel.mpvController {
-                        MPVVideoViewWrapper(mpvController: mpvController, isPiPActive: $isPiPActive, mpvPiPViewController: $mpvPiPViewController)
-                            .ignoresSafeArea()
-                            .onTapGesture {
-                                viewModel.togglePlayPause()
-                            }
-                            .onTapGesture(count: 2) {
-                                toggleFullScreen()
-                            }
-                    }
+                if let mpvController = viewModel.mpvController {
+                    MPVVideoViewWrapper(mpvController: mpvController, isPiPActive: $isPiPActive, mpvPiPViewController: $mpvPiPViewController)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            viewModel.togglePlayPause()
+                        }
+                        .onTapGesture(count: 2) {
+                            toggleFullScreen()
+                        }
                 }
             }
 
@@ -572,7 +596,7 @@ struct VideoPlayerView: NSViewRepresentable {
         }
 
         // Create PiP controller
-        if let controller = try? AVPictureInPictureController(playerLayer: playerLayer) {
+        if let controller = AVPictureInPictureController(playerLayer: playerLayer) {
             controller.delegate = context.coordinator
             DispatchQueue.main.async {
                 self.pipController = controller
@@ -1461,7 +1485,7 @@ private struct AudioSubtitlesModal: View {
     @ObservedObject var viewModel: PlayerViewModel
     let onClose: () -> Void
 
-    @State private var selectedTab: Int = 0 // 0 = Audio, 1 = Subtitles
+    @State private var selectedTab: Int = 0 // 0 = Audio, 1 = Subtitles, 2 = Sources
 
     var body: some View {
         ZStack {
@@ -1485,6 +1509,9 @@ private struct AudioSubtitlesModal: View {
             HStack(spacing: 0) {
                 TabButton(title: "Audio", isSelected: selectedTab == 0) { selectedTab = 0 }
                 TabButton(title: "Subtitles", isSelected: selectedTab == 1) { selectedTab = 1 }
+                if viewModel.canSwitchStreamSources {
+                    TabButton(title: "Sources", isSelected: selectedTab == 2) { selectedTab = 2 }
+                }
             }
             .padding(.horizontal, 4)
             .padding(.top, 4)
@@ -1494,8 +1521,10 @@ private struct AudioSubtitlesModal: View {
             // Tab Content
             if selectedTab == 0 {
                 AudioTabContent(viewModel: viewModel)
-            } else {
+            } else if selectedTab == 1 {
                 SubtitlesTabContent(viewModel: viewModel)
+            } else {
+                SourcesTabContent(viewModel: viewModel)
             }
         }
         .frame(width: 340)
@@ -1572,18 +1601,37 @@ private struct SubtitlesTabContent: View {
         VStack(alignment: .leading, spacing: 0) {
             // Track Selection
             ScrollView {
-                VStack(spacing: 2) {
-                    // Off option
-                    TrackRow(title: "Off", isSelected: viewModel.currentSubtitleTrackId == nil) {
-                        viewModel.disableSubtitles()
+                VStack(alignment: .leading, spacing: 10) {
+                    VStack(spacing: 2) {
+                        TrackRow(title: "Off", isSelected: viewModel.currentSubtitleTrackId == nil && viewModel.selectedExternalSubtitleId == nil) {
+                            viewModel.disableSubtitles()
+                        }
+
+                        ForEach(viewModel.availableSubtitleTracks, id: \.id) { track in
+                            TrackRow(
+                                title: track.displayName,
+                                isSelected: track.id == viewModel.currentSubtitleTrackId && viewModel.selectedExternalSubtitleId == nil
+                            ) {
+                                viewModel.setSubtitleTrack(track.id)
+                            }
+                        }
                     }
 
-                    ForEach(viewModel.availableSubtitleTracks, id: \.id) { track in
-                        TrackRow(
-                            title: track.displayName,
-                            isSelected: track.id == viewModel.currentSubtitleTrackId
-                        ) {
-                            viewModel.setSubtitleTrack(track.id)
+                    if !viewModel.availableExternalSubtitleOptions.isEmpty {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("External")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 10)
+
+                            ForEach(viewModel.availableExternalSubtitleOptions) { subtitle in
+                                TrackRow(
+                                    title: "\(subtitle.lang.uppercased()) • \(subtitle.addonName ?? "Stremio")",
+                                    isSelected: subtitle.id == viewModel.selectedExternalSubtitleId
+                                ) {
+                                    viewModel.loadExternalSubtitle(subtitle)
+                                }
+                            }
                         }
                     }
                 }
@@ -1627,6 +1675,55 @@ private struct SubtitlesTabContent: View {
                     .padding(.bottom, 12)
             }
         }
+    }
+}
+
+private struct SourcesTabContent: View {
+    @ObservedObject var viewModel: PlayerViewModel
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 8) {
+                ForEach(viewModel.availableStremioSources) { source in
+                    Button(action: { viewModel.switchStreamSource(source) }) {
+                        HStack(spacing: 10) {
+                            Image(systemName: source.id == viewModel.currentStremioSourceId ? "checkmark.circle.fill" : "circle")
+                                .font(.system(size: 16))
+                                .foregroundStyle(source.id == viewModel.currentStremioSourceId ? Color.accentColor : .white.opacity(0.3))
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(source.title ?? source.name ?? "Source")
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(.white)
+                                    .lineLimit(1)
+                                Text(source.addonName ?? "Stremio")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Spacer()
+
+                            if let quality = source.quality {
+                                Text(quality.uppercased())
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundStyle(.orange)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(Color.orange.opacity(0.16), in: Capsule())
+                            }
+                        }
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 10)
+                        .background(source.id == viewModel.currentStremioSourceId ? Color.white.opacity(0.08) : Color.clear)
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+        }
+        .frame(maxHeight: 180)
     }
 }
 

@@ -79,7 +79,7 @@ class DetailsViewModel: ObservableObject {
     @Published var tmdbId: String?
     @Published var imdbId: String?
     @Published var mediaKind: String? // "movie" or "tv"
-    @Published var playableId: String? // plex:... or mapped id
+    @Published var playableId: String? // plex:<ratingKey> only
 
     // MDBList ratings
     @Published var mdblistRatings: MDBListRatings?
@@ -317,7 +317,6 @@ class DetailsViewModel: ObservableObject {
                     let tid = String(parts[2])
                     mediaKind = media
                     tmdbId = tid
-                    playableId = item.id // may be remapped later
                     try await fetchTMDBDetails(media: media, id: tid, skipPlexMapping: false)
                 }
             } else if item.id.hasPrefix("plex:") {

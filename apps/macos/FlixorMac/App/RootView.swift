@@ -118,6 +118,10 @@ struct RootView: View {
         .animation(.easeInOut(duration: 0.3), value: profileSettings.hasCompletedOnboarding)
         .environmentObject(watchlistController)
         .task {
+            if UserDefaults.standard.playerBackend == .avplayer {
+                UserDefaults.standard.playerBackend = .mpv
+                AppLogger.shared.info("[Player] Migrated stored backend preference to MPV for macOS")
+            }
             // Wait for FlixorCore to initialize
             _ = await FlixorCore.shared.initialize()
             // Restore session (includes profile context and checking for multiple profiles)
@@ -400,8 +404,8 @@ extension View {
     /// Common navigation destinations for all tabs
     func navigationDestinations() -> some View {
         self
-            .navigationDestination(for: MediaItem.self) { item in
-                PlayerView(item: item)
+            .navigationDestination(for: PlayerDestination.self) { destination in
+                PlayerView(destination: destination)
                     .toolbar(.hidden, for: .windowToolbar)
                     .ignoresSafeArea(.all, edges: .all)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -409,11 +413,8 @@ extension View {
             .navigationDestination(for: DetailsNavigationItem.self) { navItem in
                 DetailsView(item: navItem.item)
             }
-            .navigationDestination(for: OfflineMediaItem.self) { item in
-                PlayerView(offlineItem: item)
-                    .toolbar(.hidden, for: .windowToolbar)
-                    .ignoresSafeArea(.all, edges: .all)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .navigationDestination(for: StremioSourcesDestination.self) { destination in
+                StremioSourcesView(destination: destination)
             }
     }
 }

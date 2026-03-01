@@ -571,6 +571,26 @@ class MPVPlayerController {
         print("💬 [MPV] Subtitles disabled")
     }
 
+    func addExternalSubtitleFile(path: String, title: String?, language: String?, select: Bool) {
+        var args = [path]
+        if let title, !title.isEmpty {
+            args.append("title=\(title)")
+        }
+        if let language, !language.isEmpty {
+            args.append("lang=\(language)")
+        }
+        if select {
+            args.append("select=yes")
+        }
+        command(.subAdd, args: args)
+    }
+
+    func clearExternalSubtitleTracks() {
+        for track in getSubtitleTracks().filter(\.external) {
+            command(.subRemove, args: ["\(track.id)"])
+        }
+    }
+
     // MARK: - Property Management
 
     func getProperty<T>(_ name: String, type: PropertyType) -> T? {
@@ -1204,6 +1224,8 @@ enum MPVCommand: String {
     case quit = "quit"
     case loadScript = "load-script"
     case addChapter = "add"
+    case subAdd = "sub-add"
+    case subRemove = "sub-remove"
 }
 
 enum PropertyType {

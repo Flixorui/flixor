@@ -23,7 +23,8 @@ let package = Package(
             exclude: [
                 "README.md",
                 "Resources/Info.plist",
-                ".gitignore"
+                ".gitignore",
+                "ViewModels/PlayerViewModel.swift.bak"
             ],
             sources: [
                 "App",
@@ -31,8 +32,7 @@ let package = Package(
                 "Views",
                 "ViewModels",
                 "Services",
-                "Extensions",
-                "Utilities"
+                "Extensions"
             ],
             resources: [
                 .process("Resources")
