@@ -55,6 +55,7 @@
 		A1000000000000000000000D /* ImageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000001C /* ImageService.swift */; };
 		A1000000000000000000000E /* CachedAsyncImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000001D /* CachedAsyncImage.swift */; };
 		A1B2C3D4E5F60718293A4B5D /* TVHeroCarouselView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5C /* TVHeroCarouselView.swift */; };
+		B13D9D0474B2E7577E7C7416 /* PlayerSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC7A3AEB169E727C4394EC77 /* PlayerSettings.swift */; };
 		B20000000000000000000001 /* TVWatchlistController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000011 /* TVWatchlistController.swift */; };
 		B20000000000000000000002 /* TVFocusSurfaceStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000012 /* TVFocusSurfaceStyle.swift */; };
 		B20000000000000000000003 /* TVMyListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000013 /* TVMyListView.swift */; };
@@ -64,7 +65,6 @@
 		B20000000000000000000007 /* TVNewPopularView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000017 /* TVNewPopularView.swift */; };
 		B20000000000000000000008 /* TVNewPopularViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000018 /* TVNewPopularViewModel.swift */; };
 		B20000000000000000000009 /* TVNewPopularHero.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000019 /* TVNewPopularHero.swift */; };
-		B13D9D0474B2E7577E7C7416 /* PlayerSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC7A3AEB169E727C4394EC77 /* PlayerSettings.swift */; };
 		C0600A369C9BB3EC7F66B320 /* UniversalPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C03CCA45295916815C223056 /* UniversalPlayerView.swift */; };
 		C196CA26AB88809CD97F25B1 /* TVHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4374B38CC057026BF7C73418 /* TVHomeView.swift */; };
 		C898CFC0A58E2042F32B5DF6 /* TVCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA640CCCC115D09CBAF9F0B3 /* TVCards.swift */; };
@@ -235,50 +235,6 @@
 			path = Settings;
 			sourceTree = "<group>";
 		};
-		B20000000000000000000021 /* ViewModels */ = {
-			isa = PBXGroup;
-			children = (
-				B20000000000000000000011 /* TVWatchlistController.swift */,
-			);
-			path = ViewModels;
-			sourceTree = "<group>";
-		};
-		B20000000000000000000022 /* MyList */ = {
-			isa = PBXGroup;
-			children = (
-				B20000000000000000000013 /* TVMyListView.swift */,
-				B20000000000000000000014 /* TVMyListViewModel.swift */,
-			);
-			path = MyList;
-			sourceTree = "<group>";
-		};
-		B20000000000000000000023 /* Search */ = {
-			isa = PBXGroup;
-			children = (
-				B20000000000000000000015 /* TVSearchView.swift */,
-				B20000000000000000000016 /* TVSearchViewModel.swift */,
-			);
-			path = Search;
-			sourceTree = "<group>";
-		};
-		B20000000000000000000024 /* NewPopular */ = {
-			isa = PBXGroup;
-			children = (
-				B20000000000000000000017 /* TVNewPopularView.swift */,
-				B20000000000000000000018 /* TVNewPopularViewModel.swift */,
-				B20000000000000000000025 /* Components */,
-			);
-			path = NewPopular;
-			sourceTree = "<group>";
-		};
-		B20000000000000000000025 /* Components */ = {
-			isa = PBXGroup;
-			children = (
-				B20000000000000000000019 /* TVNewPopularHero.swift */,
-			);
-			path = Components;
-			sourceTree = "<group>";
-		};
 		4DE18658CB336B32CB53030A /* App */ = {
 			isa = PBXGroup;
 			children = (
@@ -428,6 +384,50 @@
 				1A1C1D1E1F20000D00010000 /* Components */,
 			);
 			path = Details;
+			sourceTree = "<group>";
+		};
+		B20000000000000000000021 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				B20000000000000000000011 /* TVWatchlistController.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		B20000000000000000000022 /* MyList */ = {
+			isa = PBXGroup;
+			children = (
+				B20000000000000000000013 /* TVMyListView.swift */,
+				B20000000000000000000014 /* TVMyListViewModel.swift */,
+			);
+			path = MyList;
+			sourceTree = "<group>";
+		};
+		B20000000000000000000023 /* Search */ = {
+			isa = PBXGroup;
+			children = (
+				B20000000000000000000015 /* TVSearchView.swift */,
+				B20000000000000000000016 /* TVSearchViewModel.swift */,
+			);
+			path = Search;
+			sourceTree = "<group>";
+		};
+		B20000000000000000000024 /* NewPopular */ = {
+			isa = PBXGroup;
+			children = (
+				B20000000000000000000017 /* TVNewPopularView.swift */,
+				B20000000000000000000018 /* TVNewPopularViewModel.swift */,
+				B20000000000000000000025 /* Components */,
+			);
+			path = NewPopular;
+			sourceTree = "<group>";
+		};
+		B20000000000000000000025 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				B20000000000000000000019 /* TVNewPopularHero.swift */,
+			);
+			path = Components;
 			sourceTree = "<group>";
 		};
 		CC43B687C576D4A5E6993B54 /* Player */ = {
