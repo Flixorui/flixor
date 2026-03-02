@@ -37,6 +37,7 @@ type HeroCarouselItem = {
   id: string;
   title: string;
   image?: string;
+  backdrop?: string;
   mediaType?: 'movie' | 'tv';
   logo?: string;
   genres?: string[];
@@ -251,6 +252,12 @@ function CarouselCard({
     isFlipped.value = withTiming(flipped ? 1 : 0, { duration: 240 });
   }, [flipped, isFlipped]);
 
+  // Tablet hero cards are wide enough to benefit from TMDB textless backdrops.
+  // Phones keep using poster art to preserve the denser carousel look.
+  const heroImageUri = isTablet
+    ? item.backdrop || item.image
+    : item.image || item.backdrop;
+
   const cardAnimatedStyle = useAnimatedStyle(() => {
     const distance = Math.abs(scrollX.value - index * interval);
     if (distance > interval * 1.5) {
@@ -293,9 +300,9 @@ function CarouselCard({
         <Animated.View style={[styles.flipFace, frontFlipStyle]}>
           <TouchableOpacity activeOpacity={0.9} onPress={onPress} style={StyleSheet.absoluteFillObject as any}>
             <View style={styles.bannerContainer}>
-              {item.image ? (
+              {heroImageUri ? (
                 <FastImage
-                  source={{ uri: item.image, priority: FastImage.priority.normal, cache: FastImage.cacheControl.immutable }}
+                  source={{ uri: heroImageUri, priority: FastImage.priority.normal, cache: FastImage.cacheControl.immutable }}
                   style={styles.banner}
                   resizeMode={FastImage.resizeMode.cover}
                 />
@@ -327,9 +334,9 @@ function CarouselCard({
 
         <Animated.View style={[styles.flipFace, styles.backFace, backFlipStyle]} pointerEvents={flipped ? 'auto' : 'none'}>
           <View style={styles.bannerContainer}>
-            {item.image ? (
+            {heroImageUri ? (
               <FastImage
-                source={{ uri: item.image, priority: FastImage.priority.low, cache: FastImage.cacheControl.immutable }}
+                source={{ uri: heroImageUri, priority: FastImage.priority.low, cache: FastImage.cacheControl.immutable }}
                 style={styles.banner}
                 resizeMode={FastImage.resizeMode.cover}
               />

@@ -83,6 +83,18 @@ export class PlexAuthService {
     return headers;
   }
 
+  private isIPv6Uri(uri: string): boolean {
+    try {
+      return new URL(uri).hostname.includes(':');
+    } catch {
+      return /\[[0-9a-f:]+\]/i.test(uri);
+    }
+  }
+
+  private isSupportedConnection(connection: PlexConnection | PlexResourceConnection): boolean {
+    return !connection.IPv6 && !this.isIPv6Uri(connection.uri);
+  }
+
   /**
    * Create a new PIN for authentication
    * User should visit app.plex.tv/auth with the code pre-filled
@@ -204,21 +216,25 @@ export class PlexAuthService {
     // Filter to only Plex Media Servers
     const servers = resources.filter((r) => r.provides === 'server');
 
-    return servers.map((server) => ({
-      id: server.clientIdentifier,
-      name: server.name,
-      owned: server.owned,
-      accessToken: server.accessToken,
-      publicAddress: server.publicAddress,
-      presence: server.presence,
-      connections: server.connections.map((conn) => ({
-        uri: conn.uri,
-        protocol: conn.protocol,
-        local: conn.local,
-        relay: conn.relay,
-        IPv6: conn.IPv6,
-      })),
-    }));
+    return servers
+      .map((server) => ({
+        id: server.clientIdentifier,
+        name: server.name,
+        owned: server.owned,
+        accessToken: server.accessToken,
+        publicAddress: server.publicAddress,
+        presence: server.presence,
+        connections: server.connections
+          .filter((conn) => this.isSupportedConnection(conn))
+          .map((conn) => ({
+            uri: conn.uri,
+            protocol: conn.protocol,
+            local: conn.local,
+            relay: conn.relay,
+            IPv6: conn.IPv6,
+          })),
+      }))
+      .filter((server) => server.connections.length > 0);
   }
 
   /**
@@ -226,6 +242,10 @@ export class PlexAuthService {
    * Returns true if connection is valid and accessible
    */
   async testConnection(connection: PlexConnection, token: string): Promise<boolean> {
+    if (!this.isSupportedConnection(connection)) {
+      return false;
+    }
+
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
@@ -252,11 +272,13 @@ export class PlexAuthService {
     token: string
   ): Promise<PlexConnection | null> {
     // Sort connections: local first, then non-relay, then relay
-    const sortedConnections = [...server.connections].sort((a, b) => {
-      if (a.local !== b.local) return a.local ? -1 : 1;
-      if (a.relay !== b.relay) return a.relay ? 1 : -1;
-      return 0;
-    });
+    const sortedConnections = server.connections
+      .filter((conn) => this.isSupportedConnection(conn))
+      .sort((a, b) => {
+        if (a.local !== b.local) return a.local ? -1 : 1;
+        if (a.relay !== b.relay) return a.relay ? 1 : -1;
+        return 0;
+      });
 
     // Test each connection
     for (const conn of sortedConnections) {

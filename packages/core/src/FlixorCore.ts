@@ -198,6 +198,71 @@ export class FlixorCore {
     return this.config.clientId;
   }
 
+  private getPersistedPlexToken(): string | null {
+    return this.mainAccountToken || this.plexToken;
+  }
+
+  private setPlexServerConnection(server: PlexServer, connection: PlexConnection): void {
+    this.currentServer = server;
+    this.currentConnection = connection;
+    this._plexServer = new PlexServerService({
+      baseUrl: connection.uri,
+      token: server.accessToken,
+      clientId: this.config.clientId,
+      cache: this.config.cache,
+    });
+  }
+
+  private clearPlexServerConnection(): void {
+    this.currentConnection = null;
+    this._plexServer = null;
+  }
+
+  private async persistCurrentPlexAuth(): Promise<void> {
+    const token = this.getPersistedPlexToken();
+    if (!token || !this.currentServer || !this.currentConnection) {
+      return;
+    }
+
+    const storedAuth: StoredPlexAuth = {
+      token,
+      server: this.currentServer,
+      connection: this.currentConnection,
+    };
+
+    if (this._currentProfile && this.plexToken) {
+      storedAuth.currentProfile = {
+        userId: this._currentProfile.userId,
+        uuid: this._currentProfile.uuid,
+        title: this._currentProfile.title,
+        thumb: this._currentProfile.thumb,
+        profileToken: this.plexToken,
+        profileServerToken: this.currentServer.accessToken,
+        restricted: this._currentProfile.restricted,
+      };
+    }
+
+    await this.config.secureStorage.set<StoredPlexAuth>('plex_auth', storedAuth);
+  }
+
+  private async refreshCurrentServerFromResources(): Promise<PlexServer | null> {
+    if (!this.plexToken || !this.currentServer) {
+      return this.currentServer;
+    }
+
+    try {
+      const servers = await this._plexAuth.getServers(this.plexToken);
+      const matchingServer = servers.find((server) => server.id === this.currentServer?.id);
+      if (matchingServer) {
+        this.currentServer = matchingServer;
+      }
+    } catch {
+      // Keep the last known server if plex.tv cannot be reached right now.
+    }
+
+    return this.currentServer;
+  }
+
   // ============================================
   // Profile Management
   // ============================================
@@ -297,31 +362,9 @@ export class FlixorCore {
     }
 
     // Re-initialize PlexServerService with profile-specific server token
-    if (this._plexServer && this.currentConnection) {
-      this._plexServer = new PlexServerService({
-        baseUrl: this.currentConnection.uri,
-        token: profileServerToken,
-        clientId: this.config.clientId,
-        cache: this.config.cache,
-      });
-    }
-
-    // Update stored auth with profile info
     if (this.currentServer && this.currentConnection) {
-      await this.config.secureStorage.set<StoredPlexAuth>('plex_auth', {
-        token: mainToken,
-        server: this.currentServer,
-        connection: this.currentConnection,
-        currentProfile: {
-          userId: user.id,
-          uuid: user.uuid,
-          title: user.title,
-          thumb: user.thumb,
-          profileToken: result.authenticationToken,
-          profileServerToken: profileServerToken,
-          restricted: user.restricted,
-        },
-      });
+      this.setPlexServerConnection(this.currentServer, this.currentConnection);
+      await this.persistCurrentPlexAuth();
     }
   }
 
@@ -366,22 +409,9 @@ export class FlixorCore {
     }
 
     // Re-initialize PlexServerService with main account's server token
-    if (this._plexServer && this.currentConnection) {
-      this._plexServer = new PlexServerService({
-        baseUrl: this.currentConnection.uri,
-        token: mainServerToken,
-        clientId: this.config.clientId,
-        cache: this.config.cache,
-      });
-    }
-
-    // Update stored auth (remove profile info)
     if (this.currentServer && this.currentConnection) {
-      await this.config.secureStorage.set<StoredPlexAuth>('plex_auth', {
-        token: this.mainAccountToken,
-        server: this.currentServer,
-        connection: this.currentConnection,
-      });
+      this.setPlexServerConnection(this.currentServer, this.currentConnection);
+      await this.persistCurrentPlexAuth();
     }
   }
 
@@ -488,13 +518,12 @@ export class FlixorCore {
         serverToken = storedAuth.server.accessToken;
       }
 
-      this._plexServer = new PlexServerService({
-        baseUrl: storedAuth.connection.uri,
-        token: serverToken,
-        clientId: this.config.clientId,
-        cache: this.config.cache,
-      });
-
+      this.currentServer = {
+        ...storedAuth.server,
+        accessToken: serverToken,
+      };
+      this.currentConnection = storedAuth.connection;
+      await this.ensurePlexServerConnection();
       return true;
     } catch {
       return false;
@@ -539,6 +568,70 @@ export class FlixorCore {
     return this._plexAuth.getServers(this.plexToken);
   }
 
+  async connectToPlexConnection(
+    server: PlexServer,
+    connection: PlexConnection,
+    options?: { skipValidation?: boolean }
+  ): Promise<PlexConnection> {
+    if (!this.plexToken) {
+      throw new Error('Plex not authenticated');
+    }
+
+    if (!options?.skipValidation) {
+      const isValid = await this._plexAuth.testConnection(connection, server.accessToken);
+      if (!isValid) {
+        throw new Error(`Could not connect to endpoint for server: ${server.name}`);
+      }
+    }
+
+    this.setPlexServerConnection(server, connection);
+    await this.persistCurrentPlexAuth();
+    return connection;
+  }
+
+  async connectToPlexServerWithUri(server: PlexServer, uri: string): Promise<PlexConnection> {
+    const connection: PlexConnection = {
+      uri,
+      protocol: uri.startsWith('https') ? 'https' : 'http',
+      local: false,
+      relay: false,
+      IPv6: false,
+    };
+
+    return this.connectToPlexConnection(server, connection);
+  }
+
+  async ensurePlexServerConnection(): Promise<boolean> {
+    if (!this.plexToken || !this.currentServer) {
+      return false;
+    }
+
+    if (
+      this.currentConnection &&
+      await this._plexAuth.testConnection(this.currentConnection, this.currentServer.accessToken)
+    ) {
+      if (!this._plexServer) {
+        this.setPlexServerConnection(this.currentServer, this.currentConnection);
+      }
+      return true;
+    }
+
+    const server = await this.refreshCurrentServerFromResources();
+    if (!server) {
+      this.clearPlexServerConnection();
+      return false;
+    }
+
+    const recoveredConnection = await this._plexAuth.findBestConnection(server, server.accessToken);
+    if (!recoveredConnection) {
+      this.clearPlexServerConnection();
+      return false;
+    }
+
+    await this.connectToPlexConnection(server, recoveredConnection, { skipValidation: true });
+    return true;
+  }
+
   /**
    * Connect to a specific Plex server
    */
@@ -557,26 +650,7 @@ export class FlixorCore {
       throw new Error(`Could not connect to server: ${server.name}`);
     }
 
-    // Store state
-    this.currentServer = server;
-    this.currentConnection = connection;
-
-    // Initialize server service
-    this._plexServer = new PlexServerService({
-      baseUrl: connection.uri,
-      token: server.accessToken,
-      clientId: this.config.clientId,
-      cache: this.config.cache,
-    });
-
-    // Persist to secure storage
-    await this.config.secureStorage.set<StoredPlexAuth>('plex_auth', {
-      token: this.plexToken,
-      server,
-      connection,
-    });
-
-    return connection;
+    return this.connectToPlexConnection(server, connection, { skipValidation: true });
   }
 
   /**
@@ -589,6 +663,9 @@ export class FlixorCore {
 
     // Clear state
     this.plexToken = null;
+    this.mainAccountToken = null;
+    this.currentProfileId = null;
+    this._currentProfile = null;
     this.currentServer = null;
     this.currentConnection = null;
     this._plexTv = null;

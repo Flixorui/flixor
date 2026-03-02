@@ -174,14 +174,16 @@ export async function getPlexServers(): Promise<PlexServerInfo[]> {
         host,
         port,
         isActive: server.id === currentServerId,
-        connections: server.connections.map((conn) => ({
-          uri: conn.uri,
-          protocol: conn.protocol,
-          local: conn.local,
-          relay: conn.relay,
-          isCurrent: conn.uri === currentUri,
-          isPreferred: conn.local && !conn.relay,
-        })),
+        connections: server.connections
+          .filter((conn) => !conn.IPv6)
+          .map((conn) => ({
+            uri: conn.uri,
+            protocol: conn.protocol,
+            local: conn.local,
+            relay: conn.relay,
+            isCurrent: conn.uri === currentUri,
+            isPreferred: conn.local && !conn.relay,
+          })),
       };
     });
   } catch (e) {
@@ -216,14 +218,16 @@ export async function getServerConnections(serverId: string): Promise<PlexConnec
 
     const currentUri = core.connection?.uri;
 
-    return server.connections.map((conn) => ({
-      uri: conn.uri,
-      protocol: conn.protocol,
-      local: conn.local,
-      relay: conn.relay,
-      isCurrent: conn.uri === currentUri,
-      isPreferred: conn.local && !conn.relay,
-    }));
+    return server.connections
+      .filter((conn) => !conn.IPv6)
+      .map((conn) => ({
+        uri: conn.uri,
+        protocol: conn.protocol,
+        local: conn.local,
+        relay: conn.relay,
+        isCurrent: conn.uri === currentUri,
+        isPreferred: conn.local && !conn.relay,
+      }));
   } catch (e) {
     console.log('[SettingsData] getServerConnections error:', e);
     return [];
@@ -250,11 +254,7 @@ export async function selectServerEndpoint(serverId: string, uri: string): Promi
       throw new Error('Endpoint unreachable');
     }
 
-    // Connect using the specific connection
-    // We need to manually set up the connection since FlixorCore auto-selects best
-    // For now, we'll reconnect to the server which may pick a different endpoint
-    // TODO: Add support for specific endpoint selection in FlixorCore
-    await core.connectToPlexServer(server);
+    await core.connectToPlexConnection(server, connection, { skipValidation: true });
   } catch (e) {
     console.log('[SettingsData] selectServerEndpoint error:', e);
     throw e;

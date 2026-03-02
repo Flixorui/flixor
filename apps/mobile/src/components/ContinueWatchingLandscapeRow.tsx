@@ -4,8 +4,8 @@ import {
   Text,
   FlatList,
   Pressable,
-  Dimensions,
   StyleSheet,
+  useWindowDimensions,
 } from 'react-native';
 import FastImage from '@d11/react-native-fast-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -14,10 +14,11 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { getVersionString, type PlexMediaItem } from '@flixor/core';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const CARD_WIDTH = SCREEN_WIDTH * 0.85;
-const CARD_HEIGHT = CARD_WIDTH * (9 / 16); // 16:9 aspect ratio
 const CARD_GAP = 12;
+const TABLET_BREAKPOINT = 600;
+const PHONE_CARD_WIDTH_RATIO = 0.85;
+const TABLET_CARD_WIDTH_RATIO = 0.55;
+const TABLET_CARD_MAX_WIDTH = 460;
 
 interface ContinueWatchingLandscapeRowProps {
   items: PlexMediaItem[];
@@ -67,6 +68,15 @@ function ContinueWatchingLandscapeRow({
   onInfo,
   getImageUri,
 }: ContinueWatchingLandscapeRowProps) {
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const isTablet = Math.min(windowWidth, windowHeight) >= TABLET_BREAKPOINT;
+  const cardWidth = Math.round(
+    isTablet
+      ? Math.min(windowWidth * TABLET_CARD_WIDTH_RATIO, TABLET_CARD_MAX_WIDTH)
+      : windowWidth * PHONE_CARD_WIDTH_RATIO
+  );
+  const cardHeight = Math.round(cardWidth * (9 / 16));
+
   const handleTitlePress = useCallback(() => {
     if (onBrowsePress) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -92,7 +102,7 @@ function ContinueWatchingLandscapeRow({
         onPress={() => handleItemPress(item)}
         style={({ pressed }) => [
           styles.card,
-          { opacity: pressed ? 0.95 : 1 },
+          { width: cardWidth, height: cardHeight, opacity: pressed ? 0.95 : 1 },
         ]}
       >
         {/* Landscape Image - includes movie title/branding */}
@@ -155,7 +165,7 @@ function ContinueWatchingLandscapeRow({
         </LinearGradient>
       </Pressable>
     );
-  }, [getImageUri, handleItemPress, onInfo, onMarkWatched, onRemove, itemsWithMultipleVersions]);
+  }, [cardHeight, cardWidth, getImageUri, handleItemPress, onInfo, onMarkWatched, onRemove, itemsWithMultipleVersions]);
 
   return (
     <View style={styles.container}>
@@ -175,7 +185,7 @@ function ContinueWatchingLandscapeRow({
         renderItem={renderCard}
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.listContent}
-        snapToInterval={CARD_WIDTH + CARD_GAP}
+        snapToInterval={cardWidth + CARD_GAP}
         decelerationRate="fast"
         snapToAlignment="start"
         bounces={false}
@@ -221,8 +231,6 @@ const styles = StyleSheet.create({
     gap: CARD_GAP,
   },
   card: {
-    width: CARD_WIDTH,
-    height: CARD_HEIGHT,
     borderRadius: 12,
     overflow: 'hidden',
     backgroundColor: '#1a1a1a',

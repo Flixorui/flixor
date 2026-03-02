@@ -1,6 +1,9 @@
 import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from 'react';
+import { AppState, type AppStateStatus } from 'react-native';
 import { FlixorMobile, initializeFlixorMobile } from './FlixorMobile';
 import { getActiveProfile, hasPlexHome, type ActiveProfile } from './ProfileService';
+
+const CONNECTION_HEALTH_CHECK_INTERVAL_MS = 60000;
 
 interface FlixorContextValue {
   flixor: FlixorMobile | null;
@@ -44,6 +47,7 @@ export function FlixorProvider({ children }: FlixorProviderProps) {
   // Profile state
   const [activeProfile, setActiveProfile] = useState<ActiveProfile | null>(null);
   const [hasMultipleProfiles, setHasMultipleProfiles] = useState(false);
+  const healthCheckInFlight = React.useRef(false);
 
   const initialize = async () => {
     try {
@@ -85,6 +89,28 @@ export function FlixorProvider({ children }: FlixorProviderProps) {
     }
   }, [flixor]);
 
+  const refreshConnectionState = useCallback(async () => {
+    if (!flixor || healthCheckInFlight.current) {
+      return;
+    }
+
+    healthCheckInFlight.current = true;
+
+    try {
+      if (flixor.isPlexAuthenticated) {
+        await flixor.ensureActiveConnection();
+      }
+    } catch (e) {
+      console.log('[FlixorContext] connection health check error:', e);
+    } finally {
+      setAuthState({
+        isAuthenticated: flixor.isPlexAuthenticated,
+        isConnected: flixor.isConnected,
+      });
+      healthCheckInFlight.current = false;
+    }
+  }, [flixor]);
+
   const refreshProfile = useCallback(async () => {
     try {
       const [profile, hasHome] = await Promise.all([
@@ -97,6 +123,27 @@ export function FlixorProvider({ children }: FlixorProviderProps) {
       console.log('[FlixorContext] refreshProfile error:', e);
     }
   }, []);
+
+  useEffect(() => {
+    if (!flixor || !authState.isAuthenticated) {
+      return;
+    }
+
+    const intervalId = setInterval(() => {
+      void refreshConnectionState();
+    }, CONNECTION_HEALTH_CHECK_INTERVAL_MS);
+
+    const subscription = AppState.addEventListener('change', (state: AppStateStatus) => {
+      if (state === 'active') {
+        void refreshConnectionState();
+      }
+    });
+
+    return () => {
+      clearInterval(intervalId);
+      subscription.remove();
+    };
+  }, [authState.isAuthenticated, flixor, refreshConnectionState]);
 
   const value = useMemo(() => ({
     flixor,
