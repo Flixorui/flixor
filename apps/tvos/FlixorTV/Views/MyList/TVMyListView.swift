@@ -7,6 +7,7 @@ struct TVMyListView: View {
 
     @State private var selectedItem: MediaItem?
     @FocusState private var focusedID: String?
+    @FocusState private var focusedControlID: String?
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: UX.itemSpacing), count: 5)
 
@@ -73,41 +74,123 @@ struct TVMyListView: View {
 
             HStack(spacing: 10) {
                 ForEach(TVMyListViewModel.FilterType.allCases) { filter in
+                    let key = "filter-\(filter.id)"
                     Button {
                         viewModel.filter = filter
                     } label: {
-                        Text(filter.title)
-                            .font(.system(size: 20, weight: .semibold))
-                            .foregroundStyle(viewModel.filter == filter ? Color.black : Color.white)
-                            .padding(.horizontal, 18)
-                            .padding(.vertical, 12)
-                            .background(
-                                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                    .fill(viewModel.filter == filter ? Color.white : Color.white.opacity(0.1))
-                            )
+                        controlChip(
+                            title: filter.title,
+                            key: key,
+                            isSelected: viewModel.filter == filter
+                        )
                     }
                     .buttonStyle(.plain)
+                    .focused($focusedControlID, equals: key)
+                    .focusEffectDisabled()
                 }
             }
 
             Spacer()
 
+            let sortKey = "sort"
             Button {
                 cycleSort()
             } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "arrow.up.arrow.down")
-                    Text("Sort: \(viewModel.sort.title)")
-                }
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 18)
-                .padding(.vertical, 12)
-                .background(Color.white.opacity(0.1), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                controlActionChip(
+                    title: "Sort",
+                    value: viewModel.sort.title,
+                    systemImage: "arrow.up.arrow.down",
+                    key: sortKey
+                )
             }
             .buttonStyle(.plain)
+            .focused($focusedControlID, equals: sortKey)
+            .focusEffectDisabled()
         }
         .padding(.horizontal, UX.gridH)
+    }
+
+    private func controlChip(title: String, key: String, isSelected: Bool) -> some View {
+        let isFocused = focusedControlID == key
+        let textColor: Color = isSelected ? .black : .white.opacity(isFocused ? 1.0 : 0.9)
+        let backgroundColor: Color = {
+            if isSelected {
+                return .white
+            } else if isFocused {
+                return Color.white.opacity(0.35)
+            } else {
+                return Color.white.opacity(0.10)
+            }
+        }()
+        let strokeColor: Color = {
+            if isSelected {
+                return .clear
+            } else if isFocused {
+                return Color.white.opacity(0.5)
+            } else {
+                return Color.white.opacity(0.2)
+            }
+        }()
+        let strokeWidth: CGFloat = {
+            if isSelected {
+                return 0
+            } else if isFocused {
+                return 2
+            } else {
+                return 1
+            }
+        }()
+
+        return Text(title)
+            .font(.system(size: 20, weight: .semibold))
+            .foregroundStyle(textColor)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(backgroundColor)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(strokeColor, lineWidth: strokeWidth)
+            )
+            .scaleEffect(isFocused ? 1.08 : 1.0)
+            .shadow(color: .black.opacity(isFocused ? 0.4 : 0.2), radius: isFocused ? 16 : 8, y: isFocused ? 8 : 4)
+            .animation(.easeOut(duration: UX.focusDur), value: isFocused)
+    }
+
+    private func controlActionChip(title: String, value: String, systemImage: String, key: String) -> some View {
+        let isFocused = focusedControlID == key
+        let titleColor: Color = .white.opacity(isFocused ? 0.85 : 0.6)
+        let valueColor: Color = .white.opacity(isFocused ? 1.0 : 0.9)
+        let backgroundColor: Color = isFocused ? Color.white.opacity(0.30) : Color.white.opacity(0.10)
+        let strokeColor: Color = isFocused ? Color.white.opacity(0.4) : .clear
+        let strokeWidth: CGFloat = isFocused ? 2 : 0
+
+        return HStack(spacing: 8) {
+            Image(systemName: systemImage)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(titleColor)
+            Text(title)
+                .font(.system(size: 18, weight: .medium))
+                .foregroundStyle(titleColor)
+            Text(value)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(valueColor)
+        }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 14)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(backgroundColor)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(strokeColor, lineWidth: strokeWidth)
+        )
+        .scaleEffect(isFocused ? 1.06 : 1.0)
+        .shadow(color: .black.opacity(isFocused ? 0.35 : 0.0), radius: isFocused ? 12 : 0, y: isFocused ? 6 : 0)
+        .animation(.easeOut(duration: UX.focusDur), value: isFocused)
     }
 
     @ViewBuilder

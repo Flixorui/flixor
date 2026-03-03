@@ -299,6 +299,7 @@ struct TVLandscapeCard: View {
             }
             .foregroundStyle(.white)
             .padding(18)
+            .compositingGroup()
             .shadow(color: .black.opacity(0.6), radius: 12, y: 4)
         }
         .overlay(

@@ -110,11 +110,15 @@ struct TVCarouselRow: View {
                         return
                     }
 
+                    HomeHitchTracer.mark("RowFocusChanged", row: sectionId, extra: "item=\(id)")
+                    HomeHitchTracer.measureRenderTime("RowFocusRender", row: sectionId)
+
                     // Defer expansion slightly so rapid focus changes don't force reflow on every tick.
                     expansionTask = Task {
                         try? await Task.sleep(nanoseconds: 80_000_000)
                         guard !Task.isCancelled else { return }
-                        guard let currentIndex = items.firstIndex(where: { $0.id == id }) else { return }
+                        let span = HomeHitchTracer.begin("RowExpansionTask", row: sectionId)
+                        guard let currentIndex = items.firstIndex(where: { $0.id == id }) else { span.end(); return }
 
                         if let sp = scrollProxy {
                             let shouldScroll: Bool
@@ -128,6 +132,7 @@ struct TVCarouselRow: View {
 
                             if shouldScroll {
                                 let isFirstItem = id == items.first?.id
+                                HomeHitchTracer.mark("RowHorizontalScroll", row: sectionId, extra: "item=\(id)")
                                 sp.scrollTo(id, anchor: isFirstItem ? .center : .leading)
                             }
                         }
@@ -135,18 +140,27 @@ struct TVCarouselRow: View {
                         withAnimation(.easeOut(duration: 0.18)) {
                             expandedID = id
                         }
+                        HomeHitchTracer.mark("RowExpansionApplied", row: sectionId, extra: "item=\(id)")
+                        HomeHitchTracer.measureRenderTime("RowExpansionRender", row: sectionId)
                         lastFocusedIndex = currentIndex
+                        span.end()
                     }
 
                     // Prefetch next items (±2) to keep scroll smooth
                     if let idx = items.firstIndex(where: { $0.id == id }) {
                         let window = items.dropFirst(max(0, idx-1)).prefix(4)
-                        let urls: [URL] = window.compactMap { item in
+                        var urls: [URL] = window.compactMap { item in
                             if kind == .poster {
                                 return ImageService.shared.thumbURL(for: item, width: 360, height: 540)
                             } else {
                                 return ImageService.shared.continueWatchingURL(for: item, width: 960, height: 540)
                             }
+                        }
+                        // Pre-warm landscape image for the focused poster so it's
+                        // in cache by the time the 80ms expansion delay fires.
+                        if kind == .poster, let item = items.first(where: { $0.id == id }),
+                           let landscapeURL = ImageService.shared.continueWatchingURL(for: item, width: 960, height: 540) {
+                            urls.append(landscapeURL)
                         }
                         prefetchImages(urls)
                     }
@@ -160,12 +174,20 @@ struct TVCarouselRow: View {
             // Publish focused item ID upwards (used for remembering scroll position)
             .preference(key: RowItemFocusKey.self, value: RowItemFocusValue(rowId: focusedID != nil ? sectionId : nil, itemId: focusedID))
             .onChange(of: defaultFocus) { newValue in
-                // When this row becomes the default focus target, FORCE focus to preferred item
+                HomeHitchTracer.mark("RowDefaultFocusChanged", row: sectionId, extra: "value=\(newValue) currentFocus=\(focusedID ?? "nil")")
+                // When this row becomes the default focus target, FORCE focus to preferred item.
+                // Deferred to the next run loop turn so that the initial render pass
+                // (focusedRowId change + vertical scroll) completes first, avoiding a
+                // compounded ~10-12ms main-thread block.
                 if newValue {
                     let targetItemId = preferredFocusItemId ?? items.first?.id
                     if let targetId = targetItemId {
                         if focusedID != targetId {
-                            focusedID = targetId
+                            HomeHitchTracer.mark("RowDefaultFocusForced", row: sectionId, extra: "from=\(focusedID ?? "nil") to=\(targetId)")
+                            DispatchQueue.main.async {
+                                focusedID = targetId
+                                HomeHitchTracer.measureRenderTime("RowForcedFocusRender", row: sectionId)
+                            }
                         }
                     }
                 }
@@ -215,4 +237,78 @@ private enum TVRowImagePrefetch {
 
 private func prefetchImages(_ urls: [URL]) {
     TVRowImagePrefetch.shared.startPrefetching(with: urls)
+}
+
+// MARK: - Hitch investigation tracer
+
+import QuartzCore
+import os.signpost
+
+enum HomeHitchTracer {
+    private static let log = OSLog(subsystem: "com.flixor.tv.hitch", category: .pointsOfInterest)
+    private static var visitedRows: Set<String> = []
+
+    static func isRevisit(_ row: String) -> Bool { visitedRows.contains(row) }
+    static func recordVisit(_ row: String) { visitedRows.insert(row) }
+
+    static func begin(_ name: String, row: String, extra: String = "") -> Span {
+        let revisit = isRevisit(row)
+        let id = OSSignpostID(log: log)
+        os_signpost(.begin, log: log, name: "HomeHitch", signpostID: id,
+                    "%{public}s row=%{public}s revisit=%{public}d %{public}s",
+                    name, row, revisit ? 1 : 0, extra)
+        let start = CACurrentMediaTime()
+        let label = "[\(name)] row=\(row) revisit=\(revisit) \(extra)"
+        #if DEBUG
+        print("[HITCH] BEGIN \(label) t=\(ms(start))")
+        #endif
+        return Span(log: log, id: id, label: label, start: start)
+    }
+
+    static func mark(_ name: String, row: String, extra: String = "") {
+        let revisit = isRevisit(row)
+        os_signpost(.event, log: log, name: "HomeHitch",
+                    "%{public}s row=%{public}s revisit=%{public}d %{public}s",
+                    name, row, revisit ? 1 : 0, extra)
+        #if DEBUG
+        print("[HITCH] EVENT [\(name)] row=\(row) revisit=\(revisit) \(extra) t=\(ms(CACurrentMediaTime()))")
+        #endif
+    }
+
+    /// Measure how long SwiftUI blocks the main thread AFTER a state change.
+    /// Call this right after mutating @State/@Published. The closure queued via
+    /// DispatchQueue.main.async won't run until SwiftUI finishes its synchronous
+    /// layout/render pass, so the delta captures the platform render cost.
+    static func measureRenderTime(_ label: String, row: String) {
+        let preRender = CACurrentMediaTime()
+        let revisit = isRevisit(row)
+        DispatchQueue.main.async {
+            let elapsed = (CACurrentMediaTime() - preRender) * 1000
+            os_signpost(.event, log: log, name: "HomeHitch",
+                        "RENDER %{public}s row=%{public}s revisit=%{public}d elapsed=%.2fms",
+                        label, row, revisit ? 1 : 0, elapsed)
+            #if DEBUG
+            print("[HITCH] RENDER [\(label)] row=\(row) revisit=\(revisit) renderTime=\(String(format: "%.2f", elapsed))ms")
+            #endif
+        }
+    }
+
+    struct Span {
+        let log: OSLog
+        let id: OSSignpostID
+        let label: String
+        let start: Double
+        func end() {
+            let elapsed = (CACurrentMediaTime() - start) * 1000
+            os_signpost(.end, log: log, name: "HomeHitch", signpostID: id)
+            #if DEBUG
+            print("[HITCH] END   \(label) elapsed=\(String(format: "%.2f", elapsed))ms")
+            #endif
+        }
+    }
+
+    private static let epoch = CACurrentMediaTime()
+    private static func ms(_ t: Double) -> String {
+        String(format: "%.2f", (t - epoch) * 1000)
+    }
 }

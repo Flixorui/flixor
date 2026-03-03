@@ -178,44 +178,7 @@ struct TVHomeView: View {
         .ignoresSafeArea(edges: .top)
         // no permanent inset; content can scroll edge-to-edge under the native sidebar shell
         .onPreferenceChange(RowFocusKey.self) { newId in
-            if let newId {
-                clearRowFocusTask?.cancel()
-            } else {
-                // During horizontal focus movement, tvOS may emit brief nil focus pulses.
-                // Clear row focus only if nil persists, which indicates real exit to hero/nav.
-                clearRowFocusTask?.cancel()
-                clearRowFocusTask = Task {
-                    try? await Task.sleep(nanoseconds: 140_000_000)
-                    guard !Task.isCancelled else { return }
-                    await MainActor.run {
-                        focusedRowId = nil
-                        nextRowToReceiveFocus = nil
-                    }
-                }
-                return
-            }
-
-            // Update focused row ID (nil when billboard is focused, sectionId when row is focused)
-            let previousId = focusedRowId
-            if previousId != newId {
-                // Set next row to receive focus BEFORE updating focusedRowId
-                nextRowToReceiveFocus = newId
-
-                focusedRowId = newId
-                clearNextRowFocusTask?.cancel()
-                clearNextRowFocusTask = Task {
-                    try? await Task.sleep(nanoseconds: 200_000_000)
-                    guard !Task.isCancelled else { return }
-                    nextRowToReceiveFocus = nil
-                }
-            }
-
-            // Scroll to row if focused
-            if newId != previousId, newId != firstVisibleRowId {
-                withAnimation(.easeInOut(duration: 0.24)) {
-                    vProxy.scrollTo("row-\(newId)", anchor: .top)
-                }
-            }
+            handleRowFocusChange(newId, vProxy: vProxy)
         }
         .onPreferenceChange(BillboardFocusKey.self) { hasFocus in
             // Keep billboard at top when it has focus
@@ -321,6 +284,49 @@ struct TVHomeView: View {
             clearRowFocusTask?.cancel()
             gradientDebounceTask?.cancel()
             vm.stopDynamicSectionPolling()
+        }
+    }
+
+    private func handleRowFocusChange(_ newId: String?, vProxy: ScrollViewProxy) {
+        guard let rowId = newId else {
+            clearRowFocusTask?.cancel()
+            clearRowFocusTask = Task {
+                try? await Task.sleep(nanoseconds: 140_000_000)
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    focusedRowId = nil
+                    nextRowToReceiveFocus = nil
+                }
+            }
+            return
+        }
+
+        clearRowFocusTask?.cancel()
+
+        HomeHitchTracer.mark("HomeRowPreferenceReceived", row: rowId, extra: "prev=\(focusedRowId ?? "nil")")
+
+        let previousId = focusedRowId
+        if previousId != rowId {
+            let span = HomeHitchTracer.begin("HomeRowStateUpdate", row: rowId)
+            nextRowToReceiveFocus = rowId
+            focusedRowId = rowId
+            HomeHitchTracer.recordVisit(rowId)
+            HomeHitchTracer.measureRenderTime("HomeRowStateRender", row: rowId)
+            clearNextRowFocusTask?.cancel()
+            clearNextRowFocusTask = Task {
+                try? await Task.sleep(nanoseconds: 200_000_000)
+                guard !Task.isCancelled else { return }
+                nextRowToReceiveFocus = nil
+            }
+            span.end()
+        }
+
+        if rowId != previousId, rowId != firstVisibleRowId {
+            HomeHitchTracer.mark("HomeRowScrollTo", row: rowId)
+            withAnimation(.easeInOut(duration: 0.24)) {
+                vProxy.scrollTo("row-\(rowId)", anchor: .top)
+            }
+            HomeHitchTracer.measureRenderTime("HomeScrollToRender", row: rowId)
         }
     }
 

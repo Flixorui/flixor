@@ -103,7 +103,6 @@ struct TVNewPopularView: View {
             HStack(spacing: 12) {
                 ForEach(TVNewPopularViewModel.Tab.allCases) { tab in
                     let key = "tab-\(tab.id)"
-                    let isFocused = focusedTopControl == key
                     Button {
                         guard viewModel.activeTab != tab else { return }
                         viewModel.activeTab = tab
@@ -168,21 +167,50 @@ struct TVNewPopularView: View {
 
     private func controlChip(title: String, key: String, isSelected: Bool) -> some View {
         let isFocused = focusedTopControl == key
+        let textColor: Color = isSelected ? .black : .white.opacity(isFocused ? 1.0 : 0.9)
+        let backgroundColor: Color = {
+            if isSelected {
+                return .white
+            } else if isFocused {
+                return Color.white.opacity(0.35)
+            } else {
+                return Color.white.opacity(0.10)
+            }
+        }()
+        let strokeColor: Color = {
+            if isSelected {
+                return .clear
+            } else if isFocused {
+                return Color.white.opacity(0.5)
+            } else {
+                return Color.white.opacity(0.2)
+            }
+        }()
+        let strokeWidth: CGFloat = {
+            if isSelected {
+                return 0
+            } else if isFocused {
+                return 2
+            } else {
+                return 1
+            }
+        }()
+
         return Text(title)
             .font(.system(size: 22, weight: .semibold))
-            .foregroundStyle(isSelected ? Color.white : Color.white.opacity(0.9))
+            .foregroundStyle(textColor)
             .padding(.horizontal, 18)
             .padding(.vertical, 10)
             .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(isSelected ? Color.white.opacity(0.18) : Color.black.opacity(0.28))
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(backgroundColor)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(Color.white.opacity(isFocused ? 0.62 : (isSelected ? 0.34 : 0.18)), lineWidth: isFocused ? 2 : 1)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(strokeColor, lineWidth: strokeWidth)
             )
-            .scaleEffect(isFocused ? 1.03 : 1.0)
-            .shadow(color: .black.opacity(isFocused ? 0.32 : 0.18), radius: isFocused ? 10 : 4, y: 3)
+            .scaleEffect(isFocused ? 1.08 : 1.0)
+            .shadow(color: .black.opacity(isFocused ? 0.4 : 0.2), radius: isFocused ? 16 : 8, y: isFocused ? 8 : 4)
             .animation(.easeOut(duration: UX.focusDur), value: isFocused)
     }
 
