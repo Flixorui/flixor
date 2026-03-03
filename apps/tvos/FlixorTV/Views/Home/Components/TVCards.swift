@@ -4,11 +4,13 @@ import FlixorKit
 // MARK: - Progress bar (avoids GeometryReader per card)
 private struct ProgressCapsule: View {
     let progress: CGFloat
+    @Environment(\.tvThemePalette) private var theme
+
     var body: some View {
-        Capsule().fill(Color.white.opacity(0.25))
+        Capsule().fill(theme.surfaceGlass)
             .frame(height: 6)
             .overlay(alignment: .leading) {
-                Capsule().fill(Color.white)
+                Capsule().fill(theme.accent)
                     .frame(width: nil)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .scaleEffect(x: max(0.01, min(progress, 1.0)), anchor: .leading)
@@ -25,6 +27,8 @@ struct TVImage: View {
     let corner: CGFloat
     let layout: Layout
 
+    @Environment(\.tvThemePalette) private var theme
+
     init(url: URL?, corner: CGFloat = 14, aspect: CGFloat) {
         self.url = url
         self.corner = corner
@@ -39,22 +43,22 @@ struct TVImage: View {
 
     var body: some View {
         ZStack {
-            Color.white.opacity(0.06)
+            theme.backgroundCard
             LinearGradient(colors: [Color.black.opacity(0.2), Color.black.opacity(0.0)], startPoint: .bottom, endPoint: .top)
 
             if let url = url {
                 CachedAsyncImage(url: url, contentMode: .fill) {
-                    Color.white.opacity(0.04)
+                    theme.surfaceMuted
                 }
             } else {
-                Color.white.opacity(0.04)
+                theme.surfaceMuted
             }
         }
         .modifier(LayoutModifier(layout: layout))
         .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: corner, style: .continuous)
-                .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                .stroke(theme.strokeDefault, lineWidth: 1)
         )
         .contentShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
     }
@@ -98,6 +102,9 @@ struct TVPosterCard: View {
     let isFocused: Bool
     var respectLibraryTitles: Bool = false
     @EnvironmentObject private var profileSettings: TVProfileSettings
+    @Environment(\.tvThemePalette) private var theme
+    @Environment(\.tvTypography) private var typography
+    @Environment(\.tvCardVisualTokens) private var cardTokens
 
     // For episodes, use series poster (grandparentThumb)
     private var posterURL: URL? {
@@ -108,20 +115,11 @@ struct TVPosterCard: View {
     }
 
     private var posterCornerRadius: CGFloat {
-        switch profileSettings.posterCornerRadius {
-        case "none":
-            return 0
-        case "small":
-            return 10
-        case "large":
-            return 20
-        default:
-            return UX.posterRadius
-        }
+        profileSettings.posterCornerRadius
     }
 
     private var shouldShowFocusedTitle: Bool {
-        guard isFocused, profileSettings.showPosterTitles else { return false }
+        guard isFocused, profileSettings.showPosterLabels else { return false }
         if respectLibraryTitles {
             return profileSettings.showLibraryTitles
         }
@@ -145,22 +143,22 @@ struct TVPosterCard: View {
                             maxWidth: 160,
                             maxHeight: 50,
                             fallbackText: item.grandparentTitle ?? item.title,
-                            fallbackFont: .system(size: 18, weight: .semibold)
+                            fallbackFont: typography.custom(size: 18, weight: .semibold)
                         )
                     } else if let seriesTitle = item.grandparentTitle {
                         // No logo, show series title
                         Text(seriesTitle)
-                            .font(.system(size: 18, weight: .semibold))
+                            .font(typography.custom(size: 18, weight: .semibold))
                             .lineLimit(1)
                     }
 
                     // Episode title
                     Text(item.title)
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.9))
+                        .font(typography.meta)
+                        .foregroundStyle(theme.textSecondary)
                         .lineLimit(2)
                 }
-                .foregroundStyle(.white)
+                .foregroundStyle(theme.textPrimary)
                 .padding(12)
                 .frame(maxWidth: .infinity, alignment: .leading)
             } else {
@@ -169,8 +167,8 @@ struct TVPosterCard: View {
                     LinearGradient(colors: [Color.black.opacity(0.6), .clear], startPoint: .bottom, endPoint: .top)
                         .clipShape(RoundedRectangle(cornerRadius: posterCornerRadius, style: .continuous))
                     Text(item.title)
-                        .font(.system(size: 22, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .font(typography.custom(size: 22, weight: .semibold))
+                        .foregroundStyle(theme.textPrimary)
                         .padding(12)
                 }
             }
@@ -189,7 +187,7 @@ struct TVPosterCard: View {
             Group {
                 if isFocused {
                     RoundedRectangle(cornerRadius: posterCornerRadius, style: .continuous)
-                        .stroke(Color.white.opacity(0.85), lineWidth: 3)
+                        .stroke(theme.strokeFocused, lineWidth: cardTokens.focusedStrokeWidth)
                 }
             }
         )
@@ -206,19 +204,37 @@ struct TVLandscapeCard: View {
     var focusOutlineOnFocus: Bool = false
     var heightOverride: CGFloat? = nil
     var overrideURL: URL? = nil
+    var previewTrailer: TVTrailer? = nil
+    var previewTrailerMuted: Bool = true
+
+    @Environment(\.tvThemePalette) private var theme
+    @Environment(\.tvTypography) private var typography
+    @Environment(\.tvCardVisualTokens) private var cardTokens
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
             Group {
                 let imgURL = overrideURL ?? ImageService.shared.continueWatchingURL(for: item, width: 960, height: 540)
                 if let h = heightOverride {
-                    TVImage(url: imgURL, corner: UX.landscapeRadius, height: h)
+                    ZStack {
+                        TVImage(url: imgURL, corner: cardTokens.landscapeRadius, height: h)
+                        if let previewTrailer {
+                            TVInlineTrailerPreview(trailer: previewTrailer, muted: previewTrailerMuted)
+                                .clipShape(RoundedRectangle(cornerRadius: cardTokens.landscapeRadius, style: .continuous))
+                        }
+                    }
                 } else {
-                    TVImage(url: imgURL, corner: UX.landscapeRadius, aspect: 16/9)
+                    ZStack {
+                        TVImage(url: imgURL, corner: cardTokens.landscapeRadius, aspect: 16/9)
+                        if let previewTrailer {
+                            TVInlineTrailerPreview(trailer: previewTrailer, muted: previewTrailerMuted)
+                                .clipShape(RoundedRectangle(cornerRadius: cardTokens.landscapeRadius, style: .continuous))
+                        }
+                    }
                 }
             }
             LinearGradient(colors: [Color.black.opacity(0.65), Color.black.opacity(0.0)], startPoint: .bottom, endPoint: .top)
-                .clipShape(RoundedRectangle(cornerRadius: UX.landscapeRadius, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: cardTokens.landscapeRadius, style: .continuous))
 
             VStack(alignment: .leading, spacing: 6) {
                 // For episodes: show series logo, then episode title and info
@@ -230,26 +246,26 @@ struct TVLandscapeCard: View {
                             maxWidth: 280,
                             maxHeight: 80,
                             fallbackText: item.grandparentTitle ?? item.title,
-                            fallbackFont: .system(size: 28, weight: .semibold)
+                            fallbackFont: typography.custom(size: 28, weight: .semibold)
                         )
                     } else if let seriesTitle = item.grandparentTitle {
                         // No logo, show series title
                         Text(seriesTitle)
-                            .font(.system(size: 28, weight: .semibold))
+                            .font(typography.custom(size: 28, weight: .semibold))
                             .lineLimit(1)
                     }
 
                     // Episode season and number
                     if let season = item.parentIndex, let episode = item.index {
                         Text("S\(season) • E\(episode)")
-                            .font(.system(size: 18, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.9))
+                            .font(typography.body)
+                            .foregroundStyle(theme.textSecondary)
                     }
 
                     // Episode title
                     Text(item.title)
-                        .font(.system(size: 20, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.85))
+                        .font(typography.body)
+                        .foregroundStyle(theme.textSecondary)
                         .lineLimit(2)
                 } else {
                     // For non-episodes: display clear logo if available, otherwise fallback to text title
@@ -259,23 +275,23 @@ struct TVLandscapeCard: View {
                             maxWidth: 280,
                             maxHeight: 80,
                             fallbackText: item.title,
-                            fallbackFont: .system(size: 28, weight: .semibold)
+                            fallbackFont: typography.custom(size: 28, weight: .semibold)
                         )
                     } else {
                         // No logo available, use text title
                         Text(item.title)
-                            .font(.system(size: 28, weight: .semibold))
+                            .font(typography.custom(size: 28, weight: .semibold))
                             .lineLimit(1)
                     }
 
                     if showBadges {
                         HStack(spacing: 6) {
-                            Text("HD").font(.system(size: 14, weight: .semibold))
+                            Text("HD").font(typography.custom(size: 14, weight: .semibold))
                                 .padding(.horizontal, 8).padding(.vertical, 4)
-                                .background(Color.white.opacity(0.18)).clipShape(Capsule())
-                            Text("5.1").font(.system(size: 14, weight: .semibold))
+                                .background(theme.surfaceGlass).clipShape(Capsule())
+                            Text("5.1").font(typography.custom(size: 14, weight: .semibold))
                                 .padding(.horizontal, 8).padding(.vertical, 4)
-                                .background(Color.white.opacity(0.18)).clipShape(Capsule())
+                                .background(theme.surfaceGlass).clipShape(Capsule())
                         }
                     }
                 }
@@ -288,16 +304,16 @@ struct TVLandscapeCard: View {
                     if duration > viewOffset {
                         let remaining = max(0, (duration - viewOffset) / 60000)
                         Text("\(remaining)m left")
-                            .font(.system(size: 14, weight: .semibold))
+                            .font(typography.custom(size: 14, weight: .semibold))
                             .padding(.horizontal, 10)
                             .padding(.vertical, 6)
-                            .background(Color.white.opacity(0.18))
+                            .background(theme.surfaceGlass)
                             .clipShape(Capsule())
                             .padding(.top, 6)
                     }
                 }
             }
-            .foregroundStyle(.white)
+            .foregroundStyle(theme.textPrimary)
             .padding(18)
             .compositingGroup()
             .shadow(color: .black.opacity(0.6), radius: 12, y: 4)
@@ -305,11 +321,77 @@ struct TVLandscapeCard: View {
         .overlay(
             Group {
                 if outlined || (focusOutlineOnFocus && isFocused) {
-                    RoundedRectangle(cornerRadius: UX.landscapeRadius, style: .continuous)
-                        .stroke(Color.white.opacity(0.85), lineWidth: 3)
+                    RoundedRectangle(cornerRadius: cardTokens.landscapeRadius, style: .continuous)
+                        .stroke(theme.strokeFocused, lineWidth: cardTokens.focusedStrokeWidth)
                 }
             }
         )
+    }
+}
+
+private struct TVInlineTrailerPreview: View {
+    let trailer: TVTrailer
+    let muted: Bool
+    @State private var coordinator: MPVPlayerView.Coordinator
+
+    init(trailer: TVTrailer, muted: Bool) {
+        self.trailer = trailer
+        self.muted = muted
+
+        let coordinator = MPVPlayerView.Coordinator()
+        coordinator.onMediaLoaded = {
+            TrailerPreviewDiagnostics.debug(
+                "MPV media loaded key=\(TrailerPreviewDiagnostics.summarizeKey(trailer.key))"
+            )
+        }
+        coordinator.onPlaybackEnded = {
+            TrailerPreviewDiagnostics.debug(
+                "MPV playback ended key=\(TrailerPreviewDiagnostics.summarizeKey(trailer.key))"
+            )
+        }
+        coordinator.onPropertyChange = { _, property, data in
+            switch property {
+            case .pause, .pausedForCache, .duration:
+                TrailerPreviewDiagnostics.debug(
+                    "MPV property key=\(TrailerPreviewDiagnostics.summarizeKey(trailer.key)) property=\(property.rawValue) value=\(String(describing: data))"
+                )
+            default:
+                break
+            }
+        }
+        if let trailerURL = trailer.inlinePlaybackURL {
+            coordinator.setPendingURL(trailerURL)
+            TrailerPreviewDiagnostics.debug(
+                "Prepared inline trailer key=\(TrailerPreviewDiagnostics.summarizeKey(trailer.key)) url=\(TrailerPreviewDiagnostics.summarizeURL(trailerURL))"
+            )
+        } else {
+            TrailerPreviewDiagnostics.debug("Prepared inline trailer without playable URL key=\(TrailerPreviewDiagnostics.summarizeKey(trailer.key))")
+        }
+        _coordinator = State(initialValue: coordinator)
+    }
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.3)
+            MPVPlayerView(coordinator: coordinator)
+                .allowsHitTesting(false)
+        }
+        .onAppear {
+            if let trailerURL = trailer.inlinePlaybackURL {
+                TrailerPreviewDiagnostics.debug(
+                    "Inline trailer play request key=\(TrailerPreviewDiagnostics.summarizeKey(trailer.key)) url=\(TrailerPreviewDiagnostics.summarizeURL(trailerURL)) muted=\(muted)"
+                )
+                coordinator.play(trailerURL)
+            } else {
+                TrailerPreviewDiagnostics.debug("Inline trailer play skipped because playback URL is nil key=\(TrailerPreviewDiagnostics.summarizeKey(trailer.key))")
+            }
+            coordinator.setVolume(muted ? 0 : 100)
+        }
+        .onDisappear {
+            TrailerPreviewDiagnostics.debug("Inline trailer teardown key=\(TrailerPreviewDiagnostics.summarizeKey(trailer.key))")
+            coordinator.pause()
+            coordinator.destruct()
+        }
     }
 }
 
@@ -329,16 +411,19 @@ struct TVExpandedPreviewCard: View {
 // Hover metadata block used under expanded preview
 struct TVHoverMeta: View {
     let item: MediaItem
+    @Environment(\.tvThemePalette) private var theme
+    @Environment(\.tvTypography) private var typography
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             TVMetaLine(item: item)
-                .font(.system(size: 22, weight: .medium))
-                .foregroundStyle(.white)
+                .font(typography.custom(size: 22, weight: .medium))
+                .foregroundStyle(theme.textPrimary)
                 .opacity(0.9)
             if let summary = item.summary, !summary.isEmpty {
                 Text(summary)
-                    .font(.system(size: 20))
-                    .foregroundStyle(.white.opacity(0.85))
+                    .font(typography.body)
+                    .foregroundStyle(theme.textSecondary)
                     .lineLimit(2)
             }
         }

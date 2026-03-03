@@ -75,6 +75,8 @@ final class TVSearchViewModel: ObservableObject {
     @Published var trendingItems: [SearchResult] = []
     @Published var isLoading = false
     @Published var searchMode: SearchMode = .idle
+    @Published var discoveryErrorMessage: String?
+    @Published var searchErrorMessage: String?
 
     private let api = APIClient.shared
     private var searchTask: Task<Void, Never>?
@@ -86,6 +88,11 @@ final class TVSearchViewModel: ObservableObject {
 
     init() {
         setupDebouncing()
+    }
+
+    private struct DiscoveryLoadResult {
+        let items: [SearchResult]
+        let failed: Bool
     }
 
     private func setupDebouncing() {
@@ -101,6 +108,7 @@ final class TVSearchViewModel: ObservableObject {
                         self.tmdbMovies = []
                         self.tmdbShows = []
                         self.genreRows = []
+                        self.searchErrorMessage = nil
                     } else {
                         self.searchMode = .searching
                         await self.performSearch(query: text)
@@ -114,16 +122,32 @@ final class TVSearchViewModel: ObservableObject {
         guard includeTmdbInSearch else {
             popularItems = []
             trendingItems = []
+            discoveryErrorMessage = nil
             return
         }
 
-        await withTaskGroup(of: Void.self) { group in
-            group.addTask { await self.loadPopularItems() }
-            group.addTask { await self.loadTrendingItems() }
+        discoveryErrorMessage = nil
+
+        async let popular = loadPopularItems()
+        async let trending = loadTrendingItems()
+        let (popularResult, trendingResult) = await (popular, trending)
+
+        popularItems = popularResult.items
+        trendingItems = trendingResult.items
+        discoveryErrorMessage = (popularResult.failed && trendingResult.failed)
+            ? "Discovery feeds are unavailable right now. You can still search Plex directly."
+            : nil
+    }
+
+    func retryCurrentState() async {
+        if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            await loadInitialContent()
+        } else {
+            await performSearch(query: query)
         }
     }
 
-    private func loadPopularItems() async {
+    private func loadPopularItems() async -> DiscoveryLoadResult {
         do {
             async let movies = api.getTMDBPopularMovies(page: 1)
             async let shows = api.getTMDBPopularTV(page: 1)
@@ -180,15 +204,16 @@ final class TVSearchViewModel: ObservableObject {
                 )
             }
 
-            popularItems = Array(combined.prefix(12))
+            return DiscoveryLoadResult(items: Array(combined.prefix(12)), failed: false)
         } catch {
             #if DEBUG
             print("❌ [TVSearch] Failed loading popular: \(error)")
             #endif
+            return DiscoveryLoadResult(items: [], failed: true)
         }
     }
 
-    private func loadTrendingItems() async {
+    private func loadTrendingItems() async -> DiscoveryLoadResult {
         do {
             async let movies = api.getTMDBTrending(mediaType: "movie", timeWindow: "week")
             async let shows = api.getTMDBTrending(mediaType: "tv", timeWindow: "week")
@@ -251,11 +276,12 @@ final class TVSearchViewModel: ObservableObject {
                 if i < showItems.count { mixed.append(showItems[i]) }
                 if i < movieItems.count { mixed.append(movieItems[i]) }
             }
-            trendingItems = mixed
+            return DiscoveryLoadResult(items: mixed, failed: false)
         } catch {
             #if DEBUG
             print("❌ [TVSearch] Failed loading trending: \(error)")
             #endif
+            return DiscoveryLoadResult(items: [], failed: true)
         }
     }
 
@@ -267,6 +293,7 @@ final class TVSearchViewModel: ObservableObject {
             tmdbShows = []
             genreRows = []
             searchMode = .idle
+            searchErrorMessage = nil
             return
         }
 
@@ -280,21 +307,30 @@ final class TVSearchViewModel: ObservableObject {
             var movies: [SearchResult] = []
             var shows: [SearchResult] = []
             var genreIds = Set<Int>()
+            var plexProviderFailures = 0
+            var tmdbFailed = false
 
-            await withTaskGroup(of: [SearchResult].self) { group in
+            await withTaskGroup(of: (items: [SearchResult], failed: Bool).self) { group in
                 group.addTask { await self.searchPlex(query: trimmed, type: 1) }
                 group.addTask { await self.searchPlex(query: trimmed, type: 2) }
 
                 for await row in group {
-                    plex.append(contentsOf: row)
+                    plex.append(contentsOf: row.items)
+                    if row.failed {
+                        plexProviderFailures += 1
+                    }
                 }
             }
 
             if includeTmdbInSearch {
-                let (tmdbMovieResults, tmdbShowResults, allGenres) = await searchTMDBSeparate(query: trimmed)
+                let result = await searchTMDBSeparate(query: trimmed)
+                let tmdbMovieResults = result.movies
+                let tmdbShowResults = result.shows
+                let allGenres = result.genreIds
                 movies = tmdbMovieResults
                 shows = tmdbShowResults
                 genreIds = allGenres
+                tmdbFailed = result.failed
             }
 
             guard !Task.isCancelled else { return }
@@ -302,6 +338,9 @@ final class TVSearchViewModel: ObservableObject {
             tmdbMovies = movies
             tmdbShows = shows
             searchMode = .results
+            searchErrorMessage = (plexProviderFailures == 2 && (!includeTmdbInSearch || tmdbFailed))
+                ? "Search providers are unavailable right now. Try again in a moment."
+                : nil
 
             if includeTmdbInSearch, !genreIds.isEmpty {
                 await loadGenreRecommendations(genreIds: Array(genreIds).prefix(3))
@@ -313,7 +352,7 @@ final class TVSearchViewModel: ObservableObject {
         await searchTask?.value
     }
 
-    private func searchPlex(query: String, type: Int) async -> [SearchResult] {
+    private func searchPlex(query: String, type: Int) async -> (items: [SearchResult], failed: Bool) {
         do {
             let response: [PlexSearchItem] = try await api.get(
                 "/api/plex/search",
@@ -324,7 +363,7 @@ final class TVSearchViewModel: ObservableObject {
             )
 
             let items = response.prefix(20)
-            return await withTaskGroup(of: (String, SearchResult).self) { group in
+            let results = await withTaskGroup(of: (String, SearchResult).self) { group in
                 for item in items {
                     let edition = extractEditionTitle(from: item.Media)
                     group.addTask {
@@ -391,12 +430,13 @@ final class TVSearchViewModel: ObservableObject {
                 let dictionary = Dictionary(uniqueKeysWithValues: mapped)
                 return items.compactMap { dictionary[$0.ratingKey] }
             }
+            return (results, false)
         } catch {
-            return []
+            return ([], true)
         }
     }
 
-    private func searchTMDBSeparate(query: String) async -> ([SearchResult], [SearchResult], Set<Int>) {
+    private func searchTMDBSeparate(query: String) async -> (movies: [SearchResult], shows: [SearchResult], genreIds: Set<Int>, failed: Bool) {
         struct TMDBSearchResponse: Codable {
             let results: [TMDBSearchItem]
         }
@@ -457,9 +497,9 @@ final class TVSearchViewModel: ObservableObject {
                 }
             }
 
-            return (movies, shows, allGenres)
+            return (movies, shows, allGenres, false)
         } catch {
-            return ([], [], Set())
+            return ([], [], Set(), true)
         }
     }
 

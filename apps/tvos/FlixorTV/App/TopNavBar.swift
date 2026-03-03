@@ -5,6 +5,8 @@ struct TopNavBar: View {
     var onProfileTapped: () -> Void
     var onSearchTapped: () -> Void
 
+    @Environment(\.tvThemePalette) private var theme
+    @Environment(\.tvTypography) private var typography
     @FocusState private var focusedTab: MainTVDestination?
     @State private var profileFocused = false
     @State private var searchFocused = false
@@ -45,8 +47,8 @@ struct TopNavBar: View {
 
             // Right side - Brand glyph
             Text("F")
-                .font(.system(size: 32, weight: .black))
-                .foregroundStyle(Color.red)
+                .font(typography.custom(size: 32, weight: .black))
+                .foregroundStyle(theme.accent)
                 .padding(.trailing, 0)
         }
         .frame(height: 92)
@@ -67,36 +69,39 @@ private struct NavPill: View {
     let isSelected: Bool
     let isFocused: Bool
 
+    @Environment(\.tvThemePalette) private var theme
+    @Environment(\.tvTypography) private var typography
+
     var body: some View {
         let backgroundColor: Color = {
             if isSelected && isFocused {
-                return Color.white  // Selected + Focused: White 100%
+                return theme.accent
             } else if isSelected || isFocused {
-                return Color.white.opacity(0.18)  // Selected OR Focused: White 18%
+                return isSelected ? theme.focusFill : theme.surfaceGlass
             } else {
-                return Color.clear  // Default: No background
+                return Color.clear
             }
         }()
 
         let textColor: Color = {
             if isSelected && isFocused {
-                return Color.black  // Selected + Focused: Black text
+                return theme.background
             } else if isFocused {
-                return Color.white.opacity(0.95)  // Focused only: Bright white
+                return theme.textPrimary
             } else {
-                return Color.white.opacity(0.78)  // Default: Dimmed white
+                return theme.textSecondary
             }
         }()
 
         Text(title)
-            .font(.system(size: 28, weight: .semibold))
+            .font(typography.nav)
             .foregroundStyle(textColor)
             .padding(.horizontal, 22)
             .padding(.vertical, 12)
             .background(Capsule(style: .circular).fill(backgroundColor))
             .overlay(
                 Capsule(style: .circular)
-                    .stroke(Color.white.opacity(isFocused && !isSelected ? 0.35 : 0.0), lineWidth: 1)
+                    .stroke(isFocused && !isSelected ? theme.focusRing.opacity(0.75) : .clear, lineWidth: 1)
             )
             .contentShape(Rectangle())
             .scaleEffect(isFocused ? UX.focusScale : 1.0)
@@ -110,13 +115,15 @@ private struct IconButton: View {
     @Binding var focused: Bool
     var action: () -> Void
 
+    @Environment(\.tvThemePalette) private var theme
+
     var body: some View {
         Image(systemName: systemName)
-            .foregroundStyle(.white)
+            .foregroundStyle(theme.textPrimary)
             .font(.system(size: 26, weight: .semibold))
             .frame(width: 48, height: 48)
-            .background(Circle().fill(Color.white.opacity(focused ? 0.18 : 0.12)))
-            .overlay(Circle().stroke(Color.white.opacity(focused ? 0.35 : 0.0), lineWidth: 1))
+            .background(Circle().fill(focused ? theme.focusFill : theme.surfaceMuted))
+            .overlay(Circle().stroke(focused ? theme.focusRing : theme.strokeDefault, lineWidth: focused ? 1.5 : 1))
             .scaleEffect(focused ? UX.focusScale : 1.0)
             .animation(.easeOut(duration: UX.focusDur), value: focused)
             .focusable(true) { f in focused = f }

@@ -27,6 +27,7 @@ final class TVProfileSettings: ObservableObject {
     @Published var discoveryDisabled: Bool { didSet { defaults.discoveryDisabled = discoveryDisabled } }
     @Published var showNewPopularTab: Bool { didSet { defaults.showNewPopularTab = showNewPopularTab } }
     @Published var includeTmdbInSearch: Bool { didSet { defaults.includeTmdbInSearch = includeTmdbInSearch } }
+    @Published var voiceInputEnabled: Bool { didSet { defaults.voiceInputEnabled = voiceInputEnabled } }
 
     // MARK: - Home Rows
     @Published var showTrendingRows: Bool { didSet { defaults.showTrendingRows = showTrendingRows } }
@@ -39,21 +40,37 @@ final class TVProfileSettings: ObservableObject {
     @Published var hiddenCollectionKeys: [String] { didSet { defaults.hiddenCollectionKeys = hiddenCollectionKeys } }
     @Published var groupRecentlyAddedEpisodes: Bool { didSet { defaults.groupRecentlyAddedEpisodes = groupRecentlyAddedEpisodes } }
 
-    // MARK: - Home Appearance
+    // MARK: - Theme
+    @Published var accentTheme: TVAccentTheme { didSet { defaults.accentTheme = accentTheme } }
+    @Published var appFont: TVAppFont { didSet { defaults.appFont = appFont } }
+
+    // MARK: - Layout
     @Published var showHeroSection: Bool { didSet { defaults.showHeroSection = showHeroSection } }
     @Published var heroAutoRotate: Bool { didSet { defaults.heroAutoRotate = heroAutoRotate } }
-    @Published var heroLayout: String { didSet { defaults.heroLayout = heroLayout } }
-    @Published var continueWatchingLayout: String { didSet { defaults.continueWatchingLayout = continueWatchingLayout } }
-    @Published var rowLayout: String { didSet { defaults.rowLayout = rowLayout } }
-    @Published var posterSize: String { didSet { defaults.posterSize = posterSize } }
-    @Published var showPosterTitles: Bool { didSet { defaults.showPosterTitles = showPosterTitles } }
+    @Published var homeLayoutMode: TVHomeLayoutMode { didSet { defaults.homeLayoutMode = homeLayoutMode } }
+    @Published var heroPresentationMode: TVHeroPresentationMode { didSet { defaults.heroPresentationMode = heroPresentationMode } }
+    @Published var modernLandscapePostersEnabled: Bool { didSet { defaults.modernLandscapePostersEnabled = modernLandscapePostersEnabled } }
+    @Published var continueWatchingCardShape: TVRailCardShape { didSet { defaults.continueWatchingCardShape = continueWatchingCardShape } }
+    @Published var defaultRailCardShape: TVRailCardShape { didSet { defaults.defaultRailCardShape = defaultRailCardShape } }
+    @Published var posterWidthPreset: TVPosterWidthPreset { didSet { defaults.posterWidthPreset = posterWidthPreset } }
+    @Published var showPosterLabels: Bool { didSet { defaults.showPosterLabels = showPosterLabels } }
     @Published var showLibraryTitles: Bool { didSet { defaults.showLibraryTitles = showLibraryTitles } }
-    @Published var posterCornerRadius: String { didSet { defaults.posterCornerRadius = posterCornerRadius } }
+    @Published var posterCornerPreset: TVPosterCornerPreset { didSet { defaults.posterCornerPreset = posterCornerPreset } }
+    @Published var heroSourceKeys: [String] { didSet { defaults.heroSourceKeys = heroSourceKeys } }
+    @Published var showSearchDiscoverContent: Bool { didSet { defaults.showSearchDiscoverContent = showSearchDiscoverContent } }
+    @Published var showCatalogAddonName: Bool { didSet { defaults.showCatalogAddonName = showCatalogAddonName } }
+    @Published var showCatalogTypeSuffix: Bool { didSet { defaults.showCatalogTypeSuffix = showCatalogTypeSuffix } }
+    @Published var hideUnreleasedContent: Bool { didSet { defaults.hideUnreleasedContent = hideUnreleasedContent } }
+    @Published var focusedPosterExpandEnabled: Bool { didSet { defaults.focusedPosterExpandEnabled = focusedPosterExpandEnabled } }
+    @Published var focusedPosterExpandDelaySeconds: Double { didSet { defaults.focusedPosterExpandDelaySeconds = focusedPosterExpandDelaySeconds } }
+    @Published var focusedPosterTrailerEnabled: Bool { didSet { defaults.focusedPosterTrailerEnabled = focusedPosterTrailerEnabled } }
+    @Published var focusedPosterTrailerMuted: Bool { didSet { defaults.focusedPosterTrailerMuted = focusedPosterTrailerMuted } }
+    @Published var focusedPosterTrailerTarget: TVFocusedPosterTrailerTarget { didSet { defaults.focusedPosterTrailerTarget = focusedPosterTrailerTarget } }
 
     // MARK: - Details
-    @Published var detailsScreenLayout: String { didSet { defaults.detailsScreenLayout = detailsScreenLayout } }
-    @Published var episodeLayout: String { didSet { defaults.episodeLayout = episodeLayout } }
-    @Published var suggestedLayout: String { didSet { defaults.suggestedLayout = suggestedLayout } }
+    @Published var blurUnwatchedEpisodes: Bool { didSet { defaults.blurUnwatchedEpisodes = blurUnwatchedEpisodes } }
+    @Published var showTrailerButton: Bool { didSet { defaults.showTrailerButton = showTrailerButton } }
+    @Published var preferExternalMetadata: Bool { didSet { defaults.preferExternalMetadata = preferExternalMetadata } }
     @Published var showRelatedContent: Bool { didSet { defaults.showRelatedContent = showRelatedContent } }
     @Published var showCastCrew: Bool { didSet { defaults.showCastCrew = showCastCrew } }
 
@@ -93,11 +110,12 @@ final class TVProfileSettings: ObservableObject {
     @Published var overseerrPlexUsername: String { didSet { defaults.overseerrPlexUsername = overseerrPlexUsername } }
 
     private init() {
-        defaults.runTVSettingsMigrationIfNeeded()
+        TVSettingsMigration.apply(to: defaults)
 
         discoveryDisabled = defaults.discoveryDisabled
         showNewPopularTab = defaults.showNewPopularTab
         includeTmdbInSearch = defaults.includeTmdbInSearch
+        voiceInputEnabled = defaults.voiceInputEnabled
 
         showTrendingRows = defaults.showTrendingRows
         showTraktRows = defaults.showTraktRows
@@ -109,19 +127,34 @@ final class TVProfileSettings: ObservableObject {
         hiddenCollectionKeys = defaults.hiddenCollectionKeys
         groupRecentlyAddedEpisodes = defaults.groupRecentlyAddedEpisodes
 
+        accentTheme = defaults.accentTheme
+        appFont = defaults.appFont
+
         showHeroSection = defaults.showHeroSection
         heroAutoRotate = defaults.heroAutoRotate
-        heroLayout = defaults.heroLayout
-        continueWatchingLayout = defaults.continueWatchingLayout
-        rowLayout = defaults.rowLayout
-        posterSize = defaults.posterSize
-        showPosterTitles = defaults.showPosterTitles
+        homeLayoutMode = defaults.homeLayoutMode
+        heroPresentationMode = defaults.heroPresentationMode
+        modernLandscapePostersEnabled = defaults.modernLandscapePostersEnabled
+        continueWatchingCardShape = defaults.continueWatchingCardShape
+        defaultRailCardShape = defaults.defaultRailCardShape
+        posterWidthPreset = defaults.posterWidthPreset
+        showPosterLabels = defaults.showPosterLabels
         showLibraryTitles = defaults.showLibraryTitles
-        posterCornerRadius = defaults.posterCornerRadius
+        posterCornerPreset = defaults.posterCornerPreset
+        heroSourceKeys = defaults.heroSourceKeys
+        showSearchDiscoverContent = defaults.showSearchDiscoverContent
+        showCatalogAddonName = defaults.showCatalogAddonName
+        showCatalogTypeSuffix = defaults.showCatalogTypeSuffix
+        hideUnreleasedContent = defaults.hideUnreleasedContent
+        focusedPosterExpandEnabled = defaults.focusedPosterExpandEnabled
+        focusedPosterExpandDelaySeconds = defaults.focusedPosterExpandDelaySeconds
+        focusedPosterTrailerEnabled = defaults.focusedPosterTrailerEnabled
+        focusedPosterTrailerMuted = defaults.focusedPosterTrailerMuted
+        focusedPosterTrailerTarget = defaults.focusedPosterTrailerTarget
 
-        detailsScreenLayout = defaults.detailsScreenLayout
-        episodeLayout = defaults.episodeLayout
-        suggestedLayout = defaults.suggestedLayout
+        blurUnwatchedEpisodes = defaults.blurUnwatchedEpisodes
+        showTrailerButton = defaults.showTrailerButton
+        preferExternalMetadata = defaults.preferExternalMetadata
         showRelatedContent = defaults.showRelatedContent
         showCastCrew = defaults.showCastCrew
 
@@ -158,6 +191,26 @@ final class TVProfileSettings: ObservableObject {
         overseerrPlexUsername = defaults.overseerrPlexUsername
     }
 
+    var themePalette: TVThemePalette {
+        TVThemePalette(theme: accentTheme)
+    }
+
+    var typography: TVTypographySet {
+        TVTypographySet(appFont: appFont)
+    }
+
+    var cardVisualTokens: TVCardVisualTokens {
+        TVCardVisualTokens(posterCornerPreset: posterCornerPreset)
+    }
+
+    var posterWidthMultiplier: CGFloat {
+        posterWidthPreset.widthMultiplier
+    }
+
+    var posterCornerRadius: CGFloat {
+        posterCornerPreset.cornerRadius
+    }
+
     func setDiscoveryDisabled(_ disabled: Bool) {
         discoveryDisabled = disabled
         if disabled {
@@ -171,10 +224,11 @@ final class TVProfileSettings: ObservableObject {
 }
 
 extension UserDefaults {
-    private enum TVKeys {
+    fileprivate enum TVKeys {
         static let discoveryDisabled = "tvos.discoveryDisabled"
         static let showNewPopularTab = "tvos.showNewPopularTab"
         static let includeTmdbInSearch = "tvos.includeTmdbInSearch"
+        static let voiceInputEnabled = "tvos.voiceInputEnabled"
         static let showTrendingRows = "tvos.showTrendingRows"
         static let showTraktRows = "tvos.showTraktRows"
         static let showPlexPopular = "tvos.showPlexPopular"
@@ -185,17 +239,31 @@ extension UserDefaults {
         static let hiddenCollectionKeys = "tvos.hiddenCollectionKeys"
         static let showHeroSection = "tvos.showHeroSection"
         static let heroAutoRotate = "tvos.heroAutoRotate"
-        static let heroLayout = "tvos.heroLayout"
-        static let continueWatchingLayout = "tvos.continueWatchingLayout"
-        static let rowLayout = "tvos.rowLayout"
-        static let posterSize = "tvos.posterSize"
-        static let showPosterTitles = "tvos.showPosterTitles"
+        static let accentTheme = "tvos.accentTheme"
+        static let appFont = "tvos.appFont"
+        static let homeLayoutMode = "tvos.homeLayoutMode"
+        static let heroPresentationMode = "tvos.heroPresentationMode"
+        static let modernLandscapePostersEnabled = "tvos.modernLandscapePostersEnabled"
+        static let continueWatchingCardShape = "tvos.continueWatchingCardShape"
+        static let defaultRailCardShape = "tvos.defaultRailCardShape"
+        static let posterWidthPreset = "tvos.posterWidthPreset"
+        static let showPosterLabels = "tvos.showPosterTitles"
         static let showLibraryTitles = "tvos.showLibraryTitles"
-        static let posterCornerRadius = "tvos.posterCornerRadius"
+        static let posterCornerPreset = "tvos.posterCornerPreset"
+        static let heroSourceKeys = "tvos.heroSourceKeys"
+        static let showSearchDiscoverContent = "tvos.showSearchDiscoverContent"
+        static let showCatalogAddonName = "tvos.showCatalogAddonName"
+        static let showCatalogTypeSuffix = "tvos.showCatalogTypeSuffix"
+        static let hideUnreleasedContent = "tvos.hideUnreleasedContent"
+        static let focusedPosterExpandEnabled = "tvos.focusedPosterExpandEnabled"
+        static let focusedPosterExpandDelaySeconds = "tvos.focusedPosterExpandDelaySeconds"
+        static let focusedPosterTrailerEnabled = "tvos.focusedPosterTrailerEnabled"
+        static let focusedPosterTrailerMuted = "tvos.focusedPosterTrailerMuted"
+        static let focusedPosterTrailerTarget = "tvos.focusedPosterTrailerTarget"
         static let groupRecentlyAddedEpisodes = "tvos.groupRecentlyAddedEpisodes"
-        static let detailsScreenLayout = "tvos.detailsScreenLayout"
-        static let episodeLayout = "tvos.episodeLayout"
-        static let suggestedLayout = "tvos.suggestedLayout"
+        static let blurUnwatchedEpisodes = "tvos.blurUnwatchedEpisodes"
+        static let showTrailerButton = "tvos.showTrailerButton"
+        static let preferExternalMetadata = "tvos.preferExternalMetadata"
         static let showRelatedContent = "tvos.showRelatedContent"
         static let showCastCrew = "tvos.showCastCrew"
         static let showIMDbRating = "tvos.showIMDbRating"
@@ -234,11 +302,22 @@ extension UserDefaults {
         static let preferDirectPlay = "preferDirectPlay"
         static let allowDirectStream = "allowDirectStream"
         static let showDebugInfo = "showDebugInfo"
+
+        // Legacy settings retained for migration compatibility
+        static let legacyHeroLayout = "tvos.heroLayout"
+        static let legacyContinueWatchingLayout = "tvos.continueWatchingLayout"
+        static let legacyRowLayout = "tvos.rowLayout"
+        static let legacyPosterSize = "tvos.posterSize"
+        static let legacyPosterCornerRadius = "tvos.posterCornerRadius"
+        static let legacyDetailsScreenLayout = "tvos.detailsScreenLayout"
+        static let legacyEpisodeLayout = "tvos.episodeLayout"
+        static let legacySuggestedLayout = "tvos.suggestedLayout"
     }
 
     var discoveryDisabled: Bool { get { bool(forKey: TVKeys.discoveryDisabled) } set { set(newValue, forKey: TVKeys.discoveryDisabled) } }
     var showNewPopularTab: Bool { get { object(forKey: TVKeys.showNewPopularTab) as? Bool ?? true } set { set(newValue, forKey: TVKeys.showNewPopularTab) } }
     var includeTmdbInSearch: Bool { get { object(forKey: TVKeys.includeTmdbInSearch) as? Bool ?? true } set { set(newValue, forKey: TVKeys.includeTmdbInSearch) } }
+    var voiceInputEnabled: Bool { get { object(forKey: TVKeys.voiceInputEnabled) as? Bool ?? true } set { set(newValue, forKey: TVKeys.voiceInputEnabled) } }
     var showTrendingRows: Bool { get { object(forKey: TVKeys.showTrendingRows) as? Bool ?? true } set { set(newValue, forKey: TVKeys.showTrendingRows) } }
     var showTraktRows: Bool { get { object(forKey: TVKeys.showTraktRows) as? Bool ?? true } set { set(newValue, forKey: TVKeys.showTraktRows) } }
     var showPlexPopular: Bool { get { object(forKey: TVKeys.showPlexPopular) as? Bool ?? true } set { set(newValue, forKey: TVKeys.showPlexPopular) } }
@@ -249,17 +328,31 @@ extension UserDefaults {
     var hiddenCollectionKeys: [String] { get { stringArray(forKey: TVKeys.hiddenCollectionKeys) ?? [] } set { set(newValue, forKey: TVKeys.hiddenCollectionKeys) } }
     var showHeroSection: Bool { get { object(forKey: TVKeys.showHeroSection) as? Bool ?? true } set { set(newValue, forKey: TVKeys.showHeroSection) } }
     var heroAutoRotate: Bool { get { object(forKey: TVKeys.heroAutoRotate) as? Bool ?? true } set { set(newValue, forKey: TVKeys.heroAutoRotate) } }
-    var heroLayout: String { get { string(forKey: TVKeys.heroLayout) ?? "carousel" } set { set(newValue, forKey: TVKeys.heroLayout) } }
-    var continueWatchingLayout: String { get { string(forKey: TVKeys.continueWatchingLayout) ?? "poster" } set { set(newValue, forKey: TVKeys.continueWatchingLayout) } }
-    var rowLayout: String { get { string(forKey: TVKeys.rowLayout) ?? "poster" } set { set(newValue, forKey: TVKeys.rowLayout) } }
-    var posterSize: String { get { string(forKey: TVKeys.posterSize) ?? "medium" } set { set(newValue, forKey: TVKeys.posterSize) } }
-    var showPosterTitles: Bool { get { object(forKey: TVKeys.showPosterTitles) as? Bool ?? true } set { set(newValue, forKey: TVKeys.showPosterTitles) } }
+    var accentTheme: TVAccentTheme { get { TVAccentTheme(rawValue: string(forKey: TVKeys.accentTheme) ?? "") ?? .white } set { set(newValue.rawValue, forKey: TVKeys.accentTheme) } }
+    var appFont: TVAppFont { get { TVAppFont(rawValue: string(forKey: TVKeys.appFont) ?? "") ?? .system } set { set(newValue.rawValue, forKey: TVKeys.appFont) } }
+    var homeLayoutMode: TVHomeLayoutMode { get { TVHomeLayoutMode(rawValue: string(forKey: TVKeys.homeLayoutMode) ?? "") ?? .modern } set { set(newValue.rawValue, forKey: TVKeys.homeLayoutMode) } }
+    var heroPresentationMode: TVHeroPresentationMode { get { TVHeroPresentationMode(rawValue: string(forKey: TVKeys.heroPresentationMode) ?? "") ?? .carousel } set { set(newValue.rawValue, forKey: TVKeys.heroPresentationMode) } }
+    var modernLandscapePostersEnabled: Bool { get { object(forKey: TVKeys.modernLandscapePostersEnabled) as? Bool ?? false } set { set(newValue, forKey: TVKeys.modernLandscapePostersEnabled) } }
+    var continueWatchingCardShape: TVRailCardShape { get { TVRailCardShape(rawValue: string(forKey: TVKeys.continueWatchingCardShape) ?? "") ?? .poster } set { set(newValue.rawValue, forKey: TVKeys.continueWatchingCardShape) } }
+    var defaultRailCardShape: TVRailCardShape { get { TVRailCardShape(rawValue: string(forKey: TVKeys.defaultRailCardShape) ?? "") ?? .poster } set { set(newValue.rawValue, forKey: TVKeys.defaultRailCardShape) } }
+    var posterWidthPreset: TVPosterWidthPreset { get { TVPosterWidthPreset(rawValue: string(forKey: TVKeys.posterWidthPreset) ?? "") ?? .balanced } set { set(newValue.rawValue, forKey: TVKeys.posterWidthPreset) } }
+    var showPosterLabels: Bool { get { object(forKey: TVKeys.showPosterLabels) as? Bool ?? true } set { set(newValue, forKey: TVKeys.showPosterLabels) } }
     var showLibraryTitles: Bool { get { object(forKey: TVKeys.showLibraryTitles) as? Bool ?? true } set { set(newValue, forKey: TVKeys.showLibraryTitles) } }
-    var posterCornerRadius: String { get { string(forKey: TVKeys.posterCornerRadius) ?? "medium" } set { set(newValue, forKey: TVKeys.posterCornerRadius) } }
+    var posterCornerPreset: TVPosterCornerPreset { get { TVPosterCornerPreset(rawValue: string(forKey: TVKeys.posterCornerPreset) ?? "") ?? .rounded } set { set(newValue.rawValue, forKey: TVKeys.posterCornerPreset) } }
+    var heroSourceKeys: [String] { get { stringArray(forKey: TVKeys.heroSourceKeys) ?? [] } set { set(newValue, forKey: TVKeys.heroSourceKeys) } }
+    var showSearchDiscoverContent: Bool { get { object(forKey: TVKeys.showSearchDiscoverContent) as? Bool ?? true } set { set(newValue, forKey: TVKeys.showSearchDiscoverContent) } }
+    var showCatalogAddonName: Bool { get { object(forKey: TVKeys.showCatalogAddonName) as? Bool ?? false } set { set(newValue, forKey: TVKeys.showCatalogAddonName) } }
+    var showCatalogTypeSuffix: Bool { get { object(forKey: TVKeys.showCatalogTypeSuffix) as? Bool ?? false } set { set(newValue, forKey: TVKeys.showCatalogTypeSuffix) } }
+    var hideUnreleasedContent: Bool { get { object(forKey: TVKeys.hideUnreleasedContent) as? Bool ?? false } set { set(newValue, forKey: TVKeys.hideUnreleasedContent) } }
+    var focusedPosterExpandEnabled: Bool { get { object(forKey: TVKeys.focusedPosterExpandEnabled) as? Bool ?? false } set { set(newValue, forKey: TVKeys.focusedPosterExpandEnabled) } }
+    var focusedPosterExpandDelaySeconds: Double { get { object(forKey: TVKeys.focusedPosterExpandDelaySeconds) as? Double ?? 3.0 } set { set(newValue, forKey: TVKeys.focusedPosterExpandDelaySeconds) } }
+    var focusedPosterTrailerEnabled: Bool { get { object(forKey: TVKeys.focusedPosterTrailerEnabled) as? Bool ?? false } set { set(newValue, forKey: TVKeys.focusedPosterTrailerEnabled) } }
+    var focusedPosterTrailerMuted: Bool { get { object(forKey: TVKeys.focusedPosterTrailerMuted) as? Bool ?? true } set { set(newValue, forKey: TVKeys.focusedPosterTrailerMuted) } }
+    var focusedPosterTrailerTarget: TVFocusedPosterTrailerTarget { get { TVFocusedPosterTrailerTarget(rawValue: string(forKey: TVKeys.focusedPosterTrailerTarget) ?? "") ?? .heroMedia } set { set(newValue.rawValue, forKey: TVKeys.focusedPosterTrailerTarget) } }
     var groupRecentlyAddedEpisodes: Bool { get { object(forKey: TVKeys.groupRecentlyAddedEpisodes) as? Bool ?? true } set { set(newValue, forKey: TVKeys.groupRecentlyAddedEpisodes) } }
-    var detailsScreenLayout: String { get { string(forKey: TVKeys.detailsScreenLayout) ?? "unified" } set { set(newValue, forKey: TVKeys.detailsScreenLayout) } }
-    var episodeLayout: String { get { string(forKey: TVKeys.episodeLayout) ?? "horizontal" } set { set(newValue, forKey: TVKeys.episodeLayout) } }
-    var suggestedLayout: String { get { string(forKey: TVKeys.suggestedLayout) ?? "landscape" } set { set(newValue, forKey: TVKeys.suggestedLayout) } }
+    var blurUnwatchedEpisodes: Bool { get { object(forKey: TVKeys.blurUnwatchedEpisodes) as? Bool ?? false } set { set(newValue, forKey: TVKeys.blurUnwatchedEpisodes) } }
+    var showTrailerButton: Bool { get { object(forKey: TVKeys.showTrailerButton) as? Bool ?? true } set { set(newValue, forKey: TVKeys.showTrailerButton) } }
+    var preferExternalMetadata: Bool { get { object(forKey: TVKeys.preferExternalMetadata) as? Bool ?? false } set { set(newValue, forKey: TVKeys.preferExternalMetadata) } }
     var showRelatedContent: Bool { get { object(forKey: TVKeys.showRelatedContent) as? Bool ?? true } set { set(newValue, forKey: TVKeys.showRelatedContent) } }
     var showCastCrew: Bool { get { object(forKey: TVKeys.showCastCrew) as? Bool ?? true } set { set(newValue, forKey: TVKeys.showCastCrew) } }
     var showIMDbRating: Bool { get { object(forKey: TVKeys.showIMDbRating) as? Bool ?? true } set { set(newValue, forKey: TVKeys.showIMDbRating) } }
@@ -288,13 +381,7 @@ extension UserDefaults {
     var overseerrEnabled: Bool { get { object(forKey: TVKeys.overseerrEnabled) as? Bool ?? false } set { set(newValue, forKey: TVKeys.overseerrEnabled) } }
     var overseerrUrl: String { get { string(forKey: TVKeys.overseerrUrl) ?? "" } set { set(newValue, forKey: TVKeys.overseerrUrl) } }
     var overseerrAuthMethod: TVOverseerrAuthMethod {
-        get {
-            guard let raw = string(forKey: TVKeys.overseerrAuthMethod),
-                  let method = TVOverseerrAuthMethod(rawValue: raw) else {
-                return .plex
-            }
-            return method
-        }
+        get { TVOverseerrAuthMethod(rawValue: string(forKey: TVKeys.overseerrAuthMethod) ?? "") ?? .plex }
         set { set(newValue.rawValue, forKey: TVKeys.overseerrAuthMethod) }
     }
     var overseerrApiKey: String { get { string(forKey: TVKeys.overseerrApiKey) ?? "" } set { set(newValue, forKey: TVKeys.overseerrApiKey) } }
@@ -311,24 +398,19 @@ extension UserDefaults {
     var allowDirectStream: Bool { get { object(forKey: TVKeys.allowDirectStream) as? Bool ?? true } set { set(newValue, forKey: TVKeys.allowDirectStream) } }
     var showDebugInfo: Bool { get { object(forKey: TVKeys.showDebugInfo) as? Bool ?? false } set { set(newValue, forKey: TVKeys.showDebugInfo) } }
 
+    // Legacy raw values kept to support migration and a one-release compatibility window.
+    var heroLayout: String { get { string(forKey: TVKeys.legacyHeroLayout) ?? "carousel" } set { set(newValue, forKey: TVKeys.legacyHeroLayout) } }
+    var continueWatchingLayout: String { get { string(forKey: TVKeys.legacyContinueWatchingLayout) ?? "poster" } set { set(newValue, forKey: TVKeys.legacyContinueWatchingLayout) } }
+    var rowLayout: String { get { string(forKey: TVKeys.legacyRowLayout) ?? "poster" } set { set(newValue, forKey: TVKeys.legacyRowLayout) } }
+    var posterSize: String { get { string(forKey: TVKeys.legacyPosterSize) ?? "medium" } set { set(newValue, forKey: TVKeys.legacyPosterSize) } }
+    var posterCornerRadius: String { get { string(forKey: TVKeys.legacyPosterCornerRadius) ?? "medium" } set { set(newValue, forKey: TVKeys.legacyPosterCornerRadius) } }
+    var detailsScreenLayout: String { get { string(forKey: TVKeys.legacyDetailsScreenLayout) ?? "unified" } set { set(newValue, forKey: TVKeys.legacyDetailsScreenLayout) } }
+    var episodeLayout: String { get { string(forKey: TVKeys.legacyEpisodeLayout) ?? "horizontal" } set { set(newValue, forKey: TVKeys.legacyEpisodeLayout) } }
+    var suggestedLayout: String { get { string(forKey: TVKeys.legacySuggestedLayout) ?? "landscape" } set { set(newValue, forKey: TVKeys.legacySuggestedLayout) } }
+
     func clearOverseerrAuth() {
         overseerrApiKey = ""
         overseerrSessionCookie = ""
         overseerrPlexUsername = ""
-    }
-
-    private enum TVMigrationKeys {
-        static let settingsV2Applied = "tvos.settingsMigration.v2.applied"
-    }
-
-    func runTVSettingsMigrationIfNeeded() {
-        guard object(forKey: TVMigrationKeys.settingsV2Applied) as? Bool != true else { return }
-        if object(forKey: TVKeys.skipIntroAutomatically) == nil {
-            set(true, forKey: TVKeys.skipIntroAutomatically)
-        }
-        if object(forKey: TVKeys.skipCreditsAutomatically) == nil {
-            set(true, forKey: TVKeys.skipCreditsAutomatically)
-        }
-        set(true, forKey: TVMigrationKeys.settingsV2Applied)
     }
 }

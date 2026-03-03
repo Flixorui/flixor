@@ -115,6 +115,9 @@ class TVDetailsViewModel: ObservableObject {
     @Published var overseerrRequestMessage: String?
     @Published var isSubmittingOverseerrRequest = false
     @Published var traktRatingValue: Int?
+    @Published var resumeViewOffset: Int?
+    @Published private(set) var isWatchedState = false
+    @Published var recommendationReason: String?
 
     // Context
     @Published var tmdbId: String?
@@ -144,6 +147,27 @@ class TVDetailsViewModel: ObservableObject {
     private var lastFetchedRatingsKey: String?
     private var ultraBlurCache: [String: UltraBlurColors] = [:]
     private var ultraBlurTask: Task<Void, Never>?
+
+    var primaryPlayActionTitle: String {
+        if resumeViewOffset != nil {
+            return "Resume"
+        }
+        if mediaKind == "tv", !isSeason, !isEpisode, onDeck != nil {
+            return "Play Next Episode"
+        }
+        if isWatchedState {
+            return "Play Again"
+        }
+        return "Play"
+    }
+
+    var shouldShowTrailerCTA: Bool {
+        profileSettings.showTrailerButton && !trailers.isEmpty
+    }
+
+    var canMarkWatched: Bool {
+        plexRatingKey != nil && !isWatchedState
+    }
 
     var suggestedTraktRating: Int? {
         if let explicit = traktRatingValue {
@@ -290,6 +314,8 @@ class TVDetailsViewModel: ObservableObject {
         let Rating: [PlexRating]?
         let rating: Double?
         let audienceRating: Double?
+        let viewOffset: Int?
+        let viewCount: Int?
 
         // Season-specific fields
         let parentRatingKey: String?     // Parent show
@@ -351,6 +377,9 @@ class TVDetailsViewModel: ObservableObject {
         overseerrRequestMessage = nil
         isSubmittingOverseerrRequest = false
         traktRatingValue = nil
+        resumeViewOffset = nil
+        isWatchedState = false
+        recommendationReason = nil
         isSeason = false
         isEpisode = false
         parentShowKey = nil
@@ -475,6 +504,7 @@ class TVDetailsViewModel: ObservableObject {
         addBadge("Plex")
         plexRatingKey = rk
         playableId = "plex:\(rk)"
+        applyPlaybackState(viewOffset: meta.viewOffset, viewCount: meta.viewCount, duration: meta.duration)
         await fetchExternalRatings(ratingKey: rk)
 
         // If we have a TMDB GUID, fetch TMDB enhancements (logo, recommendations)
@@ -663,6 +693,9 @@ class TVDetailsViewModel: ObservableObject {
                     leafCount: nil,
                     viewedLeafCount: nil
                 )
+            }
+            if !self.related.isEmpty {
+                self.recommendationReason = "Because you watched \(self.title)"
             }
         }
         // TODO: Phase 3B - uncomment when BrowseContext is ported
@@ -926,6 +959,7 @@ class TVDetailsViewModel: ObservableObject {
         addBadge("Plex")
         plexRatingKey = ratingKey
         playableId = "plex:\(ratingKey)"
+        applyPlaybackState(viewOffset: meta.viewOffset, viewCount: meta.viewCount, duration: meta.duration)
         await fetchExternalRatings(ratingKey: ratingKey)
 
         if let tm = meta.Guid?.compactMap({ $0.id }).first(where: { $0.contains("tmdb://") || $0.contains("themoviedb://") }),
@@ -1042,21 +1076,8 @@ class TVDetailsViewModel: ObservableObject {
         guard let tid = tmdbId, let media = mediaKind else { return }
 
         do {
-            struct VideosResponse: Codable {
-                let results: [VideoResult]?
-            }
-            struct VideoResult: Codable {
-                let id: String?
-                let key: String?
-                let name: String?
-                let site: String?
-                let type: String?
-                let official: Bool?
-                let published_at: String?
-            }
-
-            let response: VideosResponse = try await api.get("/api/tmdb/\(media)/\(tid)/videos")
-            let videos = (response.results ?? [])
+            let fetchResult = try await api.getTMDBVideosPreferringEnglish(mediaType: media, id: tid)
+            let videos = fetchResult.response.results
                 .filter { ($0.site?.lowercased() ?? "") == "youtube" && ($0.key?.isEmpty == false) }
 
             let sorted = videos.sorted { a, b in
@@ -1069,16 +1090,17 @@ class TVDetailsViewModel: ObservableObject {
                 return (a.name ?? "") < (b.name ?? "")
             }
 
-            trailers = sorted.prefix(10).compactMap { video in
+            trailers = sorted.prefix(10).compactMap { video -> TVTrailer? in
                 guard let key = video.key else { return nil }
                 return TVTrailer(
-                    id: video.id ?? key,
+                    id: video.id,
                     name: video.name ?? "Video",
                     key: key,
                     site: video.site ?? "YouTube",
                     type: video.type ?? "Video",
                     official: video.official,
-                    publishedAt: video.published_at
+                    publishedAt: video.publishedAt,
+                    previewPlaybackURL: nil
                 )
             }
         } catch {
@@ -1382,6 +1404,11 @@ class TVDetailsViewModel: ObservableObject {
         parentShowKey = meta.parentRatingKey
         episodeCount = meta.leafCount
         watchedCount = meta.viewedLeafCount
+        isWatchedState = {
+            guard let total = meta.leafCount, total > 0 else { return false }
+            return (meta.viewedLeafCount ?? 0) >= total
+        }()
+        resumeViewOffset = nil
 
         // Parent show title for better context
         if let parentTitle = meta.parentTitle {
@@ -1460,7 +1487,16 @@ class TVDetailsViewModel: ObservableObject {
 
     // MARK: - Seasons / Episodes
     struct Season: Identifiable { let id: String; let title: String; let source: String } // source: plex/tmdb
-    struct Episode: Identifiable { let id: String; let title: String; let overview: String?; let image: URL?; let durationMin: Int?; let progressPct: Int?; let viewOffset: Int? }
+    struct Episode: Identifiable {
+        let id: String
+        let title: String
+        let overview: String?
+        let image: URL?
+        let durationMin: Int?
+        let progressPct: Int?
+        let viewOffset: Int?
+        let isWatched: Bool
+    }
     struct Extra: Identifiable { let id: String; let title: String; let image: URL?; let durationMin: Int? }
     struct Track: Identifiable { let id: String; let name: String; let language: String? }
     struct VersionDetail: Identifiable {
@@ -1550,7 +1586,7 @@ class TVDetailsViewModel: ObservableObject {
                 if let ep = od.Metadata?.first {
                     let image = ImageService.shared.plexImageURL(path: ep.ratingKey, width: 600, height: 338) // best-effort
                     await MainActor.run {
-                        self.onDeck = Episode(id: "plex:\(ep.ratingKey)", title: ep.title, overview: nil, image: image, durationMin: nil, progressPct: nil, viewOffset: nil)
+                        self.onDeck = Episode(id: "plex:\(ep.ratingKey)", title: ep.title, overview: nil, image: image, durationMin: nil, progressPct: nil, viewOffset: nil, isWatched: false)
                     }
                 }
             } catch {}
@@ -1595,7 +1631,23 @@ class TVDetailsViewModel: ObservableObject {
                     guard let o = e.viewOffset else { return nil }
                     return Int(round((Double(o)/Double(d))*100))
                 }()
-                return Episode(id: "plex:\(e.ratingKey)", title: e.title, overview: e.summary, image: url, durationMin: dur, progressPct: pct, viewOffset: e.viewOffset)
+                let watched = {
+                    guard let vc = e.viewCount, vc > 0 else { return false }
+                    guard let duration = e.duration, duration > 0 else { return e.viewOffset == nil || (e.viewOffset ?? 0) <= 0 }
+                    guard let offset = e.viewOffset else { return true }
+                    let progress = Double(offset) / Double(duration)
+                    return progress < 0.02 || progress >= 0.98
+                }()
+                return Episode(
+                    id: "plex:\(e.ratingKey)",
+                    title: e.title,
+                    overview: e.summary,
+                    image: url,
+                    durationMin: dur,
+                    progressPct: pct,
+                    viewOffset: e.viewOffset,
+                    isWatched: watched
+                )
             }
             await MainActor.run {
                 self.episodes = eps
@@ -1604,6 +1656,42 @@ class TVDetailsViewModel: ObservableObject {
         } catch {
             await MainActor.run { self.episodesLoading = false }
         }
+    }
+
+    func markWatched() async -> Bool {
+        guard let ratingKey = plexRatingKey, !ratingKey.isEmpty else { return false }
+
+        struct Payload: Encodable {
+            let ratingKey: String
+        }
+
+        do {
+            let _: SimpleOkResponse = try await api.post("/api/plex/scrobble", body: Payload(ratingKey: ratingKey))
+            isWatchedState = true
+            resumeViewOffset = nil
+            return true
+        } catch {
+            self.error = "Unable to mark this title as watched."
+            return false
+        }
+    }
+
+    private func applyPlaybackState(viewOffset: Int?, viewCount: Int?, duration: Int?) {
+        resumeViewOffset = (viewOffset ?? 0) > 0 ? viewOffset : nil
+        isWatchedState = isWatched(viewCount: viewCount, viewOffset: viewOffset, duration: duration)
+        if isWatchedState {
+            resumeViewOffset = nil
+        }
+    }
+
+    private func isWatched(viewCount: Int?, viewOffset: Int?, duration: Int?) -> Bool {
+        guard (viewCount ?? 0) > 0 else { return false }
+        guard let duration, duration > 0 else {
+            return viewOffset == nil || (viewOffset ?? 0) <= 0
+        }
+        guard let viewOffset else { return true }
+        let progress = Double(viewOffset) / Double(duration)
+        return progress < 0.02 || progress >= 0.98
     }
 
     private func loadTMDBSeasons() async {
@@ -1646,7 +1734,7 @@ class TVDetailsViewModel: ObservableObject {
             let data: SD = try await api.get("/api/tmdb/tv/\(tvId)/season/\(seasonNumber)")
             let eps: [Episode] = (data.episodes ?? []).map { e in
                 let url = ImageService.shared.proxyImageURL(url: e.still_path.flatMap { "https://image.tmdb.org/t/p/w780\($0)" }, width: 600, height: 338)
-                return Episode(id: "tmdb:tv:\(e.id ?? 0)", title: e.name ?? "Episode", overview: e.overview, image: url, durationMin: e.runtime, progressPct: nil, viewOffset: nil)
+                return Episode(id: "tmdb:tv:\(e.id ?? 0)", title: e.name ?? "Episode", overview: e.overview, image: url, durationMin: e.runtime, progressPct: nil, viewOffset: nil, isWatched: false)
             }
             await MainActor.run {
                 self.episodes = eps

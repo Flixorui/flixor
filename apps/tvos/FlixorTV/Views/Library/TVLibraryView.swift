@@ -13,6 +13,10 @@ struct TVLibraryView: View {
 
     @ObservedObject private var viewModel: TVLibraryViewModel
     @EnvironmentObject private var profileSettings: TVProfileSettings
+    @EnvironmentObject private var focusCoordinator: TVFocusCoordinator
+    @Environment(\.tvThemePalette) private var theme
+    @Environment(\.tvTypography) private var typography
+    @Environment(\.tvCardVisualTokens) private var cardTokens
     @Namespace private var contentNS
     @State private var selectedItem: MediaItem?
     @FocusState private var focusedID: String?
@@ -20,28 +24,18 @@ struct TVLibraryView: View {
     @State private var settingsRefreshTask: Task<Void, Never>?
 
     private var posterScale: CGFloat {
-        switch profileSettings.posterSize {
-        case "small":
-            return 0.86
-        case "large":
-            return 1.14
-        default:
-            return 1.0
-        }
+        profileSettings.posterWidthMultiplier
     }
 
     private var libraryPosterWidth: CGFloat { UX.posterWidth * posterScale }
     private var libraryPosterHeight: CGFloat { UX.posterHeight * posterScale }
+    private var libraryFocusScreenKey: String {
+        let sectionToken = preferredKind?.rawValue ?? viewModel.activeSection?.id ?? "all"
+        return "library:\(sectionToken):\(viewModel.contentTab.rawValue):\(viewModel.viewMode.rawValue)"
+    }
 
     private var gridColumnCount: Int {
-        switch profileSettings.posterSize {
-        case "small":
-            return 6
-        case "large":
-            return 4
-        default:
-            return 5
-        }
+        profileSettings.posterWidthPreset.libraryGridColumnCount
     }
 
     private var gridColumns: [GridItem] {
@@ -74,8 +68,9 @@ struct TVLibraryView: View {
         }
         .task {
             await viewModel.loadIfNeeded(preferredKind: preferredKind)
+            restoreFocusedItemIfPossible()
         }
-        .fullScreenCover(item: $selectedItem) { item in
+        .fullScreenCover(item: $selectedItem, onDismiss: restoreFocusedItemIfPossible) { item in
             TVDetailsView(item: item)
         }
         .onChange(of: focusedID) { newFocusedID in
@@ -92,6 +87,8 @@ struct TVLibraryView: View {
                 return
             }
 
+            focusCoordinator.remember(screen: libraryFocusScreenKey, sectionID: "content", itemID: focusedID)
+
             // Start a short debounce task to avoid recoloring during fast focus movement.
             focusDebounceTask = Task {
                 try? await Task.sleep(nanoseconds: 350_000_000)
@@ -106,6 +103,18 @@ struct TVLibraryView: View {
                 guard !Task.isCancelled else { return }
                 await viewModel.retry()
             }
+        }
+        .onChange(of: viewModel.visibleItems.map(\.id)) { _ in
+            restoreFocusedItemIfPossible()
+        }
+        .onChange(of: viewModel.viewMode) { _ in
+            restoreFocusedItemIfPossible()
+        }
+        .onChange(of: viewModel.contentTab) { _ in
+            restoreFocusedItemIfPossible()
+        }
+        .onChange(of: viewModel.activeSection?.id) { _ in
+            restoreFocusedItemIfPossible()
         }
         .onDisappear {
             focusDebounceTask?.cancel()
@@ -171,8 +180,8 @@ struct TVLibraryView: View {
             if let activeCollectionTitle = viewModel.activeCollectionTitle {
                 HStack {
                     Text(activeCollectionTitle)
-                        .font(.system(size: 34, weight: .bold))
-                        .foregroundStyle(.white)
+                        .font(typography.title)
+                        .foregroundStyle(theme.textPrimary)
                     Spacer()
                 }
                 .padding(.horizontal, UX.gridH)
@@ -187,11 +196,11 @@ struct TVLibraryView: View {
                         .id(entry.id)
                         .focusable(true)
                         .focused($focusedID, equals: entry.id)
-                        .scaleEffect(isFocused ? UX.focusScale : 1.0)
+                        .scaleEffect(isFocused ? cardTokens.focusedScale : 1.0)
                         .shadow(
                             color: .black.opacity(isFocused ? 0.4 : 0.2),
-                            radius: isFocused ? 16 : 8,
-                            y: isFocused ? 8 : 4
+                            radius: isFocused ? cardTokens.focusedShadowRadius : cardTokens.unfocusedShadowRadius,
+                            y: isFocused ? cardTokens.focusedShadowYOffset : cardTokens.unfocusedShadowYOffset
                         )
                         .animation(.easeOut(duration: UX.focusDur), value: focusedID)
                         .onTapGesture {
@@ -219,6 +228,7 @@ struct TVLibraryView: View {
         ScrollView {
             LazyVStack(spacing: 14) {
                 ForEach(viewModel.visibleItems) { entry in
+                    let isFocused = focusedID == entry.id
                     Button {
                         selectedItem = entry.media
                     } label: {
@@ -231,26 +241,28 @@ struct TVLibraryView: View {
                             VStack(alignment: .leading, spacing: 6) {
                                 if profileSettings.showLibraryTitles {
                                     Text(entry.media.title)
-                                        .font(.system(size: 30, weight: .semibold))
-                                        .foregroundStyle(.white)
+                                        .font(typography.custom(size: 30, weight: .semibold))
+                                        .foregroundStyle(theme.textPrimary)
                                 }
                                 Text(infoText(for: entry))
-                                    .font(.system(size: 20))
-                                    .foregroundStyle(.white.opacity(0.75))
+                                    .font(typography.body)
+                                    .foregroundStyle(theme.textSecondary)
                                     .lineLimit(1)
                                 if let summary = entry.media.summary, !summary.isEmpty {
                                     Text(summary)
-                                        .font(.system(size: 18))
-                                        .foregroundStyle(.white.opacity(0.65))
+                                        .font(typography.label)
+                                        .foregroundStyle(theme.textTertiary)
                                         .lineLimit(2)
                                 }
                             }
                             Spacer()
                         }
                         .padding(18)
-                        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .background(theme.backgroundCard, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .tvFocusSurface(isFocused: isFocused, cornerRadius: 14)
                     }
                     .buttonStyle(.plain)
+                    .focused($focusedID, equals: entry.id)
                     .onAppear { viewModel.loadMoreIfNeeded(currentItem: entry) }
                 }
             }
@@ -274,13 +286,13 @@ struct TVLibraryView: View {
         VStack(spacing: 16) {
             Image(systemName: "film.stack")
                 .font(.system(size: 60))
-                .foregroundStyle(.white.opacity(0.4))
+                .foregroundStyle(theme.textTertiary)
             Text(message)
-                .font(.system(size: 32, weight: .semibold))
-                .foregroundStyle(.white)
+                .font(typography.section)
+                .foregroundStyle(theme.textPrimary)
             Text("Try adjusting filters or selecting a different library.")
-                .font(.system(size: 20))
-                .foregroundStyle(.white.opacity(0.7))
+                .font(typography.body)
+                .foregroundStyle(theme.textSecondary)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -288,37 +300,51 @@ struct TVLibraryView: View {
     }
 
     private func errorState(message: String) -> some View {
-        VStack(spacing: 20) {
-            Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 64))
-                .foregroundStyle(.orange)
-            Text("Unable to load library")
-                .font(.system(size: 36, weight: .bold))
-                .foregroundStyle(.white)
-            Text(message)
-                .font(.system(size: 22))
-                .foregroundStyle(.white.opacity(0.8))
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 600)
-
+        TVAnimatedErrorState(
+            title: "Unable to load library",
+            message: message,
+            accent: theme.warning
+        ) {
             Button {
                 Task { await viewModel.retry() }
             } label: {
                 Text("Retry")
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundStyle(.black)
+                    .font(typography.custom(size: 24, weight: .semibold))
+                    .foregroundStyle(theme.background)
                     .padding(.horizontal, 40)
                     .padding(.vertical, 16)
                     .background(
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .fill(Color.white)
+                            .fill(theme.accent)
                     )
             }
             .buttonStyle(.plain)
-            .padding(.top, 12)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(80)
+    }
+
+    private func restoreFocusedItemIfPossible() {
+        guard viewModel.contentTab == .library else {
+            focusedID = nil
+            return
+        }
+        guard !viewModel.visibleItems.isEmpty else {
+            focusedID = nil
+            return
+        }
+
+        let rememberedID = focusCoordinator.lastFocusedItem(screen: libraryFocusScreenKey, sectionID: "content")
+        if let rememberedID, viewModel.visibleItems.contains(where: { $0.id == rememberedID }) {
+            focusedID = rememberedID
+            return
+        }
+
+        if let focusedID, viewModel.visibleItems.contains(where: { $0.id == focusedID }) {
+            return
+        }
+
+        focusedID = viewModel.visibleItems.first?.id
     }
 }
 

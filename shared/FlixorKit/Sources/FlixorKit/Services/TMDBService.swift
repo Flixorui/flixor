@@ -159,6 +159,15 @@ public class TMDBService {
         return try await get(path: "/movie/\(id)/videos", ttl: CacheTTL.trending)
     }
 
+    /// Get movie videos without a TMDB language filter.
+    public func getMovieVideosAllLanguages(id: Int) async throws -> TMDBVideosResponse {
+        return try await get(
+            path: "/movie/\(id)/videos",
+            ttl: CacheTTL.trending,
+            skipLanguage: true
+        )
+    }
+
     // MARK: - TV Shows
 
     /// Get TV show details
@@ -211,6 +220,15 @@ public class TMDBService {
     /// Get TV videos (trailers, teasers, etc.)
     public func getTVVideos(id: Int) async throws -> TMDBVideosResponse {
         return try await get(path: "/tv/\(id)/videos", ttl: CacheTTL.trending)
+    }
+
+    /// Get TV videos without a TMDB language filter.
+    public func getTVVideosAllLanguages(id: Int) async throws -> TMDBVideosResponse {
+        return try await get(
+            path: "/tv/\(id)/videos",
+            ttl: CacheTTL.trending,
+            skipLanguage: true
+        )
     }
 
     /// Get season details

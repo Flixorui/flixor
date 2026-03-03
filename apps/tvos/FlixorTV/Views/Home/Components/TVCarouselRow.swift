@@ -4,6 +4,34 @@ import Nuke
 
 enum TVRowCardKind { case poster, landscape }
 
+struct TVRowMenuAction: Identifiable {
+    let id: String
+    let title: String
+    let systemImage: String
+    let role: ButtonRole?
+    let handler: () -> Void
+
+    init(
+        id: String,
+        title: String,
+        systemImage: String,
+        role: ButtonRole? = nil,
+        handler: @escaping () -> Void
+    ) {
+        self.id = id
+        self.title = title
+        self.systemImage = systemImage
+        self.role = role
+        self.handler = handler
+    }
+}
+
+struct TVRowTailAction {
+    let title: String
+    let systemImage: String
+    let handler: () -> Void
+}
+
 struct TVCarouselRow: View {
     let title: String
     let items: [MediaItem]
@@ -14,34 +42,46 @@ struct TVCarouselRow: View {
     var sectionId: String = ""
     var landscapeFocusOutline: Bool = false
     var onSelect: ((MediaItem) -> Void)? = nil
+    var screenID: TVScreenID? = nil
+    var focusScreenKey: String? = nil
+    var tailAction: TVRowTailAction? = nil
+    var menuActions: ((MediaItem) -> [TVRowMenuAction])? = nil
+    var onItemFocus: ((MediaItem) -> Void)? = nil
+    var previewTrailerProvider: ((MediaItem) async -> TVTrailer?)? = nil
 
     @FocusState private var focusedID: String?
     @State private var expandedID: String?
+    @State private var expandedTrailerItemID: String?
+    @State private var expandedTrailer: TVTrailer?
     @State private var scrollProxy: ScrollViewProxy?
     @State private var expansionTask: Task<Void, Never>?
     @State private var lastFocusedIndex: Int?
     @EnvironmentObject private var profileSettings: TVProfileSettings
+    @EnvironmentObject private var focusCoordinator: TVFocusCoordinator
+    @Environment(\.tvThemePalette) private var theme
+    @Environment(\.tvTypography) private var typography
+    @Environment(\.tvCardVisualTokens) private var cardTokens
 
     private var posterScale: CGFloat {
-        switch profileSettings.posterSize {
-        case "small":
-            return 0.86
-        case "large":
-            return 1.14
-        default:
-            return 1.0
-        }
+        profileSettings.posterWidthMultiplier
     }
 
     private var posterSize: CGSize { .init(width: UX.posterWidth * posterScale, height: UX.posterHeight * posterScale) }
     private var landscapeSize: CGSize { .init(width: UX.landscapeWidth, height: UX.landscapeHeight) }
     private var expandedWidth: CGFloat { posterSize.height * (16.0/9.0) }
+    private var tailFocusID: String? { tailAction == nil ? nil : "__tail__\(sectionId)" }
+    private var resolvedFocusScreenKey: String? { focusScreenKey ?? screenID?.rawValue }
+    private var resolvedPreferredFocusItemId: String? {
+        preferredFocusItemId
+            ?? resolvedFocusScreenKey.flatMap { focusCoordinator.lastFocusedItem(screen: $0, sectionID: sectionId) }
+            ?? items.first?.id
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(title)
-                .font(.system(size: 32, weight: .bold))
-                .foregroundStyle(.white)
+                .font(typography.section)
+                .foregroundStyle(theme.textPrimary)
                 .padding(.horizontal, UX.gridH)
 
             ScrollViewReader { proxy in
@@ -52,8 +92,8 @@ struct TVCarouselRow: View {
                             let itemHeight = kind == .poster ? posterSize.height : landscapeSize.height
                             let itemWidth = (kind == .poster) ? (isExpanded ? expandedWidth : posterSize.width) : landscapeSize.width
                             let hasExpanded = kind == .poster && expandedID != nil
-                            let neighborScale: CGFloat = (hasExpanded && !isExpanded) ? UX.neighborScale : 1.0
-                            let neighborOpacity: Double = (hasExpanded && !isExpanded) ? UX.dimNeighborOpacity : 1.0
+                            let neighborScale: CGFloat = (hasExpanded && !isExpanded) ? cardTokens.neighborScale : 1.0
+                            let neighborOpacity: Double = (hasExpanded && !isExpanded) ? cardTokens.neighborDimOpacity : 1.0
 
                             // Stable focusable wrapper - never changes identity
                             ZStack {
@@ -68,7 +108,9 @@ struct TVCarouselRow: View {
                                             showBadges: true,
                                             outlined: true,
                                             heightOverride: itemHeight,
-                                            overrideURL: ImageService.shared.continueWatchingURL(for: item, width: 960, height: 540)
+                                            overrideURL: ImageService.shared.continueWatchingURL(for: item, width: 960, height: 540),
+                                            previewTrailer: expandedTrailerItemID == item.id ? expandedTrailer : nil,
+                                            previewTrailerMuted: profileSettings.focusedPosterTrailerMuted
                                         )
                                         .transition(.opacity)
                                     }
@@ -88,11 +130,44 @@ struct TVCarouselRow: View {
                             .onTapGesture { onSelect?(item) }
                             .modifier(DefaultFocusModifier(
                                 ns: focusNS,
-                                enabled: defaultFocus && item.id == (preferredFocusItemId ?? items.first?.id)
+                                enabled: defaultFocus && item.id == resolvedPreferredFocusItemId
                             ))
                             .scaleEffect(neighborScale, anchor: .bottom)
                             .opacity(neighborOpacity)
                             .animation(.easeOut(duration: 0.18), value: expandedID)
+                            .contextMenu {
+                                if let menuActions {
+                                    ForEach(menuActions(item)) { action in
+                                        Button(role: action.role) {
+                                            action.handler()
+                                        } label: {
+                                            Label(action.title, systemImage: action.systemImage)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        if let tailAction, let tailFocusID {
+                            TVSeeAllCard(
+                                title: tailAction.title,
+                                systemImage: tailAction.systemImage,
+                                isFocused: focusedID == tailFocusID,
+                                kind: kind,
+                                posterSize: posterSize,
+                                landscapeSize: landscapeSize
+                            )
+                            .frame(
+                                width: kind == .poster ? posterSize.width : landscapeSize.width,
+                                height: kind == .poster ? posterSize.height : landscapeSize.height,
+                                alignment: .bottom
+                            )
+                            .id(tailFocusID)
+                            .focusable(true)
+                            .focused($focusedID, equals: tailFocusID)
+                            .onTapGesture {
+                                tailAction.handler()
+                            }
                         }
                     }
                     .padding(.horizontal, UX.gridH)
@@ -100,49 +175,120 @@ struct TVCarouselRow: View {
                 }
                 .onAppear { scrollProxy = proxy }
                 .onChange(of: focusedID) { newValue in
-                    guard kind == .poster else { return }
                     expansionTask?.cancel()
 
                     // Handle focus loss - collapse expansion
                     guard let id = newValue else {
+                        TrailerPreviewDiagnostics.debug("Focus cleared row=\(sectionId); collapsing expanded preview")
                         withAnimation(.easeOut(duration: 0.2)) { expandedID = nil }
+                        clearExpandedTrailer()
                         lastFocusedIndex = nil
+                        return
+                    }
+
+                    if id == tailFocusID {
+                        TrailerPreviewDiagnostics.debug("Tail action focused row=\(sectionId); collapsing expanded preview")
+                        resolvedFocusScreenKey.map { focusCoordinator.remember(screen: $0, sectionID: sectionId, itemID: nil) }
+                        if let sp = scrollProxy {
+                            sp.scrollTo(id, anchor: .trailing)
+                        }
+                        withAnimation(.easeOut(duration: 0.18)) {
+                            expandedID = nil
+                        }
+                        clearExpandedTrailer()
                         return
                     }
 
                     HomeHitchTracer.mark("RowFocusChanged", row: sectionId, extra: "item=\(id)")
                     HomeHitchTracer.measureRenderTime("RowFocusRender", row: sectionId)
 
-                    // Defer expansion slightly so rapid focus changes don't force reflow on every tick.
-                    expansionTask = Task {
-                        try? await Task.sleep(nanoseconds: 80_000_000)
-                        guard !Task.isCancelled else { return }
-                        let span = HomeHitchTracer.begin("RowExpansionTask", row: sectionId)
-                        guard let currentIndex = items.firstIndex(where: { $0.id == id }) else { span.end(); return }
+                    guard let currentIndex = items.firstIndex(where: { $0.id == id }) else { return }
+                    let item = items[currentIndex]
+                    resolvedFocusScreenKey.map { focusCoordinator.remember(screen: $0, sectionID: sectionId, itemID: id) }
+                    onItemFocus?(item)
 
-                        if let sp = scrollProxy {
-                            let shouldScroll: Bool
-                            if id == items.first?.id {
-                                shouldScroll = true
-                            } else if let previousIndex = lastFocusedIndex {
-                                shouldScroll = abs(currentIndex - previousIndex) > 2
-                            } else {
-                                shouldScroll = true
-                            }
-
-                            if shouldScroll {
-                                let isFirstItem = id == items.first?.id
-                                HomeHitchTracer.mark("RowHorizontalScroll", row: sectionId, extra: "item=\(id)")
-                                sp.scrollTo(id, anchor: isFirstItem ? .center : .leading)
-                            }
+                    if let sp = scrollProxy {
+                        let shouldScroll: Bool
+                        if id == items.first?.id {
+                            shouldScroll = true
+                        } else if let previousIndex = lastFocusedIndex {
+                            shouldScroll = abs(currentIndex - previousIndex) > 2
+                        } else {
+                            shouldScroll = true
                         }
 
+                        if shouldScroll {
+                            let isFirstItem = id == items.first?.id
+                            HomeHitchTracer.mark("RowHorizontalScroll", row: sectionId, extra: "item=\(id)")
+                            sp.scrollTo(id, anchor: TVScrollAlignmentPolicy.home.horizontalAnchor(isFirstItem: isFirstItem))
+                        }
+                    }
+
+                    lastFocusedIndex = currentIndex
+
+                    guard kind == .poster, profileSettings.focusedPosterExpandEnabled else {
+                        TrailerPreviewDiagnostics.debug("Expansion disabled row=\(sectionId) item=\(id)")
+                        withAnimation(.easeOut(duration: 0.18)) {
+                            expandedID = nil
+                        }
+                        clearExpandedTrailer()
+                        return
+                    }
+
+                    if expandedID != nil, expandedID != id {
+                        TrailerPreviewDiagnostics.debug("Collapsing previous expanded item row=\(sectionId) previous=\(expandedID ?? "nil") next=\(id)")
+                        withAnimation(.easeOut(duration: 0.14)) {
+                            expandedID = nil
+                        }
+                    }
+
+                    if expandedTrailerItemID != id {
+                        clearExpandedTrailer()
+                    }
+
+                    let expansionDelay = UInt64(max(0, profileSettings.focusedPosterExpandDelaySeconds) * 1_000_000_000)
+                    TrailerPreviewDiagnostics.debug(
+                        "Scheduling expansion row=\(sectionId) item=\(id) delaySeconds=\(profileSettings.focusedPosterExpandDelaySeconds)"
+                    )
+
+                    // Defer expansion slightly so rapid focus changes don't force reflow on every tick.
+                    expansionTask = Task {
+                        if expansionDelay > 0 {
+                            try? await Task.sleep(nanoseconds: expansionDelay)
+                        }
+                        guard !Task.isCancelled else { return }
+                        let span = HomeHitchTracer.begin("RowExpansionTask", row: sectionId)
                         withAnimation(.easeOut(duration: 0.18)) {
                             expandedID = id
                         }
+                        TrailerPreviewDiagnostics.debug("Expansion applied row=\(sectionId) item=\(id)")
                         HomeHitchTracer.mark("RowExpansionApplied", row: sectionId, extra: "item=\(id)")
                         HomeHitchTracer.measureRenderTime("RowExpansionRender", row: sectionId)
-                        lastFocusedIndex = currentIndex
+
+                        if profileSettings.focusedPosterTrailerEnabled,
+                           profileSettings.focusedPosterTrailerTarget == .expandedCard,
+                           let previewTrailerProvider {
+                            TrailerPreviewDiagnostics.debug("Trailer fetch start row=\(sectionId) item=\(id)")
+                            let trailer = await previewTrailerProvider(item)
+                            guard !Task.isCancelled else { return }
+                            guard focusedID == id, expandedID == id else {
+                                TrailerPreviewDiagnostics.debug("Trailer fetch discarded row=\(sectionId) item=\(id) because focus moved")
+                                return
+                            }
+                            expandedTrailerItemID = id
+                            expandedTrailer = trailer
+                            if let trailer {
+                                TrailerPreviewDiagnostics.debug(
+                                    "Trailer fetch success row=\(sectionId) item=\(id) key=\(TrailerPreviewDiagnostics.summarizeKey(trailer.key))"
+                                )
+                            } else {
+                                TrailerPreviewDiagnostics.debug("Trailer fetch produced no trailer row=\(sectionId) item=\(id)")
+                            }
+                        } else {
+                            TrailerPreviewDiagnostics.debug("Trailer fetch skipped row=\(sectionId) item=\(id)")
+                            clearExpandedTrailer()
+                        }
+
                         span.end()
                     }
 
@@ -156,9 +302,9 @@ struct TVCarouselRow: View {
                                 return ImageService.shared.continueWatchingURL(for: item, width: 960, height: 540)
                             }
                         }
-                        // Pre-warm landscape image for the focused poster so it's
-                        // in cache by the time the 80ms expansion delay fires.
-                        if kind == .poster, let item = items.first(where: { $0.id == id }),
+                        // Pre-warm landscape image for focused poster expansion.
+                        if kind == .poster, profileSettings.focusedPosterExpandEnabled,
+                           let item = items.first(where: { $0.id == id }),
                            let landscapeURL = ImageService.shared.continueWatchingURL(for: item, width: 960, height: 540) {
                             urls.append(landscapeURL)
                         }
@@ -172,7 +318,24 @@ struct TVCarouselRow: View {
             // Publish row focus state upwards (used for vertical snap)
             .preference(key: RowFocusKey.self, value: focusedID != nil ? sectionId : nil)
             // Publish focused item ID upwards (used for remembering scroll position)
-            .preference(key: RowItemFocusKey.self, value: RowItemFocusValue(rowId: focusedID != nil ? sectionId : nil, itemId: focusedID))
+            .preference(
+                key: RowItemFocusKey.self,
+                value: RowItemFocusValue(
+                    rowId: focusedID != nil ? sectionId : nil,
+                    itemId: items.contains(where: { $0.id == focusedID }) ? focusedID : nil
+                )
+            )
+            .onAppear {
+                if defaultFocus, focusedID == nil {
+                    focusedID = resolvedPreferredFocusItemId
+                }
+            }
+            .onDisappear {
+                expansionTask?.cancel()
+                TrailerPreviewDiagnostics.debug("Row disappeared row=\(sectionId); clearing expansion state")
+                clearExpandedTrailer()
+                expandedID = nil
+            }
             .onChange(of: defaultFocus) { newValue in
                 HomeHitchTracer.mark("RowDefaultFocusChanged", row: sectionId, extra: "value=\(newValue) currentFocus=\(focusedID ?? "nil")")
                 // When this row becomes the default focus target, FORCE focus to preferred item.
@@ -180,7 +343,7 @@ struct TVCarouselRow: View {
                 // (focusedRowId change + vertical scroll) completes first, avoiding a
                 // compounded ~10-12ms main-thread block.
                 if newValue {
-                    let targetItemId = preferredFocusItemId ?? items.first?.id
+                    let targetItemId = resolvedPreferredFocusItemId
                     if let targetId = targetItemId {
                         if focusedID != targetId {
                             HomeHitchTracer.mark("RowDefaultFocusForced", row: sectionId, extra: "from=\(focusedID ?? "nil") to=\(targetId)")
@@ -193,6 +356,68 @@ struct TVCarouselRow: View {
                 }
             }
         }
+    }
+
+    private func clearExpandedTrailer() {
+        expandedTrailerItemID = nil
+        expandedTrailer = nil
+    }
+}
+
+private struct TVSeeAllCard: View {
+    let title: String
+    let systemImage: String
+    let isFocused: Bool
+    let kind: TVRowCardKind
+    let posterSize: CGSize
+    let landscapeSize: CGSize
+
+    @Environment(\.tvThemePalette) private var theme
+    @Environment(\.tvTypography) private var typography
+    @Environment(\.tvCardVisualTokens) private var cardTokens
+
+    var body: some View {
+        let radius = kind == .poster ? cardTokens.posterRadius : cardTokens.landscapeRadius
+
+        VStack(alignment: .leading, spacing: 12) {
+            Spacer()
+            Image(systemName: systemImage)
+                .font(.system(size: kind == .poster ? 36 : 30, weight: .semibold))
+                .foregroundStyle(theme.accentStrong)
+
+            Text(title)
+                .font(kind == .poster ? typography.title : typography.section)
+                .foregroundStyle(theme.textPrimary)
+
+            Text("Open full grid")
+                .font(typography.meta)
+                .foregroundStyle(theme.textSecondary)
+        }
+        .frame(
+            maxWidth: .infinity,
+            maxHeight: .infinity,
+            alignment: .leading
+        )
+        .padding(kind == .poster ? 22 : 24)
+        .background(
+            RoundedRectangle(cornerRadius: radius, style: .continuous)
+                .fill(theme.backgroundCard)
+                .overlay(
+                    RoundedRectangle(cornerRadius: radius, style: .continuous)
+                        .stroke(isFocused ? theme.strokeFocused : theme.strokeDefault, lineWidth: isFocused ? cardTokens.focusedStrokeWidth : 1)
+                )
+        )
+        .scaleEffect(isFocused ? cardTokens.focusedScale : 1.0)
+        .shadow(
+            color: .black.opacity(isFocused ? 0.42 : 0.18),
+            radius: isFocused ? cardTokens.focusedShadowRadius : cardTokens.unfocusedShadowRadius,
+            y: isFocused ? cardTokens.focusedShadowYOffset : cardTokens.unfocusedShadowYOffset
+        )
+        .animation(.easeOut(duration: UX.focusDur), value: isFocused)
+        .frame(
+            width: kind == .poster ? posterSize.width : landscapeSize.width,
+            height: kind == .poster ? posterSize.height : landscapeSize.height
+        )
     }
 }
 

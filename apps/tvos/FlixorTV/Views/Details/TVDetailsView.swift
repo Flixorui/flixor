@@ -8,9 +8,12 @@ struct TVDetailsView: View {
     @StateObject private var vm = TVDetailsViewModel()
     @EnvironmentObject private var profileSettings: TVProfileSettings
     @EnvironmentObject private var watchlistController: TVWatchlistController
+    @EnvironmentObject private var focusCoordinator: TVFocusCoordinator
 
     @State private var playbackItem: MediaItem?
     @State private var selectedTrailer: TVTrailer?
+    @State private var focusRestoreToken = UUID()
+    @State private var shouldRestoreFocusAfterDismiss = false
 
     @Namespace private var heroFocusNS
     @Namespace private var nsSuggested
@@ -20,6 +23,7 @@ struct TVDetailsView: View {
     @State private var contentSectionHasFocus: Bool = false
 
     private let compactHeaderHeight: CGFloat = 86
+    private var detailsFocusScreenKey: String { "details:\(item.id)" }
 
     private var hasPlexSource: Bool {
         vm.playableId != nil || vm.plexRatingKey != nil
@@ -89,9 +93,20 @@ struct TVDetailsView: View {
                         vm: vm,
                         item: item,
                         focusNS: heroFocusNS,
+                        focusScreenKey: detailsFocusScreenKey,
+                        focusRestoreToken: focusRestoreToken,
+                        shouldRestoreFocus: shouldRestoreFocusAfterDismiss,
                         hasPlexSource: hasPlexSource,
                         onPlay: playContent,
                         onMyList: addToMyList,
+                        onMarkWatched: {
+                            Task { _ = await vm.markWatched() }
+                        },
+                        onTrailerCTA: {
+                            if let trailer = vm.trailers.first {
+                                selectedTrailer = trailer
+                            }
+                        },
                         onTrailerTapped: { trailer in
                             selectedTrailer = trailer
                         },
@@ -109,22 +124,48 @@ struct TVDetailsView: View {
                                 .font(.system(size: 30, weight: .bold))
                                 .foregroundStyle(.white)
                                 .padding(.horizontal, 80)
-                            TVEpisodesRail(vm: vm, focusNS: nsEpisodes)
+                            TVEpisodesRail(
+                                vm: vm,
+                                focusNS: nsEpisodes,
+                                focusScreenKey: detailsFocusScreenKey,
+                                focusRestoreToken: focusRestoreToken,
+                                shouldRestoreFocus: shouldRestoreFocusAfterDismiss,
+                                onFocusChange: { focused in
+                                    if focused {
+                                        contentSectionHasFocus = true
+                                    }
+                                }
+                            )
                                 .focusScope(nsEpisodes)
                         }
                     }
 
                     if profileSettings.showRelatedContent && !vm.isSeason && !vm.isEpisode {
-                        SuggestedSection(vm: vm, focusNS: nsSuggested, onFocusChange: { focused in
-                            contentSectionHasFocus = focused
-                        })
+                        SuggestedSection(
+                            vm: vm,
+                            focusNS: nsSuggested,
+                            focusScreenKey: detailsFocusScreenKey,
+                            focusRestoreToken: focusRestoreToken,
+                            shouldRestoreFocus: shouldRestoreFocusAfterDismiss,
+                            onFocusChange: { focused in
+                                contentSectionHasFocus = focused
+                            },
+                            onDismissSelection: restoreFocusAfterModal
+                        )
                             .focusScope(nsSuggested)
                             .id("suggested-section")
                     }
 
-                    TVDetailsInfoGrid(vm: vm, focusNS: nsDetails, onFocusChange: { focused in
-                        contentSectionHasFocus = focused
-                    })
+                    TVDetailsInfoGrid(
+                        vm: vm,
+                        focusNS: nsDetails,
+                        focusScreenKey: detailsFocusScreenKey,
+                        focusRestoreToken: focusRestoreToken,
+                        shouldRestoreFocus: shouldRestoreFocusAfterDismiss,
+                        onFocusChange: { focused in
+                            contentSectionHasFocus = focused
+                        }
+                    )
                         .focusScope(nsDetails)
                         .id("details-info")
                 }
@@ -184,15 +225,16 @@ struct TVDetailsView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .ignoresSafeArea(edges: .all)
-        .fullScreenCover(item: $playbackItem) { item in
+        .fullScreenCover(item: $playbackItem, onDismiss: restoreFocusAfterModal) { item in
             PlayerView(item: item)
         }
-        .fullScreenCover(item: $selectedTrailer) { trailer in
+        .fullScreenCover(item: $selectedTrailer, onDismiss: restoreFocusAfterModal) { trailer in
             TVTrailerModal(trailer: trailer, onClose: {
                 selectedTrailer = nil
             })
         }
         .task {
+            shouldRestoreFocusAfterDismiss = false
             await vm.load(for: item)
         }
         .onPreferenceChange(DetailsScrollOffsetKey.self) { value in
@@ -211,7 +253,9 @@ struct TVDetailsView: View {
             return
         }
 
-        let ratingKey = vm.plexRatingKey
+        let onDeckEpisode = (!vm.isSeason && !vm.isEpisode && vm.mediaKind == "tv") ? vm.onDeck : nil
+        let ratingKey = onDeckEpisode?.id.replacingOccurrences(of: "plex:", with: "")
+            ?? vm.plexRatingKey
             ?? vm.playableId?.replacingOccurrences(of: "plex:", with: "")
 
         guard let ratingKey, !ratingKey.isEmpty else {
@@ -222,13 +266,16 @@ struct TVDetailsView: View {
         print("🎬 [TVDetailsView] ratingKey: \(ratingKey)")
 
         let playbackId: String
-        if let playableId = vm.playableId, playableId.hasPrefix("plex:") {
+        if let onDeckEpisode {
+            playbackId = onDeckEpisode.id
+        } else if let playableId = vm.playableId, playableId.hasPrefix("plex:") {
             playbackId = playableId
         } else {
             playbackId = "plex:\(ratingKey)"
         }
 
         let playbackType: String = {
+            if onDeckEpisode != nil { return "episode" }
             if item.type == "episode" || vm.isEpisode { return "episode" }
             if item.type == "season" || vm.isSeason { return "season" }
             if vm.mediaKind == "movie" { return "movie" }
@@ -238,16 +285,16 @@ struct TVDetailsView: View {
 
         let candidate = MediaItem(
             id: playbackId,
-            title: vm.title.isEmpty ? item.title : vm.title,
+            title: onDeckEpisode?.title ?? (vm.title.isEmpty ? item.title : vm.title),
             type: playbackType,
             thumb: item.thumb,
             art: item.art,
             logo: item.logo,
             year: vm.year.flatMap { Int($0) } ?? item.year,
             rating: item.rating,
-            duration: vm.runtime.map { $0 * 60000 } ?? item.duration,
-            viewOffset: item.viewOffset,
-            summary: vm.overview.isEmpty ? item.summary : vm.overview,
+            duration: onDeckEpisode?.durationMin.map { $0 * 60000 } ?? vm.runtime.map { $0 * 60000 } ?? item.duration,
+            viewOffset: onDeckEpisode?.viewOffset ?? vm.resumeViewOffset ?? item.viewOffset,
+            summary: onDeckEpisode?.overview ?? (vm.overview.isEmpty ? item.summary : vm.overview),
             grandparentTitle: vm.showTitle ?? item.grandparentTitle,
             grandparentThumb: item.grandparentThumb,
             grandparentArt: item.grandparentArt,
@@ -261,6 +308,11 @@ struct TVDetailsView: View {
 
         print("🎬 [TVDetailsView] Setting playbackItem with id: \(candidate.id)")
         playbackItem = candidate
+    }
+
+    private func restoreFocusAfterModal() {
+        shouldRestoreFocusAfterDismiss = true
+        focusRestoreToken = UUID()
     }
 
     private func addToMyList() {
@@ -307,18 +359,47 @@ private struct TVDetailsHeroSection: View {
     @ObservedObject var vm: TVDetailsViewModel
     let item: MediaItem
     let focusNS: Namespace.ID
+    let focusScreenKey: String
+    let focusRestoreToken: UUID
+    let shouldRestoreFocus: Bool
     let hasPlexSource: Bool
     let onPlay: () -> Void
     let onMyList: () -> Void
+    let onMarkWatched: () -> Void
+    let onTrailerCTA: () -> Void
     let onTrailerTapped: (TVTrailer) -> Void
     var onFocusChange: ((Bool) -> Void)?
     @EnvironmentObject private var profileSettings: TVProfileSettings
+    @EnvironmentObject private var focusCoordinator: TVFocusCoordinator
+    @Environment(\.tvThemePalette) private var theme
+    @Environment(\.tvTypography) private var typography
 
     @FocusState private var focusedButton: HeroAction?
 
     enum HeroAction: Hashable {
         case play
         case myList
+        case watched
+        case trailer
+
+        var storageID: String {
+            switch self {
+            case .play: return "play"
+            case .myList: return "myList"
+            case .watched: return "watched"
+            case .trailer: return "trailer"
+            }
+        }
+
+        static func fromStorageID(_ value: String?) -> HeroAction? {
+            switch value {
+            case "play": return .play
+            case "myList": return .myList
+            case "watched": return .watched
+            case "trailer": return .trailer
+            default: return nil
+            }
+        }
     }
 
     private var metaItems: [String] {
@@ -469,47 +550,50 @@ private struct TVDetailsHeroSection: View {
 
                         if !vm.overview.isEmpty {
                             Text(vm.overview)
-                                .font(.system(size: 24, weight: .regular))
-                                .foregroundStyle(.white.opacity(0.86))
+                                .font(typography.custom(size: 24, weight: .regular))
+                                .foregroundStyle(theme.textSecondary)
                                 .lineLimit(4)
                                 .frame(maxWidth: 780, alignment: .leading)
                         }
 
                         technicalRow
 
-                        HStack(spacing: 28) {
-                            Button(action: onPlay) {
-                                HStack(spacing: 8) {
-                                    Image(systemName: "play.fill")
-                                    Text(hasPlexSource ? "Play" : "Unavailable")
-                                }
-                                .font(.system(size: 26, weight: .semibold))
-                                .foregroundStyle(hasPlexSource ? Color.black : Color.gray)
-                                .padding(.horizontal, 28)
-                                .padding(.vertical, 14)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 11, style: .continuous)
-                                        .fill(hasPlexSource ? Color.white : Color.white.opacity(0.5))
-                                )
-                            }
-                            .buttonStyle(.card)
-                            .disabled(!hasPlexSource)
-                            .focused($focusedButton, equals: .play)
+                        HStack(spacing: 18) {
+                            heroActionButton(
+                                title: hasPlexSource ? vm.primaryPlayActionTitle : "Unavailable",
+                                systemImage: "play.fill",
+                                action: onPlay,
+                                heroAction: .play,
+                                emphasized: true,
+                                disabled: !hasPlexSource
+                            )
                             .prefersDefaultFocus(true, in: focusNS)
 
-                            Button(action: onMyList) {
-                                HStack(spacing: 8) {
-                                    Image(systemName: "plus")
-                                    Text("My List")
-                                }
-                                .font(.system(size: 24, weight: .semibold))
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 24)
-                                .padding(.vertical, 14)
-                                .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(Color.white.opacity(0.14)))
+                            heroActionButton(
+                                title: "My List",
+                                systemImage: "plus",
+                                action: onMyList,
+                                heroAction: .myList
+                            )
+
+                            if vm.shouldShowTrailerCTA {
+                                heroActionButton(
+                                    title: "Trailer",
+                                    systemImage: "play.rectangle.fill",
+                                    action: onTrailerCTA,
+                                    heroAction: .trailer
+                                )
                             }
-                            .buttonStyle(.card)
-                            .focused($focusedButton, equals: .myList)
+
+                            if vm.canMarkWatched || vm.isWatchedState {
+                                heroActionButton(
+                                    title: vm.isWatchedState ? "Watched" : "Mark Watched",
+                                    systemImage: vm.isWatchedState ? "checkmark.circle.fill" : "checkmark.circle",
+                                    action: onMarkWatched,
+                                    heroAction: .watched,
+                                    disabled: vm.isWatchedState
+                                )
+                            }
                         }
 
                         if !vm.trailers.isEmpty {
@@ -564,6 +648,16 @@ private struct TVDetailsHeroSection: View {
             if newValue != nil {
                 onFocusChange?(true)
             }
+            guard let newValue else { return }
+            focusCoordinator.remember(screen: focusScreenKey, sectionID: "hero", itemID: newValue.storageID)
+        }
+        .onAppear {
+            guard shouldRestoreFocus else { return }
+            restoreFocusedButton()
+        }
+        .onChange(of: focusRestoreToken) { _ in
+            guard shouldRestoreFocus else { return }
+            restoreFocusedButton()
         }
     }
 
@@ -652,21 +746,73 @@ private struct TVDetailsHeroSection: View {
         }
     }
 
+    private func restoreFocusedButton() {
+        guard focusCoordinator.lastFocusedSection(screen: focusScreenKey) == "hero" else { return }
+        let storedItemID = focusCoordinator.lastFocusedItem(screen: focusScreenKey, sectionID: "hero")
+        guard let action = HeroAction.fromStorageID(storedItemID) else { return }
+        DispatchQueue.main.async {
+            focusedButton = action
+        }
+    }
+
+    private func heroActionButton(
+        title: String,
+        systemImage: String,
+        action: @escaping () -> Void,
+        heroAction: HeroAction,
+        emphasized: Bool = false,
+        disabled: Bool = false
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: systemImage)
+                Text(title)
+            }
+            .font(typography.custom(size: emphasized ? 26 : 24, weight: .semibold))
+            .foregroundStyle(emphasized ? theme.background : theme.textPrimary)
+            .padding(.horizontal, emphasized ? 28 : 24)
+            .padding(.vertical, 14)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(emphasized ? theme.accent : theme.surfaceGlass)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(
+                        focusedButton == heroAction ? theme.strokeFocused : theme.strokeDefault,
+                        lineWidth: focusedButton == heroAction ? 3 : 1
+                    )
+            )
+        }
+        .buttonStyle(.card)
+        .disabled(disabled)
+        .opacity(disabled ? 0.55 : 1.0)
+        .focused($focusedButton, equals: heroAction)
+    }
+
 }
 
 private struct SuggestedSection: View {
     @ObservedObject var vm: TVDetailsViewModel
     var focusNS: Namespace.ID
+    let focusScreenKey: String
+    let focusRestoreToken: UUID
+    let shouldRestoreFocus: Bool
     var onFocusChange: (Bool) -> Void
+    var onDismissSelection: () -> Void
+    @EnvironmentObject private var focusCoordinator: TVFocusCoordinator
     @State private var selected: MediaItem?
-    @State private var focusedRowId: String?
-    @State private var rowLastFocusedItem: [String: String] = [:]
-    @State private var nextRowToReceiveFocus: String?
-    @State private var hasEstablishedInitialFocus = false
-    @State private var clearNextRowTask: Task<Void, Never>?
+    @State private var restoreRowID: String?
+    @State private var clearRestoreTask: Task<Void, Never>?
     @State private var isSectionFocused: Bool = false
 
     var body: some View {
+        let availableRows = [
+            !vm.related.isEmpty ? "because-you-watched" : nil,
+            !vm.similar.isEmpty ? "more-like-this" : nil
+        ].compactMap { $0 }
+        let defaultRowID = resolvedDefaultRowID(availableRows: availableRows)
+
         VStack(alignment: .leading, spacing: 28) {
             if !vm.related.isEmpty {
                 TVCarouselRow(
@@ -674,12 +820,10 @@ private struct SuggestedSection: View {
                     items: vm.related,
                     kind: .poster,
                     focusNS: focusNS,
-                    defaultFocus: focusedRowId == "because-you-watched"
-                        || nextRowToReceiveFocus == "because-you-watched"
-                        || (!hasEstablishedInitialFocus && focusedRowId == nil),
-                    preferredFocusItemId: rowLastFocusedItem["because-you-watched"],
+                    defaultFocus: defaultRowID == "because-you-watched",
                     sectionId: "because-you-watched",
-                    onSelect: { selected = $0 }
+                    onSelect: { selected = $0 },
+                    focusScreenKey: focusScreenKey
                 )
             }
             if !vm.similar.isEmpty {
@@ -688,37 +832,18 @@ private struct SuggestedSection: View {
                     items: vm.similar,
                     kind: .poster,
                     focusNS: focusNS,
-                    defaultFocus: focusedRowId == "more-like-this"
-                        || nextRowToReceiveFocus == "more-like-this"
-                        || (!hasEstablishedInitialFocus && vm.related.isEmpty && focusedRowId == nil),
-                    preferredFocusItemId: rowLastFocusedItem["more-like-this"],
+                    defaultFocus: defaultRowID == "more-like-this",
                     sectionId: "more-like-this",
-                    onSelect: { selected = $0 }
+                    onSelect: { selected = $0 },
+                    focusScreenKey: focusScreenKey
                 )
             }
         }
         .padding(.vertical, 16)
         .onPreferenceChange(RowFocusKey.self) { newId in
-            let previousId = focusedRowId
             let wasFocused = isSectionFocused
             let nowFocused = newId != nil
 
-            if previousId != newId {
-                if newId != nil {
-                    hasEstablishedInitialFocus = true
-                }
-                nextRowToReceiveFocus = newId
-                focusedRowId = newId
-                clearNextRowTask?.cancel()
-                clearNextRowTask = Task {
-                    try? await Task.sleep(nanoseconds: 200_000_000)
-                    guard !Task.isCancelled else { return }
-                    nextRowToReceiveFocus = nil
-                }
-            }
-
-            // Only report when gaining focus, not when losing
-            // Hero section is responsible for resetting contentSectionHasFocus
             if nowFocused && !wasFocused {
                 isSectionFocused = true
                 onFocusChange(true)
@@ -726,16 +851,44 @@ private struct SuggestedSection: View {
                 isSectionFocused = false
             }
         }
-        .onPreferenceChange(RowItemFocusKey.self) { value in
-            if let rowId = value.rowId, let itemId = value.itemId {
-                rowLastFocusedItem[rowId] = itemId
-            }
+        .onAppear {
+            guard shouldRestoreFocus else { return }
+            armRestoreRow()
         }
-        .fullScreenCover(item: $selected) { selectedItem in
+        .onChange(of: focusRestoreToken) { _ in
+            guard shouldRestoreFocus else { return }
+            armRestoreRow()
+        }
+        .fullScreenCover(item: $selected, onDismiss: {
+            onDismissSelection()
+            armRestoreRow()
+        }) { selectedItem in
             TVDetailsView(item: selectedItem)
         }
         .onDisappear {
-            clearNextRowTask?.cancel()
+            clearRestoreTask?.cancel()
+        }
+    }
+
+    private func resolvedDefaultRowID(availableRows: [String]) -> String? {
+        guard shouldRestoreFocus else { return nil }
+        if let restoreRowID, availableRows.contains(restoreRowID) {
+            return restoreRowID
+        }
+        if let remembered = focusCoordinator.lastFocusedSection(screen: focusScreenKey),
+           availableRows.contains(remembered) {
+            return remembered
+        }
+        return availableRows.first
+    }
+
+    private func armRestoreRow() {
+        clearRestoreTask?.cancel()
+        restoreRowID = focusCoordinator.lastFocusedSection(screen: focusScreenKey)
+        clearRestoreTask = Task {
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            guard !Task.isCancelled else { return }
+            restoreRowID = nil
         }
     }
 }

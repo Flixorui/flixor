@@ -1338,10 +1338,28 @@ struct TMDBVideosResult: Codable {
 }
 
 struct TMDBVideoItem: Codable {
+    let id: String?
     let key: String?
     let site: String?
     let type: String?
     let name: String?
+    let official: Bool?
+    let published_at: String?
+}
+
+struct TrailerResolverResponse: Codable {
+    let url: String?
+    let error: String?
+    let title: String?
+    let year: String?
+    let source: String?
+    let cached: Bool?
+    let timestamp: String?
+}
+
+struct TMDBVideoFetchResult {
+    let response: TMDBVideosResponse
+    let usedLanguageFallback: Bool
 }
 
 struct EmptyRatings: Codable {
@@ -1546,12 +1564,71 @@ extension APIClient {
         return try await get("/api/tmdb/\(mediaType)/\(id)/videos")
     }
 
+    func getTMDBVideosPreferringEnglish(mediaType: String, id: String) async throws -> TMDBVideoFetchResult {
+        let preferred = try await getTMDBVideos(mediaType: mediaType, id: id)
+        if preferred.results.contains(where: Self.hasPlayableYouTubeVideo(_:)) {
+            return TMDBVideoFetchResult(response: preferred, usedLanguageFallback: false)
+        }
+
+        guard let numericID = Int(id) else {
+            return TMDBVideoFetchResult(response: preferred, usedLanguageFallback: false)
+        }
+
+        let fallback: TMDBVideosResponse
+        switch mediaType {
+        case "movie":
+            fallback = try await FlixorCore.shared.tmdb.getMovieVideosAllLanguages(id: numericID)
+        case "tv":
+            fallback = try await FlixorCore.shared.tmdb.getTVVideosAllLanguages(id: numericID)
+        default:
+            return TMDBVideoFetchResult(response: preferred, usedLanguageFallback: false)
+        }
+
+        return TMDBVideoFetchResult(response: fallback, usedLanguageFallback: true)
+    }
+
+    func resolvePreviewTrailerPlayback(youtubeURL: URL, title: String?, year: Int?) async throws -> TrailerResolverResponse {
+        var components = URLComponents(string: "https://trailer2.nuvioapp.space/trailer")
+        components?.queryItems = [
+            URLQueryItem(name: "youtube_url", value: youtubeURL.absoluteString),
+            URLQueryItem(name: "title", value: title?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty),
+            URLQueryItem(name: "year", value: year.map(String.init))
+        ].compactMap { item in
+            guard let value = item.value, !value.isEmpty else { return nil }
+            return item
+        }
+
+        guard let url = components?.url else {
+            throw APIError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 20
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        request.setValue("Mozilla/5.0 (Apple TV; FlixorTV)", forHTTPHeaderField: "User-Agent")
+
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw APIError.serverError("Invalid trailer resolver response")
+        }
+        guard (200 ... 299).contains(http.statusCode) else {
+            throw APIError.serverError("Trailer resolver HTTP \(http.statusCode)")
+        }
+
+        return try JSONDecoder().decode(TrailerResolverResponse.self, from: data)
+    }
+
     /// Get images (logos, backdrops, posters) for a movie or TV show
     /// - Parameters:
     ///   - mediaType: "movie" or "tv"
     ///   - id: TMDB ID
     func getTMDBImages(mediaType: String, id: String) async throws -> TMDBImagesResponse {
         return try await get("/api/tmdb/\(mediaType)/\(id)/images")
+    }
+
+    private static func hasPlayableYouTubeVideo(_ video: TMDBVideo) -> Bool {
+        (video.site?.lowercased() ?? "") == "youtube" && !(video.key?.isEmpty ?? true)
     }
 
     /// Search for a person on TMDB by name
@@ -1946,5 +2023,11 @@ extension APIClient {
         }
 
         fatalError("Failed to map Plex media item to MediaItemFull")
+    }
+}
+
+private extension String {
+    var nilIfEmpty: String? {
+        isEmpty ? nil : self
     }
 }

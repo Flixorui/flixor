@@ -4,8 +4,12 @@ import FlixorKit
 struct TVDetailsInfoGrid: View {
     @ObservedObject var vm: TVDetailsViewModel
     var focusNS: Namespace.ID
+    let focusScreenKey: String
+    let focusRestoreToken: UUID
+    let shouldRestoreFocus: Bool
     var onFocusChange: ((Bool) -> Void)?
     @EnvironmentObject private var profileSettings: TVProfileSettings
+    @EnvironmentObject private var focusCoordinator: TVFocusCoordinator
     @State private var isFocused: Bool = false
     @State private var selectedModal: DetailsSectionModalType?
     @State private var lastFocusedSection: FocusableDetailsSection = .about
@@ -19,6 +23,31 @@ struct TVDetailsInfoGrid: View {
         case information
         case languages
         case technical
+
+        var storageID: String {
+            switch self {
+            case .about: return "about"
+            case .cast: return "cast"
+            case .production: return "production"
+            case .networks: return "networks"
+            case .information: return "information"
+            case .languages: return "languages"
+            case .technical: return "technical"
+            }
+        }
+
+        static func fromStorageID(_ value: String?) -> FocusableDetailsSection? {
+            switch value {
+            case "about": return .about
+            case "cast": return .cast
+            case "production": return .production
+            case "networks": return .networks
+            case "information": return .information
+            case "languages": return .languages
+            case "technical": return .technical
+            default: return nil
+            }
+        }
     }
 
     private enum DetailsSectionModalType: Identifiable {
@@ -99,7 +128,16 @@ struct TVDetailsInfoGrid: View {
             if !isFocused {
                 isFocused = true
             }
+            focusCoordinator.remember(screen: focusScreenKey, sectionID: "info", itemID: newValue.storageID)
             onFocusChange?(true)
+        }
+        .onAppear {
+            guard shouldRestoreFocus else { return }
+            restoreFocusedSection()
+        }
+        .onChange(of: focusRestoreToken) { _ in
+            guard shouldRestoreFocus else { return }
+            restoreFocusedSection()
         }
         .fullScreenCover(item: $selectedModal) { modalType in
             if let payload = modalPayload(for: modalType) {
@@ -780,6 +818,15 @@ struct TVDetailsInfoGrid: View {
         if value.contains("hdr10") { return "HDR10" }
         if value.contains("hdr") { return "HDR" }
         return nil
+    }
+
+    private func restoreFocusedSection() {
+        guard focusCoordinator.lastFocusedSection(screen: focusScreenKey) == "info" else { return }
+        let storedItemID = focusCoordinator.lastFocusedItem(screen: focusScreenKey, sectionID: "info")
+        guard let section = FocusableDetailsSection.fromStorageID(storedItemID) else { return }
+        DispatchQueue.main.async {
+            focusedSection = section
+        }
     }
 
     private func sectionCardBackground(cornerRadius: CGFloat, isFocused: Bool) -> some View {

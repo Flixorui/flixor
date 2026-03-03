@@ -9,6 +9,22 @@
 /* Begin PBXBuildFile section */
 		0679A76C481F15A9BF35F024 /* FlixorTVApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8027AFA9FD3E569E95633108 /* FlixorTVApp.swift */; };
 		166900FDEA45E53E3F084304 /* TVSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C54BA4F810D1021F4D3F6B5D /* TVSettingsView.swift */; };
+		A20000000000000000000111 /* TVAppearanceTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000011 /* TVAppearanceTypes.swift */; };
+		A20000000000000000000112 /* TVThemePalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000012 /* TVThemePalette.swift */; };
+		A20000000000000000000113 /* TVTypography.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000013 /* TVTypography.swift */; };
+		A20000000000000000000114 /* TVThemeEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000014 /* TVThemeEnvironment.swift */; };
+		A20000000000000000000121 /* TVSettingsMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000021 /* TVSettingsMigration.swift */; };
+		A20000000000000000000122 /* TVLayoutSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000022 /* TVLayoutSettingsView.swift */; };
+		A20000000000000000000123 /* TVThemeSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000023 /* TVThemeSettingsView.swift */; };
+		A20000000000000000000131 /* InterVariable.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000031 /* InterVariable.ttf */; };
+		A20000000000000000000132 /* OpenSansVariable.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000032 /* OpenSansVariable.ttf */; };
+		A20000000000000000000133 /* DMSansVariable.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000033 /* DMSansVariable.ttf */; };
+		A30000000000000000000111 /* TVFocusMemory.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000011 /* TVFocusMemory.swift */; };
+		A30000000000000000000112 /* TVScrollAlignment.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000012 /* TVScrollAlignment.swift */; };
+		A30000000000000000000113 /* TVFocusCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000013 /* TVFocusCoordinator.swift */; };
+		A30000000000000000000121 /* TVHomeSectionModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000021 /* TVHomeSectionModels.swift */; };
+		A30000000000000000000122 /* TVBrowseFeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000022 /* TVBrowseFeedView.swift */; };
+		A30000000000000000000123 /* TVContinueWatchingRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000023 /* TVContinueWatchingRow.swift */; };
 		1A1C1D1E1F20000100010001 /* TVDetailsTabsBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1C1D1E1F20000100010000 /* TVDetailsTabsBar.swift */; };
 		1A1C1D1E1F20000300010001 /* TVMetaPill.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1C1D1E1F20000300010000 /* TVMetaPill.swift */; };
 		1A1C1D1E1F20000500010001 /* TVRatingsStrip.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A1C1D1E1F20000500010000 /* TVRatingsStrip.swift */; };
@@ -65,6 +81,8 @@
 		B20000000000000000000007 /* TVNewPopularView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000017 /* TVNewPopularView.swift */; };
 		B20000000000000000000008 /* TVNewPopularViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000018 /* TVNewPopularViewModel.swift */; };
 		B20000000000000000000009 /* TVNewPopularHero.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000019 /* TVNewPopularHero.swift */; };
+		C20000000000000000000001 /* TVErrorFeedback.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000011 /* TVErrorFeedback.swift */; };
+		C20000000000000000000002 /* TVSearchTextField.swift in Sources */ = {isa = PBXBuildFile; fileRef = C20000000000000000000012 /* TVSearchTextField.swift */; };
 		C0600A369C9BB3EC7F66B320 /* UniversalPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C03CCA45295916815C223056 /* UniversalPlayerView.swift */; };
 		C196CA26AB88809CD97F25B1 /* TVHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4374B38CC057026BF7C73418 /* TVHomeView.swift */; };
 		C898CFC0A58E2042F32B5DF6 /* TVCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA640CCCC115D09CBAF9F0B3 /* TVCards.swift */; };
@@ -121,6 +139,22 @@
 		A1000000000000000000001C /* ImageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageService.swift; sourceTree = "<group>"; };
 		A1000000000000000000001D /* CachedAsyncImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CachedAsyncImage.swift; sourceTree = "<group>"; };
 		A13E40EFDCF43AA806E198BC /* TVDetailsViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TVDetailsViewModel.swift; sourceTree = "<group>"; };
+		A20000000000000000000011 /* TVAppearanceTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVAppearanceTypes.swift; sourceTree = "<group>"; };
+		A20000000000000000000012 /* TVThemePalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVThemePalette.swift; sourceTree = "<group>"; };
+		A20000000000000000000013 /* TVTypography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVTypography.swift; sourceTree = "<group>"; };
+		A20000000000000000000014 /* TVThemeEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVThemeEnvironment.swift; sourceTree = "<group>"; };
+		A20000000000000000000021 /* TVSettingsMigration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVSettingsMigration.swift; sourceTree = "<group>"; };
+		A20000000000000000000022 /* TVLayoutSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVLayoutSettingsView.swift; sourceTree = "<group>"; };
+		A20000000000000000000023 /* TVThemeSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVThemeSettingsView.swift; sourceTree = "<group>"; };
+		A20000000000000000000031 /* InterVariable.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = InterVariable.ttf; sourceTree = "<group>"; };
+		A20000000000000000000032 /* OpenSansVariable.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = OpenSansVariable.ttf; sourceTree = "<group>"; };
+		A20000000000000000000033 /* DMSansVariable.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = DMSansVariable.ttf; sourceTree = "<group>"; };
+		A30000000000000000000011 /* TVFocusMemory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVFocusMemory.swift; sourceTree = "<group>"; };
+		A30000000000000000000012 /* TVScrollAlignment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVScrollAlignment.swift; sourceTree = "<group>"; };
+		A30000000000000000000013 /* TVFocusCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVFocusCoordinator.swift; sourceTree = "<group>"; };
+		A30000000000000000000021 /* TVHomeSectionModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVHomeSectionModels.swift; sourceTree = "<group>"; };
+		A30000000000000000000022 /* TVBrowseFeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVBrowseFeedView.swift; sourceTree = "<group>"; };
+		A30000000000000000000023 /* TVContinueWatchingRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVContinueWatchingRow.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60718293A4B5C /* TVHeroCarouselView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVHeroCarouselView.swift; sourceTree = "<group>"; };
 		A409FFB5441617D6FD5F3F05 /* FlixorTV.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = FlixorTV.xcodeproj; sourceTree = "<group>"; };
 		A4B42D166FB2D68A1B927884 /* FlixorTV.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FlixorTV.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -136,6 +170,8 @@
 		B20000000000000000000019 /* TVNewPopularHero.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVNewPopularHero.swift; sourceTree = "<group>"; };
 		B34545FBF16E94C672651FBD /* TVBillboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVBillboardView.swift; sourceTree = "<group>"; };
 		BC7A3AEB169E727C4394EC77 /* PlayerSettings.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlayerSettings.swift; sourceTree = "<group>"; };
+		C20000000000000000000011 /* TVErrorFeedback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVErrorFeedback.swift; sourceTree = "<group>"; };
+		C20000000000000000000012 /* TVSearchTextField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVSearchTextField.swift; sourceTree = "<group>"; };
 		C0092F3794E12E5F2884741E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		C03CCA45295916815C223056 /* UniversalPlayerView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UniversalPlayerView.swift; sourceTree = "<group>"; };
 		C1363F127165B6A9AC55441C /* TVAuthLinkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVAuthLinkView.swift; sourceTree = "<group>"; };
@@ -212,6 +248,8 @@
 			children = (
 				4374B38CC057026BF7C73418 /* TVHomeView.swift */,
 				5D982341DFFB7A5B14F7E7E8 /* TVHomeViewModel.swift */,
+				A30000000000000000000021 /* TVHomeSectionModels.swift */,
+				A30000000000000000000022 /* TVBrowseFeedView.swift */,
 				6064B880701151CB9EC397B4 /* Components */,
 			);
 			path = Home;
@@ -230,6 +268,9 @@
 		4A6C3FDAE7A35DBF8E50211B /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				A20000000000000000000021 /* TVSettingsMigration.swift */,
+				A20000000000000000000022 /* TVLayoutSettingsView.swift */,
+				A20000000000000000000023 /* TVThemeSettingsView.swift */,
 				C54BA4F810D1021F4D3F6B5D /* TVSettingsView.swift */,
 			);
 			path = Settings;
@@ -253,11 +294,22 @@
 				A1B2C3D4E5F60718293A4B5C /* TVHeroCarouselView.swift */,
 				CA640CCCC115D09CBAF9F0B3 /* TVCards.swift */,
 				6A7E3CFE272780A78553EA7A /* TVCarouselRow.swift */,
+				A30000000000000000000023 /* TVContinueWatchingRow.swift */,
 				56116A558CCA485F8D0934B0 /* UltraBlurGradientBackground.swift */,
 				3C3D3E3F3F40000100010000 /* Skeletons.swift */,
 				4D4E4F4F4F50000100010000 /* Shimmer.swift */,
 			);
 			path = Components;
+			sourceTree = "<group>";
+		};
+		A30000000000000000000040 /* Focus */ = {
+			isa = PBXGroup;
+			children = (
+				A30000000000000000000011 /* TVFocusMemory.swift */,
+				A30000000000000000000012 /* TVScrollAlignment.swift */,
+				A30000000000000000000013 /* TVFocusCoordinator.swift */,
+			);
+			path = Focus;
 			sourceTree = "<group>";
 		};
 		6F3094E809818D91315D926B = {
@@ -273,8 +325,30 @@
 			isa = PBXGroup;
 			children = (
 				8D507523162726478CEECCED /* DesignTokens.swift */,
+				A20000000000000000000011 /* TVAppearanceTypes.swift */,
+				A20000000000000000000012 /* TVThemePalette.swift */,
+				A20000000000000000000013 /* TVTypography.swift */,
+				A20000000000000000000014 /* TVThemeEnvironment.swift */,
 			);
 			path = Theme;
+			sourceTree = "<group>";
+		};
+		A20000000000000000000040 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				A20000000000000000000041 /* Fonts */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		A20000000000000000000041 /* Fonts */ = {
+			isa = PBXGroup;
+			children = (
+				A20000000000000000000031 /* InterVariable.ttf */,
+				A20000000000000000000032 /* OpenSansVariable.ttf */,
+				A20000000000000000000033 /* DMSansVariable.ttf */,
+			);
+			path = Fonts;
 			sourceTree = "<group>";
 		};
 		86D9C76A8E562862682EE298 /* FlixorTV */ = {
@@ -285,6 +359,8 @@
 				6D6DB6CA3ABEE2740792235F /* Info.plist */,
 				4DE18658CB336B32CB53030A /* App */,
 				85C3A10F3B32F5AFB1E035D7 /* Theme */,
+				A30000000000000000000040 /* Focus */,
+				A20000000000000000000040 /* Resources */,
 				B20000000000000000000021 /* ViewModels */,
 				A51518E1F7DB644AD3CC6409 /* Views */,
 				8F8F8F8F8F90000100010000 /* Services */,
@@ -353,6 +429,7 @@
 			isa = PBXGroup;
 			children = (
 				A1000000000000000000001D /* CachedAsyncImage.swift */,
+				C20000000000000000000011 /* TVErrorFeedback.swift */,
 				B20000000000000000000012 /* TVFocusSurfaceStyle.swift */,
 			);
 			path = Common;
@@ -408,6 +485,7 @@
 			children = (
 				B20000000000000000000015 /* TVSearchView.swift */,
 				B20000000000000000000016 /* TVSearchViewModel.swift */,
+				C20000000000000000000012 /* TVSearchTextField.swift */,
 			);
 			path = Search;
 			sourceTree = "<group>";
@@ -520,6 +598,9 @@
 			files = (
 				48E547380669970236CE69C3 /* Assets.xcassets in Resources */,
 				746BB5FF893361C86CA89E82 /* FlixorTV.xcodeproj in Resources */,
+				A20000000000000000000131 /* InterVariable.ttf in Resources */,
+				A20000000000000000000132 /* OpenSansVariable.ttf in Resources */,
+				A20000000000000000000133 /* DMSansVariable.ttf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -532,6 +613,13 @@
 			files = (
 				4B1DF129332C935C8FB472B3 /* AppState.swift in Sources */,
 				380772CD32E04768C780512E /* DesignTokens.swift in Sources */,
+				A20000000000000000000111 /* TVAppearanceTypes.swift in Sources */,
+				A20000000000000000000112 /* TVThemePalette.swift in Sources */,
+				A20000000000000000000113 /* TVTypography.swift in Sources */,
+				A20000000000000000000114 /* TVThemeEnvironment.swift in Sources */,
+				A30000000000000000000111 /* TVFocusMemory.swift in Sources */,
+				A30000000000000000000112 /* TVScrollAlignment.swift in Sources */,
+				A30000000000000000000113 /* TVFocusCoordinator.swift in Sources */,
 				0679A76C481F15A9BF35F024 /* FlixorTVApp.swift in Sources */,
 				9CC843FD21FC20E2A688504A /* MainTVView.swift in Sources */,
 				8E44EC6D1A85EE59AFA2FB5D /* TVAuthLinkView.swift in Sources */,
@@ -539,9 +627,12 @@
 				A1B2C3D4E5F60718293A4B5D /* TVHeroCarouselView.swift in Sources */,
 				C898CFC0A58E2042F32B5DF6 /* TVCards.swift in Sources */,
 				7322C892CD5A6930B58C307D /* TVCarouselRow.swift in Sources */,
+				A30000000000000000000123 /* TVContinueWatchingRow.swift in Sources */,
 				E089E4E7EB1F43D781D42DD2 /* UltraBlurGradientBackground.swift in Sources */,
 				C196CA26AB88809CD97F25B1 /* TVHomeView.swift in Sources */,
 				9BAB0C88EAA3E53BFF894AF1 /* TVHomeViewModel.swift in Sources */,
+				A30000000000000000000121 /* TVHomeSectionModels.swift in Sources */,
+				A30000000000000000000122 /* TVBrowseFeedView.swift in Sources */,
 				B20000000000000000000003 /* TVMyListView.swift in Sources */,
 				B20000000000000000000004 /* TVMyListViewModel.swift in Sources */,
 				B20000000000000000000005 /* TVSearchView.swift in Sources */,
@@ -549,6 +640,9 @@
 				B20000000000000000000007 /* TVNewPopularView.swift in Sources */,
 				B20000000000000000000008 /* TVNewPopularViewModel.swift in Sources */,
 				B20000000000000000000009 /* TVNewPopularHero.swift in Sources */,
+				A20000000000000000000121 /* TVSettingsMigration.swift in Sources */,
+				A20000000000000000000122 /* TVLayoutSettingsView.swift in Sources */,
+				A20000000000000000000123 /* TVThemeSettingsView.swift in Sources */,
 				166900FDEA45E53E3F084304 /* TVSettingsView.swift in Sources */,
 				7486665C9ADAC92EA84E04C0 /* TopNavBar.swift in Sources */,
 				802912855B2E25460FBFF4EC /* TVDetailsViewModel.swift in Sources */,
@@ -593,7 +687,9 @@
 				1E81C2A91B881B4AEA6F9B91 /* PlayerView.swift in Sources */,
 				C0600A369C9BB3EC7F66B320 /* UniversalPlayerView.swift in Sources */,
 				A1000000000000000000000E /* CachedAsyncImage.swift in Sources */,
+				C20000000000000000000001 /* TVErrorFeedback.swift in Sources */,
 				B20000000000000000000002 /* TVFocusSurfaceStyle.swift in Sources */,
+				C20000000000000000000002 /* TVSearchTextField.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

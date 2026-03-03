@@ -3,58 +3,132 @@ import SwiftUI
 struct TVEpisodesRail: View {
     @ObservedObject var vm: TVDetailsViewModel
     var focusNS: Namespace.ID
+    let focusScreenKey: String
+    let focusRestoreToken: UUID
+    let shouldRestoreFocus: Bool
+    var onFocusChange: ((Bool) -> Void)?
+
+    @EnvironmentObject private var profileSettings: TVProfileSettings
+    @EnvironmentObject private var focusCoordinator: TVFocusCoordinator
+
+    @FocusState private var focusedSeasonID: String?
+    @FocusState private var focusedEpisodeID: String?
 
     var body: some View {
-        if vm.episodesLoading {
-            HStack {
-                ProgressView().progressViewStyle(.circular).tint(.white)
-                Text("Loading episodes…")
-                    .font(.callout)
-                    .foregroundStyle(.white.opacity(0.8))
-            }
-            .padding(.horizontal, 80)
-        } else if vm.episodes.isEmpty {
-            Text("No episodes available")
-                .font(.title3.weight(.medium))
-                .foregroundStyle(.white.opacity(0.7))
-                .padding(.horizontal, 80)
-        } else {
-            HStack(alignment: .top, spacing: 48) {
-                if !vm.isSeason && !vm.seasons.isEmpty {
-                    SeasonSidebar(vm: vm)
-                        .frame(width: 320, alignment: .topLeading)
+        Group {
+            if vm.episodesLoading {
+                HStack {
+                    ProgressView().progressViewStyle(.circular).tint(.white)
+                    Text("Loading episodes…")
+                        .font(.callout)
+                        .foregroundStyle(.white.opacity(0.8))
                 }
+                .padding(.horizontal, 80)
+            } else if vm.episodes.isEmpty {
+                Text("No episodes available")
+                    .font(.title3.weight(.medium))
+                    .foregroundStyle(.white.opacity(0.7))
+                    .padding(.horizontal, 80)
+            } else {
+                HStack(alignment: .top, spacing: 48) {
+                    if !vm.isSeason && !vm.seasons.isEmpty {
+                        SeasonSidebar(
+                            vm: vm,
+                            focusedSeasonID: $focusedSeasonID,
+                            onFocusChange: onFocusChange
+                        )
+                        .frame(width: 320, alignment: .topLeading)
+                    }
 
-                EpisodeList(vm: vm, focusNS: focusNS)
-            }
-            .padding(.horizontal, 80)
-            .padding(.vertical, 32)
-            .background(
-                LinearGradient(
-                    colors: [
-                        Color.white.opacity(0.05),
-                        Color.white.opacity(0.0)
-                    ],
-                    startPoint: .leading,
-                    endPoint: .trailing
+                    EpisodeList(
+                        vm: vm,
+                        focusNS: focusNS,
+                        focusedEpisodeID: $focusedEpisodeID,
+                        onFocusChange: onFocusChange
+                    )
+                }
+                .padding(.horizontal, 80)
+                .padding(.vertical, 32)
+                .background(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.05),
+                            Color.white.opacity(0.0)
+                        ],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                    .background(Color.black.opacity(0.35))
                 )
-                .background(Color.black.opacity(0.35))
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 32, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 32, style: .continuous)
-                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
-            )
-            .shadow(color: .black.opacity(0.35), radius: 26, y: 18)
-            .padding(.horizontal, 16)
+                .clipShape(RoundedRectangle(cornerRadius: 32, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 32, style: .continuous)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                )
+                .shadow(color: .black.opacity(0.35), radius: 26, y: 18)
+                .padding(.horizontal, 16)
+            }
+        }
+        .onAppear {
+            guard shouldRestoreFocus else { return }
+            restoreFocusIfNeeded()
+        }
+        .onChange(of: focusRestoreToken) { _ in
+            guard shouldRestoreFocus else { return }
+            restoreFocusIfNeeded()
+        }
+        .onChange(of: vm.episodes.map(\.id)) { _ in
+            guard shouldRestoreFocus || focusedSeasonID != nil || focusedEpisodeID != nil else { return }
+            restoreFocusIfNeeded()
+        }
+        .onChange(of: focusedEpisodeID) { newValue in
+            guard let newValue else { return }
+            focusCoordinator.remember(screen: focusScreenKey, sectionID: "episodes", itemID: newValue)
+            onFocusChange?(true)
+        }
+        .onChange(of: focusedSeasonID) { newValue in
+            guard let newValue else { return }
+            focusCoordinator.remember(screen: focusScreenKey, sectionID: "season", itemID: newValue)
+            onFocusChange?(true)
+        }
+    }
+
+    private func restoreFocusIfNeeded() {
+        let rememberedSection = focusCoordinator.lastFocusedSection(screen: focusScreenKey)
+        if rememberedSection == "season",
+           let rememberedSeasonID = focusCoordinator.lastFocusedItem(screen: focusScreenKey, sectionID: "season"),
+           vm.seasons.contains(where: { $0.id == rememberedSeasonID }) {
+            DispatchQueue.main.async {
+                focusedSeasonID = rememberedSeasonID
+            }
+            return
+        }
+
+        guard !vm.episodes.isEmpty else { return }
+        let rememberedEpisodeID = focusCoordinator.lastFocusedItem(screen: focusScreenKey, sectionID: "episodes")
+        if let rememberedEpisodeID,
+           vm.episodes.contains(where: { $0.id == rememberedEpisodeID }) {
+            DispatchQueue.main.async {
+                focusedEpisodeID = rememberedEpisodeID
+            }
+            return
+        }
+
+        if let focusedEpisodeID,
+           vm.episodes.contains(where: { $0.id == focusedEpisodeID }) {
+            return
+        }
+
+        DispatchQueue.main.async {
+            focusedEpisodeID = vm.episodes.first?.id
         }
     }
 }
 
-// MARK: - Season Sidebar
-
 private struct SeasonSidebar: View {
     @ObservedObject var vm: TVDetailsViewModel
+    var focusedSeasonID: FocusState<String?>.Binding
+    var onFocusChange: ((Bool) -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -67,9 +141,11 @@ private struct SeasonSidebar: View {
                 SeasonRow(
                     season: season,
                     isSelected: vm.selectedSeasonKey == season.id,
+                    focusedSeasonID: focusedSeasonID,
                     onSelect: {
                         Task { await vm.selectSeason(season.id) }
-                    }
+                    },
+                    onFocusChange: onFocusChange
                 )
             }
         }
@@ -79,7 +155,10 @@ private struct SeasonSidebar: View {
 private struct SeasonRow: View {
     let season: TVDetailsViewModel.Season
     let isSelected: Bool
+    var focusedSeasonID: FocusState<String?>.Binding
     let onSelect: () -> Void
+    var onFocusChange: ((Bool) -> Void)?
+
     @State private var isFocused = false
 
     private var backgroundColor: Color {
@@ -108,10 +187,14 @@ private struct SeasonRow: View {
         )
         .focusable(true) { focus in
             isFocused = focus
-            if focus && !isSelected {
-                onSelect()
+            if focus {
+                onFocusChange?(true)
+                if !isSelected {
+                    onSelect()
+                }
             }
         }
+        .focused(focusedSeasonID, equals: season.id)
         .onTapGesture {
             if !isSelected { onSelect() }
         }
@@ -130,11 +213,11 @@ private struct SeasonRow: View {
     }
 }
 
-// MARK: - Episode List
-
 private struct EpisodeList: View {
     @ObservedObject var vm: TVDetailsViewModel
     var focusNS: Namespace.ID
+    var focusedEpisodeID: FocusState<String?>.Binding
+    var onFocusChange: ((Bool) -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
@@ -148,7 +231,9 @@ private struct EpisodeList: View {
                     index: index + 1,
                     episode: episode,
                     isDefault: index == 0,
-                    focusNS: focusNS
+                    focusNS: focusNS,
+                    focusedEpisodeID: focusedEpisodeID,
+                    onFocusChange: onFocusChange
                 )
             }
         }
@@ -172,8 +257,15 @@ private struct EpisodeRow: View {
     let episode: TVDetailsViewModel.Episode
     let isDefault: Bool
     var focusNS: Namespace.ID
+    var focusedEpisodeID: FocusState<String?>.Binding
+    var onFocusChange: ((Bool) -> Void)?
 
+    @EnvironmentObject private var profileSettings: TVProfileSettings
     @State private var isFocused = false
+
+    private var shouldBlur: Bool {
+        profileSettings.blurUnwatchedEpisodes && !episode.isWatched && episode.viewOffset == nil
+    }
 
     var body: some View {
         HStack(spacing: 26) {
@@ -224,11 +316,18 @@ private struct EpisodeRow: View {
             RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .stroke(Color.white.opacity(isFocused ? 0.55 : 0.08), lineWidth: isFocused ? 3 : 1)
         )
+        .opacity(shouldBlur && !isFocused ? 0.68 : 1.0)
+        .scaleEffect(isFocused ? 1.01 : 1.0)
         .focusable(true) { focus in
             isFocused = focus
+            if focus {
+                onFocusChange?(true)
+            }
         }
+        .focused(focusedEpisodeID, equals: episode.id)
         .prefersDefaultFocus(isDefault, in: focusNS)
         .animation(.easeOut(duration: UX.focusDur), value: isFocused)
+        .animation(.easeOut(duration: 0.2), value: shouldBlur)
     }
 
     private func runtimeText(for minutes: Int) -> String {

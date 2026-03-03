@@ -11,6 +11,8 @@ struct TVLibraryFilterBar: View {
     @ObservedObject var viewModel: TVLibraryViewModel
     let showSectionPills: Bool
 
+    @Environment(\.tvThemePalette) private var theme
+    @Environment(\.tvTypography) private var typography
     @Namespace private var filterNS
 
     @State private var showGenrePicker = false
@@ -44,14 +46,18 @@ struct TVLibraryFilterBar: View {
             HStack(spacing: 16) {
                 HStack(spacing: 8) {
                     Image(systemName: "magnifyingglass")
-                        .foregroundStyle(.white.opacity(0.6))
+                        .foregroundStyle(theme.textTertiary)
                     TextField("Search library", text: $viewModel.searchQuery)
                         .textFieldStyle(.plain)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(theme.textPrimary)
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
-                .background(Color.white.opacity(0.10), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .background(theme.backgroundCard, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(theme.strokeDefault, lineWidth: 1)
+                )
                 .frame(width: 360)
 
                 // Genre filter
@@ -156,11 +162,13 @@ private struct SectionPill: View {
     let section: TVLibraryViewModel.LibrarySectionSummary
     let isActive: Bool
 
+    @Environment(\.tvThemePalette) private var theme
+    @Environment(\.tvTypography) private var typography
     @State private var isFocused: Bool = false
 
     var body: some View {
         Text(section.title.uppercased())
-            .font(.system(size: 22, weight: .semibold))
+            .font(typography.custom(size: 22, weight: .semibold))
             .kerning(1.2)
             .foregroundStyle(textColor)
             .padding(.horizontal, 24)
@@ -183,19 +191,19 @@ private struct SectionPill: View {
 
     private var textColor: Color {
         if isActive {
-            return .black
+            return theme.background
         } else {
-            return .white.opacity(isFocused ? 1.0 : 0.9)
+            return isFocused ? theme.textPrimary : theme.textSecondary
         }
     }
 
     private var backgroundColor: Color {
         if isActive {
-            return .white
+            return theme.accent
         } else if isFocused {
-            return Color.white.opacity(0.35)
+            return theme.focusFill
         } else {
-            return Color.white.opacity(0.10)
+            return theme.surfaceMuted
         }
     }
 
@@ -203,9 +211,9 @@ private struct SectionPill: View {
         if isActive {
             return .clear
         } else if isFocused {
-            return Color.white.opacity(0.5)
+            return theme.strokeFocused
         } else {
-            return Color.white.opacity(0.2)
+            return theme.strokeDefault
         }
     }
 
@@ -226,17 +234,19 @@ private struct FilterButton: View {
     let title: String
     let value: String?
 
+    @Environment(\.tvThemePalette) private var theme
+    @Environment(\.tvTypography) private var typography
     @State private var isFocused: Bool = false
 
     var body: some View {
         HStack(spacing: 8) {
             Text(title)
-                .font(.system(size: 18, weight: .medium))
+                .font(typography.body)
                 .foregroundStyle(titleColor)
 
             if let value = value {
                 Text(value)
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(typography.label)
                     .foregroundStyle(valueColor)
             }
         }
@@ -259,23 +269,23 @@ private struct FilterButton: View {
     }
 
     private var backgroundColor: Color {
-        isFocused ? Color.white.opacity(0.30) : Color.white.opacity(0.10)
+        isFocused ? theme.focusFill : theme.backgroundCard
     }
 
     private var strokeColor: Color {
-        isFocused ? Color.white.opacity(0.4) : Color.clear
+        isFocused ? theme.strokeFocused : theme.strokeDefault
     }
 
     private var strokeWidth: CGFloat {
-        isFocused ? 2 : 0
+        isFocused ? 2 : 1
     }
 
     private var titleColor: Color {
-        isFocused ? Color.white.opacity(0.85) : Color.white.opacity(0.6)
+        isFocused ? theme.textSecondary : theme.textTertiary
     }
 
     private var valueColor: Color {
-        isFocused ? Color.white : Color.white.opacity(0.9)
+        isFocused ? theme.textPrimary : theme.textSecondary
     }
 }
 

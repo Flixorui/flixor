@@ -9,8 +9,8 @@ private enum TVSettingsCategory: String, CaseIterable, Identifiable {
     case rowsSettings
     case sidebar
     case search
-    case homeScreen
-    case detailsScreen
+    case layout
+    case theme
     case tmdb
     case mdblist
     case overseerr
@@ -29,8 +29,8 @@ private enum TVSettingsCategory: String, CaseIterable, Identifiable {
         case .rowsSettings: return "Rows Settings"
         case .sidebar: return "Sidebar"
         case .search: return "Search"
-        case .homeScreen: return "Home Screen"
-        case .detailsScreen: return "Details Screen"
+        case .layout: return "Layout"
+        case .theme: return "Theme"
         case .tmdb: return "TMDB"
         case .mdblist: return "MDBList"
         case .overseerr: return "Overseerr"
@@ -49,8 +49,8 @@ private enum TVSettingsCategory: String, CaseIterable, Identifiable {
         case .rowsSettings: return "Home rows and row-level behavior"
         case .sidebar: return "Sidebar destinations and visibility"
         case .search: return "Search provider behavior"
-        case .homeScreen: return "Hero and card presentation"
-        case .detailsScreen: return "Details metadata display"
+        case .layout: return "Nuvio-style home, details, and poster layout controls"
+        case .theme: return "Accent palette and font family customization"
         case .tmdb: return "TMDB metadata configuration"
         case .mdblist: return "Multi-source rating integration"
         case .overseerr: return "Request management integration"
@@ -69,8 +69,8 @@ private enum TVSettingsCategory: String, CaseIterable, Identifiable {
         case .rowsSettings: return "square.grid.3x1.below.line.grid.1x2"
         case .sidebar: return "sidebar.left"
         case .search: return "magnifyingglass"
-        case .homeScreen: return "house"
-        case .detailsScreen: return "play.rectangle"
+        case .layout: return "square.grid.2x2"
+        case .theme: return "paintpalette"
         case .tmdb: return "film"
         case .mdblist: return "star"
         case .overseerr: return "arrow.down.circle"
@@ -100,8 +100,8 @@ private enum TVSettingsCategory: String, CaseIterable, Identifiable {
         case .rowsSettings: return .cyan
         case .sidebar: return .mint
         case .search: return .indigo
-        case .homeScreen: return .teal
-        case .detailsScreen: return Color(hex: "5A6CF3")
+        case .layout: return Color(hex: "2DD4BF")
+        case .theme: return Color(hex: "F97316")
         case .tmdb: return Color(hex: "01B4E4")
         case .mdblist: return Color(hex: "F5C518")
         case .overseerr: return Color(hex: "6366F1")
@@ -122,7 +122,7 @@ private struct TVSettingsSidebarSection: Identifiable {
             TVSettingsSidebarSection(title: "Account", categories: [.plex]),
             TVSettingsSidebarSection(title: "Playback", categories: [.player]),
             TVSettingsSidebarSection(title: "Content", categories: [.discoveryMode, .catalogs, .rowsSettings, .sidebar, .search]),
-            TVSettingsSidebarSection(title: "Appearance", categories: [.homeScreen, .detailsScreen]),
+            TVSettingsSidebarSection(title: "Appearance", categories: [.layout, .theme]),
             TVSettingsSidebarSection(title: "Integrations", categories: [.tmdb, .mdblist, .overseerr, .trakt]),
             TVSettingsSidebarSection(title: "System", categories: [.advanced, .about])
         ]
@@ -148,7 +148,7 @@ private enum TVSettingsParityState {
     }
 }
 
-private struct TVSettingsChoice<Value: Hashable>: Identifiable {
+struct TVSettingsChoice<Value: Hashable>: Identifiable {
     let value: Value
     let label: String
     var id: String { "\(label)-\(String(describing: value))" }
@@ -159,6 +159,8 @@ struct TVSettingsView: View {
     @EnvironmentObject private var session: SessionManager
     @EnvironmentObject private var appState: AppState
     @EnvironmentObject private var profileSettings: TVProfileSettings
+    @Environment(\.tvThemePalette) private var theme
+    @Environment(\.tvTypography) private var typography
 
     @State private var selectedCategory: TVSettingsCategory = .plex
 
@@ -222,7 +224,7 @@ struct TVSettingsView: View {
     var body: some View {
         ZStack {
             LinearGradient(
-                colors: [Color.black, Color(hex: "1a0d0a"), Color(hex: "111827")],
+                colors: [theme.background, theme.backgroundElevated, theme.backgroundCard],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
@@ -260,12 +262,12 @@ struct TVSettingsView: View {
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Settings")
-                .font(.system(size: 46, weight: .bold))
-                .foregroundStyle(.white)
+                .font(typography.settingsHeader)
+                .foregroundStyle(theme.textPrimary)
 
-            Text("macOS parity audit + tvOS controls")
-                .font(.system(size: 17, weight: .medium))
-                .foregroundStyle(.white.opacity(0.65))
+            Text("Nuvio-inspired tvOS layout and theme controls")
+                .font(typography.meta)
+                .foregroundStyle(theme.textTertiary)
 
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 14) {
@@ -273,7 +275,7 @@ struct TVSettingsView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             Text(section.title.uppercased())
                                 .font(.system(size: 12, weight: .bold))
-                                .foregroundStyle(.white.opacity(0.45))
+                                .foregroundStyle(theme.textTertiary)
                                 .padding(.leading, 8)
 
                             VStack(spacing: 6) {
@@ -295,7 +297,7 @@ struct TVSettingsView: View {
                 .fill(.ultraThinMaterial)
                 .overlay(
                     RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                        .stroke(theme.strokeDefault, lineWidth: 1)
                 )
         )
         .focusSection()
@@ -313,8 +315,8 @@ struct TVSettingsView: View {
                 categoryIcon(category, size: 22)
 
                 Text(category.title)
-                    .font(.system(size: 22, weight: .semibold))
-                    .foregroundStyle((selected || focused) ? .white : .white.opacity(0.88))
+                    .font(typography.custom(size: 22, weight: .semibold))
+                    .foregroundStyle((selected || focused) ? theme.textPrimary : theme.textSecondary)
 
                 Spacer(minLength: 8)
 
@@ -328,19 +330,19 @@ struct TVSettingsView: View {
             .padding(.vertical, 11)
             .background(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(selected ? category.tint.opacity(0.26) : Color.white.opacity(0.05))
+                    .fill(selected ? category.tint.opacity(0.26) : theme.surfaceMuted)
                     .overlay(
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(selected ? category.tint.opacity(0.55) : Color.white.opacity(0.08), lineWidth: 1)
+                            .stroke(selected ? category.tint.opacity(0.55) : theme.strokeDefault, lineWidth: 1)
                     )
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(focused ? Color.white.opacity(0.72) : .clear, lineWidth: 2)
+                    .stroke(focused ? theme.strokeFocused : .clear, lineWidth: 2)
             )
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             .scaleEffect(focused ? 1.035 : 1.0)
-            .shadow(color: focused ? Color.white.opacity(0.18) : .clear, radius: 14, x: 0, y: 6)
+            .shadow(color: focused ? theme.focusFill : .clear, radius: 14, x: 0, y: 6)
             .animation(.easeOut(duration: 0.16), value: focused)
             .noSystemFocusChrome()
         }
@@ -366,8 +368,8 @@ struct TVSettingsView: View {
                 case .rowsSettings: rowsSection
                 case .sidebar: sidebarSettingsSection
                 case .search: searchSection
-                case .homeScreen: homeAppearanceSection
-                case .detailsScreen: detailsSection
+                case .layout: layoutSection
+                case .theme: themeSection
                 case .tmdb: tmdbSection
                 case .mdblist: mdblistSection
                 case .overseerr: overseerrSection
@@ -388,7 +390,7 @@ struct TVSettingsView: View {
                 .fill(.ultraThinMaterial)
                 .overlay(
                     RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                        .stroke(theme.strokeDefault, lineWidth: 1)
                 )
         )
         .focusSection()
@@ -406,8 +408,8 @@ struct TVSettingsView: View {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 10) {
                     Text(selectedCategory.title)
-                        .font(.system(size: 38, weight: .bold))
-                        .foregroundStyle(.white)
+                        .font(typography.title)
+                        .foregroundStyle(theme.textPrimary)
 
                     let parity = parityState(for: selectedCategory)
                     Text(parity.label)
@@ -419,8 +421,8 @@ struct TVSettingsView: View {
                 }
 
                 Text(selectedCategory.description)
-                    .font(.system(size: 20, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.72))
+                    .font(typography.body)
+                    .foregroundStyle(theme.textSecondary)
             }
 
             Spacer()
@@ -718,17 +720,6 @@ struct TVSettingsView: View {
                 TVSettingsToggleRow(title: "Show Hero Section", subtitle: "Display featured hero at top", isOn: $profileSettings.showHeroSection)
                 TVSettingsToggleRow(title: "Auto Rotate Hero", subtitle: "Rotate featured hero entries", isOn: $profileSettings.heroAutoRotate)
                     .disabled(!profileSettings.showHeroSection)
-
-                TVSettingsChoiceRow(
-                    title: "Hero Layout",
-                    subtitle: "Billboard or carousel mode",
-                    selection: $profileSettings.heroLayout,
-                    options: [
-                        TVSettingsChoice(value: "carousel", label: "Carousel"),
-                        TVSettingsChoice(value: "billboard", label: "Billboard")
-                    ]
-                )
-                .disabled(!profileSettings.showHeroSection)
             }
         }
     }
@@ -752,68 +743,25 @@ struct TVSettingsView: View {
                 isOn: $profileSettings.includeTmdbInSearch
             )
             .disabled(profileSettings.discoveryDisabled)
-        }
-    }
 
-    private var homeAppearanceSection: some View {
-        TVSettingsPanel(title: "Cards & Rails", subtitle: "Home and library presentation") {
-            TVSettingsChoiceRow(
-                title: "Continue Watching Layout",
-                subtitle: "Card style for Continue Watching row",
-                selection: $profileSettings.continueWatchingLayout,
-                options: [
-                    TVSettingsChoice(value: "poster", label: "Poster"),
-                    TVSettingsChoice(value: "landscape", label: "Landscape")
-                ]
-            )
-
-            TVSettingsChoiceRow(
-                title: "Default Row Layout",
-                subtitle: "Card style for general rows",
-                selection: $profileSettings.rowLayout,
-                options: [
-                    TVSettingsChoice(value: "poster", label: "Poster"),
-                    TVSettingsChoice(value: "landscape", label: "Landscape")
-                ]
-            )
-
-            TVSettingsToggleRow(title: "Show Poster Titles", subtitle: "Show title on focused posters", isOn: $profileSettings.showPosterTitles)
-            TVSettingsToggleRow(title: "Show Library Titles", subtitle: "Show title in library list/grid contexts", isOn: $profileSettings.showLibraryTitles)
-
-            TVSettingsChoiceRow(
-                title: "Poster Size",
-                subtitle: "Global poster density across rails and library",
-                selection: $profileSettings.posterSize,
-                options: [
-                    TVSettingsChoice(value: "small", label: "Small"),
-                    TVSettingsChoice(value: "medium", label: "Medium"),
-                    TVSettingsChoice(value: "large", label: "Large")
-                ]
-            )
-
-            TVSettingsChoiceRow(
-                title: "Poster Corner Radius",
-                subtitle: "Poster card corner rounding",
-                selection: $profileSettings.posterCornerRadius,
-                options: [
-                    TVSettingsChoice(value: "none", label: "None"),
-                    TVSettingsChoice(value: "small", label: "Small"),
-                    TVSettingsChoice(value: "medium", label: "Medium"),
-                    TVSettingsChoice(value: "large", label: "Large")
-                ]
+            TVSettingsToggleRow(
+                title: "Voice Input",
+                subtitle: "Enable Siri Remote dictation in tvOS search",
+                isOn: $profileSettings.voiceInputEnabled
             )
         }
     }
 
-    private var detailsSection: some View {
-        TVSettingsPanel(title: "Details Content", subtitle: "Control what metadata appears") {
-            TVSettingsToggleRow(title: "Show Related Content", subtitle: "Because You Watched / More Like This", isOn: $profileSettings.showRelatedContent)
-            TVSettingsToggleRow(title: "Show Cast & Crew", subtitle: "Cast rails and hero credit blocks", isOn: $profileSettings.showCastCrew)
+    private var layoutSection: some View {
+        TVLayoutSettingsView(
+            heroSourceOptions: libraries.map {
+                TVLayoutSourceOption(id: $0.key, title: $0.title ?? "Library \($0.key)", subtitle: "Use this Plex library as a hero source")
+            }
+        )
+    }
 
-            TVSettingsToggleRow(title: "IMDb Rating", subtitle: "Show IMDb badge/score", isOn: $profileSettings.showIMDbRating)
-            TVSettingsToggleRow(title: "Rotten Tomatoes Critics", subtitle: "Show Tomatometer score", isOn: $profileSettings.showRottenTomatoesCritic)
-            TVSettingsToggleRow(title: "Rotten Tomatoes Audience", subtitle: "Show audience score", isOn: $profileSettings.showRottenTomatoesAudience)
-        }
+    private var themeSection: some View {
+        TVThemeSettingsView()
     }
 
     private var tmdbSection: some View {
@@ -1191,21 +1139,28 @@ struct TVSettingsView: View {
     }
 }
 
-private struct TVSettingsPanel<Content: View>: View {
-    let title: String
+struct TVSettingsPanel<Content: View>: View {
+    var title: String = ""
     var subtitle: String? = nil
     @ViewBuilder let content: () -> Content
 
+    @Environment(\.tvThemePalette) private var theme
+    @Environment(\.tvTypography) private var typography
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.system(size: 24, weight: .bold))
-                    .foregroundStyle(.white)
-                if let subtitle {
-                    Text(subtitle)
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.65))
+            if !title.isEmpty || subtitle != nil {
+                VStack(alignment: .leading, spacing: 4) {
+                    if !title.isEmpty {
+                        Text(title)
+                            .font(typography.custom(size: 24, weight: .bold))
+                            .foregroundStyle(theme.textPrimary)
+                    }
+                    if let subtitle {
+                        Text(subtitle)
+                            .font(typography.meta)
+                            .foregroundStyle(theme.textTertiary)
+                    }
                 }
             }
 
@@ -1217,10 +1172,10 @@ private struct TVSettingsPanel<Content: View>: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.white.opacity(0.08))
+                .fill(theme.backgroundCard)
                 .overlay(
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                        .stroke(theme.strokeDefault, lineWidth: 1)
                 )
         )
     }
@@ -1230,36 +1185,41 @@ private struct TVSettingsInfoRow: View {
     let title: String
     let value: String
 
+    @Environment(\.tvThemePalette) private var theme
+    @Environment(\.tvTypography) private var typography
+
     var body: some View {
         HStack(spacing: 10) {
             Text(title)
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.8))
+                .font(typography.label)
+                .foregroundStyle(theme.textSecondary)
             Spacer()
             Text(value)
-                .font(.system(size: 18, weight: .regular))
-                .foregroundStyle(.white)
+                .font(typography.body)
+                .foregroundStyle(theme.textPrimary)
         }
     }
 }
 
-private struct TVSettingsToggleRow: View {
+struct TVSettingsToggleRow: View {
     let title: String
     var subtitle: String? = nil
     @Binding var isOn: Bool
     @FocusState private var controlFocused: Bool
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.tvThemePalette) private var theme
+    @Environment(\.tvTypography) private var typography
 
     var body: some View {
         HStack(alignment: .center, spacing: 18) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(.white)
+                    .font(typography.body)
+                    .foregroundStyle(theme.textPrimary)
                 if let subtitle {
                     Text(subtitle)
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.62))
+                        .font(typography.meta)
+                        .foregroundStyle(theme.textTertiary)
                 }
             }
             Spacer()
@@ -1268,25 +1228,25 @@ private struct TVSettingsToggleRow: View {
             } label: {
                 HStack(spacing: 10) {
                     Circle()
-                        .fill(isOn ? Color.green : Color.white.opacity(0.25))
+                        .fill(isOn ? theme.success : theme.surfaceGlass)
                         .frame(width: 10, height: 10)
                     Text(isOn ? "On" : "Off")
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundStyle(.white)
+                        .font(typography.label)
+                        .foregroundStyle(theme.textPrimary)
                 }
                 .padding(.horizontal, 20)
                 .padding(.vertical, 11)
                 .background(
                     Capsule(style: .continuous)
-                        .fill(isOn ? Color.green.opacity(0.22) : Color.white.opacity(0.08))
+                        .fill(isOn ? theme.success.opacity(0.22) : theme.backgroundElevated)
                         .overlay(
                             Capsule(style: .continuous)
-                                .stroke(isOn ? Color.green.opacity(0.55) : Color.white.opacity(0.16), lineWidth: 1)
+                                .stroke(isOn ? theme.success.opacity(0.55) : theme.strokeDefault, lineWidth: 1)
                         )
                 )
                 .overlay(
                     Capsule(style: .continuous)
-                        .stroke(controlFocused ? Color.white.opacity(0.55) : .clear, lineWidth: 2)
+                        .stroke(controlFocused ? theme.strokeFocused : .clear, lineWidth: 2)
                 )
                 .clipShape(Capsule(style: .continuous))
                 .noSystemFocusChrome()
@@ -1304,7 +1264,7 @@ private struct TVSettingsToggleRow: View {
     }
 }
 
-private struct TVSettingsChoiceRow<Value: Hashable>: View {
+struct TVSettingsChoiceRow<Value: Hashable>: View {
     let title: String
     var subtitle: String? = nil
     @Binding var selection: Value
@@ -1312,17 +1272,19 @@ private struct TVSettingsChoiceRow<Value: Hashable>: View {
     @State private var showPicker = false
     @FocusState private var controlFocused: Bool
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.tvThemePalette) private var theme
+    @Environment(\.tvTypography) private var typography
 
     var body: some View {
         HStack(alignment: .center, spacing: 18) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(.white)
+                    .font(typography.body)
+                    .foregroundStyle(theme.textPrimary)
                 if let subtitle {
                     Text(subtitle)
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.62))
+                        .font(typography.meta)
+                        .foregroundStyle(theme.textTertiary)
                 }
             }
             Spacer()
@@ -1332,29 +1294,29 @@ private struct TVSettingsChoiceRow<Value: Hashable>: View {
             } label: {
                 HStack(spacing: 10) {
                     Text(selectedLabel)
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundStyle(.white)
+                        .font(typography.label)
+                        .foregroundStyle(theme.textPrimary)
                         .lineLimit(1)
                         .truncationMode(.tail)
 
                     Image(systemName: "chevron.up.chevron.down")
                         .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(.white.opacity(0.75))
+                        .foregroundStyle(theme.textSecondary)
                 }
                 .padding(.horizontal, 18)
                 .padding(.vertical, 11)
                 .frame(minWidth: 208, alignment: .center)
                 .background(
                     Capsule(style: .continuous)
-                        .fill(Color.white.opacity(0.08))
+                        .fill(theme.backgroundElevated)
                         .overlay(
                             Capsule(style: .continuous)
-                                .stroke(Color.white.opacity(0.16), lineWidth: 1)
+                                .stroke(theme.strokeDefault, lineWidth: 1)
                         )
                 )
                 .overlay(
                     Capsule(style: .continuous)
-                        .stroke(controlFocused ? Color.white.opacity(0.55) : .clear, lineWidth: 2)
+                        .stroke(controlFocused ? theme.strokeFocused : .clear, lineWidth: 2)
                 )
                 .clipShape(Capsule(style: .continuous))
                 .noSystemFocusChrome()
@@ -1391,15 +1353,17 @@ private struct TVSettingsChoicePickerSheet<Value: Hashable>: View {
     let options: [TVSettingsChoice<Value>]
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.tvThemePalette) private var theme
+    @Environment(\.tvTypography) private var typography
     @FocusState private var focusedOptionId: String?
 
     var body: some View {
         ZStack {
             LinearGradient(
                 colors: [
-                    Color(hex: "0A0F1B"),
-                    Color(hex: "11182A"),
-                    Color(hex: "0A0F1B")
+                    theme.background,
+                    theme.backgroundElevated,
+                    theme.background
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
@@ -1410,12 +1374,12 @@ private struct TVSettingsChoicePickerSheet<Value: Hashable>: View {
                 HStack(alignment: .center, spacing: 12) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(title)
-                            .font(.system(size: 34, weight: .bold))
-                            .foregroundStyle(.white)
+                            .font(typography.title)
+                            .foregroundStyle(theme.textPrimary)
                         if let subtitle {
                             Text(subtitle)
-                                .font(.system(size: 18, weight: .medium))
-                                .foregroundStyle(.white.opacity(0.68))
+                                .font(typography.body)
+                                .foregroundStyle(theme.textTertiary)
                         }
                     }
                     Spacer()
@@ -1438,29 +1402,29 @@ private struct TVSettingsChoicePickerSheet<Value: Hashable>: View {
                             } label: {
                                 HStack(spacing: 12) {
                                     Text(option.label)
-                                        .font(.system(size: 22, weight: .semibold))
-                                        .foregroundStyle(.white)
+                                        .font(typography.custom(size: 22, weight: .semibold))
+                                        .foregroundStyle(theme.textPrimary)
                                         .lineLimit(1)
                                     Spacer()
                                     if isSelected {
                                         Image(systemName: "checkmark.circle.fill")
                                             .font(.system(size: 20, weight: .bold))
-                                            .foregroundStyle(.green)
+                                            .foregroundStyle(theme.success)
                                     }
                                 }
                                 .padding(.horizontal, 18)
                                 .padding(.vertical, 14)
                                 .background(
                                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                        .fill(isSelected ? Color.white.opacity(0.14) : Color.white.opacity(0.08))
+                                        .fill(isSelected ? theme.focusFill : theme.backgroundCard)
                                         .overlay(
                                             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                                .stroke(isSelected ? Color.white.opacity(0.44) : Color.white.opacity(0.18), lineWidth: 1)
+                                                .stroke(isSelected ? theme.strokeFocused : theme.strokeDefault, lineWidth: 1)
                                         )
                                 )
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                        .stroke(isFocused ? Color.white.opacity(0.58) : .clear, lineWidth: 2)
+                                        .stroke(isFocused ? theme.strokeFocused : .clear, lineWidth: 2)
                                 )
                                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                                 .noSystemFocusChrome()
@@ -1487,23 +1451,26 @@ private struct TVSettingsStepperRow<Trailing: View>: View {
     var valueText: String
     @ViewBuilder let trailing: () -> Trailing
 
+    @Environment(\.tvThemePalette) private var theme
+    @Environment(\.tvTypography) private var typography
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(.white)
+                    .font(typography.body)
+                    .foregroundStyle(theme.textPrimary)
                 if let subtitle {
                     Text(subtitle)
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.62))
+                        .font(typography.meta)
+                        .foregroundStyle(theme.textTertiary)
                 }
             }
 
             HStack(spacing: 12) {
                 Text(valueText)
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.88))
+                    .font(typography.label)
+                    .foregroundStyle(theme.textSecondary)
                     .frame(minWidth: 62, alignment: .leading)
                 trailing()
             }
@@ -1512,29 +1479,30 @@ private struct TVSettingsStepperRow<Trailing: View>: View {
     }
 }
 
-private struct TVSettingsIconButton: View {
+struct TVSettingsIconButton: View {
     let systemName: String
     let action: () -> Void
     @FocusState private var isFocused: Bool
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.tvThemePalette) private var theme
 
     var body: some View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: 16, weight: .bold))
-                .foregroundStyle(.white)
+                .foregroundStyle(theme.textPrimary)
                 .frame(width: 46, height: 36)
                 .background(
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(Color.white.opacity(0.08))
+                        .fill(theme.backgroundElevated)
                         .overlay(
                             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                                .stroke(theme.strokeDefault, lineWidth: 1)
                         )
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(isFocused ? Color.white.opacity(0.55) : .clear, lineWidth: 2)
+                        .stroke(isFocused ? theme.strokeFocused : .clear, lineWidth: 2)
                 )
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 .noSystemFocusChrome()
@@ -1550,20 +1518,23 @@ private struct TVSettingsIconButton: View {
     }
 }
 
-private struct TVSettingsFieldBlock<Field: View>: View {
+struct TVSettingsFieldBlock<Field: View>: View {
     let title: String
     var subtitle: String? = nil
     @ViewBuilder let field: () -> Field
 
+    @Environment(\.tvThemePalette) private var theme
+    @Environment(\.tvTypography) private var typography
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(.white)
+                .font(typography.body)
+                .foregroundStyle(theme.textPrimary)
             if let subtitle {
                 Text(subtitle)
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.62))
+                    .font(typography.meta)
+                    .foregroundStyle(theme.textTertiary)
             }
             field()
         }
@@ -1576,34 +1547,7 @@ private extension Bundle {
     }
 }
 
-private extension Color {
-    init(hex: String) {
-        var sanitized = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
-        if sanitized.count == 3 {
-            sanitized = sanitized.map { "\($0)\($0)" }.joined()
-        }
-
-        var int: UInt64 = 0
-        Scanner(string: sanitized).scanHexInt64(&int)
-        let r, g, b: UInt64
-        switch sanitized.count {
-        case 6:
-            (r, g, b) = ((int >> 16) & 0xFF, (int >> 8) & 0xFF, int & 0xFF)
-        default:
-            (r, g, b) = (255, 255, 255)
-        }
-
-        self.init(
-            .sRGB,
-            red: Double(r) / 255,
-            green: Double(g) / 255,
-            blue: Double(b) / 255,
-            opacity: 1
-        )
-    }
-}
-
-private extension View {
+extension View {
     @ViewBuilder
     func noSystemFocusChrome() -> some View {
         self

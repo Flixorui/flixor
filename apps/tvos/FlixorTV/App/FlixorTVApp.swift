@@ -8,6 +8,7 @@ struct FlixorTVApp: App {
     @StateObject private var appState = AppState()
     @StateObject private var profileSettings = TVProfileSettings.shared
     @StateObject private var watchlistController = TVWatchlistController.shared
+    @StateObject private var focusCoordinator = TVFocusCoordinator.shared
 
     init() {
         let clientId = getOrCreateClientId()
@@ -16,6 +17,8 @@ struct FlixorTVApp: App {
         let traktClientId = defaults.traktClientId.isEmpty ? APIKeys.traktClientId : defaults.traktClientId
         let traktClientSecret = defaults.traktClientSecret.isEmpty ? APIKeys.traktClientSecret : defaults.traktClientSecret
         let effectiveTMDBLanguage = defaults.tmdbLocalizedMetadata ? Self.normalizedTMDBLanguage(defaults.tmdbLanguage) : "en-US"
+
+        TVFontRegistry.registerBundledFontsIfNeeded()
 
         FlixorCore.shared.configure(
             clientId: clientId,
@@ -32,12 +35,22 @@ struct FlixorTVApp: App {
 
     var body: some Scene {
         WindowGroup {
+            let palette = profileSettings.themePalette
+            let typography = profileSettings.typography
+            let cardVisualTokens = profileSettings.cardVisualTokens
+
             MainTVView()
                 .environmentObject(apiClient)
                 .environmentObject(session)
                 .environmentObject(appState)
                 .environmentObject(profileSettings)
                 .environmentObject(watchlistController)
+                .environmentObject(focusCoordinator)
+                .tvTheme(
+                    palette: palette,
+                    typography: typography,
+                    cardVisualTokens: cardVisualTokens
+                )
                 .task {
                     // Initialize FlixorCore first (restore tokens/services)
                     _ = await FlixorCore.shared.initialize()

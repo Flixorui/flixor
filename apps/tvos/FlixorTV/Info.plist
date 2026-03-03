@@ -18,5 +18,11 @@
 	<string>1.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<key>UIAppFonts</key>
+	<array>
+		<string>Fonts/InterVariable.ttf</string>
+		<string>Fonts/OpenSansVariable.ttf</string>
+		<string>Fonts/DMSansVariable.ttf</string>
+	</array>
 </dict>
 </plist>

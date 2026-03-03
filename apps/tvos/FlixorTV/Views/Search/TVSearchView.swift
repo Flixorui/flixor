@@ -4,9 +4,14 @@ import FlixorKit
 struct TVSearchView: View {
     @ObservedObject private var viewModel: TVSearchViewModel
     @EnvironmentObject private var profileSettings: TVProfileSettings
+    @EnvironmentObject private var focusCoordinator: TVFocusCoordinator
+    @Environment(\.tvThemePalette) private var theme
+    @Environment(\.tvTypography) private var typography
     @Namespace private var focusNS
 
     @State private var selectedItem: MediaItem?
+    @State private var restoredSectionID: String?
+    @State private var clearRestoreTask: Task<Void, Never>?
 
     init(viewModel: TVSearchViewModel) {
         self._viewModel = ObservedObject(wrappedValue: viewModel)
@@ -42,60 +47,110 @@ struct TVSearchView: View {
         .focusScope(focusNS)
         .task {
             if profileSettings.includeTmdbInSearch,
+               profileSettings.showSearchDiscoverContent,
                viewModel.popularItems.isEmpty,
                viewModel.trendingItems.isEmpty {
                 await viewModel.loadInitialContent()
             }
+            restoreFocusToRememberedSection()
         }
         .onChange(of: profileSettings.includeTmdbInSearch) { _ in
             Task { await viewModel.loadInitialContent() }
         }
-        .fullScreenCover(item: $selectedItem) { item in
+        .onChange(of: profileSettings.showSearchDiscoverContent) { enabled in
+            if enabled, viewModel.popularItems.isEmpty, viewModel.trendingItems.isEmpty {
+                Task { await viewModel.loadInitialContent() }
+            }
+        }
+        .fullScreenCover(item: $selectedItem, onDismiss: restoreFocusToRememberedSection) { item in
             TVDetailsView(item: item)
+        }
+        .onDisappear {
+            clearRestoreTask?.cancel()
         }
     }
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Search")
-                .font(.system(size: 54, weight: .bold))
-                .foregroundStyle(.white)
+                .font(typography.hero)
+                .foregroundStyle(theme.textPrimary)
 
-            HStack(spacing: 12) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 22, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.7))
+            Group {
+                if profileSettings.voiceInputEnabled {
+                    TVSearchTextField(
+                        text: $viewModel.query,
+                        placeholder: "Search movies and TV shows",
+                        accentColor: theme.accent,
+                        textColor: theme.textPrimary,
+                        backgroundColor: theme.backgroundCard,
+                        borderColor: theme.strokeDefault
+                    )
+                } else {
+                    HStack(spacing: 12) {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 22, weight: .semibold))
+                            .foregroundStyle(theme.textSecondary)
 
-                TextField("Search movies and TV shows", text: $viewModel.query)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 26, weight: .medium))
-                    .foregroundStyle(.white)
+                        TextField("Search movies and TV shows", text: $viewModel.query)
+                            .textFieldStyle(.plain)
+                            .font(typography.custom(size: 26, weight: .medium))
+                            .foregroundStyle(theme.textPrimary)
 
-                if !viewModel.query.isEmpty {
-                    Button {
-                        viewModel.query = ""
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 24))
-                            .foregroundStyle(.white.opacity(0.75))
+                        if !viewModel.query.isEmpty {
+                            Button {
+                                viewModel.query = ""
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 24))
+                                    .foregroundStyle(theme.textSecondary)
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
-                    .buttonStyle(.plain)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 14)
+                    .background(theme.backgroundCard, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .stroke(theme.strokeDefault, lineWidth: 1)
+                    )
                 }
             }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 14)
-            .background(Color.white.opacity(0.1), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(Color.white.opacity(0.15), lineWidth: 1)
-            )
-            .frame(maxWidth: 780)
+            .frame(maxWidth: 820, minHeight: 62)
         }
     }
 
     @ViewBuilder
     private var idleView: some View {
-        if profileSettings.includeTmdbInSearch {
+        if !profileSettings.showSearchDiscoverContent {
+            idlePrompt(
+                title: "Search Your Library",
+                subtitle: "Browse discovery rows from Settings if you want TMDB suggestions here."
+            )
+        } else if let discoveryErrorMessage = viewModel.discoveryErrorMessage {
+            TVAnimatedErrorState(
+                title: "Discovery feed unavailable",
+                message: discoveryErrorMessage,
+                accent: theme.warning
+            ) {
+                Button {
+                    Task { await viewModel.retryCurrentState() }
+                } label: {
+                    retryButtonLabel("Retry discovery")
+                }
+                .buttonStyle(.plain)
+            }
+            .frame(maxWidth: .infinity, minHeight: 520)
+        } else if profileSettings.includeTmdbInSearch {
+            let defaultSectionID = resolvedDefaultSection(
+                available: [
+                    !viewModel.trendingItems.isEmpty ? "idle-trending" : nil,
+                    !viewModel.popularItems.isEmpty ? "idle-popular" : nil
+                ].compactMap { $0 },
+                fallback: !viewModel.trendingItems.isEmpty ? "idle-trending" : (!viewModel.popularItems.isEmpty ? "idle-popular" : nil)
+            )
+
             VStack(spacing: 26) {
                 if !viewModel.trendingItems.isEmpty {
                     searchRow(
@@ -103,7 +158,7 @@ struct TVSearchView: View {
                         items: viewModel.trendingItems,
                         kind: .landscape,
                         sectionId: "idle-trending",
-                        defaultFocus: true
+                        defaultFocus: defaultSectionID == "idle-trending"
                     )
                 }
 
@@ -112,7 +167,8 @@ struct TVSearchView: View {
                         title: "Popular Right Now",
                         items: viewModel.popularItems,
                         kind: .landscape,
-                        sectionId: "idle-popular"
+                        sectionId: "idle-popular",
+                        defaultFocus: defaultSectionID == "idle-popular"
                     )
                 }
 
@@ -121,18 +177,10 @@ struct TVSearchView: View {
                 }
             }
         } else {
-            VStack(spacing: 12) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 56, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.4))
-                Text("Search Your Library")
-                    .font(.system(size: 38, weight: .bold))
-                    .foregroundStyle(.white)
-                Text("Enable TMDB in Settings to get discovery feeds.")
-                    .font(.system(size: 24))
-                    .foregroundStyle(.white.opacity(0.68))
-            }
-            .frame(maxWidth: .infinity, minHeight: 620)
+            idlePrompt(
+                title: "Search Your Library",
+                subtitle: "Enable TMDB in Settings to get discovery feeds."
+            )
         }
     }
 
@@ -142,10 +190,10 @@ struct TVSearchView: View {
             ProgressView()
                 .progressViewStyle(.circular)
                 .scaleEffect(1.4)
-                .tint(.white)
+                .tint(theme.accent)
             Text("Searching...")
-                .font(.system(size: 24, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.86))
+                .font(typography.body)
+                .foregroundStyle(theme.textPrimary)
         }
         .frame(maxWidth: .infinity, minHeight: 460)
     }
@@ -153,7 +201,31 @@ struct TVSearchView: View {
     @ViewBuilder
     private var resultsView: some View {
         let hasResults = !viewModel.plexResults.isEmpty || !viewModel.tmdbMovies.isEmpty || !viewModel.tmdbShows.isEmpty
-        if hasResults {
+        let availableSections = [
+            !viewModel.plexResults.isEmpty ? "results-plex" : nil,
+            !viewModel.tmdbMovies.isEmpty ? "results-movies" : nil,
+            !viewModel.tmdbShows.isEmpty ? "results-shows" : nil
+        ] + viewModel.genreRows.map { "genre-\($0.id)" }
+        let defaultSectionID = resolvedDefaultSection(
+            available: availableSections.compactMap { $0 },
+            fallback: !viewModel.plexResults.isEmpty ? "results-plex" : (!viewModel.tmdbMovies.isEmpty ? "results-movies" : (!viewModel.tmdbShows.isEmpty ? "results-shows" : nil))
+        )
+
+        if let searchErrorMessage = viewModel.searchErrorMessage {
+            TVAnimatedErrorState(
+                title: "Search unavailable",
+                message: searchErrorMessage,
+                accent: theme.warning
+            ) {
+                Button {
+                    Task { await viewModel.retryCurrentState() }
+                } label: {
+                    retryButtonLabel("Retry search")
+                }
+                .buttonStyle(.plain)
+            }
+            .frame(maxWidth: .infinity, minHeight: 520)
+        } else if hasResults {
             VStack(spacing: 26) {
                 if !viewModel.plexResults.isEmpty {
                     searchRow(
@@ -161,7 +233,7 @@ struct TVSearchView: View {
                         items: viewModel.plexResults,
                         kind: .landscape,
                         sectionId: "results-plex",
-                        defaultFocus: true
+                        defaultFocus: defaultSectionID == "results-plex"
                     )
                 }
 
@@ -171,7 +243,7 @@ struct TVSearchView: View {
                         items: viewModel.tmdbMovies,
                         kind: .poster,
                         sectionId: "results-movies",
-                        defaultFocus: viewModel.plexResults.isEmpty
+                        defaultFocus: defaultSectionID == "results-movies"
                     )
                 }
 
@@ -180,7 +252,8 @@ struct TVSearchView: View {
                         title: "TV Shows",
                         items: viewModel.tmdbShows,
                         kind: .poster,
-                        sectionId: "results-shows"
+                        sectionId: "results-shows",
+                        defaultFocus: defaultSectionID == "results-shows"
                     )
                 }
 
@@ -189,23 +262,16 @@ struct TVSearchView: View {
                         title: row.title,
                         items: row.items,
                         kind: .poster,
-                        sectionId: "genre-\(row.id)"
+                        sectionId: "genre-\(row.id)",
+                        defaultFocus: defaultSectionID == "genre-\(row.id)"
                     )
                 }
             }
         } else {
-            VStack(spacing: 12) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 56, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.4))
-                Text("No results for \"\(viewModel.query)\"")
-                    .font(.system(size: 36, weight: .bold))
-                    .foregroundStyle(.white)
-                Text("Try a different title, genre, or actor.")
-                    .font(.system(size: 22))
-                    .foregroundStyle(.white.opacity(0.7))
-            }
-            .frame(maxWidth: .infinity, minHeight: 620)
+            idlePrompt(
+                title: "No results for \"\(viewModel.query)\"",
+                subtitle: "Try a different title, genre, or actor."
+            )
         }
     }
 
@@ -227,8 +293,57 @@ struct TVSearchView: View {
                 defaultFocus: defaultFocus,
                 sectionId: sectionId,
                 landscapeFocusOutline: kind == .landscape,
-                onSelect: { selectedItem = $0 }
+                onSelect: { selectedItem = $0 },
+                screenID: .search
             )
         }
+    }
+
+    private func resolvedDefaultSection(available: [String], fallback: String?) -> String? {
+        if let restoredSectionID, available.contains(restoredSectionID) {
+            return restoredSectionID
+        }
+        if let remembered = focusCoordinator.lastFocusedSection(screen: .search), available.contains(remembered) {
+            return remembered
+        }
+        return fallback
+    }
+
+    private func restoreFocusToRememberedSection() {
+        clearRestoreTask?.cancel()
+        restoredSectionID = focusCoordinator.lastFocusedSection(screen: .search)
+        clearRestoreTask = Task {
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            guard !Task.isCancelled else { return }
+            restoredSectionID = nil
+        }
+    }
+
+    private func idlePrompt(title: String, subtitle: String) -> some View {
+        VStack(spacing: 12) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 56, weight: .semibold))
+                .foregroundStyle(theme.textTertiary)
+            Text(title)
+                .font(typography.title)
+                .foregroundStyle(theme.textPrimary)
+            Text(subtitle)
+                .font(typography.body)
+                .foregroundStyle(theme.textSecondary)
+        }
+        .multilineTextAlignment(.center)
+        .frame(maxWidth: .infinity, minHeight: 620)
+    }
+
+    private func retryButtonLabel(_ title: String) -> some View {
+        Text(title)
+            .font(typography.custom(size: 24, weight: .semibold))
+            .foregroundStyle(theme.background)
+            .padding(.horizontal, 34)
+            .padding(.vertical, 14)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(theme.accent)
+            )
     }
 }

@@ -44,6 +44,9 @@ final class TVHomeViewModel: ObservableObject {
     private var ultraBlurColorCache: [String: UltraBlurColors] = [:]
     private var resolvedPlexLogoCache: [String: String] = [:]
     private var attemptedPlexLogoKeys: Set<String> = []
+    private var resolvedPreviewTrailerCache: [String: TVTrailer] = [:]
+    private var previewTrailerTasks: [String: Task<TVTrailer?, Never>] = [:]
+    private var attemptedPreviewTrailerKeys: Set<String> = []
     private var hasLoadedOnce = false
     private var isRefreshingDynamicSections = false
     private let profileSettings = TVProfileSettings.shared
@@ -57,12 +60,210 @@ final class TVHomeViewModel: ObservableObject {
         bottomLeft: "4d1e1a"
     )
 
+    var homeSections: [TVHomeSectionDescriptor] {
+        var sections: [TVHomeSectionDescriptor] = []
+
+        if profileSettings.showContinueWatching, !continueWatching.isEmpty {
+            sections.append(
+                TVHomeSectionDescriptor(
+                    id: "continue-watching",
+                    title: "Continue Watching",
+                    items: continueWatching,
+                    supportsSeeAll: false,
+                    browseContext: .continueWatching,
+                    heroEligible: true,
+                    preferredRowKind: profileSettings.continueWatchingCardShape == .landscape ? .landscape : .poster,
+                    usesContinueWatchingStyle: true
+                )
+            )
+        }
+
+        if profileSettings.showWatchlist,
+           let myList = additionalSections.first(where: { $0.id == "plex-watchlist" || $0.id == "combined-watchlist" }),
+           !myList.items.isEmpty {
+            sections.append(
+                TVHomeSectionDescriptor(
+                    id: myList.id,
+                    title: "My List",
+                    items: myList.items,
+                    supportsSeeAll: true,
+                    browseContext: .watchlist,
+                    heroEligible: true
+                )
+            )
+        }
+
+        sections.append(contentsOf: recentlyAddedSections.compactMap { section in
+            guard !section.items.isEmpty else { return nil }
+            let libraryKey = section.id.replacingOccurrences(of: "recently-added-", with: "")
+            return TVHomeSectionDescriptor(
+                id: section.id,
+                title: section.title,
+                items: section.items,
+                supportsSeeAll: true,
+                browseContext: .recentlyAdded(libraryKey: libraryKey),
+                heroEligible: true
+            )
+        })
+
+        if profileSettings.showCollectionRows {
+            sections.append(contentsOf: collectionSections.compactMap { section in
+                guard !section.items.isEmpty else { return nil }
+                let collectionID = section.id.replacingOccurrences(of: "collection-", with: "")
+                return TVHomeSectionDescriptor(
+                    id: section.id,
+                    title: section.title,
+                    items: section.items,
+                    supportsSeeAll: true,
+                    browseContext: .collection(id: collectionID),
+                    heroEligible: true
+                )
+            })
+        }
+
+        if let popular = additionalSections.first(where: { $0.id == "tmdb-popular-movies" }),
+           !popular.items.isEmpty {
+            sections.append(
+                TVHomeSectionDescriptor(
+                    id: popular.id,
+                    title: "Popular on Plex",
+                    items: popular.items,
+                    supportsSeeAll: true,
+                    browseContext: .tmdbPopular,
+                    heroEligible: true
+                )
+            )
+        }
+
+        if let trending = additionalSections.first(where: { $0.id == "tmdb-trending" }),
+           !trending.items.isEmpty {
+            sections.append(
+                TVHomeSectionDescriptor(
+                    id: trending.id,
+                    title: "Trending Now",
+                    items: trending.items,
+                    supportsSeeAll: true,
+                    browseContext: .tmdbTrending,
+                    heroEligible: true
+                )
+            )
+        }
+
+        if profileSettings.showOnDeckRow, !onDeck.isEmpty {
+            sections.append(
+                TVHomeSectionDescriptor(
+                    id: "on-deck",
+                    title: "On Deck",
+                    items: onDeck,
+                    supportsSeeAll: false,
+                    browseContext: .onDeck,
+                    heroEligible: true,
+                    preferredRowKind: effectiveDefaultRowKind
+                )
+            )
+        }
+
+        let reservedIDs = Set(["plex-watchlist", "combined-watchlist", "tmdb-popular-movies", "tmdb-trending"])
+        sections.append(contentsOf: additionalSections.compactMap { section in
+            guard !reservedIDs.contains(section.id), !section.items.isEmpty else { return nil }
+            let browseContext: TVBrowseContext?
+            if section.id.hasPrefix("trakt-") {
+                browseContext = .traktList(id: section.id)
+            } else {
+                browseContext = .custom(id: section.id)
+            }
+
+            return TVHomeSectionDescriptor(
+                id: section.id,
+                title: section.title,
+                items: section.items,
+                supportsSeeAll: browseContext != nil,
+                browseContext: browseContext,
+                heroEligible: !section.id.hasPrefix("genre-")
+            )
+        })
+
+        return sections
+    }
+
+    var heroSourceOptions: [TVLayoutSourceOption] {
+        homeSections.map {
+            TVLayoutSourceOption(
+                id: $0.id,
+                title: $0.title,
+                subtitle: $0.heroEligible ? "Allow this section to drive the hero" : "This section stays rail-only"
+            )
+        }
+    }
+
+    func heroItems(for selectedSourceIDs: [String]) -> [MediaItem] {
+        if !selectedSourceIDs.isEmpty {
+            let selected = homeSections.filter { selectedSourceIDs.contains($0.id) && $0.heroEligible }
+            let items = deduplicatedHeroItems(from: selected.flatMap(\.items))
+            if !items.isEmpty {
+                return items
+            }
+        }
+
+        if !billboardItems.isEmpty {
+            return Array(billboardItems.prefix(5))
+        }
+
+        let fallback = deduplicatedHeroItems(from: homeSections.filter(\.heroEligible).flatMap(\.items))
+        return Array(fallback.prefix(5))
+    }
+
+    func removeContinueWatching(_ item: MediaItem) async {
+        continueWatching.removeAll { $0.id == item.id }
+        continueWatchingState = continueWatching.isEmpty ? .empty : .loaded
+
+        guard let plexServer = FlixorCore.shared.plexServer else { return }
+        let ratingKey = item.id.replacingOccurrences(of: "plex:", with: "")
+        guard !ratingKey.isEmpty else { return }
+
+        do {
+            try await plexServer.updateTimeline(
+                ratingKey: ratingKey,
+                state: "stopped",
+                timeMs: 0,
+                durationMs: max(item.duration ?? 1, 1)
+            )
+        } catch {
+            #if DEBUG
+            print("⚠️ [Home] Failed to clear continue watching state for \(item.id): \(error)")
+            #endif
+        }
+    }
+
     func loadIfNeeded() async {
         if hasLoadedOnce,
            (!continueWatching.isEmpty || !onDeck.isEmpty || !recentlyAddedSections.isEmpty || !additionalSections.isEmpty || !collectionSections.isEmpty) {
             return
         }
         await load()
+    }
+
+    private var effectiveDefaultRowKind: TVRowCardKind {
+        if profileSettings.homeLayoutMode == .modern, profileSettings.modernLandscapePostersEnabled {
+            return .landscape
+        }
+        return profileSettings.defaultRailCardShape == .landscape ? .landscape : .poster
+    }
+
+    private func deduplicatedHeroItems(from items: [MediaItem]) -> [MediaItem] {
+        var seen = Set<String>()
+        var ordered: [MediaItem] = []
+
+        for item in items {
+            if seen.insert(item.id).inserted {
+                ordered.append(item)
+            }
+            if ordered.count == 5 {
+                break
+            }
+        }
+
+        return ordered
     }
 
     func load() async {
@@ -638,6 +839,13 @@ final class TVHomeViewModel: ObservableObject {
         return normalizedId
     }
 
+    private func normalizedPreviewTrailerCacheKey(for item: MediaItem) -> String {
+        if item.id.hasPrefix("plex:") || item.id.hasPrefix("tmdb:") || item.id.hasPrefix("trakt:") {
+            return item.id
+        }
+        return "plex:\(item.id)"
+    }
+
     private func copy(_ item: MediaItem, id: String? = nil, logo: String? = nil) -> MediaItem {
         MediaItem(
             id: id ?? item.id,
@@ -736,6 +944,260 @@ final class TVHomeViewModel: ObservableObject {
                 ultraBlurColorCache[item.id] = colors
                 billboardUltraBlurColors = colors
             }
+        }
+    }
+
+    func prefetchFocusedPreviewTrailer(for item: MediaItem, reason: String = "focus") {
+        guard profileSettings.focusedPosterTrailerEnabled else {
+            return
+        }
+
+        let cacheKey = normalizedPreviewTrailerCacheKey(for: item)
+
+        if let cached = resolvedPreviewTrailerCache[cacheKey], previewTrailerReadyForInlinePlayback(cached) {
+            TrailerPreviewDiagnostics.debug(
+                "Prefetch ready cache hit reason=\(reason) item=\(item.id) key=\(TrailerPreviewDiagnostics.summarizeKey(cached.key))"
+            )
+            return
+        }
+
+        if attemptedPreviewTrailerKeys.contains(cacheKey) {
+            TrailerPreviewDiagnostics.debug("Prefetch negative cache hit reason=\(reason) item=\(item.id)")
+            return
+        }
+
+        guard previewTrailerTasks[cacheKey] == nil else {
+            TrailerPreviewDiagnostics.debug("Prefetch joined in-flight task reason=\(reason) item=\(item.id)")
+            return
+        }
+
+        TrailerPreviewDiagnostics.debug("Prefetch start reason=\(reason) item=\(item.id)")
+        let task = makePreviewTrailerTask(for: item, cacheKey: cacheKey, reason: reason)
+        previewTrailerTasks[cacheKey] = task
+    }
+
+    func prefetchPreviewTrailersForInitialRows(
+        sections: [TVHomeSectionDescriptor],
+        maxSections: Int = 3,
+        itemsPerSection: Int = 1
+    ) {
+        guard profileSettings.focusedPosterTrailerEnabled else {
+            return
+        }
+
+        let candidates = sections
+            .filter { !$0.items.isEmpty }
+            .prefix(maxSections)
+            .flatMap { Array($0.items.prefix(itemsPerSection)) }
+
+        guard !candidates.isEmpty else { return }
+
+        TrailerPreviewDiagnostics.debug(
+            "Prefetch warmup start rows=\(min(maxSections, sections.count)) candidates=\(candidates.count)"
+        )
+
+        for item in candidates {
+            prefetchFocusedPreviewTrailer(for: item, reason: "homeWarmup")
+        }
+    }
+
+    func focusedPreviewTrailer(for item: MediaItem) async -> TVTrailer? {
+        let cacheKey = normalizedPreviewTrailerCacheKey(for: item)
+        TrailerPreviewDiagnostics.debug("Resolve start item=\(item.id) cacheKey=\(cacheKey)")
+
+        if let cached = resolvedPreviewTrailerCache[cacheKey], previewTrailerReadyForInlinePlayback(cached) {
+            TrailerPreviewDiagnostics.debug("Resolve cache hit item=\(item.id) key=\(TrailerPreviewDiagnostics.summarizeKey(cached.key))")
+            return cached
+        }
+
+        if let inFlight = previewTrailerTasks[cacheKey] {
+            TrailerPreviewDiagnostics.debug("Resolve joined in-flight task item=\(item.id)")
+            return await inFlight.value
+        }
+
+        if attemptedPreviewTrailerKeys.contains(cacheKey) {
+            TrailerPreviewDiagnostics.debug("Resolve negative cache hit item=\(item.id)")
+            return nil
+        }
+
+        let task = makePreviewTrailerTask(for: item, cacheKey: cacheKey, reason: "direct")
+        previewTrailerTasks[cacheKey] = task
+        return await task.value
+    }
+
+    private func makePreviewTrailerTask(
+        for item: MediaItem,
+        cacheKey: String,
+        reason: String
+    ) -> Task<TVTrailer?, Never> {
+        Task { [weak self] in
+            guard let self else { return nil }
+            let trailer = await self.resolveFocusedPreviewTrailer(for: item, cacheKey: cacheKey, reason: reason)
+            _ = await MainActor.run { [weak self] in
+                self?.previewTrailerTasks.removeValue(forKey: cacheKey)
+            }
+            return trailer
+        }
+    }
+
+    private func resolveFocusedPreviewTrailer(
+        for item: MediaItem,
+        cacheKey: String,
+        reason: String
+    ) async -> TVTrailer? {
+        if let cached = resolvedPreviewTrailerCache[cacheKey] {
+            TrailerPreviewDiagnostics.debug(
+                "Resolve cache hydrate reason=\(reason) item=\(item.id) key=\(TrailerPreviewDiagnostics.summarizeKey(cached.key))"
+            )
+            let hydrated = await hydratePreviewPlaybackURLIfNeeded(for: cached, item: item)
+            resolvedPreviewTrailerCache[cacheKey] = hydrated
+            return hydrated
+        }
+
+        if attemptedPreviewTrailerKeys.contains(cacheKey) {
+            TrailerPreviewDiagnostics.debug("Resolve negative cache hit reason=\(reason) item=\(item.id)")
+            return nil
+        }
+
+        do {
+            guard let target = try await resolveTMDBIdentityForPreview(for: item) else {
+                TrailerPreviewDiagnostics.debug("Resolve failed: no TMDB identity for item=\(item.id)")
+                attemptedPreviewTrailerKeys.insert(cacheKey)
+                return nil
+            }
+
+            TrailerPreviewDiagnostics.debug("Resolve TMDB identity item=\(item.id) mediaType=\(target.mediaType) tmdbId=\(target.id)")
+
+            let fetchResult = try await APIClient.shared.getTMDBVideosPreferringEnglish(mediaType: target.mediaType, id: String(target.id))
+            let response = fetchResult.response
+            TrailerPreviewDiagnostics.debug(
+                "Resolve TMDB videos item=\(item.id) resultCount=\(response.results.count) fallbackUsed=\(fetchResult.usedLanguageFallback)"
+            )
+            let candidates = response.results
+                .filter { ($0.site?.lowercased() ?? "") == "youtube" && ($0.key?.isEmpty == false) }
+                .sorted { a, b in
+                    let aTrailer = (a.type?.lowercased() ?? "") == "trailer"
+                    let bTrailer = (b.type?.lowercased() ?? "") == "trailer"
+                    if aTrailer != bTrailer { return aTrailer }
+
+                    let aOfficial = a.official ?? false
+                    let bOfficial = b.official ?? false
+                    if aOfficial != bOfficial { return aOfficial }
+
+                    return (a.name ?? "") < (b.name ?? "")
+                }
+
+            guard let best = candidates.first, let key = best.key else {
+                TrailerPreviewDiagnostics.debug("Resolve failed: no playable YouTube candidate for item=\(item.id)")
+                attemptedPreviewTrailerKeys.insert(cacheKey)
+                return nil
+            }
+
+            TrailerPreviewDiagnostics.debug(
+                "Resolve selected candidate item=\(item.id) type=\(best.type ?? "unknown") official=\(best.official == true) key=\(TrailerPreviewDiagnostics.summarizeKey(key))"
+            )
+
+            let trailer = TVTrailer(
+                id: best.id,
+                name: best.name ?? "Trailer",
+                key: key,
+                site: best.site ?? "YouTube",
+                type: best.type ?? "Trailer",
+                official: best.official,
+                publishedAt: best.publishedAt,
+                previewPlaybackURL: nil
+            )
+            let hydrated = await hydratePreviewPlaybackURLIfNeeded(for: trailer, item: item)
+            resolvedPreviewTrailerCache[cacheKey] = hydrated
+            TrailerPreviewDiagnostics.debug(
+                "Resolve success item=\(item.id) key=\(TrailerPreviewDiagnostics.summarizeKey(hydrated.key)) site=\(hydrated.site)"
+            )
+            return hydrated
+        } catch {
+            TrailerPreviewDiagnostics.error("Resolve error item=\(item.id) message=\(error.localizedDescription)")
+            attemptedPreviewTrailerKeys.insert(cacheKey)
+            return nil
+        }
+    }
+
+    private func previewTrailerReadyForInlinePlayback(_ trailer: TVTrailer) -> Bool {
+        guard TrailerPreviewFeatureFlags.useNuvioResolver else {
+            return true
+        }
+        guard trailer.site.lowercased() == "youtube" else {
+            return true
+        }
+        return trailer.hasFreshPreviewPlaybackURL()
+    }
+
+    private func hydratePreviewPlaybackURLIfNeeded(for trailer: TVTrailer, item: MediaItem) async -> TVTrailer {
+        guard TrailerPreviewFeatureFlags.useNuvioResolver else {
+            TrailerPreviewDiagnostics.debug("Resolver disabled for preview item=\(item.id)")
+            return trailer
+        }
+
+        if trailer.hasFreshPreviewPlaybackURL() {
+            TrailerPreviewDiagnostics.debug(
+                "Resolver cache hit item=\(item.id) key=\(TrailerPreviewDiagnostics.summarizeKey(trailer.key)) url=\(TrailerPreviewDiagnostics.summarizeURL(trailer.previewPlaybackURL))"
+            )
+            return trailer
+        }
+
+        if let expiry = trailer.previewPlaybackExpiryDate {
+            TrailerPreviewDiagnostics.debug(
+                "Resolver cached URL expired item=\(item.id) key=\(TrailerPreviewDiagnostics.summarizeKey(trailer.key)) expiredAt=\(expiry.formatted(date: .omitted, time: .standard))"
+            )
+        }
+
+        guard let youtubeURL = trailer.youtubeURL else {
+            TrailerPreviewDiagnostics.debug("Resolver skipped item=\(item.id) because youtubeURL is nil")
+            return trailer
+        }
+
+        TrailerPreviewDiagnostics.debug(
+            "Resolver request item=\(item.id) key=\(TrailerPreviewDiagnostics.summarizeKey(trailer.key)) url=\(TrailerPreviewDiagnostics.summarizeURL(youtubeURL))"
+        )
+
+        do {
+            let response = try await APIClient.shared.resolvePreviewTrailerPlayback(
+                youtubeURL: youtubeURL,
+                title: item.title,
+                year: item.year
+            )
+
+            if let error = response.error, !error.isEmpty {
+                TrailerPreviewDiagnostics.error(
+                    "Resolver returned error item=\(item.id) key=\(TrailerPreviewDiagnostics.summarizeKey(trailer.key)) message=\(error)"
+                )
+                return trailer
+            }
+
+            guard let urlString = response.url, let playbackURL = URL(string: urlString) else {
+                TrailerPreviewDiagnostics.debug(
+                    "Resolver returned no playback URL item=\(item.id) key=\(TrailerPreviewDiagnostics.summarizeKey(trailer.key))"
+                )
+                return trailer
+            }
+
+            TrailerPreviewDiagnostics.debug(
+                "Resolver success item=\(item.id) key=\(TrailerPreviewDiagnostics.summarizeKey(trailer.key)) source=\(response.source ?? "unknown") cached=\(response.cached == true) url=\(TrailerPreviewDiagnostics.summarizeURL(playbackURL))"
+            )
+
+            return TVTrailer(
+                id: trailer.id,
+                name: trailer.name,
+                key: trailer.key,
+                site: trailer.site,
+                type: trailer.type,
+                official: trailer.official,
+                publishedAt: trailer.publishedAt,
+                previewPlaybackURL: playbackURL
+            )
+        } catch {
+            TrailerPreviewDiagnostics.error(
+                "Resolver request failed item=\(item.id) key=\(TrailerPreviewDiagnostics.summarizeKey(trailer.key)) message=\(error.localizedDescription)"
+            )
+            return trailer
         }
     }
 
@@ -1019,6 +1481,56 @@ final class TVHomeViewModel: ObservableObject {
            let path = selected.file_path {
             return ImageService.shared.tmdbImageURL(path: path, size: .w500)?.absoluteString
         }
+        return nil
+    }
+
+    private func resolveTMDBIdentityForPreview(for item: MediaItem) async throws -> (mediaType: String, id: Int)? {
+        let components = item.id.split(separator: ":")
+        if components.count >= 3, components[0] == "tmdb", let tmdbID = Int(components[2]) {
+            let mediaType = components[1] == "movie" ? "movie" : "tv"
+            TrailerPreviewDiagnostics.debug("Identity resolved directly from item id=\(item.id) mediaType=\(mediaType) tmdbId=\(tmdbID)")
+            return (mediaType, tmdbID)
+        }
+
+        let normalizedId: String
+        if item.id.hasPrefix("plex:") {
+            normalizedId = item.id
+        } else {
+            normalizedId = "plex:\(item.id)"
+        }
+
+        guard normalizedId.hasPrefix("plex:") else {
+            TrailerPreviewDiagnostics.debug("Identity failed: unsupported item id=\(item.id)")
+            return nil
+        }
+
+        let ratingKey = String(normalizedId.dropFirst(5))
+        TrailerPreviewDiagnostics.debug("Identity fetching Plex metadata ratingKey=\(ratingKey)")
+        let fullItem: MediaItemFull = try await APIClient.shared.get("/api/plex/metadata/\(ratingKey)")
+
+        if fullItem.type == "season", let parentRatingKey = fullItem.parentRatingKey {
+            let showItem: MediaItemFull = try await APIClient.shared.get("/api/plex/metadata/\(parentRatingKey)")
+            if let tmdbId = extractTMDBIdFromGuidArray(showItem.Guid) ?? extractTMDBIdFromString(showItem.guid) {
+                TrailerPreviewDiagnostics.debug("Identity resolved season->show ratingKey=\(ratingKey) tmdbId=\(tmdbId)")
+                return ("tv", tmdbId)
+            }
+        }
+
+        if fullItem.type == "episode", let grandparentRatingKey = fullItem.grandparentRatingKey {
+            let seriesItem: MediaItemFull = try await APIClient.shared.get("/api/plex/metadata/\(grandparentRatingKey)")
+            if let tmdbId = extractTMDBIdFromGuidArray(seriesItem.Guid) ?? extractTMDBIdFromString(seriesItem.guid) {
+                TrailerPreviewDiagnostics.debug("Identity resolved episode->series ratingKey=\(ratingKey) tmdbId=\(tmdbId)")
+                return ("tv", tmdbId)
+            }
+        }
+
+        if let tmdbId = extractTMDBIdFromGuidArray(fullItem.Guid) ?? extractTMDBIdFromString(fullItem.guid) {
+            let mediaType = (fullItem.type == "movie") ? "movie" : "tv"
+            TrailerPreviewDiagnostics.debug("Identity resolved direct Plex metadata ratingKey=\(ratingKey) mediaType=\(mediaType) tmdbId=\(tmdbId)")
+            return (mediaType, tmdbId)
+        }
+
+        TrailerPreviewDiagnostics.debug("Identity failed: no TMDB guid found for ratingKey=\(ratingKey)")
         return nil
     }
 

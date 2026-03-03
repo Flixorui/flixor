@@ -25,13 +25,6 @@ enum UX {
     static let neighborScale: CGFloat = 0.96
     static let dimNeighborOpacity: Double = 0.7
 
-    // Colors
-    static let surface = Color.black
-    static let cardStroke = Color.white.opacity(0.12)
-    static let cardFill = Color.white.opacity(0.06)
-    static let pillFill = Color.white
-    static let pillFillAlt = Color.white.opacity(0.18)
-
     // Billboard layout
     static let billboardSide: CGFloat = 8
     static let billboardTopPadding: CGFloat = -48
