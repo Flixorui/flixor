@@ -97,3 +97,9 @@ export type {
   TMDBBrowseKind,
   TraktBrowseKind,
 } from './models/browse';
+
+// === Popcorn fork — extensions custom ===
+export { PopcornConfig } from './config/PopcornConfig';
+export type { PopcornConfigShape } from './config/PopcornConfig';
+export { PopcornAuthService, PopcornAuthError } from './popcorn/PopcornAuthService';
+export type { RedeemResponse, PopcornAuthErrorCode } from './popcorn/PopcornAuthService';

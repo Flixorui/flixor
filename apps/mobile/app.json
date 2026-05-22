@@ -1,23 +1,23 @@
 {
   "expo": {
-    "name": "Flixor",
-    "slug": "flixor-mobile",
-    "scheme": "flixor",
-    "version": "0.1.8",
-    "runtimeVersion": "0.1.8",
+    "name": "Popcorn",
+    "slug": "popcorn-mobile",
+    "scheme": "popcorn",
+    "version": "0.1.0",
+    "runtimeVersion": "0.1.0",
     "orientation": "default",
     "updates": {
       "enabled": true,
       "checkAutomatically": "NEVER",
       "fallbackToCacheTimeout": 30000,
-      "url": "https://ota.flixor.xyz/api/manifest"
+      "url": "https://ota.thepopcorn.fr/api/manifest"
     },
     "assetBundlePatterns": [
       "**/*"
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "xyz.flixor.mobile",
+      "bundleIdentifier": "fr.thepopcorn.mobile",
       "icon": "./assets/icons/ios-light.png",
       "jsEngine": "hermes",
       "infoPlist": {
@@ -27,7 +27,7 @@
       }
     },
     "android": {
-      "package": "xyz.flixor.mobile",
+      "package": "fr.thepopcorn.mobile",
       "usesCleartextTraffic": true,
       "jsEngine": "hermes",
       "adaptiveIcon": {
@@ -36,12 +36,6 @@
         "backgroundColor": "#000000"
       }
     },
-    "extra": {
-      "eas": {
-        "projectId": "14e1896c-9a1f-4f6b-a9c1-f5b8c5a9d2b4"
-      }
-    },
-    "owner": "deviprasad97",
     "plugins": [
       "expo-updates",
       [
@@ -63,6 +57,7 @@
           "fonts": ["./assets/fonts/go-noto-current-regular.ttf"]
         }
       ],
+      "./plugins/withKSPlayer",
       "./plugins/withMPViOS",
       "./plugins/withMPVPlayer"
     ]
