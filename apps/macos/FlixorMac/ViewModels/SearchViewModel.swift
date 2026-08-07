@@ -330,15 +330,17 @@ class SearchViewModel: ObservableObject {
             var tmdbShowRes: [SearchResult] = []
             var allGenreIds = Set<Int>()
 
-            // Search Plex
-            await withTaskGroup(of: [SearchResult].self) { group in
-                // Search Plex movies
-                group.addTask { await self.searchPlex(query: query, type: 1) }
-                // Search Plex TV shows
-                group.addTask { await self.searchPlex(query: query, type: 2) }
+            // Search Plex - skipped entirely without a server
+            if !AppModeStore.shared.isStremioOnly {
+                await withTaskGroup(of: [SearchResult].self) { group in
+                    // Search Plex movies
+                    group.addTask { await self.searchPlex(query: query, type: 1) }
+                    // Search Plex TV shows
+                    group.addTask { await self.searchPlex(query: query, type: 2) }
 
-                for await results in group {
-                    plexRes.append(contentsOf: results)
+                    for await results in group {
+                        plexRes.append(contentsOf: results)
+                    }
                 }
             }
 

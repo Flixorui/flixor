@@ -762,8 +762,9 @@ class DetailsViewModel: ObservableObject {
         self.similarBrowseContext = .tmdb(kind: .similar, media: mediaType, id: id, displayTitle: self.title)
 
         // Attempt Plex source mapping (GUIDs + external IDs + title search)
-        // Skip if we already have Plex data (native Plex items requesting TMDB enhancements)
-        if !skipPlexMapping {
+        // Skip if we already have Plex data (native Plex items requesting TMDB
+        // enhancements), or if there's no Plex server to map against at all.
+        if !skipPlexMapping && !AppModeStore.shared.isStremioOnly {
             do {
                 try await self.mapToPlex(media: media, tmdbId: id, title: self.title, year: self.year)
             } catch {

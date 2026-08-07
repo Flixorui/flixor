@@ -496,7 +496,13 @@ struct DetailsView: View {
     }
 
     private func playEpisode(_ episode: DetailsViewModel.Episode) {
-        guard episode.id.hasPrefix("plex:") else { return }
+        // TMDB-sourced episodes have no Plex ratingKey; they can only play via Stremio.
+        guard episode.id.hasPrefix("plex:") else {
+            if canShowStremioAction {
+                openEpisodeStremioSources(episode)
+            }
+            return
+        }
 
         let ratingKey = String(episode.id.dropFirst(5))
         let playerItem = MediaItem(
@@ -1115,35 +1121,41 @@ private struct DetailsHeroSection: View {
                     .buttonStyle(.plain)
                 }
             } else {
-                // Play button - large, white (Apple TV+ style)
-                Button(action: onPlay) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "play.fill")
-                            .font(.system(size: 16, weight: .semibold))
-                        Text("Play")
-                            .font(.system(size: 16, weight: .semibold))
+                // With no local Plex copy, Stremio is the only way to play this, so it
+                // becomes the primary button instead of sitting next to a dead one.
+                let stremioIsPrimary = showsStremioButton && !hasResolvedPlexSource
+
+                if !stremioIsPrimary {
+                    // Play button - large, white (Apple TV+ style)
+                    Button(action: onPlay) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "play.fill")
+                                .font(.system(size: 16, weight: .semibold))
+                            Text("Play")
+                                .font(.system(size: 16, weight: .semibold))
+                        }
+                        .foregroundStyle(hasResolvedPlexSource ? .black : .gray)
+                        .padding(.horizontal, 32)
+                        .padding(.vertical, 12)
+                        .background(hasResolvedPlexSource ? Color.white : Color.white.opacity(0.5))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
                     }
-                    .foregroundStyle(hasResolvedPlexSource ? .black : .gray)
-                    .padding(.horizontal, 32)
-                    .padding(.vertical, 12)
-                    .background(hasResolvedPlexSource ? Color.white : Color.white.opacity(0.5))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .buttonStyle(.plain)
+                    .disabled(!hasResolvedPlexSource)
                 }
-                .buttonStyle(.plain)
-                .disabled(!hasResolvedPlexSource)
 
                 if showsStremioButton {
                     Button(action: onStremio) {
                         HStack(spacing: 8) {
-                            Image(systemName: "puzzlepiece.extension.fill")
-                                .font(.system(size: 15, weight: .semibold))
-                            Text("Stremio")
-                                .font(.system(size: 15, weight: .semibold))
+                            Image(systemName: stremioIsPrimary ? "play.fill" : "puzzlepiece.extension.fill")
+                                .font(.system(size: 16, weight: .semibold))
+                            Text(stremioIsPrimary ? "Play" : "Stremio")
+                                .font(.system(size: 16, weight: .semibold))
                         }
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 22)
+                        .foregroundStyle(stremioIsPrimary ? .black : .white)
+                        .padding(.horizontal, stremioIsPrimary ? 32 : 22)
                         .padding(.vertical, 12)
-                        .background(Color.orange.opacity(0.22))
+                        .background(stremioIsPrimary ? Color.white : Color.orange.opacity(0.22))
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                     }
                     .buttonStyle(.plain)
