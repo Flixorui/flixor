@@ -564,6 +564,12 @@ class HomeViewModel: ObservableObject {
         var ordered: [LibrarySection] = []
         let settings = UserDefaults.standard
 
+        // Addon catalogs first when present - they're the user's own configured
+        // sources, so they outrank generic TMDB discovery.
+        if settings.showStremioCatalogRows {
+            ordered.append(contentsOf: await fetchStremioCatalogSections())
+        }
+
         // Trending is the headline row and also seeds the hero, so it goes first.
         if settings.showTrendingRows {
             if let s = await fetchTMDBListSection(
@@ -634,6 +640,54 @@ class HomeViewModel: ObservableObject {
         print("✅ [Home] Stremio sections prepared: \(ordered.map { $0.title }.joined(separator: ", "))")
         self.extraSections = ordered
         self.extraSectionsState = ordered.isEmpty ? .empty : .loaded
+    }
+
+    /// One row per browsable catalog advertised by the installed Stremio addons.
+    /// Rows are fetched concurrently but keep the addon priority order.
+    private func fetchStremioCatalogSections(maxRows: Int = 8) async -> [LibrarySection] {
+        let catalogs = await StremioService.shared.getBrowsableCatalogs()
+        guard !catalogs.isEmpty else { return [] }
+
+        let selected = Array(catalogs.prefix(maxRows))
+        if catalogs.count > maxRows {
+            print("ℹ️ [Home] \(catalogs.count) catalogs available, showing first \(maxRows)")
+        }
+
+        var byIndex: [Int: LibrarySection] = [:]
+        await withTaskGroup(of: (Int, LibrarySection?).self) { group in
+            for (index, entry) in selected.enumerated() {
+                group.addTask {
+                    let previews = await StremioService.shared.getCatalog(
+                        installationId: entry.installationId,
+                        type: entry.catalog.type,
+                        catalogId: entry.catalog.catalogId,
+                        limit: 20
+                    )
+                    guard !previews.isEmpty else { return (index, nil) }
+
+                    let items = await StremioCatalogMapper.shared.mediaItems(from: previews)
+                    guard !items.isEmpty else { return (index, nil) }
+
+                    return (index, LibrarySection(
+                        id: "stremio-catalog-\(entry.id)",
+                        title: "\(entry.catalog.displayName) · \(entry.addonName)",
+                        items: items,
+                        totalCount: items.count,
+                        libraryKey: nil,
+                        // No browse context: paging a catalog needs the `skip` extra,
+                        // which the browse modal doesn't model yet.
+                        browseContext: nil
+                    ))
+                }
+            }
+            for await (index, section) in group {
+                if let section { byIndex[index] = section }
+            }
+        }
+
+        let sections = selected.indices.compactMap { byIndex[$0] }
+        print("✅ [Home] Stremio catalog rows: \(sections.count)")
+        return sections
     }
 
     /// Fetches one TMDB list and wraps it in a LibrarySection whose browse context

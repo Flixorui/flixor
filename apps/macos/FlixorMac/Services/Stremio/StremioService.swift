@@ -38,6 +38,17 @@ actor StremioService {
         let idPrefixes: [String]?
         let behaviorHints: StremioAddonBehaviorHints?
         let config: [StremioAddonConfigOption]?
+        let catalogs: [StremioCatalogDefinition]
+    }
+
+    /// A catalog paired with the addon that serves it.
+    struct InstalledCatalog: Identifiable {
+        let addonId: String
+        let addonName: String
+        let installationId: String
+        let catalog: StremioCatalogDefinition
+
+        var id: String { "\(installationId):\(catalog.id)" }
     }
 
     func ensureInitialized(installDefaults: Bool = false) async {
@@ -74,9 +85,151 @@ actor StremioService {
                 configureURL: getAddonConfigureURL(for: addon)?.absoluteString,
                 streamCapable: addonProvidesStreams(addon),
                 subtitleCapable: addonProvidesSubtitles(addon),
+                catalogCapable: !(addon.catalogs ?? []).isEmpty,
                 configurationRequired: addon.behaviorHints?.configurationRequired ?? false
             )
         }
+    }
+
+    // MARK: - Catalogs
+
+    /// Catalogs from installed addons that can be listed without user input.
+    /// Ordered by addon priority, matching the stream-provider ordering.
+    func getBrowsableCatalogs() async -> [InstalledCatalog] {
+        let installed = await getInstalledAddons()
+        return installed.flatMap { addon in
+            (addon.catalogs ?? [])
+                .filter { $0.isBrowsable && addonSupportsResource(addon, resourceName: "catalog", catalogType: $0.type) }
+                .map {
+                    InstalledCatalog(
+                        addonId: addon.id,
+                        addonName: addon.name,
+                        installationId: addon.installationId,
+                        catalog: $0
+                    )
+                }
+        }
+    }
+
+    func hasCatalogProviders() async -> Bool {
+        !(await getBrowsableCatalogs()).isEmpty
+    }
+
+    /// Fetches one catalog page. `extras` become the `/key=value` path segments the
+    /// addon protocol uses (e.g. `skip=100`, `genre=Comedy`, `search=dune`).
+    func getCatalog(
+        installationId: String,
+        type: String,
+        catalogId: String,
+        extras: [String: String] = [:],
+        limit: Int = 30
+    ) async -> [StremioMetaPreview] {
+        await ensureInitialized()
+        guard let addon = addons[installationId], let baseURL = addon.url else { return [] }
+
+        var resourcePath = "/catalog/\(type)/\(encodePathSegment(catalogId))"
+        // Sorted so the same request always produces the same URL (cache-friendly).
+        for key in extras.keys.sorted() {
+            guard let value = extras[key] else { continue }
+            resourcePath += "/\(encodePathSegment(key))=\(encodePathSegment(value))"
+        }
+        resourcePath += ".json"
+
+        guard let requestURL = URL(string: buildResourceURL(baseURL: baseURL, resourcePath: resourcePath)) else {
+            return []
+        }
+
+        do {
+            let data = try await requestData(from: requestURL, config: RequestConfig(timeout: 20, accept: "application/json"))
+            let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+            let metas = json?["metas"] as? [[String: Any]] ?? []
+            return metas.prefix(limit).compactMap(parseMetaPreview)
+        } catch {
+            logger.warn("[Stremio] Catalog request failed", data: [
+                "addonId": addon.id,
+                "catalog": "\(type):\(catalogId)",
+                "error": error.localizedDescription,
+            ])
+            return []
+        }
+    }
+
+    /// Runs the query against every search-capable catalog, de-duplicating by meta id.
+    func searchCatalogs(query: String, limit: Int = 20) async -> [StremioMetaPreview] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+
+        await ensureInitialized()
+        let installed = await getInstalledAddons()
+        let searchable: [InstalledCatalog] = installed.flatMap { addon in
+            (addon.catalogs ?? [])
+                .filter { $0.supportsSearch && addonSupportsResource(addon, resourceName: "catalog", catalogType: $0.type) }
+                .map {
+                    InstalledCatalog(
+                        addonId: addon.id,
+                        addonName: addon.name,
+                        installationId: addon.installationId,
+                        catalog: $0
+                    )
+                }
+        }
+        guard !searchable.isEmpty else { return [] }
+
+        var results: [[StremioMetaPreview]] = []
+        await withTaskGroup(of: [StremioMetaPreview].self) { group in
+            for entry in searchable {
+                group.addTask {
+                    await self.getCatalog(
+                        installationId: entry.installationId,
+                        type: entry.catalog.type,
+                        catalogId: entry.catalog.catalogId,
+                        extras: ["search": trimmed],
+                        limit: limit
+                    )
+                }
+            }
+            for await page in group {
+                results.append(page)
+            }
+        }
+
+        var seen = Set<String>()
+        return results.flatMap { $0 }.filter { seen.insert($0.id).inserted }
+    }
+
+    // MARK: - Meta
+
+    /// Full metadata for one title, including the episode list for series.
+    /// Tries each meta-capable addon in priority order and returns the first hit.
+    func getMeta(type: String, id: String) async -> StremioMetaDetail? {
+        await ensureInitialized()
+        let installed = await getInstalledAddons()
+
+        for addon in installed {
+            guard addonSupportsResource(addon, resourceName: "meta", catalogType: type, contentId: id),
+                  let baseURL = addon.url else { continue }
+
+            let resourcePath = "/meta/\(type)/\(encodePathSegment(id)).json"
+            guard let requestURL = URL(string: buildResourceURL(baseURL: baseURL, resourcePath: resourcePath)) else {
+                continue
+            }
+
+            do {
+                let data = try await requestData(from: requestURL, config: RequestConfig(timeout: 20, accept: "application/json"))
+                let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+                if let raw = json?["meta"] as? [String: Any], let detail = parseMetaDetail(raw) {
+                    return detail
+                }
+            } catch {
+                logger.warn("[Stremio] Meta request failed", data: [
+                    "addonId": addon.id,
+                    "type": type,
+                    "id": id,
+                    "error": error.localizedDescription,
+                ])
+            }
+        }
+        return nil
     }
 
     func hasStreamProviders(requestType: StremioRequestType? = nil) async -> Bool {
@@ -327,7 +480,8 @@ actor StremioService {
             types: payload.types,
             idPrefixes: payload.idPrefixes,
             behaviorHints: payload.behaviorHints,
-            config: payload.config
+            config: payload.config,
+            catalogs: payload.catalogs.isEmpty ? nil : payload.catalogs
         )
     }
 
@@ -473,6 +627,7 @@ actor StremioService {
         let normalizedResources = normalizeResources(json["resources"])
         let behaviorHints = parseBehaviorHints(json["behaviorHints"] as? [String: Any])
         let config = parseConfig(json["config"] as? [[String: Any]])
+        let catalogs = parseCatalogs(json["catalogs"] as? [[String: Any]])
 
         return ManifestPayload(
             id: finalId,
@@ -483,8 +638,56 @@ actor StremioService {
             types: json["types"] as? [String],
             idPrefixes: json["idPrefixes"] as? [String],
             behaviorHints: behaviorHints,
-            config: config
+            config: config,
+            catalogs: catalogs
         )
+    }
+
+    private func parseCatalogs(_ rawValue: [[String: Any]]?) -> [StremioCatalogDefinition] {
+        guard let rawValue else { return [] }
+        return rawValue.compactMap { item in
+            guard let type = item["type"] as? String,
+                  let catalogId = item["id"] as? String else {
+                return nil
+            }
+            return StremioCatalogDefinition(
+                type: type,
+                catalogId: catalogId,
+                name: item["name"] as? String,
+                extra: parseCatalogExtras(item)
+            )
+        }
+    }
+
+    /// Handles both the modern `extra` array and the legacy
+    /// `extraRequired`/`extraSupported` string arrays.
+    private func parseCatalogExtras(_ item: [String: Any]) -> [StremioCatalogExtra]? {
+        if let extras = item["extra"] as? [[String: Any]] {
+            let parsed = extras.compactMap { raw -> StremioCatalogExtra? in
+                guard let name = raw["name"] as? String else { return nil }
+                return StremioCatalogExtra(
+                    name: name,
+                    isRequired: (raw["isRequired"] as? Bool) ?? false,
+                    options: raw["options"] as? [String],
+                    optionsLimit: raw["optionsLimit"] as? Int
+                )
+            }
+            return parsed.isEmpty ? nil : parsed
+        }
+
+        let required = Set(item["extraRequired"] as? [String] ?? [])
+        let supported = item["extraSupported"] as? [String] ?? []
+        let names = supported.isEmpty ? Array(required) : supported
+        guard !names.isEmpty else { return nil }
+
+        return names.map {
+            StremioCatalogExtra(
+                name: $0,
+                isRequired: required.contains($0),
+                options: nil,
+                optionsLimit: nil
+            )
+        }
     }
 
     private func normalizeResources(_ rawValue: Any?) -> [StremioResourceObject] {
@@ -556,13 +759,29 @@ actor StremioService {
         requestType: StremioRequestType,
         contentId: String?
     ) -> Bool {
+        addonSupportsResource(
+            addon,
+            resourceName: resourceName,
+            catalogType: requestType.rawValue,
+            contentId: contentId
+        )
+    }
+
+    /// Same check keyed by a raw Stremio type string, since catalogs and meta use
+    /// types beyond movie/series.
+    private func addonSupportsResource(
+        _ addon: StremioAddonManifest,
+        resourceName: String,
+        catalogType: String,
+        contentId: String? = nil
+    ) -> Bool {
         let resources = addon.resources ?? []
         guard let resource = resources.first(where: { $0.name == resourceName }) else {
             return false
         }
 
         let supportedTypes = resource.types ?? addon.types ?? []
-        if !supportedTypes.isEmpty && !supportedTypes.contains(requestType.rawValue) {
+        if !supportedTypes.isEmpty && !supportedTypes.contains(catalogType) {
             return false
         }
 
@@ -572,6 +791,72 @@ actor StremioService {
         }
 
         return idPrefixes.contains { contentId?.hasPrefix($0) == true }
+    }
+
+    private func encodePathSegment(_ value: String) -> String {
+        value.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? value
+    }
+
+    private func parseMetaPreview(_ raw: [String: Any]) -> StremioMetaPreview? {
+        guard let id = raw["id"] as? String,
+              let type = raw["type"] as? String,
+              let name = raw["name"] as? String else {
+            return nil
+        }
+        return StremioMetaPreview(
+            id: id,
+            type: type,
+            name: name,
+            poster: raw["poster"] as? String,
+            background: raw["background"] as? String,
+            description: raw["description"] as? String,
+            releaseInfo: stringValue(raw["releaseInfo"]),
+            imdbRating: stringValue(raw["imdbRating"])
+        )
+    }
+
+    private func parseMetaDetail(_ raw: [String: Any]) -> StremioMetaDetail? {
+        guard let id = raw["id"] as? String,
+              let type = raw["type"] as? String,
+              let name = raw["name"] as? String else {
+            return nil
+        }
+
+        let videos = (raw["videos"] as? [[String: Any]])?.compactMap { video -> StremioMetaVideo? in
+            guard let videoId = video["id"] as? String else { return nil }
+            return StremioMetaVideo(
+                id: videoId,
+                title: (video["title"] as? String) ?? (video["name"] as? String),
+                season: video["season"] as? Int,
+                episode: (video["episode"] as? Int) ?? (video["number"] as? Int),
+                released: stringValue(video["released"]),
+                thumbnail: video["thumbnail"] as? String,
+                overview: (video["overview"] as? String) ?? (video["description"] as? String)
+            )
+        }
+
+        return StremioMetaDetail(
+            id: id,
+            type: type,
+            name: name,
+            poster: raw["poster"] as? String,
+            background: raw["background"] as? String,
+            description: raw["description"] as? String,
+            releaseInfo: stringValue(raw["releaseInfo"]),
+            imdbRating: stringValue(raw["imdbRating"]),
+            genres: (raw["genres"] as? [String]) ?? (raw["genre"] as? [String]),
+            videos: videos
+        )
+    }
+
+    /// Addons are inconsistent about whether these fields are strings or numbers.
+    private func stringValue(_ raw: Any?) -> String? {
+        switch raw {
+        case let value as String: return value
+        case let value as Int: return String(value)
+        case let value as Double: return String(value)
+        default: return nil
+        }
     }
 
     private func generateInstallationId(addonId: String) -> String {

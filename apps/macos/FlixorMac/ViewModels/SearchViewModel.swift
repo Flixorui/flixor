@@ -15,6 +15,8 @@ class SearchViewModel: ObservableObject {
 
     @Published var query: String = ""
     @Published var plexResults: [SearchResult] = []
+    /// Matches from the installed Stremio addons' searchable catalogs.
+    @Published var stremioResults: [SearchResult] = []
     @Published var tmdbMovies: [SearchResult] = []
     @Published var tmdbShows: [SearchResult] = []
     @Published var genreRows: [GenreRow] = []
@@ -309,6 +311,7 @@ class SearchViewModel: ObservableObject {
     private func performSearch(query: String) async {
         guard !query.trimmingCharacters(in: .whitespaces).isEmpty else {
             plexResults = []
+            stremioResults = []
             tmdbMovies = []
             tmdbShows = []
             genreRows = []
@@ -344,6 +347,12 @@ class SearchViewModel: ObservableObject {
                 }
             }
 
+            // Search installed Stremio catalogs
+            var stremioRes: [SearchResult] = []
+            if UserDefaults.standard.stremioCatalogSearchEnabled {
+                stremioRes = await self.searchStremioCatalogs(query: query)
+            }
+
             // Search TMDB (only if enabled in settings)
             if self.includeTmdbInSearch {
                 let (movies, shows, genres) = await searchTMDBSeparate(query: query)
@@ -355,16 +364,40 @@ class SearchViewModel: ObservableObject {
             guard !Task.isCancelled else { return }
 
             self.plexResults = plexRes
+            self.stremioResults = stremioRes
             self.tmdbMovies = tmdbMovieRes
             self.tmdbShows = tmdbShowRes
             self.searchMode = .results
 
-            print("✅ [Search] Found \(plexRes.count) Plex, \(tmdbMovieRes.count) TMDB movies, \(tmdbShowRes.count) TMDB shows")
+            print("✅ [Search] Found \(plexRes.count) Plex, \(stremioRes.count) Stremio, \(tmdbMovieRes.count) TMDB movies, \(tmdbShowRes.count) TMDB shows")
 
             // Fetch genre-based recommendations (top 3 genres) - only if TMDB is enabled
             if self.includeTmdbInSearch && !allGenreIds.isEmpty {
                 await loadGenreRecommendations(genreIds: Array(allGenreIds).prefix(3))
             }
+        }
+    }
+
+    /// Searches every search-capable addon catalog and maps hits into SearchResults.
+    /// Ids come back as `tmdb:` where TMDB could match, so tapping a result opens the
+    /// normal details screen.
+    private func searchStremioCatalogs(query: String) async -> [SearchResult] {
+        let previews = await StremioService.shared.searchCatalogs(query: query)
+        guard !previews.isEmpty else { return [] }
+
+        let items = await StremioCatalogMapper.shared.mediaItems(from: previews)
+        return items.map { item in
+            SearchResult(
+                id: item.id,
+                title: item.title,
+                type: item.type == "movie" ? .movie : .tv,
+                imageURL: item.thumb.flatMap { URL(string: $0) },
+                year: item.year.map(String.init),
+                overview: item.summary,
+                available: false,
+                genreIds: [],
+                editionTitle: nil
+            )
         }
     }
 

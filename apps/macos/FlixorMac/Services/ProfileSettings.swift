@@ -152,6 +152,14 @@ class ProfileSettings: ObservableObject {
         didSet { defaults.stremioPlaybackEnabled = stremioPlaybackEnabled }
     }
 
+    @Published var showStremioCatalogRows: Bool {
+        didSet { defaults.showStremioCatalogRows = showStremioCatalogRows }
+    }
+
+    @Published var stremioCatalogSearchEnabled: Bool {
+        didSet { defaults.stremioCatalogSearchEnabled = stremioCatalogSearchEnabled }
+    }
+
     @Published var stremioAutoPlayBestSource: Bool {
         didSet { defaults.stremioAutoPlayBestSource = stremioAutoPlayBestSource }
     }
@@ -358,6 +366,8 @@ class ProfileSettings: ObservableObject {
 
         // Stremio
         self.stremioPlaybackEnabled = defaults.stremioPlaybackEnabled
+        self.showStremioCatalogRows = defaults.showStremioCatalogRows
+        self.stremioCatalogSearchEnabled = defaults.stremioCatalogSearchEnabled
         self.stremioAutoPlayBestSource = defaults.stremioAutoPlayBestSource
         self.stremioShowOnTmdbDetails = defaults.stremioShowOnTmdbDetails
         self.stremioPreferCachedSourceResume = defaults.stremioPreferCachedSourceResume
@@ -457,6 +467,8 @@ class ProfileSettings: ObservableObject {
 
         // Stremio
         stremioPlaybackEnabled = defaults.stremioPlaybackEnabled
+        showStremioCatalogRows = defaults.showStremioCatalogRows
+        stremioCatalogSearchEnabled = defaults.stremioCatalogSearchEnabled
         stremioAutoPlayBestSource = defaults.stremioAutoPlayBestSource
         stremioShowOnTmdbDetails = defaults.stremioShowOnTmdbDetails
         stremioPreferCachedSourceResume = defaults.stremioPreferCachedSourceResume

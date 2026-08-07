@@ -181,9 +181,19 @@ struct SearchResultsView: View {
                     .padding(.bottom, 32)
             }
 
+            if !viewModel.stremioResults.isEmpty {
+                SearchHorizontalRow(
+                    title: "From Your Addons",
+                    items: viewModel.stremioResults,
+                    onTap: onTap
+                )
+                .padding(.bottom, 32)
+            }
+
             if !viewModel.tmdbMovies.isEmpty {
                 SearchHorizontalRow(
-                    title: viewModel.plexResults.isEmpty ? "Top Results" : "Movies",
+                    title: viewModel.plexResults.isEmpty && viewModel.stremioResults.isEmpty
+                        ? "Top Results" : "Movies",
                     items: viewModel.tmdbMovies,
                     onTap: onTap
                 )

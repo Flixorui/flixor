@@ -446,6 +446,8 @@ extension UserDefaults {
         static let stremioStreamCache = "stremioStreamCache"
         static let stremioResumeStates = "stremioResumeStates"
         static let stremioRemovedDefaultAddons = "stremioRemovedDefaultAddons"
+        static let showCatalogRows = "stremioShowCatalogRows"
+        static let catalogSearch = "stremioCatalogSearch"
     }
 
     var stremioPlaybackEnabled: Bool {
@@ -456,6 +458,19 @@ extension UserDefaults {
     var stremioAutoPlayBestSource: Bool {
         get { bool(forKey: profileKey(StremioKeys.autoPlayBestSource)) }
         set { set(newValue, forKey: profileKey(StremioKeys.autoPlayBestSource)) }
+    }
+
+    /// Show a home row per browsable addon catalog. Defaults on - a user who
+    /// installed a catalog addon wants to see it.
+    var showStremioCatalogRows: Bool {
+        get { object(forKey: profileKey(StremioKeys.showCatalogRows)) as? Bool ?? true }
+        set { set(newValue, forKey: profileKey(StremioKeys.showCatalogRows)) }
+    }
+
+    /// Merge addon catalog search results into the Search screen.
+    var stremioCatalogSearchEnabled: Bool {
+        get { object(forKey: profileKey(StremioKeys.catalogSearch)) as? Bool ?? true }
+        set { set(newValue, forKey: profileKey(StremioKeys.catalogSearch)) }
     }
 
     var stremioShowOnTmdbDetails: Bool {

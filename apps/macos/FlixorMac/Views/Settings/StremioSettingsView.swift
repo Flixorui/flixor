@@ -84,6 +84,26 @@ struct StremioSettingsView: View {
                 }
 
                 SettingsRow(
+                    icon: "square.grid.2x2.fill",
+                    iconColor: .teal,
+                    title: "Catalog Rows On Home",
+                    subtitle: "Show a home row for each catalog your addons provide"
+                ) {
+                    Toggle("", isOn: $profileSettings.showStremioCatalogRows)
+                        .labelsHidden()
+                }
+
+                SettingsRow(
+                    icon: "magnifyingglass",
+                    iconColor: .teal,
+                    title: "Search Addon Catalogs",
+                    subtitle: "Include addon catalog matches in search results"
+                ) {
+                    Toggle("", isOn: $profileSettings.stremioCatalogSearchEnabled)
+                        .labelsHidden()
+                }
+
+                SettingsRow(
                     icon: "eye.slash.fill",
                     iconColor: .gray,
                     title: "Unsupported Sources",

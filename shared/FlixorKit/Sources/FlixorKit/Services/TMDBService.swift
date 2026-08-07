@@ -371,6 +371,21 @@ public class TMDBService {
         )
     }
 
+    // MARK: - External IDs
+
+    /// Look a title up by an external id, e.g. an IMDb id from a Stremio catalog.
+    /// Cached for a long time - these mappings don't change.
+    public func findByExternalId(
+        _ externalId: String,
+        source: String = "imdb_id"
+    ) async throws -> TMDBFindResponse {
+        return try await get(
+            path: "/find/\(externalId)",
+            params: ["external_source": source],
+            ttl: CacheTTL.static
+        )
+    }
+
     // MARK: - Person
 
     /// Get person details
@@ -385,6 +400,17 @@ public class TMDBService {
 }
 
 // MARK: - TMDB Models
+
+/// Response from `/find/{external_id}`. Only the movie and TV buckets are used.
+public struct TMDBFindResponse: Codable {
+    public let movieResults: [TMDBMedia]
+    public let tvResults: [TMDBMedia]
+
+    private enum CodingKeys: String, CodingKey {
+        case movieResults = "movie_results"
+        case tvResults = "tv_results"
+    }
+}
 
 public struct TMDBResultsResponse: Codable {
     public let page: Int

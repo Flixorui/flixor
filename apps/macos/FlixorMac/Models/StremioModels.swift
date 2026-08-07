@@ -99,6 +99,99 @@ struct StremioAddonConfigOption: Codable, Hashable {
     }
 }
 
+// MARK: - Catalogs
+
+/// An `extra` parameter a catalog accepts, e.g. `search`, `genre` or `skip`.
+struct StremioCatalogExtra: Codable, Hashable {
+    let name: String
+    let isRequired: Bool
+    let options: [String]?
+    let optionsLimit: Int?
+}
+
+/// One catalog advertised by an addon's manifest (`manifest.catalogs`).
+struct StremioCatalogDefinition: Codable, Hashable, Identifiable {
+    /// Stremio content type: "movie", "series", ...
+    let type: String
+    /// The addon's own catalog id, e.g. "top", "year".
+    let catalogId: String
+    let name: String?
+    let extra: [StremioCatalogExtra]?
+
+    var id: String { "\(type):\(catalogId)" }
+
+    enum CodingKeys: String, CodingKey {
+        case type
+        case catalogId = "id"
+        case name
+        case extra
+    }
+
+    var supportsSearch: Bool {
+        extra?.contains { $0.name == "search" } ?? false
+    }
+
+    /// Catalogs with a required extra other than `skip` can't be listed as a plain
+    /// home row - they need user input first (a search term, a genre, ...).
+    var isBrowsable: Bool {
+        let required = extra?.filter(\.isRequired).map(\.name) ?? []
+        return required.allSatisfy { $0 == "skip" }
+    }
+
+    var displayName: String {
+        let base = name ?? catalogId.capitalized
+        return type == "series" ? "\(base) (TV)" : base
+    }
+}
+
+// MARK: - Meta
+
+/// A catalog row entry. Ids are usually IMDb (`tt…`) but may be addon-specific.
+struct StremioMetaPreview: Codable, Hashable, Identifiable {
+    let id: String
+    let type: String
+    let name: String
+    let poster: String?
+    let background: String?
+    let description: String?
+    /// Free-form in the spec: "2019", "2019-2021", "2019-".
+    let releaseInfo: String?
+    let imdbRating: String?
+
+    /// First four-digit year in `releaseInfo`, if any.
+    var year: Int? {
+        guard let releaseInfo else { return nil }
+        return Int(releaseInfo.prefix(4))
+    }
+
+    var imdbId: String? {
+        id.hasPrefix("tt") ? id : nil
+    }
+}
+
+struct StremioMetaVideo: Codable, Hashable, Identifiable {
+    let id: String
+    let title: String?
+    let season: Int?
+    let episode: Int?
+    let released: String?
+    let thumbnail: String?
+    let overview: String?
+}
+
+struct StremioMetaDetail: Codable, Hashable {
+    let id: String
+    let type: String
+    let name: String
+    let poster: String?
+    let background: String?
+    let description: String?
+    let releaseInfo: String?
+    let imdbRating: String?
+    let genres: [String]?
+    let videos: [StremioMetaVideo]?
+}
+
 struct StremioAddonManifest: Codable, Hashable, Identifiable {
     let id: String
     let installationId: String
@@ -113,6 +206,8 @@ struct StremioAddonManifest: Codable, Hashable, Identifiable {
     let idPrefixes: [String]?
     let behaviorHints: StremioAddonBehaviorHints?
     let config: [StremioAddonConfigOption]?
+    /// Optional so addon manifests persisted before catalog support still decode.
+    let catalogs: [StremioCatalogDefinition]?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -128,6 +223,7 @@ struct StremioAddonManifest: Codable, Hashable, Identifiable {
         case idPrefixes
         case behaviorHints
         case config
+        case catalogs
     }
 }
 
@@ -251,6 +347,7 @@ struct StremioAddonSummary: Codable, Hashable, Identifiable {
     let configureURL: String?
     let streamCapable: Bool
     let subtitleCapable: Bool
+    let catalogCapable: Bool
     let configurationRequired: Bool
 }
 

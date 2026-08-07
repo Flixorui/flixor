@@ -147,6 +147,7 @@ struct StremioAddonsView: View {
                 HStack(spacing: 6) {
                     capabilityBadge(title: "Streams", active: addon.streamCapable, color: .blue)
                     capabilityBadge(title: "Subtitles", active: addon.subtitleCapable, color: .purple)
+                    capabilityBadge(title: "Catalogs", active: addon.catalogCapable, color: .teal)
                 }
             }
 
