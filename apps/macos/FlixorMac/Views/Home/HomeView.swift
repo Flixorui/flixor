@@ -259,6 +259,11 @@ struct HomeView: View {
                 await viewModel.refreshRecentlyAddedSections()
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .localWatchHistoryDidChange)) { _ in
+            // Stream playback just wrote progress; pick it up when returning to Home.
+            guard AppModeStore.shared.isStremioOnly else { return }
+            Task { await viewModel.loadLocalContinueWatching() }
+        }
     }
 
     private func presentBrowse(_ context: BrowseContext) {

@@ -71,6 +71,7 @@
 		A050 /* MPVPlayerController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B050 /* MPVPlayerController.swift */; };
 		A051 /* PlayerBackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = B051 /* PlayerBackend.swift */; };
 		SM001 /* AppMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = SMF001 /* AppMode.swift */; };
+		SM002 /* LocalLibraryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = SMF002 /* LocalLibraryStore.swift */; };
 		A052 /* MPVVideoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B052 /* MPVVideoView.swift */; };
 		A053 /* replay10.svg in Resources */ = {isa = PBXBuildFile; fileRef = B053 /* replay10.svg */; };
 		A054 /* forward10.svg in Resources */ = {isa = PBXBuildFile; fileRef = B054 /* forward10.svg */; };
@@ -229,6 +230,7 @@
 		B050 /* MPVPlayerController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MPVPlayerController.swift; sourceTree = "<group>"; };
 		B051 /* PlayerBackend.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerBackend.swift; sourceTree = "<group>"; };
 		SMF001 /* AppMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppMode.swift; sourceTree = "<group>"; };
+		SMF002 /* LocalLibraryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalLibraryStore.swift; sourceTree = "<group>"; };
 		B052 /* MPVVideoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MPVVideoView.swift; sourceTree = "<group>"; };
 		B053 /* replay10.svg */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = replay10.svg; sourceTree = "<group>"; };
 		B054 /* forward10.svg */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = forward10.svg; sourceTree = "<group>"; };
@@ -644,6 +646,7 @@
 				STF003 /* StremioStorage.swift */,
 				STF004 /* StremioStreamCache.swift */,
 				STF005 /* StremioResumeStore.swift */,
+				SMF002 /* LocalLibraryStore.swift */,
 				STF006 /* StremioService.swift */,
 				STF007 /* StremioContentResolver.swift */,
 			);
@@ -900,6 +903,7 @@
 				STB003 /* StremioStorage.swift in Sources */,
 				STB004 /* StremioStreamCache.swift in Sources */,
 				STB005 /* StremioResumeStore.swift in Sources */,
+				SM002 /* LocalLibraryStore.swift in Sources */,
 				STB006 /* StremioService.swift in Sources */,
 				STB007 /* StremioContentResolver.swift in Sources */,
 				C329C5CF7E24F55B6309CD45 /* LogsView.swift in Sources */,

@@ -382,6 +382,8 @@ private struct SourceBadge: View {
                     badgeView(text: "PLEX", color: .orange)
                     badgeView(text: "TRAKT", color: .red)
                 }
+            case .local:
+                badgeView(text: "THIS MAC", color: .gray)
             }
         }
     }

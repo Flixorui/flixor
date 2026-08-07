@@ -534,6 +534,37 @@ extension UserDefaults {
     }
 }
 
+// MARK: - Local Library (Profile-Scoped)
+
+/// Watch history and watchlist kept on this Mac, so Continue Watching and My List
+/// work with no Plex server and no linked Trakt account.
+extension UserDefaults {
+    private enum LocalLibraryKeys {
+        static let watchHistory = "localWatchHistory"
+        static let watchlist = "localWatchlist"
+    }
+
+    func getLocalWatchHistory() -> [String: WatchHistoryEntry] {
+        guard let data = data(forKey: profileKey(LocalLibraryKeys.watchHistory)) else { return [:] }
+        return (try? JSONDecoder().decode([String: WatchHistoryEntry].self, from: data)) ?? [:]
+    }
+
+    func setLocalWatchHistory(_ entries: [String: WatchHistoryEntry]) {
+        guard let data = try? JSONEncoder().encode(entries) else { return }
+        set(data, forKey: profileKey(LocalLibraryKeys.watchHistory))
+    }
+
+    func getLocalWatchlist() -> [String: LocalWatchlistEntry] {
+        guard let data = data(forKey: profileKey(LocalLibraryKeys.watchlist)) else { return [:] }
+        return (try? JSONDecoder().decode([String: LocalWatchlistEntry].self, from: data)) ?? [:]
+    }
+
+    func setLocalWatchlist(_ entries: [String: LocalWatchlistEntry]) {
+        guard let data = try? JSONEncoder().encode(entries) else { return }
+        set(data, forKey: profileKey(LocalLibraryKeys.watchlist))
+    }
+}
+
 // MARK: - Discovery Mode Settings (Profile-Scoped)
 
 extension UserDefaults {

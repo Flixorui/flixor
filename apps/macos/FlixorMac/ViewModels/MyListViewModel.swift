@@ -14,6 +14,8 @@ final class MyListViewModel: ObservableObject {
         case plex
         case trakt
         case both
+        /// Stored on this Mac. Used when neither Plex nor Trakt is connected.
+        case local
     }
 
     enum MediaType: String {
@@ -175,8 +177,9 @@ final class MyListViewModel: ObservableObject {
             do {
                 async let plexItems = fetchPlexWatchlist()
                 async let traktItems = fetchTraktWatchlist()
+                async let localItems = fetchLocalWatchlist()
 
-                let (plex, trakt) = try await (plexItems, traktItems)
+                let (plex, trakt, local) = try await (plexItems, traktItems, localItems)
 
                 var merged: [String: WatchlistItem] = [:]
                 for item in plex {
@@ -189,6 +192,11 @@ final class MyListViewModel: ObservableObject {
                     } else {
                         merged[item.id] = item
                     }
+                }
+                // Local entries only fill gaps - a remote source is authoritative when
+                // it already has the title.
+                for item in local where merged[item.id] == nil {
+                    merged[item.id] = item
                 }
 
                 items = merged.values.sorted { lhs, rhs in
@@ -249,6 +257,10 @@ final class MyListViewModel: ObservableObject {
     }
 
     private func removeSingle(item: WatchlistItem) async {
+        // Always clear the local copy - it may shadow a remote entry that was added
+        // while offline.
+        await LocalLibraryStore.shared.removeFromWatchlist(id: item.id)
+
         do {
             if item.source == .plex || item.source == .both, let identifier = item.plexGuid ?? item.plexRatingKey {
                 let encoded = identifier.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? identifier
@@ -277,7 +289,34 @@ final class MyListViewModel: ObservableObject {
         }
     }
 
+    private func fetchLocalWatchlist() async -> [WatchlistItem] {
+        let entries = await LocalLibraryStore.shared.watchlist()
+        return entries.map { entry in
+            WatchlistItem(
+                id: entry.id,
+                title: entry.title,
+                year: entry.year.map(String.init),
+                imageURL: entry.posterURL.flatMap { URL(string: $0) },
+                plexThumb: entry.posterURL,
+                overview: nil,
+                ratingText: nil,
+                mediaType: entry.type == "movie" ? .movie : .show,
+                source: .local,
+                dateAdded: entry.addedAt,
+                runtimeMinutes: nil,
+                genres: [],
+                plexRatingKey: nil,
+                plexGuid: nil,
+                tmdbId: entry.tmdbId.map(String.init),
+                imdbId: entry.imdbId
+            )
+        }
+    }
+
     private func fetchPlexWatchlist() async throws -> [WatchlistItem] {
+        // No Plex.tv token in Stremio-only mode - skip the request entirely.
+        guard !AppModeStore.shared.isStremioOnly else { return [] }
+
         struct MediaContainer: Codable {
             let Metadata: [PlexMetadata]?
         }

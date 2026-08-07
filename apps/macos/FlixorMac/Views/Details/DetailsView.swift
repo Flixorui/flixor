@@ -1179,6 +1179,7 @@ private struct DetailsHeroSection: View {
                         imdbId: nil,
                         title: vm.title,
                         year: vm.year.flatMap { Int($0) },
+                        posterURL: vm.posterURL?.absoluteString,
                         style: .circle
                     )
                 }

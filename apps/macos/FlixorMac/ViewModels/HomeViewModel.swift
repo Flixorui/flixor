@@ -227,7 +227,6 @@ class HomeViewModel: ObservableObject {
     /// up front (so it collapses instead of shimmering), and discovery comes from TMDB
     /// and Trakt.
     private func loadStremioHomeScreen() async {
-        continueWatchingState = .empty
         onDeckState = .empty
         recentlyAddedState = .empty
         recentlyAddedPerLibraryState = .empty
@@ -239,15 +238,66 @@ class HomeViewModel: ObservableObject {
         onDeckItems = []
         recentlyAddedItems = []
 
+        await loadLocalContinueWatching()
         isLoading = false
 
         Task { @MainActor in
             await self.loadAdditionalRows()
-            // Nothing Plex-backed can seed the hero, so fall back to the discovery rows.
+            // Local history seeds the hero first; otherwise fall back to discovery rows.
             self.seedBillboardFromExtraSections()
         }
 
         loadTask = nil
+    }
+
+    /// Continue Watching from the local watch history written during stream playback.
+    func loadLocalContinueWatching() async {
+        let entries = await LocalLibraryStore.shared.watchHistory()
+        let items = entries.compactMap(makeMediaItem(from:))
+
+        continueWatchingItems = items
+        continueWatchingState = items.isEmpty ? .empty : .loaded
+        continueWatchingVersions = []
+
+        if billboardItems.isEmpty, !items.isEmpty {
+            billboardItems = normalizeForHero(Array(items.prefix(5)))
+            heroState = .loaded
+            startBillboardRotation()
+        }
+
+        print("✅ [Home] Local Continue Watching loaded: \(items.count) items")
+    }
+
+    private func makeMediaItem(from entry: WatchHistoryEntry) -> MediaItem? {
+        // Without a TMDB id there's nothing the details screen can open.
+        guard let itemId = entry.mediaItemId else {
+            print("⚠️ [Home] Skipping history entry '\(entry.title)' - no TMDB id")
+            return nil
+        }
+
+        let isEpisode = entry.mediaType == .episode
+        return MediaItem(
+            id: itemId,
+            title: isEpisode ? (entry.episodeTitle ?? entry.title) : entry.title,
+            type: isEpisode ? "episode" : "movie",
+            thumb: entry.posterURL,
+            art: entry.backdropURL,
+            year: nil,
+            rating: nil,
+            duration: entry.durationMs,
+            viewOffset: entry.positionMs,
+            summary: nil,
+            grandparentTitle: isEpisode ? entry.title : nil,
+            grandparentThumb: isEpisode ? entry.posterURL : nil,
+            grandparentArt: isEpisode ? entry.backdropURL : nil,
+            grandparentRatingKey: nil,
+            parentIndex: entry.seasonNumber,
+            index: entry.episodeNumber,
+            parentRatingKey: nil,
+            parentTitle: nil,
+            leafCount: nil,
+            viewedLeafCount: nil
+        )
     }
 
     /// Uses the first usable discovery row for the hero when there's no local library.

@@ -1823,18 +1823,7 @@ class PlayerViewModel: ObservableObject {
         print("📊 [Player] Progress: \(Int(currentTime))s / \(Int(duration))s (\(progressPercent)%)")
 
         if let streamPlaybackItem {
-            if progressPercent >= 90 {
-                await resumeStore.remove(contentKey: streamPlaybackItem.contentKey)
-            } else {
-                await resumeStore.save(
-                    ResumeState(
-                        contentKey: streamPlaybackItem.contentKey,
-                        positionMs: Int(currentTime * 1000),
-                        durationMs: Int(duration * 1000),
-                        updatedAt: Date()
-                    )
-                )
-            }
+            await saveStreamProgress(streamPlaybackItem, progressPercent: progressPercent)
             return
         }
 
@@ -1858,22 +1847,44 @@ class PlayerViewModel: ObservableObject {
         }
     }
 
+    /// Persists resume position plus a local watch-history entry for stream playback.
+    /// The history entry is what makes Continue Watching work without Plex or Trakt.
+    private func saveStreamProgress(
+        _ streamItem: StreamPlaybackItem,
+        progressPercent: Int,
+        isFinal: Bool = false
+    ) async {
+        let positionMs = Int(currentTime * 1000)
+        let durationMs = Int(duration * 1000)
+
+        if progressPercent >= 90 {
+            await resumeStore.remove(contentKey: streamItem.contentKey)
+        } else {
+            await resumeStore.save(
+                ResumeState(
+                    contentKey: streamItem.contentKey,
+                    positionMs: positionMs,
+                    durationMs: durationMs,
+                    updatedAt: Date()
+                )
+            )
+        }
+
+        // recordProgress handles the completion threshold itself, so it also clears
+        // finished titles out of the row.
+        await LocalLibraryStore.shared.recordProgress(
+            for: streamItem,
+            positionMs: positionMs,
+            durationMs: durationMs,
+            force: isFinal
+        )
+    }
+
     private func reportStopped() async {
         guard duration > 0 else { return }
         if let streamPlaybackItem {
             let progressPercent = Int((currentTime / duration) * 100)
-            if progressPercent >= 90 {
-                await resumeStore.remove(contentKey: streamPlaybackItem.contentKey)
-            } else {
-                await resumeStore.save(
-                    ResumeState(
-                        contentKey: streamPlaybackItem.contentKey,
-                        positionMs: Int(currentTime * 1000),
-                        durationMs: Int(duration * 1000),
-                        updatedAt: Date()
-                    )
-                )
-            }
+            await saveStreamProgress(streamPlaybackItem, progressPercent: progressPercent, isFinal: true)
             return
         }
         do {
@@ -2348,6 +2359,7 @@ class PlayerViewModel: ObservableObject {
             uri: uri,
             headers: mergedHeaders(for: stream),
             title: current.title,
+            showTitle: current.showTitle,
             mediaType: current.mediaType,
             contentKey: current.contentKey,
             imdbId: current.imdbId,

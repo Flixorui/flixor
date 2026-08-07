@@ -271,6 +271,10 @@ struct StreamPlaybackItem: Identifiable, Codable, Hashable {
     let uri: String
     let headers: [HTTPHeaderField]
     let title: String
+    /// Series title for episodes. `title` holds the episode title in that case, so
+    /// this is what watch history and Continue Watching display.
+    /// Optional so previously cached playback items still decode.
+    let showTitle: String?
     let mediaType: StreamMediaType
     let contentKey: String
     let imdbId: String?
@@ -302,4 +306,49 @@ struct ResumeState: Codable, Hashable {
     let positionMs: Int
     let durationMs: Int
     let updatedAt: Date
+}
+
+// MARK: - Local Library
+
+/// A watched title, stored on this Mac. Carries enough metadata to render a
+/// Continue Watching card without a Plex server or any linked account.
+/// Kept separate from `ResumeState` so existing stored resume blobs keep decoding.
+struct WatchHistoryEntry: Codable, Hashable, Identifiable {
+    var id: String { contentKey }
+
+    let contentKey: String
+    let mediaType: StreamMediaType
+    /// Movie title, or the series title for episodes.
+    let title: String
+    let episodeTitle: String?
+    let seasonNumber: Int?
+    let episodeNumber: Int?
+    let imdbId: String?
+    let tmdbId: Int?
+    let posterURL: String?
+    let backdropURL: String?
+    let positionMs: Int
+    let durationMs: Int
+    let updatedAt: Date
+
+    /// Navigable id for the details screen. Episodes point at their series.
+    var mediaItemId: String? {
+        guard let tmdbId else { return nil }
+        return mediaType == .movie ? "tmdb:movie:\(tmdbId)" : "tmdb:tv:\(tmdbId)"
+    }
+}
+
+/// A watchlist entry stored on this Mac, so My List works with no Plex and no Trakt.
+struct LocalWatchlistEntry: Codable, Hashable, Identifiable {
+    /// Canonical media id, e.g. `tmdb:movie:123`.
+    let id: String
+    let title: String
+    /// "movie" or "show", matching MediaItem.type.
+    let type: String
+    let posterURL: String?
+    let backdropURL: String?
+    let year: Int?
+    let imdbId: String?
+    let tmdbId: Int?
+    let addedAt: Date
 }

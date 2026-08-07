@@ -22,6 +22,8 @@ struct WatchlistButton: View {
     let imdbId: String?
     let title: String?
     let year: Int?
+    /// Used for the local watchlist entry's artwork when there's no Plex or Trakt.
+    var posterURL: String? = nil
     var style: Style = .pill
 
     @EnvironmentObject private var watchlistController: WatchlistController
@@ -162,13 +164,15 @@ struct WatchlistButton: View {
         let plexSuccess = await plexTask.value
         let traktSuccess = await traktTask.value
 
-        // Consider successful if at least one service succeeded
-        if plexSuccess || traktSuccess {
-            watchlistController.registerAdd(id: canonicalId)
-            isInWatchlist = true
-        } else {
-            print("⚠️ Failed to add to watchlist on both services")
+        // Always keep a local copy so My List works with neither service connected,
+        // and so the entry survives if both remote calls failed.
+        await addToLocalStore()
+
+        if !plexSuccess && !traktSuccess {
+            print("ℹ️ Watchlist add stored locally only (no Plex/Trakt success)")
         }
+        watchlistController.registerAdd(id: canonicalId)
+        isInWatchlist = true
     }
 
     private func removeFromWatchlist() async {
@@ -197,13 +201,29 @@ struct WatchlistButton: View {
         let plexSuccess = await plexTask.value
         let traktSuccess = await traktTask.value
 
-        // Consider successful if at least one service succeeded
-        if plexSuccess || traktSuccess {
-            watchlistController.registerRemove(id: canonicalId)
-            isInWatchlist = false
-        } else {
-            print("⚠️ Failed to remove from watchlist on both services")
+        await LocalLibraryStore.shared.removeFromWatchlist(id: canonicalId)
+
+        if !plexSuccess && !traktSuccess {
+            print("ℹ️ Watchlist remove applied locally only (no Plex/Trakt success)")
         }
+        watchlistController.registerRemove(id: canonicalId)
+        isInWatchlist = false
+    }
+
+    private func addToLocalStore() async {
+        await LocalLibraryStore.shared.addToWatchlist(
+            LocalWatchlistEntry(
+                id: canonicalId,
+                title: title ?? "Untitled",
+                type: mediaType == .movie ? "movie" : "show",
+                posterURL: posterURL,
+                backdropURL: nil,
+                year: year,
+                imdbId: imdbId,
+                tmdbId: tmdbId.flatMap(Int.init),
+                addedAt: Date()
+            )
+        )
     }
 
     private func addToPlex() async throws {
