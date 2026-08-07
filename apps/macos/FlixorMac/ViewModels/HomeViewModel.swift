@@ -50,6 +50,9 @@ class HomeViewModel: ObservableObject {
     @Published var librariesState: SectionLoadState = .idle
     @Published var extraSectionsState: SectionLoadState = .idle
     @Published var collectionSectionsState: SectionLoadState = .idle
+    /// Terminal state for the hero. Without this the view can't tell "still loading"
+    /// from "nothing will ever populate it" and shows a skeleton indefinitely.
+    @Published var heroState: SectionLoadState = .loading
 
     // Expected number of extra section rows (for skeleton placeholders)
     let expectedExtraSectionCount = 8
@@ -81,6 +84,17 @@ class HomeViewModel: ObservableObject {
     private var billboardTimer: Timer?
     private var loadTask: Task<Void, Never>?
 
+    // MARK: - Mode
+
+    /// Standalone Stremio mode: there is no Plex server, so every Plex-backed row is
+    /// skipped rather than dispatched and failed.
+    private var isStremioOnly: Bool { AppModeStore.shared.isStremioOnly }
+
+    /// Row count used for skeleton placeholders while extra sections load.
+    var expectedExtraSectionCountForMode: Int {
+        isStremioOnly ? 6 : expectedExtraSectionCount
+    }
+
     // MARK: - Load Data
 
     func loadHomeScreen() async {
@@ -104,6 +118,11 @@ class HomeViewModel: ObservableObject {
         extraSectionsState = .loading
         collectionSectionsState = .loading
 
+        if isStremioOnly {
+            await loadStremioHomeScreen()
+            return
+        }
+
         // Fire-and-forget each section; update UI as each finishes
         Task { @MainActor in
             do {
@@ -112,6 +131,7 @@ class HomeViewModel: ObservableObject {
                 self.continueWatchingState = data.isEmpty ? .empty : .loaded
                 if self.billboardItems.isEmpty, !data.isEmpty {
                     self.billboardItems = self.normalizeForHero(Array(data.prefix(5)))
+                    self.heroState = .loaded
                     self.startBillboardRotation()
                 }
                 print("✅ [Home] Continue Watching loaded: \(data.count) items")
@@ -130,6 +150,7 @@ class HomeViewModel: ObservableObject {
                 self.onDeckState = data.isEmpty ? .empty : .loaded
                 if self.billboardItems.isEmpty, !data.isEmpty {
                     self.billboardItems = self.normalizeForHero(Array(data.prefix(5)))
+                    self.heroState = .loaded
                     self.startBillboardRotation()
                 }
                 print("✅ [Home] On Deck loaded: \(data.count) items")
@@ -146,6 +167,7 @@ class HomeViewModel: ObservableObject {
                 self.recentlyAddedState = data.isEmpty ? .empty : .loaded
                 if self.billboardItems.isEmpty, !data.isEmpty {
                     self.billboardItems = self.normalizeForHero(Array(data.prefix(5)))
+                    self.heroState = .loaded
                     self.startBillboardRotation()
                 }
                 print("✅ [Home] Recently Added loaded: \(data.count) items")
@@ -183,6 +205,9 @@ class HomeViewModel: ObservableObject {
         // Load additional content sections (TMDB/Trakt/Genres/Watchlist) without blocking
         Task { @MainActor in
             await self.loadAdditionalRows()
+            // Last resort for the hero when the Plex rows came back empty, so it
+            // resolves instead of shimmering forever.
+            self.seedBillboardFromExtraSections()
         }
 
         // Load collection sections (Plex Collections) without blocking
@@ -194,6 +219,61 @@ class HomeViewModel: ObservableObject {
         startPolling()
 
         loadTask = nil
+    }
+
+    // MARK: - Stremio-Only Load
+
+    /// Home screen for standalone Stremio mode. Every Plex-backed row is marked empty
+    /// up front (so it collapses instead of shimmering), and discovery comes from TMDB
+    /// and Trakt.
+    private func loadStremioHomeScreen() async {
+        continueWatchingState = .empty
+        onDeckState = .empty
+        recentlyAddedState = .empty
+        recentlyAddedPerLibraryState = .empty
+        librariesState = .empty
+        collectionSectionsState = .empty
+        recentlyAddedSections = []
+        librarySections = []
+        collectionSections = []
+        onDeckItems = []
+        recentlyAddedItems = []
+
+        isLoading = false
+
+        Task { @MainActor in
+            await self.loadAdditionalRows()
+            // Nothing Plex-backed can seed the hero, so fall back to the discovery rows.
+            self.seedBillboardFromExtraSections()
+        }
+
+        loadTask = nil
+    }
+
+    /// Uses the first usable discovery row for the hero when there's no local library.
+    private func seedBillboardFromExtraSections() {
+        guard billboardItems.isEmpty else {
+            heroState = .loaded
+            return
+        }
+
+        // Prefer a row with backdrop art so the billboard isn't a flat poster crop.
+        let candidate = extraSections.first { section in
+            section.items.contains { ($0.art?.isEmpty == false) }
+        } ?? extraSections.first
+
+        let items = (candidate?.items ?? []).filter { $0.art?.isEmpty == false }
+        guard !items.isEmpty else {
+            // Nothing left to try - let the view drop the hero instead of shimmering.
+            heroState = .empty
+            print("ℹ️ [Home] Hero has no source; hiding it")
+            return
+        }
+
+        billboardItems = normalizeForHero(Array(items.prefix(5)))
+        heroState = .loaded
+        startBillboardRotation()
+        print("✅ [Home] Hero seeded from '\(candidate?.title ?? "?")': \(billboardItems.count) items")
     }
 
     // MARK: - Refresh
@@ -221,6 +301,11 @@ class HomeViewModel: ObservableObject {
     // MARK: - Additional Sections
 
     private func loadAdditionalRows() async {
+        if isStremioOnly {
+            await loadStremioAdditionalRows()
+            return
+        }
+
         // Gather
         var all: [String: LibrarySection] = [:]
         var genres: [LibrarySection] = []
@@ -409,6 +494,176 @@ class HomeViewModel: ObservableObject {
             leafCount: plex.leafCount,
             viewedLeafCount: plex.viewedLeafCount,
             media: plex.Media
+        )
+    }
+
+    // MARK: - Stremio-Only Discovery Rows
+
+    /// Genre rows for standalone mode, replacing the Plex-library genre rows.
+    /// Ids are TMDB genre ids.
+    private static let stremioGenreRows: [(title: String, media: TMDBMediaType, genreId: String)] = [
+        ("Action Movies", .movie, "28"),
+        ("Comedy Movies", .movie, "35"),
+        ("Sci-Fi & Fantasy Shows", .tv, "10765"),
+        ("Thriller Movies", .movie, "53"),
+        ("Animated Shows", .tv, "16"),
+        ("Documentaries", .movie, "99"),
+    ]
+
+    private func loadStremioAdditionalRows() async {
+        var ordered: [LibrarySection] = []
+        let settings = UserDefaults.standard
+
+        // Trending is the headline row and also seeds the hero, so it goes first.
+        if settings.showTrendingRows {
+            if let s = await fetchTMDBListSection(
+                id: "tmdb-trending-movies", title: "Trending Movies",
+                media: .movie, kind: .trending
+            ) { ordered.append(s) }
+            if let s = await fetchTMDBListSection(
+                id: "tmdb-trending-tv", title: "Trending TV Shows",
+                media: .tv, kind: .trending
+            ) { ordered.append(s) }
+        }
+
+        // Watchlist: the Plex.tv half is skipped automatically when plexTv is nil,
+        // so this is the Trakt watchlist (plus local entries once Phase 3 lands).
+        if settings.showWatchlist, let wl = await fetchPlexTvWatchlistSection() {
+            ordered.append(wl)
+        }
+
+        if settings.showPlexPopular {
+            if let s = await fetchTMDBListSection(
+                id: "tmdb-popular-movies", title: "Popular Movies",
+                media: .movie, kind: .popular
+            ) { ordered.append(s) }
+            if let s = await fetchTMDBListSection(
+                id: "tmdb-popular-tv", title: "Popular TV Shows",
+                media: .tv, kind: .popular
+            ) { ordered.append(s) }
+        }
+
+        for row in Self.stremioGenreRows {
+            if let s = await fetchTMDBListSection(
+                id: "tmdb-genre-\(row.media.rawValue)-\(row.genreId)",
+                title: row.title,
+                media: row.media,
+                kind: .genre,
+                genreId: row.genreId
+            ) { ordered.append(s) }
+        }
+
+        if let s = await fetchTMDBListSection(
+            id: "tmdb-top-rated-movies", title: "Top Rated Movies",
+            media: .movie, kind: .topRated
+        ) { ordered.append(s) }
+
+        if let s = await fetchTMDBListSection(
+            id: "tmdb-upcoming", title: "Coming Soon",
+            media: .movie, kind: .upcoming
+        ) { ordered.append(s) }
+
+        // Trakt rows require a linked account; they no-op otherwise.
+        if settings.showTraktRows {
+            do {
+                let traktSections = try await fetchTraktSections()
+                let desiredTrakt = [
+                    "Trending Movies on Trakt",
+                    "Trending TV Shows on Trakt",
+                    "Your Trakt Watchlist",
+                    "Recently Watched",
+                    "Recommended for You",
+                    "Popular TV Shows on Trakt",
+                ]
+                for label in desiredTrakt {
+                    if let s = traktSections.first(where: { $0.title == label }) { ordered.append(s) }
+                }
+            } catch { print("⚠️ [Home] Trakt sections failed: \(error)") }
+        }
+
+        print("✅ [Home] Stremio sections prepared: \(ordered.map { $0.title }.joined(separator: ", "))")
+        self.extraSections = ordered
+        self.extraSectionsState = ordered.isEmpty ? .empty : .loaded
+    }
+
+    /// Fetches one TMDB list and wraps it in a LibrarySection whose browse context
+    /// matches, so "Browse all" paginates the same list.
+    private func fetchTMDBListSection(
+        id: String,
+        title: String,
+        media: TMDBMediaType,
+        kind: TMDBBrowseKind,
+        genreId: String? = nil
+    ) async -> LibrarySection? {
+        do {
+            let tmdb = FlixorCore.shared.tmdb
+            let response: TMDBResultsResponse
+            switch kind {
+            case .trending:
+                response = media == .movie
+                    ? try await tmdb.getTrendingMovies(timeWindow: "week")
+                    : try await tmdb.getTrendingTV(timeWindow: "week")
+            case .popular:
+                response = media == .movie
+                    ? try await tmdb.getPopularMovies()
+                    : try await tmdb.getPopularTV()
+            case .topRated:
+                response = media == .movie
+                    ? try await tmdb.getTopRatedMovies()
+                    : try await tmdb.getTopRatedTV()
+            case .upcoming:
+                response = try await tmdb.getUpcomingMovies()
+            case .genre:
+                guard let genreId else { return nil }
+                response = media == .movie
+                    ? try await tmdb.discoverMovies(withGenres: genreId)
+                    : try await tmdb.discoverTV(withGenres: genreId)
+            case .recommendations, .similar:
+                return nil
+            }
+
+            let items = response.results.prefix(20).map { makeTMDBMediaItem($0, media: media) }
+            guard !items.isEmpty else { return nil }
+
+            return LibrarySection(
+                id: id,
+                title: title,
+                items: Array(items),
+                totalCount: response.totalResults ?? items.count,
+                libraryKey: nil,
+                browseContext: .tmdb(kind: kind, media: media, id: genreId, displayTitle: title)
+            )
+        } catch {
+            print("⚠️ [Home] TMDB row '\(title)' failed: \(error)")
+            return nil
+        }
+    }
+
+    private func makeTMDBMediaItem(_ r: TMDBMedia, media: TMDBMediaType) -> MediaItem {
+        let dateString = media == .movie ? r.releaseDate : r.firstAirDate
+        let year = dateString.flatMap { Int($0.prefix(4)) }
+
+        return MediaItem(
+            id: "tmdb:\(media.rawValue):\(r.id)",
+            title: r.title ?? r.name ?? "",
+            type: media == .movie ? "movie" : "show",
+            thumb: FlixorCore.shared.tmdb.getPosterUrl(path: r.posterPath, size: "w500"),
+            art: FlixorCore.shared.tmdb.getBackdropUrl(path: r.backdropPath, size: "original"),
+            year: year,
+            rating: r.voteAverage,
+            duration: nil,
+            viewOffset: nil,
+            summary: r.overview,
+            grandparentTitle: nil,
+            grandparentThumb: nil,
+            grandparentArt: nil,
+            grandparentRatingKey: nil,
+            parentIndex: nil,
+            index: nil,
+            parentRatingKey: nil,
+            parentTitle: nil,
+            leafCount: nil,
+            viewedLeafCount: nil
         )
     }
 
@@ -1530,6 +1785,12 @@ class HomeViewModel: ObservableObject {
     // MARK: - Navigation
 
     func playItem(_ item: MediaItem) {
+        // Stremio playback needs a resolved IMDb/TMDB id, which only the details
+        // screen has. Send the user there; its play button starts Stremio playback.
+        if isStremioOnly || !item.id.hasPrefix("plex:") {
+            pendingAction = .details(item)
+            return
+        }
         pendingAction = .play(.plex(item))
     }
 

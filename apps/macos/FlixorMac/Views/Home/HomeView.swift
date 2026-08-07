@@ -32,7 +32,7 @@ struct HomeView: View {
                         VStack(spacing: 0) {
 
                             // Hero Section (Billboard or Carousel based on settings)
-                            if profileSettings.showHeroSection {
+                            if profileSettings.showHeroSection && viewModel.heroState != .empty {
                                 Group {
                                     if !viewModel.billboardItems.isEmpty {
                                         switch profileSettings.heroLayout {
@@ -161,7 +161,7 @@ struct HomeView: View {
                                 // Show skeleton placeholders while loading, then fade in actual content
                                 if viewModel.extraSectionsState.isLoading {
                                     // Show expected number of skeleton rows
-                                    ForEach(0..<viewModel.expectedExtraSectionCount, id: \.self) { _ in
+                                    ForEach(0..<viewModel.expectedExtraSectionCountForMode, id: \.self) { _ in
                                         SkeletonCarouselRow(
                                             itemWidth: profileSettings.rowLayout == "poster" ? 160 : 420,
                                             itemCount: profileSettings.rowLayout == "poster" ? 6 : 4,

@@ -20,6 +20,11 @@ enum TMDBBrowseKind: Equatable {
     case trending
     case recommendations
     case similar
+    case popular
+    case topRated
+    case upcoming
+    /// Discover by genre. The genre id travels in BrowseContext's `id`.
+    case genre
 }
 
 enum TMDBMediaType: String, Equatable {

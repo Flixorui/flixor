@@ -373,6 +373,8 @@ class NewPopularViewModel: ObservableObject {
     // MARK: - Helper Methods
 
     private func fetchPlexRecentlyAdded() async throws -> [DisplayMediaItem] {
+        // No Plex server in Stremio-only mode - skip instead of failing per load.
+        guard !AppModeStore.shared.isStremioOnly else { return [] }
         do {
             let items = try await apiClient.getPlexRecentlyAdded(days: 7)
 
@@ -396,6 +398,7 @@ class NewPopularViewModel: ObservableObject {
     }
 
     private func fetchPlexPopular() async throws -> [DisplayMediaItem] {
+        guard !AppModeStore.shared.isStremioOnly else { return [] }
         print("🔍 [NewPopular] Starting fetchPlexPopular")
         do {
             // Fetch libraries

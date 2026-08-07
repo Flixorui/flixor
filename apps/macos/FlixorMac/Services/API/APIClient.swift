@@ -341,6 +341,25 @@ class APIClient: ObservableObject {
             return try encodeAndDecode(result)
         }
 
+        // Named list endpoints must be matched before the /{id} branch below, which
+        // would otherwise try to parse "popular" as a TMDB id and throw.
+        if subpath == "movie/popular" {
+            let page = params["page"].flatMap { Int($0) } ?? 1
+            return try encodeAndDecode(try await tmdb.getPopularMovies(page: page))
+        }
+        if subpath == "tv/popular" {
+            let page = params["page"].flatMap { Int($0) } ?? 1
+            return try encodeAndDecode(try await tmdb.getPopularTV(page: page))
+        }
+        if subpath == "movie/top_rated" {
+            let page = params["page"].flatMap { Int($0) } ?? 1
+            return try encodeAndDecode(try await tmdb.getTopRatedMovies(page: page))
+        }
+        if subpath == "tv/top_rated" {
+            let page = params["page"].flatMap { Int($0) } ?? 1
+            return try encodeAndDecode(try await tmdb.getTopRatedTV(page: page))
+        }
+
         // /api/tmdb/movie/{id} or /api/tmdb/tv/{id}
         if subpath.hasPrefix("movie/") || subpath.hasPrefix("tv/") {
             let isMovie = subpath.hasPrefix("movie/")

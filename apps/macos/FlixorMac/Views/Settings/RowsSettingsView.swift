@@ -9,6 +9,7 @@ import SwiftUI
 
 struct RowsSettingsView: View {
     @ObservedObject private var profileSettings = ProfileSettings.shared
+    @ObservedObject private var appMode = AppModeStore.shared
 
     @State private var showContinueWatchingOptions = false
     @State private var showCollectionRowsSettings = false
@@ -47,22 +48,26 @@ struct RowsSettingsView: View {
                 SettingsRow(
                     icon: "play.square.stack.fill",
                     iconColor: Color(hex: "E5A00D"),
-                    title: "Popular on Plex",
-                    subtitle: profileSettings.discoveryDisabled ? "Disabled by Library Only Mode" : nil
+                    title: appMode.isStremioOnly ? "Popular" : "Popular on Plex",
+                    subtitle: profileSettings.discoveryDisabled ? "Disabled by Library Only Mode" : nil,
+                    showDivider: !appMode.isStremioOnly
                 ) {
                     Toggle("", isOn: $profileSettings.showPlexPopular)
                         .labelsHidden()
                         .disabled(profileSettings.discoveryDisabled)
                 }
-                SettingsRow(
-                    icon: "sparkles",
-                    iconColor: .purple,
-                    title: "Collections",
-                    subtitle: "Show Plex collection rows on home",
-                    showDivider: false
-                ) {
-                    Toggle("", isOn: $profileSettings.showCollectionRows)
-                        .labelsHidden()
+                // Collections come from a Plex server.
+                if !appMode.isStremioOnly {
+                    SettingsRow(
+                        icon: "sparkles",
+                        iconColor: .purple,
+                        title: "Collections",
+                        subtitle: "Show Plex collection rows on home",
+                        showDivider: false
+                    ) {
+                        Toggle("", isOn: $profileSettings.showCollectionRows)
+                            .labelsHidden()
+                    }
                 }
             }
 
@@ -71,23 +76,25 @@ struct RowsSettingsView: View {
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 4)
 
-            // Recently Added Options
-            SettingsSectionHeader(title: "Recently Added")
-            SettingsGroupCard {
-                SettingsRow(
-                    icon: "square.stack.fill",
-                    iconColor: .cyan,
-                    title: "Group Episodes by Series",
-                    subtitle: "Show series posters instead of individual episodes",
-                    showDivider: false
-                ) {
-                    Toggle("", isOn: $profileSettings.groupRecentlyAddedEpisodes)
-                        .labelsHidden()
+            // Recently Added Options - the row itself is Plex-library-backed
+            if !appMode.isStremioOnly {
+                SettingsSectionHeader(title: "Recently Added")
+                SettingsGroupCard {
+                    SettingsRow(
+                        icon: "square.stack.fill",
+                        iconColor: .cyan,
+                        title: "Group Episodes by Series",
+                        subtitle: "Show series posters instead of individual episodes",
+                        showDivider: false
+                    ) {
+                        Toggle("", isOn: $profileSettings.groupRecentlyAddedEpisodes)
+                            .labelsHidden()
+                    }
                 }
             }
 
             // Collection Rows Options
-            if profileSettings.showCollectionRows {
+            if profileSettings.showCollectionRows && !appMode.isStremioOnly {
                 SettingsSectionHeader(title: "Collections")
                 SettingsGroupCard {
                     SettingsNavigationRow(

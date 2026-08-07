@@ -144,7 +144,8 @@ class BrowseModalViewModel: ObservableObject {
             return ("Watchlist", "Plex.tv")
         case .plexCollection(_, let collectionTitle):
             return (collectionTitle, "Collection")
-        case .tmdb(let kind, _, _, let display):
+        case .tmdb(let kind, let media, _, let display):
+            let mediaLabel = media == .movie ? "Movies" : "TV Shows"
             switch kind {
             case .trending:
                 return ("Trending", "TMDB")
@@ -152,6 +153,14 @@ class BrowseModalViewModel: ObservableObject {
                 return ("Recommendations", display)
             case .similar:
                 return ("More Like This", display)
+            case .popular:
+                return (display ?? "Popular \(mediaLabel)", "TMDB")
+            case .topRated:
+                return (display ?? "Top Rated \(mediaLabel)", "TMDB")
+            case .upcoming:
+                return (display ?? "Coming Soon", "TMDB")
+            case .genre:
+                return (display ?? "Browse", "TMDB")
             }
         case .trakt(let kind):
             switch kind {
@@ -285,6 +294,8 @@ class BrowseModalViewModel: ObservableObject {
         }
 
         let endpoint: String
+        var query: [URLQueryItem] = []
+
         switch kind {
         case .trending:
             endpoint = "/api/tmdb/trending/\(media.rawValue)/week"
@@ -294,12 +305,19 @@ class BrowseModalViewModel: ObservableObject {
         case .similar:
             guard let identifier else { return [] }
             endpoint = "/api/tmdb/\(media.rawValue)/\(identifier)/similar"
+        case .popular:
+            endpoint = "/api/tmdb/\(media.rawValue)/popular"
+        case .topRated:
+            endpoint = "/api/tmdb/\(media.rawValue)/top_rated"
+        case .upcoming:
+            endpoint = "/api/tmdb/movie/upcoming"
+        case .genre:
+            guard let identifier else { return [] }
+            endpoint = "/api/tmdb/discover/\(media.rawValue)"
+            query.append(URLQueryItem(name: "with_genres", value: identifier))
         }
 
-        var query: [URLQueryItem] = []
-        if kind != .trending {
-            query.append(URLQueryItem(name: "page", value: String(page)))
-        } else if page > 1 {
+        if kind != .trending || page > 1 {
             query.append(URLQueryItem(name: "page", value: String(page)))
         }
 
