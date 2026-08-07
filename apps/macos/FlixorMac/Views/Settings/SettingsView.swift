@@ -229,6 +229,7 @@ private struct SidebarSection {
 
 struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var appMode = AppModeStore.shared
     @State private var selectedCategory: SettingsCategory = .plex
     @State private var searchText: String = ""
 
@@ -257,6 +258,13 @@ struct SettingsView: View {
         }
         .frame(width: 920, height: 680)
         .background(Color(NSColor.windowBackgroundColor))
+        .onChange(of: appMode.mode) { _ in
+            // Disconnecting Plex removes Catalogs from the sidebar; don't leave a
+            // pane selected that can no longer be reached.
+            if appMode.isStremioOnly && selectedCategory == .catalog {
+                selectedCategory = .plex
+            }
+        }
     }
 
     // MARK: - Sidebar
@@ -327,6 +335,13 @@ struct SettingsView: View {
     }
 
     private func filterCategories(_ categories: [SettingsCategory]) -> [SettingsCategory] {
+        // "Catalogs" configures Plex library visibility, so it has nothing to show
+        // without a server. Plex itself stays, as the way to connect one.
+        var categories = categories
+        if appMode.isStremioOnly {
+            categories.removeAll { $0 == .catalog }
+        }
+
         if searchText.isEmpty {
             return categories
         }
@@ -384,12 +399,21 @@ struct SettingsView: View {
                 .font(.system(size: 22, weight: .bold))
 
             // Description
-            Text(selectedCategory.description)
+            Text(categoryDescription(for: selectedCategory))
                 .font(.system(size: 13))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 400)
         }
+    }
+
+    /// Plex is optional in Stremio-only mode, so say so rather than implying it's
+    /// already set up.
+    private func categoryDescription(for category: SettingsCategory) -> String {
+        if category == .plex && appMode.isStremioOnly {
+            return "Optional. Connect a Plex account to add your own library alongside Stremio."
+        }
+        return category.description
     }
 
     @ViewBuilder
@@ -702,6 +726,13 @@ private struct SidebarSettingsView: View {
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 4)
+
+            if AppModeStore.shared.isStremioOnly {
+                Text("Library and Downloads are hidden because they need a Plex server. Connect Plex in Settings → Plex to show them.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 4)
+            }
         }
     }
 }

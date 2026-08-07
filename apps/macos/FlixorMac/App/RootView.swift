@@ -159,10 +159,16 @@ struct MainView: View {
     @ObservedObject private var profileSettings = ProfileSettings.shared
     @ObservedObject private var appMode = AppModeStore.shared
 
-    /// Visible navigation items based on settings
+    /// Visible navigation items based on settings and the active mode.
     private var visibleNavItems: [NavItem] {
         NavItem.allCases.filter { item in
             if item == .newPopular && !profileSettings.showNewPopularTab {
+                return false
+            }
+            // Library browses Plex library sections and Downloads fetches Plex parts
+            // with an X-Plex-Token; neither has anything to show without a server.
+            // Both reappear as soon as Plex is connected.
+            if appMode.isStremioOnly && (item == .library || item == .downloads) {
                 return false
             }
             return true
@@ -222,13 +228,16 @@ struct MainView: View {
             .opacity(mainViewState.selectedTab == .search ? 1 : 0)
             .zIndex(mainViewState.selectedTab == .search ? 1 : 0)
 
-            // Library Tab
-            NavigationStack(path: $router.libraryPath) {
-                LibraryView()
-                    .navigationDestinations()
+            // Library Tab - not instantiated without Plex, otherwise its .task would
+            // still fire /api/plex/libraries while hidden.
+            if visibleNavItems.contains(.library) {
+                NavigationStack(path: $router.libraryPath) {
+                    LibraryView()
+                        .navigationDestinations()
+                }
+                .opacity(mainViewState.selectedTab == .library ? 1 : 0)
+                .zIndex(mainViewState.selectedTab == .library ? 1 : 0)
             }
-            .opacity(mainViewState.selectedTab == .library ? 1 : 0)
-            .zIndex(mainViewState.selectedTab == .library ? 1 : 0)
 
             // My List Tab
             NavigationStack(path: $router.myListPath) {
@@ -249,12 +258,14 @@ struct MainView: View {
             }
 
             // Downloads Tab
-            NavigationStack(path: $router.downloadsPath) {
-                DownloadsView()
-                    .navigationDestinations()
+            if visibleNavItems.contains(.downloads) {
+                NavigationStack(path: $router.downloadsPath) {
+                    DownloadsView()
+                        .navigationDestinations()
+                }
+                .opacity(mainViewState.selectedTab == .downloads ? 1 : 0)
+                .zIndex(mainViewState.selectedTab == .downloads ? 1 : 0)
             }
-            .opacity(mainViewState.selectedTab == .downloads ? 1 : 0)
-            .zIndex(mainViewState.selectedTab == .downloads ? 1 : 0)
         }
         .environmentObject(router)
         .environmentObject(mainViewState)
@@ -389,6 +400,12 @@ struct MainView: View {
         .onChange(of: profileSettings.showNewPopularTab) { newValue in
             // If New & Popular tab is hidden while on that tab, switch to Home
             if !newValue && mainViewState.selectedTab == .newPopular {
+                mainViewState.selectedTab = .home
+            }
+        }
+        .onChange(of: appMode.mode) { _ in
+            // Connecting or disconnecting Plex changes which tabs exist.
+            if !visibleNavItems.contains(mainViewState.selectedTab) {
                 mainViewState.selectedTab = .home
             }
         }

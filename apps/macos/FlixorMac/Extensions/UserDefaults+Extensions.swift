@@ -134,7 +134,8 @@ extension UserDefaults {
         get {
             guard let rawValue = string(forKey: profileKey(OverseerrKeys.authMethod)),
                   let method = OverseerrAuthMethod(rawValue: rawValue) else {
-                return .plex // Default to Plex auth
+                // Plex auth needs a Plex token, so it can't be the default without one.
+                return appMode == .stremio ? .apiKey : .plex
             }
             return method
         }
