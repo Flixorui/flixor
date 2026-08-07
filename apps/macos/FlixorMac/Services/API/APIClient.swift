@@ -262,6 +262,16 @@ class APIClient: ObservableObject {
             return try encodeAndDecode(response)
         }
 
+        // /api/plex/library/{key}/collections
+        // LibraryViewModel has always called this; without a route the Collections
+        // tab threw invalidURL every time.
+        if subpath.hasPrefix("library/") && subpath.hasSuffix("/collections") {
+            let key = String(subpath.dropFirst("library/".count).prefix(while: { $0 != "/" }))
+            let collections = try await plexServer.getCollections(libraryKey: key)
+            let response = CollectionsResponse(Metadata: collections)
+            return try encodeAndDecode(response)
+        }
+
         // /api/plex/ratings/{ratingKey}
         if subpath.hasPrefix("ratings/") {
             // Ratings not directly available - return empty
@@ -886,6 +896,39 @@ class APIClient: ObservableObject {
             return try encodeAndDecode(response)
         }
 
+        // POST /api/trakt/watchlist/remove - Remove from Trakt watchlist
+        // MyListViewModel has always called this; without a route here every Trakt
+        // watchlist removal silently failed.
+        if path == "/api/trakt/watchlist/remove" {
+            guard FlixorCore.shared.trakt.isAuthenticated else {
+                throw APIError.unauthorized
+            }
+            guard let body,
+                  let json = try JSONSerialization.jsonObject(with: try JSONEncoder().encode(body)) as? [String: Any] else {
+                throw APIError.invalidURL
+            }
+
+            func firstTmdbId(_ key: String) -> Int? {
+                guard let entries = json[key] as? [[String: Any]],
+                      let ids = entries.first?["ids"] as? [String: Any] else { return nil }
+                return ids["tmdb"] as? Int
+            }
+
+            if let tmdbId = firstTmdbId("movies") {
+                try await FlixorCore.shared.trakt.removeMovieFromWatchlist(tmdbId: tmdbId)
+                print("✅ [APIClient] Removed movie \(tmdbId) from Trakt watchlist")
+            } else if let tmdbId = firstTmdbId("shows") {
+                try await FlixorCore.shared.trakt.removeShowFromWatchlist(tmdbId: tmdbId)
+                print("✅ [APIClient] Removed show \(tmdbId) from Trakt watchlist")
+            } else {
+                print("⚠️ [APIClient] No tmdb id in Trakt watchlist remove body")
+                throw APIError.invalidURL
+            }
+
+            let response = SimpleOkResponse(ok: true, message: "Removed from watchlist")
+            return try encodeAndDecode(response)
+        }
+
         print("⚠️ [APIClient] POST not supported: \(path)")
         throw APIError.invalidURL
     }
@@ -1374,6 +1417,11 @@ struct SimpleMessageResponse: Decodable {
 struct SimpleOkResponse: Codable {
     let ok: Bool
     let message: String?
+}
+
+/// Top-level `Metadata` shape LibraryViewModel expects from the collections route.
+struct CollectionsResponse: Encodable {
+    let Metadata: [PlexCollection]
 }
 
 struct PlexEndpointUpdateResponse: Decodable {

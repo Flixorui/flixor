@@ -24,11 +24,9 @@
 		9D82BB3DA6029E023449A907 /* EndpointSelectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F156FB11282DDE8678B19A78 /* EndpointSelectView.swift */; };
 		A001 /* FlixorMacApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B001 /* FlixorMacApp.swift */; };
 		A002 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B002 /* RootView.swift */; };
-		A003 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B003 /* SidebarView.swift */; };
 		A004 /* User.swift in Sources */ = {isa = PBXBuildFile; fileRef = B004 /* User.swift */; };
 		A005 /* APIError.swift in Sources */ = {isa = PBXBuildFile; fileRef = B005 /* APIError.swift */; };
 		A006 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B006 /* APIClient.swift */; };
-		A007 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = B007 /* KeychainHelper.swift */; };
 		A008 /* SessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B008 /* SessionManager.swift */; };
 		A009 /* PlexAuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B009 /* PlexAuthView.swift */; };
 		A010 /* PlexAuthViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B010 /* PlexAuthViewModel.swift */; };
@@ -50,8 +48,6 @@
 		A029 /* HomeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B029 /* HomeViewModel.swift */; };
 		A030 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B030 /* HomeView.swift */; };
 		A031 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B031 /* Assets.xcassets */; };
-		A032 /* BackendConfigViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B032 /* BackendConfigViewModel.swift */; };
-		A033 /* BackendConfigView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B033 /* BackendConfigView.swift */; };
 		A034 /* Color+Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = B034 /* Color+Theme.swift */; };
 		A035 /* DetailsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B035 /* DetailsView.swift */; };
 		A036 /* PlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B036 /* PlayerView.swift */; };
@@ -184,11 +180,9 @@
 		STF013 /* StremioProviderFilterBar.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StremioProviderFilterBar.swift; sourceTree = "<group>"; };
 		B001 /* FlixorMacApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlixorMacApp.swift; sourceTree = "<group>"; };
 		B002 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
-		B003 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		B004 /* User.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = User.swift; sourceTree = "<group>"; };
 		B005 /* APIError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIError.swift; sourceTree = "<group>"; };
 		B006 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
-		B007 /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
 		B008 /* SessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionManager.swift; sourceTree = "<group>"; };
 		B009 /* PlexAuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlexAuthView.swift; sourceTree = "<group>"; };
 		B010 /* PlexAuthViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlexAuthViewModel.swift; sourceTree = "<group>"; };
@@ -210,8 +204,6 @@
 		B029 /* HomeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeViewModel.swift; sourceTree = "<group>"; };
 		B030 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		B031 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		B032 /* BackendConfigViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendConfigViewModel.swift; sourceTree = "<group>"; };
-		B033 /* BackendConfigView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendConfigView.swift; sourceTree = "<group>"; };
 		B034 /* Color+Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Color+Theme.swift"; sourceTree = "<group>"; };
 		B035 /* DetailsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailsView.swift; sourceTree = "<group>"; };
 		B036 /* PlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerView.swift; sourceTree = "<group>"; };
@@ -422,7 +414,6 @@
 			isa = PBXGroup;
 			children = (
 				B010 /* PlexAuthViewModel.swift */,
-				B032 /* BackendConfigViewModel.swift */,
 				B029 /* HomeViewModel.swift */,
 				B081 /* BrowseModalViewModel.swift */,
 				B083 /* PersonModalViewModel.swift */,
@@ -469,7 +460,6 @@
 		D010 /* Auth */ = {
 			isa = PBXGroup;
 			children = (
-				B033 /* BackendConfigView.swift */,
 				B009 /* PlexAuthView.swift */,
 			);
 			path = Auth;
@@ -479,7 +469,6 @@
 			isa = PBXGroup;
 			children = (
 				D300 /* Icons */,
-				B003 /* SidebarView.swift */,
 				B014 /* NewPopularView.swift */,
 				B017 /* CachedAsyncImage.swift */,
 				B019 /* PosterCard.swift */,
@@ -569,7 +558,6 @@
 		D017 /* Auth */ = {
 			isa = PBXGroup;
 			children = (
-				B007 /* KeychainHelper.swift */,
 				B008 /* SessionManager.swift */,
 				5170360C6E9CB0E5C7FC9138 /* ProfileManager.swift */,
 			);
@@ -802,7 +790,6 @@
 			files = (
 				A001 /* FlixorMacApp.swift in Sources */,
 				A002 /* RootView.swift in Sources */,
-				A003 /* SidebarView.swift in Sources */,
 				A004 /* User.swift in Sources */,
 				A005 /* APIError.swift in Sources */,
 				C8D602AE2E990765002C9348 /* BGRAImageReader.swift in Sources */,
@@ -810,7 +797,6 @@
 				C8D602B02E990765002C9348 /* ThumbnailCache.swift in Sources */,
 				C8D602B12E990765002C9348 /* ThumbnailMPVPlayer.swift in Sources */,
 				A006 /* APIClient.swift in Sources */,
-				A007 /* KeychainHelper.swift in Sources */,
 				A008 /* SessionManager.swift in Sources */,
 				A009 /* PlexAuthView.swift in Sources */,
 				A010 /* PlexAuthViewModel.swift in Sources */,
@@ -837,8 +823,6 @@
 				A201 /* BrowseModalViewModel.swift in Sources */,
 				A203 /* PersonModalViewModel.swift in Sources */,
 				A030 /* HomeView.swift in Sources */,
-				A032 /* BackendConfigViewModel.swift in Sources */,
-				A033 /* BackendConfigView.swift in Sources */,
 				A034 /* Color+Theme.swift in Sources */,
 				A035 /* DetailsView.swift in Sources */,
 				A036 /* PlayerView.swift in Sources */,
