@@ -9,6 +9,10 @@ import SwiftUI
 import FlixorKit
 
 struct PlexServersView: View {
+    @EnvironmentObject private var flixorCore: FlixorCore
+    @ObservedObject private var appMode = AppModeStore.shared
+    @StateObject private var authViewModel = PlexAuthViewModel()
+
     @State private var servers: [PlexServer] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
@@ -16,6 +20,7 @@ struct PlexServersView: View {
     @State private var isPerformingAction = false
     @State private var selectedServer: PlexServer?
     @State private var showLogoutConfirmation = false
+    @State private var showingServerFlow = false
     @State private var plexUsername: String?
     @State private var plexEmail: String?
     @State private var plexThumb: String?
@@ -25,7 +30,7 @@ struct PlexServersView: View {
     }
 
     private var isAuthenticated: Bool {
-        FlixorCore.shared.isPlexAuthenticated
+        flixorCore.isPlexAuthenticated
     }
 
     var body: some View {
@@ -48,6 +53,24 @@ struct PlexServersView: View {
                 await loadPlexUser()
             }
         }
+        .onReceive(authViewModel.$authToken) { token in
+            // PIN authorized from Settings - pick a server next.
+            if token != nil {
+                showingServerFlow = true
+            }
+        }
+        .sheet(isPresented: $showingServerFlow) {
+            ServerEndpointFlowView {
+                showingServerFlow = false
+                appMode.select(.plex)
+                Task {
+                    SessionManager.shared.updateFromFlixorCore()
+                    await loadServers(force: true)
+                    await loadPlexUser()
+                }
+            }
+            .frame(minWidth: 900, minHeight: 700)
+        }
         .sheet(item: $selectedServer, onDismiss: {
             Task { await loadServers(force: true) }
         }) { server in
@@ -56,13 +79,15 @@ struct PlexServersView: View {
                 Task { await loadServers(force: true) }
             }
         }
-        .alert("Sign Out", isPresented: $showLogoutConfirmation) {
+        .alert(appMode.isStremioOnly ? "Disconnect Plex" : "Sign Out", isPresented: $showLogoutConfirmation) {
             Button("Cancel", role: .cancel) { }
-            Button("Sign Out", role: .destructive) {
+            Button(appMode.isStremioOnly ? "Disconnect" : "Sign Out", role: .destructive) {
                 Task { await signOut() }
             }
         } message: {
-            Text("Are you sure you want to sign out of Plex? You'll need to sign in again to access your libraries.")
+            Text(appMode.isStremioOnly
+                 ? "Disconnect your Plex account? Flixor keeps working as a standalone Stremio app - your addons, watch history and settings are preserved."
+                 : "Are you sure you want to sign out of Plex? You'll need to sign in again to access your libraries.")
         }
     }
 
@@ -115,7 +140,15 @@ struct PlexServersView: View {
 
                         Spacer()
 
-                        Button("Sign Out") {
+                        if !flixorCore.isPlexServerConnected {
+                            Button("Choose Server") {
+                                showingServerFlow = true
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                        }
+
+                        Button(appMode.isStremioOnly ? "Disconnect" : "Sign Out") {
                             showLogoutConfirmation = true
                         }
                         .buttonStyle(.bordered)
@@ -129,14 +162,53 @@ struct PlexServersView: View {
                             .foregroundStyle(.secondary)
 
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Not Signed In")
+                            Text("Not Connected")
                                 .font(.system(size: 13, weight: .semibold))
-                            Text("Sign in to access your Plex libraries")
+                            Text(appMode.isStremioOnly
+                                 ? "Optional. Connect Plex to add your own library alongside Stremio."
+                                 : "Sign in to access your Plex libraries")
                                 .font(.system(size: 11))
                                 .foregroundStyle(.secondary)
                         }
 
                         Spacer()
+
+                        Button(authViewModel.isAuthenticating ? "Waiting…" : "Connect Plex") {
+                            Task { await authViewModel.startAuthentication() }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .disabled(authViewModel.isAuthenticating)
+                    }
+                    .padding(12)
+                }
+
+                if let authError = authViewModel.error, !authError.isEmpty {
+                    Divider()
+                    Text(authError)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.red)
+                        .padding(12)
+                }
+
+                // Switching to Stremio-only keeps every setting; signing out resets them.
+                if isAuthenticated && !appMode.isStremioOnly {
+                    Divider()
+                    HStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Use Stremio Only")
+                                .font(.system(size: 13, weight: .semibold))
+                            Text("Disconnect Plex and run Flixor as a standalone Stremio app. Your settings are kept.")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Button("Switch") {
+                            Task { await switchToStremioOnly() }
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(isPerformingAction)
                     }
                     .padding(12)
                 }
@@ -348,9 +420,30 @@ struct PlexServersView: View {
     @MainActor
     private func signOut() async {
         isPerformingAction = true
-        statusMessage = "Signing out..."
+        statusMessage = appMode.isStremioOnly ? "Disconnecting..." : "Signing out..."
 
-        await SessionManager.shared.logout()
+        if appMode.isStremioOnly {
+            // Keep the app usable standalone; don't reset settings or bounce to the chooser.
+            await SessionManager.shared.disconnectPlex()
+        } else {
+            await SessionManager.shared.logout()
+        }
+        servers = []
+        plexUsername = nil
+        plexEmail = nil
+        plexThumb = nil
+        statusMessage = nil
+        errorMessage = nil
+
+        isPerformingAction = false
+    }
+
+    @MainActor
+    private func switchToStremioOnly() async {
+        isPerformingAction = true
+        statusMessage = "Switching to Stremio only..."
+
+        await SessionManager.shared.disconnectPlex()
         servers = []
         plexUsername = nil
         plexEmail = nil

@@ -77,6 +77,17 @@ struct RootView: View {
     @StateObject private var watchlistController = WatchlistController()
     @State private var isInitializing = true
     @ObservedObject private var profileSettings = ProfileSettings.shared
+    @ObservedObject private var appMode = AppModeStore.shared
+
+    /// In Stremio-only mode there is no Plex step at all. A nil mode (existing
+    /// installs, upgraded in place) behaves exactly like the old Plex-only flow.
+    private var needsPlexAuth: Bool {
+        !appMode.isStremioOnly && !flixorCore.isPlexAuthenticated
+    }
+
+    private var needsPlexServer: Bool {
+        !appMode.isStremioOnly && !flixorCore.isPlexServerConnected
+    }
 
     var body: some View {
         Group {
@@ -91,11 +102,12 @@ struct RootView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color.black)
-            } else if !flixorCore.isPlexAuthenticated {
-                // Not authenticated - show login
+            } else if needsPlexAuth {
+                // No mode chosen yet, or Plex mode without a token - PlexAuthView
+                // doubles as the mode chooser.
                 PlexAuthView()
                     .transition(.opacity)
-            } else if !flixorCore.isPlexServerConnected {
+            } else if needsPlexServer {
                 // Authenticated but no server connected - show server/endpoint selection
                 ServerEndpointFlowView()
                     .transition(.opacity)
@@ -113,8 +125,8 @@ struct RootView: View {
                     .transition(.opacity)
             }
         }
-        .animation(.easeInOut(duration: 0.3), value: flixorCore.isPlexAuthenticated)
-        .animation(.easeInOut(duration: 0.3), value: flixorCore.isPlexServerConnected)
+        .animation(.easeInOut(duration: 0.3), value: needsPlexAuth)
+        .animation(.easeInOut(duration: 0.3), value: needsPlexServer)
         .animation(.easeInOut(duration: 0.3), value: profileSettings.hasCompletedOnboarding)
         .environmentObject(watchlistController)
         .task {
@@ -123,7 +135,11 @@ struct RootView: View {
                 AppLogger.shared.info("[Player] Migrated stored backend preference to MPV for macOS")
             }
             // Wait for FlixorCore to initialize
-            _ = await FlixorCore.shared.initialize()
+            let plexRestored = await FlixorCore.shared.initialize()
+            // Existing installs have no stored mode; a live Plex session means Plex mode.
+            if appMode.mode == nil && plexRestored {
+                appMode.select(.plex)
+            }
             // Restore session (includes profile context and checking for multiple profiles)
             await sessionManager.restoreSession()
             isInitializing = false
@@ -141,6 +157,7 @@ struct MainView: View {
     @StateObject private var mainViewState = MainViewState()
     @StateObject private var profileManager = ProfileManager.shared
     @ObservedObject private var profileSettings = ProfileSettings.shared
+    @ObservedObject private var appMode = AppModeStore.shared
 
     /// Visible navigation items based on settings
     private var visibleNavItems: [NavItem] {
@@ -309,10 +326,19 @@ struct MainView: View {
 
                     Divider()
 
-                    Button(role: .destructive, action: {
-                        showingSignOutConfirmation = true
-                    }) {
-                        Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
+                    if appMode.isStremioOnly {
+                        // No Plex session to sign out of - offer to connect one instead.
+                        Button(action: {
+                            showingSettings = true
+                        }) {
+                            Label("Connect Plex", systemImage: "link")
+                        }
+                    } else {
+                        Button(role: .destructive, action: {
+                            showingSignOutConfirmation = true
+                        }) {
+                            Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
+                        }
                     }
                 } label: {
                     Circle()

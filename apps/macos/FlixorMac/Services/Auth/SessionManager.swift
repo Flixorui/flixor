@@ -33,7 +33,10 @@ class SessionManager: ObservableObject {
 
     private func syncWithFlixorCore() {
         let core = FlixorCore.shared
-        isAuthenticated = core.isPlexAuthenticated && core.isPlexServerConnected
+        // In Stremio-only mode there is no Plex session to be authenticated against;
+        // the app is usable regardless.
+        isAuthenticated = AppModeStore.shared.isStremioOnly
+            || (core.isPlexAuthenticated && core.isPlexServerConnected)
         activeProfile = core.currentProfile
 
         // Create a User from FlixorCore's server info or profile
@@ -51,6 +54,10 @@ class SessionManager: ObservableObject {
                 email: nil,
                 thumb: nil
             )
+        } else if AppModeStore.shared.isStremioOnly {
+            currentUser = User(id: "stremio", username: "Stremio", email: nil, thumb: nil)
+        } else {
+            currentUser = nil
         }
     }
 
@@ -78,6 +85,12 @@ class SessionManager: ObservableObject {
     }
 
     private func checkForMultipleProfiles() async {
+        // Plex Home profiles don't exist without Plex - skip the call rather than
+        // letting it throw on every launch.
+        guard !AppModeStore.shared.isStremioOnly, FlixorCore.shared.isPlexAuthenticated else {
+            hasMultipleProfiles = false
+            return
+        }
         do {
             let users = try await FlixorCore.shared.getHomeUsers()
             hasMultipleProfiles = users.count > 1
@@ -101,7 +114,26 @@ class SessionManager: ObservableObject {
 
     // MARK: - Logout
 
+    /// Full sign-out: clears Plex and returns the user to the mode chooser.
     func logout() async {
+        await clearPlexSession()
+
+        // Reset settings and show onboarding on next login. Stremio config is left
+        // alone so it survives a Plex sign-out.
+        UserDefaults.standard.resetNonStremioSettings()
+
+        // Back to the mode chooser.
+        AppModeStore.shared.clear()
+    }
+
+    /// Disconnects Plex but keeps the app usable as a standalone Stremio client.
+    /// All settings, addons and local history are preserved.
+    func disconnectPlex() async {
+        await clearPlexSession()
+        AppModeStore.shared.select(.stremio)
+    }
+
+    private func clearPlexSession() async {
         await FlixorCore.shared.signOutPlex()
         currentUser = nil
         isAuthenticated = false
@@ -110,9 +142,6 @@ class SessionManager: ObservableObject {
 
         // Clear profile context
         ProfileStorage.shared.setCurrentProfile(nil)
-
-        // Reset all settings and show onboarding on next login
-        UserDefaults.standard.resetAllSettings()
     }
 
     // MARK: - Sync with FlixorCore

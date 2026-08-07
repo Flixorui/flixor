@@ -10,6 +10,7 @@ import SwiftUI
 struct PlexAuthView: View {
     @StateObject private var viewModel = PlexAuthViewModel()
     @EnvironmentObject var sessionManager: SessionManager
+    @ObservedObject private var appMode = AppModeStore.shared
 
     var body: some View {
         ZStack {
@@ -72,6 +73,33 @@ struct PlexAuthView: View {
                         .foregroundStyle(.white.opacity(0.6))
                         .multilineTextAlignment(.center)
 
+                    // Standalone Stremio path - no Plex account needed.
+                    VStack(spacing: 8) {
+                        Divider()
+                            .frame(maxWidth: 300)
+                            .overlay(Color.white.opacity(0.15))
+
+                        Button(action: {
+                            appMode.select(.stremio)
+                        }) {
+                            Text("Continue without Plex")
+                                .font(.headline)
+                                .frame(maxWidth: 300)
+                                .padding()
+                                .background(Color.white.opacity(0.12))
+                                .foregroundStyle(.white)
+                                .cornerRadius(8)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(viewModel.isAuthenticating)
+
+                        Text("Use Flixor as a standalone Stremio app.\nYou can connect Plex later in Settings.")
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.6))
+                            .multilineTextAlignment(.center)
+                    }
+                    .padding(.top, 12)
+
                     if let error = viewModel.error {
                         Text(error)
                             .font(.caption)
@@ -87,6 +115,7 @@ struct PlexAuthView: View {
         }
         .onReceive(viewModel.$authToken) { token in
             if let token = token {
+                appMode.select(.plex)
                 Task {
                     try? await sessionManager.login(token: token)
                 }

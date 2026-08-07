@@ -589,6 +589,14 @@ extension UserDefaults {
 
     /// Resets all app settings to defaults (for logout)
     func resetAllSettings() {
+        resetNonStremioSettings()
+        resetStremioSettings()
+    }
+
+    /// Resets everything except the Stremio configuration.
+    /// Used when signing out of Plex, so a Stremio-only user keeps their addons,
+    /// watch history and playback preferences.
+    func resetNonStremioSettings() {
         // Reset discovery settings
         discoveryDisabled = false
         showTrendingRows = true
@@ -609,16 +617,17 @@ extension UserDefaults {
         posterSize = "medium"
         showPosterTitles = true
 
-        // Reset Stremio settings
+        // Reset player settings
+        resetPlayerSettings()
+    }
+
+    func resetStremioSettings() {
         stremioPlaybackEnabled = false
         stremioAutoPlayBestSource = false
         stremioShowOnTmdbDetails = true
         stremioPreferCachedSourceResume = true
         stremioSubtitleAddonsEnabled = true
         stremioUnsupportedSourceVisibility = .showDisabled
-
-        // Reset player settings
-        resetPlayerSettings()
     }
 }
 

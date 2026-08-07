@@ -13,17 +13,26 @@ struct OnboardingSlide: Identifiable {
     let subtitle: String
     let description: String
     let isConfig: Bool
+    let isAddonSetup: Bool
 
-    init(id: Int, title: String, subtitle: String, description: String, isConfig: Bool = false) {
+    init(
+        id: Int,
+        title: String,
+        subtitle: String,
+        description: String,
+        isConfig: Bool = false,
+        isAddonSetup: Bool = false
+    ) {
         self.id = id
         self.title = title
         self.subtitle = subtitle
         self.description = description
         self.isConfig = isConfig
+        self.isAddonSetup = isAddonSetup
     }
 }
 
-private let onboardingData: [OnboardingSlide] = [
+private let plexOnboardingData: [OnboardingSlide] = [
     OnboardingSlide(
         id: 1,
         title: "Welcome to\nFlixor",
@@ -57,6 +66,41 @@ private let onboardingData: [OnboardingSlide] = [
     )
 ]
 
+private let stremioOnboardingData: [OnboardingSlide] = [
+    OnboardingSlide(
+        id: 1,
+        title: "Welcome to\nFlixor",
+        subtitle: "Standalone Stremio Client",
+        description: "No Plex account needed. Discovery comes from TMDB and Trakt, and your Stremio addons provide the streams."
+    ),
+    OnboardingSlide(
+        id: 2,
+        title: "Add a Stream\nProvider",
+        subtitle: "Required",
+        description: "Flixor plays direct HTTP streams, so a debrid-backed addon (for example Torrentio configured with Real-Debrid) is what you want. Addons that only return magnet links or torrent info hashes can't be played.",
+        isAddonSetup: true
+    ),
+    OnboardingSlide(
+        id: 3,
+        title: "Smart\nDiscovery",
+        subtitle: "Find What You Love",
+        description: "Browse trending and popular titles from TMDB, search everything, and link Trakt for your own history and recommendations."
+    ),
+    OnboardingSlide(
+        id: 4,
+        title: "Picks Up Where\nYou Left Off",
+        subtitle: "Stored On This Mac",
+        description: "Continue watching and My List are kept locally, so they work with no account at all. Link Trakt and they sync too."
+    ),
+    OnboardingSlide(
+        id: 5,
+        title: "Customize\nYour Experience",
+        subtitle: "Discovery Settings",
+        description: "Choose how you want to discover content.",
+        isConfig: true
+    )
+]
+
 struct OnboardingView: View {
     let onComplete: () -> Void
 
@@ -65,6 +109,11 @@ struct OnboardingView: View {
 
     // Profile-scoped discovery settings
     @ObservedObject private var profileSettings = ProfileSettings.shared
+    @ObservedObject private var appMode = AppModeStore.shared
+
+    private var onboardingData: [OnboardingSlide] {
+        appMode.isStremioOnly ? stremioOnboardingData : plexOnboardingData
+    }
 
     var body: some View {
         ZStack {
@@ -117,9 +166,13 @@ struct OnboardingView: View {
                                 showTraktRows: $profileSettings.showTraktRows,
                                 showPlexPopular: $profileSettings.showPlexPopular,
                                 showNewPopularTab: $profileSettings.showNewPopularTab,
-                                includeTmdbInSearch: $profileSettings.includeTmdbInSearch
+                                includeTmdbInSearch: $profileSettings.includeTmdbInSearch,
+                                isStremioOnly: appMode.isStremioOnly
                             )
                             .tag(index)
+                        } else if slide.isAddonSetup {
+                            AddonSetupSlideView(slide: slide)
+                                .tag(index)
                         } else {
                             SlideView(slide: slide)
                                 .tag(index)
@@ -243,6 +296,82 @@ private struct SlideView: View {
     }
 }
 
+// MARK: - Addon Setup Slide View
+
+/// Stremio-only onboarding step. Without a stream-capable addon installed the app
+/// has nothing to play, so this is the one setup action that actually matters.
+private struct AddonSetupSlideView: View {
+    let slide: OnboardingSlide
+
+    @State private var showingAddons = false
+    @State private var streamAddonCount = 0
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(slide.title)
+                .font(.system(size: 52, weight: .heavy))
+                .foregroundColor(.white)
+                .lineSpacing(-8)
+
+            Text(slide.subtitle)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundColor(.white.opacity(0.6))
+
+            Text(slide.description)
+                .font(.system(size: 15))
+                .foregroundColor(.white.opacity(0.4))
+                .lineSpacing(6)
+                .frame(maxWidth: 460, alignment: .leading)
+
+            HStack(spacing: 12) {
+                Button {
+                    showingAddons = true
+                } label: {
+                    Text(streamAddonCount > 0 ? "Manage Addons" : "Install an Addon")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.black)
+                        .frame(width: 180, height: 44)
+                        .background(Color.white)
+                        .cornerRadius(10)
+                }
+                .buttonStyle(.plain)
+
+                HStack(spacing: 6) {
+                    Image(systemName: streamAddonCount > 0 ? "checkmark.circle.fill" : "exclamationmark.circle")
+                        .foregroundStyle(streamAddonCount > 0 ? .green : .orange)
+                    Text(statusText)
+                        .font(.system(size: 13))
+                        .foregroundColor(.white.opacity(0.7))
+                }
+            }
+            .padding(.top, 8)
+
+            Spacer()
+        }
+        .padding(.horizontal, 60)
+        .padding(.top, 60)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .sheet(isPresented: $showingAddons, onDismiss: { Task { await refreshCount() } }) {
+            StremioAddonsView()
+        }
+        .task { await refreshCount() }
+    }
+
+    private var statusText: String {
+        switch streamAddonCount {
+        case 0: return "No stream provider installed yet"
+        case 1: return "1 stream provider installed"
+        default: return "\(streamAddonCount) stream providers installed"
+        }
+    }
+
+    private func refreshCount() async {
+        await StremioService.shared.ensureInitialized()
+        let summaries = await StremioService.shared.getAddonSummary()
+        streamAddonCount = summaries.filter { $0.streamCapable }.count
+    }
+}
+
 // MARK: - Config Slide View
 
 private struct ConfigSlideView: View {
@@ -253,6 +382,7 @@ private struct ConfigSlideView: View {
     @Binding var showPlexPopular: Bool
     @Binding var showNewPopularTab: Bool
     @Binding var includeTmdbInSearch: Bool
+    let isStremioOnly: Bool
 
     var body: some View {
         ScrollView {
@@ -266,7 +396,32 @@ private struct ConfigSlideView: View {
                     .foregroundColor(.white.opacity(0.5))
                     .padding(.bottom, 8)
 
-                // Library Only Mode Card
+                // Library Only Mode Card - Plex-library-only makes no sense without Plex
+                if !isStremioOnly {
+                libraryOnlyModeCard
+                }
+
+                // Expand Individual Settings - always expanded in Stremio-only mode,
+                // since Library Only Mode is the only thing it's an alternative to.
+                if !isStremioOnly {
+                    expandToggle
+                }
+
+                if isStremioOnly || (showIndividualSettings && !discoveryDisabled) {
+                    individualSettings
+                }
+
+                infoText
+
+                Spacer(minLength: 80)
+            }
+            .padding(.horizontal, 60)
+            .padding(.top, 40)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private var libraryOnlyModeCard: some View {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(spacing: 16) {
                         ZStack {
@@ -304,8 +459,9 @@ private struct ConfigSlideView: View {
                                 .stroke(Color.white.opacity(0.1), lineWidth: 1)
                         )
                 )
+    }
 
-                // Expand Individual Settings
+    private var expandToggle: some View {
                 Button {
                     withAnimation(.easeInOut(duration: 0.2)) {
                         showIndividualSettings.toggle()
@@ -324,9 +480,9 @@ private struct ConfigSlideView: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(discoveryDisabled)
+    }
 
-                // Individual Settings
-                if showIndividualSettings && !discoveryDisabled {
+    private var individualSettings: some View {
                     VStack(spacing: 0) {
                         SettingRowView(
                             icon: "flame.fill",
@@ -349,8 +505,8 @@ private struct ConfigSlideView: View {
                         SettingRowView(
                             icon: "play.square.stack.fill",
                             iconColor: Color(hex: "#E5A00D"),
-                            title: "Popular on Plex",
-                            subtitle: "Show popular content on Plex",
+                            title: isStremioOnly ? "Popular Row" : "Popular on Plex",
+                            subtitle: isStremioOnly ? "Show a popular titles row" : "Show popular content on Plex",
                             isOn: $showPlexPopular,
                             showDivider: true
                         )
@@ -382,9 +538,9 @@ private struct ConfigSlideView: View {
                             )
                     )
                     .transition(.opacity.combined(with: .move(edge: .top)))
-                }
+    }
 
-                // Info text
+    private var infoText: some View {
                 HStack(spacing: 8) {
                     Image(systemName: "info.circle")
                         .font(.system(size: 14))
@@ -394,13 +550,6 @@ private struct ConfigSlideView: View {
                         .foregroundColor(.white.opacity(0.4))
                 }
                 .padding(.top, 16)
-
-                Spacer(minLength: 80)
-            }
-            .padding(.horizontal, 60)
-            .padding(.top, 40)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 }
 

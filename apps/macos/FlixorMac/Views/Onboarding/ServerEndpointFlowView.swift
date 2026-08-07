@@ -14,6 +14,10 @@ enum ServerFlowStep {
 }
 
 struct ServerEndpointFlowView: View {
+    /// Set when the flow is presented as a sheet (e.g. connecting Plex from Settings)
+    /// rather than as a full-screen onboarding step driven by RootView.
+    var onConnected: (() -> Void)?
+
     @State private var currentStep: ServerFlowStep = .serverSelect
 
     var body: some View {
@@ -42,6 +46,7 @@ struct ServerEndpointFlowView: View {
                         // Connection successful - RootView will detect isPlexServerConnected
                         // and transition to OnboardingView
                         print("✅ [ServerEndpointFlow] Connection established, transitioning...")
+                        onConnected?()
                     }
                 )
                 .transition(.asymmetric(
