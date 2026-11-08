@@ -12,14 +12,14 @@ import SwiftUI
 /// Icon, text and up to two actions on a quiet surface.
 struct HomeStateCard: View {
     struct Action {
-        let title: String
+        let title: LocalizedStringKey
         let perform: () -> Void
     }
 
     let icon: String
     var iconTint: Color?
-    let title: String
-    let message: String
+    let title: LocalizedStringKey
+    let message: LocalizedStringKey
     var primary: Action?
     var secondary: Action?
     var isBusy: Bool = false

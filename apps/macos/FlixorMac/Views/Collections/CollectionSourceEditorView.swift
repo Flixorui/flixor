@@ -102,7 +102,7 @@ struct CollectionSourceEditorView: View {
     @ViewBuilder
     private var addonForm: some View {
         if model.isLoadingAddons {
-            loadingRow("Loading addon catalogs")
+            loadingRow(String(localized: "Loading addon catalogs"))
         } else if model.addonCatalogs.isEmpty {
             BrowseMessageView(
                 systemImage: "puzzlepiece.extension",
@@ -131,19 +131,19 @@ struct CollectionSourceEditorView: View {
 
     private var discoverForm: some View {
         VStack(alignment: .leading, spacing: DS.Space.s20) {
-            field("Type") {
+            field(String(localized: "Type")) {
                 BrowseChipBar(
                     options: TMDBDiscoverMediaType.allCases,
                     selection: Binding(
                         get: { model.discover.mediaType },
                         set: { model.setMediaType($0) }
                     ),
-                    title: { $0 == .movie ? "Movies" : "TV Shows" }
+                    title: { $0 == .movie ? String(localized: "Movies") : String(localized: "TV Shows") }
                 )
             }
 
             if !model.genres.isEmpty {
-                field("Genres") {
+                field(String(localized: "Genres")) {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 120), spacing: DS.Space.controlGap)],
                               alignment: .leading, spacing: DS.Space.controlGap) {
                         ForEach(model.genres, id: \.id) { genre in
@@ -156,10 +156,10 @@ struct CollectionSourceEditorView: View {
                 }
             }
 
-            field("Production company") { companyPicker }
+            field(String(localized: "Production company")) { companyPicker }
 
             if model.discover.mediaType == .tv {
-                field("Network") {
+                field(String(localized: "Network")) {
                     Picker("Network", selection: Binding(
                         get: { model.discover.networkId },
                         set: { model.setNetwork(id: $0) }
@@ -176,7 +176,7 @@ struct CollectionSourceEditorView: View {
             }
 
             HStack(alignment: .top, spacing: DS.Space.s20) {
-                field("Year range") {
+                field(String(localized: "Year range")) {
                     HStack(spacing: DS.Space.controlGap) {
                         TextField("From", text: $model.yearFromText)
                             .textFieldStyle(.roundedBorder)
@@ -191,7 +191,7 @@ struct CollectionSourceEditorView: View {
                             .accessibilityLabel("To year")
                     }
                 }
-                field("Sort by") {
+                field(String(localized: "Sort by")) {
                     Picker("Sort by", selection: $model.discover.sort) {
                         ForEach(TMDBDiscoverSort.allCases, id: \.self) { sort in
                             Text(sort.collectionTitle).tag(sort)
@@ -208,7 +208,7 @@ struct CollectionSourceEditorView: View {
     @ViewBuilder
     private var companyPicker: some View {
         if let name = model.discover.companyName {
-            selectedRow(title: name, subtitle: "Production company", accessibilityTarget: "company") {
+            selectedRow(title: name, subtitle: String(localized: "Production company"), accessibilityTarget: "company") {
                 model.clearCompany()
             }
         } else {
@@ -218,7 +218,7 @@ struct CollectionSourceEditorView: View {
                     .accessibilityLabel("Search production companies")
                     .onChange(of: model.companyText) { _ in model.companyTextChanged() }
                 if model.isSearchingCompanies {
-                    loadingRow("Searching")
+                    loadingRow(String(localized: "Searching"))
                 }
                 ForEach(model.companyResults) { company in
                     CollectionPickRow(
@@ -240,12 +240,12 @@ struct CollectionSourceEditorView: View {
         if let selected = model.selectedCollection {
             selectedRow(
                 title: selected.name,
-                subtitle: "TMDB movie collection",
+                subtitle: String(localized: "TMDB movie collection"),
                 imageURL: TMDBImageURL.url(selected.posterPath, size: .w185),
                 accessibilityTarget: "collection"
             ) { model.selectedCollection = nil }
         } else {
-            searchField(prompt: "Search movie collections, like Alien")
+            searchField(prompt: String(localized: "Search movie collections, like Alien"))
             searchStatus(isEmpty: model.collectionResults.isEmpty)
             ForEach(model.collectionResults) { result in
                 CollectionPickRow(
@@ -266,13 +266,13 @@ struct CollectionSourceEditorView: View {
         if let person = model.selectedPerson {
             selectedRow(
                 title: person.name,
-                subtitle: "Person",
+                subtitle: String(localized: "Person"),
                 imageURL: TMDBImageURL.url(person.profilePath, size: .w185),
                 accessibilityTarget: "person"
             ) { model.selectedPerson = nil }
 
             HStack(alignment: .top, spacing: DS.Space.s20) {
-                field("Credits") {
+                field(String(localized: "Credits")) {
                     Picker("Credits", selection: personBinding(person, \.credits)) {
                         ForEach(UserCollectionSource.Person.Credits.allCases) { Text($0.title).tag($0) }
                     }
@@ -280,7 +280,7 @@ struct CollectionSourceEditorView: View {
                     .frame(width: 200)
                     .accessibilityLabel("Credits")
                 }
-                field("Order") {
+                field(String(localized: "Order")) {
                     Picker("Order", selection: personBinding(person, \.order)) {
                         ForEach(UserCollectionSource.Person.Order.allCases) { Text($0.title).tag($0) }
                     }
@@ -290,7 +290,7 @@ struct CollectionSourceEditorView: View {
                 }
             }
         } else {
-            searchField(prompt: "Search people by name")
+            searchField(prompt: String(localized: "Search people by name"))
             searchStatus(isEmpty: model.peopleResults.isEmpty)
             ForEach(model.peopleResults) { person in
                 CollectionPickRow(
@@ -322,11 +322,11 @@ struct CollectionSourceEditorView: View {
         if let list = model.selectedTraktList {
             selectedRow(
                 title: list.name,
-                subtitle: list.owner.map { "Trakt list by \($0)" } ?? "Trakt list",
+                subtitle: list.owner.map { String(localized: "Trakt list by \($0)") } ?? String(localized: "Trakt list"),
                 accessibilityTarget: "list"
             ) { model.selectedTraktList = nil }
         } else {
-            searchField(prompt: "Paste a trakt.tv list URL, or search by name")
+            searchField(prompt: String(localized: "Paste a trakt.tv list URL, or search by name"))
             searchStatus(isEmpty: model.traktResults.isEmpty)
             ForEach(model.traktResults) { list in
                 CollectionPickRow(
@@ -342,9 +342,9 @@ struct CollectionSourceEditorView: View {
 
     private func traktSubtitle(_ list: TraktPublicList) -> String {
         var parts: [String] = []
-        if let owner = list.user?.username ?? list.user?.name { parts.append("by \(owner)") }
-        if let count = list.itemCount { parts.append("\(count) \(count == 1 ? "item" : "items")") }
-        if let likes = list.likes, likes > 0 { parts.append("\(likes) \(likes == 1 ? "like" : "likes")") }
+        if let owner = list.user?.username ?? list.user?.name { parts.append(String(localized: "by \(owner)")) }
+        if let count = list.itemCount { parts.append(String(localized: "\(count) items")) }
+        if let likes = list.likes, likes > 0 { parts.append(String(localized: "\(likes) likes")) }
         return parts.joined(separator: " · ")
     }
 
@@ -369,7 +369,7 @@ struct CollectionSourceEditorView: View {
     @ViewBuilder
     private func searchStatus(isEmpty: Bool) -> some View {
         if model.isSearching {
-            loadingRow("Searching")
+            loadingRow(String(localized: "Searching"))
         } else if let error = model.searchError {
             Text(error)
                 .flixorFont(.callout)
@@ -426,7 +426,7 @@ struct CollectionSourceEditorView: View {
         case .idle:
             EmptyView()
         case .loading:
-            loadingRow("Loading preview")
+            loadingRow(String(localized: "Loading preview"))
         case .empty:
             Text("This source returned no titles.")
                 .flixorFont(.callout)

@@ -87,14 +87,9 @@ struct PosterSectionCard: View {
         return "S\(season)E\(episode)"
     }
 
-    // Check if this is a grouped recently added item (we mark these with summary like "X new episodes")
+    // Check if this is a grouped recently added item (flagged by groupEpisodesBySeries)
     private var isGroupedRecentlyAdded: Bool {
-        guard item.type == "show",
-              let summary = item.summary,
-              summary.contains("new episode") else {
-            return false
-        }
-        return true
+        item.isGroupedRecentlyAddedShow
     }
 
     // Badge text: shows episode count for grouped items, otherwise TV/episode label

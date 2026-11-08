@@ -100,7 +100,7 @@ class NewPopularViewModel: ObservableObject {
             }
         } catch {
             print("❌ [NewPopular] Error loading content: \(error)")
-            errorMessage = "Failed to load content. Please try again."
+            errorMessage = String(localized: "Failed to load content. Please try again.")
         }
 
         isLoading = false
@@ -122,7 +122,7 @@ class NewPopularViewModel: ObservableObject {
             trendingMovies = moviesRes.results.prefix(20).map { item in
                 DisplayMediaItem(
                     id: "tmdb:movie:\(item.id)",
-                    title: item.title ?? "Unknown",
+                    title: item.title ?? String(localized: "Unknown"),
                     imageURL: item.poster_path != nil ? URL(string: "\(imageBaseURL)w342\(item.poster_path!)") : nil,
                     subtitle: item.release_date?.split(separator: "-").first.map(String.init),
                     badge: item.vote_average.map { "⭐ \(String(format: "%.1f", $0))" },
@@ -136,7 +136,7 @@ class NewPopularViewModel: ObservableObject {
             trendingShows = showsRes.results.prefix(20).map { item in
                 DisplayMediaItem(
                     id: "tmdb:tv:\(item.id)",
-                    title: item.name ?? "Unknown",
+                    title: item.name ?? String(localized: "Unknown"),
                     imageURL: item.poster_path != nil ? URL(string: "\(imageBaseURL)w342\(item.poster_path!)") : nil,
                     subtitle: item.first_air_date?.split(separator: "-").first.map(String.init),
                     badge: item.vote_average.map { "⭐ \(String(format: "%.1f", $0))" },
@@ -156,7 +156,7 @@ class NewPopularViewModel: ObservableObject {
 
         } catch {
             print("❌ [NewPopular] Error loading trending content: \(error)")
-            errorMessage = "Failed to load trending content"
+            errorMessage = String(localized: "Failed to load trending content")
         }
     }
 
@@ -229,7 +229,7 @@ class NewPopularViewModel: ObservableObject {
 
         } catch {
             print("❌ [NewPopular] Error loading top 10 content: \(error)")
-            errorMessage = "Failed to load top 10 content"
+            errorMessage = String(localized: "Failed to load top 10 content")
         }
     }
 
@@ -240,10 +240,10 @@ class NewPopularViewModel: ObservableObject {
             upcoming = upcomingRes.results.map { item in
                 DisplayMediaItem(
                     id: "tmdb:movie:\(item.id)",
-                    title: item.title ?? "Unknown",
+                    title: item.title ?? String(localized: "Unknown"),
                     imageURL: item.poster_path != nil ? URL(string: "\(imageBaseURL)w342\(item.poster_path!)") : nil,
                     subtitle: item.release_date.map { formatReleaseDate($0) },
-                    badge: "Coming Soon",
+                    badge: String(localized: "Coming Soon"),
                     rank: nil,
                     mediaType: "movie",
                     artPath: nil
@@ -252,7 +252,7 @@ class NewPopularViewModel: ObservableObject {
 
         } catch {
             print("❌ [NewPopular] Error loading upcoming content: \(error)")
-            errorMessage = "Failed to load upcoming content"
+            errorMessage = String(localized: "Failed to load upcoming content")
         }
     }
 
@@ -281,7 +281,7 @@ class NewPopularViewModel: ObservableObject {
                     title: movie.title,
                     imageURL: imageURL,
                     subtitle: movie.year.map(String.init),
-                    badge: "\(item.list_count) lists",
+                    badge: String(localized: "\(item.list_count) lists"),
                     rank: nil,
                     mediaType: "movie",
                     artPath: nil
@@ -292,7 +292,7 @@ class NewPopularViewModel: ObservableObject {
 
         } catch {
             print("❌ [NewPopular] Error loading anticipated content: \(error)")
-            errorMessage = "Failed to load anticipated content"
+            errorMessage = String(localized: "Failed to load anticipated content")
         }
     }
 
@@ -351,7 +351,7 @@ class NewPopularViewModel: ObservableObject {
 
             hero = HeroData(
                 id: heroId,
-                title: topItem.title ?? topItem.name ?? "Unknown",
+                title: topItem.title ?? topItem.name ?? String(localized: "Unknown"),
                 overview: topItem.overview ?? "",
                 backdropURL: backdropURL,
                 posterURL: topItem.poster_path != nil ? URL(string: "\(imageBaseURL)w500\(topItem.poster_path!)") : nil,
@@ -382,10 +382,10 @@ class NewPopularViewModel: ObservableObject {
                 // Use art field for backdrop fallback
                 return DisplayMediaItem(
                     id: "plex:\(item.ratingKey)",
-                    title: item.title ?? item.grandparentTitle ?? "Unknown",
+                    title: item.title ?? item.grandparentTitle ?? String(localized: "Unknown"),
                     imageURL: ImageService.shared.plexImageURL(path: item.thumb, width: 342),
                     subtitle: item.year.map(String.init),
-                    badge: "New",
+                    badge: String(localized: "New"),
                     rank: nil,
                     mediaType: item.type == "movie" ? "movie" : "tv",
                     artPath: item.art
@@ -468,10 +468,10 @@ class NewPopularViewModel: ObservableObject {
 
                 return DisplayMediaItem(
                     id: "plex:\(item.ratingKey)",
-                    title: item.title ?? item.grandparentTitle ?? "Unknown",
+                    title: item.title ?? item.grandparentTitle ?? String(localized: "Unknown"),
                     imageURL: ImageService.shared.plexImageURL(path: thumb, width: 342),
                     subtitle: item.year.map(String.init),
-                    badge: "Popular",
+                    badge: String(localized: "Popular"),
                     rank: nil,
                     mediaType: item.type == "movie" ? "movie" : "tv",
                     artPath: item.art

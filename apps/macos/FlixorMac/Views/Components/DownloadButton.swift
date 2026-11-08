@@ -444,17 +444,17 @@ struct DetailsDownloadButton: View {
 
     private var helpText: String {
         if isDownloaded {
-            return "Downloaded - Click to show in Finder"
+            return String(localized: "Downloaded - Click to show in Finder")
         } else if let task = downloadTask {
             switch task.status {
-            case .downloading: return "Downloading \(task.formattedProgress) - Click to pause"
-            case .queued: return "Queued - Click to cancel"
-            case .paused: return "Paused - Click to resume"
-            case .failed: return "Failed - Click to retry"
-            case .completed: return "Downloaded"
+            case .downloading: return String(localized: "Downloading \(task.formattedProgress) - Click to pause")
+            case .queued: return String(localized: "Queued - Click to cancel")
+            case .paused: return String(localized: "Paused - Click to resume")
+            case .failed: return String(localized: "Failed - Click to retry")
+            case .completed: return String(localized: "Downloaded")
             }
         }
-        return "Download for offline viewing"
+        return String(localized: "Download for offline viewing")
     }
 
     private func handleTap() {
@@ -594,17 +594,17 @@ struct EpisodeDownloadButton: View {
 
     private var helpText: String {
         if isDownloaded {
-            return "Downloaded - Click to show in Finder"
+            return String(localized: "Downloaded - Click to show in Finder")
         } else if let task = downloadTask {
             switch task.status {
-            case .downloading: return "Downloading \(task.formattedProgress)"
-            case .queued: return "Queued"
-            case .paused: return "Paused - Click to resume"
-            case .failed: return "Failed - Click to retry"
-            case .completed: return "Downloaded"
+            case .downloading: return String(localized: "Downloading \(task.formattedProgress)")
+            case .queued: return String(localized: "Queued")
+            case .paused: return String(localized: "Paused - Click to resume")
+            case .failed: return String(localized: "Failed - Click to retry")
+            case .completed: return String(localized: "Downloaded")
             }
         }
-        return "Download for offline"
+        return String(localized: "Download for offline")
     }
 
     private func handleTap() {

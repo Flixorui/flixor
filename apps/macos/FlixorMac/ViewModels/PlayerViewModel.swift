@@ -304,7 +304,7 @@ class PlayerViewModel: ObservableObject {
         Task { @MainActor in
             guard let mpvController = self.mpvController else {
                 print("❌ [Player] MPV controller not available for offline playback")
-                self.error = "MPV controller not initialized"
+                self.error = String(localized: "MPV controller not initialized")
                 return
             }
 
@@ -319,7 +319,7 @@ class PlayerViewModel: ObservableObject {
 
             guard mpvController.isInitialized else {
                 print("❌ [Player] MPV failed to initialize for offline playback (timeout)")
-                self.error = "MPV failed to initialize"
+                self.error = String(localized: "MPV failed to initialize")
                 return
             }
 

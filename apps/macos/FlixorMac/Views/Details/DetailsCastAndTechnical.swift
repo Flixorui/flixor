@@ -210,7 +210,7 @@ private struct CastCrewSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Space.s20) {
-            DetailsSectionHeader(title: "Cast & Crew")
+            DetailsSectionHeader(title: String(localized: "Cast & Crew"))
             LazyVGrid(columns: [GridItem(.adaptive(minimum: layout.castGridMinimum), spacing: 20)], spacing: 24) {
                 ForEach(Array(people.prefix(15))) { person in
                     CastCrewCard(person: person, onTap: { onPersonTap(person) })
@@ -242,7 +242,7 @@ private struct TechnicalDetailsSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Space.s20) {
-            DetailsSectionHeader(title: "Technical Details")
+            DetailsSectionHeader(title: String(localized: "Technical Details"))
 
             // Main technical specs grid
             LazyVGrid(columns: [GridItem(.adaptive(minimum: layout.technicalGridMinimum), spacing: 16)], spacing: 16) {
@@ -279,28 +279,28 @@ private struct TechnicalDetailsSection: View {
 
     private func technicalPairs() -> [(String, String)] {
         var list: [(String, String)] = []
-        list.append(("Version", version.label))
-        if let reso = version.technical.resolution { list.append(("Resolution", reso)) }
-        if let video = version.technical.videoCodec { list.append(("Video", video.uppercased())) }
-        if let profile = version.technical.videoProfile, !profile.isEmpty { list.append(("Profile", profile.uppercased())) }
-        if let audio = version.technical.audioCodec { list.append(("Audio", audio.uppercased())) }
-        if let channels = version.technical.audioChannels { list.append(("Channels", "\(channels)")) }
+        list.append((String(localized: "Version"), version.label))
+        if let reso = version.technical.resolution { list.append((String(localized: "Resolution"), reso)) }
+        if let video = version.technical.videoCodec { list.append((String(localized: "Video"), video.uppercased())) }
+        if let profile = version.technical.videoProfile, !profile.isEmpty { list.append((String(localized: "Profile"), profile.uppercased())) }
+        if let audio = version.technical.audioCodec { list.append((String(localized: "Audio"), audio.uppercased())) }
+        if let channels = version.technical.audioChannels { list.append((String(localized: "Channels"), "\(channels)")) }
         if let bitrate = version.technical.bitrate {
             let mbps = Double(bitrate) / 1000.0
-            list.append(("Bitrate", String(format: "%.1f Mbps", mbps)))
+            list.append((String(localized: "Bitrate"), String(format: "%.1f Mbps", mbps)))
         }
         if let size = version.technical.fileSizeMB {
             if size >= 1024 {
-                list.append(("File Size", String(format: "%.2f GB", size / 1024.0)))
+                list.append((String(localized: "File Size"), String(format: "%.2f GB", size / 1024.0)))
             } else {
-                list.append(("File Size", String(format: "%.0f MB", size)))
+                list.append((String(localized: "File Size"), String(format: "%.0f MB", size)))
             }
         }
         if let runtime = version.technical.durationMin {
-            list.append(("Runtime", "\(runtime)m"))
+            list.append((String(localized: "Runtime"), String(localized: "\(runtime)m")))
         }
         if let subs = version.technical.subtitleCount, subs > 0 {
-            list.append(("Subtitles", "\(subs)"))
+            list.append((String(localized: "Subtitles"), "\(subs)"))
         }
         return list
     }

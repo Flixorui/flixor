@@ -32,9 +32,9 @@ final class MyListViewModel: ObservableObject {
 
         var title: String {
             switch self {
-            case .all: return "All"
-            case .movies: return "Movies"
-            case .shows: return "TV Shows"
+            case .all: return String(localized: "All")
+            case .movies: return String(localized: "Movies")
+            case .shows: return String(localized: "TV Shows")
             }
         }
     }
@@ -49,10 +49,10 @@ final class MyListViewModel: ObservableObject {
 
         var title: String {
             switch self {
-            case .dateAdded: return "Date Added"
-            case .title: return "Title"
-            case .year: return "Release Year"
-            case .rating: return "Rating"
+            case .dateAdded: return String(localized: "Date Added")
+            case .title: return String(localized: "Title")
+            case .year: return String(localized: "Release Year")
+            case .rating: return String(localized: "Rating")
             }
         }
     }

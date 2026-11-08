@@ -118,7 +118,7 @@ private struct CollectionPartCard: View {
     @Environment(\.flixorTheme) private var theme
     @State private var isHovered = false
 
-    private var title: String { part.title ?? part.name ?? "Untitled" }
+    private var title: String { part.title ?? part.name ?? String(localized: "Untitled") }
     private var year: String? {
         guard let date = part.releaseDate, date.count >= 4 else { return nil }
         return String(date.prefix(4))
@@ -158,7 +158,7 @@ private struct CollectionPartCard: View {
                         .flixorFont(.callout, weight: .semibold)
                         .foregroundStyle(isCurrent ? theme.textPrimary : theme.textPrimary.opacity(DS.Opacity.strong))
                         .lineLimit(2)
-                    Text(year ?? "TBA")
+                    Text(year ?? String(localized: "TBA"))
                         .flixorFont(.caption)
                         .foregroundStyle(theme.textTertiary)
                 }

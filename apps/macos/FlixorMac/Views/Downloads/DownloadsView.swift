@@ -77,7 +77,7 @@ struct DownloadsView: View {
     private var tabPicker: some View {
         Picker("", selection: $selectedTab) {
             ForEach(DownloadTab.allCases, id: \.self) { tab in
-                Text(tab.rawValue).tag(tab)
+                Text(tab.localizedRawValue).tag(tab)
             }
         }
         .pickerStyle(.segmented)
@@ -250,7 +250,7 @@ struct DownloadProgressRow: View {
 
         case .failed:
             HStack(spacing: DS.Space.s8) {
-                Text(task.errorMessage ?? "Failed")
+                Text(task.errorMessage ?? String(localized: "Failed"))
                     .font(.caption)
                     .foregroundStyle(.red)
                     .lineLimit(1)
@@ -425,7 +425,7 @@ struct DownloadedShowSection: View {
                             .font(.headline)
                             .foregroundStyle(.white)
 
-                        Text("\(show.downloadedEpisodeCount) episode\(show.downloadedEpisodeCount == 1 ? "" : "s") • \(show.formattedTotalSize)")
+                        Text("\(show.downloadedEpisodeCount) episodes • \(show.formattedTotalSize)")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
@@ -581,8 +581,8 @@ struct EpisodeRow: View {
 
 struct EmptyDownloadsView: View {
     let icon: String
-    let title: String
-    let subtitle: String
+    let title: LocalizedStringKey
+    let subtitle: LocalizedStringKey
 
     var body: some View {
         VStack(spacing: DS.Space.s16) {

@@ -93,7 +93,7 @@ struct NewPopularView: View {
                     viewModel.activeTab = tab
                 }) {
                     VStack(spacing: DS.Space.s6) {
-                        Text(tab.rawValue)
+                        Text(tab.localizedRawValue)
                             .font(.flixor(.bodyLarge, weight: .semibold))
                             .foregroundStyle(viewModel.activeTab == tab ? .white : .white.opacity(0.5))
 
@@ -114,7 +114,7 @@ struct NewPopularView: View {
             // Content Type Filter
             Picker("Type", selection: $viewModel.contentType) {
                 ForEach(NewPopularViewModel.ContentType.allCases) { type in
-                    Text(type.rawValue).tag(type)
+                    Text(type.localizedRawValue).tag(type)
                 }
             }
             .pickerStyle(.menu)
@@ -124,7 +124,7 @@ struct NewPopularView: View {
             if viewModel.activeTab == .trending || viewModel.activeTab == .top10 {
                 Picker("Period", selection: $viewModel.period) {
                     ForEach(NewPopularViewModel.Period.allCases) { period in
-                        Text(period.rawValue).tag(period)
+                        Text(period.localizedRawValue).tag(period)
                     }
                 }
                 .pickerStyle(.menu)
@@ -153,22 +153,22 @@ struct NewPopularView: View {
         VStack(alignment: .leading, spacing: DS.Space.s40) {
             // New on Plex
             if !viewModel.recentlyAdded.isEmpty {
-                contentRow(title: "New on Your Plex", items: viewModel.recentlyAdded)
+                contentRow(title: String(localized: "New on Your Plex"), items: viewModel.recentlyAdded)
             }
 
             // Popular on Plex
             if !viewModel.popularPlex.isEmpty {
-                contentRow(title: "Popular on Your Plex", items: viewModel.popularPlex)
+                contentRow(title: String(localized: "Popular on Your Plex"), items: viewModel.popularPlex)
             }
 
             // Trending Movies
             if (viewModel.contentType == .all || viewModel.contentType == .movies) && !viewModel.trendingMovies.isEmpty {
-                contentRow(title: "Trending Movies", items: viewModel.trendingMovies)
+                contentRow(title: String(localized: "Trending Movies"), items: viewModel.trendingMovies)
             }
 
             // Trending TV Shows
             if (viewModel.contentType == .all || viewModel.contentType == .shows) && !viewModel.trendingShows.isEmpty {
-                contentRow(title: "Trending TV Shows", items: viewModel.trendingShows)
+                contentRow(title: String(localized: "Trending TV Shows"), items: viewModel.trendingShows)
             }
         }
         .padding(.bottom, DS.Space.s40)
@@ -176,7 +176,7 @@ struct NewPopularView: View {
 
     private var top10Content: some View {
         VStack(alignment: .leading, spacing: DS.Space.s24) {
-            Text("Top 10 \(viewModel.period.rawValue)")
+            Text("Top 10 \(viewModel.period.localizedRawValue)")
                 .font(.flixor(.title1, weight: .semibold))
                 .foregroundStyle(.white)
                 .padding(.horizontal, horizontalPadding)
@@ -198,7 +198,7 @@ struct NewPopularView: View {
     private var comingSoonContent: some View {
         VStack(alignment: .leading, spacing: DS.Space.s24) {
             if !viewModel.upcoming.isEmpty {
-                contentRow(title: "Coming Soon", items: viewModel.upcoming)
+                contentRow(title: String(localized: "Coming Soon"), items: viewModel.upcoming)
                     .padding(.horizontal, horizontalPadding)
             } else {
                 Text("No upcoming content available")
@@ -212,7 +212,7 @@ struct NewPopularView: View {
     private var worthWaitContent: some View {
         VStack(alignment: .leading, spacing: DS.Space.s24) {
             if !viewModel.anticipated.isEmpty {
-                contentRow(title: "Most Anticipated", items: viewModel.anticipated)
+                contentRow(title: String(localized: "Most Anticipated"), items: viewModel.anticipated)
                     .padding(.horizontal, horizontalPadding)
             } else {
                 Text("No anticipated content available")

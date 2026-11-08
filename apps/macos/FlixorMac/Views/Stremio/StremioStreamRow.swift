@@ -11,7 +11,7 @@ struct StremioStreamRow: View {
     let onSelect: () -> Void
 
     private var rowTitle: String {
-        stream.title ?? stream.name ?? stream.description ?? "Unnamed Stream"
+        stream.title ?? stream.name ?? stream.description ?? String(localized: "Unnamed Stream")
     }
 
     var body: some View {
@@ -46,14 +46,14 @@ struct StremioStreamRow: View {
                         badge(ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file), color: .white.opacity(0.7), background: Color.white.opacity(0.06))
                     }
                     if stream.behaviorHints?.cached == true {
-                        badge("Cached", color: .green)
+                        badge(String(localized: "Cached"), color: .green)
                     }
                     if stream.isDebrid == true {
-                        badge("Debrid", color: .mint)
+                        badge(String(localized: "Debrid"), color: .mint)
                     }
                     let subtitleCount = stream.subtitles?.count ?? 0
                     if subtitleCount > 0 {
-                        badge("\(subtitleCount) Subs", color: .purple)
+                        badge(String(localized: "\(subtitleCount) Subs"), color: .purple)
                     }
                 }
 

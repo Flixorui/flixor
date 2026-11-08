@@ -32,7 +32,7 @@ struct EpisodeRatingChip: View {
                 .fill(theme.scrim(DS.Opacity.scrimMedium))
         )
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text(String(format: "Rated %.1f out of 10", rating)))
+        .accessibilityLabel(Text(String(format: String(localized: "Rated %.1f out of 10"), rating)))
         .help("TMDB rating")
     }
 }
@@ -144,9 +144,9 @@ private struct SeasonPosterTile: View {
 
     private var countText: String? {
         guard let count = art?.episodeCount, count > 0 else { return nil }
-        let episodes = count == 1 ? "1 episode" : "\(count) episodes"
+        let episodes = String(localized: "\(count) episodes")
         if let watched = art?.watchedCount, watched > 0 {
-            return watched >= count ? "\(episodes), watched" : "\(watched) of \(count) watched"
+            return watched >= count ? String(localized: "\(episodes), watched") : String(localized: "\(watched) of \(count) watched")
         }
         return episodes
     }

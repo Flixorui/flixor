@@ -58,7 +58,7 @@ struct SearchDiscoverView: View {
             DiscoverMessageView(
                 icon: "wifi.exclamationmark",
                 title: "Couldn't load Discover",
-                message: message,
+                message: .verbatim(message),
                 actionTitle: "Retry",
                 action: { viewModel.retry() }
             )
@@ -105,7 +105,7 @@ struct SearchDiscoverView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, DS.Space.s12)
         } else if viewModel.loadMoreFailed {
-            SearchSectionErrorRow(message: "Couldn't load more titles.") {
+            SearchSectionErrorRow(message: String(localized: "Couldn't load more titles.")) {
                 viewModel.retry()
             }
         }
@@ -146,19 +146,19 @@ private struct DiscoverFilterBar: View {
                     get: { viewModel.filters.mediaType },
                     set: { viewModel.setMediaType($0) }
                 ),
-                accessibilityTitle: "Type"
+                accessibilityTitle: String(localized: "Type")
             )
 
             DiscoverFilterChip(
-                title: "Genre",
-                value: filters.genreName ?? "All",
+                title: String(localized: "Genre"),
+                value: filters.genreName ?? String(localized: "All"),
                 isActive: filters.genreId != nil
             ) { dismiss in
                 DiscoverOptionList(
-                    options: [DiscoverOption(value: Int?.none, label: "All Genres")]
+                    options: [DiscoverOption(value: Int?.none, label: String(localized: "All Genres"))]
                         + viewModel.genres.map { DiscoverOption(value: Optional($0.id), label: $0.name) },
                     selected: filters.genreId,
-                    emptyMessage: viewModel.genres.isEmpty ? "Loading genres..." : nil
+                    emptyMessage: viewModel.genres.isEmpty ? String(localized: "Loading genres...") : nil
                 ) { id in
                     viewModel.setGenre(id.flatMap { id in viewModel.genres.first { $0.id == id } })
                     dismiss()
@@ -166,7 +166,7 @@ private struct DiscoverFilterBar: View {
             }
 
             DiscoverFilterChip(
-                title: "Sort",
+                title: String(localized: "Sort"),
                 value: filters.sort.label,
                 isActive: filters.sort != .popular
             ) { dismiss in
@@ -180,7 +180,7 @@ private struct DiscoverFilterBar: View {
             }
 
             DiscoverFilterChip(
-                title: "Year",
+                title: String(localized: "Year"),
                 value: filters.yearLabel,
                 isActive: filters.yearFrom != nil || filters.yearTo != nil
             ) { dismiss in
@@ -193,14 +193,14 @@ private struct DiscoverFilterBar: View {
             }
 
             DiscoverFilterChip(
-                title: "Rating",
+                title: String(localized: "Rating"),
                 value: filters.ratingLabel,
                 isActive: filters.minimumRating != nil
             ) { dismiss in
                 DiscoverOptionList(
-                    options: [DiscoverOption(value: Double?.none, label: "Any Rating")]
+                    options: [DiscoverOption(value: Double?.none, label: String(localized: "Any Rating"))]
                         + DiscoverViewModel.ratingOptions.map {
-                            DiscoverOption(value: Optional($0), label: "\(Int($0))+ stars")
+                            DiscoverOption(value: Optional($0), label: String(localized: "\(Int($0))+ stars"))
                         },
                     selected: filters.minimumRating
                 ) { rating in
@@ -439,13 +439,13 @@ private struct DiscoverYearRangePicker: View {
         let year = DiscoverViewModel.currentYear
         let decade = year - year % 10
         var list: [Preset] = [
-            Preset(label: "This Year", from: year, to: year),
-            Preset(label: "Last 5 Years", from: year - 4, to: year),
+            Preset(label: String(localized: "This Year"), from: year, to: year),
+            Preset(label: String(localized: "Last 5 Years"), from: year - 4, to: year),
         ]
         for start in stride(from: decade, through: decade - 40, by: -10) {
-            list.append(Preset(label: "\(start)s", from: start, to: start + 9))
+            list.append(Preset(label: String(localized: "\(String(start))s"), from: start, to: start + 9))
         }
-        list.append(Preset(label: "Before \(decade - 40)", from: nil, to: decade - 41))
+        list.append(Preset(label: String(localized: "Before \(String(decade - 40))"), from: nil, to: decade - 41))
         return list
     }
 
@@ -456,11 +456,11 @@ private struct DiscoverYearRangePicker: View {
                 .foregroundStyle(theme.textPrimary)
 
             HStack(spacing: DS.Space.itemGap) {
-                yearPicker(title: "From", selection: Binding(
+                yearPicker(title: String(localized: "From"), selection: Binding(
                     get: { from },
                     set: { onChange($0, to) }
                 ))
-                yearPicker(title: "To", selection: Binding(
+                yearPicker(title: String(localized: "To"), selection: Binding(
                     get: { to },
                     set: { onChange(from, $0) }
                 ))
@@ -521,9 +521,9 @@ private struct DiscoverYearRangePicker: View {
 
 private struct DiscoverMessageView: View {
     let icon: String
-    let title: String
-    let message: String
-    let actionTitle: String?
+    let title: LocalizedStringKey
+    let message: LocalizedStringKey
+    let actionTitle: LocalizedStringKey?
     let action: () -> Void
 
     @Environment(\.flixorTheme) private var theme

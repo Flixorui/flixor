@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		4416EE19BFFA2B7C8E644BA4 /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7AC3E638329E840D20E14A9 /* Localization.swift */; };
 		95671D3129C1273708426CA8 /* FlixorTheme+Chrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E22A20F1934B91D1D73BF30 /* FlixorTheme+Chrome.swift */; };
 		F1C6D52C1DC6356BDD3CDB89 /* UserCollectionsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 181D5C4431FB9906054EF79E /* UserCollectionsSection.swift */; };
 		93CAD6B00EAD1BCD4EE702D3 /* UserCollectionHomeRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FCC258C9787B682EFFD9092 /* UserCollectionHomeRow.swift */; };
@@ -210,6 +211,7 @@
 		A029 /* HomeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B029 /* HomeViewModel.swift */; };
 		A030 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B030 /* HomeView.swift */; };
 		A031 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B031 /* Assets.xcassets */; };
+		7A10CA7A1065000000000002 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 7A10CA7A1065000000000001 /* Localizable.xcstrings */; };
 		A034 /* Color+Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = B034 /* Color+Theme.swift */; };
 		A035 /* DetailsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B035 /* DetailsView.swift */; };
 		A036 /* PlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B036 /* PlayerView.swift */; };
@@ -312,6 +314,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		F7AC3E638329E840D20E14A9 /* Localization.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
 		8E22A20F1934B91D1D73BF30 /* FlixorTheme+Chrome.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "FlixorTheme+Chrome.swift"; sourceTree = "<group>"; };
 		181D5C4431FB9906054EF79E /* UserCollectionsSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Collections/UserCollectionsSection.swift; sourceTree = "<group>"; };
 		6FCC258C9787B682EFFD9092 /* UserCollectionHomeRow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Collections/UserCollectionHomeRow.swift; sourceTree = "<group>"; };
@@ -527,6 +530,7 @@
 		B029 /* HomeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeViewModel.swift; sourceTree = "<group>"; };
 		B030 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		B031 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		7A10CA7A1065000000000001 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		B034 /* Color+Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Color+Theme.swift"; sourceTree = "<group>"; };
 		B035 /* DetailsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailsView.swift; sourceTree = "<group>"; };
 		B036 /* PlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerView.swift; sourceTree = "<group>"; };
@@ -850,6 +854,7 @@
 		D008 /* Extensions */ = {
 			isa = PBXGroup;
 			children = (
+				F7AC3E638329E840D20E14A9 /* Localization.swift */,
 				8E22A20F1934B91D1D73BF30 /* FlixorTheme+Chrome.swift */,
 				BC8736AC77502CD19658B62C /* UserDefaults+Collections.swift */,
 				5EFB67E56A9E7AACAC7EC5AB /* UserDefaults+StreamSelection.swift */,
@@ -1136,6 +1141,7 @@
 		D100 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				7A10CA7A1065000000000001 /* Localizable.xcstrings */,
 				B053 /* replay10.svg */,
 				B054 /* forward10.svg */,
 				B055 /* replay10.png */,
@@ -1242,6 +1248,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A031 /* Assets.xcassets in Resources */,
+				7A10CA7A1065000000000002 /* Localizable.xcstrings in Resources */,
 				A053 /* replay10.svg in Resources */,
 				A054 /* forward10.svg in Resources */,
 				A055 /* replay10.png in Resources */,
@@ -1269,6 +1276,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4416EE19BFFA2B7C8E644BA4 /* Localization.swift in Sources */,
 				95671D3129C1273708426CA8 /* FlixorTheme+Chrome.swift in Sources */,
 				F1C6D52C1DC6356BDD3CDB89 /* UserCollectionsSection.swift in Sources */,
 				93CAD6B00EAD1BCD4EE702D3 /* UserCollectionHomeRow.swift in Sources */,

@@ -116,11 +116,11 @@ extension DetailsViewModel {
             let part = mm.Part?.first
             let streams = part?.Stream ?? []
             let audio = streams.enumerated().filter { $0.element.streamType == 2 }.map { offset, stream -> Track in
-                let name = stream.displayTitle ?? stream.languageTag ?? stream.language ?? "Audio \(offset + 1)"
+                let name = stream.displayTitle ?? stream.languageTag ?? stream.language ?? String(localized: "Audio \(offset + 1)")
                 return Track(id: stream.id ?? String(offset), name: name, language: stream.languageTag ?? stream.language)
             }
             let subs = streams.enumerated().filter { $0.element.streamType == 3 }.map { offset, stream -> Track in
-                let name = stream.displayTitle ?? stream.languageTag ?? stream.language ?? "Sub \(offset + 1)"
+                let name = stream.displayTitle ?? stream.languageTag ?? stream.language ?? String(localized: "Sub \(offset + 1)")
                 return Track(id: stream.id ?? String(offset), name: name, language: stream.languageTag ?? stream.language)
             }
             // Get video stream displayTitle (streamType == 1) for HDR detection
@@ -139,7 +139,7 @@ extension DetailsViewModel {
                 subtitleCount: subs.count,
                 container: mm.container
             )
-            let label = labelParts.isEmpty ? "Version \(idx + 1)" : labelParts.joined(separator: " ")
+            let label = labelParts.isEmpty ? String(localized: "Version \(idx + 1)") : labelParts.joined(separator: " ")
             vds.append(VersionDetail(id: id, label: label, technical: tech, audioTracks: audio, subtitleTracks: subs))
         }
         if !vds.isEmpty {
@@ -196,11 +196,11 @@ extension DetailsViewModel {
                 let part = mm.Part?.first
                 let streams = part?.Stream ?? []
                 let audio = streams.enumerated().filter { $0.element.streamType == 2 }.map { offset, stream -> Track in
-                    let name = stream.displayTitle ?? stream.languageTag ?? stream.language ?? "Audio \(offset + 1)"
+                    let name = stream.displayTitle ?? stream.languageTag ?? stream.language ?? String(localized: "Audio \(offset + 1)")
                     return Track(id: stream.id ?? String(offset), name: name, language: stream.languageTag ?? stream.language)
                 }
                 let subs = streams.enumerated().filter { $0.element.streamType == 3 }.map { offset, stream -> Track in
-                    let name = stream.displayTitle ?? stream.languageTag ?? stream.language ?? "Sub \(offset + 1)"
+                    let name = stream.displayTitle ?? stream.languageTag ?? stream.language ?? String(localized: "Sub \(offset + 1)")
                     return Track(id: stream.id ?? String(offset), name: name, language: stream.languageTag ?? stream.language)
                 }
                 let videoDisplayTitle = streams.first { $0.streamType == 1 }?.displayTitle

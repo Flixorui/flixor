@@ -37,34 +37,34 @@ enum DetailsSectionKey: String, CaseIterable, Codable, Identifiable {
 
     var title: String {
         switch self {
-        case .episodes: return "Episodes"
-        case .suggested: return "More Like This"
-        case .collection: return "Collection"
-        case .cast: return "Cast & Crew"
-        case .trailers: return "Trailers & Videos"
-        case .comments: return "Comments"
-        case .about: return "Details"
+        case .episodes: return String(localized: "Episodes")
+        case .suggested: return String(localized: "More Like This")
+        case .collection: return String(localized: "Collection")
+        case .cast: return String(localized: "Cast & Crew")
+        case .trailers: return String(localized: "Trailers & Videos")
+        case .comments: return String(localized: "Comments")
+        case .about: return String(localized: "Details")
         }
     }
 
     /// Short label for the tabs bar.
     var tabLabel: String {
         switch self {
-        case .suggested: return "Suggested"
-        case .trailers: return "Videos"
+        case .suggested: return String(localized: "Suggested")
+        case .trailers: return String(localized: "Videos")
         default: return title
         }
     }
 
     var subtitle: String {
         switch self {
-        case .episodes: return "Seasons and episodes (TV shows)"
-        case .suggested: return "Related and similar titles"
-        case .collection: return "Other movies in the franchise"
-        case .cast: return "Cast, crew and guest stars"
-        case .trailers: return "Trailers, teasers and featurettes"
-        case .comments: return "Trakt comments and reviews"
-        case .about: return "About, production, information and links"
+        case .episodes: return String(localized: "Seasons and episodes (TV shows)")
+        case .suggested: return String(localized: "Related and similar titles")
+        case .collection: return String(localized: "Other movies in the franchise")
+        case .cast: return String(localized: "Cast, crew and guest stars")
+        case .trailers: return String(localized: "Trailers, teasers and featurettes")
+        case .comments: return String(localized: "Trakt comments and reviews")
+        case .about: return String(localized: "About, production, information and links")
         }
     }
 

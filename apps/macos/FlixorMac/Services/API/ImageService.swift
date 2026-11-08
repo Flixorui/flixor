@@ -161,6 +161,10 @@ struct MediaItem: Identifiable, Codable {
     var media: [PlexMedia]?
     var editionTitle: String?
 
+    // True for a "Recently Added" card standing in for new episodes of a show
+    // (HomeViewModel.groupEpisodesBySeries). Not part of CodingKeys.
+    var isNewEpisodesGroup = false
+
     // Convenience initializer with default mediaIndex
     init(
         id: String,

@@ -84,7 +84,7 @@ private struct HomeRowEditorRow: View {
     private var subtitle: String {
         var parts = [row.detail ?? row.kind.label]
         if store.customTitle(for: row.id) != nil {
-            parts.append("Originally \"\(row.defaultTitle)\"")
+            parts.append(String(localized: "Originally \"\(row.defaultTitle)\""))
         }
         return parts.joined(separator: " · ")
     }

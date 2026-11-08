@@ -16,7 +16,7 @@ struct UserCollectionCover: Codable, Hashable {
         case backdrop
 
         var id: String { rawValue }
-        var title: String { self == .poster ? "Poster" : "Backdrop" }
+        var title: String { self == .poster ? String(localized: "Poster") : String(localized: "Backdrop") }
     }
 
     var url: String
@@ -59,7 +59,7 @@ struct UserCollection: Codable, Identifiable, Hashable {
     var contentKey: [UserCollectionSource.Kind] { sources.map(\.kind) }
 
     var sourceSummary: String {
-        sources.count == 1 ? "1 source" : "\(sources.count) sources"
+        String(localized: "\(sources.count) sources")
     }
 
     static func new() -> UserCollection {
@@ -145,10 +145,10 @@ struct UserCollectionSource: Codable, Identifiable, Hashable {
 
             var title: String {
                 switch self {
-                case .knownFor: return "Known for"
-                case .acting: return "Acting"
-                case .directing: return "Directing"
-                case .allCrew: return "All crew work"
+                case .knownFor: return String(localized: "Known for")
+                case .acting: return String(localized: "Acting")
+                case .directing: return String(localized: "Directing")
+                case .allCrew: return String(localized: "All crew work")
                 }
             }
         }
@@ -160,9 +160,9 @@ struct UserCollectionSource: Codable, Identifiable, Hashable {
 
             var title: String {
                 switch self {
-                case .popularity: return "Most popular"
-                case .newest: return "Newest first"
-                case .oldest: return "Oldest first"
+                case .popularity: return String(localized: "Most popular")
+                case .newest: return String(localized: "Newest first")
+                case .oldest: return String(localized: "Oldest first")
                 }
             }
 
@@ -200,11 +200,11 @@ struct UserCollectionSource: Codable, Identifiable, Hashable {
 
         var title: String {
             switch self {
-            case .addonCatalog: return "Addon catalog"
-            case .tmdbDiscover: return "TMDB discover"
-            case .tmdbCollection: return "TMDB movie collection"
-            case .person: return "Person's credits"
-            case .traktList: return "Public Trakt list"
+            case .addonCatalog: return String(localized: "Addon catalog")
+            case .tmdbDiscover: return String(localized: "TMDB discover")
+            case .tmdbCollection: return String(localized: "TMDB movie collection")
+            case .person: return String(localized: "Person's credits")
+            case .traktList: return String(localized: "Public Trakt list")
             }
         }
 
@@ -243,9 +243,9 @@ struct UserCollectionSource: Codable, Identifiable, Hashable {
         switch kind {
         case .addonCatalog(let catalog): return catalog.addonName
         case .tmdbDiscover(let discover): return discover.summaryDetail
-        case .tmdbCollection: return "TMDB movie collection"
+        case .tmdbCollection: return String(localized: "TMDB movie collection")
         case .person(let person): return "\(person.credits.title), \(person.order.title.lowercased())"
-        case .traktList(let list): return list.owner.map { "Trakt list by \($0)" } ?? "Trakt list"
+        case .traktList(let list): return list.owner.map { String(localized: "Trakt list by \($0)") } ?? String(localized: "Trakt list")
         }
     }
 }
@@ -291,7 +291,7 @@ extension UserCollectionSource.Person {
 
 extension UserCollectionSource.Discover {
     var summaryTitle: String {
-        let media = mediaType == .movie ? "Movies" : "TV shows"
+        let media = mediaType == .movie ? String(localized: "Movies") : String(localized: "TV shows")
         return genreNames.isEmpty ? media : "\(genreNames.joined(separator: ", ")) \(media.lowercased())"
     }
 
@@ -300,9 +300,9 @@ extension UserCollectionSource.Discover {
         if let companyName { parts.append(companyName) }
         if let networkName { parts.append(networkName) }
         switch (yearFrom, yearTo) {
-        case let (from?, to?): parts.append(from == to ? "\(from)" : "\(from) to \(to)")
-        case let (from?, nil): parts.append("From \(from)")
-        case let (nil, to?): parts.append("Up to \(to)")
+        case let (from?, to?): parts.append(from == to ? "\(from)" : String(localized: "\(String(from)) to \(String(to))"))
+        case let (from?, nil): parts.append(String(localized: "From \(String(from))"))
+        case let (nil, to?): parts.append(String(localized: "Up to \(String(to))"))
         case (nil, nil): break
         }
         parts.append(sort.collectionTitle)
@@ -323,12 +323,12 @@ extension UserCollectionSource.Discover {
 extension TMDBDiscoverSort {
     var collectionTitle: String {
         switch self {
-        case .popularity: return "Most popular"
-        case .rating: return "Highest rated"
-        case .newest: return "Newest first"
-        case .oldest: return "Oldest first"
-        case .voteCount: return "Most votes"
-        case .revenue: return "Highest revenue"
+        case .popularity: return String(localized: "Most popular")
+        case .rating: return String(localized: "Highest rated")
+        case .newest: return String(localized: "Newest first")
+        case .oldest: return String(localized: "Oldest first")
+        case .voteCount: return String(localized: "Most votes")
+        case .revenue: return String(localized: "Highest revenue")
         }
     }
 }

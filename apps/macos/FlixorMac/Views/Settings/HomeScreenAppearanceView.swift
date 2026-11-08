@@ -345,7 +345,7 @@ struct HomeScreenAppearanceView: View {
 
 struct LayoutOptionButton: View {
     @Environment(\.flixorTheme) private var theme
-    let title: String
+    let title: LocalizedStringKey
     let icon: String
     let isSelected: Bool
     let action: () -> Void
@@ -383,7 +383,7 @@ struct LayoutOptionButton: View {
 
 struct CollapsiblePreviewSection<Content: View>: View {
     @Environment(\.flixorTheme) private var theme
-    let title: String
+    let title: LocalizedStringKey
     @Binding var isExpanded: Bool
     @ViewBuilder let content: () -> Content
 
@@ -396,7 +396,7 @@ struct CollapsiblePreviewSection<Content: View>: View {
                 }
             }) {
                 HStack {
-                    Text(title.uppercased())
+                    Text(title).textCase(.uppercase)
                         .font(.flixor(.footnote, weight: .semibold))
                         .foregroundStyle(.secondary)
                         .tracking(0.5)

@@ -106,7 +106,7 @@ struct MyListView: View {
     private var header: some View {
         HStack(alignment: .top, spacing: DS.Space.s16) {
             VStack(alignment: .leading, spacing: DS.Space.s8) {
-                Text(traktLists.selectedList?.name ?? "My List")
+                Text(traktLists.selectedList?.name ?? String(localized: "My List"))
                     .font(.system(size: 34, weight: .bold))
                     .lineLimit(1)
                 Text(headerSubtitle)
@@ -137,7 +137,7 @@ struct MyListView: View {
 
     private var headerSubtitle: String {
         traktLists.selectedListSummary
-            ?? "\(viewModel.items.count) \(viewModel.items.count == 1 ? "title" : "titles")"
+            ?? String(localized: "\(viewModel.items.count) titles")
     }
 
     private var controls: some View {
@@ -472,7 +472,7 @@ private struct SourceBadge: View {
                     badgeView(text: "TRAKT", color: .red)
                 }
             case .local:
-                badgeView(text: "THIS MAC", color: .gray)
+                badgeView(text: String(localized: "THIS MAC"), color: .gray)
             }
         }
     }

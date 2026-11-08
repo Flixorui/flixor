@@ -38,15 +38,15 @@ enum HomeRowKind: String, Codable {
 
     var label: String {
         switch self {
-        case .continueWatching: return "Continue Watching"
-        case .recentlyAdded: return "Plex library"
-        case .collection: return "Plex collection"
-        case .watchlist: return "Watchlist"
-        case .discovery: return "Discovery"
-        case .genre: return "Genre"
+        case .continueWatching: return String(localized: "Continue Watching")
+        case .recentlyAdded: return String(localized: "Plex library")
+        case .collection: return String(localized: "Plex collection")
+        case .watchlist: return String(localized: "Watchlist")
+        case .discovery: return String(localized: "Discovery")
+        case .genre: return String(localized: "Genre")
         case .trakt: return "Trakt"
-        case .stremioCatalog: return "Addon catalog"
-        case .userCollection: return "Your collection"
+        case .stremioCatalog: return String(localized: "Addon catalog")
+        case .userCollection: return String(localized: "Your collection")
         }
     }
 }
@@ -132,9 +132,9 @@ enum ContinueWatchingCardStyle: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .landscape: return "Landscape"
-        case .poster: return "Poster"
-        case .wide: return "Wide"
+        case .landscape: return String(localized: "Landscape")
+        case .poster: return String(localized: "Poster")
+        case .wide: return String(localized: "Wide")
         }
     }
 
@@ -160,9 +160,9 @@ enum ContinueWatchingSort: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .recent: return "Recently watched"
-        case .nextEpisodeFirst: return "Next episode first"
-        case .title: return "Title"
+        case .recent: return String(localized: "Recently watched")
+        case .nextEpisodeFirst: return String(localized: "Next episode first")
+        case .title: return String(localized: "Title")
         }
     }
 
@@ -194,11 +194,11 @@ enum ContinueWatchingAction: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .resume: return "Resume"
-        case .startOver: return "Start Over"
-        case .markWatched: return "Mark as Watched"
-        case .remove: return "Remove from Continue Watching"
-        case .details: return "Go to Details"
+        case .resume: return String(localized: "Resume")
+        case .startOver: return String(localized: "Start Over")
+        case .markWatched: return String(localized: "Mark as Watched")
+        case .remove: return String(localized: "Remove from Continue Watching")
+        case .details: return String(localized: "Go to Details")
         }
     }
 
@@ -233,7 +233,7 @@ extension MediaItem {
     /// so watch-state actions on it would hit the whole show: never offer
     /// "Mark as watched" / "Remove from Continue Watching" for these.
     var isGroupedRecentlyAddedShow: Bool {
-        type == "show" && leafCount != nil && (summary?.hasSuffix("new episode") == true || summary?.hasSuffix("new episodes") == true)
+        type == "show" && leafCount != nil && isNewEpisodesGroup
     }
 
     /// Whether Continue Watching watch-state actions (start over, mark watched,

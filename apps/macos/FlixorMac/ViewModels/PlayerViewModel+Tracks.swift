@@ -438,9 +438,9 @@ extension PlayerViewModel {
 
     /// - Parameter remember: Save this as the user's choice. Pass `false` for automatic selection.
     func attachExternalSubtitle(_ subtitle: StremioSubtitleCandidate, remember: Bool = true) async throws {
-        guard let mpv = mpvController else { throw NSError(domain: "PlayerError", code: -1, userInfo: [NSLocalizedDescriptionKey: "MPV controller unavailable"]) }
+        guard let mpv = mpvController else { throw NSError(domain: "PlayerError", code: -1, userInfo: [NSLocalizedDescriptionKey: String(localized: "MPV controller unavailable")]) }
         guard let remoteURL = URL(string: subtitle.url) else {
-            throw NSError(domain: "PlayerError", code: -2, userInfo: [NSLocalizedDescriptionKey: "Invalid subtitle URL"])
+            throw NSError(domain: "PlayerError", code: -2, userInfo: [NSLocalizedDescriptionKey: String(localized: "Invalid subtitle URL")])
         }
 
         let (data, _) = try await URLSession.shared.data(from: remoteURL)

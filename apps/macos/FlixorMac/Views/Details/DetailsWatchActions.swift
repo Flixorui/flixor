@@ -70,9 +70,9 @@ struct DetailsWatchedControl: View {
     }
 
     private var stateDescription: String {
-        if watched { return "Watched" }
+        if watched { return String(localized: "Watched") }
         if let progress = model.progressText { return progress }
-        return model.isWatched == nil ? "Watch state unknown" : "Not watched"
+        return model.isWatched == nil ? String(localized: "Watch state unknown") : String(localized: "Not watched")
     }
 
     var body: some View {
@@ -105,7 +105,6 @@ struct DetailsWatchedControl: View {
     }
 
     private func collectionMenu(kind: DetailsTitleActionsModel.TitleKind) -> some View {
-        let noun = kind == .show ? "Show" : "Season"
         return Menu {
             if let progress = model.progressText {
                 Text(progress)
@@ -113,14 +112,14 @@ struct DetailsWatchedControl: View {
             Button {
                 model.setWatched(true)
             } label: {
-                Label("Mark \(noun) as Watched", systemImage: "checkmark.circle")
+                Label(kind == .show ? "Mark Show as Watched" : "Mark Season as Watched", systemImage: "checkmark.circle")
             }
             .disabled(watched)
 
             Button {
                 model.setWatched(false)
             } label: {
-                Label("Mark \(noun) as Unwatched", systemImage: "arrow.uturn.backward.circle")
+                Label(kind == .show ? "Mark Show as Unwatched" : "Mark Season as Unwatched", systemImage: "arrow.uturn.backward.circle")
             }
             .disabled(model.isWatched == false && !model.isInProgress)
 

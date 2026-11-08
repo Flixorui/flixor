@@ -136,12 +136,12 @@ extension HomeViewModel {
 
         // Continue Watching
         if settings.showContinueWatching {
-            let title = store.title(for: homeContinueWatchingRowId, default: "Continue Watching")
+            let title = store.title(for: homeContinueWatchingRowId, default: String(localized: "Continue Watching"))
             switch continueWatchingState {
             case .idle, .loading, .loaded:
                 rows.append(HomeDisplayRow(id: homeContinueWatchingRowId, title: title, content: .continueWatching))
             case .error(let message):
-                add(HomeRowFailure(id: homeContinueWatchingRowId, title: title, source: isStremioOnlyMode ? "Watch history" : "Plex",
+                add(HomeRowFailure(id: homeContinueWatchingRowId, title: title, source: isStremioOnlyMode ? String(localized: "Watch history") : "Plex",
                                    message: message, retry: .continueWatching))
             case .empty:
                 break
@@ -153,7 +153,7 @@ extension HomeViewModel {
         case .idle, .loading:
             skeletons("recent", count: 2)
         case .error(let message):
-            add(HomeRowFailure(id: "recently-added", title: "Recently Added", source: "Plex", message: message, retry: .recentlyAdded))
+            add(HomeRowFailure(id: "recently-added", title: String(localized: "Recently Added"), source: "Plex", message: message, retry: .recentlyAdded))
         case .loaded, .empty:
             recentlyAddedSections.forEach(add)
         }
@@ -164,7 +164,7 @@ extension HomeViewModel {
             case .idle, .loading:
                 skeletons("collections", count: 3)
             case .error(let message):
-                add(HomeRowFailure(id: "collections", title: "Collections", source: "Plex", message: message, retry: .collections))
+                add(HomeRowFailure(id: "collections", title: String(localized: "Collections"), source: "Plex", message: message, retry: .collections))
             case .loaded, .empty:
                 collectionSections.forEach(add)
             }

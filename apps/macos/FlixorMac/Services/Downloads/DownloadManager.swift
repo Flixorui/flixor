@@ -341,7 +341,7 @@ class DownloadManager: NSObject, ObservableObject {
             guard let media = metadata.Media?.first,
                   let part = media.Part?.first,
                   let partKey = part.key else {
-                throw DownloadError.downloadFailed("No media file found for this item")
+                throw DownloadError.downloadFailed(String(localized: "No media file found for this item"))
             }
 
             // 4. Construct the download URL using the part key
@@ -464,7 +464,7 @@ class DownloadManager: NSObject, ObservableObject {
         do {
             // Get stored relative path
             guard let relativePath = UserDefaults.standard.string(forKey: "download.path.\(taskId)") else {
-                throw DownloadError.fileSystemError("Path not found")
+                throw DownloadError.fileSystemError(String(localized: "Path not found"))
             }
 
             // Move file to final destination
@@ -562,7 +562,7 @@ class DownloadManager: NSObject, ObservableObject {
                 print("[DownloadManager] Download stuck (no progress for \(stuckCount) retries): \(taskId) - \(error)")
 
                 activeTasks[index].status = .failed
-                activeTasks[index].errorMessage = "Download stuck. Tap to retry."
+                activeTasks[index].errorMessage = String(localized: "Download stuck. Tap to retry.")
                 storageService.saveQueue(activeTasks)
 
                 cleanupDownloadState(taskId: taskId)

@@ -19,19 +19,19 @@ enum APIError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidURL:
-            return "Invalid URL"
+            return String(localized: "Invalid URL")
         case .networkError(let error):
-            return "Network error: \(error.localizedDescription)"
+            return String(localized: "Network error: \(error.localizedDescription)")
         case .decodingError(let error):
-            return "Failed to decode response: \(error.localizedDescription)"
+            return String(localized: "Failed to decode response: \(error.localizedDescription)")
         case .httpError(let statusCode, let message):
-            return message ?? "HTTP error: \(statusCode)"
+            return message ?? String(localized: "HTTP error: \(statusCode)")
         case .unauthorized:
-            return "Unauthorized. Please sign in again."
+            return String(localized: "Unauthorized. Please sign in again.")
         case .serverError(let message):
-            return "Server error: \(message)"
+            return String(localized: "Server error: \(message)")
         case .noData:
-            return "No data received from server"
+            return String(localized: "No data received from server")
         }
     }
 }

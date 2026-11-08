@@ -115,19 +115,19 @@ enum TMDBErrorMessage {
         if let kitError = error as? FlixorKit.APIError {
             switch kitError {
             case .unauthorized:
-                return "TMDB rejected the request: the TMDB API key is missing or invalid."
+                return String(localized: "TMDB rejected the request: the TMDB API key is missing or invalid.")
             case .httpError(let status, _) where status == 401:
-                return "TMDB rejected the request: the TMDB API key is missing or invalid."
+                return String(localized: "TMDB rejected the request: the TMDB API key is missing or invalid.")
             case .httpError(let status, _) where status == 404:
-                return "TMDB has no entry for this."
+                return String(localized: "TMDB has no entry for this.")
             case .networkError:
-                return "Check your internet connection and try again."
+                return String(localized: "Check your internet connection and try again.")
             default:
                 break
             }
         }
         if error is URLError {
-            return "Check your internet connection and try again."
+            return String(localized: "Check your internet connection and try again.")
         }
         if let localized = error as? LocalizedError, let description = localized.errorDescription {
             return description

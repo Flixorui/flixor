@@ -238,9 +238,9 @@ struct BrowseSkeletonPosterGrid: View {
 
 struct BrowseMessageView: View {
     let systemImage: String
-    let title: String
-    var message: String? = nil
-    var retryTitle: String? = nil
+    let title: LocalizedStringKey
+    var message: LocalizedStringKey? = nil
+    var retryTitle: LocalizedStringKey? = nil
     var onRetry: (() -> Void)? = nil
 
     @Environment(\.flixorTheme) private var theme

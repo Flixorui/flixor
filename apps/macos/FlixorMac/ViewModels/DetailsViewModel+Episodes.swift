@@ -160,7 +160,7 @@ extension DetailsViewModel {
             struct TS: Codable { let season_number: Int? }
             let tv: TV = try await api.get("/api/tmdb/tv/\(tid)")
             let ss = (tv.seasons ?? []).compactMap { $0.season_number }.filter { $0 > 0 }
-            let mapped = ss.map { Season(id: "tmdb:season:\(tid):\($0)", title: "Season \($0)", source: "tmdb", number: $0) }
+            let mapped = ss.map { Season(id: "tmdb:season:\(tid):\($0)", title: String(localized: "Season \($0)"), source: "tmdb", number: $0) }
             await MainActor.run {
                 self.seasons = mapped
                 self.selectedSeasonKey = mapped.first?.id
@@ -242,7 +242,7 @@ extension DetailsViewModel {
             let data: SD = try await api.get("/api/tmdb/tv/\(tvId)/season/\(seasonNumber)")
             let eps: [Episode] = (data.episodes ?? []).map { e in
                 let url = ImageService.shared.proxyImageURL(url: e.still_path.flatMap { "https://image.tmdb.org/t/p/w780\($0)" }, width: 600, height: 338)
-                return Episode(id: "tmdb:tv:\(e.id ?? 0)", title: e.name ?? "Episode", overview: e.overview, image: url, durationMin: e.runtime, progressPct: nil, viewOffset: nil, seasonNumber: seasonNumber, episodeNumber: e.episode_number)
+                return Episode(id: "tmdb:tv:\(e.id ?? 0)", title: e.name ?? String(localized: "Episode"), overview: e.overview, image: url, durationMin: e.runtime, progressPct: nil, viewOffset: nil, seasonNumber: seasonNumber, episodeNumber: e.episode_number)
             }
             await MainActor.run {
                 self.episodes = eps
@@ -263,7 +263,7 @@ extension DetailsViewModel {
             let ex: MC = try await api.get("/api/plex/metadata/\(ratingKey)", queryItems: [URLQueryItem(name: "includeExtras", value: "1")])
             let list = ex.MediaContainer.Metadata?.first?.Extras?.Metadata ?? []
             let mapped: [Extra] = list.map { em in
-                Extra(id: em.ratingKey, title: em.title ?? "Trailer", image: ImageService.shared.plexImageURL(path: em.thumb, width: 400, height: 225), durationMin: em.duration.map { Int($0/60000) })
+                Extra(id: em.ratingKey, title: em.title ?? String(localized: "Trailer"), image: ImageService.shared.plexImageURL(path: em.thumb, width: 400, height: 225), durationMin: em.duration.map { Int($0/60000) })
             }
             await MainActor.run { self.extras = mapped }
         } catch {}

@@ -35,7 +35,7 @@ final class PersonDetailViewModel: ObservableObject {
     enum Department: String, CaseIterable, Identifiable {
         case acting, crew
         var id: String { rawValue }
-        var title: String { self == .acting ? "Acting" : "Crew" }
+        var title: String { self == .acting ? String(localized: "Acting") : String(localized: "Crew") }
     }
 
     enum MediaFilter: String, CaseIterable, Identifiable {
@@ -43,9 +43,9 @@ final class PersonDetailViewModel: ObservableObject {
         var id: String { rawValue }
         var title: String {
             switch self {
-            case .all: return "All"
-            case .movies: return "Movies"
-            case .tv: return "TV"
+            case .all: return String(localized: "All")
+            case .movies: return String(localized: "Movies")
+            case .tv: return String(localized: "TV")
             }
         }
     }
@@ -55,9 +55,9 @@ final class PersonDetailViewModel: ObservableObject {
         var id: String { rawValue }
         var title: String {
             switch self {
-            case .popular: return "Popular"
-            case .newest: return "Newest"
-            case .oldest: return "Oldest"
+            case .popular: return String(localized: "Popular")
+            case .newest: return String(localized: "Newest")
+            case .oldest: return String(localized: "Oldest")
             }
         }
         var tmdbOrder: TMDBPersonCreditOrder {
@@ -218,8 +218,8 @@ final class PersonDetailViewModel: ObservableObject {
         let shows = unique.filter { $0.mediaType == "tv" }.count
         let movies = unique.count - shows
         var parts: [String] = []
-        if movies > 0 { parts.append("\(movies) movie\(movies == 1 ? "" : "s")") }
-        if shows > 0 { parts.append("\(shows) show\(shows == 1 ? "" : "s")") }
+        if movies > 0 { parts.append(String(localized: "\(movies) movies")) }
+        if shows > 0 { parts.append(String(localized: "\(shows) shows")) }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
@@ -272,7 +272,7 @@ final class PersonDetailViewModel: ObservableObject {
             }
         }
         if credit.mediaType == "tv", let episodes = credit.episodeCount, episodes > 0 {
-            parts.append("\(episodes) ep\(episodes == 1 ? "" : "s")")
+            parts.append(String(localized: "\(episodes) eps"))
         }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
@@ -309,13 +309,13 @@ final class PersonDetailViewModel: ObservableObject {
             switch self {
             case .notFound(let name):
                 return name.isEmpty
-                    ? "This person couldn't be found on TMDB."
-                    : "Couldn't find \(name) on TMDB."
+                    ? String(localized: "This person couldn't be found on TMDB.")
+                    : String(localized: "Couldn't find \(name) on TMDB.")
             }
         }
     }
 
     private static func message(for error: Error) -> String {
-        TMDBErrorMessage.message(for: error, fallback: "Couldn't load this person from TMDB.")
+        TMDBErrorMessage.message(for: error, fallback: String(localized: "Couldn't load this person from TMDB."))
     }
 }

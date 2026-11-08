@@ -133,7 +133,7 @@ enum CardAccessibility {
         case "episode":
             parts.append(item.grandparentTitle ?? item.title)
             if let season = item.parentIndex, let episode = item.index {
-                parts.append("Season \(season) Episode \(episode)")
+                parts.append(String(localized: "Season \(String(season)) Episode \(String(episode))"))
             }
             if item.grandparentTitle != nil { parts.append(item.title) }
         case "season":
@@ -160,12 +160,12 @@ enum CardAccessibility {
 
     private static func progressDescription(for item: MediaItem) -> String? {
         if let total = item.leafCount, total > 0, let viewed = item.viewedLeafCount {
-            if viewed >= total { return "Watched" }
-            if viewed > 0 { return "\(viewed) of \(total) episodes watched" }
+            if viewed >= total { return String(localized: "Watched") }
+            if viewed > 0 { return String(localized: "\(viewed) of \(total) episodes watched") }
         }
         if let duration = item.duration, duration > 0, let offset = item.viewOffset, offset > 0 {
             let percent = Int((Double(offset) / Double(duration) * 100).rounded())
-            return percent >= 95 ? "Watched" : "\(percent)% watched"
+            return percent >= 95 ? String(localized: "Watched") : String(localized: "\(percent)% watched")
         }
         return nil
     }

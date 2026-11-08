@@ -157,21 +157,21 @@ struct RequestButton: View {
     private var buttonLabel: String {
         switch currentStatus {
         case .notRequested:
-            return "Request"
+            return String(localized: "Request")
         case .pending:
-            return "Pending"
+            return String(localized: "Pending")
         case .approved:
-            return "Approved"
+            return String(localized: "Approved")
         case .declined:
-            return "Declined"
+            return String(localized: "Declined")
         case .processing:
-            return "Processing"
+            return String(localized: "Processing")
         case .partiallyAvailable:
-            return "Partial"
+            return String(localized: "Partial")
         case .available:
-            return "Available"
+            return String(localized: "Available")
         case .unknown:
-            return "Request"
+            return String(localized: "Request")
         }
     }
 
@@ -293,7 +293,7 @@ struct RequestButton: View {
         }
         .buttonStyle(.plain)
         .disabled(isLoading || isRequesting || !canRequest)
-        .help(canRequest ? "Request via Overseerr" : buttonLabel)
+        .help(canRequest ? String(localized: "Request via Overseerr") : buttonLabel)
     }
 
     @MainActor
@@ -460,7 +460,7 @@ private struct SeasonPickerSheet: View {
                                     .progressViewStyle(.circular)
                                     .controlSize(.small)
                             }
-                            Text("Request \(selectedSeasons.count) Season\(selectedSeasons.count == 1 ? "" : "s")")
+                            Text("Request \(selectedSeasons.count) Seasons")
                         }
                         .padding(.horizontal, DS.Space.s16)
                         .padding(.vertical, DS.Space.s8)
@@ -492,15 +492,15 @@ private struct SeasonRow: View {
 
     private var statusText: String {
         if season.isAvailable {
-            return "Available"
+            return String(localized: "Available")
         } else if season.isProcessing {
-            return "Processing"
+            return String(localized: "Processing")
         } else if season.isPending {
-            return "Pending"
+            return String(localized: "Pending")
         } else if season.isPartiallyAvailable {
-            return "Partial"
+            return String(localized: "Partial")
         }
-        return "Not Available"
+        return String(localized: "Not Available")
     }
 
     private var statusColor: Color {

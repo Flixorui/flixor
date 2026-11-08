@@ -75,16 +75,16 @@ struct CardContextMenu: View {
             // show, so whole-show watch actions would hit the wrong scope.
             EmptyView()
         } else if CardActions.isWholeShowLike(item) {
-            let noun = item.type.lowercased() == "season" ? "Season" : "Show"
+            let isSeason = item.type.lowercased() == "season"
             Button {
                 onRequestWholeShowWatched(true)
             } label: {
-                Label("Mark Entire \(noun) as Watched…", systemImage: "checkmark.circle")
+                Label(isSeason ? "Mark Entire Season as Watched…" : "Mark Entire Show as Watched…", systemImage: "checkmark.circle")
             }
             Button {
                 onRequestWholeShowWatched(false)
             } label: {
-                Label("Mark Entire \(noun) as Unwatched…", systemImage: "circle")
+                Label(isSeason ? "Mark Entire Season as Unwatched…" : "Mark Entire Show as Unwatched…", systemImage: "circle")
             }
         } else if WatchStateTarget(item: item) != nil {
             Button {
@@ -193,19 +193,23 @@ private struct CardContextMenuModifier: ViewModifier {
             }
     }
 
-    private var noun: String { item.type.lowercased() == "season" ? "season" : "show" }
-
     private var confirmationTitle: String {
         let title = CardActions.displayTitle(item)
         return pendingWholeShowWatched == false
-            ? "Mark all of \(title) as unwatched?"
-            : "Mark all of \(title) as watched?"
+            ? String(localized: "Mark all of \(title) as unwatched?")
+            : String(localized: "Mark all of \(title) as watched?")
     }
 
     private var confirmationMessage: String {
-        pendingWholeShowWatched == false
-            ? "This clears the watched state of every episode in this \(noun)."
-            : "This marks every episode in this \(noun) as watched."
+        let isSeason = item.type.lowercased() == "season"
+        if pendingWholeShowWatched == false {
+            return isSeason
+                ? String(localized: "This clears the watched state of every episode in this season.")
+                : String(localized: "This clears the watched state of every episode in this show.")
+        }
+        return isSeason
+            ? String(localized: "This marks every episode in this season as watched.")
+            : String(localized: "This marks every episode in this show as watched.")
     }
 }
 

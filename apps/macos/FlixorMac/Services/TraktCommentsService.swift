@@ -95,6 +95,6 @@ actor TraktCommentsService {
 
     enum CommentsError: LocalizedError {
         case unresolved
-        var errorDescription: String? { "Couldn't find this title on Trakt" }
+        var errorDescription: String? { String(localized: "Couldn't find this title on Trakt") }
     }
 }

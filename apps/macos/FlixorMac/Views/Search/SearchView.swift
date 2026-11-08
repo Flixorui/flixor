@@ -38,7 +38,7 @@ struct SearchView: View {
                         case .idle:
                             idleContent
                         case .searching:
-                            LoadingView(message: "Searching...")
+                            LoadingView(message: String(localized: "Searching..."))
                         case .results:
                             if viewModel.hasResults || !viewModel.failedSections.isEmpty {
                                 SearchResultsView(
@@ -110,7 +110,7 @@ struct SearchView: View {
                 SearchSegmentedControl(
                     options: SearchViewModel.IdleTab.allCases.map { SearchSegmentOption(value: $0, label: $0.label) },
                     selection: $viewModel.idleTab,
-                    accessibilityTitle: "Search view"
+                    accessibilityTitle: String(localized: "Search view")
                 )
                 .padding(.horizontal, SearchLayout.gutter)
             }
@@ -258,7 +258,7 @@ struct PlexResultsRow: View {
 
     var body: some View {
         CarouselRow(
-            title: "Results from Your Plex",
+            title: String(localized: "Results from Your Plex"),
             items: items,
             itemWidth: cardWidth,
             spacing: 16,
@@ -288,7 +288,7 @@ struct SearchResultsView: View {
 
             if !viewModel.stremioResults.isEmpty {
                 SearchHorizontalRow(
-                    title: "From Your Addons",
+                    title: String(localized: "From Your Addons"),
                     items: viewModel.stremioResults,
                     onTap: onTap
                 )
@@ -298,7 +298,7 @@ struct SearchResultsView: View {
             if !viewModel.tmdbMovies.isEmpty {
                 SearchHorizontalRow(
                     title: viewModel.plexResults.isEmpty && viewModel.stremioResults.isEmpty
-                        ? "Top Results" : "Movies",
+                        ? String(localized: "Top Results") : String(localized: "Movies"),
                     items: viewModel.tmdbMovies,
                     onTap: onTap
                 )
@@ -307,7 +307,7 @@ struct SearchResultsView: View {
 
             if !viewModel.tmdbShows.isEmpty {
                 SearchHorizontalRow(
-                    title: "TV Shows",
+                    title: String(localized: "TV Shows"),
                     items: viewModel.tmdbShows,
                     onTap: onTap
                 )
@@ -364,7 +364,7 @@ struct TrendingResultsRow: View {
 
     var body: some View {
         CarouselRow(
-            title: "Recommended TV Shows & Movies",
+            title: String(localized: "Recommended TV Shows & Movies"),
             items: items,
             itemWidth: 420,
             spacing: 16,

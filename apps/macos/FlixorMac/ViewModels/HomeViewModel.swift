@@ -395,7 +395,7 @@ class HomeViewModel: ObservableObject {
         registerRows([
             HomeRowDescriptor(
                 id: homeContinueWatchingRowId,
-                defaultTitle: "Continue Watching",
+                defaultTitle: String(localized: "Continue Watching"),
                 kind: .continueWatching,
                 group: .continueWatching
             )
@@ -654,13 +654,13 @@ class HomeViewModel: ObservableObject {
         if settings.showPlexPopular || settings.showTrendingRows {
             do {
                 let (popular, trending) = try await fetchTMDBTrendingTVSections()
-                if settings.showPlexPopular, let p = popular.first { all["Popular on Plex"] = .section(p) }
-                if settings.showTrendingRows, let t = trending.first { all["Trending Now"] = .section(t) }
+                if settings.showPlexPopular, let p = popular.first { all[String(localized: "Popular on Plex")] = .section(p) }
+                if settings.showTrendingRows, let t = trending.first { all[String(localized: "Trending Now")] = .section(t) }
             } catch {
                 print("⚠️ [Home] TMDB trending failed: \(error)")
                 let failure = HomeRowFailure(
                     id: settings.showPlexPopular ? "tmdb-popular" : "tmdb-trending",
-                    title: settings.showPlexPopular ? "Popular on Plex" : "Trending Now",
+                    title: settings.showPlexPopular ? String(localized: "Popular on Plex") : String(localized: "Trending Now"),
                     source: "TMDB",
                     message: error.localizedDescription,
                     retry: .extras
@@ -670,7 +670,7 @@ class HomeViewModel: ObservableObject {
         }
 
         // Plex.tv Watchlist
-        if settings.showWatchlist, let wl = await fetchPlexTvWatchlistSection() { all["Watchlist"] = .section(wl) }
+        if settings.showWatchlist, let wl = await fetchPlexTvWatchlistSection() { all[String(localized: "Watchlist")] = .section(wl) }
 
         // Genres
         do { genres = try await fetchGenreSections() } catch { print("⚠️ [Home] Genre sections failed: \(error)") }
@@ -683,21 +683,21 @@ class HomeViewModel: ObservableObject {
         // Order exactly as requested
         var ordered: [HomeRowSlot] = []
         func push(_ title: String) { if let s = all[title] { ordered.append(s) } }
-        push("Popular on Plex")
+        push(String(localized: "Popular on Plex"))
         // Continue Watching is rendered separately with its own card style
-        push("Trending Now")
-        push("Watchlist")
+        push(String(localized: "Trending Now"))
+        push(String(localized: "Watchlist"))
 
         // Specific genre labels in desired order
         let desiredGenres = [
-            "TV Shows - Children",
-            "Movie - Music",
-            "Movies - Documentary",
-            "Movies - History",
-            "TV Shows - Reality",
-            "Movies - Drama",
-            "TV Shows - Suspense",
-            "Movies - Animation",
+            String(localized: "TV Shows - Children"),
+            String(localized: "Movie - Music"),
+            String(localized: "Movies - Documentary"),
+            String(localized: "Movies - History"),
+            String(localized: "TV Shows - Reality"),
+            String(localized: "Movies - Drama"),
+            String(localized: "TV Shows - Suspense"),
+            String(localized: "Movies - Animation"),
         ]
         for label in desiredGenres {
             if let g = genres.first(where: { $0.title == label }) { ordered.append(.section(g)) }
@@ -705,12 +705,12 @@ class HomeViewModel: ObservableObject {
 
         // Trakt: Trending Movies, Trending TV Shows, Your Watchlist, Recently Watched, Recommended, Popular TV Shows
         let desiredTrakt = [
-            "Trending Movies on Trakt",
-            "Trending TV Shows on Trakt",
-            "Your Trakt Watchlist",
-            "Recently Watched",
-            "Recommended for You",
-            "Popular TV Shows on Trakt",
+            String(localized: "Trending Movies on Trakt"),
+            String(localized: "Trending TV Shows on Trakt"),
+            String(localized: "Your Trakt Watchlist"),
+            String(localized: "Recently Watched"),
+            String(localized: "Recommended for You"),
+            String(localized: "Popular TV Shows on Trakt"),
         ]
         for label in desiredTrakt { if let s = trakt[label] { ordered.append(s) } }
 
@@ -777,11 +777,11 @@ class HomeViewModel: ObservableObject {
                         let mediaItems = items.map { toMediaItem($0) }
                         sections.append(LibrarySection(
                             id: "collection-\(collection.ratingKey)",
-                            title: collection.title ?? "Untitled Collection",
+                            title: collection.title ?? String(localized: "Untitled Collection"),
                             items: mediaItems,
                             totalCount: collection.childCount ?? items.count,
                             libraryKey: nil,
-                            browseContext: .plexCollection(ratingKey: collection.ratingKey, title: collection.title ?? "Collection"),
+                            browseContext: .plexCollection(ratingKey: collection.ratingKey, title: collection.title ?? String(localized: "Collection")),
                             isCollection: true
                         ))
                     }
@@ -841,7 +841,7 @@ class HomeViewModel: ObservableObject {
     private func toMediaItem(_ plex: FlixorKit.PlexMediaItem) -> MediaItem {
         return MediaItem(
             id: plex.ratingKey ?? plex.key ?? "",
-            title: plex.title ?? "Unknown",
+            title: plex.title ?? String(localized: "Unknown"),
             type: plex.type ?? "unknown",
             thumb: plex.thumb,
             art: plex.art,
@@ -869,12 +869,12 @@ class HomeViewModel: ObservableObject {
     /// Genre rows for standalone mode, replacing the Plex-library genre rows.
     /// Ids are TMDB genre ids.
     private static let stremioGenreRows: [(title: String, media: TMDBMediaType, genreId: String)] = [
-        ("Action Movies", .movie, "28"),
-        ("Comedy Movies", .movie, "35"),
-        ("Sci-Fi & Fantasy Shows", .tv, "10765"),
-        ("Thriller Movies", .movie, "53"),
-        ("Animated Shows", .tv, "16"),
-        ("Documentaries", .movie, "99"),
+        (String(localized: "Action Movies"), .movie, "28"),
+        (String(localized: "Comedy Movies"), .movie, "35"),
+        (String(localized: "Sci-Fi & Fantasy Shows"), .tv, "10765"),
+        (String(localized: "Thriller Movies"), .movie, "53"),
+        (String(localized: "Animated Shows"), .tv, "16"),
+        (String(localized: "Documentaries"), .movie, "99"),
     ]
 
     private func loadStremioAdditionalRows() async {
@@ -890,11 +890,11 @@ class HomeViewModel: ObservableObject {
         // Trending is the headline row and also seeds the hero, so it goes first.
         if settings.showTrendingRows {
             if let s = await fetchTMDBListSection(
-                id: "tmdb-trending-movies", title: "Trending Movies",
+                id: "tmdb-trending-movies", title: String(localized: "Trending Movies"),
                 media: .movie, kind: .trending
             ) { ordered.append(s) }
             if let s = await fetchTMDBListSection(
-                id: "tmdb-trending-tv", title: "Trending TV Shows",
+                id: "tmdb-trending-tv", title: String(localized: "Trending TV Shows"),
                 media: .tv, kind: .trending
             ) { ordered.append(s) }
         }
@@ -907,11 +907,11 @@ class HomeViewModel: ObservableObject {
 
         if settings.showPlexPopular {
             if let s = await fetchTMDBListSection(
-                id: "tmdb-popular-movies", title: "Popular Movies",
+                id: "tmdb-popular-movies", title: String(localized: "Popular Movies"),
                 media: .movie, kind: .popular
             ) { ordered.append(s) }
             if let s = await fetchTMDBListSection(
-                id: "tmdb-popular-tv", title: "Popular TV Shows",
+                id: "tmdb-popular-tv", title: String(localized: "Popular TV Shows"),
                 media: .tv, kind: .popular
             ) { ordered.append(s) }
         }
@@ -927,12 +927,12 @@ class HomeViewModel: ObservableObject {
         }
 
         if let s = await fetchTMDBListSection(
-            id: "tmdb-top-rated-movies", title: "Top Rated Movies",
+            id: "tmdb-top-rated-movies", title: String(localized: "Top Rated Movies"),
             media: .movie, kind: .topRated
         ) { ordered.append(s) }
 
         if let s = await fetchTMDBListSection(
-            id: "tmdb-upcoming", title: "Coming Soon",
+            id: "tmdb-upcoming", title: String(localized: "Coming Soon"),
             media: .movie, kind: .upcoming
         ) { ordered.append(s) }
 
@@ -940,12 +940,12 @@ class HomeViewModel: ObservableObject {
         if settings.showTraktRows {
             let traktSections = await fetchTraktSections()
             let desiredTrakt = [
-                "Trending Movies on Trakt",
-                "Trending TV Shows on Trakt",
-                "Your Trakt Watchlist",
-                "Recently Watched",
-                "Recommended for You",
-                "Popular TV Shows on Trakt",
+                String(localized: "Trending Movies on Trakt"),
+                String(localized: "Trending TV Shows on Trakt"),
+                String(localized: "Your Trakt Watchlist"),
+                String(localized: "Recently Watched"),
+                String(localized: "Recommended for You"),
+                String(localized: "Popular TV Shows on Trakt"),
             ]
             for label in desiredTrakt {
                 if let s = traktSections.first(where: { $0.title == label }) { ordered.append(s) }
@@ -1156,19 +1156,19 @@ class HomeViewModel: ObservableObject {
         let second = Array(mapped.dropFirst(8).prefix(8))
         let popular = LibrarySection(
             id: "tmdb-popular",
-            title: "Popular on Plex",
+            title: String(localized: "Popular on Plex"),
             items: first,
             totalCount: first.count,
             libraryKey: nil,
-            browseContext: .tmdb(kind: .trending, media: .tv, id: nil, displayTitle: "Popular on Plex")
+            browseContext: .tmdb(kind: .trending, media: .tv, id: nil, displayTitle: String(localized: "Popular on Plex"))
         )
         let trending = LibrarySection(
             id: "tmdb-trending",
-            title: "Trending Now",
+            title: String(localized: "Trending Now"),
             items: second,
             totalCount: second.count,
             libraryKey: nil,
-            browseContext: .tmdb(kind: .trending, media: .tv, id: nil, displayTitle: "Trending Now")
+            browseContext: .tmdb(kind: .trending, media: .tv, id: nil, displayTitle: String(localized: "Trending Now"))
         )
         return ([popular], [trending])
     }
@@ -1221,7 +1221,7 @@ class HomeViewModel: ObservableObject {
 
                     let item = MediaItem(
                         id: itemId,
-                        title: m.title ?? "Unknown",
+                        title: m.title ?? String(localized: "Unknown"),
                         type: mediaType,
                         thumb: m.thumb,
                         art: m.art,
@@ -1330,7 +1330,7 @@ class HomeViewModel: ObservableObject {
 
         return LibrarySection(
             id: "combined-watchlist",
-            title: "Watchlist",
+            title: String(localized: "Watchlist"),
             items: Array(items.prefix(12)),
             totalCount: items.count,
             libraryKey: nil,
@@ -1371,14 +1371,14 @@ class HomeViewModel: ObservableObject {
         guard let plexServer = FlixorCore.shared.plexServer else { return [] }
 
         let genreRows: [(label: String, type: String, genre: String)] = [
-            ("TV Shows - Children", "show", "Children"),
-            ("Movie - Music", "movie", "Music"),
-            ("Movies - Documentary", "movie", "Documentary"),
-            ("Movies - History", "movie", "History"),
-            ("TV Shows - Reality", "show", "Reality"),
-            ("Movies - Drama", "movie", "Drama"),
-            ("TV Shows - Suspense", "show", "Suspense"),
-            ("Movies - Animation", "movie", "Animation"),
+            (String(localized: "TV Shows - Children"), "show", "Children"),
+            (String(localized: "Movie - Music"), "movie", "Music"),
+            (String(localized: "Movies - Documentary"), "movie", "Documentary"),
+            (String(localized: "Movies - History"), "movie", "History"),
+            (String(localized: "TV Shows - Reality"), "show", "Reality"),
+            (String(localized: "Movies - Drama"), "movie", "Drama"),
+            (String(localized: "TV Shows - Suspense"), "show", "Suspense"),
+            (String(localized: "Movies - Animation"), "movie", "Animation"),
         ]
 
         print("📦 [Home] Fetching libraries for genre rows...")
@@ -1433,14 +1433,14 @@ class HomeViewModel: ObservableObject {
             if !items.isEmpty {
                 sections.append(.section(LibrarySection(
                     id: "trakt-trending-movies",
-                    title: "Trending Movies on Trakt",
+                    title: String(localized: "Trending Movies on Trakt"),
                     items: items,
                     totalCount: items.count,
                     libraryKey: nil,
                     browseContext: .trakt(kind: .trendingMovies)
                 )))
             }
-        } catch { fail("trakt-trending-movies", "Trending Movies on Trakt", error) }
+        } catch { fail("trakt-trending-movies", String(localized: "Trending Movies on Trakt"), error) }
 
         // Trending TV Shows (public)
         do {
@@ -1449,14 +1449,14 @@ class HomeViewModel: ObservableObject {
             if !items.isEmpty {
                 sections.append(.section(LibrarySection(
                     id: "trakt-trending-shows",
-                    title: "Trending TV Shows on Trakt",
+                    title: String(localized: "Trending TV Shows on Trakt"),
                     items: items,
                     totalCount: items.count,
                     libraryKey: nil,
                     browseContext: .trakt(kind: .trendingShows)
                 )))
             }
-        } catch { fail("trakt-trending-shows", "Trending TV Shows on Trakt", error) }
+        } catch { fail("trakt-trending-shows", String(localized: "Trending TV Shows on Trakt"), error) }
 
         // Your Trakt Watchlist (auth)
         if trakt.isAuthenticated {
@@ -1477,14 +1477,14 @@ class HomeViewModel: ObservableObject {
                 if !items.isEmpty {
                     sections.append(.section(LibrarySection(
                         id: "trakt-watchlist",
-                        title: "Your Trakt Watchlist",
+                        title: String(localized: "Your Trakt Watchlist"),
                         items: items,
                         totalCount: items.count,
                         libraryKey: nil,
                         browseContext: .trakt(kind: .watchlist)
                     )))
                 }
-            } catch { fail("trakt-watchlist", "Your Trakt Watchlist", error) }
+            } catch { fail("trakt-watchlist", String(localized: "Your Trakt Watchlist"), error) }
 
             // Recently Watched (auth) - fetch movies and shows separately like mobile
             do {
@@ -1528,14 +1528,14 @@ class HomeViewModel: ObservableObject {
                 if !limitedItems.isEmpty {
                     sections.append(.section(LibrarySection(
                         id: "trakt-history",
-                        title: "Recently Watched",
+                        title: String(localized: "Recently Watched"),
                         items: limitedItems,
                         totalCount: limitedItems.count,
                         libraryKey: nil,
                         browseContext: .trakt(kind: .history)
                     )))
                 }
-            } catch { fail("trakt-history", "Recently Watched", error) }
+            } catch { fail("trakt-history", String(localized: "Recently Watched"), error) }
 
             // Recommended for You (auth)
             do {
@@ -1544,14 +1544,14 @@ class HomeViewModel: ObservableObject {
                 if !items.isEmpty {
                     sections.append(.section(LibrarySection(
                         id: "trakt-recs",
-                        title: "Recommended for You",
+                        title: String(localized: "Recommended for You"),
                         items: items,
                         totalCount: items.count,
                         libraryKey: nil,
                         browseContext: .trakt(kind: .recommendations)
                     )))
                 }
-            } catch { fail("trakt-recs", "Recommended for You", error) }
+            } catch { fail("trakt-recs", String(localized: "Recommended for You"), error) }
         }
 
         // Popular TV Shows on Trakt (public)
@@ -1561,14 +1561,14 @@ class HomeViewModel: ObservableObject {
             if !items.isEmpty {
                 sections.append(.section(LibrarySection(
                     id: "trakt-popular-shows",
-                    title: "Popular TV Shows on Trakt",
+                    title: String(localized: "Popular TV Shows on Trakt"),
                     items: items,
                     totalCount: items.count,
                     libraryKey: nil,
                     browseContext: .trakt(kind: .popularShows)
                 )))
             }
-        } catch { fail("trakt-popular-shows", "Popular TV Shows on Trakt", error) }
+        } catch { fail("trakt-popular-shows", String(localized: "Popular TV Shows on Trakt"), error) }
 
         return sections
     }
@@ -1895,13 +1895,13 @@ class HomeViewModel: ObservableObject {
 
                     sections.append(LibrarySection(
                         id: "recently-added-\(library.key)",
-                        title: "Recently Added in \(library.title)",
+                        title: String(localized: "Recently Added in \(library.title)"),
                         items: finalItems,
                         totalCount: finalItems.count,
                         libraryKey: library.key,
                         browseContext: .plexDirectory(
                             path: "/library/sections/\(library.key)/recentlyAdded",
-                            title: "Recently Added in \(library.title)"
+                            title: String(localized: "Recently Added in \(library.title)")
                         )
                     ))
                 }
@@ -1940,7 +1940,7 @@ class HomeViewModel: ObservableObject {
                 let episodeCount = seriesEpisodeCounts[seriesKey] ?? 1
 
                 // Create a series representative item
-                let seriesItem = MediaItem(
+                var seriesItem = MediaItem(
                     id: seriesKey, // Use series rating key so clicking navigates to series details
                     title: item.grandparentTitle ?? item.title,
                     type: "show", // Render as show poster
@@ -1950,7 +1950,7 @@ class HomeViewModel: ObservableObject {
                     rating: item.rating,
                     duration: nil,
                     viewOffset: nil,
-                    summary: episodeCount > 1 ? "\(episodeCount) new episodes" : "1 new episode",
+                    summary: String(localized: "\(episodeCount) new episodes"),
                     grandparentTitle: nil,
                     grandparentThumb: nil,
                     grandparentArt: nil,
@@ -1962,6 +1962,7 @@ class HomeViewModel: ObservableObject {
                     leafCount: episodeCount, // Store episode count
                     viewedLeafCount: nil
                 )
+                seriesItem.isNewEpisodesGroup = true
                 result.append(seriesItem)
             } else {
                 // Non-episode items (movies, shows) - keep as-is

@@ -71,7 +71,7 @@ struct EpisodesTabContent: View {
     }
 
     private var episodeTapModeTitle: String {
-        preferStremioEpisodeTap ? "Stremio sources" : "Plex playback"
+        preferStremioEpisodeTap ? String(localized: "Stremio sources") : String(localized: "Plex playback")
     }
 
     private func handleEpisodeSelection(_ episode: DetailsViewModel.Episode) {

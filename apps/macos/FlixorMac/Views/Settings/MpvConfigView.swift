@@ -119,11 +119,11 @@ struct MpvConfigView: View {
                             .foregroundStyle(.secondary)
 
                         Group {
-                            helpRow(key: "hwdec", value: "videotoolbox", description: "Hardware decoding")
-                            helpRow(key: "deband", value: "yes", description: "Remove color banding")
-                            helpRow(key: "scale", value: "lanczos", description: "Upscaling algorithm")
-                            helpRow(key: "target-colorspace-hint", value: "yes", description: "HDR passthrough")
-                            helpRow(key: "video-sync", value: "display-resample", description: "Smooth motion")
+                            helpRow(key: "hwdec", value: "videotoolbox", description: String(localized: "Hardware decoding"))
+                            helpRow(key: "deband", value: "yes", description: String(localized: "Remove color banding"))
+                            helpRow(key: "scale", value: "lanczos", description: String(localized: "Upscaling algorithm"))
+                            helpRow(key: "target-colorspace-hint", value: "yes", description: String(localized: "HDR passthrough"))
+                            helpRow(key: "video-sync", value: "display-resample", description: String(localized: "Smooth motion"))
                         }
                     }
                     .padding(.horizontal, DS.Space.s4)

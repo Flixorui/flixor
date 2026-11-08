@@ -23,7 +23,7 @@ struct SuggestedSections: View {
                 suggestedRow(
                     section: LibrarySection(
                         id: "rel",
-                        title: "Related",
+                        title: String(localized: "Related"),
                         items: vm.related,
                         totalCount: vm.related.count,
                         libraryKey: nil,
@@ -35,7 +35,7 @@ struct SuggestedSections: View {
                 suggestedRow(
                     section: LibrarySection(
                         id: "sim",
-                        title: "Similar",
+                        title: String(localized: "Similar"),
                         items: vm.similar,
                         totalCount: vm.similar.count,
                         libraryKey: nil,

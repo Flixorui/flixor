@@ -115,7 +115,7 @@ struct UserCollectionEditorView: View {
     private var detailsSection: some View {
         VStack(alignment: .leading, spacing: DS.Space.s16) {
             VStack(alignment: .leading, spacing: DS.Space.controlGap) {
-                sectionLabel("Name")
+                sectionLabel(String(localized: "Name"))
                 TextField("Collection name", text: $draft.name)
                     .textFieldStyle(.roundedBorder)
                     .accessibilityLabel("Collection name")
@@ -124,7 +124,7 @@ struct UserCollectionEditorView: View {
             HStack(spacing: DS.Space.s12) {
                 coverThumbnail
                 VStack(alignment: .leading, spacing: DS.Space.s4) {
-                    sectionLabel("Cover")
+                    sectionLabel(String(localized: "Cover"))
                     Text(draft.cover == nil ? "Optional. Pick a poster or backdrop from this collection." : "Picked from this collection.")
                         .flixorFont(.caption)
                         .foregroundStyle(theme.textSecondary)
@@ -159,7 +159,7 @@ struct UserCollectionEditorView: View {
     private var sourcesSection: some View {
         VStack(alignment: .leading, spacing: DS.Space.controlGap) {
             HStack {
-                sectionLabel("Sources")
+                sectionLabel(String(localized: "Sources"))
                 Spacer()
                 Menu {
                     ForEach(UserCollectionSource.Template.allCases) { template in
@@ -190,8 +190,8 @@ struct UserCollectionEditorView: View {
                         SettingsRow(
                             icon: source.template.iconName,
                             iconColor: .blue,
-                            title: source.title,
-                            subtitle: source.subtitle,
+                            title: .verbatim(source.title),
+                            subtitle: .verbatim(source.subtitle),
                             showDivider: index < draft.sources.count - 1
                         ) {
                             sourceActions(index: index, source: source)
@@ -204,16 +204,16 @@ struct UserCollectionEditorView: View {
 
     private func sourceActions(index: Int, source: UserCollectionSource) -> some View {
         HStack(spacing: DS.Space.s4) {
-            iconButton("chevron.up", label: "Move \(source.title) up", disabled: index == 0) {
+            iconButton("chevron.up", label: String(localized: "Move \(source.title) up"), disabled: index == 0) {
                 draft.sources.swapAt(index, index - 1)
             }
-            iconButton("chevron.down", label: "Move \(source.title) down", disabled: index == draft.sources.count - 1) {
+            iconButton("chevron.down", label: String(localized: "Move \(source.title) down"), disabled: index == draft.sources.count - 1) {
                 draft.sources.swapAt(index, index + 1)
             }
-            iconButton("pencil", label: "Edit \(source.title)", disabled: false) {
+            iconButton("pencil", label: String(localized: "Edit \(source.title)"), disabled: false) {
                 sourceRequest = SourceRequest(template: source.template, existing: source)
             }
-            iconButton("trash", label: "Remove \(source.title)", disabled: false) {
+            iconButton("trash", label: String(localized: "Remove \(source.title)"), disabled: false) {
                 draft.sources.remove(at: index)
             }
         }

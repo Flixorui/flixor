@@ -22,7 +22,7 @@ enum UserCollectionSourceError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .addonUnavailable(let name):
-            return "\(name) isn't installed any more, or no longer offers this catalog."
+            return String(localized: "\(name) isn't installed any more, or no longer offers this catalog.")
         }
     }
 }
@@ -78,12 +78,12 @@ enum UserCollectionSourceResolver {
     static func message(for error: Error) -> String {
         if let traktError = error as? TraktError, case .httpError(let status) = traktError {
             switch status {
-            case 404: return "This Trakt list is private or no longer exists."
-            case 429: return "Trakt's rate limit was reached. Try again in a moment."
-            default: return "Trakt returned an error (\(status))."
+            case 404: return String(localized: "This Trakt list is private or no longer exists.")
+            case 429: return String(localized: "Trakt's rate limit was reached. Try again in a moment.")
+            default: return String(localized: "Trakt returned an error (\(status)).")
             }
         }
-        return TMDBErrorMessage.message(for: error, fallback: "This source couldn't be loaded.")
+        return TMDBErrorMessage.message(for: error, fallback: String(localized: "This source couldn't be loaded."))
     }
 
     // MARK: - Sources

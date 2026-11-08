@@ -11,7 +11,7 @@ import SwiftUI
 
 /// Row in the subtitle panel that opens a sub-page.
 struct SubtitlePanelNavRow: View {
-    let title: String
+    let title: LocalizedStringKey
     let systemImage: String
     let action: () -> Void
 
@@ -40,7 +40,7 @@ struct SubtitlePanelNavRow: View {
 }
 
 private struct SubtitlePanelPageHeader: View {
-    let title: String
+    let title: LocalizedStringKey
     let onBack: () -> Void
 
     var body: some View {
@@ -106,14 +106,14 @@ struct SubtitleAppearancePanel: View {
                 VStack(alignment: .leading, spacing: DS.Space.s12) {
                     fontRow
                     toggleRow(
-                        "Bold",
+                        String(localized: "Bold"),
                         isOn: Binding(
                             get: { viewModel.subtitleAppearance.bold },
                             set: { viewModel.setSubtitleBold($0) }
                         )
                     )
                     toggleRow(
-                        "Hide hearing-impaired text",
+                        String(localized: "Hide hearing-impaired text"),
                         isOn: Binding(
                             get: { viewModel.subtitleFilterSDH },
                             set: { viewModel.setSubtitleFilterSDH($0) }
@@ -137,13 +137,13 @@ struct SubtitleAppearancePanel: View {
                     ) { viewModel.setSubtitlePosition(Int($0)) }
 
                     SubtitleColorRow(
-                        label: "Text",
+                        label: String(localized: "Text"),
                         selection: viewModel.subtitleAppearance.textColor,
                         options: Self.textColors
                     ) { viewModel.setSubtitleTextColor($0) }
 
                     SubtitleColorRow(
-                        label: "Border",
+                        label: String(localized: "Border"),
                         selection: viewModel.subtitleAppearance.borderColor,
                         options: Self.boxColors
                     ) { viewModel.setSubtitleBorderColor($0) }
@@ -157,7 +157,7 @@ struct SubtitleAppearancePanel: View {
                     ) { viewModel.setSubtitleBorderSize($0) }
 
                     SubtitleColorRow(
-                        label: "Background",
+                        label: String(localized: "Background"),
                         selection: viewModel.subtitleAppearance.backgroundColor,
                         options: Self.boxColors
                     ) { viewModel.setSubtitleBackgroundColor($0) }
@@ -329,11 +329,11 @@ struct SubtitleSyncByLinePanel: View {
     private var explanation: String {
         switch viewModel.subtitleCueSource {
         case .none:
-            return "Turn on a subtitle track first, then match a line to the moment it is spoken."
+            return String(localized: "Turn on a subtitle track first, then match a line to the moment it is spoken.")
         case .fullFile:
-            return "Listen for a line, then click it the moment it is spoken. The subtitles shift so that line appears right now."
+            return String(localized: "Listen for a line, then click it the moment it is spoken. The subtitles shift so that line appears right now.")
         case .observedOnly:
-            return "Click a line the moment it is spoken. This track is embedded in the video, so only lines already shown can be listed, and upcoming ones are unknown. If subtitles run late, use the offset instead (G / H)."
+            return String(localized: "Click a line the moment it is spoken. This track is embedded in the video, so only lines already shown can be listed, and upcoming ones are unknown. If subtitles run late, use the offset instead (G / H).")
         }
     }
 
@@ -439,6 +439,6 @@ struct SubtitleSyncByLinePanel: View {
     private func relativeTime(of cue: SubtitleCue, position: TimeInterval, isActive: Bool) -> String {
         if isActive { return "now" }
         let seconds = Int((cue.start - position).rounded())
-        return seconds == 0 ? "now" : String(format: "%+d s", seconds)
+        return seconds == 0 ? String(localized: "now") : String(format: "%+d s", seconds)
     }
 }

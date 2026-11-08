@@ -184,7 +184,7 @@ struct MainView: View {
     /// Profile identity and actions for the sidebar (mirrors the toolbar menu).
     private var sidebarProfileMenu: SidebarProfileMenu {
         SidebarProfileMenu(
-            name: sessionManager.activeProfile?.title ?? sessionManager.currentUser?.username ?? "Profile",
+            name: sessionManager.activeProfile?.title ?? sessionManager.currentUser?.username ?? String(localized: "Profile"),
             initials: profileInitials,
             avatarColor: profileAvatarColor,
             canSwitchProfile: sessionManager.hasMultipleProfiles,
@@ -583,7 +583,7 @@ struct ToolbarNavButton: View {
 
     var body: some View {
         Button(action: onTap) {
-            Text(item.rawValue)
+            Text(item.localizedRawValue)
                 .font(.system(size: 14, weight: isActive ? .semibold : .medium))
                 .foregroundStyle(textColor)
         }

@@ -17,7 +17,7 @@ struct PerformanceOverlayView: View {
             VStack(alignment: .leading, spacing: DS.Space.s10) {
                 // Video section
                 SectionHeader(icon: "video", title: "Video")
-                StatRow(label: "Codec", value: stats.videoCodec ?? "N/A")
+                StatRow(label: "Codec", value: stats.videoCodec ?? String(localized: "N/A"))
                 StatRow(label: "Resolution", value: stats.formattedResolution)
                 StatRow(label: "FPS", value: stats.formattedFps)
                 StatRow(label: "Bitrate", value: stats.formattedVideoBitrate)
@@ -27,13 +27,13 @@ struct PerformanceOverlayView: View {
 
                 // Color section
                 SectionHeader(icon: "paintpalette", title: "Color")
-                StatRow(label: "Pixel Fmt", value: stats.pixelFormat ?? "N/A")
+                StatRow(label: "Pixel Fmt", value: stats.pixelFormat ?? String(localized: "N/A"))
                 if let hwFmt = stats.hwPixelFormat, hwFmt != stats.pixelFormat {
                     StatRow(label: "HW Fmt", value: hwFmt)
                 }
-                StatRow(label: "Matrix", value: stats.colorMatrix ?? "N/A")
-                StatRow(label: "Primaries", value: stats.videoParamsPrimaries ?? "N/A")
-                StatRow(label: "Transfer", value: stats.videoParamsGamma ?? "N/A")
+                StatRow(label: "Matrix", value: stats.colorMatrix ?? String(localized: "N/A"))
+                StatRow(label: "Primaries", value: stats.videoParamsPrimaries ?? String(localized: "N/A"))
+                StatRow(label: "Transfer", value: stats.videoParamsGamma ?? String(localized: "N/A"))
 
                 // HDR section (only if HDR metadata available)
                 if stats.hasHdrMetadata {
@@ -59,7 +59,7 @@ struct PerformanceOverlayView: View {
             VStack(alignment: .leading, spacing: DS.Space.s10) {
                 // Audio section
                 SectionHeader(icon: "speaker.wave.2", title: "Audio")
-                StatRow(label: "Codec", value: stats.audioCodec ?? "N/A")
+                StatRow(label: "Codec", value: stats.audioCodec ?? String(localized: "N/A"))
                 StatRow(label: "Sample Rate", value: stats.formattedSampleRate)
                 StatRow(label: "Channels", value: stats.formattedAudioChannels)
                 StatRow(label: "Bitrate", value: stats.formattedAudioBitrate)
@@ -99,7 +99,7 @@ struct PerformanceOverlayView: View {
 
 private struct SectionHeader: View {
     let icon: String
-    let title: String
+    let title: LocalizedStringKey
 
     var body: some View {
         HStack(spacing: DS.Space.s4) {
@@ -114,12 +114,12 @@ private struct SectionHeader: View {
 }
 
 private struct StatRow: View {
-    let label: String
+    let label: LocalizedStringKey
     let value: String
 
     var body: some View {
         HStack(spacing: DS.Space.s8) {
-            Text("\(label):")
+            (Text(label) + Text(verbatim: ":"))
                 .font(.flixor(.micro))
                 .foregroundStyle(.white.opacity(0.6))
 

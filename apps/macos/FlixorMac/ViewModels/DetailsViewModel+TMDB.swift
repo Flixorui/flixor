@@ -282,7 +282,7 @@ extension DetailsViewModel {
                 guard let key = v.key else { return nil }
                 return Trailer(
                     id: v.id ?? key,
-                    name: v.name ?? "Video",
+                    name: v.name ?? String(localized: "Video"),
                     key: key,
                     site: v.site ?? "YouTube",
                     type: v.type ?? "Video",

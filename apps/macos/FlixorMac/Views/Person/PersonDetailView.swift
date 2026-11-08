@@ -33,8 +33,8 @@ struct PersonDetailView: View {
             if case .failed(let message) = viewModel.phase {
                 BrowseMessageView(
                     systemImage: "person.crop.circle.badge.exclamationmark",
-                    title: "Couldn't load \(viewModel.displayName.isEmpty ? "this person" : viewModel.displayName)",
-                    message: message,
+                    title: viewModel.displayName.isEmpty ? "Couldn't load this person" : "Couldn't load \(viewModel.displayName)",
+                    message: .verbatim(message),
                     retryTitle: "Try Again",
                     onRetry: { viewModel.load() }
                 )
@@ -210,7 +210,7 @@ struct PersonDetailView: View {
             if viewModel.credits.isEmpty {
                 BrowseMessageView(
                     systemImage: viewModel.mediaFilter == .tv ? "tv" : "film",
-                    title: emptyFilterTitle
+                    title: .verbatim(emptyFilterTitle)
                 )
             } else {
                 BrowsePosterGrid(items: viewModel.credits, layout: grid) { credit in
@@ -224,11 +224,11 @@ struct PersonDetailView: View {
     }
 
     private var emptyFilterTitle: String {
-        let role = viewModel.department == .acting ? "acting" : "crew"
+        let acting = viewModel.department == .acting
         switch viewModel.mediaFilter {
-        case .all: return "No \(role) credits"
-        case .movies: return "No movie \(role) credits"
-        case .tv: return "No TV \(role) credits"
+        case .all: return acting ? String(localized: "No acting credits") : String(localized: "No crew credits")
+        case .movies: return acting ? String(localized: "No movie acting credits") : String(localized: "No movie crew credits")
+        case .tv: return acting ? String(localized: "No TV acting credits") : String(localized: "No TV crew credits")
         }
     }
 

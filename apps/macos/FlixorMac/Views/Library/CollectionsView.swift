@@ -123,7 +123,7 @@ struct CollectionsView: View {
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(.white)
                     .lineLimit(2)
-                Text("\(collection.count) \(collection.count == 1 ? "item" : "items")")
+                Text("\(collection.count) items")
                     .font(.footnote.weight(.semibold))
                     .padding(.horizontal, DS.Space.s10)
                     .padding(.vertical, DS.Space.s6)

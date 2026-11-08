@@ -39,7 +39,7 @@ struct Trailer: Identifiable, Codable {
 
 struct TrailersRow: View {
     let trailers: [Trailer]
-    var title: String = "Videos"
+    var title: String = String(localized: "Videos")
     var onPlay: ((Trailer) -> Void)?
 
     private let cardWidth: CGFloat = 320

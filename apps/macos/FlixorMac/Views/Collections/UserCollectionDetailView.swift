@@ -143,7 +143,7 @@ struct UserCollectionDetailView: View {
             BrowseMessageView(
                 systemImage: "exclamationmark.triangle",
                 title: "Couldn't load this collection",
-                message: message,
+                message: .verbatim(message),
                 retryTitle: "Try Again",
                 onRetry: { viewModel.retryFailedSources() }
             )

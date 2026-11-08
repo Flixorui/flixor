@@ -77,7 +77,7 @@ struct SidebarNavigationRail: View {
         VStack(alignment: .leading, spacing: DS.Space.s4) {
             ForEach(items) { item in
                 SidebarRow(
-                    title: item.rawValue,
+                    title: item.localizedRawValue,
                     isSelected: item == selectedTab,
                     isExpanded: isExpanded,
                     action: { onSelect(item) }
@@ -96,7 +96,7 @@ struct SidebarNavigationRail: View {
                 .padding(.bottom, DS.Space.s4)
 
             SidebarRow(
-                title: store.sidebarPinned ? "Collapse Sidebar" : "Keep Expanded",
+                title: store.sidebarPinned ? String(localized: "Collapse Sidebar") : String(localized: "Keep Expanded"),
                 isSelected: false,
                 isExpanded: isExpanded,
                 accentIcon: store.sidebarPinned,
@@ -107,7 +107,7 @@ struct SidebarNavigationRail: View {
             }
 
             SidebarRow(
-                title: "Settings",
+                title: String(localized: "Settings"),
                 isSelected: false,
                 isExpanded: isExpanded,
                 action: profile.onOpenSettings
@@ -120,7 +120,7 @@ struct SidebarNavigationRail: View {
                 title: profile.name,
                 isSelected: false,
                 isExpanded: isExpanded,
-                accessibilityLabel: "Profile: \(profile.name)",
+                accessibilityLabel: String(localized: "Profile: \(profile.name)"),
                 action: { showingProfileMenu.toggle() }
             ) {
                 Circle()

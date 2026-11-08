@@ -28,9 +28,9 @@ enum AppMode: String, Codable, CaseIterable, Identifiable {
     var description: String {
         switch self {
         case .plex:
-            return "Stream your Plex library, with Stremio available as an extra source."
+            return String(localized: "Stream your Plex library, with Stremio available as an extra source.")
         case .stremio:
-            return "No Plex account. Discovery comes from TMDB and Trakt, streams from your Stremio addons."
+            return String(localized: "No Plex account. Discovery comes from TMDB and Trakt, streams from your Stremio addons.")
         }
     }
 }

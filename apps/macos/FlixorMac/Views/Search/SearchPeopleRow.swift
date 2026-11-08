@@ -19,7 +19,7 @@ struct SearchPeopleRow: View {
 
     var body: some View {
         CarouselRow(
-            title: "People",
+            title: String(localized: "People"),
             items: people,
             itemWidth: diameter,
             spacing: DS.Space.s16,

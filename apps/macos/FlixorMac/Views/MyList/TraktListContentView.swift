@@ -145,7 +145,7 @@ struct TraktListContentView: View {
                 BrowseMessageView(
                     systemImage: "exclamationmark.triangle",
                     title: "Couldn't load this list",
-                    message: error,
+                    message: .verbatim(error),
                     retryTitle: "Try Again",
                     onRetry: { model.retry() }
                 )
@@ -232,7 +232,7 @@ struct TraktListContentView: View {
                 customImageURL: item.imageURL,
                 // The artwork has its own context menu, which wins over the one below.
                 extraMenuActions: [
-                    CardMenuAction(title: "Remove from \(list.name)", role: .destructive, isDisabled: model.isMutating) {
+                    CardMenuAction(title: String(localized: "Remove from \(list.name)"), role: .destructive, isDisabled: model.isMutating) {
                         Task { await model.remove(item) }
                     }
                 ],

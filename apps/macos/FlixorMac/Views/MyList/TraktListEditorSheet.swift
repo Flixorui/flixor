@@ -69,7 +69,7 @@ struct TraktListEditorSheet: View {
                 .flixorFont(.title3, weight: .semibold)
                 .foregroundStyle(theme.textPrimary)
 
-            field("Name") {
+            field(String(localized: "Name")) {
                 TextField("Name", text: $name)
                     .textFieldStyle(.roundedBorder)
                     .labelsHidden()
@@ -77,7 +77,7 @@ struct TraktListEditorSheet: View {
                     .accessibilityLabel("List name")
             }
 
-            field("Description") {
+            field(String(localized: "Description")) {
                 TextField("Optional", text: $description, axis: .vertical)
                     .textFieldStyle(.roundedBorder)
                     .labelsHidden()
@@ -85,7 +85,7 @@ struct TraktListEditorSheet: View {
                     .accessibilityLabel("List description")
             }
 
-            field("Privacy") {
+            field(String(localized: "Privacy")) {
                 Picker("Privacy", selection: $privacy) {
                     ForEach(TraktListPrivacy.allCases, id: \.self) { option in
                         Text(option.displayName).tag(option)

@@ -345,29 +345,29 @@ struct OverseerrSettingsView: View {
 
     private var statusInfo: (icon: String, color: Color, title: String, description: String) {
         if !profileSettings.overseerrEnabled {
-            return ("exclamationmark.circle.fill", .gray, "Disabled", "Enable Overseerr to request movies and shows")
+            return ("exclamationmark.circle.fill", .gray, String(localized: "Disabled"), String(localized: "Enable Overseerr to request movies and shows"))
         }
         if profileSettings.overseerrUrl.isEmpty {
-            return ("exclamationmark.triangle.fill", .orange, "Configuration Required", "Enter your Overseerr server URL")
+            return ("exclamationmark.triangle.fill", .orange, String(localized: "Configuration Required"), String(localized: "Enter your Overseerr server URL"))
         }
         if authMethod == .apiKey && apiKey.isEmpty {
-            return ("exclamationmark.triangle.fill", .orange, "API Key Required", "Enter your Overseerr API key")
+            return ("exclamationmark.triangle.fill", .orange, String(localized: "API Key Required"), String(localized: "Enter your Overseerr API key"))
         }
         if let result = testResult {
             if result.valid {
-                return ("checkmark.circle.fill", .green, "Connected as \(result.username ?? "user")", "You can now request movies and shows")
+                return ("checkmark.circle.fill", .green, String(localized: "Connected as \(result.username ?? String(localized: "user"))"), String(localized: "You can now request movies and shows"))
             } else {
-                return ("xmark.circle.fill", .red, "Connection Failed", result.error ?? "Check your settings")
+                return ("xmark.circle.fill", .red, String(localized: "Connection Failed"), result.error ?? String(localized: "Check your settings"))
             }
         }
         if isConfigured && isSaved {
             let displayName = authMethod == .plex ? defaults.overseerrPlexUsername : ""
-            return ("checkmark.circle.fill", .green, "Connected\(displayName.isEmpty ? "" : " as \(displayName)")", "Request movies and shows from Details screen")
+            return ("checkmark.circle.fill", .green, displayName.isEmpty ? String(localized: "Connected") : String(localized: "Connected as \(displayName)"), String(localized: "Request movies and shows from Details screen"))
         }
         if authMethod == .plex {
-            return ("exclamationmark.triangle.fill", .orange, "Sign In Required", "Sign in with your Plex account")
+            return ("exclamationmark.triangle.fill", .orange, String(localized: "Sign In Required"), String(localized: "Sign in with your Plex account"))
         }
-        return ("exclamationmark.triangle.fill", .orange, "Test Connection", "Test your connection to save settings")
+        return ("exclamationmark.triangle.fill", .orange, String(localized: "Test Connection"), String(localized: "Test your connection to save settings"))
     }
 
     private func testApiKeyConnection() {
@@ -440,8 +440,8 @@ struct OverseerrSettingsView: View {
 private struct AuthMethodRow: View {
     let icon: String
     let iconColor: Color
-    let title: String
-    let subtitle: String
+    let title: LocalizedStringKey
+    let subtitle: LocalizedStringKey
     let isSelected: Bool
     let isEnabled: Bool
     let action: () -> Void
@@ -492,7 +492,7 @@ private struct AuthMethodRow: View {
 private struct InstructionStepRow: View {
     @Environment(\.flixorTheme) private var theme
     let number: Int
-    let text: String
+    let text: LocalizedStringKey
 
     var body: some View {
         HStack(alignment: .top, spacing: DS.Space.s10) {
@@ -512,7 +512,7 @@ private struct InstructionStepRow: View {
 // MARK: - Feature Check Row
 
 private struct FeatureCheckRow: View {
-    let text: String
+    let text: LocalizedStringKey
 
     var body: some View {
         HStack(spacing: DS.Space.s8) {

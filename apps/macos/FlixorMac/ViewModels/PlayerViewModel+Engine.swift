@@ -25,10 +25,10 @@ enum PlayerAspectMode: String, CaseIterable, Identifiable, Codable {
 
     var displayName: String {
         switch self {
-        case .fit: return "Fit"
-        case .fill: return "Fill"
-        case .zoom: return "Zoom"
-        case .stretch: return "Stretch"
+        case .fit: return String(localized: "Fit")
+        case .fill: return String(localized: "Fill")
+        case .zoom: return String(localized: "Zoom")
+        case .stretch: return String(localized: "Stretch")
         }
     }
 

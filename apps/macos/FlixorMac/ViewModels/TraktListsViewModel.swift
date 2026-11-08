@@ -111,9 +111,9 @@ final class TraktListsViewModel: ObservableObject {
     var selectedListSummary: String? {
         guard let list = selectedList else { return nil }
         let titleCount = items.isEmpty && loaded[list.id] == nil ? list.itemCount : items.count
-        var parts = ["\(titleCount) \(titleCount == 1 ? "title" : "titles")"]
+        var parts = [String(localized: "\(titleCount) titles")]
         if hiddenPeopleCount > 0 {
-            parts.append("\(hiddenPeopleCount) \(hiddenPeopleCount == 1 ? "person" : "people") not shown")
+            parts.append(String(localized: "\(hiddenPeopleCount) people not shown"))
         }
         if let privacy = list.privacy.flatMap(TraktListPrivacy.init(rawValue:)) {
             parts.append(privacy.displayName)
@@ -340,7 +340,7 @@ final class TraktListsViewModel: ObservableObject {
         lists.removeAll { $0.id == listId }
         if selectedListId == listId {
             select(nil)
-            ToastManager.shared.show("That list no longer exists on Trakt", type: .info)
+            ToastManager.shared.show(String(localized: "That list no longer exists on Trakt"), type: .info)
         }
     }
 
@@ -489,7 +489,7 @@ final class TraktListsViewModel: ObservableObject {
             removable.append(item)
         }
         guard !payload.isEmpty else {
-            ToastManager.shared.show("Couldn't find a Trakt id for this item", type: .error)
+            ToastManager.shared.show(String(localized: "Couldn't find a Trakt id for this item"), type: .error)
             return false
         }
 
@@ -502,7 +502,7 @@ final class TraktListsViewModel: ObservableObject {
             // "Not found" means already gone, which is what was asked for.
             let accountedFor = result.deletedCount + result.notFoundCount
             guard accountedFor > 0 else {
-                ToastManager.shared.show("Trakt didn't remove anything from \(list.name)", type: .error)
+                ToastManager.shared.show(String(localized: "Trakt didn't remove anything from \(list.name)"), type: .error)
                 return false
             }
             applyRemoval(of: Set(removable.map(\.id)), listId: list.id)
@@ -511,15 +511,15 @@ final class TraktListsViewModel: ObservableObject {
                 if selectedListId == list.id {
                     loadItems(listId: list.id, quiet: true)
                 }
-                ToastManager.shared.show("Some titles couldn't be removed from \(list.name)", type: .info)
+                ToastManager.shared.show(String(localized: "Some titles couldn't be removed from \(list.name)"), type: .info)
             } else if removable.count == 1, let item = removable.first {
-                ToastManager.shared.show("Removed \(item.title) from \(list.name)", type: .success)
+                ToastManager.shared.show(String(localized: "Removed \(item.title) from \(list.name)"), type: .success)
             } else {
-                ToastManager.shared.show("Removed \(removable.count) titles from \(list.name)", type: .success)
+                ToastManager.shared.show(String(localized: "Removed \(removable.count) titles from \(list.name)"), type: .success)
             }
             return true
         } catch {
-            ToastManager.shared.show("Couldn't remove from \(list.name): \(Self.describe(error))", type: .error)
+            ToastManager.shared.show(String(localized: "Couldn't remove from \(list.name): \(Self.describe(error))"), type: .error)
             handleWriteFailure(error)
             return false
         }
@@ -545,7 +545,7 @@ final class TraktListsViewModel: ObservableObject {
 
     /// Creates a list and selects it. Returns an error message, or nil on success.
     func createList(name: String, description: String, privacy: TraktListPrivacy) async -> String? {
-        guard !isMutating else { return "Another change is still saving." }
+        guard !isMutating else { return String(localized: "Another change is still saving.") }
         do {
             let created = try await performWrite {
                 try await service.createList(
@@ -556,7 +556,7 @@ final class TraktListsViewModel: ObservableObject {
             }
             lists = sorted(lists + [created])
             select(created.id)
-            ToastManager.shared.show("Created \(created.name)", type: .success)
+            ToastManager.shared.show(String(localized: "Created \(created.name)"), type: .success)
             return nil
         } catch {
             handleWriteFailure(error)
@@ -566,13 +566,13 @@ final class TraktListsViewModel: ObservableObject {
 
     /// Saves a list's details. Returns an error message, or nil on success.
     func updateList(_ list: TraktUserList, name: String, description: String, privacy: TraktListPrivacy) async -> String? {
-        guard !isMutating else { return "Another change is still saving." }
+        guard !isMutating else { return String(localized: "Another change is still saving.") }
         do {
             let updated = try await performWrite {
                 try await service.updateList(listId: list.id, name: name, description: description, privacy: privacy)
             }
             lists = sorted(lists.map { $0.id == updated.id ? updated : $0 })
-            ToastManager.shared.show("Saved \(updated.name)", type: .success)
+            ToastManager.shared.show(String(localized: "Saved \(updated.name)"), type: .success)
             return nil
         } catch {
             handleWriteFailure(error)
@@ -587,14 +587,14 @@ final class TraktListsViewModel: ObservableObject {
                 try await service.deleteList(listId: list.id)
             }
             removeDeletedList(list)
-            ToastManager.shared.show("Deleted \(list.name)", type: .success)
+            ToastManager.shared.show(String(localized: "Deleted \(list.name)"), type: .success)
         } catch {
             if Self.status(of: error) == 404 {
                 removeDeletedList(list)
-                ToastManager.shared.show("Deleted \(list.name)", type: .success)
+                ToastManager.shared.show(String(localized: "Deleted \(list.name)"), type: .success)
                 return
             }
-            ToastManager.shared.show("Couldn't delete \(list.name): \(Self.describe(error))", type: .error)
+            ToastManager.shared.show(String(localized: "Couldn't delete \(list.name): \(Self.describe(error))"), type: .error)
             handleWriteFailure(error)
         }
     }
@@ -687,33 +687,33 @@ final class TraktListsViewModel: ObservableObject {
         if let error = error as? TraktError {
             switch error {
             case .authenticationRequired, .noRefreshToken:
-                return "Your Trakt session has expired. Reconnect Trakt in Settings."
+                return String(localized: "Your Trakt session has expired. Reconnect Trakt in Settings.")
             case .httpError(let status):
                 switch status {
                 case 429:
-                    return "Trakt is limiting requests right now. Try again in a moment."
+                    return String(localized: "Trakt is limiting requests right now. Try again in a moment.")
                 case 404:
-                    return "This list no longer exists on Trakt."
+                    return String(localized: "This list no longer exists on Trakt.")
                 case 409:
-                    return "You already have a list with that name."
+                    return String(localized: "You already have a list with that name.")
                 case 420:
-                    return "You've reached the number of lists your Trakt account allows."
+                    return String(localized: "You've reached the number of lists your Trakt account allows.")
                 case 423:
-                    return "Your Trakt account is locked."
+                    return String(localized: "Your Trakt account is locked.")
                 case 500...599:
-                    return "Trakt is having problems right now. Try again later."
+                    return String(localized: "Trakt is having problems right now. Try again later.")
                 default:
-                    return "Trakt returned an error (\(status))."
+                    return String(localized: "Trakt returned an error (\(status)).")
                 }
             default:
-                return "Trakt sent an unexpected response."
+                return String(localized: "Trakt sent an unexpected response.")
             }
         }
         if error is URLError {
-            return "Couldn't reach Trakt. Check your connection."
+            return String(localized: "Couldn't reach Trakt. Check your connection.")
         }
         if error is DecodingError {
-            return "Trakt sent data this app couldn't read."
+            return String(localized: "Trakt sent data this app couldn't read.")
         }
         return error.localizedDescription
     }
@@ -722,10 +722,10 @@ final class TraktListsViewModel: ObservableObject {
 extension TraktListPrivacy {
     var displayName: String {
         switch self {
-        case .private: return "Private"
-        case .link: return "Anyone with the link"
-        case .friends: return "Friends"
-        case .public: return "Public"
+        case .private: return String(localized: "Private")
+        case .link: return String(localized: "Anyone with the link")
+        case .friends: return String(localized: "Friends")
+        case .public: return String(localized: "Public")
         }
     }
 }

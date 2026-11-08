@@ -66,7 +66,7 @@ struct CollectionCoverPicker: View {
             BrowseMessageView(
                 systemImage: "photo",
                 title: "No artwork found",
-                message: preview?.failures.first?.message ?? "None of the first titles have this kind of artwork."
+                message: (preview?.failures.first?.message).map { LocalizedStringKey.verbatim($0) } ?? "None of the first titles have this kind of artwork."
             )
             .frame(maxHeight: .infinity)
         } else {

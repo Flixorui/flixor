@@ -123,7 +123,7 @@ struct DetailsTabContent: View {
                             }
 
                             if let sNum = vm.seasonNumber, let eNum = vm.episodeNumber {
-                                InfoRow(label: "Episode", value: "Season \(sNum), Episode \(eNum)")
+                                InfoRow(label: "Episode", value: String(localized: "Season \(String(sNum)), Episode \(String(eNum))"))
                             }
 
                             if let airDate = vm.airDate, !airDate.isEmpty {
@@ -363,10 +363,10 @@ struct DetailsTabContent: View {
         if minutes >= 60 {
             let hours = minutes / 60
             let mins = minutes % 60
-            if mins == 0 { return "\(hours) hr" }
-            return "\(hours) hr \(mins) min"
+            if mins == 0 { return String(localized: "\(hours) hr") }
+            return String(localized: "\(hours) hr \(mins) min")
         }
-        return "\(minutes) min"
+        return String(localized: "\(minutes) min")
     }
 
     private func formatCurrency(_ amount: Int) -> String {
@@ -403,7 +403,7 @@ struct DetailsTabContent: View {
 /// Logos (or names) of production companies or TV networks. Each one opens
 /// the company/network browse page.
 private struct DetailsEntityLogoRow: View {
-    let title: String
+    let title: LocalizedStringKey
     let kind: EntityBrowseRoute.Kind
     let entities: [DetailsViewModel.ProductionCompany]
     let onTap: (EntityBrowseRoute) -> Void
@@ -488,7 +488,7 @@ private struct DetailsEntityLogoButton: View {
 
 // MARK: - Info Row Component
 private struct InfoRow: View {
-    let label: String
+    let label: LocalizedStringKey
     let value: String
 
     var body: some View {

@@ -25,9 +25,9 @@ enum StremioPlayAction: String, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .showSources: return "Show sources"
-        case .playBest: return "Play best source"
-        case .matchRules: return "Match my rules"
+        case .showSources: return String(localized: "Show sources")
+        case .playBest: return String(localized: "Play best source")
+        case .matchRules: return String(localized: "Match my rules")
         }
     }
 

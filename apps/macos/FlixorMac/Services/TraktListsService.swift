@@ -27,9 +27,9 @@ final class TraktListsService {
 
         var errorDescription: String? {
             switch self {
-            case .notConnected: return "Connect Trakt in Settings to use lists"
-            case .unresolved: return "Couldn't find a Trakt id for this item"
-            case .notFound: return "This item wasn't found on Trakt"
+            case .notConnected: return String(localized: "Connect Trakt in Settings to use lists")
+            case .unresolved: return String(localized: "Couldn't find a Trakt id for this item")
+            case .notFound: return String(localized: "This item wasn't found on Trakt")
             }
         }
     }

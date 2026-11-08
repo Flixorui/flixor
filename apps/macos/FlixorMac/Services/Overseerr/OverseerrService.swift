@@ -73,7 +73,7 @@ class OverseerrService: ObservableObject {
         do {
             let normalizedUrl = normalizeUrl(url)
             guard let requestUrl = URL(string: "\(normalizedUrl)/api/v1/auth/me") else {
-                return OverseerrConnectionResult(valid: false, username: nil, error: "Invalid URL")
+                return OverseerrConnectionResult(valid: false, username: nil, error: String(localized: "Invalid URL"))
             }
 
             var request = URLRequest(url: requestUrl)
@@ -83,15 +83,15 @@ class OverseerrService: ObservableObject {
             let (data, response) = try await URLSession.shared.data(for: request)
 
             guard let httpResponse = response as? HTTPURLResponse else {
-                return OverseerrConnectionResult(valid: false, username: nil, error: "Invalid response")
+                return OverseerrConnectionResult(valid: false, username: nil, error: String(localized: "Invalid response"))
             }
 
             if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
-                return OverseerrConnectionResult(valid: false, username: nil, error: "Invalid API key")
+                return OverseerrConnectionResult(valid: false, username: nil, error: String(localized: "Invalid API key"))
             }
 
             if httpResponse.statusCode != 200 {
-                return OverseerrConnectionResult(valid: false, username: nil, error: "Server error (\(httpResponse.statusCode))")
+                return OverseerrConnectionResult(valid: false, username: nil, error: String(localized: "Server error (\(httpResponse.statusCode))"))
             }
 
             let user = try JSONDecoder().decode(OverseerrUser.self, from: data)
@@ -99,7 +99,7 @@ class OverseerrService: ObservableObject {
             return OverseerrConnectionResult(valid: true, username: username, error: nil)
         } catch {
             print("[OverseerrService] Connection validation error: \(error)")
-            return OverseerrConnectionResult(valid: false, username: nil, error: "Connection failed")
+            return OverseerrConnectionResult(valid: false, username: nil, error: String(localized: "Connection failed"))
         }
     }
 
@@ -108,14 +108,14 @@ class OverseerrService: ObservableObject {
         do {
             // Get the Plex token from FlixorCore
             guard let plexToken = FlixorCore.shared.plexToken else {
-                return OverseerrConnectionResult(valid: false, username: nil, error: "Not signed in to Plex")
+                return OverseerrConnectionResult(valid: false, username: nil, error: String(localized: "Not signed in to Plex"))
             }
 
             let normalizedUrl = normalizeUrl(url)
 
             // First, check if the server is reachable
             guard let statusUrl = URL(string: "\(normalizedUrl)/api/v1/status") else {
-                return OverseerrConnectionResult(valid: false, username: nil, error: "Invalid URL")
+                return OverseerrConnectionResult(valid: false, username: nil, error: String(localized: "Invalid URL"))
             }
 
             var statusRequest = URLRequest(url: statusUrl)
@@ -124,12 +124,12 @@ class OverseerrService: ObservableObject {
             let (_, statusResponse) = try await URLSession.shared.data(for: statusRequest)
             guard let httpStatusResponse = statusResponse as? HTTPURLResponse,
                   httpStatusResponse.statusCode == 200 else {
-                return OverseerrConnectionResult(valid: false, username: nil, error: "Unable to connect to Overseerr server")
+                return OverseerrConnectionResult(valid: false, username: nil, error: String(localized: "Unable to connect to Overseerr server"))
             }
 
             // Authenticate with Plex token
             guard let authUrl = URL(string: "\(normalizedUrl)/api/v1/auth/plex") else {
-                return OverseerrConnectionResult(valid: false, username: nil, error: "Invalid URL")
+                return OverseerrConnectionResult(valid: false, username: nil, error: String(localized: "Invalid URL"))
             }
 
             var authRequest = URLRequest(url: authUrl)
@@ -140,16 +140,16 @@ class OverseerrService: ObservableObject {
             let (authData, authResponse) = try await URLSession.shared.data(for: authRequest)
 
             guard let httpAuthResponse = authResponse as? HTTPURLResponse else {
-                return OverseerrConnectionResult(valid: false, username: nil, error: "Invalid response")
+                return OverseerrConnectionResult(valid: false, username: nil, error: String(localized: "Invalid response"))
             }
 
             if httpAuthResponse.statusCode == 401 || httpAuthResponse.statusCode == 403 {
-                return OverseerrConnectionResult(valid: false, username: nil, error: "Plex account not authorized on this Overseerr server")
+                return OverseerrConnectionResult(valid: false, username: nil, error: String(localized: "Plex account not authorized on this Overseerr server"))
             }
 
             if httpAuthResponse.statusCode < 200 || httpAuthResponse.statusCode >= 300 {
                 print("[OverseerrService] Plex auth error: \(httpAuthResponse.statusCode)")
-                return OverseerrConnectionResult(valid: false, username: nil, error: "Authentication failed (\(httpAuthResponse.statusCode))")
+                return OverseerrConnectionResult(valid: false, username: nil, error: String(localized: "Authentication failed (\(httpAuthResponse.statusCode))"))
             }
 
             // Extract session cookie from response headers
@@ -177,24 +177,24 @@ class OverseerrService: ObservableObject {
                 // Session might be stored differently - save username and try to verify
                 UserDefaults.standard.overseerrPlexUsername = username
                 print("[OverseerrService] No cookie in response, authentication may have failed")
-                return OverseerrConnectionResult(valid: false, username: nil, error: "Session cookie not received")
+                return OverseerrConnectionResult(valid: false, username: nil, error: String(localized: "Session cookie not received"))
             }
         } catch {
             print("[OverseerrService] Plex authentication error: \(error)")
-            return OverseerrConnectionResult(valid: false, username: nil, error: "Authentication failed")
+            return OverseerrConnectionResult(valid: false, username: nil, error: String(localized: "Authentication failed"))
         }
     }
 
     /// Validate existing Plex session
     func validatePlexSession(url: String) async -> OverseerrConnectionResult {
         guard let cookie = sessionCookie else {
-            return OverseerrConnectionResult(valid: false, username: nil, error: "No session found")
+            return OverseerrConnectionResult(valid: false, username: nil, error: String(localized: "No session found"))
         }
 
         do {
             let normalizedUrl = normalizeUrl(url)
             guard let requestUrl = URL(string: "\(normalizedUrl)/api/v1/auth/me") else {
-                return OverseerrConnectionResult(valid: false, username: nil, error: "Invalid URL")
+                return OverseerrConnectionResult(valid: false, username: nil, error: String(localized: "Invalid URL"))
             }
 
             var request = URLRequest(url: requestUrl)
@@ -204,15 +204,15 @@ class OverseerrService: ObservableObject {
             let (data, response) = try await URLSession.shared.data(for: request)
 
             guard let httpResponse = response as? HTTPURLResponse else {
-                return OverseerrConnectionResult(valid: false, username: nil, error: "Invalid response")
+                return OverseerrConnectionResult(valid: false, username: nil, error: String(localized: "Invalid response"))
             }
 
             if httpResponse.statusCode == 401 {
-                return OverseerrConnectionResult(valid: false, username: nil, error: "Session expired")
+                return OverseerrConnectionResult(valid: false, username: nil, error: String(localized: "Session expired"))
             }
 
             if httpResponse.statusCode != 200 {
-                return OverseerrConnectionResult(valid: false, username: nil, error: "Server error (\(httpResponse.statusCode))")
+                return OverseerrConnectionResult(valid: false, username: nil, error: String(localized: "Server error (\(httpResponse.statusCode))"))
             }
 
             let user = try JSONDecoder().decode(OverseerrUser.self, from: data)
@@ -220,7 +220,7 @@ class OverseerrService: ObservableObject {
             return OverseerrConnectionResult(valid: true, username: username, error: nil)
         } catch {
             print("[OverseerrService] Session validation error: \(error)")
-            return OverseerrConnectionResult(valid: false, username: nil, error: "Connection failed")
+            return OverseerrConnectionResult(valid: false, username: nil, error: String(localized: "Connection failed"))
         }
     }
 
@@ -282,7 +282,7 @@ class OverseerrService: ObservableObject {
     ///   - is4k: Whether to request 4K version
     func requestMedia(tmdbId: Int, mediaType: String, seasons: [Int]? = nil, is4k: Bool = false) async -> OverseerrRequestResult {
         guard isReady() else {
-            return OverseerrRequestResult(success: false, requestId: nil, status: nil, error: "Overseerr not configured")
+            return OverseerrRequestResult(success: false, requestId: nil, status: nil, error: String(localized: "Overseerr not configured"))
         }
 
         do {
@@ -310,7 +310,7 @@ class OverseerrService: ObservableObject {
                 }
 
                 if seasonsToRequest.isEmpty {
-                    return OverseerrRequestResult(success: false, requestId: nil, status: nil, error: "No seasons available to request")
+                    return OverseerrRequestResult(success: false, requestId: nil, status: nil, error: String(localized: "No seasons available to request"))
                 }
                 requestBody["seasons"] = seasonsToRequest
                 print("[OverseerrService] Requesting seasons: \(seasonsToRequest)")
@@ -387,12 +387,12 @@ class OverseerrService: ObservableObject {
 
     private func makeRequest(endpoint: String, method: String = "GET", body: Data? = nil) async throws -> Data {
         guard let serverUrl = serverUrl else {
-            throw NSError(domain: "OverseerrService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Overseerr not configured"])
+            throw NSError(domain: "OverseerrService", code: -1, userInfo: [NSLocalizedDescriptionKey: String(localized: "Overseerr not configured")])
         }
 
         let normalizedUrl = normalizeUrl(serverUrl)
         guard let url = URL(string: "\(normalizedUrl)/api/v1\(endpoint)") else {
-            throw NSError(domain: "OverseerrService", code: -2, userInfo: [NSLocalizedDescriptionKey: "Invalid URL"])
+            throw NSError(domain: "OverseerrService", code: -2, userInfo: [NSLocalizedDescriptionKey: String(localized: "Invalid URL")])
         }
 
         var request = URLRequest(url: url)
@@ -403,12 +403,12 @@ class OverseerrService: ObservableObject {
         switch authMethod {
         case .apiKey:
             guard let key = apiKey else {
-                throw NSError(domain: "OverseerrService", code: -1, userInfo: [NSLocalizedDescriptionKey: "API key not configured"])
+                throw NSError(domain: "OverseerrService", code: -1, userInfo: [NSLocalizedDescriptionKey: String(localized: "API key not configured")])
             }
             request.setValue(key, forHTTPHeaderField: "X-Api-Key")
         case .plex:
             guard let cookie = sessionCookie else {
-                throw NSError(domain: "OverseerrService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Session expired. Please sign in again."])
+                throw NSError(domain: "OverseerrService", code: -1, userInfo: [NSLocalizedDescriptionKey: String(localized: "Session expired. Please sign in again.")])
             }
             request.setValue(cookie, forHTTPHeaderField: "Cookie")
         }
@@ -418,18 +418,18 @@ class OverseerrService: ObservableObject {
         let (data, response) = try await URLSession.shared.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw NSError(domain: "OverseerrService", code: -3, userInfo: [NSLocalizedDescriptionKey: "Invalid response"])
+            throw NSError(domain: "OverseerrService", code: -3, userInfo: [NSLocalizedDescriptionKey: String(localized: "Invalid response")])
         }
 
         // Handle session expiry for Plex auth
         if httpResponse.statusCode == 401 && authMethod == .plex {
             UserDefaults.standard.overseerrSessionCookie = ""
-            throw NSError(domain: "OverseerrService", code: 401, userInfo: [NSLocalizedDescriptionKey: "Session expired. Please sign in again."])
+            throw NSError(domain: "OverseerrService", code: 401, userInfo: [NSLocalizedDescriptionKey: String(localized: "Session expired. Please sign in again.")])
         }
 
         if httpResponse.statusCode < 200 || httpResponse.statusCode >= 300 {
             let errorText = String(data: data, encoding: .utf8) ?? "Unknown error"
-            throw NSError(domain: "OverseerrService", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "Overseerr API error (\(httpResponse.statusCode)): \(errorText)"])
+            throw NSError(domain: "OverseerrService", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: String(localized: "Overseerr API error (\(httpResponse.statusCode)): \(errorText)")])
         }
 
         return data

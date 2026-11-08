@@ -9,7 +9,7 @@ import SwiftUI
 import FlixorKit
 
 struct ContinueWatchingPosterRow: View {
-    var title: String = "Continue Watching"
+    var title: String = String(localized: "Continue Watching")
     let items: [MediaItem]
     var itemsWithMultipleVersions: Set<String>? = nil
     /// Item ids with a watch-state action running (menus disabled).

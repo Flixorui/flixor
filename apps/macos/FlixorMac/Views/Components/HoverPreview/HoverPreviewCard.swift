@@ -230,7 +230,7 @@ struct HoverPreviewCard: View {
     private var buttonRow: some View {
         HStack(spacing: DS.Space.s8) {
             if let onPlay = actions.onPlay {
-                circleButton(icon: "play.fill", label: "Play", prominent: true) {
+                circleButton(icon: "play.fill", label: String(localized: "Play"), prominent: true) {
                     actions.dismiss()
                     onPlay()
                 }
@@ -239,7 +239,7 @@ struct HoverPreviewCard: View {
             if CardActions.supportsWatchlist(model.item) {
                 circleButton(
                     icon: isInList ? "checkmark" : "plus",
-                    label: isInList ? "Remove from My List" : "Add to My List",
+                    label: isInList ? String(localized: "Remove from My List") : String(localized: "Add to My List"),
                     isBusy: isWorkingOnList
                 ) {
                     toggleList()
@@ -249,7 +249,7 @@ struct HoverPreviewCard: View {
             if !CardActions.isWholeShowLike(model.item), let target = WatchStateTarget(item: model.item) {
                 circleButton(
                     icon: model.isWatched ? "eye.slash" : "eye",
-                    label: model.isWatched ? "Mark as Unwatched" : "Mark as Watched",
+                    label: model.isWatched ? String(localized: "Mark as Unwatched") : String(localized: "Mark as Watched"),
                     isBusy: watchState.inFlight.contains(target.actionKey)
                 ) {
                     toggleWatched()
@@ -259,7 +259,7 @@ struct HoverPreviewCard: View {
             Spacer(minLength: 0)
 
             if let onOpen = actions.onOpen {
-                circleButton(icon: "chevron.down", label: "More Info") {
+                circleButton(icon: "chevron.down", label: String(localized: "More Info")) {
                     actions.dismiss()
                     onOpen()
                 }

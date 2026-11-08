@@ -326,7 +326,7 @@ struct CarouselRow<Item: Identifiable, Content: View>: View {
         spacing: CGFloat = 12,
         rowHeight: CGFloat? = nil,
         browseAction: (() -> Void)? = nil,
-        browseLabel: String = "Browse",
+        browseLabel: String = String(localized: "Browse"),
         @ViewBuilder content: @escaping (Item) -> Content,
     ) {
         self.title = title
