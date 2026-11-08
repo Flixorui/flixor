@@ -137,7 +137,7 @@ struct PlayerSettingsView: View {
                     icon: "gobackward.30",
                     iconColor: .orange,
                     title: "Large Seek",
-                    subtitle: "Double-tap or hold seek duration",
+                    subtitle: "Shift + arrow key seek duration",
                     showDivider: false
                 ) {
                     Stepper("\(profileSettings.seekTimeLarge)s", value: $profileSettings.seekTimeLarge, in: 1...120, step: 10)

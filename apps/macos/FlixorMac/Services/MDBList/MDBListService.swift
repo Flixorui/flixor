@@ -38,13 +38,15 @@ class MDBListService: ObservableObject {
 
     // MARK: - Computed Properties
 
+    // Profile-scoped accessors (the raw "mdblistEnabled"/"mdblistApiKey" keys
+    // only match the default profile; the API key now lives in the Keychain).
     private var isEnabled: Bool {
-        UserDefaults.standard.bool(forKey: "mdblistEnabled")
+        UserDefaults.standard.mdblistEnabled
     }
 
     private var apiKey: String? {
-        let key = UserDefaults.standard.string(forKey: "mdblistApiKey")
-        return key?.isEmpty == false ? key : nil
+        let key = UserDefaults.standard.mdblistApiKey
+        return key.isEmpty ? nil : key
     }
 
     // MARK: - Initialization

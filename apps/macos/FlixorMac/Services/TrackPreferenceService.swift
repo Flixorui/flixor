@@ -116,7 +116,8 @@ class TrackPreferenceService {
     func recommendedAudioTrackIndex(
         tracks: [(index: Int, languageCode: String)],
         mediaId: String,
-        seriesId: String? = nil
+        seriesId: String? = nil,
+        includeGlobal: Bool = true
     ) -> Int? {
         guard UserDefaults.standard.rememberTrackSelections else { return nil }
 
@@ -124,7 +125,7 @@ class TrackPreferenceService {
         let preferredLanguages: [String?] = [
             getAudioPreference(for: mediaId),
             seriesId.flatMap { getSeriesAudioPreference(for: $0) },
-            getGlobalAudioPreference()
+            includeGlobal ? getGlobalAudioPreference() : nil
         ]
 
         for preferredLang in preferredLanguages.compactMap({ $0 }) {
@@ -145,7 +146,8 @@ class TrackPreferenceService {
     func recommendedSubtitleTrackIndex(
         tracks: [(index: Int, languageCode: String)],
         mediaId: String,
-        seriesId: String? = nil
+        seriesId: String? = nil,
+        includeGlobal: Bool = true
     ) -> Int? {
         guard UserDefaults.standard.rememberTrackSelections else { return nil }
 
@@ -153,7 +155,7 @@ class TrackPreferenceService {
         let preferredLanguages: [String?] = [
             getSubtitlePreference(for: mediaId),
             seriesId.flatMap { getSeriesSubtitlePreference(for: $0) },
-            getGlobalSubtitlePreference()
+            includeGlobal ? getGlobalSubtitlePreference() : nil
         ]
 
         for preferredLang in preferredLanguages.compactMap({ $0 }) {

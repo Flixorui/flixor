@@ -236,6 +236,7 @@ class PlayerViewModel: ObservableObject {
 
     // Display sleep prevention
     private var displaySleepAssertion: NSObjectProtocol?
+    private var remoteCommandTargets: [(MPRemoteCommand, Any)] = []
 
     /// Generate Plex HTTP headers for MPV streaming
     private var plexStreamHeaders: [String: String] {
@@ -476,13 +477,18 @@ class PlayerViewModel: ObservableObject {
                     self.applyInitialSeekIfNeeded()
                     // Load available tracks
                     self.loadTracks()
+                    // Re-apply audio/subtitle choices remembered for this title or show
+                    let remembered = self.applyRememberedTrackPreferences()
                     // Load chapters
                     self.loadChapters()
                     // Apply subtitle styling from persisted settings
                     self.applySubtitleStyling()
                     if self.sourceKind == .stream {
                         Task {
-                            await self.applyStreamTrackAutoSelectionIfNeeded()
+                            await self.applyStreamTrackAutoSelectionIfNeeded(
+                                skipAudio: remembered.audio,
+                                skipSubtitles: remembered.subtitle
+                            )
                         }
                     }
                     // Notify thumbnail generator
@@ -496,43 +502,18 @@ class PlayerViewModel: ObservableObject {
                     self.enableDisplaySleep()
                     // Start Trakt scrobbling
                     self.startTraktScrobble()
-                case "file-ended":
-                    // Check if file-ended happened too quickly after file-started (< 3 seconds)
-                    // This indicates a loading error, not actual playback completion
-                    if let startTime = self.fileStartTime {
-                        let timeSinceStart = Date().timeIntervalSince(startTime)
-                        if timeSinceStart < 3.0 {
-                            print("❌ [Player] MPV playback failed (file-ended after \(String(format: "%.1f", timeSinceStart))s) - likely connection error")
-                            // If direct play URL failed (404, expired token, etc.), try to refresh it
-                            if self.currentURLIsHLS == false {
-                                if self.directPlayRetryCount < self.maxDirectPlayRetries {
-                                    self.directPlayRetryCount += 1
-                                    print("🔄 [Player] Attempting to refresh direct play URL (attempt \(self.directPlayRetryCount)/\(self.maxDirectPlayRetries))")
-                                    self.fileStartTime = nil
-                                    Task {
-                                        let success = await self.retryDirectPlay()
-                                        if !success {
-                                            print("↩️ [Player] Direct play retry failed; falling back to HLS")
-                                            self.directPlayRetryCount = 0
-                                            await self.retryWithHLS()
-                                        }
-                                    }
-                                } else {
-                                    print("⚠️ [Player] Max direct play retries (\(self.maxDirectPlayRetries)) reached; falling back to HLS")
-                                    self.directPlayRetryCount = 0
-                                    self.fileStartTime = nil
-                                    Task {
-                                        await self.retryWithHLS()
-                                    }
-                                }
-                            } else {
-                                // Already using HLS, can't retry further
-                                self.error = "Failed to load video. Please check your network connection and try again."
-                                self.isLoading = false
-                                self.isPlaying = false
-                            }
-                            return
-                        }
+                case "file-ended", "file-error":
+                    // "file-error" = mpv reported MPV_END_FILE_REASON_ERROR.
+                    // An end within 3s of start is also treated as a load failure,
+                    // since some broken URLs end with EOF instead of an error.
+                    let isError = event == "file-error"
+                    let failedEarly: Bool = {
+                        guard let startTime = self.fileStartTime else { return isError }
+                        return Date().timeIntervalSince(startTime) < 3.0
+                    }()
+                    if failedEarly || isError {
+                        self.handlePlaybackFailure(early: failedEarly)
+                        return
                     }
                     print("✅ [Player] MPV playback finished")
                     self.directPlayRetryCount = 0  // Reset counter on successful playback
@@ -551,6 +532,59 @@ class PlayerViewModel: ObservableObject {
         self.thumbnailGenerator = generator
 
         print("✅ [Player] MPV controller initialized with thumbnail support")
+    }
+
+    /// Handles a failed load or a mid-playback error without treating it as
+    /// "finished watching". Plex retry/HLS fallback only applies to Plex sources.
+    private func handlePlaybackFailure(early: Bool) {
+        switch sourceKind {
+        case .plex where early:
+            print("❌ [Player] Plex playback failed to load - likely connection error")
+            // If direct play URL failed (404, expired token, etc.), try to refresh it
+            if currentURLIsHLS == false {
+                if directPlayRetryCount < maxDirectPlayRetries {
+                    directPlayRetryCount += 1
+                    print("🔄 [Player] Attempting to refresh direct play URL (attempt \(directPlayRetryCount)/\(maxDirectPlayRetries))")
+                    fileStartTime = nil
+                    Task {
+                        let success = await self.retryDirectPlay()
+                        if !success {
+                            print("↩️ [Player] Direct play retry failed; falling back to HLS")
+                            self.directPlayRetryCount = 0
+                            await self.retryWithHLS()
+                        }
+                    }
+                } else {
+                    print("⚠️ [Player] Max direct play retries (\(maxDirectPlayRetries)) reached; falling back to HLS")
+                    directPlayRetryCount = 0
+                    fileStartTime = nil
+                    Task {
+                        await self.retryWithHLS()
+                    }
+                }
+            } else {
+                // Already using HLS, can't retry further
+                failPlayback("Failed to load video. Please check your network connection and try again.")
+            }
+        case .plex:
+            Task { await self.reportProgress() }
+            failPlayback("Playback was interrupted. Check your connection and try again.")
+        case .stream:
+            print("❌ [Player] Stream source failed (early: \(early))")
+            if !early { Task { await self.reportProgress() } }
+            failPlayback(early
+                ? "This source couldn't be loaded. Go back and pick another source."
+                : "The stream was interrupted. Try again or pick another source.")
+        case .offline:
+            failPlayback("This download couldn't be played. The file may be incomplete or damaged.")
+        }
+    }
+
+    private func failPlayback(_ message: String) {
+        error = message
+        isLoading = false
+        isPlaying = false
+        fileStartTime = nil
     }
 
     private func fetchServerResumeOffset() async {
@@ -765,6 +799,12 @@ class PlayerViewModel: ObservableObject {
         }
         if duration <= 0 {
             if nextEpisodeCountdown != nil { nextEpisodeCountdown = nil }
+            return
+        }
+        // "Auto-Play Next" off: no automatic countdown. The Next Episode
+        // button in the controls stays available for manual use.
+        if !UserDefaults.standard.autoPlayNext {
+            if nextEpisodeCountdown != nil || nextEpisodeCountdownTimer != nil { cancelCountdown() }
             return
         }
 
@@ -1088,7 +1128,7 @@ class PlayerViewModel: ObservableObject {
                 }
 
                 print("🎬 [MPV] Loading file: \(finalURL.absoluteString)")
-                mpvController.loadFile(finalURL.absoluteString, headers: plexStreamHeaders)
+                mpvController.loadFile(finalURL.absoluteString, headers: plexStreamHeaders, verifyTLS: false)
 
                 // MPV will handle playback automatically
                 // Property and event callbacks will update our @Published properties
@@ -1733,7 +1773,9 @@ class PlayerViewModel: ObservableObject {
     }
 
     /// Set audio track (MPV only)
-    func setAudioTrack(_ trackId: Int) {
+    /// - Parameter remember: Save the track's language for this title/show
+    ///   ("Remember Track Selection"). Pass `false` for automatic selection.
+    func setAudioTrack(_ trackId: Int, remember: Bool = true) {
         guard playerBackend == .mpv,
               let mpv = mpvController else {
             return
@@ -1741,10 +1783,17 @@ class PlayerViewModel: ObservableObject {
 
         mpv.setAudioTrack(trackId)
         currentAudioTrackId = trackId
+
+        if remember, let lang = availableAudioTracks.first(where: { $0.id == trackId })?.lang, !lang.isEmpty {
+            TrackPreferenceService.shared.saveAudioPreference(for: item.id, languageCode: lang)
+            if let seriesId = item.grandparentRatingKey {
+                TrackPreferenceService.shared.saveSeriesAudioPreference(for: seriesId, languageCode: lang)
+            }
+        }
     }
 
     /// Set subtitle track (MPV only)
-    func setSubtitleTrack(_ trackId: Int) {
+    func setSubtitleTrack(_ trackId: Int, remember: Bool = true) {
         guard playerBackend == .mpv,
               let mpv = mpvController else {
             return
@@ -1752,6 +1801,10 @@ class PlayerViewModel: ObservableObject {
 
         mpv.setSubtitleTrack(trackId)
         currentSubtitleTrackId = trackId
+
+        if remember, let lang = availableSubtitleTracks.first(where: { $0.id == trackId })?.lang, !lang.isEmpty {
+            saveSubtitleLanguagePreference(lang)
+        }
         subtitlesEnabled = true  // Remember that user wants subtitles
         print("💬 [Player] Subtitle track set to \(trackId), preference saved: enabled")
     }
@@ -1767,7 +1820,53 @@ class PlayerViewModel: ObservableObject {
         currentSubtitleTrackId = nil
         selectedExternalSubtitleId = nil
         subtitlesEnabled = false  // Remember that user wants subtitles off
+        saveSubtitleLanguagePreference("none")
         print("💬 [Player] Subtitles disabled, preference saved: disabled")
+    }
+
+    private func saveSubtitleLanguagePreference(_ languageCode: String) {
+        TrackPreferenceService.shared.saveSubtitlePreference(for: item.id, languageCode: languageCode)
+        if let seriesId = item.grandparentRatingKey {
+            TrackPreferenceService.shared.saveSeriesSubtitlePreference(for: seriesId, languageCode: languageCode)
+        }
+    }
+
+    /// Applies the audio/subtitle language the user last picked for this title,
+    /// or for its show. Only per-title and per-show choices are used; a global
+    /// "most used" language would leak one choice into unrelated titles.
+    /// - Returns: Which track types were set from a remembered choice.
+    @discardableResult
+    private func applyRememberedTrackPreferences() -> (audio: Bool, subtitle: Bool) {
+        guard playerBackend == .mpv, let mpv = mpvController else { return (false, false) }
+        let service = TrackPreferenceService.shared
+        var applied: (audio: Bool, subtitle: Bool) = (false, false)
+
+        let audioTracks = availableAudioTracks.compactMap { track in track.lang.map { (index: track.id, languageCode: $0) } }
+        if let trackId = service.recommendedAudioTrackIndex(
+            tracks: audioTracks, mediaId: item.id, seriesId: item.grandparentRatingKey, includeGlobal: false
+        ) {
+            if trackId != currentAudioTrackId { setAudioTrack(trackId, remember: false) }
+            applied.audio = true
+        }
+
+        let subtitleTracks = availableSubtitleTracks.compactMap { track in track.lang.map { (index: track.id, languageCode: $0) } }
+        if let trackId = service.recommendedSubtitleTrackIndex(
+            tracks: subtitleTracks, mediaId: item.id, seriesId: item.grandparentRatingKey, includeGlobal: false
+        ) {
+            if trackId == -1 {
+                mpv.disableSubtitles()
+                currentSubtitleTrackId = nil
+            } else if trackId != currentSubtitleTrackId {
+                mpv.setSubtitleTrack(trackId)
+                currentSubtitleTrackId = trackId
+            }
+            applied.subtitle = true
+        }
+
+        if applied.audio || applied.subtitle {
+            print("🎵 [Player] Applied remembered tracks (audio: \(applied.audio), subtitles: \(applied.subtitle))")
+        }
+        return applied
     }
 
     // MARK: - Progress Tracking
@@ -1933,8 +2032,8 @@ class PlayerViewModel: ObservableObject {
                 print("⚠️ [Player] Failed to mark as watched: \(error)")
             }
 
-            // Auto-play next episode if available
-            if item.type == "episode" && nextEpisode != nil {
+            // Auto-play next episode if available and enabled in Player settings
+            if item.type == "episode" && nextEpisode != nil && UserDefaults.standard.autoPlayNext {
                 print("▶️ [Player] Auto-playing next episode...")
                 // Small delay to ensure scrobble completes
                 try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
@@ -1977,6 +2076,7 @@ class PlayerViewModel: ObservableObject {
 
         // Set the info
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
+        registerRemoteCommands()
 
         // Load artwork asynchronously
         loadNowPlayingArtwork()
@@ -2024,7 +2124,66 @@ class PlayerViewModel: ObservableObject {
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
     }
 
+    /// Media keys, AirPods/headphone controls and the Control Center Now Playing widget.
+    private func registerRemoteCommands() {
+        unregisterRemoteCommands()
+        let center = MPRemoteCommandCenter.shared()
+
+        func add(_ command: MPRemoteCommand, _ handler: @escaping @MainActor (PlayerViewModel, MPRemoteCommandEvent) -> Bool) {
+            command.isEnabled = true
+            let token = command.addTarget { [weak self] event in
+                guard let self else { return .noActionableNowPlayingItem }
+                // MPRemoteCommandCenter calls back on the main thread.
+                let handled = MainActor.assumeIsolated { handler(self, event) }
+                return handled ? .success : .commandFailed
+            }
+            remoteCommandTargets.append((command, token))
+        }
+
+        add(center.togglePlayPauseCommand) { vm, _ in vm.togglePlayPause(); return true }
+        add(center.playCommand) { vm, _ in
+            if !vm.isPlaying { vm.togglePlayPause() }
+            return true
+        }
+        add(center.pauseCommand) { vm, _ in
+            if vm.isPlaying { vm.togglePlayPause() }
+            return true
+        }
+
+        let small = TimeInterval(max(1, UserDefaults.standard.seekTimeSmall))
+        center.skipForwardCommand.preferredIntervals = [NSNumber(value: small)]
+        center.skipBackwardCommand.preferredIntervals = [NSNumber(value: small)]
+        add(center.skipForwardCommand) { vm, event in
+            let interval = (event as? MPSkipIntervalCommandEvent)?.interval ?? small
+            vm.skip(seconds: interval)
+            return true
+        }
+        add(center.skipBackwardCommand) { vm, event in
+            let interval = (event as? MPSkipIntervalCommandEvent)?.interval ?? small
+            vm.skip(seconds: -interval)
+            return true
+        }
+        add(center.changePlaybackPositionCommand) { vm, event in
+            guard let event = event as? MPChangePlaybackPositionCommandEvent else { return false }
+            vm.seek(to: event.positionTime)
+            return true
+        }
+        add(center.nextTrackCommand) { vm, _ in
+            guard vm.nextEpisode != nil else { return false }
+            vm.playNext()
+            return true
+        }
+    }
+
+    private func unregisterRemoteCommands() {
+        for (command, token) in remoteCommandTargets {
+            command.removeTarget(token)
+        }
+        remoteCommandTargets.removeAll()
+    }
+
     private func clearNowPlayingInfo() {
+        unregisterRemoteCommands()
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
         print("🎵 [Player] Now Playing info cleared")
     }
@@ -2282,15 +2441,16 @@ class PlayerViewModel: ObservableObject {
         }
     }
 
-    private func applyStreamTrackAutoSelectionIfNeeded() async {
+    private func applyStreamTrackAutoSelectionIfNeeded(skipAudio: Bool = false, skipSubtitles: Bool = false) async {
         guard sourceKind == .stream else { return }
 
-        if !UserDefaults.standard.preferredAudioLanguage.isEmpty,
+        if !skipAudio,
+           !UserDefaults.standard.preferredAudioLanguage.isEmpty,
            let audioMatch = preferredAudioTrack() {
-            setAudioTrack(audioMatch.id)
+            setAudioTrack(audioMatch.id, remember: false)
         }
 
-        guard UserDefaults.standard.enableSubtitleAutoSelect else { return }
+        guard !skipSubtitles, UserDefaults.standard.enableSubtitleAutoSelect else { return }
 
         let internalMatch = preferredInternalSubtitleTrack()
         let externalMatch = preferredExternalSubtitleCandidate()
@@ -2299,7 +2459,7 @@ class PlayerViewModel: ObservableObject {
         switch preference {
         case .internal:
             if let internalMatch {
-                setSubtitleTrack(internalMatch.id)
+                setSubtitleTrack(internalMatch.id, remember: false)
             } else if let externalMatch {
                 do { try await attachExternalSubtitle(externalMatch) } catch {}
             }
@@ -2307,11 +2467,11 @@ class PlayerViewModel: ObservableObject {
             if let externalMatch {
                 do { try await attachExternalSubtitle(externalMatch) } catch {}
             } else if let internalMatch {
-                setSubtitleTrack(internalMatch.id)
+                setSubtitleTrack(internalMatch.id, remember: false)
             }
         case .any:
             if let internalMatch {
-                setSubtitleTrack(internalMatch.id)
+                setSubtitleTrack(internalMatch.id, remember: false)
             } else if let externalMatch {
                 do { try await attachExternalSubtitle(externalMatch) } catch {}
             }
@@ -2538,7 +2698,7 @@ class PlayerViewModel: ObservableObject {
 
                 print("🎬 [MPV] Reloading file with fresh URL")
                 self.fileStartTime = nil // Reset to detect new loading errors
-                mpvController.loadFile(url.absoluteString, headers: plexStreamHeaders)
+                mpvController.loadFile(url.absoluteString, headers: plexStreamHeaders, verifyTLS: false)
 
                 // Seek will happen after file-loaded event via applyInitialSeekIfNeeded
                 // But we need to preserve the position
@@ -2650,7 +2810,7 @@ class PlayerViewModel: ObservableObject {
 
                 print("🎬 [MPV] Loading HLS stream")
                 self.fileStartTime = nil
-                mpvController.loadFile(finalURL.absoluteString, headers: plexStreamHeaders)
+                mpvController.loadFile(finalURL.absoluteString, headers: plexStreamHeaders, verifyTLS: false)
 
                 // Restore position after file loads
                 if savedPosition > 2 {

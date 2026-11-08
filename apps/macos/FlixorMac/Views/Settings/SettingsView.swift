@@ -1168,12 +1168,12 @@ private struct AboutSettingsContent: View {
                 VStack(spacing: 4) {
                     Text("Flixor")
                         .font(.system(size: 20, weight: .bold))
-                    Text("Version 1.0.0")
+                    Text("Version \(Bundle.main.appVersion)")
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                 }
 
-                Text("A native macOS client for Plex Media Server")
+                Text("A native macOS client for Plex and Stremio addons")
                     .font(.system(size: 13))
                     .foregroundStyle(.secondary)
             }

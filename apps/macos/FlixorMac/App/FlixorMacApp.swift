@@ -75,13 +75,22 @@ struct FlixorMacApp: App {
 }
 
 // MARK: - API Keys Configuration
+/// Build-time keys injected from Config/Secrets.xcconfig via Info.plist.
+/// They are not stored in source. Users can still override TMDB in Settings.
 enum APIKeys {
-    // TMDB API Key
-    static let tmdbApiKey = "db55323b8d3e4154498498a75642b381"
+    static let tmdbApiKey = infoValue("FlixorTMDBApiKey")
+    static let traktClientId = infoValue("FlixorTraktClientId")
+    static let traktClientSecret = infoValue("FlixorTraktClientSecret")
 
-    // Trakt Client ID & Secret
-    static let traktClientId = "4ab0ead6d5510bf39180a5e1dd7b452f5ad700b7794564befdd6bca56e0f7ce4"
-    static let traktClientSecret = "64d24f12e4628dcf0dda74a61f2235c086daaf8146384016b6a86c196e419c26"
+    private static func infoValue(_ key: String) -> String {
+        let value = (Bundle.main.object(forInfoDictionaryKey: key) as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if value.isEmpty || value.hasPrefix("$(") {
+            print("⚠️ [APIKeys] \(key) is not set. Create apps/macos/FlixorMac/Config/Secrets.xcconfig from Secrets.example.xcconfig.")
+            return ""
+        }
+        return value
+    }
 }
 
 extension Bundle {
@@ -90,28 +99,52 @@ extension Bundle {
     }
 }
 
+// MARK: - Playback Command State
+
+/// Tracks whether a player is on screen so the Playback menu can enable its items.
+@MainActor
+final class PlaybackCommandState: ObservableObject {
+    static let shared = PlaybackCommandState()
+    @Published var isPlayerActive = false
+    private init() {}
+}
+
 // MARK: - App Commands
 struct AppCommands: Commands {
+    @ObservedObject private var playback = PlaybackCommandState.shared
+
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
             // Remove "New" menu items
         }
 
+        // Space and the arrow keys are handled by the player's own key monitor
+        // while it is on screen. They are deliberately NOT bound here: a menu
+        // key equivalent without a modifier fires app-wide and would swallow
+        // spaces/arrows typed into text fields such as Search.
         CommandMenu("Playback") {
             Button("Play/Pause") {
                 NotificationCenter.default.post(name: .togglePlayPause, object: nil)
             }
-            .keyboardShortcut(.space, modifiers: [])
+            .disabled(!playback.isPlayerActive)
 
             Button("Skip Forward") {
                 NotificationCenter.default.post(name: .skipForward, object: nil)
             }
-            .keyboardShortcut(.rightArrow, modifiers: [])
+            .disabled(!playback.isPlayerActive)
 
             Button("Skip Backward") {
                 NotificationCenter.default.post(name: .skipBackward, object: nil)
             }
-            .keyboardShortcut(.leftArrow, modifiers: [])
+            .disabled(!playback.isPlayerActive)
+
+            Divider()
+
+            Button("Toggle Picture in Picture") {
+                NotificationCenter.default.post(name: .togglePictureInPicture, object: nil)
+            }
+            .keyboardShortcut("p", modifiers: [.command, .shift])
+            .disabled(!playback.isPlayerActive)
         }
     }
 }
@@ -121,4 +154,5 @@ extension Notification.Name {
     static let togglePlayPause = Notification.Name("togglePlayPause")
     static let skipForward = Notification.Name("skipForward")
     static let skipBackward = Notification.Name("skipBackward")
+    static let togglePictureInPicture = Notification.Name("togglePictureInPicture")
 }

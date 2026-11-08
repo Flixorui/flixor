@@ -151,10 +151,12 @@ class MPVPlayerController {
         mpv_set_property_string(mpv, "osd-level", "0")
 
         // Network/HTTP options for Plex streaming
-        mpv_set_property_string(mpv, "tls-verify", "no")  // Plex direct uses custom certs
+        // TLS verification is decided per file in loadFile(_:headers:verifyTLS:)
+        // (off for Plex, which can use custom certs; on for addon streams).
+        mpv_set_property_string(mpv, "tls-verify", "no")
         mpv_set_property_string(mpv, "network-timeout", "30")
         mpv_set_property_string(mpv, "stream-lavf-o", "reconnect=1,reconnect_streamed=1,reconnect_delay_max=5")
-        print("[MPV] Network options configured (TLS verify disabled for Plex)")
+        print("[MPV] Network options configured")
 
         // Apply user settings from UserDefaults
         applyUserSettings()
@@ -390,7 +392,9 @@ class MPVPlayerController {
 
     // MARK: - Playback Control
 
-    func loadFile(_ url: String, headers: [String: String]? = nil) {
+    /// - Parameter verifyTLS: Verify HTTPS certificates. Pass `false` for Plex
+    ///   (custom/self-signed certs). Hosts on the local network are never verified.
+    func loadFile(_ url: String, headers: [String: String]? = nil, verifyTLS: Bool = true) {
         guard mpv != nil else {
             print("❌ [MPV] Cannot load file: mpv not initialized")
             return
@@ -398,6 +402,9 @@ class MPVPlayerController {
 
         // Reset HDR state for new file
         resetHDRState()
+
+        let shouldVerify = verifyTLS && !Self.isLocalNetworkURL(url)
+        mpv_set_property_string(mpv, "tls-verify", shouldVerify ? "yes" : "no")
 
         // Set HTTP headers if provided (required for some Plex servers)
         if let headers = headers, !headers.isEmpty {
@@ -411,6 +418,19 @@ class MPVPlayerController {
         let status = mpv_command_string(mpv, commandString)
         if status < 0 {
             print("❌ [MPV] Failed to load file: \(String(cString: mpv_error_string(status)))")
+        }
+    }
+
+    /// True for localhost, *.local and private IPv4 ranges (self-hosted addons, LAN servers).
+    static func isLocalNetworkURL(_ url: String) -> Bool {
+        guard let host = URL(string: url)?.host?.lowercased() else { return false }
+        if host == "localhost" || host.hasSuffix(".local") || host == "::1" { return true }
+        let octets = host.split(separator: ".").compactMap { Int($0) }
+        guard octets.count == 4 else { return false }
+        switch (octets[0], octets[1]) {
+        case (10, _), (127, _), (192, 168), (169, 254): return true
+        case (172, 16...31): return true
+        default: return false
         }
     }
 
@@ -787,9 +807,20 @@ class MPVPlayerController {
             }
 
         case MPV_EVENT_END_FILE:
-            print("🏁 [MPV] File ended")
+            // Distinguish a real failure (network drop, 4xx/5xx, demuxer error)
+            // from a normal end of file, so errors are never treated as
+            // "finished watching" (which would scrobble and auto-play next).
+            var isError = false
+            if let data = event.pointee.data {
+                let endFile = data.assumingMemoryBound(to: mpv_event_end_file.self).pointee
+                isError = endFile.reason == MPV_END_FILE_REASON_ERROR
+                if isError, let message = mpv_error_string(endFile.error) {
+                    print("❌ [MPV] File ended with error: \(String(cString: message))")
+                }
+            }
+            if !isError { print("🏁 [MPV] File ended") }
             DispatchQueue.main.async { [weak self] in
-                self?.onEvent?("file-ended")
+                self?.onEvent?(isError ? "file-error" : "file-ended")
             }
 
         case MPV_EVENT_PLAYBACK_RESTART:

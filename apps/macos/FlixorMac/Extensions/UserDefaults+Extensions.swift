@@ -7,7 +7,77 @@
 //
 
 import Foundation
+import Security
 import FlixorKit
+
+// MARK: - Secret Store (Keychain)
+
+/// Synchronous Keychain storage for user-entered secrets (API keys, session
+/// cookies) that must not live in UserDefaults plists. Values are cached in
+/// memory so frequent reads (view bodies, `isReady()` checks) stay cheap.
+enum SecretStore {
+    private static let service = "com.flixor.mac.secrets"
+    private static let lock = NSLock()
+    private static var cache: [String: String] = [:]
+
+    static func string(_ account: String) -> String? {
+        lock.lock(); defer { lock.unlock() }
+        if let cached = cache[account] { return cached.isEmpty ? nil : cached }
+
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let value = (status == errSecSuccess ? (result as? Data).flatMap { String(data: $0, encoding: .utf8) } : nil) ?? ""
+        cache[account] = value
+        return value.isEmpty ? nil : value
+    }
+
+    /// Stores `value`, or deletes the item when `value` is empty.
+    static func set(_ value: String, for account: String) {
+        lock.lock(); defer { lock.unlock() }
+        let base: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account
+        ]
+        SecItemDelete(base as CFDictionary)
+        if !value.isEmpty, let data = value.data(using: .utf8) {
+            var add = base
+            add[kSecValueData as String] = data
+            add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+            let status = SecItemAdd(add as CFDictionary, nil)
+            if status != errSecSuccess {
+                print("❌ [SecretStore] Failed to save \(account): status \(status)")
+            }
+        }
+        cache[account] = value
+    }
+}
+
+extension UserDefaults {
+    /// Reads a secret from the Keychain, migrating any legacy plaintext value
+    /// stored in UserDefaults under the same key (then removing it).
+    func secret(forKey key: String) -> String {
+        if let value = SecretStore.string(key) { return value }
+        if let legacy = string(forKey: key), !legacy.isEmpty {
+            SecretStore.set(legacy, for: key)
+            removeObject(forKey: key)
+            return legacy
+        }
+        return ""
+    }
+
+    func setSecret(_ value: String, forKey key: String) {
+        SecretStore.set(value, for: key)
+        removeObject(forKey: key)
+    }
+}
 
 extension UserDefaults {
     // MARK: - Profile-Scoped Key Helper
@@ -46,7 +116,7 @@ extension UserDefaults {
     }
 
     var autoPlayNext: Bool {
-        get { bool(forKey: profileKey(Keys.autoPlayNext)) }
+        get { object(forKey: profileKey(Keys.autoPlayNext)) as? Bool ?? true }
         set { set(newValue, forKey: profileKey(Keys.autoPlayNext)) }
     }
 
@@ -98,8 +168,8 @@ extension UserDefaults {
     }
 
     var mdblistApiKey: String {
-        get { string(forKey: profileKey(MDBListKeys.apiKey)) ?? "" }
-        set { set(newValue, forKey: profileKey(MDBListKeys.apiKey)) }
+        get { secret(forKey: profileKey(MDBListKeys.apiKey)) }
+        set { setSecret(newValue, forKey: profileKey(MDBListKeys.apiKey)) }
     }
 }
 
@@ -143,13 +213,13 @@ extension UserDefaults {
     }
 
     var overseerrApiKey: String {
-        get { string(forKey: profileKey(OverseerrKeys.apiKey)) ?? "" }
-        set { set(newValue, forKey: profileKey(OverseerrKeys.apiKey)) }
+        get { secret(forKey: profileKey(OverseerrKeys.apiKey)) }
+        set { setSecret(newValue, forKey: profileKey(OverseerrKeys.apiKey)) }
     }
 
     var overseerrSessionCookie: String {
-        get { string(forKey: profileKey(OverseerrKeys.sessionCookie)) ?? "" }
-        set { set(newValue, forKey: profileKey(OverseerrKeys.sessionCookie)) }
+        get { secret(forKey: profileKey(OverseerrKeys.sessionCookie)) }
+        set { setSecret(newValue, forKey: profileKey(OverseerrKeys.sessionCookie)) }
     }
 
     var overseerrPlexUsername: String {

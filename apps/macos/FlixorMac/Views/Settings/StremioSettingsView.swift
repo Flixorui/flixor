@@ -124,12 +124,14 @@ struct StremioSettingsView: View {
             SettingsGroupCard {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(spacing: 12) {
-                        Image(systemName: "lock.fill")
+                        Image(systemName: isStremioOnlyMode ? "puzzlepiece.extension.fill" : "server.rack")
                             .foregroundStyle(.secondary)
                         VStack(alignment: .leading, spacing: 3) {
-                            Text("Plex login remains required")
+                            Text(isStremioOnlyMode ? "Running without Plex" : "Works alongside Plex")
                                 .font(.system(size: 13, weight: .semibold))
-                            Text("Stremio is an alternate playback provider on top of the existing Plex app session.")
+                            Text(isStremioOnlyMode
+                                 ? "Your addons provide catalogs, metadata and streams. Watch history and My List are stored on this Mac (and synced with Trakt if connected)."
+                                 : "Addon streams are offered next to your Plex library. You can also use Flixor without Plex by choosing Stremio-only mode.")
                                 .font(.system(size: 11))
                                 .foregroundStyle(.secondary)
                         }

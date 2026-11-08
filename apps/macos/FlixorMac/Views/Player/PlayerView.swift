@@ -102,6 +102,39 @@ struct PlayerView: View {
         }
     }
 
+    private var pipDisplayTitle: String {
+        if item.type == "episode",
+           let showName = item.grandparentTitle,
+           item.parentIndex != nil,
+           item.index != nil {
+            return showName
+        }
+        return item.title
+    }
+
+    private var pipDisplaySubtitle: String? {
+        if item.type == "episode",
+           let seasonNum = item.parentIndex,
+           let episodeNum = item.index {
+            return "S\(seasonNum)E\(episodeNum) • \(item.title)"
+        }
+        if let year = item.year {
+            return String(year)
+        }
+        return nil
+    }
+
+    private var pipAspectRatio: CGSize? {
+        guard let width = viewModel.sourceWidth,
+              let height = viewModel.sourceHeight,
+              width > 0,
+              height > 0 else {
+            return nil
+        }
+
+        return CGSize(width: width, height: height)
+    }
+
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
@@ -240,6 +273,7 @@ struct PlayerView: View {
             viewModel.onDisappear()
             stopMouseTracking()
             stopKeyboardMonitoring()
+            PlaybackCommandState.shared.isPlayerActive = false
             forceShowCursor() // Force cursor to be visible when leaving
 
             // Exit fullscreen when leaving player
@@ -252,6 +286,7 @@ struct PlayerView: View {
             scheduleHideControls()
             startMouseTracking()
             startKeyboardMonitoring()
+            PlaybackCommandState.shared.isPlayerActive = true
 
             // Setup navigation callback for next episode
             viewModel.onPlayNext = { [weak router, weak mainViewState] nextItem in
@@ -274,6 +309,25 @@ struct PlayerView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .mpvPiPDidClose)) { _ in
             isPiPActive = false
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .togglePlayPause)) { _ in
+            viewModel.togglePlayPause()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .skipForward)) { _ in
+            viewModel.skip(seconds: seekSeconds(large: false))
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .skipBackward)) { _ in
+            viewModel.skip(seconds: -seekSeconds(large: false))
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .togglePictureInPicture)) { _ in
+            toggleMPVPiP()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .mpvPiPRequestedPlayerClose)) { _ in
+            viewModel.stopPlayback()
+            dismiss()
+        }
+        .onChange(of: viewModel.isPlaying) { isPlaying in
+            MPVPiPWindowManager.shared.updatePlaybackState(isPlaying: isPlaying)
         }
     }
 
@@ -307,6 +361,12 @@ struct PlayerView: View {
         #endif
     }
 
+    /// Seek step from the profile's Player settings (Small Seek / Large Seek).
+    private func seekSeconds(large: Bool) -> TimeInterval {
+        let value = large ? UserDefaults.standard.seekTimeLarge : UserDefaults.standard.seekTimeSmall
+        return TimeInterval(max(1, value))
+    }
+
     private func handleKeyDown(_ event: NSEvent) -> Bool {
         // Get the key code and characters
         let keyCode = event.keyCode
@@ -318,12 +378,12 @@ struct PlayerView: View {
             viewModel.togglePlayPause()
             return true
 
-        case 123: // Left arrow
-            viewModel.skip(seconds: -10)
+        case 123: // Left arrow (Shift = large seek)
+            viewModel.skip(seconds: -seekSeconds(large: event.modifierFlags.contains(.shift)))
             return true
 
-        case 124: // Right arrow
-            viewModel.skip(seconds: 10)
+        case 124: // Right arrow (Shift = large seek)
+            viewModel.skip(seconds: seekSeconds(large: event.modifierFlags.contains(.shift)))
             return true
 
         case 126: // Up arrow
@@ -350,6 +410,9 @@ struct PlayerView: View {
             switch characters {
             case "m":
                 viewModel.toggleMute()
+                return true
+            case "p":
+                toggleMPVPiP()
                 return true
             case "f":
                 toggleFullScreen()
@@ -387,7 +450,14 @@ struct PlayerView: View {
             return
         }
 
-        MPVPiPWindowManager.shared.togglePiP(mpvViewController: mpvViewController, stateBinding: $isPiPActive)
+        MPVPiPWindowManager.shared.togglePiP(
+            mpvViewController: mpvViewController,
+            stateBinding: $isPiPActive,
+            title: pipDisplayTitle,
+            subtitle: pipDisplaySubtitle,
+            aspectRatio: pipAspectRatio,
+            isPlaying: viewModel.isPlaying
+        )
         #endif
     }
 
@@ -2783,10 +2853,15 @@ private struct ChapterListRow: View {
 #if os(macOS)
 extension Notification.Name {
     static let mpvPiPDidClose = Notification.Name("mpvPiPDidClose")
+    static let mpvPiPRequestedPlayerClose = Notification.Name("mpvPiPRequestedPlayerClose")
 }
 
 class MPVPiPWindowManager {
     static let shared = MPVPiPWindowManager()
+
+    private enum PersistenceKeys {
+        static let frame = "mpvPiPWindowFrame"
+    }
 
     private var pipWindow: NSWindow?
     private var windowDelegate: PiPWindowDelegate?
@@ -2798,10 +2873,89 @@ class MPVPiPWindowManager {
     private var controlOverlay: PiPControlOverlay?
     private var isCleaningUp = false
     private var stateBinding: Binding<Bool>?
+    private var currentAspectRatio = NSSize(width: 16, height: 9)
 
     private init() {}
 
-    func enterPiP(mpvViewController: MPVVideoViewWrapper.MPVPiPViewController, stateBinding: Binding<Bool>? = nil) {
+    private func fallbackFrame(for visibleFrame: NSRect, aspectRatio: NSSize) -> NSRect {
+        let maxWidth = min(560.0, visibleFrame.width * 0.34)
+        let width = max(360.0, maxWidth)
+        let height = width * (aspectRatio.height / aspectRatio.width)
+
+        return NSRect(
+            x: visibleFrame.maxX - width - 20,
+            y: visibleFrame.maxY - height - 20,
+            width: width,
+            height: height
+        )
+    }
+
+    private func persistedFrame() -> NSRect? {
+        guard let frameString = UserDefaults.standard.string(forKey: PersistenceKeys.frame) else {
+            return nil
+        }
+
+        return NSRectFromString(frameString)
+    }
+
+    private func persistFrame(_ frame: NSRect) {
+        UserDefaults.standard.set(NSStringFromRect(frame), forKey: PersistenceKeys.frame)
+    }
+
+    private func normalizedFrame(_ frame: NSRect, aspectRatio: NSSize, visibleFrame: NSRect) -> NSRect {
+        let safeAspect = max(aspectRatio.width, 1) / max(aspectRatio.height, 1)
+        let minWidth: CGFloat = 320
+        let maxWidth = max(minWidth, min(visibleFrame.width - 40, 720))
+
+        var width = min(max(frame.width, minWidth), maxWidth)
+        var height = width / safeAspect
+
+        let maxHeight = max(180.0, visibleFrame.height - 40)
+        if height > maxHeight {
+            height = maxHeight
+            width = height * safeAspect
+        }
+
+        var originX = frame.origin.x
+        var originY = frame.origin.y
+
+        if originX < visibleFrame.minX + 12 {
+            originX = visibleFrame.minX + 12
+        }
+        if originY < visibleFrame.minY + 12 {
+            originY = visibleFrame.minY + 12
+        }
+        if originX + width > visibleFrame.maxX - 12 {
+            originX = visibleFrame.maxX - width - 12
+        }
+        if originY + height > visibleFrame.maxY - 12 {
+            originY = visibleFrame.maxY - height - 12
+        }
+
+        return NSRect(x: originX, y: originY, width: width, height: height)
+    }
+
+    private func preferredAspectRatio(explicitAspectRatio: CGSize?, mpvView: MPVNSView) -> NSSize {
+        if let explicitAspectRatio, explicitAspectRatio.width > 0, explicitAspectRatio.height > 0 {
+            return NSSize(width: explicitAspectRatio.width, height: explicitAspectRatio.height)
+        }
+
+        let bounds = mpvView.bounds.size
+        if bounds.width > 0, bounds.height > 0 {
+            return NSSize(width: bounds.width, height: bounds.height)
+        }
+
+        return NSSize(width: 16, height: 9)
+    }
+
+    func enterPiP(
+        mpvViewController: MPVVideoViewWrapper.MPVPiPViewController,
+        stateBinding: Binding<Bool>? = nil,
+        title: String,
+        subtitle: String?,
+        aspectRatio: CGSize?,
+        isPlaying: Bool
+    ) {
         self.stateBinding = stateBinding
         guard !isPiPActive else {
             return
@@ -2822,6 +2976,7 @@ class MPVPiPWindowManager {
             return
         }
 
+        currentAspectRatio = preferredAspectRatio(explicitAspectRatio: aspectRatio, mpvView: mpvView)
 
         // Store the original parent view and capture a weak reference to mpvView
         self.originalParentView = mpvView.superview
@@ -2845,20 +3000,17 @@ class MPVPiPWindowManager {
         // Reuse existing window or create new one
         let window: NSPanel
         if let existingWindow = self.pipWindow as? NSPanel {
-            // Reuse the existing window
             window = existingWindow
         } else {
-            // Create PiP panel (floating, 16:9 aspect ratio, borderless, non-activating)
-            let pipWidth: CGFloat = 480
-            let pipHeight: CGFloat = 270
-            let screenFrame = NSScreen.main?.visibleFrame ?? .zero
-            let pipX = screenFrame.maxX - pipWidth - 20
-            let pipY = screenFrame.maxY - pipHeight - 20
-            let pipFrame = NSRect(x: pipX, y: pipY, width: pipWidth, height: pipHeight)
+            let visibleFrame = NSScreen.main?.visibleFrame ?? .zero
+            let initialFrame = normalizedFrame(
+                fallbackFrame(for: visibleFrame, aspectRatio: currentAspectRatio),
+                aspectRatio: currentAspectRatio,
+                visibleFrame: visibleFrame
+            )
 
-            // Use NSPanel with nonActivatingPanel to prevent main window activation
             window = NSPanel(
-                contentRect: pipFrame,
+                contentRect: initialFrame,
                 styleMask: [.borderless, .resizable, .nonactivatingPanel],
                 backing: .buffered,
                 defer: false
@@ -2868,22 +3020,28 @@ class MPVPiPWindowManager {
             window.isMovableByWindowBackground = true
             window.backgroundColor = .black
             window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-            window.aspectRatio = NSSize(width: 16, height: 9)
+            window.aspectRatio = currentAspectRatio
             window.minSize = NSSize(width: 320, height: 180)
             window.hasShadow = true
             window.isOpaque = false
-            window.hidesOnDeactivate = false  // Keep visible when app loses focus
-            window.becomesKeyOnlyIfNeeded = true  // Don't become key unless necessary
+            window.hidesOnDeactivate = false
+            window.becomesKeyOnlyIfNeeded = true
+            window.alphaValue = 0.0
 
-            // Style the content view with rounded corners
             if let contentView = window.contentView {
                 contentView.wantsLayer = true
-                contentView.layer?.cornerRadius = 8
+                contentView.layer?.cornerRadius = 10
                 contentView.layer?.masksToBounds = true
             }
 
             self.pipWindow = window
         }
+
+        let visibleFrame = window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? .zero
+        let preferredFrame = persistedFrame() ?? window.frame
+        let targetFrame = normalizedFrame(preferredFrame, aspectRatio: currentAspectRatio, visibleFrame: visibleFrame)
+        window.aspectRatio = currentAspectRatio
+        window.setFrame(targetFrame, display: true)
 
         // Set delegate
         let delegate = PiPWindowDelegate()
@@ -2913,43 +3071,49 @@ class MPVPiPWindowManager {
                 layer.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
                 layer.contentsScale = window.backingScaleFactor
 
-                // Force layer to update its internal state
                 let pipBounds = CGRect(origin: .zero, size: mpvView.bounds.size)
                 layer.forceUpdateForNewBounds(pipBounds)
-
             }
 
-            // Add control overlay if not already present
-            if controlOverlay == nil {
-                let overlay = PiPControlOverlay(frame: contentView.bounds)
+            let overlay: PiPControlOverlay
+            if let existingOverlay = controlOverlay {
+                overlay = existingOverlay
+            } else {
+                overlay = PiPControlOverlay(frame: contentView.bounds)
                 overlay.translatesAutoresizingMaskIntoConstraints = false
-                contentView.addSubview(overlay, positioned: .above, relativeTo: mpvView)
+                controlOverlay = overlay
+            }
 
+            if overlay.superview !== contentView {
+                overlay.removeFromSuperview()
+                contentView.addSubview(overlay, positioned: .above, relativeTo: mpvView)
                 NSLayoutConstraint.activate([
                     overlay.topAnchor.constraint(equalTo: contentView.topAnchor),
                     overlay.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
                     overlay.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
                     overlay.trailingAnchor.constraint(equalTo: contentView.trailingAnchor)
                 ])
-
-                // Set up button actions
-                overlay.setReturnAction { [weak self] in
-                    self?.exitPiP()
-                }
-
-                overlay.setCloseAction { [weak self] in
-                    self?.exitPiP()
-                    // Post notification to close player
-                    NotificationCenter.default.post(name: .mpvPiPDidClose, object: nil)
-                }
-
-                overlay.setPlayPauseAction { [weak self] in
-                    self?.togglePlayPause()
-                }
-
-                controlOverlay = overlay
             }
 
+            overlay.setTitle(title, subtitle: subtitle)
+            overlay.updatePlayPauseState(isPlaying: isPlaying)
+            overlay.setReturnAction { [weak self] in
+                self?.exitPiP()
+            }
+            overlay.setCloseAction { [weak self] in
+                self?.exitPiP()
+                NotificationCenter.default.post(name: .mpvPiPRequestedPlayerClose, object: nil)
+            }
+            overlay.setPlayPauseAction { [weak self] in
+                self?.togglePlayPause()
+            }
+            overlay.setSkipBackAction { [weak self] in
+                self?.skip(seconds: -10)
+            }
+            overlay.setSkipForwardAction { [weak self] in
+                self?.skip(seconds: 10)
+            }
+            overlay.primeForPresentation()
         }
 
         // Clear flag after transition is complete
@@ -2963,12 +3127,14 @@ class MPVPiPWindowManager {
             self?.stateBinding?.wrappedValue = true
         }
 
-        // Use orderFront instead of makeKeyAndOrderFront to avoid stealing focus
         window.orderFront(nil)
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.18
+            context.allowsImplicitAnimation = true
+            window.animator().alphaValue = 1.0
+        }
 
-        // Force redraw after transition (IINA pattern)
         DispatchQueue.main.async {
-            // Force both view and layer to redraw
             mpvView.layer?.setNeedsDisplay()
             mpvView.layer?.displayIfNeeded()
             mpvView.needsDisplay = true
@@ -3002,18 +3168,19 @@ class MPVPiPWindowManager {
             return
         }
 
+        if let window = pipWindow {
+            persistFrame(window.frame)
+            window.alphaValue = 0.0
+        }
 
-        // Set flag to prevent display link from stopping during transition
         mpvView.isPiPTransitioning = true
 
-        // Remove from PiP window (display link won't stop due to flag)
         mpvView.removeFromSuperview()
 
         // Restore to original parent
         if let originalParent = originalParentView {
             originalParent.addSubview(mpvView)
 
-            // Restore constraints or set frame
             if !originalConstraints.isEmpty {
                 NSLayoutConstraint.activate(originalConstraints)
                 mpvView.translatesAutoresizingMaskIntoConstraints = false
@@ -3023,29 +3190,20 @@ class MPVPiPWindowManager {
                 mpvView.frame = originalParent.bounds
             }
 
-            // Force layout to apply constraints/frame immediately
             originalParent.layoutSubtreeIfNeeded()
 
-
-            // CRITICAL: Force layer to update for restored bounds
             if let layer = mpvView.layer as? MPVMetalLayer,
                let mainWindow = originalParent.window {
                 layer.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
                 layer.contentsScale = mainWindow.backingScaleFactor
 
-                // Force layer to update its internal state
                 let restoredBounds = CGRect(origin: .zero, size: mpvView.bounds.size)
                 layer.forceUpdateForNewBounds(restoredBounds)
-
             }
 
-
-            // Clear flag after transition is complete
             mpvView.isPiPTransitioning = false
 
-            // Force redraw after restoration (IINA pattern)
             DispatchQueue.main.async {
-                // Force both view and layer to redraw
                 mpvView.layer?.setNeedsDisplay()
                 mpvView.layer?.displayIfNeeded()
                 mpvView.needsDisplay = true
@@ -3056,53 +3214,60 @@ class MPVPiPWindowManager {
             }
         }
 
-        // Update SwiftUI state immediately
         stateBinding?.wrappedValue = false
 
-        // Notify that PiP closed
         NotificationCenter.default.post(name: .mpvPiPDidClose, object: nil)
 
-
-        // Update state immediately (before cleanup to prevent re-entry)
         self.isPiPActive = false
         self.isClosing = false
         self.isCleaningUp = false
 
-        // Cleanup - safe deallocation sequence
-        // Clear references immediately to prevent re-entry
         self.originalParentView = nil
         self.originalConstraints = []
         self.stateBinding = nil
-        // DON'T clear mpvView - it's now back in the main window and in use!
 
-        // Close window with proper cleanup sequence
         if let window = self.pipWindow {
-            // Remove all subviews FIRST to break retain cycles
-            // (mpvView is already back in main window at this point)
             window.contentView?.subviews.forEach { $0.removeFromSuperview() }
-
-            // Detach delegate to prevent any further callbacks
             window.delegate = nil
-
-            // Just hide the window, don't deallocate it to avoid crash
             window.orderOut(nil)
-
-            // Keep window alive but hidden - will be reused on next PiP
-            // This avoids the deallocation crash
         }
 
-        // Clear delegate reference (window keeps the window alive)
         self.windowDelegate = nil
-        // DON'T clear pipWindow - keep it for reuse
 
     }
 
-    func togglePiP(mpvViewController: MPVVideoViewWrapper.MPVPiPViewController, stateBinding: Binding<Bool>) {
+    func togglePiP(
+        mpvViewController: MPVVideoViewWrapper.MPVPiPViewController,
+        stateBinding: Binding<Bool>,
+        title: String,
+        subtitle: String?,
+        aspectRatio: CGSize?,
+        isPlaying: Bool
+    ) {
         if isPiPActive {
             exitPiP()
         } else {
-            enterPiP(mpvViewController: mpvViewController, stateBinding: stateBinding)
+            enterPiP(
+                mpvViewController: mpvViewController,
+                stateBinding: stateBinding,
+                title: title,
+                subtitle: subtitle,
+                aspectRatio: aspectRatio,
+                isPlaying: isPlaying
+            )
         }
+    }
+
+    func updatePlaybackState(isPlaying: Bool) {
+        controlOverlay?.updatePlayPauseState(isPlaying: isPlaying)
+    }
+
+    private func skip(seconds: Double) {
+        guard let mpvController = mpvView?.mpvController else {
+            return
+        }
+
+        mpvController.seekRelative(seconds: seconds)
     }
 
     private func togglePlayPause() {
@@ -3151,11 +3316,26 @@ class MPVPiPWindowManager {
     private class PiPControlOverlay: NSView {
         private let closeButton = NSButton()
         private let returnButton = NSButton()
+        private let skipBackButton = NSButton()
         private let playPauseButton = NSButton()
+        private let skipForwardButton = NSButton()
         private let controlsContainer = NSView()
+        private let topBar = NSVisualEffectView()
+        private let bottomBar = NSVisualEffectView()
+        private let titleLabel = NSTextField(labelWithString: "")
+        private let subtitleLabel = NSTextField(labelWithString: "")
         private var trackingArea: NSTrackingArea?
-        private var isHovered = false
         private var isPlaying = true
+        private var hideTimer: Timer?
+        private var closeAction: (() -> Void)?
+        private var returnAction: (() -> Void)?
+        private var playPauseAction: (() -> Void)?
+        private var skipBackAction: (() -> Void)?
+        private var skipForwardAction: (() -> Void)?
+
+        override var mouseDownCanMoveWindow: Bool {
+            true
+        }
 
         override init(frame frameRect: NSRect) {
             super.init(frame: frameRect)
@@ -3168,81 +3348,82 @@ class MPVPiPWindowManager {
 
         private func setupUI() {
             wantsLayer = true
-
-            // Controls container with semi-transparent background
             controlsContainer.wantsLayer = true
-            controlsContainer.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.3).cgColor
+            controlsContainer.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.08).cgColor
             controlsContainer.alphaValue = 0.0
             controlsContainer.translatesAutoresizingMaskIntoConstraints = false
             addSubview(controlsContainer)
 
-            // Play/Pause button (center) - larger, more prominent
-            playPauseButton.image = NSImage(systemSymbolName: "pause.fill", accessibilityDescription: "Pause")
-            playPauseButton.isBordered = false
-            playPauseButton.bezelStyle = .shadowlessSquare
-            playPauseButton.imagePosition = .imageOnly
-            playPauseButton.contentTintColor = .white
-            playPauseButton.imageScaling = .scaleProportionallyUpOrDown
-            playPauseButton.translatesAutoresizingMaskIntoConstraints = false
+            configureBar(topBar)
+            configureBar(bottomBar)
+            controlsContainer.addSubview(topBar)
+            controlsContainer.addSubview(bottomBar)
 
-            // Add visual effect to play/pause button
-            if let cell = playPauseButton.cell as? NSButtonCell {
-                cell.imageScaling = .scaleProportionallyDown
-            }
+            configureSmallButton(returnButton, symbolName: "arrow.down.forward.and.arrow.up.backward", description: "Return to player")
+            configureSmallButton(closeButton, symbolName: "xmark", description: "Close player")
+            configureTransportButton(skipBackButton, symbolName: "gobackward.10", description: "Skip back 10 seconds", diameter: 34)
+            configureTransportButton(playPauseButton, symbolName: "pause.fill", description: "Pause", diameter: 52)
+            configureTransportButton(skipForwardButton, symbolName: "goforward.10", description: "Skip forward 10 seconds", diameter: 34)
 
-            controlsContainer.addSubview(playPauseButton)
+            titleLabel.font = .systemFont(ofSize: 13, weight: .semibold)
+            titleLabel.textColor = .white
+            titleLabel.lineBreakMode = .byTruncatingTail
+            titleLabel.maximumNumberOfLines = 1
 
-            // Close button (top-right corner) - smaller, circular
-            closeButton.image = NSImage(systemSymbolName: "xmark", accessibilityDescription: "Close")
-            closeButton.isBordered = false
-            closeButton.bezelStyle = .shadowlessSquare
-            closeButton.imagePosition = .imageOnly
-            closeButton.contentTintColor = .white
-            closeButton.wantsLayer = true
-            closeButton.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.5).cgColor
-            closeButton.layer?.cornerRadius = 14
-            closeButton.translatesAutoresizingMaskIntoConstraints = false
-            addSubview(closeButton)
+            subtitleLabel.font = .systemFont(ofSize: 11, weight: .regular)
+            subtitleLabel.textColor = NSColor.white.withAlphaComponent(0.72)
+            subtitleLabel.lineBreakMode = .byTruncatingTail
+            subtitleLabel.maximumNumberOfLines = 1
 
-            // Return to main window button (top-left corner) - smaller, circular
-            returnButton.image = NSImage(systemSymbolName: "arrow.down.forward.and.arrow.up.backward", accessibilityDescription: "Return to main window")
-            returnButton.isBordered = false
-            returnButton.bezelStyle = .shadowlessSquare
-            returnButton.imagePosition = .imageOnly
-            returnButton.contentTintColor = .white
-            returnButton.wantsLayer = true
-            returnButton.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.5).cgColor
-            returnButton.layer?.cornerRadius = 14
-            returnButton.translatesAutoresizingMaskIntoConstraints = false
-            addSubview(returnButton)
+            let titleStack = NSStackView(views: [titleLabel, subtitleLabel])
+            titleStack.orientation = .vertical
+            titleStack.alignment = .leading
+            titleStack.spacing = 1
+            titleStack.translatesAutoresizingMaskIntoConstraints = false
+
+            let topStack = NSStackView(views: [returnButton, titleStack, closeButton])
+            topStack.orientation = .horizontal
+            topStack.alignment = .centerY
+            topStack.spacing = 10
+            topStack.translatesAutoresizingMaskIntoConstraints = false
+            topBar.addSubview(topStack)
+
+            let transportStack = NSStackView(views: [skipBackButton, playPauseButton, skipForwardButton])
+            transportStack.orientation = .horizontal
+            transportStack.alignment = .centerY
+            transportStack.spacing = 14
+            transportStack.translatesAutoresizingMaskIntoConstraints = false
+            bottomBar.addSubview(transportStack)
 
             NSLayoutConstraint.activate([
-                // Controls container - fills entire view
                 controlsContainer.topAnchor.constraint(equalTo: topAnchor),
                 controlsContainer.bottomAnchor.constraint(equalTo: bottomAnchor),
                 controlsContainer.leadingAnchor.constraint(equalTo: leadingAnchor),
                 controlsContainer.trailingAnchor.constraint(equalTo: trailingAnchor),
 
-                // Play/Pause button - centered and large
-                playPauseButton.centerXAnchor.constraint(equalTo: controlsContainer.centerXAnchor),
-                playPauseButton.centerYAnchor.constraint(equalTo: controlsContainer.centerYAnchor),
-                playPauseButton.widthAnchor.constraint(equalToConstant: 60),
-                playPauseButton.heightAnchor.constraint(equalToConstant: 60),
+                topBar.topAnchor.constraint(equalTo: controlsContainer.topAnchor, constant: 10),
+                topBar.leadingAnchor.constraint(equalTo: controlsContainer.leadingAnchor, constant: 10),
+                topBar.trailingAnchor.constraint(equalTo: controlsContainer.trailingAnchor, constant: -10),
+                topBar.heightAnchor.constraint(equalToConstant: 44),
 
-                // Close button - top right corner
-                closeButton.topAnchor.constraint(equalTo: topAnchor, constant: 8),
-                closeButton.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
-                closeButton.widthAnchor.constraint(equalToConstant: 28),
-                closeButton.heightAnchor.constraint(equalToConstant: 28),
+                bottomBar.centerXAnchor.constraint(equalTo: controlsContainer.centerXAnchor),
+                bottomBar.bottomAnchor.constraint(equalTo: controlsContainer.bottomAnchor, constant: -14),
+                bottomBar.heightAnchor.constraint(equalToConstant: 58),
 
-                // Return button - top left corner
-                returnButton.topAnchor.constraint(equalTo: topAnchor, constant: 8),
-                returnButton.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
-                returnButton.widthAnchor.constraint(equalToConstant: 28),
-                returnButton.heightAnchor.constraint(equalToConstant: 28)
+                topStack.topAnchor.constraint(equalTo: topBar.topAnchor, constant: 8),
+                topStack.bottomAnchor.constraint(equalTo: topBar.bottomAnchor, constant: -8),
+                topStack.leadingAnchor.constraint(equalTo: topBar.leadingAnchor, constant: 10),
+                topStack.trailingAnchor.constraint(equalTo: topBar.trailingAnchor, constant: -10),
+                titleStack.widthAnchor.constraint(greaterThanOrEqualToConstant: 80),
+
+                transportStack.topAnchor.constraint(equalTo: bottomBar.topAnchor, constant: 10),
+                transportStack.bottomAnchor.constraint(equalTo: bottomBar.bottomAnchor, constant: -10),
+                transportStack.leadingAnchor.constraint(equalTo: bottomBar.leadingAnchor, constant: 14),
+                transportStack.trailingAnchor.constraint(equalTo: bottomBar.trailingAnchor, constant: -14)
             ])
 
             updateTrackingAreas()
+            hideControls(immediately: true)
         }
 
         override func updateTrackingAreas() {
@@ -3253,8 +3434,8 @@ class MPVPiPWindowManager {
             }
 
             trackingArea = NSTrackingArea(
-                rect: bounds,
-                options: [.mouseEnteredAndExited, .activeAlways],
+                rect: .zero,
+                options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect],
                 owner: self,
                 userInfo: nil
             )
@@ -3266,34 +3447,87 @@ class MPVPiPWindowManager {
 
         override func mouseEntered(with event: NSEvent) {
             super.mouseEntered(with: event)
-            isHovered = true
-            showControls()
+            showControls(resetAutoHide: true)
+        }
+
+        override func mouseMoved(with event: NSEvent) {
+            super.mouseMoved(with: event)
+            showControls(resetAutoHide: true)
         }
 
         override func mouseExited(with event: NSEvent) {
             super.mouseExited(with: event)
-            isHovered = false
-            hideControls()
+            scheduleHide(after: 0.45)
         }
 
-        private func showControls() {
+        private func configureBar(_ view: NSVisualEffectView) {
+            view.material = .hudWindow
+            view.blendingMode = .withinWindow
+            view.state = .active
+            view.wantsLayer = true
+            view.layer?.cornerRadius = 14
+            view.layer?.masksToBounds = true
+            view.translatesAutoresizingMaskIntoConstraints = false
+        }
+
+        private func configureSmallButton(_ button: NSButton, symbolName: String, description: String) {
+            configureTransportButton(button, symbolName: symbolName, description: description, diameter: 28)
+            button.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.18).cgColor
+        }
+
+        private func configureTransportButton(_ button: NSButton, symbolName: String, description: String, diameter: CGFloat) {
+            button.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: description)
+            button.isBordered = false
+            button.bezelStyle = .shadowlessSquare
+            button.imagePosition = .imageOnly
+            button.contentTintColor = .white
+            button.imageScaling = .scaleProportionallyDown
+            button.translatesAutoresizingMaskIntoConstraints = false
+            button.wantsLayer = true
+            button.layer?.cornerRadius = diameter / 2
+            button.layer?.backgroundColor = NSColor.white.withAlphaComponent(symbolName == "pause.fill" ? 0.18 : 0.10).cgColor
+            button.layer?.borderColor = NSColor.white.withAlphaComponent(0.16).cgColor
+            button.layer?.borderWidth = 1
+            button.widthAnchor.constraint(equalToConstant: diameter).isActive = true
+            button.heightAnchor.constraint(equalToConstant: diameter).isActive = true
+        }
+
+        private func showControls(resetAutoHide: Bool) {
+            hideTimer?.invalidate()
             NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0.25
+                context.duration = 0.18
                 context.allowsImplicitAnimation = true
                 controlsContainer.animator().alphaValue = 1.0
-                closeButton.animator().alphaValue = 1.0
-                returnButton.animator().alphaValue = 1.0
+            }
+            if resetAutoHide {
+                scheduleHide(after: 2.2)
             }
         }
 
-        private func hideControls() {
+        private func hideControls(immediately: Bool = false) {
+            hideTimer?.invalidate()
             NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0.25
+                context.duration = immediately ? 0.0 : 0.2
                 context.allowsImplicitAnimation = true
                 controlsContainer.animator().alphaValue = 0.0
-                closeButton.animator().alphaValue = 0.0
-                returnButton.animator().alphaValue = 0.0
             }
+        }
+
+        private func scheduleHide(after delay: TimeInterval) {
+            hideTimer?.invalidate()
+            hideTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
+                self?.hideControls()
+            }
+        }
+
+        func primeForPresentation() {
+            showControls(resetAutoHide: true)
+        }
+
+        func setTitle(_ title: String, subtitle: String?) {
+            titleLabel.stringValue = title
+            subtitleLabel.stringValue = subtitle ?? ""
+            subtitleLabel.isHidden = subtitle == nil || subtitle?.isEmpty == true
         }
 
         func setCloseAction(_ action: @escaping () -> Void) {
@@ -3314,26 +3548,52 @@ class MPVPiPWindowManager {
             self.playPauseAction = action
         }
 
+        func setSkipBackAction(_ action: @escaping () -> Void) {
+            skipBackButton.target = self
+            skipBackButton.action = #selector(handleSkipBack)
+            self.skipBackAction = action
+        }
+
+        func setSkipForwardAction(_ action: @escaping () -> Void) {
+            skipForwardButton.target = self
+            skipForwardButton.action = #selector(handleSkipForward)
+            self.skipForwardAction = action
+        }
+
         func updatePlayPauseState(isPlaying: Bool) {
             self.isPlaying = isPlaying
             let imageName = isPlaying ? "pause.fill" : "play.fill"
             playPauseButton.image = NSImage(systemSymbolName: imageName, accessibilityDescription: isPlaying ? "Pause" : "Play")
+            playPauseButton.layer?.backgroundColor = NSColor.white.withAlphaComponent(isPlaying ? 0.18 : 0.24).cgColor
         }
 
-        private var closeAction: (() -> Void)?
-        private var returnAction: (() -> Void)?
-        private var playPauseAction: (() -> Void)?
-
         @objc private func handleClose() {
+            showControls(resetAutoHide: false)
             closeAction?()
         }
 
         @objc private func handleReturn() {
+            showControls(resetAutoHide: false)
             returnAction?()
         }
 
         @objc private func handlePlayPause() {
+            showControls(resetAutoHide: true)
             playPauseAction?()
+        }
+
+        @objc private func handleSkipBack() {
+            showControls(resetAutoHide: true)
+            skipBackAction?()
+        }
+
+        @objc private func handleSkipForward() {
+            showControls(resetAutoHide: true)
+            skipForwardAction?()
+        }
+
+        deinit {
+            hideTimer?.invalidate()
         }
     }
 
@@ -3355,7 +3615,16 @@ class MPVPiPWindowManager {
             MPVPiPWindowManager.shared.restoreVideoView()
         }
 
-        deinit {
+        func windowDidMove(_ notification: Notification) {
+            if let window = notification.object as? NSWindow {
+                MPVPiPWindowManager.shared.persistFrame(window.frame)
+            }
+        }
+
+        func windowDidEndLiveResize(_ notification: Notification) {
+            if let window = notification.object as? NSWindow {
+                MPVPiPWindowManager.shared.persistFrame(window.frame)
+            }
         }
     }
 }

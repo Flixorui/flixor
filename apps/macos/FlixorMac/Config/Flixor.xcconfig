@@ -1,0 +1,11 @@
+// Base build settings for the FlixorMac target (Debug and Release).
+//
+// API keys are read from Secrets.xcconfig, which is gitignored. Create it by
+// copying Secrets.example.xcconfig. Without it the app builds, but TMDB and
+// Trakt stay unconfigured until a key is entered in Settings.
+
+FLIXOR_TMDB_API_KEY =
+FLIXOR_TRAKT_CLIENT_ID =
+FLIXOR_TRAKT_CLIENT_SECRET =
+
+#include? "Secrets.xcconfig"

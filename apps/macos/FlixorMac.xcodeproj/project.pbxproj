@@ -153,6 +153,8 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		F1A0C0DE0000000000000001 /* Flixor.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config/Flixor.xcconfig; sourceTree = "<group>"; };
+		F1A0C0DE0000000000000002 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		234624854A3AE7BEDC53EB9A /* MpvConfigModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MpvConfigModels.swift; path = MpvConfigModels.swift; sourceTree = "<group>"; };
 		24D1F05E6981A2EDAFAC5859 /* PinEntryView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PinEntryView.swift; sourceTree = "<group>"; };
 		28F2733407E54826B6E93AC2 /* subtitles.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = subtitles.png; sourceTree = "<group>"; };
@@ -355,6 +357,8 @@
 				D008 /* Extensions */,
 				D100 /* Resources */,
 				B031 /* Assets.xcassets */,
+				F1A0C0DE0000000000000001 /* Flixor.xcconfig */,
+				F1A0C0DE0000000000000002 /* Info.plist */,
 			);
 			path = FlixorMac;
 			sourceTree = "<group>";
@@ -1036,6 +1040,7 @@
 		};
 		H003 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = F1A0C0DE0000000000000001 /* Flixor.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=macosx*]" = AppIcon;
@@ -1058,6 +1063,7 @@
 				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/deps/include";
+				INFOPLIST_FILE = FlixorMac/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Flixor;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
@@ -1083,6 +1089,7 @@
 		};
 		H004 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = F1A0C0DE0000000000000001 /* Flixor.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=macosx*]" = AppIcon;
@@ -1105,6 +1112,7 @@
 				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/deps/include";
+				INFOPLIST_FILE = FlixorMac/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Flixor;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
