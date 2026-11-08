@@ -22,7 +22,6 @@ actor TraktCommentsService {
     }
 
     private var pages: [String: CachedPage] = [:]
-    private var traktIds: [String: String] = [:]
     private let ttl: TimeInterval = 10 * 60
 
     /// One page of comments for an item. Episodes need season/episode numbers on
@@ -91,16 +90,7 @@ actor TraktCommentsService {
     /// the Trakt id looked up from TMDB.
     private func traktId(tmdbId: Int?, imdbId: String?, isShow: Bool) async -> String? {
         if let imdbId, imdbId.lowercased().hasPrefix("tt") { return imdbId }
-        guard let tmdbId else { return nil }
-        let key = "\(isShow ? "show" : "movie"):\(tmdbId)"
-        if let cached = traktIds[key] { return cached }
-        guard let result = try? await FlixorCore.shared.trakt.lookupByTmdb(tmdbId: tmdbId, type: isShow ? "show" : "movie") else {
-            return nil
-        }
-        let ids = isShow ? result.show?.ids : result.movie?.ids
-        guard let id = ids?.trakt.map(String.init) ?? ids?.slug else { return nil }
-        traktIds[key] = id
-        return id
+        return await MediaIdentityResolver.shared.traktId(tmdbId: tmdbId, imdbId: nil, isShow: isShow).map(String.init)
     }
 
     enum CommentsError: LocalizedError {
