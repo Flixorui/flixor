@@ -7,6 +7,13 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		9C45010E84140C64CFE93781 /* ContinueWatchingStylePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 668CEE21484E9F375ED6A876 /* ContinueWatchingStylePicker.swift */; };
+		F4836D14B767D9007A4879C4 /* ContinueWatchingWideRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3BA1FC16201B361D3FC73BF /* ContinueWatchingWideRow.swift */; };
+		DDBCE42163A37CCF6A4337CA /* ContinueWatchingMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = A24B779566C7890ABF2AD856 /* ContinueWatchingMenu.swift */; };
+		1CA7F94316975F72A58E768B /* HomeViewModel+ContinueWatching.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F1D67878EEF5A0CD3353CE8 /* HomeViewModel+ContinueWatching.swift */; };
+		26F178333132CADE80C12411 /* HomeRowsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2CB6AC1EB662418C5DAB02A /* HomeRowsStore.swift */; };
+		A5935F74E6C334598D3E9765 /* HomeRowModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0E348AF6A9E3B676A24CB4A /* HomeRowModels.swift */; };
+		D72DDEC72657184B3D347732 /* UserDefaults+HomeRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EC7C5676BCA2EAE14CC37CC /* UserDefaults+HomeRows.swift */; };
 		D5BAAA59ADC857DD0C5AC75D /* HomeViewModel+Rows.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4A006E53D1E23712571D67F /* HomeViewModel+Rows.swift */; };
 		087978CF5EFDA1801B759BD7 /* HomeHeroMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9410392525257D5E20B5FFD4 /* HomeHeroMetrics.swift */; };
 		CEB6EDAF0B3C883ED194C9F9 /* RowTitleCaption.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3A53FEE7A5D39FF177BA007 /* RowTitleCaption.swift */; };
@@ -206,6 +213,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		668CEE21484E9F375ED6A876 /* ContinueWatchingStylePicker.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ContinueWatchingStylePicker.swift; sourceTree = "<group>"; };
+		A3BA1FC16201B361D3FC73BF /* ContinueWatchingWideRow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ContinueWatchingWideRow.swift; sourceTree = "<group>"; };
+		A24B779566C7890ABF2AD856 /* ContinueWatchingMenu.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ContinueWatchingMenu.swift; sourceTree = "<group>"; };
+		2F1D67878EEF5A0CD3353CE8 /* HomeViewModel+ContinueWatching.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "HomeViewModel+ContinueWatching.swift"; sourceTree = "<group>"; };
+		C2CB6AC1EB662418C5DAB02A /* HomeRowsStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HomeRowsStore.swift; sourceTree = "<group>"; };
+		C0E348AF6A9E3B676A24CB4A /* HomeRowModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HomeRowModels.swift; sourceTree = "<group>"; };
+		9EC7C5676BCA2EAE14CC37CC /* UserDefaults+HomeRows.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "UserDefaults+HomeRows.swift"; sourceTree = "<group>"; };
 		C4A006E53D1E23712571D67F /* HomeViewModel+Rows.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "HomeViewModel+Rows.swift"; sourceTree = "<group>"; };
 		9410392525257D5E20B5FFD4 /* HomeHeroMetrics.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HomeHeroMetrics.swift; sourceTree = "<group>"; };
 		E3A53FEE7A5D39FF177BA007 /* RowTitleCaption.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RowTitleCaption.swift; sourceTree = "<group>"; };
@@ -481,6 +495,7 @@
 		D004 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				C0E348AF6A9E3B676A24CB4A /* HomeRowModels.swift */,
 				6E758D953ADDD07BBBA497F1 /* WatchStateTarget.swift */,
 				B36B30D33BFFE4EBEA5F1182 /* LocalWatchedEntry.swift */,
 				59C341EA229A5DB807400C80 /* BrowseRoutes.swift */,
@@ -526,6 +541,7 @@
 		D006 /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
+				2F1D67878EEF5A0CD3353CE8 /* HomeViewModel+ContinueWatching.swift */,
 				C4A006E53D1E23712571D67F /* HomeViewModel+Rows.swift */,
 				3F35EE05EDE594BEB06742FB /* PlayerViewModel+Types.swift */,
 				558CFF48660AB401150521B5 /* PlayerViewModel+Tracks.swift */,
@@ -561,6 +577,7 @@
 		D007 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				C2CB6AC1EB662418C5DAB02A /* HomeRowsStore.swift */,
 				46D031E0858D60EF3A8C739E /* WatchStateService.swift */,
 				EC85992E13EE4C4C1C8C2704 /* TraktListsService.swift */,
 				863179F8A6086C93AB02C84E /* TraktCommentsService.swift */,
@@ -586,6 +603,7 @@
 		D008 /* Extensions */ = {
 			isa = PBXGroup;
 			children = (
+				9EC7C5676BCA2EAE14CC37CC /* UserDefaults+HomeRows.swift */,
 				497B08D5668C4AE5E283945A /* UserDefaults+WatchState.swift */,
 				4F750BC1AEFFF3F132E53194 /* WindowMetrics.swift */,
 				2DC553DC45B4C35E1EA8888A /* UserDefaults+Appearance.swift */,
@@ -609,6 +627,8 @@
 		D011 /* Components */ = {
 			isa = PBXGroup;
 			children = (
+				A3BA1FC16201B361D3FC73BF /* ContinueWatchingWideRow.swift */,
+				A24B779566C7890ABF2AD856 /* ContinueWatchingMenu.swift */,
 				E3A53FEE7A5D39FF177BA007 /* RowTitleCaption.swift */,
 				181E9385AF5D1E72E5C941FB /* HeroPageIndicator.swift */,
 				D300 /* Icons */,
@@ -668,6 +688,7 @@
 		D015 /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				668CEE21484E9F375ED6A876 /* ContinueWatchingStylePicker.swift */,
 				9F4FB3B84467ABEBB9DC1956 /* AppearanceSettingsView.swift */,
 				B015 /* SettingsView.swift */,
 				B163 /* PlexServersView.swift */,
@@ -951,6 +972,13 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9C45010E84140C64CFE93781 /* ContinueWatchingStylePicker.swift in Sources */,
+				F4836D14B767D9007A4879C4 /* ContinueWatchingWideRow.swift in Sources */,
+				DDBCE42163A37CCF6A4337CA /* ContinueWatchingMenu.swift in Sources */,
+				1CA7F94316975F72A58E768B /* HomeViewModel+ContinueWatching.swift in Sources */,
+				26F178333132CADE80C12411 /* HomeRowsStore.swift in Sources */,
+				A5935F74E6C334598D3E9765 /* HomeRowModels.swift in Sources */,
+				D72DDEC72657184B3D347732 /* UserDefaults+HomeRows.swift in Sources */,
 				D5BAAA59ADC857DD0C5AC75D /* HomeViewModel+Rows.swift in Sources */,
 				087978CF5EFDA1801B759BD7 /* HomeHeroMetrics.swift in Sources */,
 				CEB6EDAF0B3C883ED194C9F9 /* RowTitleCaption.swift in Sources */,

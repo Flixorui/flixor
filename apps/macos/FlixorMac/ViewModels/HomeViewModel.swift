@@ -66,6 +66,8 @@ class HomeViewModel: ObservableObject {
     @Published var billboardItems: [MediaItem] = []
     @Published var continueWatchingItems: [MediaItem] = []
     @Published var continueWatchingVersions: Set<String> = []  // ratingKeys with multiple versions across libraries
+    /// Continue Watching item ids with a watch-state action in flight.
+    @Published var continueWatchingBusyIds: Set<String> = []
     @Published var onDeckItems: [MediaItem] = []
     @Published var recentlyAddedItems: [MediaItem] = [] // Global recently added (legacy, kept for billboard fallback)
     @Published var recentlyAddedSections: [LibrarySection] = [] // Per-library recently added rows
@@ -1908,6 +1910,31 @@ class HomeViewModel: ObservableObject {
 
     func showItemDetails(_ item: MediaItem) {
         pendingAction = .details(item)
+    }
+
+    /// Plays a Continue Watching item. Plex rows carry bare ratingKeys, which
+    /// `playItem` would send to details, so they get the "plex:" prefix first.
+    func playFromContinueWatching(_ item: MediaItem) {
+        if isStremioOnly {
+            playItem(item)
+        } else {
+            playItem(normalizeForHero([item]).first ?? item)
+        }
+    }
+
+    /// Re-fetches Continue Watching (after a watch-state change).
+    func refreshContinueWatching() async {
+        if isStremioOnly {
+            await loadLocalContinueWatching()
+            return
+        }
+        do {
+            let data = try await fetchContinueWatching(bypassCache: true)
+            continueWatchingItems = data
+            continueWatchingState = data.isEmpty ? .empty : .loaded
+        } catch {
+            print("⚠️ [Home] Continue Watching refresh failed: \(error)")
+        }
     }
 
     func toggleMyList(_ item: MediaItem) {

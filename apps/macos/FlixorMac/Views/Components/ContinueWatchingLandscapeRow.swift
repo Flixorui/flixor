@@ -9,9 +9,13 @@ import SwiftUI
 import FlixorKit
 
 struct ContinueWatchingLandscapeRow: View {
+    var title: String = "Continue Watching"
     let items: [MediaItem]
     var itemsWithMultipleVersions: Set<String>? = nil
+    /// Item ids with a watch-state action running (menus disabled).
+    var busyItemIds: Set<String> = []
     var onTap: ((MediaItem) -> Void)?
+    var onAction: ContinueWatchingActionHandler?
 
     private let cardWidth: CGFloat = 380
     private var cardHeight: CGFloat { cardWidth * 0.5625 } // 16:9 aspect ratio
@@ -20,7 +24,7 @@ struct ContinueWatchingLandscapeRow: View {
         VStack(alignment: .leading, spacing: 12) {
             // Header
             HStack {
-                Text("Continue Watching")
+                Text(title)
                     .font(.title2)
                     .fontWeight(.bold)
 
@@ -37,8 +41,11 @@ struct ContinueWatchingLandscapeRow: View {
                             item: item,
                             width: cardWidth,
                             showVersion: showVersion,
-                            onTap: { onTap?(item) }
+                            isBusy: busyItemIds.contains(item.id),
+                            onTap: { onTap?(item) },
+                            onAction: onAction
                         )
+                        .transition(.opacity.combined(with: .scale(scale: 0.95)))
                     }
                 }
                 .padding(.horizontal, 20)
@@ -53,7 +60,9 @@ struct ContinueWatchingLandscapeCard: View {
     let item: MediaItem
     let width: CGFloat
     var showVersion: Bool = false
+    var isBusy: Bool = false
     var onTap: (() -> Void)?
+    var onAction: ContinueWatchingActionHandler?
 
     @State private var backdropURL: URL?
 
@@ -185,15 +194,9 @@ struct ContinueWatchingLandscapeCard: View {
 
                         Spacer()
 
-                        // Menu button (three dots)
-                        Button(action: {
-                            // TODO: Show context menu
-                        }) {
-                            Image(systemName: "ellipsis")
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundStyle(.white.opacity(0.8))
-                        }
-                        .buttonStyle(.plain)
+                        // Room for the "…" menu, which sits over the card
+                        // (outside this Button) so it gets its own clicks.
+                        Color.clear.frame(width: 16, height: 1)
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 10)
@@ -224,6 +227,15 @@ struct ContinueWatchingLandscapeCard: View {
             .shadow(color: .black.opacity(0.4), radius: 8, y: 4)
         }
         .buttonStyle(.plain)
+        .opacity(isBusy ? DS.Opacity.muted : 1)
+        .overlay(alignment: .bottomTrailing) {
+            if let onAction {
+                ContinueWatchingMoreButton(item: item, isBusy: isBusy, onAction: onAction)
+                    .padding(.trailing, DS.Space.s6)
+                    .padding(.bottom, DS.Space.s4)
+            }
+        }
+        .continueWatchingContextMenu(item: item, isBusy: isBusy, onAction: onAction)
         .task(id: item.id) {
             await loadBackdrop()
         }

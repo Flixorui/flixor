@@ -9,9 +9,13 @@ import SwiftUI
 import FlixorKit
 
 struct ContinueWatchingPosterRow: View {
+    var title: String = "Continue Watching"
     let items: [MediaItem]
     var itemsWithMultipleVersions: Set<String>? = nil
+    /// Item ids with a watch-state action running (menus disabled).
+    var busyItemIds: Set<String> = []
     var onTap: ((MediaItem) -> Void)?
+    var onAction: ContinueWatchingActionHandler?
 
     private let cardWidth: CGFloat = 160
 
@@ -19,7 +23,7 @@ struct ContinueWatchingPosterRow: View {
         VStack(alignment: .leading, spacing: 12) {
             // Header
             HStack {
-                Text("Continue Watching")
+                Text(title)
                     .font(.title2)
                     .fontWeight(.bold)
 
@@ -38,6 +42,13 @@ struct ContinueWatchingPosterRow: View {
                             showVersion: showVersion,
                             onTap: { onTap?(item) }
                         )
+                        .opacity(busyItemIds.contains(item.id) ? DS.Opacity.muted : 1)
+                        .continueWatchingContextMenu(
+                            item: item,
+                            isBusy: busyItemIds.contains(item.id),
+                            onAction: onAction
+                        )
+                        .transition(.opacity.combined(with: .scale(scale: 0.95)))
                     }
                 }
                 .padding(.horizontal, 20)

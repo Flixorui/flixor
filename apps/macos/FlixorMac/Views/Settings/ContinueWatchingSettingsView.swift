@@ -10,7 +10,12 @@ import SwiftUI
 struct ContinueWatchingSettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var profileSettings = ProfileSettings.shared
+    @ObservedObject private var rowsStore = HomeRowsStore.shared
     @State private var showPreview: Bool = false
+
+    private var cardStyle: ContinueWatchingCardStyle {
+        ContinueWatchingCardStyle(storageValue: profileSettings.continueWatchingLayout)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -45,34 +50,49 @@ struct ContinueWatchingSettingsView: View {
                                 .padding(.horizontal, 12)
                                 .padding(.top, 12)
 
-                            HStack(spacing: 12) {
-                                LayoutOptionButton(
-                                    title: "Landscape",
-                                    icon: "rectangle.fill",
-                                    isSelected: profileSettings.continueWatchingLayout == "landscape"
-                                ) {
-                                    profileSettings.continueWatchingLayout = "landscape"
-                                }
-
-                                LayoutOptionButton(
-                                    title: "Poster",
-                                    icon: "rectangle.portrait.fill",
-                                    isSelected: profileSettings.continueWatchingLayout == "poster"
-                                ) {
-                                    profileSettings.continueWatchingLayout = "poster"
-                                }
-                            }
-                            .padding(.horizontal, 12)
-                            .padding(.bottom, 12)
+                            ContinueWatchingStylePicker()
+                                .padding(.horizontal, 12)
+                                .padding(.bottom, 12)
                         }
                     }
 
                     // Collapsible Preview Section
                     CollapsiblePreviewSection(title: "Preview", isExpanded: $showPreview) {
-                        if profileSettings.continueWatchingLayout == "landscape" {
-                            landscapePreview
-                        } else {
-                            posterPreview
+                        switch cardStyle {
+                        case .landscape: landscapePreview
+                        case .poster: posterPreview
+                        case .wide: ContinueWatchingWidePreview(blurUpNext: rowsStore.continueWatchingBlurNextUp)
+                        }
+                    }
+
+                    // Order and spoilers
+                    SettingsSectionHeader(title: "Order & Spoilers")
+                    SettingsGroupCard {
+                        SettingsRow(
+                            icon: "arrow.up.arrow.down",
+                            iconColor: .indigo,
+                            title: "Sort Order",
+                            subtitle: "Order of items in the row"
+                        ) {
+                            Picker("", selection: $rowsStore.continueWatchingSort) {
+                                ForEach(ContinueWatchingSort.allCases) { sort in
+                                    Text(sort.title).tag(sort)
+                                }
+                            }
+                            .labelsHidden()
+                            .frame(width: 170)
+                            .accessibilityLabel(Text("Continue Watching sort order"))
+                        }
+                        SettingsRow(
+                            icon: "eye.slash.fill",
+                            iconColor: .pink,
+                            title: "Blur Next-Up Thumbnails",
+                            subtitle: "Hide stills of episodes you haven't started (Wide cards)",
+                            showDivider: false
+                        ) {
+                            Toggle("", isOn: $rowsStore.continueWatchingBlurNextUp)
+                                .labelsHidden()
+                                .accessibilityLabel(Text("Blur thumbnails of next-up episodes"))
                         }
                     }
 
@@ -116,6 +136,7 @@ struct ContinueWatchingSettingsView: View {
     }
 
     // MARK: - Previews
+    // Landscape / poster previews below; the Wide preview is ContinueWatchingWidePreview.
 
     private var landscapePreview: some View {
         HStack(spacing: 12) {

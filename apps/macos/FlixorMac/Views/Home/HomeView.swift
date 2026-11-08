@@ -17,6 +17,7 @@ struct HomeView: View {
 
     // Profile-scoped Home Screen Settings
     @ObservedObject private var profileSettings = ProfileSettings.shared
+    @ObservedObject private var rowsStore = HomeRowsStore.shared
 
     var body: some View {
         ZStack {
@@ -64,29 +65,8 @@ struct HomeView: View {
                                 if profileSettings.showContinueWatching {
                                     SectionContainer(
                                         state: viewModel.continueWatchingState,
-                                        content: {
-                                            switch profileSettings.continueWatchingLayout {
-                                            case "poster":
-                                                ContinueWatchingPosterRow(
-                                                    items: viewModel.continueWatchingItems,
-                                                    itemsWithMultipleVersions: viewModel.continueWatchingVersions,
-                                                    onTap: { item in viewModel.showItemDetails(item) }
-                                                )
-                                            default: // "landscape"
-                                                ContinueWatchingLandscapeRow(
-                                                    items: viewModel.continueWatchingItems,
-                                                    itemsWithMultipleVersions: viewModel.continueWatchingVersions,
-                                                    onTap: { item in viewModel.showItemDetails(item) }
-                                                )
-                                            }
-                                        },
-                                        skeleton: {
-                                            SkeletonCarouselRow(
-                                                itemWidth: profileSettings.continueWatchingLayout == "poster" ? 160 : 380,
-                                                itemCount: profileSettings.continueWatchingLayout == "poster" ? 6 : 4,
-                                                cardType: profileSettings.continueWatchingLayout == "poster" ? .poster : .landscape
-                                            )
-                                        }
+                                        content: { continueWatchingRow(title: "Continue Watching") },
+                                        skeleton: { continueWatchingSkeleton }
                                     )
                                 }
 
@@ -261,6 +241,10 @@ struct HomeView: View {
                 await viewModel.refreshRecentlyAddedSections()
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .watchStateDidChange)) { _ in
+            // Watched / removed / reset anywhere in the app: refresh the row.
+            Task { await viewModel.refreshContinueWatching() }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .localWatchHistoryDidChange)) { _ in
             // Stream playback just wrote progress; pick it up when returning to Home.
             guard AppModeStore.shared.isStremioOnly else { return }
@@ -272,6 +256,57 @@ struct HomeView: View {
     private var rowCaptions: [String: String] {
         let sections = viewModel.recentlyAddedSections + viewModel.collectionSections + viewModel.extraSections
         return viewModel.duplicateTitleCaptions(for: sections.map { ($0.id, $0.title) })
+    }
+
+    // MARK: - Continue Watching
+
+    @ViewBuilder
+    private func continueWatchingRow(title: String) -> some View {
+        let items = viewModel.continueWatchingItems(sortedBy: rowsStore.continueWatchingSort)
+        let onAction: ContinueWatchingActionHandler = { action, item in
+            viewModel.performContinueWatchingAction(action, item: item)
+        }
+        Group {
+            switch ContinueWatchingCardStyle(storageValue: profileSettings.continueWatchingLayout) {
+            case .poster:
+                ContinueWatchingPosterRow(
+                    title: title,
+                    items: items,
+                    itemsWithMultipleVersions: viewModel.continueWatchingVersions,
+                    busyItemIds: viewModel.continueWatchingBusyIds,
+                    onTap: { item in viewModel.showItemDetails(item) },
+                    onAction: onAction
+                )
+            case .wide:
+                ContinueWatchingWideRow(
+                    title: title,
+                    items: items,
+                    busyItemIds: viewModel.continueWatchingBusyIds,
+                    blurUpNext: rowsStore.continueWatchingBlurNextUp,
+                    onTap: { item in viewModel.showItemDetails(item) },
+                    onAction: onAction
+                )
+            case .landscape:
+                ContinueWatchingLandscapeRow(
+                    title: title,
+                    items: items,
+                    itemsWithMultipleVersions: viewModel.continueWatchingVersions,
+                    busyItemIds: viewModel.continueWatchingBusyIds,
+                    onTap: { item in viewModel.showItemDetails(item) },
+                    onAction: onAction
+                )
+            }
+        }
+        .animation(DS.Motion.standard, value: items.map(\.id))
+    }
+
+    private var continueWatchingSkeleton: some View {
+        let style = ContinueWatchingCardStyle(storageValue: profileSettings.continueWatchingLayout)
+        return SkeletonCarouselRow(
+            itemWidth: style == .poster ? 160 : (style == .wide ? ContinueWatchingWideRow.cardWidth : 380),
+            itemCount: style == .poster ? 6 : (style == .wide ? 3 : 4),
+            cardType: style == .poster ? .poster : .landscape
+        )
     }
 
     private func presentBrowse(_ context: BrowseContext) {
