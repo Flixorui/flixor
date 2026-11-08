@@ -182,7 +182,7 @@ extension TraktListGridItem {
             self.init(entry: entry, show: show, kind: .show, title: show.title)
         case "season":
             guard let show = entry.show, let season = entry.season else { return nil }
-            let name = season.number == 0 ? String(localized: "Specials") : String(localized: "Season \(season.number)")
+            let name = season.number == 0 ? String(localized: "Specials") : String(localized: "Season \(String(season.number))")
             self.init(entry: entry, show: show, kind: .season(season.number), title: "\(show.title): \(name)")
         case "episode":
             guard let show = entry.show, let episode = entry.episode else { return nil }

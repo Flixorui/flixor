@@ -160,7 +160,7 @@ extension DetailsViewModel {
             struct TS: Codable { let season_number: Int? }
             let tv: TV = try await api.get("/api/tmdb/tv/\(tid)")
             let ss = (tv.seasons ?? []).compactMap { $0.season_number }.filter { $0 > 0 }
-            let mapped = ss.map { Season(id: "tmdb:season:\(tid):\($0)", title: String(localized: "Season \($0)"), source: "tmdb", number: $0) }
+            let mapped = ss.map { Season(id: "tmdb:season:\(tid):\($0)", title: String(localized: "Season \(String($0))"), source: "tmdb", number: $0) }
             await MainActor.run {
                 self.seasons = mapped
                 self.selectedSeasonKey = mapped.first?.id

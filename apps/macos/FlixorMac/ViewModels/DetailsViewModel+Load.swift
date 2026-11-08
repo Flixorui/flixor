@@ -402,7 +402,7 @@ extension DetailsViewModel {
         if lower.contains("comedy") { tags.append(String(localized: "Funny")) }
         if lower.contains("drama") { tags.append(String(localized: "Emotional")) }
         if lower.contains("thriller") { tags.append(String(localized: "Suspenseful")) }
-        if lower.contains("sci-fi") || lower.contains(String(localized: "science fiction")) { tags.append("Mind-bending") }
+        if lower.contains("sci-fi") || lower.contains("science fiction") { tags.append(String(localized: "Mind-bending")) }
         // Dedupe and limit
         var seen = Set<String>()
         let out = tags.filter { seen.insert($0).inserted }
