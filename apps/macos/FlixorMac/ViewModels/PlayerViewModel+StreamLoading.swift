@@ -8,11 +8,14 @@
 import Foundation
 
 extension PlayerViewModel {
-    func loadExternalStream(_ streamItem: StreamPlaybackItem) async {
+    /// - Parameter resumeIsExact: The resume position continues a running playback
+    ///   (source recovery or switch) rather than a saved one.
+    func loadExternalStream(_ streamItem: StreamPlaybackItem, resumeIsExact: Bool = false) async {
         isLoading = true
         error = nil
         initialSeekApplied = false
         forcedResumeSeconds = TimeInterval(streamItem.resumePositionMs ?? 0) / 1000.0
+        forcedResumeIsExact = resumeIsExact
         currentURLIsHLS = false
         isTranscoding = false
         resetStreamRecoveryForUserLoad()
@@ -20,6 +23,7 @@ extension PlayerViewModel {
         // keep them across source switches and recovery, reload for a new title.
         let isNewTitle = streamEngineContentKey != streamItem.contentKey
         if isNewTitle {
+            nextEpisodeCountdownDismissed = false
             plexMarkersSnapshot = []
             resetCommunitySkipSegments()
             resetStreamNextEpisode()
@@ -158,7 +162,7 @@ extension PlayerViewModel {
         currentStremioSourceId = stream.id
         selectedExternalSubtitleId = nil
         cleanupExternalSubtitleFiles()
-        await loadExternalStream(replacement)
+        await loadExternalStream(replacement, resumeIsExact: true)
     }
 
     func mergedHeaders(for stream: StremioPlayableStream) -> [HTTPHeaderField] {

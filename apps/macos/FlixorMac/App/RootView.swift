@@ -331,6 +331,8 @@ struct MainView: View {
             // Logo on left
             ToolbarItem(placement: .navigation) {
                 HStack(spacing: 8) {
+                    ToolbarBackButton()
+
                     Image(systemName: "play.rectangle.fill")
                         .font(.title2)
                         .foregroundStyle(Color.accent)
@@ -513,27 +515,60 @@ struct MainView: View {
 
 // MARK: - Navigation Destinations Extension
 extension View {
-    /// Common navigation destinations for all tabs
+    /// Common navigation destinations for all tabs.
+    ///
+    /// All tabs stay alive at opacity 0 and share the window toolbar, so a hidden
+    /// tab's stack would still put its system back button there. Every pushed page
+    /// hides it; `ToolbarBackButton` is the one arrow, for the visible tab.
     func navigationDestinations() -> some View {
         self
             .navigationDestination(for: PlayerDestination.self) { destination in
                 PlayerView(destination: destination)
+                    .navigationBarBackButtonHidden(true)
                     .toolbar(.hidden, for: .windowToolbar)
                     .ignoresSafeArea(.all, edges: .all)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .navigationDestination(for: DetailsNavigationItem.self) { navItem in
                 DetailsView(item: navItem.item)
+                    .navigationBarBackButtonHidden(true)
             }
             .navigationDestination(for: StremioSourcesDestination.self) { destination in
                 StremioSourcesView(destination: destination)
+                    .navigationBarBackButtonHidden(true)
             }
             .navigationDestination(for: PersonRoute.self) { route in
                 PersonDetailView(route: route)
+                    .navigationBarBackButtonHidden(true)
             }
             .navigationDestination(for: EntityBrowseRoute.self) { route in
                 EntityBrowseView(route: route)
+                    .navigationBarBackButtonHidden(true)
             }
+    }
+}
+
+// MARK: - Toolbar Back Button
+
+/// Back arrow for the visible tab; shown only when that tab has a page to pop.
+struct ToolbarBackButton: View {
+    @ObservedObject private var navigation = BackNavigationController.shared
+
+    var body: some View {
+        if navigation.canGoBack {
+            Button {
+                navigation.goBack()
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.8))
+                    .frame(width: 28, height: 28)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Back")
+            .accessibilityLabel("Back")
+        }
     }
 }
 
@@ -551,6 +586,8 @@ struct ToolbarNavButton: View {
                 .foregroundStyle(textColor)
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(item.rawValue)
+        .accessibilityAddTraits(isActive ? .isSelected : [])
         .onHover { hovering in
             isHovered = hovering
         }

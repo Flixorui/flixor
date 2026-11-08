@@ -178,7 +178,7 @@ extension PlayerViewModel {
 
         if remember, let lang = availableAudioTracks.first(where: { $0.id == trackId })?.lang, !lang.isEmpty {
             TrackPreferenceService.shared.saveAudioPreference(for: item.id, languageCode: lang)
-            if let seriesId = item.grandparentRatingKey {
+            if let seriesId = trackPreferenceSeriesId {
                 TrackPreferenceService.shared.saveSeriesAudioPreference(for: seriesId, languageCode: lang)
             }
         }
@@ -196,9 +196,11 @@ extension PlayerViewModel {
         if remember, let lang = availableSubtitleTracks.first(where: { $0.id == trackId })?.lang, !lang.isEmpty {
             saveSubtitleLanguagePreference(lang)
         }
-        subtitlesEnabled = true  // Remember that user wants subtitles
+        if remember {
+            subtitlesEnabled = true  // Remember that user wants subtitles
+        }
         refreshSubtitleCues()
-        print("💬 [Player] Subtitle track set to \(trackId), preference saved: enabled")
+        print("💬 [Player] Subtitle track set to \(trackId) (remember: \(remember))")
     }
 
     /// Disable subtitles (MPV only)
@@ -218,9 +220,22 @@ extension PlayerViewModel {
 
     private func saveSubtitleLanguagePreference(_ languageCode: String) {
         TrackPreferenceService.shared.saveSubtitlePreference(for: item.id, languageCode: languageCode)
-        if let seriesId = item.grandparentRatingKey {
+        if let seriesId = trackPreferenceSeriesId {
             TrackPreferenceService.shared.saveSeriesSubtitlePreference(for: seriesId, languageCode: languageCode)
         }
+    }
+
+    /// Show-level id for remembered tracks: the Plex show, or the addon series
+    /// (stream episodes have no grandparent rating key).
+    var trackPreferenceSeriesId: String? {
+        if let key = item.grandparentRatingKey { return key }
+        return streamPlaybackItem.flatMap { StreamSeriesRef(item: $0)?.baseId }
+    }
+
+    /// True once the user has turned subtitles off. Never having chosen is not
+    /// "off": automatic selection is on by default and must still work then.
+    var subtitlesTurnedOff: Bool {
+        UserDefaults.standard.object(forKey: "playerSubtitlesEnabled") != nil && !subtitlesEnabled
     }
 
     /// Applies the audio/subtitle language the user last picked for this title,
@@ -235,7 +250,7 @@ extension PlayerViewModel {
 
         let audioTracks = availableAudioTracks.compactMap { track in track.lang.map { (index: track.id, languageCode: $0) } }
         if let trackId = service.recommendedAudioTrackIndex(
-            tracks: audioTracks, mediaId: item.id, seriesId: item.grandparentRatingKey, includeGlobal: false
+            tracks: audioTracks, mediaId: item.id, seriesId: trackPreferenceSeriesId, includeGlobal: false
         ) {
             if trackId != currentAudioTrackId { setAudioTrack(trackId, remember: false) }
             applied.audio = true
@@ -243,7 +258,7 @@ extension PlayerViewModel {
 
         let subtitleTracks = availableSubtitleTracks.compactMap { track in track.lang.map { (index: track.id, languageCode: $0) } }
         if let trackId = service.recommendedSubtitleTrackIndex(
-            tracks: subtitleTracks, mediaId: item.id, seriesId: item.grandparentRatingKey, includeGlobal: false
+            tracks: subtitleTracks, mediaId: item.id, seriesId: trackPreferenceSeriesId, includeGlobal: false
         ) {
             if trackId == -1 {
                 mpv.disableSubtitles()
@@ -343,7 +358,17 @@ extension PlayerViewModel {
             }
         }
 
-        guard !skipSubtitles, UserDefaults.standard.enableSubtitleAutoSelect else { return }
+        guard !skipSubtitles else { return }
+
+        // "Subtitles off" wins over automatic selection, same as Plex.
+        if subtitlesTurnedOff {
+            mpvController?.disableSubtitles()
+            currentSubtitleTrackId = nil
+            refreshSubtitleCues()
+            return
+        }
+
+        guard UserDefaults.standard.enableSubtitleAutoSelect else { return }
 
         let internalMatch = preferredInternalSubtitleTrack()
         let externalMatch = preferredExternalSubtitleCandidate()
@@ -354,11 +379,11 @@ extension PlayerViewModel {
             if let internalMatch {
                 setSubtitleTrack(internalMatch.id, remember: false)
             } else if let externalMatch {
-                do { try await attachExternalSubtitle(externalMatch) } catch {}
+                do { try await attachExternalSubtitle(externalMatch, remember: false) } catch {}
             }
         case .external:
             if let externalMatch {
-                do { try await attachExternalSubtitle(externalMatch) } catch {}
+                do { try await attachExternalSubtitle(externalMatch, remember: false) } catch {}
             } else if let internalMatch {
                 setSubtitleTrack(internalMatch.id, remember: false)
             }
@@ -366,7 +391,7 @@ extension PlayerViewModel {
             if let internalMatch {
                 setSubtitleTrack(internalMatch.id, remember: false)
             } else if let externalMatch {
-                do { try await attachExternalSubtitle(externalMatch) } catch {}
+                do { try await attachExternalSubtitle(externalMatch, remember: false) } catch {}
             }
         }
     }
@@ -411,7 +436,8 @@ extension PlayerViewModel {
         ).map { options[$0] }
     }
 
-    func attachExternalSubtitle(_ subtitle: StremioSubtitleCandidate) async throws {
+    /// - Parameter remember: Save this as the user's choice. Pass `false` for automatic selection.
+    func attachExternalSubtitle(_ subtitle: StremioSubtitleCandidate, remember: Bool = true) async throws {
         guard let mpv = mpvController else { throw NSError(domain: "PlayerError", code: -1, userInfo: [NSLocalizedDescriptionKey: "MPV controller unavailable"]) }
         guard let remoteURL = URL(string: subtitle.url) else {
             throw NSError(domain: "PlayerError", code: -2, userInfo: [NSLocalizedDescriptionKey: "Invalid subtitle URL"])
@@ -435,7 +461,11 @@ extension PlayerViewModel {
         mpv.clearExternalSubtitleTracks()
         mpv.addExternalSubtitleFile(path: localURL.path, title: subtitle.addonName ?? subtitle.lang.uppercased(), language: subtitle.lang, select: true)
         selectedExternalSubtitleId = subtitle.id
-        subtitlesEnabled = true
+        if remember {
+            subtitlesEnabled = true
+            // Also replaces a remembered "off", which now carries across the series.
+            saveSubtitleLanguagePreference(subtitle.lang)
+        }
 
         try? await Task.sleep(nanoseconds: 200_000_000)
         loadTracks()

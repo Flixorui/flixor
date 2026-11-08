@@ -34,6 +34,17 @@ final class BackNavigationController: ObservableObject {
     private var forwardStacks: [NavItem: [ForwardEntry]] = [:]
     private let maxForwardEntries = 20
 
+    /// An overlay inside a page (not a sheet). Back and Esc close it before they
+    /// touch the page. Tab and depth say which page it sits on, since hidden tabs
+    /// stay alive with their overlays still open.
+    private struct InPageModal {
+        let id: UUID
+        let tab: NavItem
+        let depth: Int
+        let dismiss: () -> Void
+    }
+    private var inPageModals: [InPageModal] = []
+
     /// Last left click in the main window, used to anchor the push animation.
     private var lastClick: (anchor: UnitPoint, time: Date)?
 
@@ -66,6 +77,23 @@ final class BackNavigationController: ObservableObject {
         mainWindow = window
     }
 
+    /// Registers an in-page overlay on the page showing now. See `inPageModal(onDismiss:)`.
+    func registerInPageModal(id: UUID, dismiss: @escaping () -> Void) {
+        guard let tab = mainViewState?.selectedTab, let depth = currentPath()?.count else { return }
+        inPageModals.removeAll { $0.id == id }
+        inPageModals.append(InPageModal(id: id, tab: tab, depth: depth, dismiss: dismiss))
+    }
+
+    func unregisterInPageModal(id: UUID) {
+        inPageModals.removeAll { $0.id == id }
+    }
+
+    /// The topmost overlay on the page the user is looking at.
+    private var activeInPageModal: InPageModal? {
+        guard let tab = mainViewState?.selectedTab, let depth = currentPath()?.count else { return nil }
+        return inPageModals.last { $0.tab == tab && $0.depth == depth }
+    }
+
     private func observeState() {
         observers.removeAll()
         guard let router, let mainViewState else { return }
@@ -95,12 +123,17 @@ final class BackNavigationController: ObservableObject {
 
     // MARK: - Actions
 
-    /// Pops the current tab's top page. Returns false when there was nothing
-    /// to pop or navigation is blocked (player, sheet, modal).
+    /// Closes the page's in-page overlay if one is open, else pops the current
+    /// tab's top page. Returns false when there was nothing to do or navigation
+    /// is blocked (player, sheet, modal).
     @discardableResult
     func goBack() -> Bool {
         guard isNavigationAllowed(in: mainWindow),
               let router, let tab = mainViewState?.selectedTab else { return false }
+        if let modal = activeInPageModal {
+            modal.dismiss()
+            return true
+        }
         let binding = router.pathBinding(for: tab)
         var path = binding.wrappedValue
         guard !path.isEmpty else { return false }
@@ -118,7 +151,7 @@ final class BackNavigationController: ObservableObject {
     /// somewhere else since.
     @discardableResult
     func goForward() -> Bool {
-        guard isNavigationAllowed(in: mainWindow),
+        guard isNavigationAllowed(in: mainWindow), activeInPageModal == nil,
               let router, let tab = mainViewState?.selectedTab,
               var stack = forwardStacks[tab], let entry = stack.last else { return false }
         let binding = router.pathBinding(for: tab)
@@ -164,23 +197,37 @@ final class BackNavigationController: ObservableObject {
             return false
 
         case .otherMouseDown:
-            guard let window = event.window, window === mainWindow else { return false }
+            // The preview usually sits under the pointer, so the event can be its panel's.
+            guard let window = event.window, window === mainWindow || window is HoverPreviewPanel else { return false }
             switch event.buttonNumber {
-            case MouseButton.back: return goBack()
-            case MouseButton.forward: return goForward()
+            case MouseButton.back:
+                let hadPreview = dismissHoverPreview()
+                return goBack() || hadPreview
+            case MouseButton.forward:
+                let hadPreview = dismissHoverPreview()
+                return goForward() || hadPreview
             default: return false
             }
 
         case .keyDown:
             guard event.keyCode == escapeKeyCode,
                   event.modifierFlags.intersection([.command, .option, .control, .shift]).isEmpty,
-                  let window = event.window, window === mainWindow,
-                  !isEditingText(in: window) else { return false }
+                  let window = event.window, window === mainWindow else { return false }
+            // The preview is the frontmost thing: Esc closes only that.
+            if dismissHoverPreview() { return true }
+            guard !isEditingText(in: window) else { return false }
             return goBack()
 
         default:
             return false
         }
+    }
+
+    /// Returns true when a hover preview was showing.
+    private func dismissHoverPreview() -> Bool {
+        guard HoverPreviewController.shared.isShowingPreview else { return false }
+        HoverPreviewController.shared.dismiss(animated: false)
+        return true
     }
 
     private func recordClick(_ event: NSEvent) {
@@ -203,7 +250,8 @@ final class BackNavigationController: ObservableObject {
         if window.attachedSheet != nil || !window.sheets.isEmpty { return false }
         // A popover or other panel took key status.
         if !window.isKeyWindow { return false }
-        if window.childWindows?.contains(where: { $0.isVisible }) == true { return false }
+        // The hover preview is a child window too, but it doesn't take over the page.
+        if window.childWindows?.contains(where: { $0.isVisible && !($0 is HoverPreviewPanel) }) == true { return false }
         return true
     }
 
@@ -216,6 +264,28 @@ final class BackNavigationController: ObservableObject {
     private func currentPath() -> NavigationPath? {
         guard let router, let tab = mainViewState?.selectedTab else { return nil }
         return router.pathBinding(for: tab).wrappedValue
+    }
+}
+
+// MARK: - In-page modals
+
+extension View {
+    /// Marks this view as an overlay inside a page (not a sheet): while it is on
+    /// screen, Esc, the mouse back button and Back call `onDismiss` instead of
+    /// popping the page. Apply it to the content shown only while the overlay is open.
+    func inPageModal(onDismiss: @escaping () -> Void) -> some View {
+        modifier(InPageModalModifier(onDismiss: onDismiss))
+    }
+}
+
+private struct InPageModalModifier: ViewModifier {
+    let onDismiss: () -> Void
+    @State private var id = UUID()
+
+    func body(content: Content) -> some View {
+        content
+            .onAppear { BackNavigationController.shared.registerInPageModal(id: id, dismiss: onDismiss) }
+            .onDisappear { BackNavigationController.shared.unregisterInPageModal(id: id) }
     }
 }
 

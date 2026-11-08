@@ -41,6 +41,8 @@ struct WatchlistButton: View {
                 circleButton
             }
         }
+        // The checkmark symbol would otherwise be read out as "Selected".
+        .accessibilityLabel(isInWatchlist ? "Remove from My List" : "Add to My List")
         .task(id: canonicalId) {
             // Refresh state whenever canonicalId changes
             isInWatchlist = watchlistController.contains(canonicalId)

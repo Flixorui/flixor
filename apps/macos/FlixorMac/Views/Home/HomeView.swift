@@ -62,6 +62,12 @@ struct HomeView: View {
                 await viewModel.loadHomeScreen()
             }
         }
+        .onAppear {
+            // Back from a pushed page. The first load starts these itself.
+            guard !viewModel.billboardItems.isEmpty else { return }
+            viewModel.startPolling()
+            viewModel.resumeBillboardRotation()
+        }
         .onDisappear {
             viewModel.stopBillboardRotation()
             viewModel.stopPolling()

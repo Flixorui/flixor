@@ -62,6 +62,15 @@ extension PlayerViewModel {
             failPlayback("Playback was interrupted. Check your connection and try again.")
         case .stream:
             print("❌ [Player] Stream source failed (early: \(early))")
+            // Dying in the last moments counts as finishing; recovering would only
+            // reload a new source to show a few seconds of credits.
+            if !isPerformingStreamRecovery, duration > 0, currentTime / duration >= 0.98 {
+                print("✅ [Player] Stream ended within the last 2%; treating as finished")
+                isLoading = false
+                if case .recoveringSource = streamEngineStatus { streamEngineStatus = nil }
+                handlePlaybackEnd()
+                return
+            }
             // Dead-link recovery: re-fetch and play a matching source (bounded attempts).
             if attemptStreamRecovery(early: early) { return }
             if streamRecoveryAttempts > 0 {

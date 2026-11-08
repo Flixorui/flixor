@@ -93,6 +93,11 @@ class PlayerViewModel: ObservableObject {
     @Published var seasonEpisodes: [EpisodeMetadata] = []
     @Published var nextEpisodeCountdown: Int? = nil
     var nextEpisodeCountdownTimer: Timer?
+    /// The user cancelled the countdown. It stays off until they seek back before
+    /// the trigger point or a new title loads.
+    var nextEpisodeCountdownDismissed = false
+    /// One-shot: this player has already navigated to another Plex episode.
+    var didNavigateToEpisode = false
 
     // MARK: - Stream engine state (skip segments, stream next-episode, source recovery)
     // New stored properties for that work go directly below this line.
@@ -158,6 +163,9 @@ class PlayerViewModel: ObservableObject {
     var initialSeekApplied = false
     var serverResumeSeconds: TimeInterval?
     var forcedResumeSeconds: TimeInterval?
+    /// `forcedResumeSeconds` continues a running playback (source recovery or
+    /// switch), so the "almost finished, restart" rule doesn't apply to it.
+    var forcedResumeIsExact = false
 
     // MPV error detection
     var fileStartTime: Date?
@@ -419,7 +427,6 @@ class PlayerViewModel: ObservableObject {
                 case "file-loaded":
                     print("✅ [Player] MPV file loaded")
                     self.isLoading = false
-                    self.directPlayRetryCount = 0  // Reset counter on successful load
                     self.applyInitialSeekIfNeeded()
                     // Load available tracks
                     self.loadTracks()

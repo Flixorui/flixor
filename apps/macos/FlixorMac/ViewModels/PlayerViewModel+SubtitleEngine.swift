@@ -224,15 +224,16 @@ extension PlayerViewModel {
         // Fill a gap only: auto-select on, nothing shown, and no remembered "off" for this title
         let service = TrackPreferenceService.shared
         let rememberedOff = service.getSubtitlePreference(for: item.id) == "none"
-            || (item.grandparentRatingKey.flatMap { service.getSeriesSubtitlePreference(for: $0) } == "none")
+            || (trackPreferenceSeriesId.flatMap { service.getSeriesSubtitlePreference(for: $0) } == "none")
         guard UserDefaults.standard.enableSubtitleAutoSelect,
+              !subtitlesTurnedOff,
               !rememberedOff,
               selectedExternalSubtitleId == nil,
               (currentSubtitleTrackId ?? 0) <= 0,
               !UserDefaults.standard.preferredSubtitleLanguage.trimmingCharacters(in: .whitespaces).isEmpty,
               let match = preferredExternalSubtitleCandidate(in: added) else { return }
         Task { [weak self] in
-            try? await self?.attachExternalSubtitle(match)
+            try? await self?.attachExternalSubtitle(match, remember: false)
         }
     }
 
