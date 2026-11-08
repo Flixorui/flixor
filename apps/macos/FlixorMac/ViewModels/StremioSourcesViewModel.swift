@@ -297,27 +297,6 @@ final class StremioSourcesViewModel: ObservableObject {
     }
 
     private func score(for stream: StremioPlayableStream) -> Int {
-        var score = 0
-        if stream.playable { score += 1_000_000 }
-        if stream.behaviorHints?.cached == true { score += 100_000 }
-        if stream.isDebrid == true { score += 50_000 }
-        score += qualityScore(stream.quality)
-        score += min((stream.size ?? 0) / 1_000_000, 9_999)
-
-        if let groupIndex = groupedResults.firstIndex(where: { $0.installationId == stream.addonInstallationId }) {
-            score += max(0, 1_000 - groupIndex)
-        }
-
-        score += max(0, 500 - stream.streamIndex)
-        return score
-    }
-
-    private func qualityScore(_ quality: String?) -> Int {
-        guard let quality = quality?.lowercased() else { return 0 }
-        if quality.contains("2160") || quality.contains("4k") { return 20_000 }
-        if quality.contains("1080") { return 15_000 }
-        if quality.contains("720") { return 10_000 }
-        if quality.contains("480") { return 5_000 }
-        return 0
+        StremioSourceRanking.score(for: stream, addonOrder: groupedResults.map(\.installationId))
     }
 }

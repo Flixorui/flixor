@@ -15,10 +15,20 @@ extension PlayerViewModel {
         forcedResumeSeconds = TimeInterval(streamItem.resumePositionMs ?? 0) / 1000.0
         currentURLIsHLS = false
         isTranscoding = false
-        markers = []
-        currentMarker = nil
-        nextEpisode = nil
-        seasonEpisodes = []
+        resetStreamRecoveryForUserLoad()
+        // Skip segments and next-episode data belong to the title, not the source:
+        // keep them across source switches and recovery, reload for a new title.
+        let isNewTitle = streamEngineContentKey != streamItem.contentKey
+        if isNewTitle {
+            plexMarkersSnapshot = []
+            resetCommunitySkipSegments()
+            resetStreamNextEpisode()
+            sourcesPickerDestination = nil
+            markers = []
+            currentMarker = nil
+            nextEpisode = nil
+            seasonEpisodes = []
+        }
         nextEpisodeCountdown = nil
         availableExternalSubtitleOptions = streamItem.externalSubtitles
         availableStremioSources = streamItem.availableStreams
@@ -43,8 +53,16 @@ extension PlayerViewModel {
             }
 
             streamURL = URL(string: streamItem.uri)
+            noteStreamFileReplacement(on: mpvController)
             mpvController.loadFile(streamItem.uri, headers: Dictionary(uniqueKeysWithValues: streamItem.headers.map { ($0.name, $0.value) }))
             startProgressTracking()
+
+            if isNewTitle {
+                // Set only once the lookups start, so a failed first load retries them.
+                streamEngineContentKey = streamItem.contentKey
+                loadCommunitySkipSegments(for: streamItem)
+                loadStreamNextEpisode(for: streamItem)
+            }
 
             if UserDefaults.standard.useCachedStreams {
                 let now = Date()
@@ -75,6 +93,15 @@ extension PlayerViewModel {
             self.error = "Failed to load Stremio stream: \(error.localizedDescription)"
             self.isLoading = false
         }
+    }
+
+    /// The addon source currently playing (by id, else by URL).
+    var currentStremioStream: StremioPlayableStream? {
+        if let id = currentStremioSourceId, let stream = availableStremioSources.first(where: { $0.id == id }) {
+            return stream
+        }
+        guard let uri = streamPlaybackItem?.uri else { return nil }
+        return availableStremioSources.first { $0.url == uri }
     }
 
     var isStreamPlayback: Bool {
@@ -135,7 +162,7 @@ extension PlayerViewModel {
         await loadExternalStream(replacement)
     }
 
-    private func mergedHeaders(for stream: StremioPlayableStream) -> [HTTPHeaderField] {
+    func mergedHeaders(for stream: StremioPlayableStream) -> [HTTPHeaderField] {
         var headers = stream.headers ?? [:]
         let proxy = stream.behaviorHints?.proxyHeaders?.request ?? [:]
         for (key, value) in proxy {

@@ -9,6 +9,8 @@ import Foundation
 
 extension PlayerViewModel {
     func applyInitialSeekIfNeeded() {
+        // Runs on file-loaded / duration: a recovered stream is up again.
+        clearStreamRecoveryStatusIfLoaded()
         guard !initialSeekApplied else { return }
         guard duration > 0 else {
             // Duration not available yet, will be called again when duration is set
@@ -185,6 +187,12 @@ extension PlayerViewModel {
     }
 
     func handlePlaybackEnd() {
+        if consumeReplacedStreamFileEnd() { return }
+        if isTruncatedStreamEnd {
+            print("⚠️ [Player] Stream ended at \(Int(currentTime))s of \(Int(duration))s; treating as a failure")
+            handlePlaybackFailure(early: false)
+            return
+        }
         isPlaying = false
         stopProgressTracking()
         disableDisplaySleep()
@@ -193,6 +201,11 @@ extension PlayerViewModel {
             Task {
                 await resumeStore.remove(contentKey: streamPlaybackItem.contentKey)
                 await scrobbler.stopScrobble(progress: 100)
+            }
+            // Auto-play the next episode of a series stream (same rules as Plex).
+            if item.type == "episode" && nextEpisode != nil && UserDefaults.standard.autoPlayNext && !isResolvingNextEpisode {
+                print("▶️ [Player] Auto-playing next stream episode...")
+                playNextStreamEpisode()
             }
             return
         }
