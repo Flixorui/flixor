@@ -20,7 +20,10 @@ struct HeroCarousel: View {
     @State private var timer: Timer?
     @State private var direction: TransitionDirection = .forward
 
-    private let carouselHeight: CGFloat = 580
+    @Environment(\.windowMetrics) private var metrics
+
+    /// Follows the window (see HomeHeroMetrics.swift) instead of a fixed 580 pt.
+    private var carouselHeight: CGFloat { metrics.homeCarouselHeight }
 
     private enum TransitionDirection {
         case forward, backward
@@ -69,26 +72,18 @@ struct HeroCarousel: View {
                         }
                         .buttonStyle(.plain)
                         .opacity(isHovered && items.count > 1 ? 1 : 0)
+                        .accessibilityLabel(Text("Previous featured item"))
 
                         Spacer()
 
                         // Page indicators
                         if items.count > 1 {
-                            HStack(spacing: 6) {
-                                ForEach(0..<items.count, id: \.self) { index in
-                                    Button(action: { goToIndex(index) }) {
-                                        RoundedRectangle(cornerRadius: 2)
-                                            .fill(index == currentIndex ? Color.white : Color.white.opacity(0.4))
-                                            .frame(width: index == currentIndex ? 28 : 8, height: 4)
-                                            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: currentIndex)
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 10)
-                            .background(.ultraThinMaterial.opacity(0.4))
-                            .clipShape(Capsule())
+                            HeroPageIndicator(
+                                count: items.count,
+                                currentIndex: currentIndex,
+                                style: .bars,
+                                onSelect: { goToIndex($0) }
+                            )
                         }
 
                         Spacer()
@@ -104,6 +99,7 @@ struct HeroCarousel: View {
                         }
                         .buttonStyle(.plain)
                         .opacity(isHovered && items.count > 1 ? 1 : 0)
+                        .accessibilityLabel(Text("Next featured item"))
                     }
                     .padding(.horizontal, 40)
                     .padding(.bottom, 28)
@@ -218,9 +214,12 @@ struct HeroCarouselCard: View {
     var onInfo: (() -> Void)?
     var onMyList: (() -> Void)?
 
+    @Environment(\.windowMetrics) private var metrics
     @State private var backdropURL: URL?
     @State private var logoURL: URL?
     @State private var seriesData: SeriesMetadata?
+
+    private var isCompact: Bool { metrics.isCompactHero(height: height) }
 
     // Data structure for fetched series metadata
     private struct SeriesMetadata {
@@ -316,20 +315,21 @@ struct HeroCarouselCard: View {
             )
 
             // Content
-            VStack(alignment: .leading, spacing: 18) {
-                Spacer()
+            VStack(alignment: .leading, spacing: isCompact ? DS.Space.s12 : DS.Space.s18) {
+                Spacer(minLength: 0)
 
                 // Logo or Title
                 if let logo = logoURL {
                     CachedAsyncImage(url: logo, aspectRatio: nil, contentMode: .fit)
-                        .frame(maxWidth: 420, maxHeight: 140)
+                        .frame(maxWidth: isCompact ? 340 : 420, maxHeight: min(140, height * 0.24))
                         .shadow(color: .black.opacity(0.7), radius: 16)
                 } else {
                     Text(displayTitle)
-                        .font(.system(size: 48, weight: .bold))
+                        .font(.flixor(isCompact ? .display : .displayLarge, weight: .bold))
                         .foregroundStyle(.white)
                         .shadow(color: .black.opacity(0.7), radius: 16)
                         .lineLimit(2)
+                        .minimumScaleFactor(0.7)
                 }
 
                 // Metadata Row
@@ -370,7 +370,7 @@ struct HeroCarouselCard: View {
                     Text(summary)
                         .font(.system(size: 15))
                         .foregroundStyle(.white.opacity(0.85))
-                        .lineLimit(3)
+                        .lineLimit(isCompact ? 2 : 3)
                         .frame(maxWidth: 520, alignment: .leading)
                         .lineSpacing(3)
                 }
@@ -431,8 +431,8 @@ struct HeroCarouselCard: View {
                 }
                 .padding(.top, 6)
             }
-            .padding(.horizontal, 56)
-            .padding(.bottom, 72)
+            .padding(.horizontal, isCompact ? DS.Space.s40 : 56)
+            .padding(.bottom, isCompact ? DS.Space.s60 : 72)
         }
         .task {
             await loadImages()

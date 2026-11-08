@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		D5BAAA59ADC857DD0C5AC75D /* HomeViewModel+Rows.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4A006E53D1E23712571D67F /* HomeViewModel+Rows.swift */; };
+		087978CF5EFDA1801B759BD7 /* HomeHeroMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9410392525257D5E20B5FFD4 /* HomeHeroMetrics.swift */; };
+		CEB6EDAF0B3C883ED194C9F9 /* RowTitleCaption.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3A53FEE7A5D39FF177BA007 /* RowTitleCaption.swift */; };
+		DF576FFCC39BF85AB5A13AF8 /* HeroPageIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 181E9385AF5D1E72E5C941FB /* HeroPageIndicator.swift */; };
 		81589FE15E5F3A60DF37596B /* WatchStateService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46D031E0858D60EF3A8C739E /* WatchStateService.swift */; };
 		63AA8F5C8099B3513A6C3852 /* TraktListsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC85992E13EE4C4C1C8C2704 /* TraktListsService.swift */; };
 		3FC7D91559AFA7117387D2C8 /* TraktCommentsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 863179F8A6086C93AB02C84E /* TraktCommentsService.swift */; };
@@ -202,6 +206,10 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		C4A006E53D1E23712571D67F /* HomeViewModel+Rows.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "HomeViewModel+Rows.swift"; sourceTree = "<group>"; };
+		9410392525257D5E20B5FFD4 /* HomeHeroMetrics.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HomeHeroMetrics.swift; sourceTree = "<group>"; };
+		E3A53FEE7A5D39FF177BA007 /* RowTitleCaption.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RowTitleCaption.swift; sourceTree = "<group>"; };
+		181E9385AF5D1E72E5C941FB /* HeroPageIndicator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HeroPageIndicator.swift; sourceTree = "<group>"; };
 		46D031E0858D60EF3A8C739E /* WatchStateService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchStateService.swift; sourceTree = "<group>"; };
 		EC85992E13EE4C4C1C8C2704 /* TraktListsService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TraktListsService.swift; sourceTree = "<group>"; };
 		863179F8A6086C93AB02C84E /* TraktCommentsService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TraktCommentsService.swift; sourceTree = "<group>"; };
@@ -518,6 +526,7 @@
 		D006 /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
+				C4A006E53D1E23712571D67F /* HomeViewModel+Rows.swift */,
 				3F35EE05EDE594BEB06742FB /* PlayerViewModel+Types.swift */,
 				558CFF48660AB401150521B5 /* PlayerViewModel+Tracks.swift */,
 				9870F7FE912EA6C150C6BFD5 /* PlayerViewModel+StreamLoading.swift */,
@@ -600,6 +609,8 @@
 		D011 /* Components */ = {
 			isa = PBXGroup;
 			children = (
+				E3A53FEE7A5D39FF177BA007 /* RowTitleCaption.swift */,
+				181E9385AF5D1E72E5C941FB /* HeroPageIndicator.swift */,
 				D300 /* Icons */,
 				B014 /* NewPopularView.swift */,
 				B017 /* CachedAsyncImage.swift */,
@@ -631,6 +642,7 @@
 		D012 /* Home */ = {
 			isa = PBXGroup;
 			children = (
+				9410392525257D5E20B5FFD4 /* HomeHeroMetrics.swift */,
 				B030 /* HomeView.swift */,
 			);
 			path = Home;
@@ -939,6 +951,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D5BAAA59ADC857DD0C5AC75D /* HomeViewModel+Rows.swift in Sources */,
+				087978CF5EFDA1801B759BD7 /* HomeHeroMetrics.swift in Sources */,
+				CEB6EDAF0B3C883ED194C9F9 /* RowTitleCaption.swift in Sources */,
+				DF576FFCC39BF85AB5A13AF8 /* HeroPageIndicator.swift in Sources */,
 				81589FE15E5F3A60DF37596B /* WatchStateService.swift in Sources */,
 				63AA8F5C8099B3513A6C3852 /* TraktListsService.swift in Sources */,
 				3FC7D91559AFA7117387D2C8 /* TraktCommentsService.swift in Sources */,

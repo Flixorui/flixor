@@ -73,6 +73,9 @@ class HomeViewModel: ObservableObject {
     @Published var extraSections: [LibrarySection] = [] // TMDB/Trakt/Watchlist/Genres
     @Published var collectionSections: [LibrarySection] = [] // Plex Collections
 
+    /// Addon name per Stremio catalog row id, for the duplicate-title caption.
+    private(set) var catalogAddonNames: [String: String] = [:]
+
     @Published var currentBillboardIndex = 0
     @Published var pendingAction: HomeAction?
 
@@ -670,7 +673,9 @@ class HomeViewModel: ObservableObject {
 
                     return (index, LibrarySection(
                         id: "stremio-catalog-\(entry.id)",
-                        title: "\(entry.catalog.displayName) · \(entry.addonName)",
+                        // Addon name is not part of the title; it is shown as a
+                        // caption only when two rows would share a title.
+                        title: entry.catalog.displayName,
                         items: items,
                         totalCount: items.count,
                         libraryKey: nil,
@@ -686,6 +691,9 @@ class HomeViewModel: ObservableObject {
         }
 
         let sections = selected.indices.compactMap { byIndex[$0] }
+        for entry in selected {
+            catalogAddonNames["stremio-catalog-\(entry.id)"] = entry.addonName
+        }
         print("✅ [Home] Stremio catalog rows: \(sections.count)")
         return sections
     }

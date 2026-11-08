@@ -125,6 +125,7 @@ struct HomeView: View {
                                                 )
                                             }
                                         }
+                                        .environment(\.rowTitleCaption, rowCaptions[section.id])
                                         .transition(.opacity)
                                     }
                                 }
@@ -193,6 +194,7 @@ struct HomeView: View {
                                                 )
                                             }
                                         }
+                                        .environment(\.rowTitleCaption, rowCaptions[section.id])
                                         .transition(.opacity)
                                     }
                                 }
@@ -266,6 +268,12 @@ struct HomeView: View {
         }
     }
 
+    /// Addon-name captions for rows that would otherwise share a title.
+    private var rowCaptions: [String: String] {
+        let sections = viewModel.recentlyAddedSections + viewModel.collectionSections + viewModel.extraSections
+        return viewModel.duplicateTitleCaptions(for: sections.map { ($0.id, $0.title) })
+    }
+
     private func presentBrowse(_ context: BrowseContext) {
         activeBrowseContext = context
         showBrowseModal = true
@@ -327,6 +335,7 @@ struct BillboardSection: View {
                     }
                     .buttonStyle(.plain)
                     .opacity(isHovered ? 1 : 0)
+                    .accessibilityLabel(Text("Previous featured item"))
 
                     Spacer()
 
@@ -341,6 +350,7 @@ struct BillboardSection: View {
                     }
                     .buttonStyle(.plain)
                     .opacity(isHovered ? 1 : 0)
+                    .accessibilityLabel(Text("Next featured item"))
                 }
                 .padding(.horizontal, 24)
 
@@ -348,21 +358,13 @@ struct BillboardSection: View {
                 VStack {
                     Spacer()
 
-                    HStack(spacing: 6) {
-                        ForEach(0..<viewModel.billboardItems.count, id: \.self) { index in
-                            Button(action: { goToIndex(index) }) {
-                                Circle()
-                                    .fill(index == viewModel.currentBillboardIndex ? Color.white : Color.white.opacity(0.4))
-                                    .frame(width: index == viewModel.currentBillboardIndex ? 10 : 8, height: index == viewModel.currentBillboardIndex ? 10 : 8)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(.ultraThinMaterial.opacity(0.4))
-                    .clipShape(Capsule())
-                    .padding(.bottom, 40)
+                    HeroPageIndicator(
+                        count: viewModel.billboardItems.count,
+                        currentIndex: viewModel.currentBillboardIndex,
+                        style: .dots,
+                        onSelect: { goToIndex($0) }
+                    )
+                    .padding(.bottom, DS.Space.s40)
                 }
             }
         }
@@ -424,7 +426,12 @@ struct BillboardSection: View {
 // MARK: - Hero Skeleton
 
 struct HeroSkeleton: View {
-    private let height: CGFloat = 600
+    @Environment(\.windowMetrics) private var metrics
+    @ObservedObject private var profileSettings = ProfileSettings.shared
+
+    private var height: CGFloat {
+        profileSettings.heroLayout == "carousel" ? metrics.homeCarouselHeight : metrics.homeBillboardHeight
+    }
 
     var body: some View {
         SkeletonView(height: height, cornerRadius: 22)

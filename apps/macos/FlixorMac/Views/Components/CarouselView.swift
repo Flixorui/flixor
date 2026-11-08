@@ -216,6 +216,7 @@ struct CarouselRow<Item: Identifiable, Content: View>: View {
 
     @State private var isHeaderHovered = false
     @FocusState private var browseFocused: Bool
+    @Environment(\.rowTitleCaption) private var titleCaption
 
     init(
         title: String,
@@ -245,6 +246,10 @@ struct CarouselRow<Item: Identifiable, Content: View>: View {
                     .font(.title2.bold())
                     .foregroundStyle(.primary)
                     .padding(.vertical, 4)
+
+                if let titleCaption {
+                    RowTitleCaptionText(caption: titleCaption)
+                }
 
                 if let browseAction {
                     Button(action: browseAction) {
