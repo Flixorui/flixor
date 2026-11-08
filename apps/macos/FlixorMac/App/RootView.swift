@@ -468,6 +468,9 @@ extension View {
             .navigationDestination(for: PersonRoute.self) { route in
                 PersonDetailView(route: route)
             }
+            .navigationDestination(for: EntityBrowseRoute.self) { route in
+                EntityBrowseView(route: route)
+            }
     }
 }
 

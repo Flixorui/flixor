@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		CA7F8116EC60C6C7D9DC0380 /* EntityBrowseViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 453D770177BE0D31FF1B0CBD /* EntityBrowseViewModel.swift */; };
+		096E12ECF0D7CAC46CA36A03 /* EntityBrowseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73931052E2DB63D895D76741 /* EntityBrowseView.swift */; };
 		4492E2159DE57AC4B09D15A9 /* PersonIdentityViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6FA77EC7BFE4A533F7ADBE5 /* PersonIdentityViews.swift */; };
 		B45611B04EC1B484AB9C2A0C /* PersonDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4191E8F10274874A1BFD357D /* PersonDetailViewModel.swift */; };
 		A2ABFBC17FF9042EDAF2001E /* PersonDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AD843CB333334327BB7EEE1 /* PersonDetailView.swift */; };
@@ -205,6 +207,8 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		453D770177BE0D31FF1B0CBD /* EntityBrowseViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Browse/EntityBrowseViewModel.swift; sourceTree = "<group>"; };
+		73931052E2DB63D895D76741 /* EntityBrowseView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Browse/EntityBrowseView.swift; sourceTree = "<group>"; };
 		F6FA77EC7BFE4A533F7ADBE5 /* PersonIdentityViews.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Person/PersonIdentityViews.swift; sourceTree = "<group>"; };
 		4191E8F10274874A1BFD357D /* PersonDetailViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Person/PersonDetailViewModel.swift; sourceTree = "<group>"; };
 		9AD843CB333334327BB7EEE1 /* PersonDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Person/PersonDetailView.swift; sourceTree = "<group>"; };
@@ -504,6 +508,8 @@
 		D005 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				453D770177BE0D31FF1B0CBD /* EntityBrowseViewModel.swift */,
+				73931052E2DB63D895D76741 /* EntityBrowseView.swift */,
 				F6FA77EC7BFE4A533F7ADBE5 /* PersonIdentityViews.swift */,
 				4191E8F10274874A1BFD357D /* PersonDetailViewModel.swift */,
 				9AD843CB333334327BB7EEE1 /* PersonDetailView.swift */,
@@ -948,6 +954,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CA7F8116EC60C6C7D9DC0380 /* EntityBrowseViewModel.swift in Sources */,
+				096E12ECF0D7CAC46CA36A03 /* EntityBrowseView.swift in Sources */,
 				4492E2159DE57AC4B09D15A9 /* PersonIdentityViews.swift in Sources */,
 				B45611B04EC1B484AB9C2A0C /* PersonDetailViewModel.swift in Sources */,
 				A2ABFBC17FF9042EDAF2001E /* PersonDetailView.swift in Sources */,
