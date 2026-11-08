@@ -7,6 +7,15 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		81589FE15E5F3A60DF37596B /* WatchStateService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46D031E0858D60EF3A8C739E /* WatchStateService.swift */; };
+		63AA8F5C8099B3513A6C3852 /* TraktListsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC85992E13EE4C4C1C8C2704 /* TraktListsService.swift */; };
+		3FC7D91559AFA7117387D2C8 /* TraktCommentsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 863179F8A6086C93AB02C84E /* TraktCommentsService.swift */; };
+		BDD48623B7C96FD52F129B0D /* TrailerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 834AF87FB6FA9DCB7AC59F4A /* TrailerService.swift */; };
+		9FEB88E7D8DD30143DA051F3 /* MediaIdentityResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C81BB01AADD0DC0D52BA7C4 /* MediaIdentityResolver.swift */; };
+		3277AE9F26D0CB9478F1F698 /* EpisodeRatingsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6C32F36B4233DDB43C9AFC3 /* EpisodeRatingsService.swift */; };
+		DA70075928BABE40702E4DD0 /* WatchStateTarget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E758D953ADDD07BBBA497F1 /* WatchStateTarget.swift */; };
+		34FA34A39AC9767F2C0337C7 /* LocalWatchedEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = B36B30D33BFFE4EBEA5F1182 /* LocalWatchedEntry.swift */; };
+		BC27077235CA77E06E2DB7B1 /* UserDefaults+WatchState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 497B08D5668C4AE5E283945A /* UserDefaults+WatchState.swift */; };
 		46A11CAA2235D819C46F9262 /* BrowseRoutes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59C341EA229A5DB807400C80 /* BrowseRoutes.swift */; };
 		BC029CD7BE843D1C73E740B0 /* PlayerView+Keyboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FE314CCC603353EE4007DF3 /* PlayerView+Keyboard.swift */; };
 		10AEC547BF1ADF4D4318CD03 /* PlayerTrackMenus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E2D92951DF3D9A5AB65E37D /* PlayerTrackMenus.swift */; };
@@ -193,6 +202,15 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		46D031E0858D60EF3A8C739E /* WatchStateService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchStateService.swift; sourceTree = "<group>"; };
+		EC85992E13EE4C4C1C8C2704 /* TraktListsService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TraktListsService.swift; sourceTree = "<group>"; };
+		863179F8A6086C93AB02C84E /* TraktCommentsService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TraktCommentsService.swift; sourceTree = "<group>"; };
+		834AF87FB6FA9DCB7AC59F4A /* TrailerService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TrailerService.swift; sourceTree = "<group>"; };
+		8C81BB01AADD0DC0D52BA7C4 /* MediaIdentityResolver.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MediaIdentityResolver.swift; sourceTree = "<group>"; };
+		B6C32F36B4233DDB43C9AFC3 /* EpisodeRatingsService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EpisodeRatingsService.swift; sourceTree = "<group>"; };
+		6E758D953ADDD07BBBA497F1 /* WatchStateTarget.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchStateTarget.swift; sourceTree = "<group>"; };
+		B36B30D33BFFE4EBEA5F1182 /* LocalWatchedEntry.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LocalWatchedEntry.swift; sourceTree = "<group>"; };
+		497B08D5668C4AE5E283945A /* UserDefaults+WatchState.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "UserDefaults+WatchState.swift"; sourceTree = "<group>"; };
 		59C341EA229A5DB807400C80 /* BrowseRoutes.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BrowseRoutes.swift; sourceTree = "<group>"; };
 		4FE314CCC603353EE4007DF3 /* PlayerView+Keyboard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "PlayerView+Keyboard.swift"; sourceTree = "<group>"; };
 		5E2D92951DF3D9A5AB65E37D /* PlayerTrackMenus.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlayerTrackMenus.swift; sourceTree = "<group>"; };
@@ -455,6 +473,8 @@
 		D004 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				6E758D953ADDD07BBBA497F1 /* WatchStateTarget.swift */,
+				B36B30D33BFFE4EBEA5F1182 /* LocalWatchedEntry.swift */,
 				59C341EA229A5DB807400C80 /* BrowseRoutes.swift */,
 				B004 /* User.swift */,
 				B005 /* APIError.swift */,
@@ -532,6 +552,12 @@
 		D007 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				46D031E0858D60EF3A8C739E /* WatchStateService.swift */,
+				EC85992E13EE4C4C1C8C2704 /* TraktListsService.swift */,
+				863179F8A6086C93AB02C84E /* TraktCommentsService.swift */,
+				834AF87FB6FA9DCB7AC59F4A /* TrailerService.swift */,
+				8C81BB01AADD0DC0D52BA7C4 /* MediaIdentityResolver.swift */,
+				B6C32F36B4233DDB43C9AFC3 /* EpisodeRatingsService.swift */,
 				0BE27F24158D02E703C6562D /* AppearanceStore.swift */,
 				C8D602AA2E990749002C9348 /* Thumbnail */,
 				D016 /* API */,
@@ -551,6 +577,7 @@
 		D008 /* Extensions */ = {
 			isa = PBXGroup;
 			children = (
+				497B08D5668C4AE5E283945A /* UserDefaults+WatchState.swift */,
 				4F750BC1AEFFF3F132E53194 /* WindowMetrics.swift */,
 				2DC553DC45B4C35E1EA8888A /* UserDefaults+Appearance.swift */,
 				E51F4084E0784DF19BE104F4 /* FlixorTheme.swift */,
@@ -912,6 +939,15 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				81589FE15E5F3A60DF37596B /* WatchStateService.swift in Sources */,
+				63AA8F5C8099B3513A6C3852 /* TraktListsService.swift in Sources */,
+				3FC7D91559AFA7117387D2C8 /* TraktCommentsService.swift in Sources */,
+				BDD48623B7C96FD52F129B0D /* TrailerService.swift in Sources */,
+				9FEB88E7D8DD30143DA051F3 /* MediaIdentityResolver.swift in Sources */,
+				3277AE9F26D0CB9478F1F698 /* EpisodeRatingsService.swift in Sources */,
+				DA70075928BABE40702E4DD0 /* WatchStateTarget.swift in Sources */,
+				34FA34A39AC9767F2C0337C7 /* LocalWatchedEntry.swift in Sources */,
+				BC27077235CA77E06E2DB7B1 /* UserDefaults+WatchState.swift in Sources */,
 				46A11CAA2235D819C46F9262 /* BrowseRoutes.swift in Sources */,
 				BC029CD7BE843D1C73E740B0 /* PlayerView+Keyboard.swift in Sources */,
 				10AEC547BF1ADF4D4318CD03 /* PlayerTrackMenus.swift in Sources */,

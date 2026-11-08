@@ -839,6 +839,28 @@ class APIClient: ObservableObject {
             return try encodeAndDecode(empty)
         }
 
+        // POST /api/plex/scrobble, /api/plex/unscrobble - body {"ratingKey": "..."}
+        // PlayerViewModel has always posted /api/plex/scrobble at the end of playback;
+        // without a route the "mark as watched" call threw invalidURL every time.
+        if path == "/api/plex/scrobble" || path == "/api/plex/unscrobble" {
+            guard let plexServer = FlixorCore.shared.plexServer else {
+                throw APIError.serverError("No Plex server connected")
+            }
+            guard let body,
+                  let json = try JSONSerialization.jsonObject(with: try JSONEncoder().encode(body)) as? [String: Any],
+                  let ratingKey = (json["ratingKey"] as? String) ?? (json["ratingKey"] as? Int).map(String.init),
+                  !ratingKey.isEmpty else {
+                throw APIError.invalidURL
+            }
+            if path == "/api/plex/scrobble" {
+                try await plexServer.markWatched(ratingKey: ratingKey)
+            } else {
+                try await plexServer.markUnwatched(ratingKey: ratingKey)
+            }
+            await plexServer.invalidateWatchStateCache(ratingKeys: [ratingKey])
+            return try encodeAndDecode(EmptyResponse())
+        }
+
         // POST /api/trakt/watchlist - Add to Trakt watchlist
         if path == "/api/trakt/watchlist" {
             print("🎬 [APIClient] Trakt watchlist add - isAuthenticated: \(FlixorCore.shared.trakt.isAuthenticated)")

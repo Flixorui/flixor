@@ -106,6 +106,87 @@ actor LocalLibraryStore {
         notifyHistoryChanged()
     }
 
+    /// Removes every history entry for a title (and season/episode, when given).
+    /// `season == nil` matches all episodes of a show; `episode == nil` all episodes
+    /// of the season. Returns the removed content keys.
+    @discardableResult
+    func removeHistory(
+        mediaType: StreamMediaType,
+        tmdbId: Int?,
+        imdbId: String?,
+        season: Int? = nil,
+        episode: Int? = nil
+    ) -> [String] {
+        var index = defaults.getLocalWatchHistory()
+        let normalizedImdb = imdbId?.lowercased()
+        let removed = index.values.filter { entry in
+            guard entry.mediaType == mediaType else { return false }
+            let sameTitle = (tmdbId != nil && entry.tmdbId == tmdbId)
+                || (normalizedImdb.map { !$0.isEmpty && entry.imdbId?.lowercased() == $0 } ?? false)
+            guard sameTitle else { return false }
+            if mediaType == .movie { return true }
+            if let season, entry.seasonNumber != season { return false }
+            if let episode, entry.episodeNumber != episode { return false }
+            return true
+        }.map(\.contentKey)
+
+        guard !removed.isEmpty else { return [] }
+        for key in removed { index.removeValue(forKey: key) }
+        defaults.setLocalWatchHistory(index)
+        notifyHistoryChanged()
+        return removed
+    }
+
+    // MARK: - Watched (marked on this Mac)
+
+    /// Everything marked watched locally, most recent first.
+    func watchedEntries() -> [LocalWatchedEntry] {
+        defaults.getLocalWatched().values.sorted { $0.watchedAt > $1.watchedAt }
+    }
+
+    /// Adds (or refreshes) watched entries in one write.
+    func markWatched(_ entries: [LocalWatchedEntry]) {
+        guard !entries.isEmpty else { return }
+        var index = defaults.getLocalWatched()
+        for entry in entries { index[entry.key] = entry }
+        defaults.setLocalWatched(index)
+    }
+
+    /// Removes watched entries for a title (season/episode scoping as in
+    /// `removeHistory`). Returns how many were removed.
+    @discardableResult
+    func removeWatched(
+        mediaType: StreamMediaType,
+        tmdbId: Int?,
+        imdbId: String?,
+        season: Int? = nil,
+        episode: Int? = nil
+    ) -> Int {
+        var index = defaults.getLocalWatched()
+        let keys = index.values
+            .filter { $0.matches(mediaType: mediaType, tmdbId: tmdbId, imdbId: imdbId, season: season, episode: episode) }
+            .map(\.key)
+        guard !keys.isEmpty else { return 0 }
+        for key in keys { index.removeValue(forKey: key) }
+        defaults.setLocalWatched(index)
+        return keys.count
+    }
+
+    /// Whether a movie or a specific episode is marked watched locally.
+    func isWatched(mediaType: StreamMediaType, tmdbId: Int?, imdbId: String?, season: Int? = nil, episode: Int? = nil) -> Bool {
+        if mediaType == .episode, season == nil || episode == nil { return false }
+        return defaults.getLocalWatched().values.contains {
+            $0.matches(mediaType: mediaType, tmdbId: tmdbId, imdbId: imdbId, season: season, episode: episode)
+        }
+    }
+
+    /// Locally watched episodes of a show (optionally one season).
+    func watchedEpisodes(tmdbId: Int?, imdbId: String?, season: Int? = nil) -> [LocalWatchedEntry] {
+        defaults.getLocalWatched().values.filter {
+            $0.matches(mediaType: .episode, tmdbId: tmdbId, imdbId: imdbId, season: season, episode: nil)
+        }
+    }
+
     // MARK: - Watchlist
 
     /// Most recently added first.

@@ -26,11 +26,16 @@ public class TMDBService {
 
     // MARK: - Generic Request
 
-    private func get<T: Codable>(
+    /// - Parameter cacheTag: Extra namespace for the cache key. The cache stores the
+    ///   decoded `T` (not the raw body), so two callers decoding the same URL into
+    ///   different types must use different tags or they would read each other's
+    ///   re-encoded value.
+    func get<T: Codable>(
         path: String,
         params: [String: String]? = nil,
         ttl: TimeInterval = CacheTTL.trending,
-        skipLanguage: Bool = false
+        skipLanguage: Bool = false,
+        cacheTag: String? = nil
     ) async throws -> T {
         var queryParams: [String: String] = [
             "api_key": apiKey
@@ -48,7 +53,7 @@ public class TMDBService {
 
         let queryString = queryParams.map { "\($0.key)=\($0.value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? $0.value)" }.joined(separator: "&")
         let urlString = "\(baseUrl)\(path)?\(queryString)"
-        let cacheKey = "tmdb:\(urlString)"
+        let cacheKey = cacheTag.map { "tmdb:\($0):\(urlString)" } ?? "tmdb:\(urlString)"
 
         // Check cache first
         if ttl > 0 {
