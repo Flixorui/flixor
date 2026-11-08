@@ -51,9 +51,13 @@ enum StremioSourceRanking {
     /// Resolution bucket (2160/1080/720/480) from the quality field, or from the
     /// name/title text addons usually put it in. Nil when unknown.
     static func resolutionBucket(_ stream: StremioPlayableStream) -> Int? {
-        let text = [stream.quality, stream.name, stream.title, stream.behaviorHints?.filename]
-            .compactMap { $0?.lowercased() }
-            .joined(separator: " ")
+        resolutionBucket(text: [stream.quality, stream.name, stream.title, stream.behaviorHints?.filename]
+            .compactMap { $0 }
+            .joined(separator: " "))
+    }
+
+    static func resolutionBucket(text: String) -> Int? {
+        let text = text.lowercased()
         if text.contains("2160") || text.contains("4k") || text.contains("uhd") { return 2160 }
         if text.contains("1080") { return 1080 }
         if text.contains("720") { return 720 }

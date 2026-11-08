@@ -24,4 +24,6 @@ struct StremioSourcesDestination: Hashable {
     let seasonNumber: Int?
     let episodeNumber: Int?
     let episodeTitle: String?
+    /// Why automatic source selection fell back to this page, shown at the top of it.
+    var autoSelectNotice: String? = nil
 }

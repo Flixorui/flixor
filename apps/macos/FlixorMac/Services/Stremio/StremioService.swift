@@ -401,6 +401,48 @@ actor StremioService {
         }
     }
 
+    /// Like `getStreams`, but stops as soon as `shouldStop` says so or `timeLimit` seconds
+    /// pass; addons that have not answered by then are left out and their requests cancelled.
+    /// `shouldStop` gets the results so far in addon order and the installation ids still pending.
+    func getStreams(
+        identity: StremioContentIdentity,
+        timeLimit: TimeInterval,
+        shouldStop: @escaping @Sendable ([StremioAddonStreamResult], Set<String>) -> Bool
+    ) async -> (results: [StremioAddonStreamResult], timedOut: Bool) {
+        await ensureInitialized()
+        let requestType = StremioRequestType(rawValue: identity.requestType) ?? .movie
+        let streamAddons = await getInstalledAddons().filter {
+            addonSupportsResource($0, resourceName: "stream", requestType: requestType, contentId: identity.requestId)
+        }
+        guard !streamAddons.isEmpty else { return ([], false) }
+
+        return await withTaskGroup(of: StremioAddonStreamResult?.self) { group in
+            for addon in streamAddons {
+                group.addTask { await self.fetchStreams(for: addon, identity: identity) }
+            }
+            group.addTask {
+                try? await Task.sleep(nanoseconds: UInt64(timeLimit * 1_000_000_000))
+                return nil
+            }
+
+            var results: [StremioAddonStreamResult] = []
+            var pending = Set(streamAddons.map(\.installationId))
+            var timedOut = false
+            for await result in group {
+                guard let result else {
+                    timedOut = true
+                    break
+                }
+                results.append(result)
+                results.sort { self.order.firstIndex(of: $0.installationId) ?? .max < self.order.firstIndex(of: $1.installationId) ?? .max }
+                pending.remove(result.installationId)
+                if pending.isEmpty || shouldStop(results, pending) { break }
+            }
+            group.cancelAll()
+            return (results, timedOut)
+        }
+    }
+
     /// Extra arguments for subtitle requests (Stremio addon protocol "extra" path segment).
     struct SubtitleRequestExtra: Hashable {
         /// OpenSubtitles moviehash (16 hex digits) of the playing file.

@@ -10,6 +10,7 @@ import SwiftUI
 struct StremioSourcesView: View {
     @EnvironmentObject private var router: NavigationRouter
     @EnvironmentObject private var mainViewState: MainViewState
+    @Environment(\.flixorTheme) private var theme
     @StateObject private var viewModel: StremioSourcesViewModel
 
     init(destination: StremioSourcesDestination) {
@@ -20,6 +21,10 @@ struct StremioSourcesView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 heroSection
+
+                if let notice = viewModel.destination.autoSelectNotice {
+                    autoSelectNoticeBanner(notice)
+                }
 
                 if !viewModel.providerFilters.isEmpty, viewModel.groupedResults.count > 1 {
                     StremioProviderFilterBar(
@@ -52,10 +57,6 @@ struct StremioSourcesView: View {
         .navigationTitle("Stremio Sources")
         .task {
             await viewModel.load()
-        }
-        .onChange(of: viewModel.autoPlayDestination) { destination in
-            guard let destination = destination else { return }
-            appendToCurrentTabPath(destination)
         }
         .alert("Stremio", isPresented: Binding(get: { viewModel.alertMessage != nil }, set: { if !$0 { viewModel.alertMessage = nil } })) {
             Button("OK", role: .cancel) {}
@@ -91,6 +92,22 @@ struct StremioSourcesView: View {
                 }
             }
         }
+    }
+
+    private func autoSelectNoticeBanner(_ notice: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: DS.Space.controlGap) {
+            Image(systemName: "info.circle.fill")
+                .foregroundStyle(theme.warning)
+                .accessibilityHidden(true)
+            Text(notice)
+                .flixorFont(.callout)
+                .foregroundStyle(theme.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .padding(DS.Space.itemGap)
+        .background(theme.warning.opacity(DS.Opacity.hover), in: RoundedRectangle(cornerRadius: DS.Radius.compactCard, style: .continuous))
+        .accessibilityElement(children: .combine)
     }
 
     private var playableSections: some View {

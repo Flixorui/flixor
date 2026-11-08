@@ -19,6 +19,7 @@ struct DetailsHeroSection: View {
     let showsStremioButton: Bool
     let onViewShow: () -> Void
     let layout: DetailsLayoutMetrics
+    var onChooseStremioSource: () -> Void = {}
 
     var isEpisode: Bool { item.type == "episode" }
     private var seasonNumber: Int? { item.parentIndex }

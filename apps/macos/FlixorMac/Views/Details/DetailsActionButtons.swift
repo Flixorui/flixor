@@ -95,6 +95,8 @@ extension DetailsHeroSection {
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                     }
                     .buttonStyle(.plain)
+
+                    StremioChooseSourceButton(action: onChooseStremioSource)
                 }
 
                 // View Show button for episodes

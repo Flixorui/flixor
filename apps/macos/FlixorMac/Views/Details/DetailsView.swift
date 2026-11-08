@@ -26,6 +26,7 @@ struct DetailsView: View {
     @State private var stremioAlertMessage: String?
     @State private var stremioAlertOffersSettings = false
     @State private var showStremioSettings = false
+    @StateObject private var streamAutoPlay = StreamAutoPlayController()
 
     // Profile-scoped layout preference
     @ObservedObject var profileSettings = ProfileSettings.shared
@@ -143,6 +144,7 @@ struct DetailsView: View {
                 .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
             }
         }
+        .overlay { StreamAutoPlayOverlay(controller: streamAutoPlay) }
         .animation(reduceMotion ? DS.Motion.quick : DS.Motion.standard, value: showsFloatingHeader)
         .environment(\.detailsTitleActions, titleActions)
         .environment(\.detailsHeroTrailer, heroTrailer)
@@ -456,8 +458,17 @@ struct DetailsView: View {
     }
 
     func openHeroStremioSources() {
+        openHeroStremio(forcePicker: StreamAutoPlayController.isPickerModifierHeld)
+    }
+
+    /// "Choose Source…": the sources page regardless of the Play setting.
+    func chooseHeroStremioSource() {
+        openHeroStremio(forcePicker: true)
+    }
+
+    private func openHeroStremio(forcePicker: Bool) {
         if item.type == "movie" || vm.mediaKind == "movie" {
-            Task { await openStremioSources(for: nil) }
+            Task { await openStremioSources(for: nil, forcePicker: forcePicker) }
             return
         }
 
@@ -473,17 +484,17 @@ struct DetailsView: View {
                 seasonNumber: vm.seasonNumber,
                 episodeNumber: vm.episodeNumber
             )
-            Task { await openStremioSources(for: episode) }
+            Task { await openStremioSources(for: episode, forcePicker: forcePicker) }
             return
         }
 
         if let onDeck = vm.onDeck {
-            Task { await openStremioSources(for: onDeck) }
+            Task { await openStremioSources(for: onDeck, forcePicker: forcePicker) }
             return
         }
 
         if let firstEpisode = vm.episodes.first {
-            Task { await openStremioSources(for: firstEpisode) }
+            Task { await openStremioSources(for: firstEpisode, forcePicker: forcePicker) }
             return
         }
 
@@ -495,18 +506,25 @@ struct DetailsView: View {
     }
 
     func openEpisodeStremioSources(_ episode: DetailsViewModel.Episode) {
-        Task { await openStremioSources(for: episode) }
+        let forcePicker = StreamAutoPlayController.isPickerModifierHeld
+        Task { await openStremioSources(for: episode, forcePicker: forcePicker) }
     }
 
-    private func openStremioSources(for episode: DetailsViewModel.Episode?) async {
+    private func openStremioSources(for episode: DetailsViewModel.Episode?, forcePicker: Bool) async {
         AppLogger.shared.info("[Stremio] Details CTA tapped", data: [
             "itemId": item.id,
             "episodeId": episode?.id ?? "",
             "title": vm.title,
         ])
 
+        let playAction = forcePicker ? StremioPlayAction.showSources : UserDefaults.standard.stremioPlayAction
+        if playAction.isAutomatic {
+            streamAutoPlay.begin(title: vm.title.isEmpty ? item.title : vm.title)
+        }
+
         let result = await StremioContentResolver.resolve(item: item, details: vm, episode: episode)
         guard let identity = result.identity else {
+            streamAutoPlay.cancel()
             switch result.error {
             case .noStreamAddons:
                 stremioAlertOffersSettings = true
@@ -534,7 +552,16 @@ struct DetailsView: View {
             episodeNumber: identity.episodeNumber,
             episodeTitle: episode?.title ?? vm.episodeTitle
         )
-        appendToCurrentTabPath(destination)
+        guard playAction.isAutomatic else {
+            appendToCurrentTabPath(destination)
+            return
+        }
+        streamAutoPlay.run(
+            destination: destination,
+            action: playAction,
+            onPlay: { appendToCurrentTabPath($0) },
+            onShowSources: { appendToCurrentTabPath($0) }
+        )
     }
 }
 

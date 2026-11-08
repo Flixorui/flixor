@@ -54,7 +54,6 @@ final class StremioSourcesViewModel: ObservableObject {
     @Published var emptyState: EmptyState = .none
     @Published var cachedSource: CachedPlaybackSource?
     @Published var alertMessage: String?
-    @Published var autoPlayDestination: PlayerDestination?
 
     let destination: StremioSourcesDestination
 
@@ -113,7 +112,6 @@ final class StremioSourcesViewModel: ObservableObject {
     func load() async {
         isLoading = true
         emptyState = .none
-        autoPlayDestination = nil
 
         await service.ensureInitialized(installDefaults: profileSettings.stremioPlaybackEnabled)
 
@@ -151,12 +149,81 @@ final class StremioSourcesViewModel: ObservableObject {
         }
 
         emptyState = .none
+    }
 
-        if profileSettings.stremioAutoPlayBestSource,
-           let best = bestPlayableStream(in: results),
-           let destination = await select(stream: best, saveToCache: true, includeAlertOnFailure: false) {
-            autoPlayDestination = destination
+    // MARK: - Automatic selection
+
+    enum AutoSelectionOutcome {
+        case play(PlayerDestination)
+        /// Open the sources page, with an explanation when there is one to give.
+        case showSources(notice: String?)
+    }
+
+    /// Chooses a stream for an automatic Play without showing the sources page.
+    func findAutomaticSource(action: StremioPlayAction) async -> AutoSelectionOutcome {
+        await service.ensureInitialized(installDefaults: profileSettings.stremioPlaybackEnabled)
+
+        guard await service.hasStreamProviders(
+            requestType: StremioRequestType(rawValue: destination.identity.requestType)
+        ) else {
+            return .showSources(notice: nil)
         }
+
+        if let resumed = await cachedResumeDestination() {
+            return .play(resumed)
+        }
+
+        let defaults = UserDefaults.standard
+        let selector: StreamAutoSelector
+        do {
+            selector = try StreamAutoSelector(rules: action == .matchRules ? defaults.stremioStreamRules : nil)
+        } catch {
+            return .showSources(notice: "Your source rules have an invalid pattern. Fix it in Settings, or choose a source here.")
+        }
+
+        let timeLimit = defaults.stremioAutoPickTimeLimit
+        let fetched = await service.getStreams(identity: destination.identity, timeLimit: TimeInterval(timeLimit)) { results, pending in
+            selector.earlyPick(in: results, pending: pending) != nil
+        }
+        groupedResults = fetched.results
+
+        guard let stream = selector.pick(in: fetched.results) else {
+            return .showSources(notice: fallbackNotice(
+                results: fetched.results,
+                waitedSeconds: fetched.timedOut ? timeLimit : nil
+            ))
+        }
+        guard let playback = await select(stream: stream, saveToCache: true, includeAlertOnFailure: false) else {
+            return .showSources(notice: "The chosen source could not be started. Choose another one here.")
+        }
+
+        AppLogger.shared.info("[Stremio] Auto-selected source", data: [
+            "contentKey": contentKey,
+            "action": action.rawValue,
+            "addonName": stream.addonName ?? "",
+            "timedOut": fetched.timedOut,
+        ])
+        return .play(playback)
+    }
+
+    /// The cached source when this Play is a resume, under the same setting as the
+    /// "Resume Cached Source" card on the sources page.
+    private func cachedResumeDestination() async -> PlayerDestination? {
+        guard profileSettings.stremioPreferCachedSourceResume,
+              let cached = await streamCache.get(contentKey: contentKey),
+              let resume = await resumeStore.get(contentKey: contentKey),
+              resume.positionMs > 0 else { return nil }
+        cachedSource = cached
+        return await resumeCachedPlayback()
+    }
+
+    /// Nil when no addon had anything playable and all answered: the page's empty state explains that.
+    private func fallbackNotice(results: [StremioAddonStreamResult], waitedSeconds: Int?) -> String? {
+        let within = waitedSeconds.map { " within \($0) seconds" } ?? ""
+        if results.contains(where: { $0.streams.contains(where: \.playable) }) {
+            return "No source matched your rules\(within). Showing all sources."
+        }
+        return waitedSeconds == nil ? nil : "No playable source arrived\(within). Showing all sources."
     }
 
     var contentKey: String {
@@ -287,16 +354,5 @@ final class StremioSourcesViewModel: ObservableObject {
         return headers.keys.sorted().map { key in
             HTTPHeaderField(name: key, value: headers[key] ?? "")
         }
-    }
-
-    private func bestPlayableStream(in results: [StremioAddonStreamResult]) -> StremioPlayableStream? {
-        let grouped = results.flatMap(\.streams).filter(\.playable)
-        return grouped.max { lhs, rhs in
-            score(for: lhs) < score(for: rhs)
-        }
-    }
-
-    private func score(for stream: StremioPlayableStream) -> Int {
-        StremioSourceRanking.score(for: stream, addonOrder: groupedResults.map(\.installationId))
     }
 }
