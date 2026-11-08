@@ -169,6 +169,7 @@ struct HomeScreenAppearanceView: View {
                     .frame(width: 100)
                 }
             }
+            CardStyleSettingsSection()
         }
     }
 

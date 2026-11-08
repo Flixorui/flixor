@@ -7,6 +7,17 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		24B4CA9E608CBA71DD9432CD /* CardStyleSettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDC99F8DCC480F63B43E577C /* CardStyleSettingsSection.swift */; };
+		EA8E46D9014341BC28647CC8 /* HoverPreviewTrailer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA62379490CDEC01DF82696F /* HoverPreviewTrailer.swift */; };
+		1265D3F89B682D7B713CAA7C /* HoverPreviewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE1B15C9EE84EC97F54A8078 /* HoverPreviewModel.swift */; };
+		39A62F30F5E8161174B16DD1 /* HoverPreviewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8DFC526B36ED2386B40C145 /* HoverPreviewController.swift */; };
+		93CBD3D364CEC2C1A3572336 /* HoverPreviewCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF753547EBFA04CC31117248 /* HoverPreviewCard.swift */; };
+		3D324E1B77D0314A1EA82725 /* CardStyleStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DA915871CF3BB5F6E157CD9 /* CardStyleStore.swift */; };
+		45B5A14B35CD106B50D295EC /* CardKeyboardFocus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A7291DC3FA3D0CCA6A8EFD6 /* CardKeyboardFocus.swift */; };
+		7F463EC11E4FE94CB21FBC8E /* CardInteractions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7980A2DF38112A7E80E47015 /* CardInteractions.swift */; };
+		79E158DA57E37ADD71EC016E /* CardActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = E076E524DFD8171D45C4C5C0 /* CardActions.swift */; };
+		2EB75776DDBF2507E7C88B58 /* CardContextMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CC4A2E33B6AD6B51D544CBD /* CardContextMenu.swift */; };
+		47D682A363E691AACCA5B486 /* UserDefaults+Cards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52C2BDF2027BE69EEB804C07 /* UserDefaults+Cards.swift */; };
 		3BA1FB7E0BB27987A84EE250 /* DetailsHeroSettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C71ECC1DDBECB81CD8EE4FC /* DetailsHeroSettingsSection.swift */; };
 		AC145E49D9C90CCD261F94F9 /* DetailsWatchActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = F146FF91B904FC2BABCFE868 /* DetailsWatchActions.swift */; };
 		1853F4EF223E4E40F0A3D689 /* DetailsRatingSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E1343D63BDABE83CF3BB65F /* DetailsRatingSheet.swift */; };
@@ -258,6 +269,17 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		EDC99F8DCC480F63B43E577C /* CardStyleSettingsSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CardStyleSettingsSection.swift; sourceTree = "<group>"; };
+		AA62379490CDEC01DF82696F /* HoverPreviewTrailer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoverPreview/HoverPreviewTrailer.swift; sourceTree = "<group>"; };
+		EE1B15C9EE84EC97F54A8078 /* HoverPreviewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoverPreview/HoverPreviewModel.swift; sourceTree = "<group>"; };
+		B8DFC526B36ED2386B40C145 /* HoverPreviewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoverPreview/HoverPreviewController.swift; sourceTree = "<group>"; };
+		DF753547EBFA04CC31117248 /* HoverPreviewCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoverPreview/HoverPreviewCard.swift; sourceTree = "<group>"; };
+		7DA915871CF3BB5F6E157CD9 /* CardStyleStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Cards/CardStyleStore.swift; sourceTree = "<group>"; };
+		8A7291DC3FA3D0CCA6A8EFD6 /* CardKeyboardFocus.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Cards/CardKeyboardFocus.swift; sourceTree = "<group>"; };
+		7980A2DF38112A7E80E47015 /* CardInteractions.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Cards/CardInteractions.swift; sourceTree = "<group>"; };
+		E076E524DFD8171D45C4C5C0 /* CardActions.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Cards/CardActions.swift; sourceTree = "<group>"; };
+		5CC4A2E33B6AD6B51D544CBD /* CardContextMenu.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CardContextMenu.swift; sourceTree = "<group>"; };
+		52C2BDF2027BE69EEB804C07 /* UserDefaults+Cards.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "UserDefaults+Cards.swift"; sourceTree = "<group>"; };
 		9C71ECC1DDBECB81CD8EE4FC /* DetailsHeroSettingsSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DetailsHeroSettingsSection.swift; sourceTree = "<group>"; };
 		F146FF91B904FC2BABCFE868 /* DetailsWatchActions.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DetailsWatchActions.swift; sourceTree = "<group>"; };
 		0E1343D63BDABE83CF3BB65F /* DetailsRatingSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DetailsRatingSheet.swift; sourceTree = "<group>"; };
@@ -723,6 +745,7 @@
 		D008 /* Extensions */ = {
 			isa = PBXGroup;
 			children = (
+				52C2BDF2027BE69EEB804C07 /* UserDefaults+Cards.swift */,
 				C6797534B5967731053F353A /* UserDefaults+DetailsHero.swift */,
 				6F7D8653ED5A3B68CD2C56DD /* UserDefaults+SkipSegments.swift */,
 				B3464E9C06ED9B84B08B8725 /* UserDefaults+PlaybackEngine.swift */,
@@ -752,6 +775,15 @@
 		D011 /* Components */ = {
 			isa = PBXGroup;
 			children = (
+				AA62379490CDEC01DF82696F /* HoverPreviewTrailer.swift */,
+				EE1B15C9EE84EC97F54A8078 /* HoverPreviewModel.swift */,
+				B8DFC526B36ED2386B40C145 /* HoverPreviewController.swift */,
+				DF753547EBFA04CC31117248 /* HoverPreviewCard.swift */,
+				7DA915871CF3BB5F6E157CD9 /* CardStyleStore.swift */,
+				8A7291DC3FA3D0CCA6A8EFD6 /* CardKeyboardFocus.swift */,
+				7980A2DF38112A7E80E47015 /* CardInteractions.swift */,
+				E076E524DFD8171D45C4C5C0 /* CardActions.swift */,
+				5CC4A2E33B6AD6B51D544CBD /* CardContextMenu.swift */,
 				D300 /* Icons */,
 				B014 /* NewPopularView.swift */,
 				B017 /* CachedAsyncImage.swift */,
@@ -810,6 +842,7 @@
 		D015 /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				EDC99F8DCC480F63B43E577C /* CardStyleSettingsSection.swift */,
 				9C71ECC1DDBECB81CD8EE4FC /* DetailsHeroSettingsSection.swift */,
 				A2D701721AA528B414299AF0 /* PlaybackEngineSettingsModel.swift */,
 				7404D0E4FB2D6A6845DD7DF7 /* DetailsSectionOrderList.swift */,
@@ -1107,6 +1140,17 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				24B4CA9E608CBA71DD9432CD /* CardStyleSettingsSection.swift in Sources */,
+				EA8E46D9014341BC28647CC8 /* HoverPreviewTrailer.swift in Sources */,
+				1265D3F89B682D7B713CAA7C /* HoverPreviewModel.swift in Sources */,
+				39A62F30F5E8161174B16DD1 /* HoverPreviewController.swift in Sources */,
+				93CBD3D364CEC2C1A3572336 /* HoverPreviewCard.swift in Sources */,
+				3D324E1B77D0314A1EA82725 /* CardStyleStore.swift in Sources */,
+				45B5A14B35CD106B50D295EC /* CardKeyboardFocus.swift in Sources */,
+				7F463EC11E4FE94CB21FBC8E /* CardInteractions.swift in Sources */,
+				79E158DA57E37ADD71EC016E /* CardActions.swift in Sources */,
+				2EB75776DDBF2507E7C88B58 /* CardContextMenu.swift in Sources */,
+				47D682A363E691AACCA5B486 /* UserDefaults+Cards.swift in Sources */,
 				3BA1FB7E0BB27987A84EE250 /* DetailsHeroSettingsSection.swift in Sources */,
 				AC145E49D9C90CCD261F94F9 /* DetailsWatchActions.swift in Sources */,
 				1853F4EF223E4E40F0A3D689 /* DetailsRatingSheet.swift in Sources */,

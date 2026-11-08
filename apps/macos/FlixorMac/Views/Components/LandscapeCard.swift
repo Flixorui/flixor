@@ -16,9 +16,17 @@ struct LandscapeCard: View {
 
     @State private var isHovered = false
     @State private var altURL: URL? = nil
+    @ObservedObject private var cardStyle = CardStyleStore.shared
 
     private var height: CGFloat {
         width * 0.5 // 2:1 aspect to match web rows
+    }
+
+    private var cornerRadius: CGFloat { cardStyle.cornerStyle.landscapeRadius }
+
+    private var ratingBadgeValue: Double? {
+        guard cardStyle.showRatingBadges, let rating = item.rating, rating > 0 else { return nil }
+        return rating
     }
 
     private var progressPercentage: Double {
@@ -50,6 +58,7 @@ struct LandscapeCard: View {
                     .frame(width: width, height: height)
                     .clipped()
                     .background(Color.gray.opacity(0.2))
+                    .accessibilityHidden(true)
 
                 // Gradient overlay (only on hover)
                 if isHovered {
@@ -112,19 +121,20 @@ struct LandscapeCard: View {
                 }
             }
             .frame(width: width, height: height)
-            .cornerRadius(14)
+            .overlay(alignment: .topLeading) {
+                if let rating = ratingBadgeValue {
+                    CardRatingBadge(rating: rating).padding(DS.Space.s8)
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 14)
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .stroke(Color.white.opacity(isHovered ? 0.9 : 0.15), lineWidth: isHovered ? 2 : 1)
             )
             .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
         }
         .buttonStyle(.plain)
-        .onHover { hovering in
-            withAnimation(.easeOut(duration: 0.15)) {
-                isHovered = hovering
-            }
-        }
+        .cardInteractions(item: item, cornerRadius: cornerRadius, isHovered: $isHovered, onOpen: onTap)
         .task(id: item.id) {
             await fetchTMDBBackdrop()
         }

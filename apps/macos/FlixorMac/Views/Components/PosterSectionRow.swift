@@ -13,17 +13,20 @@ struct PosterSectionRow: View {
     var onBrowse: ((BrowseContext) -> Void)?
 
     @ObservedObject private var profileSettings = ProfileSettings.shared
+    @ObservedObject private var cardStyle = CardStyleStore.shared
+    @Environment(\.windowMetrics) private var metrics
 
     private var posterWidth: CGFloat {
-        switch profileSettings.posterSize {
-        case "small": return 130
-        case "large": return 190
-        default: return 160
-        }
+        metrics.posterWidth(base: CardPosterSize(stored: profileSettings.posterSize).baseWidth)
     }
 
     private var posterHeight: CGFloat {
-        posterWidth * 1.5 // Standard 2:3 poster ratio
+        posterWidth * DS.Layout.posterAspect
+    }
+
+    /// Posters plus, when titles are always shown, their caption.
+    private var rowHeight: CGFloat {
+        posterHeight + (cardStyle.titleMode == .always ? CardMetrics.posterCaptionHeight : 0)
     }
 
     var body: some View {
@@ -32,7 +35,7 @@ struct PosterSectionRow: View {
             items: section.items,
             itemWidth: posterWidth,
             spacing: 14,
-            rowHeight: posterHeight, // Match exact content height to fix hover offset
+            rowHeight: rowHeight, // Match exact content height to fix hover offset
             browseAction: section.browseContext.map { context in
                 { onBrowse?(context) }
             }
@@ -55,8 +58,18 @@ struct PosterSectionCard: View {
 
     @State private var isHovered = false
     @State private var posterURL: URL?
+    @ObservedObject private var cardStyle = CardStyleStore.shared
 
     private var height: CGFloat { width * 1.5 }
+
+    private var cornerRadius: CGFloat { cardStyle.cornerStyle.posterRadius }
+
+    private var ratingBadgeValue: Double? {
+        guard cardStyle.showRatingBadges, let rating = item.rating, rating > 0 else { return nil }
+        return rating
+    }
+
+    private var showsHoverTitle: Bool { isHovered && cardStyle.titleMode == .hover }
 
     // For episodes: show series title, otherwise item title
     private var displayTitle: String {
@@ -104,6 +117,39 @@ struct PosterSectionCard: View {
     }
 
     var body: some View {
+        VStack(alignment: .leading, spacing: DS.Space.s6) {
+            artworkButton
+
+            if cardStyle.titleMode == .always {
+                VStack(alignment: .leading, spacing: DS.Space.s2) {
+                    Text(displayTitle)
+                        .flixorFont(.callout, weight: .medium)
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                    if let caption = captionText {
+                        Text(caption)
+                            .flixorFont(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+                // Fixed height keeps artwork aligned when a card has no caption line.
+                .frame(width: width, height: CardMetrics.posterCaptionHeight - DS.Space.s6, alignment: .topLeading)
+                .accessibilityHidden(true) // Part of the card's label
+            }
+        }
+        .frame(width: width, alignment: .top)
+        .task(id: item.id) {
+            await loadPoster()
+        }
+    }
+
+    private var captionText: String? {
+        let parts = [episodeLabel, item.year.map(String.init)].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    private var artworkButton: some View {
         Button(action: { onTap?() }) {
             ZStack(alignment: .bottom) {
                 // Poster Image - for episodes, use series poster (grandparentThumb)
@@ -114,9 +160,10 @@ struct PosterSectionCard: View {
                 .frame(width: width, height: height)
                 .clipped()
                 .background(Color.gray.opacity(0.2))
+                .accessibilityHidden(true)
 
                 // Gradient overlay (only on hover)
-                if isHovered {
+                if showsHoverTitle {
                     LinearGradient(
                         colors: [
                             .black.opacity(0.0),
@@ -130,7 +177,7 @@ struct PosterSectionCard: View {
                 }
 
                 // Title overlay (only on hover)
-                if isHovered {
+                if showsHoverTitle {
                     VStack(alignment: .leading, spacing: 4) {
                         // Series/Movie title
                         Text(displayTitle)
@@ -188,23 +235,21 @@ struct PosterSectionCard: View {
                 }
             }
             .frame(width: width, height: height)
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay(alignment: .topLeading) {
+                if let rating = ratingBadgeValue {
+                    CardRatingBadge(rating: rating).padding(DS.Space.s6)
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .strokeBorder(Color.white.opacity(isHovered ? 0.6 : 0.1), lineWidth: isHovered ? 2 : 1)
             )
             .shadow(color: .black.opacity(0.3), radius: 6, y: 3)
         }
         .buttonStyle(.plain)
         .contentShape(Rectangle()) // Ensures full button area is clickable
-        .onHover { hovering in
-            withAnimation(.easeOut(duration: 0.15)) {
-                isHovered = hovering
-            }
-        }
-        .task(id: item.id) {
-            await loadPoster()
-        }
+        .cardInteractions(item: item, cornerRadius: cornerRadius, isHovered: $isHovered, onOpen: onTap)
     }
 
     /// Resolve default poster URL - for episodes use series poster
