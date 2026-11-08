@@ -8,6 +8,7 @@
 import SwiftUI
 
 struct ContinueWatchingSettingsView: View {
+    @Environment(\.flixorTheme) private var theme
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var profileSettings = ProfileSettings.shared
     @ObservedObject private var rowsStore = HomeRowsStore.shared
@@ -132,7 +133,7 @@ struct ContinueWatchingSettingsView: View {
                 .padding(DS.Space.s24)
             }
         }
-        .background(Color(NSColor.windowBackgroundColor))
+        .background(theme.settingsWindowBackground)
     }
 
     // MARK: - Previews

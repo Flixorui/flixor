@@ -9,6 +9,7 @@ import SwiftUI
 import FlixorKit
 
 struct PinEntryView: View {
+    @Environment(\.flixorTheme) private var theme
     let user: PlexHomeUser
     let onSubmit: (String) -> Void
 
@@ -125,7 +126,7 @@ struct PinEntryView: View {
             .padding(.bottom, DS.Space.s20)
         }
         .frame(width: 400, height: 550)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(theme.settingsWindowBackground)
         .onAppear {
             isFocused = true
         }

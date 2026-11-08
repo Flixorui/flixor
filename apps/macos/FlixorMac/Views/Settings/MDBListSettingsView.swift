@@ -9,6 +9,7 @@ import SwiftUI
 import AppKit
 
 struct MDBListSettingsView: View {
+    @Environment(\.flixorTheme) private var theme
     @ObservedObject private var profileSettings = ProfileSettings.shared
 
     private let mdblistColor = Color(hex: "F5C518")
@@ -66,7 +67,7 @@ struct MDBListSettingsView: View {
                     SecureField("Enter your MDBList API key", text: $profileSettings.mdblistApiKey)
                         .textFieldStyle(.plain)
                         .padding(DS.Space.s10)
-                        .background(Color(NSColor.textBackgroundColor))
+                        .background(theme.settingsFieldBackground)
                         .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r8, style: .continuous))
                         .padding(.horizontal, DS.Space.s12)
                         .disabled(!profileSettings.mdblistEnabled)
@@ -133,6 +134,7 @@ struct MDBListSettingsView: View {
 // MARK: - Rating Provider Badge
 
 private struct RatingProviderBadge: View {
+    @Environment(\.flixorTheme) private var theme
     let name: String
     let color: Color
 
@@ -147,7 +149,7 @@ private struct RatingProviderBadge: View {
         .padding(.horizontal, DS.Space.s10)
         .padding(.vertical, DS.Space.s6)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
+        .background(theme.chromeColor(default: Color(NSColor.controlBackgroundColor).opacity(0.5), pureBlack: theme.surface))
         .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r6, style: .continuous))
     }
 }
@@ -155,6 +157,7 @@ private struct RatingProviderBadge: View {
 // MARK: - Instruction Row
 
 private struct InstructionRow: View {
+    @Environment(\.flixorTheme) private var theme
     let number: Int
     let text: String
 
@@ -162,7 +165,7 @@ private struct InstructionRow: View {
         HStack(alignment: .top, spacing: DS.Space.s10) {
             Text("\(number)")
                 .font(.flixor(.caption, weight: .bold))
-                .foregroundStyle(.white)
+                .foregroundStyle(theme.onAccent)
                 .frame(width: 20, height: 20)
                 .background(Color.accentColor)
                 .clipShape(Circle())

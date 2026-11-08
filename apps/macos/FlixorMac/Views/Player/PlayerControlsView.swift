@@ -687,6 +687,7 @@ struct PlayerControlsView: View {
 // MARK: - Volume Slider Popover
 
 private struct VolumeSliderPopover: View {
+    @Environment(\.flixorTheme) private var theme
     @Binding var volume: Float
     let isMuted: Bool
 
@@ -706,14 +707,10 @@ private struct VolumeSliderPopover: View {
                         .frame(height: 6)
                         .cornerRadius(3)
 
-                    // Progress fill with red gradient
-                    LinearGradient(
-                        colors: [Color(red: 0.898, green: 0.035, blue: 0.078), Color(red: 0.9, green: 0.035, blue: 0.078)],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                    .frame(width: geometry.size.width * CGFloat(volume), height: 6)
-                    .cornerRadius(3)
+                    // Progress fill
+                    theme.accent
+                        .frame(width: geometry.size.width * CGFloat(volume), height: 6)
+                        .cornerRadius(3)
 
                     // Thumb
                     Circle()
@@ -742,7 +739,7 @@ private struct VolumeSliderPopover: View {
         .padding(.horizontal, DS.Space.s16)
         .padding(.vertical, DS.Space.s12)
         .frame(width: 288)
-        .background(Color.black.opacity(0.9))
+        .background(theme.playerPanelBackground(opacity: 0.9))
         .cornerRadius(DS.Radius.r16)
         .overlay(
             RoundedRectangle(cornerRadius: DS.Radius.r16)

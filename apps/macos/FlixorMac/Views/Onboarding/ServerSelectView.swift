@@ -9,6 +9,7 @@ import SwiftUI
 import FlixorKit
 
 struct ServerSelectView: View {
+    @Environment(\.flixorTheme) private var theme
     let onServerSelected: (PlexServerResource) -> Void
 
     @State private var servers: [PlexServerResource] = []
@@ -21,7 +22,9 @@ struct ServerSelectView: View {
             Color.black.ignoresSafeArea()
 
             // Animated gradient background
-            AnimatedGradientBackground()
+            if !theme.pureBlack {
+                AnimatedGradientBackground()
+            }
 
             VStack(spacing: 0) {
                 // Header

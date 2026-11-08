@@ -8,6 +8,7 @@
 import SwiftUI
 
 struct MpvConfigView: View {
+    @Environment(\.flixorTheme) private var theme
     @Environment(\.dismiss) private var dismiss
     @State private var entries: [MpvConfigEntry] = []
     @State private var presets: [MpvPreset] = []
@@ -33,7 +34,7 @@ struct MpvConfigView: View {
                     .buttonStyle(.borderedProminent)
             }
             .padding(DS.Space.s20)
-            .background(Color(NSColor.windowBackgroundColor))
+            .background(theme.settingsWindowBackground)
 
             Divider()
 
@@ -131,7 +132,7 @@ struct MpvConfigView: View {
             }
         }
         .frame(width: 550, height: 600)
-        .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
+        .background(theme.chromeColor(default: Color(NSColor.controlBackgroundColor).opacity(0.5)))
         .onAppear(perform: loadData)
         .sheet(isPresented: $showAddSheet) {
             MpvConfigEntryEditor(onSave: addEntry)
@@ -330,6 +331,7 @@ private struct MpvConfigEntryRow: View {
 // MARK: - Entry Editor
 
 struct MpvConfigEntryEditor: View {
+    @Environment(\.flixorTheme) private var theme
     var entry: MpvConfigEntry?
     let onSave: (MpvConfigEntry) -> Void
 
@@ -388,6 +390,7 @@ struct MpvConfigEntryEditor: View {
         }
         .padding(DS.Space.s24)
         .frame(width: 350)
+        .pureBlackSheetBackground()
         .onAppear {
             if let entry = entry {
                 key = entry.key
@@ -400,6 +403,7 @@ struct MpvConfigEntryEditor: View {
 // MARK: - Save Preset Sheet
 
 private struct SavePresetSheet: View {
+    @Environment(\.flixorTheme) private var theme
     let onSave: (String) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -432,6 +436,7 @@ private struct SavePresetSheet: View {
         }
         .padding(DS.Space.s24)
         .frame(width: 300)
+        .pureBlackSheetBackground()
     }
 }
 

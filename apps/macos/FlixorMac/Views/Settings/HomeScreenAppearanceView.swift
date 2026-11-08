@@ -344,6 +344,7 @@ struct HomeScreenAppearanceView: View {
 // MARK: - Layout Option Button
 
 struct LayoutOptionButton: View {
+    @Environment(\.flixorTheme) private var theme
     let title: String
     let icon: String
     let isSelected: Bool
@@ -362,9 +363,9 @@ struct LayoutOptionButton: View {
             .background(
                 isSelected
                     ? Color.accentColor
-                    : Color(NSColor.controlBackgroundColor)
+                    : theme.settingsGroupBackground
             )
-            .foregroundStyle(isSelected ? .white : .primary)
+            .foregroundStyle(isSelected ? theme.onAccent : .primary)
             .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r10, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: DS.Radius.r10, style: .continuous)
@@ -381,6 +382,7 @@ struct LayoutOptionButton: View {
 // MARK: - Collapsible Preview Section
 
 struct CollapsiblePreviewSection<Content: View>: View {
+    @Environment(\.flixorTheme) private var theme
     let title: String
     @Binding var isExpanded: Bool
     @ViewBuilder let content: () -> Content
@@ -410,7 +412,7 @@ struct CollapsiblePreviewSection<Content: View>: View {
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, DS.Space.s10)
                     .padding(.vertical, 5)
-                    .background(Color(NSColor.controlBackgroundColor))
+                    .background(theme.settingsGroupBackground)
                     .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r6, style: .continuous))
                 }
             }

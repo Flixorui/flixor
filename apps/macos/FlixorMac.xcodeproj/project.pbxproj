@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		95671D3129C1273708426CA8 /* FlixorTheme+Chrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E22A20F1934B91D1D73BF30 /* FlixorTheme+Chrome.swift */; };
 		F1C6D52C1DC6356BDD3CDB89 /* UserCollectionsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 181D5C4431FB9906054EF79E /* UserCollectionsSection.swift */; };
 		93CAD6B00EAD1BCD4EE702D3 /* UserCollectionHomeRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FCC258C9787B682EFFD9092 /* UserCollectionHomeRow.swift */; };
 		076BF0D98AF0AE9FAE9D64D8 /* UserCollectionEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC805455B88123CD578DCAD9 /* UserCollectionEditorView.swift */; };
@@ -311,6 +312,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		8E22A20F1934B91D1D73BF30 /* FlixorTheme+Chrome.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "FlixorTheme+Chrome.swift"; sourceTree = "<group>"; };
 		181D5C4431FB9906054EF79E /* UserCollectionsSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Collections/UserCollectionsSection.swift; sourceTree = "<group>"; };
 		6FCC258C9787B682EFFD9092 /* UserCollectionHomeRow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Collections/UserCollectionHomeRow.swift; sourceTree = "<group>"; };
 		FC805455B88123CD578DCAD9 /* UserCollectionEditorView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Collections/UserCollectionEditorView.swift; sourceTree = "<group>"; };
@@ -848,6 +850,7 @@
 		D008 /* Extensions */ = {
 			isa = PBXGroup;
 			children = (
+				8E22A20F1934B91D1D73BF30 /* FlixorTheme+Chrome.swift */,
 				BC8736AC77502CD19658B62C /* UserDefaults+Collections.swift */,
 				5EFB67E56A9E7AACAC7EC5AB /* UserDefaults+StreamSelection.swift */,
 				D9C937A927B8FBD09A6143DB /* UserDefaults+HomeRows.swift */,
@@ -1266,6 +1269,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				95671D3129C1273708426CA8 /* FlixorTheme+Chrome.swift in Sources */,
 				F1C6D52C1DC6356BDD3CDB89 /* UserCollectionsSection.swift in Sources */,
 				93CAD6B00EAD1BCD4EE702D3 /* UserCollectionHomeRow.swift in Sources */,
 				076BF0D98AF0AE9FAE9D64D8 /* UserCollectionEditorView.swift in Sources */,

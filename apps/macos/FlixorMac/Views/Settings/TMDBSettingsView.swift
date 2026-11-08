@@ -8,6 +8,7 @@
 import SwiftUI
 
 struct TMDBSettingsView: View {
+    @Environment(\.flixorTheme) private var theme
     @ObservedObject private var profileSettings = ProfileSettings.shared
     private let defaults = UserDefaults.standard
 
@@ -27,7 +28,7 @@ struct TMDBSettingsView: View {
                     TextField("Enter your TMDB API key (optional)", text: Binding(get: { defaults.tmdbApiKey }, set: { defaults.tmdbApiKey = $0 }))
                         .textFieldStyle(.plain)
                         .padding(DS.Space.s10)
-                        .background(Color(NSColor.textBackgroundColor))
+                        .background(theme.settingsFieldBackground)
                         .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r8, style: .continuous))
                         .padding(.horizontal, DS.Space.s12)
 

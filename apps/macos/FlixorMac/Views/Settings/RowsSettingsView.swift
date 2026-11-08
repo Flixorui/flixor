@@ -135,6 +135,7 @@ struct RowsSettingsView: View {
         .sheet(isPresented: $showCollectionRowsSettings) {
             CollectionRowsSettingsView()
                 .frame(width: 500, height: 600)
+                .pureBlackSheetBackground()
         }
     }
 }

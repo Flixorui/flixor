@@ -9,6 +9,7 @@ import AppKit
 import SwiftUI
 
 struct StremioAddonsView: View {
+    @Environment(\.flixorTheme) private var theme
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var profileSettings = ProfileSettings.shared
     @State private var manifestURL = ""
@@ -50,7 +51,7 @@ struct StremioAddonsView: View {
                             TextField("https://example.com/manifest.json", text: $manifestURL)
                                 .textFieldStyle(.plain)
                                 .padding(DS.Space.s10)
-                                .background(Color(NSColor.textBackgroundColor))
+                                .background(theme.settingsFieldBackground)
                                 .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r8, style: .continuous))
 
                             HStack {
@@ -117,7 +118,7 @@ struct StremioAddonsView: View {
             }
         }
         .frame(width: 760, height: 720)
-        .background(Color(NSColor.windowBackgroundColor))
+        .background(theme.settingsWindowBackground)
         .task {
             await refresh()
         }

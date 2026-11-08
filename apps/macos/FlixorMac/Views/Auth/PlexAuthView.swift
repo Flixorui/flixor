@@ -8,6 +8,7 @@
 import SwiftUI
 
 struct PlexAuthView: View {
+    @Environment(\.flixorTheme) private var theme
     @StateObject private var viewModel = PlexAuthViewModel()
     @EnvironmentObject var sessionManager: SessionManager
     @ObservedObject private var appMode = AppModeStore.shared
@@ -17,9 +18,9 @@ struct PlexAuthView: View {
             // Background gradient matching web app
             LinearGradient(
                 stops: [
-                    .init(color: Color.backgroundPrimary, location: 0),
-                    .init(color: Color.backgroundSecondary, location: 0.5),
-                    .init(color: Color.backgroundPrimary, location: 1)
+                    .init(color: theme.background, location: 0),
+                    .init(color: theme.backgroundSecondary, location: 0.5),
+                    .init(color: theme.background, location: 1)
                 ],
                 startPoint: .top,
                 endPoint: .bottom
