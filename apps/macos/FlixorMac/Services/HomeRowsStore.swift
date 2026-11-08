@@ -88,7 +88,7 @@ final class HomeRowsStore: ObservableObject {
 
     // MARK: - Known rows
 
-    private static let groupOrder: [HomeRowGroup] = [.continueWatching, .recentlyAdded, .collections, .extras]
+    private static let groupOrder: [HomeRowGroup] = [.continueWatching, .recentlyAdded, .collections, .userCollections, .extras]
 
     /// Replaces the known rows of one group (called by HomeViewModel after the
     /// group loads). Groups keep their default position relative to each other.

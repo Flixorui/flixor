@@ -2,7 +2,7 @@
 //  CollectionsView.swift
 //  FlixorMac
 //
-//  Grid view for Plex collections.
+//  The Collections tab: the user's own collections, then Plex collections.
 //
 
 import SwiftUI
@@ -12,56 +12,83 @@ struct CollectionsView: View {
     let isLoading: Bool
     var onSelect: (LibraryViewModel.CollectionEntry) -> Void
 
+    @EnvironmentObject private var router: NavigationRouter
+    @EnvironmentObject private var mainViewState: MainViewState
+    @Environment(\.flixorTheme) private var theme
+    @StateObject private var browseViewModel = BrowseModalViewModel()
+    @State private var showBrowseModal = false
+
     private let columns = [GridItem(.adaptive(minimum: 220), spacing: 20)]
 
     var body: some View {
-        if isLoading {
-            loadingState
-        } else if collections.isEmpty {
-            emptyState
-        } else {
+        ZStack {
             ScrollView {
-                LazyVGrid(columns: columns, spacing: 20) {
-                    ForEach(collections) { collection in
-                        Button {
-                            onSelect(collection)
-                        } label: {
-                            collectionCard(for: collection)
-                        }
-                        .buttonStyle(.plain)
+                VStack(alignment: .leading, spacing: DS.Space.sectionGap) {
+                    UserCollectionsSection()
+
+                    VStack(alignment: .leading, spacing: DS.Space.s16) {
+                        Text("Plex Collections")
+                            .flixorFont(.title2, weight: .semibold)
+                            .foregroundStyle(theme.textPrimary)
+                            .accessibilityAddTraits(.isHeader)
+                        plexCollections
                     }
                 }
                 .padding(.horizontal, 64)
                 .padding(.vertical, 32)
             }
+
+            if showBrowseModal {
+                BrowseModalView(
+                    isPresented: $showBrowseModal,
+                    viewModel: browseViewModel,
+                    onSelect: { item in
+                        router.push(DetailsNavigationItem(item: item), on: mainViewState.selectedTab)
+                    }
+                )
+                .transition(.opacity)
+                .zIndex(2)
+            }
+        }
+        .onChange(of: showBrowseModal) { isShown in
+            if !isShown { browseViewModel.reset() }
         }
     }
 
-    private var loadingState: some View {
-        ScrollView {
+    @ViewBuilder
+    private var plexCollections: some View {
+        if isLoading {
             LazyVGrid(columns: columns, spacing: 20) {
                 ForEach(0..<6, id: \.self) { _ in
                     SkeletonView(height: 240, cornerRadius: 18)
                         .frame(height: 240)
                 }
             }
-            .padding(.horizontal, 64)
-            .padding(.vertical, 32)
+        } else if collections.isEmpty {
+            Text("Create collections in Plex to see them here.")
+                .flixorFont(.callout)
+                .foregroundStyle(theme.textSecondary)
+        } else {
+            LazyVGrid(columns: columns, spacing: 20) {
+                ForEach(collections) { collection in
+                    Button {
+                        open(collection)
+                    } label: {
+                        collectionCard(for: collection)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(collection.title)
+                }
+            }
         }
     }
 
-    private var emptyState: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "rectangle.stack.badge.person.crop")
-                .font(.system(size: 42))
-                .foregroundStyle(.secondary)
-            Text("No collections available")
-                .font(.title2.weight(.semibold))
-            Text("Create collections in Plex to see them here.")
-                .foregroundStyle(.secondary)
+    private func open(_ collection: LibraryViewModel.CollectionEntry) {
+        onSelect(collection)
+        showBrowseModal = true
+        Task {
+            await browseViewModel.load(context: .plexCollection(ratingKey: collection.id, title: collection.title))
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(80)
     }
 
     private func collectionCard(for collection: LibraryViewModel.CollectionEntry) -> some View {
@@ -110,6 +137,8 @@ struct CollectionsView: View {
         isLoading: false,
         onSelect: { _ in }
     )
+    .environmentObject(NavigationRouter())
+    .environmentObject(MainViewState())
     .background(Color.black)
 }
 #endif

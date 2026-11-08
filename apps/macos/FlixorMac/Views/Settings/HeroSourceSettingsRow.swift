@@ -12,9 +12,11 @@ struct HeroSourceSettingsRow: View {
     @ObservedObject private var store = HomeRowsStore.shared
 
     /// Rows selectable as a source; Continue Watching and the watchlist have
-    /// their own entries.
+    /// their own entries. User collections load lazily, so they can't feed the hero.
     private var rowOptions: [HomeRowDescriptor] {
-        store.orderedCatalog.filter { $0.id != homeContinueWatchingRowId && $0.id != homeWatchlistRowId }
+        store.orderedCatalog.filter {
+            $0.id != homeContinueWatchingRowId && $0.id != homeWatchlistRowId && $0.kind != .userCollection
+        }
     }
 
     /// A previously chosen row that is not currently known (keeps the Picker valid).

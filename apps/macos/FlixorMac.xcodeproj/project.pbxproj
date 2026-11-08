@@ -7,6 +7,18 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		F1C6D52C1DC6356BDD3CDB89 /* UserCollectionsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 181D5C4431FB9906054EF79E /* UserCollectionsSection.swift */; };
+		93CAD6B00EAD1BCD4EE702D3 /* UserCollectionHomeRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FCC258C9787B682EFFD9092 /* UserCollectionHomeRow.swift */; };
+		076BF0D98AF0AE9FAE9D64D8 /* UserCollectionEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC805455B88123CD578DCAD9 /* UserCollectionEditorView.swift */; };
+		E7AFE70EB62DDD616F107951 /* UserCollectionDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7F91613944092F2BFB8501E /* UserCollectionDetailView.swift */; };
+		B574BAF640A2DFC4E1B90316 /* CollectionSourceEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D8950046FA6324B99B690D6 /* CollectionSourceEditorView.swift */; };
+		23D9553D5DA974CCA380F525 /* CollectionCoverPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC431A69D5D325ABE91456E9 /* CollectionCoverPicker.swift */; };
+		7854D2788EE258BCEC209D40 /* UserCollectionDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F20ECB80D748FC964770E3F /* UserCollectionDetailViewModel.swift */; };
+		2D9669D5F64ACA5CB769F788 /* CollectionSourceEditorModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97ECE06D2B254D95A0F0E5DD /* CollectionSourceEditorModel.swift */; };
+		F0F8153570BDFC7DE12F2E50 /* UserCollectionsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80C4FA0B8998589F64D25892 /* UserCollectionsStore.swift */; };
+		C31A98A72DF04B06DE9E7CFC /* UserCollectionSourceResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7B9E2C10D08997BD1AE18CB /* UserCollectionSourceResolver.swift */; };
+		F54589DC50820807049C11CE /* UserCollection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FA0B97265222E443BD0BB21 /* UserCollection.swift */; };
+		E4EAEE6EB7E68BBD43BA646E /* UserDefaults+Collections.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC8736AC77502CD19658B62C /* UserDefaults+Collections.swift */; };
 		B8EB3ABED168B8D9F98A0611 /* TraktListSwitcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D9074586CABE67F7912B5A2 /* TraktListSwitcher.swift */; };
 		2F922DB828FD75D69EC4495F /* TraktListEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17534A40BFAD3EC919373227 /* TraktListEditorSheet.swift */; };
 		05BDAB0FD0C524F8E1D88589 /* TraktListContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD1E0F4809CE1529B1A9C72D /* TraktListContentView.swift */; };
@@ -299,6 +311,18 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		181D5C4431FB9906054EF79E /* UserCollectionsSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Collections/UserCollectionsSection.swift; sourceTree = "<group>"; };
+		6FCC258C9787B682EFFD9092 /* UserCollectionHomeRow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Collections/UserCollectionHomeRow.swift; sourceTree = "<group>"; };
+		FC805455B88123CD578DCAD9 /* UserCollectionEditorView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Collections/UserCollectionEditorView.swift; sourceTree = "<group>"; };
+		D7F91613944092F2BFB8501E /* UserCollectionDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Collections/UserCollectionDetailView.swift; sourceTree = "<group>"; };
+		2D8950046FA6324B99B690D6 /* CollectionSourceEditorView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Collections/CollectionSourceEditorView.swift; sourceTree = "<group>"; };
+		AC431A69D5D325ABE91456E9 /* CollectionCoverPicker.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Collections/CollectionCoverPicker.swift; sourceTree = "<group>"; };
+		8F20ECB80D748FC964770E3F /* UserCollectionDetailViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UserCollectionDetailViewModel.swift; sourceTree = "<group>"; };
+		97ECE06D2B254D95A0F0E5DD /* CollectionSourceEditorModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CollectionSourceEditorModel.swift; sourceTree = "<group>"; };
+		80C4FA0B8998589F64D25892 /* UserCollectionsStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UserCollectionsStore.swift; sourceTree = "<group>"; };
+		A7B9E2C10D08997BD1AE18CB /* UserCollectionSourceResolver.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UserCollectionSourceResolver.swift; sourceTree = "<group>"; };
+		6FA0B97265222E443BD0BB21 /* UserCollection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UserCollection.swift; sourceTree = "<group>"; };
+		BC8736AC77502CD19658B62C /* UserDefaults+Collections.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "UserDefaults+Collections.swift"; sourceTree = "<group>"; };
 		7D9074586CABE67F7912B5A2 /* TraktListSwitcher.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TraktListSwitcher.swift; sourceTree = "<group>"; };
 		17534A40BFAD3EC919373227 /* TraktListEditorSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TraktListEditorSheet.swift; sourceTree = "<group>"; };
 		DD1E0F4809CE1529B1A9C72D /* TraktListContentView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TraktListContentView.swift; sourceTree = "<group>"; };
@@ -667,6 +691,7 @@
 		D004 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				6FA0B97265222E443BD0BB21 /* UserCollection.swift */,
 				1099D6DE3B8526FA18912D4F /* HomeRowModels.swift */,
 				6E758D953ADDD07BBBA497F1 /* WatchStateTarget.swift */,
 				B36B30D33BFFE4EBEA5F1182 /* LocalWatchedEntry.swift */,
@@ -693,6 +718,12 @@
 		D005 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				181D5C4431FB9906054EF79E /* UserCollectionsSection.swift */,
+				6FCC258C9787B682EFFD9092 /* UserCollectionHomeRow.swift */,
+				FC805455B88123CD578DCAD9 /* UserCollectionEditorView.swift */,
+				D7F91613944092F2BFB8501E /* UserCollectionDetailView.swift */,
+				2D8950046FA6324B99B690D6 /* CollectionSourceEditorView.swift */,
+				AC431A69D5D325ABE91456E9 /* CollectionCoverPicker.swift */,
 				6E05ADB72B8811118261746F /* PersonIdentityViews.swift */,
 				BA15B834584960B4261DA181 /* PersonDetailViewModel.swift */,
 				EDBA249F7AD9DEB96CA22A5E /* PersonDetailView.swift */,
@@ -725,6 +756,8 @@
 		D006 /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
+				8F20ECB80D748FC964770E3F /* UserCollectionDetailViewModel.swift */,
+				97ECE06D2B254D95A0F0E5DD /* CollectionSourceEditorModel.swift */,
 				F0097D0584C5362FDA0095EE /* TraktListsViewModel.swift */,
 				40B30CE822ADA5D2E9751E74 /* TraktListGridItem.swift */,
 				575AC77865246BE6E5B0A2B8 /* HomeViewModel+Rows.swift */,
@@ -770,6 +803,8 @@
 		D007 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				80C4FA0B8998589F64D25892 /* UserCollectionsStore.swift */,
+				A7B9E2C10D08997BD1AE18CB /* UserCollectionSourceResolver.swift */,
 				6E039757B1CD1E5EDFD7D8BE /* TraktListsService+Editing.swift */,
 				7F6EA0458172D028A3B03E5F /* NetworkMonitor.swift */,
 				2B2B3F94538A809B06AEA3CC /* HomeRowsStore.swift */,
@@ -813,6 +848,7 @@
 		D008 /* Extensions */ = {
 			isa = PBXGroup;
 			children = (
+				BC8736AC77502CD19658B62C /* UserDefaults+Collections.swift */,
 				5EFB67E56A9E7AACAC7EC5AB /* UserDefaults+StreamSelection.swift */,
 				D9C937A927B8FBD09A6143DB /* UserDefaults+HomeRows.swift */,
 				52C2BDF2027BE69EEB804C07 /* UserDefaults+Cards.swift */,
@@ -1230,6 +1266,18 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F1C6D52C1DC6356BDD3CDB89 /* UserCollectionsSection.swift in Sources */,
+				93CAD6B00EAD1BCD4EE702D3 /* UserCollectionHomeRow.swift in Sources */,
+				076BF0D98AF0AE9FAE9D64D8 /* UserCollectionEditorView.swift in Sources */,
+				E7AFE70EB62DDD616F107951 /* UserCollectionDetailView.swift in Sources */,
+				B574BAF640A2DFC4E1B90316 /* CollectionSourceEditorView.swift in Sources */,
+				23D9553D5DA974CCA380F525 /* CollectionCoverPicker.swift in Sources */,
+				7854D2788EE258BCEC209D40 /* UserCollectionDetailViewModel.swift in Sources */,
+				2D9669D5F64ACA5CB769F788 /* CollectionSourceEditorModel.swift in Sources */,
+				F0F8153570BDFC7DE12F2E50 /* UserCollectionsStore.swift in Sources */,
+				C31A98A72DF04B06DE9E7CFC /* UserCollectionSourceResolver.swift in Sources */,
+				F54589DC50820807049C11CE /* UserCollection.swift in Sources */,
+				E4EAEE6EB7E68BBD43BA646E /* UserDefaults+Collections.swift in Sources */,
 				B8EB3ABED168B8D9F98A0611 /* TraktListSwitcher.swift in Sources */,
 				2F922DB828FD75D69EC4495F /* TraktListEditorSheet.swift in Sources */,
 				05BDAB0FD0C524F8E1D88589 /* TraktListContentView.swift in Sources */,

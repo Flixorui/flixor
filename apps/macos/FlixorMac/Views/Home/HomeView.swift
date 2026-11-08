@@ -200,6 +200,10 @@ struct HomeView: View {
                 isRetrying: viewModel.retryingRowIds.contains(failure.id),
                 onRetry: { viewModel.retry(failure) }
             )
+        case .userCollection(let id):
+            UserCollectionHomeRow(collectionId: id, title: row.title) { item in
+                viewModel.showItemDetails(item)
+            }
         }
     }
 

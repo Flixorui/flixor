@@ -202,10 +202,9 @@ struct MainView: View {
             if item == .newPopular && !profileSettings.showNewPopularTab {
                 return false
             }
-            // Library browses Plex library sections and Downloads fetches Plex parts
-            // with an X-Plex-Token; neither has anything to show without a server.
-            // Both reappear as soon as Plex is connected.
-            if appMode.isStremioOnly && (item == .library || item == .downloads) {
+            // Downloads fetches Plex parts with an X-Plex-Token, so it has nothing
+            // to show without a server. Library stays: it shows the user's collections.
+            if appMode.isStremioOnly && item == .downloads {
                 return false
             }
             return true
@@ -533,6 +532,9 @@ extension View {
             }
             .navigationDestination(for: EntityBrowseRoute.self) { route in
                 EntityBrowseView(route: route)
+            }
+            .navigationDestination(for: UserCollectionRoute.self) { route in
+                UserCollectionDetailView(route: route)
             }
     }
 }

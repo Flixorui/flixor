@@ -2,7 +2,7 @@
 //  CollectionRowsSettingsView.swift
 //  FlixorMac
 //
-//  Manage which Plex collections appear on the home screen
+//  Manage which collections (the user's own and Plex) appear on the home screen
 //
 
 import SwiftUI
@@ -11,6 +11,7 @@ import FlixorKit
 struct CollectionRowsSettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var profileSettings = ProfileSettings.shared
+    @ObservedObject private var userCollections = UserCollectionsStore.shared
 
     @State private var collections: [PlexCollection] = []
     @State private var isLoading = true
@@ -33,6 +34,8 @@ struct CollectionRowsSettingsView: View {
             .padding(.bottom, 16)
 
             Divider()
+
+            userCollectionToggles
 
             // Content
             if isLoading {
@@ -100,6 +103,36 @@ struct CollectionRowsSettingsView: View {
         }
         .task {
             await loadCollections()
+        }
+    }
+
+    /// The user's own collections; available without Plex.
+    @ViewBuilder
+    private var userCollectionToggles: some View {
+        if !userCollections.collections.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                SettingsSectionHeader(title: "My Collections")
+                SettingsGroupCard {
+                    ForEach(Array(userCollections.collections.enumerated()), id: \.element.id) { index, collection in
+                        SettingsRow(
+                            icon: "rectangle.stack.fill",
+                            iconColor: .blue,
+                            title: collection.name,
+                            subtitle: collection.sourceSummary,
+                            showDivider: index < userCollections.collections.count - 1
+                        ) {
+                            Toggle("", isOn: Binding(
+                                get: { collection.showOnHome },
+                                set: { userCollections.setShowOnHome($0, id: collection.id) }
+                            ))
+                            .labelsHidden()
+                            .accessibilityLabel("Show \(collection.name) on Home")
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 16)
         }
     }
 
