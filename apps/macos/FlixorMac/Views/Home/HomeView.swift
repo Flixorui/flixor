@@ -583,35 +583,6 @@ struct HomeBackground: View {
     }
 }
 
-extension Color {
-    init(hex: UInt, alpha: Double = 1.0) {
-        self.init(
-            .sRGB,
-            red: Double((hex >> 16) & 0xff) / 255,
-            green: Double((hex >> 8) & 0xff) / 255,
-            blue: Double(hex & 0xff) / 255,
-            opacity: alpha
-        )
-    }
-
-    /// Initialize from hex string (e.g., "144c54" or "#144c54")
-    init(hex: String, alpha: Double = 1.0) {
-        var hexString = hex.trimmingCharacters(in: .whitespacesAndNewlines)
-        if hexString.hasPrefix("#") {
-            hexString.removeFirst()
-        }
-
-        guard hexString.count == 6,
-              let hexValue = UInt(hexString, radix: 16) else {
-            // Fallback to black if invalid
-            self.init(.sRGB, red: 0, green: 0, blue: 0, opacity: alpha)
-            return
-        }
-
-        self.init(hex: hexValue, alpha: alpha)
-    }
-}
-
 // MARK: - Error View
 
 struct ErrorView: View {

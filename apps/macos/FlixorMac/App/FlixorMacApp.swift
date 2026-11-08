@@ -40,6 +40,8 @@ struct FlixorMacApp: App {
                 .environmentObject(apiClient)
                 .environmentObject(FlixorCore.shared)
                 .frame(minWidth: 1024, minHeight: 768)
+                .flixorAppearance() // Accent tint + \.flixorTheme for the profile
+                .trackWindowMetrics() // \.windowMetrics for responsive layout
                 .preferredColorScheme(.dark) // Force dark mode
                 .task {
                     // Initialize FlixorCore (restore sessions)
@@ -58,6 +60,7 @@ struct FlixorMacApp: App {
                 .environmentObject(sessionManager)
                 .environmentObject(apiClient)
                 .environmentObject(FlixorCore.shared)
+                .flixorAppearance()
                 .preferredColorScheme(.dark) // Force dark mode
         }
         #endif

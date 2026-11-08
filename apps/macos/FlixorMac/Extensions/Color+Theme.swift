@@ -4,6 +4,15 @@
 //
 //  Theme colors matching the web app
 //
+//  Which red to use:
+//  - `Color.flixorAccent` for anything interactive (selection, progress,
+//    focus rings, toggles, highlighted icons). It follows the accent colour the
+//    user picks in Settings > Appearance (Flixor red by default).
+//  - `Color.flixorBrand` / `Color.brand` for brand marks (the logo, the
+//    sign-in screen's primary action). Always Flixor red.
+//  Surface colours that honour the "pure black" option come from
+//  `@Environment(\.flixorTheme)` (see FlixorTheme.swift).
+//
 
 import SwiftUI
 
@@ -11,6 +20,16 @@ extension Color {
     // MARK: - Brand Colors (Netflix Red)
     static let brand = Color(hex: "#e50914")
     static let brandHover = Color(hex: "#b20710")
+
+    /// Brand red for logos and brand marks. Never follows the accent setting.
+    static let flixorBrand = brand
+
+    // MARK: - Accent
+
+    /// Interactive accent. Resolves through the environment to the accent the
+    /// user picked (applied with `.tint`/`.accentColor` at the app root by
+    /// `.flixorAppearance()`), so it is the same colour as `Color.accentColor`.
+    static var flixorAccent: Color { .accentColor }
 
     // MARK: - Background Colors
     static let backgroundPrimary = Color(hex: "#0a0a0a")
@@ -27,8 +46,23 @@ extension Color {
     static let gradientTealStart = Color(red: 20/255, green: 76/255, blue: 84/255).opacity(0.42)
     static let gradientTealMid = Color(red: 20/255, green: 76/255, blue: 84/255).opacity(0.20)
 
-    // MARK: - Helper
-    init(hex: String) {
+    // MARK: - Hex initializers
+
+    /// Initialize from a 24-bit RGB integer, e.g. `Color(hex: 0x0a0a0a)`.
+    init(hex: UInt, alpha: Double = 1.0) {
+        self.init(
+            .sRGB,
+            red: Double((hex >> 16) & 0xff) / 255,
+            green: Double((hex >> 8) & 0xff) / 255,
+            blue: Double(hex & 0xff) / 255,
+            opacity: alpha
+        )
+    }
+
+    /// Initialize from a hex string: "RGB", "RRGGBB" or "AARRGGBB", with or
+    /// without a leading "#". `alpha` multiplies any alpha in the string.
+    /// Invalid strings give black.
+    init(hex: String, alpha: Double = 1.0) {
         let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
         var int: UInt64 = 0
         Scanner(string: hex).scanHexInt64(&int)
@@ -49,7 +83,7 @@ extension Color {
             red: Double(r) / 255,
             green: Double(g) / 255,
             blue:  Double(b) / 255,
-            opacity: Double(a) / 255
+            opacity: Double(a) / 255 * alpha
         )
     }
 }
