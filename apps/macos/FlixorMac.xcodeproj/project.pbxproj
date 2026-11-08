@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		6342300CD486334E9B4D8B56 /* PlayerViewModel+StreamRecovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 738933AA7CBA299A55D4F02D /* PlayerViewModel+StreamRecovery.swift */; };
 		419616A27061A18D85230B31 /* PlayerViewModel+StreamNextEpisode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B3612141DF664820AD58CF0 /* PlayerViewModel+StreamNextEpisode.swift */; };
 		D6D7E333269B9B014549E315 /* PlayerViewModel+SkipSegments.swift in Sources */ = {isa = PBXBuildFile; fileRef = 196CD116C5E407E5CAD4FA7E /* PlayerViewModel+SkipSegments.swift */; };
 		8FA873E125AB45D7E5025ABD /* StremioSourceRanking.swift in Sources */ = {isa = PBXBuildFile; fileRef = 447034CD266CCC06C0CC4616 /* StremioSourceRanking.swift */; };
@@ -216,6 +217,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		738933AA7CBA299A55D4F02D /* PlayerViewModel+StreamRecovery.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "PlayerViewModel+StreamRecovery.swift"; sourceTree = "<group>"; };
 		4B3612141DF664820AD58CF0 /* PlayerViewModel+StreamNextEpisode.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "PlayerViewModel+StreamNextEpisode.swift"; sourceTree = "<group>"; };
 		196CD116C5E407E5CAD4FA7E /* PlayerViewModel+SkipSegments.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "PlayerViewModel+SkipSegments.swift"; sourceTree = "<group>"; };
 		447034CD266CCC06C0CC4616 /* StremioSourceRanking.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StremioSourceRanking.swift; sourceTree = "<group>"; };
@@ -546,6 +548,7 @@
 		D006 /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
+				738933AA7CBA299A55D4F02D /* PlayerViewModel+StreamRecovery.swift */,
 				4B3612141DF664820AD58CF0 /* PlayerViewModel+StreamNextEpisode.swift */,
 				196CD116C5E407E5CAD4FA7E /* PlayerViewModel+SkipSegments.swift */,
 				3F35EE05EDE594BEB06742FB /* PlayerViewModel+Types.swift */,
@@ -981,6 +984,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				6342300CD486334E9B4D8B56 /* PlayerViewModel+StreamRecovery.swift in Sources */,
 				419616A27061A18D85230B31 /* PlayerViewModel+StreamNextEpisode.swift in Sources */,
 				D6D7E333269B9B014549E315 /* PlayerViewModel+SkipSegments.swift in Sources */,
 				8FA873E125AB45D7E5025ABD /* StremioSourceRanking.swift in Sources */,

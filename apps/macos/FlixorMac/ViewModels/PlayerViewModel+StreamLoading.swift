@@ -15,6 +15,7 @@ extension PlayerViewModel {
         forcedResumeSeconds = TimeInterval(streamItem.resumePositionMs ?? 0) / 1000.0
         currentURLIsHLS = false
         isTranscoding = false
+        resetStreamRecoveryForUserLoad()
         // Skip segments and next-episode data belong to the title, not the source:
         // keep them across source switches and recovery, reload for a new title.
         let isNewTitle = streamEngineContentKey != streamItem.contentKey
@@ -159,7 +160,7 @@ extension PlayerViewModel {
         await loadExternalStream(replacement)
     }
 
-    private func mergedHeaders(for stream: StremioPlayableStream) -> [HTTPHeaderField] {
+    func mergedHeaders(for stream: StremioPlayableStream) -> [HTTPHeaderField] {
         var headers = stream.headers ?? [:]
         let proxy = stream.behaviorHints?.proxyHeaders?.request ?? [:]
         for (key, value) in proxy {

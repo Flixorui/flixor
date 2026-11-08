@@ -9,6 +9,8 @@ import Foundation
 
 extension PlayerViewModel {
     func applyInitialSeekIfNeeded() {
+        // Runs on file-loaded / duration: a recovered stream is up again.
+        clearStreamRecoveryStatusIfLoaded()
         guard !initialSeekApplied else { return }
         guard duration > 0 else {
             // Duration not available yet, will be called again when duration is set
