@@ -54,11 +54,11 @@ struct LandscapeCard: View {
         Button(action: { onTap?() }) {
             ZStack(alignment: .bottomLeading) {
                 // Backdrop image
-                CachedAsyncImage(url: altURL ?? ImageService.shared.continueWatchingURL(for: item, width: Int(width * 2), height: Int(height * 2)))
+                CachedAsyncImage(url: altURL ?? ResolvedArtworkCache.shared.url(for: artworkCacheKey) ?? ImageService.shared.continueWatchingURL(for: item, width: Int(width * 2), height: Int(height * 2)))
                     .aspectRatio(contentMode: .fill)
                     .frame(width: width, height: height)
                     .clipped()
-                    .background(Color.gray.opacity(0.2))
+                    .background(Color.white.opacity(0.05))
                     .accessibilityHidden(true)
 
                 // Gradient overlay (only on hover)
@@ -132,7 +132,6 @@ struct LandscapeCard: View {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .stroke(Color.white.opacity(isHovered ? 0.9 : 0.15), lineWidth: isHovered ? 2 : 1)
             )
-            .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
         }
         .buttonStyle(.plain)
         .cardInteractions(item: item, cornerRadius: cornerRadius, isHovered: $isHovered, onOpen: onTap)
@@ -142,16 +141,15 @@ struct LandscapeCard: View {
     }
 
     // MARK: - TMDB Backdrop Upgrade (original size via proxy)
+    private var artworkCacheKey: String { "landscape:\(item.id):\(Int(width))" }
+
     private func fetchTMDBBackdrop() async {
-        print("🎬 [LandscapeCard] Fetching TMDB backdrop for: \(item.title) (id: \(item.id))")
+        guard !ResolvedArtworkCache.shared.isResolved(artworkCacheKey) else { return }
         // Only attempt upgrade when underlying image is Plex-based or missing
-        // Try to resolve TMDB backdrop via metadata mapping
-        if let url = try? await resolveTMDBBackdropURL(for: item, width: Int(width * 2), height: Int(height * 2)) {
-            print("✅ [LandscapeCard] Got TMDB backdrop for: \(item.title)")
-            await MainActor.run { self.altURL = url }
-        } else {
-            print("❌ [LandscapeCard] No TMDB backdrop for: \(item.title), using Plex image")
-        }
+        let url = try? await resolveTMDBBackdropURL(for: item, width: Int(width * 2), height: Int(height * 2))
+        guard !Task.isCancelled else { return }
+        ResolvedArtworkCache.shared.store(url, for: artworkCacheKey)
+        if let url { altURL = url }
     }
 
     private func resolveTMDBBackdropURL(for item: MediaItem, width: Int, height: Int) async throws -> URL? {

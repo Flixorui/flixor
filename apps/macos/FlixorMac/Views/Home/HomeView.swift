@@ -186,9 +186,22 @@ struct HomeView: View {
                 }
             }
             .background(TabScrollObserver(tab: .home))
+            .task(id: rows.map(\.id)) { await preheatArtwork(for: rows) }
             .animation(DS.Motion.emphasized, value: viewModel.extraSectionsState)
             .animation(DS.Motion.emphasized, value: viewModel.recentlyAddedPerLibraryState)
         }
+    }
+
+    /// Loads the first posters of every row, so rows are ready before they scroll in.
+    private func preheatArtwork(for rows: [HomeDisplayRow]) async {
+        let urls = rows.flatMap { row -> [URL] in
+            guard case .section(let section) = row.content else { return [] }
+            return section.items.prefix(12).compactMap { item in
+                guard let thumb = item.thumb, thumb.hasPrefix("http") else { return nil }
+                return URL(string: thumb)
+            }
+        }
+        await ImageCache.shared.preheat(urls: Array(urls.prefix(360)))
     }
 
     /// Hero Section (Billboard or Carousel based on settings)

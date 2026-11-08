@@ -190,10 +190,9 @@ struct HeroCarousel: View {
         guard items.count > 1, items.indices.contains(currentIndex) else { return }
         let next = items[(currentIndex + 1) % items.count]
         let metadata = await HeroCarouselMetadataStore.shared.metadata(for: next)
-        guard let url = metadata.backdropURL, ImageCache.shared.get(url: url) == nil,
-              let (data, _) = try? await URLSession.shared.data(from: url),
-              let image = NSImage(data: data) else { return }
-        ImageCache.shared.set(image: image, url: url)
+        if let url = metadata.backdropURL {
+            _ = try? await ImageCache.shared.load(url: url)
+        }
     }
 }
 

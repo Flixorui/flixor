@@ -66,7 +66,7 @@ struct PosterCard: View {
                     .aspectRatio(contentMode: .fill)
                     .frame(width: width, height: height)
                     .clipped()
-                    .background(Color.gray.opacity(0.2))
+                    .background(Color.white.opacity(0.05))
                     .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
                     .accessibilityHidden(true)
                     .overlay(
@@ -74,7 +74,6 @@ struct PosterCard: View {
                             .stroke(Color.white.opacity(isSelected ? 1.0 : (isHovered ? 0.9 : 0.15)),
                                    lineWidth: isSelected ? 2 : (isHovered ? 2 : 1))
                     )
-                    .shadow(color: .black.opacity(0.3), radius: 6, y: 3)
                     .overlay(alignment: .topLeading) {
                         // Badge overlay (e.g., source badges) and optional rating
                         VStack(alignment: .leading, spacing: DS.Space.s4) {

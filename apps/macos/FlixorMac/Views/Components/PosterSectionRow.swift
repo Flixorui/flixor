@@ -149,12 +149,12 @@ struct PosterSectionCard: View {
             ZStack(alignment: .bottom) {
                 // Poster Image - for episodes, use series poster (grandparentThumb)
                 CachedAsyncImage(
-                    url: posterURL ?? resolveDefaultPosterURL()
+                    url: posterURL ?? ResolvedArtworkCache.shared.url(for: artworkCacheKey) ?? resolveDefaultPosterURL()
                 )
                 .aspectRatio(contentMode: .fill)
                 .frame(width: width, height: height)
                 .clipped()
-                .background(Color.gray.opacity(0.2))
+                .background(Color.white.opacity(0.05))
                 .accessibilityHidden(true)
 
                 // Gradient overlay (only on hover)
@@ -240,7 +240,6 @@ struct PosterSectionCard: View {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .strokeBorder(Color.white.opacity(isHovered ? 0.6 : 0.1), lineWidth: isHovered ? 2 : 1)
             )
-            .shadow(color: .black.opacity(0.3), radius: 6, y: 3)
         }
         .buttonStyle(.plain)
         .contentShape(Rectangle()) // Ensures full button area is clickable
@@ -260,17 +259,16 @@ struct PosterSectionCard: View {
         )
     }
 
+    private var artworkCacheKey: String { "poster:\(item.id)" }
+
     private func loadPoster() async {
-        // Try to get TMDB poster
-        do {
-            if let url = try await resolveTMDBPoster() {
-                await MainActor.run {
-                    self.posterURL = url
-                }
-            }
-        } catch {
-            // Silent fallback to Plex image
-        }
+        // TMDB titles already carry their poster; only Plex items need a lookup.
+        if item.thumb?.hasPrefix("http") == true { return }
+        guard !ResolvedArtworkCache.shared.isResolved(artworkCacheKey) else { return }
+        let url = try? await resolveTMDBPoster()
+        guard !Task.isCancelled else { return }
+        ResolvedArtworkCache.shared.store(url, for: artworkCacheKey)
+        if let url { posterURL = url }
     }
 
     private func resolveTMDBPoster() async throws -> URL? {
