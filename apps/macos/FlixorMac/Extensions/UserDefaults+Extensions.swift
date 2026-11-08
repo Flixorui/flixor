@@ -83,7 +83,8 @@ extension UserDefaults {
     // MARK: - Profile-Scoped Key Helper
 
     /// Get a profile-scoped key for settings that should be isolated per profile
-    private func profileKey(_ baseKey: String) -> String {
+    /// Internal so feature-specific extensions (UserDefaults+<Feature>.swift) can scope keys too.
+    func profileKey(_ baseKey: String) -> String {
         return ProfileStorage.shared.getProfileKey(baseKey)
     }
 
