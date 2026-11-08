@@ -80,6 +80,24 @@ final class CardStyleStore: ObservableObject {
     }
 }
 
+// MARK: - Poster size for rows and grids with their own default width
+
+extension CardPosterSize {
+    /// Width for a row or grid whose default (medium) size is `designWidth`.
+    /// Medium returns it unchanged; other sizes keep the ratio of `baseWidth`.
+    func baseWidth(designWidth: CGFloat) -> CGFloat {
+        (designWidth * baseWidth / CardPosterSize.medium.baseWidth).rounded()
+    }
+}
+
+extension WindowMetrics {
+    /// Poster width for a row or grid designed at `designWidth`, following the
+    /// profile's poster size (`ProfileSettings.posterSize`) and the window.
+    func posterWidth(designWidth: CGFloat, storedSize: String) -> CGFloat {
+        posterWidth(base: CardPosterSize(stored: storedSize).baseWidth(designWidth: designWidth))
+    }
+}
+
 // MARK: - Shared card constants
 
 enum CardMetrics {

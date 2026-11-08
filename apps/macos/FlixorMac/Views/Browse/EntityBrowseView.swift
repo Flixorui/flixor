@@ -11,6 +11,7 @@ import SwiftUI
 import FlixorKit
 
 struct EntityBrowseView: View {
+    @ObservedObject private var profileSettings = ProfileSettings.shared
     @StateObject private var viewModel: EntityBrowseViewModel
     @EnvironmentObject private var router: NavigationRouter
     @EnvironmentObject private var mainViewState: MainViewState
@@ -31,7 +32,7 @@ struct EntityBrowseView: View {
     private var grid: PosterGridLayout {
         PosterGridLayout(
             availableWidth: (contentWidth > 0 ? contentWidth : metrics.width) - gutter * 2 - Self.scrollBarAllowance,
-            minItemWidth: metrics.posterWidth(base: 160),
+            minItemWidth: metrics.posterWidth(designWidth: 160, storedSize: profileSettings.posterSize),
             spacing: DS.Space.s16
         )
     }

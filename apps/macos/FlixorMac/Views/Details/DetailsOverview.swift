@@ -14,6 +14,8 @@ struct OverviewModal: View {
     let overview: String
     let onClose: () -> Void
 
+    @Environment(\.flixorTheme) private var theme
+
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Space.s20) {
             HStack {
@@ -38,7 +40,7 @@ struct OverviewModal: View {
         }
         .padding(DS.Space.s24)
         .frame(width: 500, height: 400)
-        .background(Color(NSColor.windowBackgroundColor))
+        .background(theme.pureBlack ? Color.black : Color(NSColor.windowBackgroundColor))
     }
 }
 

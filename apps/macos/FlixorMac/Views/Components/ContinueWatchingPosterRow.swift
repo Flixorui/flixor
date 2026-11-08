@@ -17,7 +17,12 @@ struct ContinueWatchingPosterRow: View {
     var onTap: ((MediaItem) -> Void)?
     var onAction: ContinueWatchingActionHandler?
 
-    private let cardWidth: CGFloat = 160
+    @ObservedObject private var profileSettings = ProfileSettings.shared
+    @Environment(\.windowMetrics) private var metrics
+
+    private var cardWidth: CGFloat {
+        metrics.posterWidth(designWidth: 160, storedSize: profileSettings.posterSize)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Space.s12) {
@@ -263,6 +268,8 @@ struct ContinueWatchingPosterCard: View {
 struct ProgressRing: View {
     let progress: Double
 
+    @Environment(\.flixorTheme) private var theme
+
     var body: some View {
         ZStack {
             // Background circle
@@ -272,7 +279,7 @@ struct ProgressRing: View {
             // Progress arc
             Circle()
                 .trim(from: 0, to: CGFloat(min(1, max(0, progress))))
-                .stroke(Color.red, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                .stroke(theme.accent, style: StrokeStyle(lineWidth: 3, lineCap: .round))
                 .rotationEffect(.degrees(-90))
 
             // Play icon in center

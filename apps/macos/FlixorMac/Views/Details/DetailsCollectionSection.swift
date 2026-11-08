@@ -40,6 +40,7 @@ final class DetailsCollectionModel: ObservableObject {
 // MARK: - View
 
 struct DetailsCollectionSection: View {
+    @ObservedObject private var profileSettings = ProfileSettings.shared
     let collection: TMDBCollectionDetails
     /// TMDB id of the movie being viewed (highlighted, not tappable).
     let currentMovieId: Int?
@@ -66,7 +67,7 @@ struct DetailsCollectionSection: View {
                             part: part,
                             position: index + 1,
                             isCurrent: part.id == currentMovieId,
-                            width: metrics.posterWidth(base: 150),
+                            width: metrics.posterWidth(designWidth: 150, storedSize: profileSettings.posterSize),
                             onTap: {
                                 guard part.id != currentMovieId else { return }
                                 onSelect(Self.mediaItem(for: part))

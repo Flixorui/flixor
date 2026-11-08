@@ -360,6 +360,7 @@ private struct SeasonPickerSheet: View {
     let onRequest: () -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.flixorTheme) private var theme
 
     var body: some View {
         VStack(spacing: 0) {
@@ -476,7 +477,7 @@ private struct SeasonPickerSheet: View {
             .padding(DS.Space.s20)
         }
         .frame(width: 400, height: 550)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(theme.pureBlack ? Color.black : Color(nsColor: .windowBackgroundColor))
     }
 }
 

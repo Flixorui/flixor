@@ -15,11 +15,15 @@ struct TraktListContentView: View {
 
     @EnvironmentObject private var router: NavigationRouter
     @Environment(\.flixorTheme) private var theme
+    @Environment(\.windowMetrics) private var windowMetrics
+    @ObservedObject private var profileSettings = ProfileSettings.shared
 
     // The same grid geometry as MyListView.
     private let horizontalPadding = DS.Space.s64
     private let gridSpacing = DS.Space.s18
-    private let minGridItemWidth: CGFloat = 180
+    private var minGridItemWidth: CGFloat {
+        windowMetrics.posterWidth(designWidth: 180, storedSize: profileSettings.posterSize)
+    }
     private let skeletonCount = 12
 
     var body: some View {

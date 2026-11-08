@@ -9,6 +9,7 @@
 import SwiftUI
 
 struct SearchDiscoverView: View {
+    @ObservedObject private var profileSettings = ProfileSettings.shared
     @ObservedObject var viewModel: DiscoverViewModel
     let onTap: (SearchViewModel.SearchResult) -> Void
 
@@ -33,7 +34,7 @@ struct SearchDiscoverView: View {
     private var columnCount: Int {
         // Allowance for a visible scroller so the last column never clips.
         let available = metrics.width - SearchLayout.gutter * 2 - DS.Space.s16
-        let minWidth = metrics.posterWidth(base: 150)
+        let minWidth = metrics.posterWidth(designWidth: 150, storedSize: profileSettings.posterSize)
         return max(2, Int((available + gridSpacing) / (minWidth + gridSpacing)))
     }
 

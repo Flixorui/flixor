@@ -9,6 +9,7 @@
 import SwiftUI
 
 struct UserCollectionDetailView: View {
+    @ObservedObject private var profileSettings = ProfileSettings.shared
     let route: UserCollectionRoute
 
     @StateObject private var viewModel = UserCollectionDetailViewModel()
@@ -30,7 +31,7 @@ struct UserCollectionDetailView: View {
     private var grid: PosterGridLayout {
         PosterGridLayout(
             availableWidth: (contentWidth > 0 ? contentWidth : metrics.width) - gutter * 2 - Self.scrollBarAllowance,
-            minItemWidth: metrics.posterWidth(base: 160),
+            minItemWidth: metrics.posterWidth(designWidth: 160, storedSize: profileSettings.posterSize),
             spacing: DS.Space.s16
         )
     }

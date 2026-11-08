@@ -20,6 +20,12 @@ struct HomeView: View {
     @ObservedObject private var rowsStore = HomeRowsStore.shared
     @ObservedObject private var network = NetworkMonitor.shared
     @State private var showAddonManager = false
+    @Environment(\.windowMetrics) private var metrics
+
+    /// Width of poster placeholders, matching `PosterSectionRow`.
+    private var skeletonPosterWidth: CGFloat {
+        metrics.posterWidth(designWidth: 160, storedSize: profileSettings.posterSize)
+    }
 
     var body: some View {
         ZStack {
@@ -196,7 +202,7 @@ struct HomeView: View {
                 .environment(\.rowTitleCaption, row.caption)
         case .skeleton(let cardType):
             SkeletonCarouselRow(
-                itemWidth: cardType == .poster ? 160 : 420,
+                itemWidth: cardType == .poster ? skeletonPosterWidth : 420,
                 itemCount: cardType == .poster ? 6 : 4,
                 cardType: cardType
             )
@@ -317,7 +323,7 @@ struct HomeView: View {
     private var continueWatchingSkeleton: some View {
         let style = ContinueWatchingCardStyle(storageValue: profileSettings.continueWatchingLayout)
         return SkeletonCarouselRow(
-            itemWidth: style == .poster ? 160 : (style == .wide ? ContinueWatchingWideRow.cardWidth : 380),
+            itemWidth: style == .poster ? skeletonPosterWidth : (style == .wide ? ContinueWatchingWideRow.cardWidth : 380),
             itemCount: style == .poster ? 6 : (style == .wide ? 3 : 4),
             cardType: style == .poster ? .poster : .landscape
         )
@@ -562,16 +568,23 @@ struct LibrarySectionView: View {
     @ObservedObject var viewModel: HomeViewModel
     var onBrowse: ((BrowseContext) -> Void)?
 
+    @ObservedObject private var profileSettings = ProfileSettings.shared
+    @Environment(\.windowMetrics) private var metrics
+
+    private var posterWidth: CGFloat {
+        metrics.posterWidth(designWidth: 150, storedSize: profileSettings.posterSize)
+    }
+
     var body: some View {
         CarouselRow(
             title: section.title,
             items: section.items,
-            itemWidth: 150,
+            itemWidth: posterWidth,
             browseAction: section.browseContext.map { context in
                 { onBrowse?(context) }
             }
         ) { item in
-            PosterCard(item: item, width: 150) {
+            PosterCard(item: item, width: posterWidth) {
                 viewModel.showItemDetails(item)
             }
         }
@@ -609,16 +622,18 @@ struct LandscapeSectionView: View {
 struct HomeBackground: View {
     var heroColors: PlexUltraBlurColors?
 
+    @Environment(\.flixorTheme) private var theme
+
     // Default fallback color (dark theme)
     private let defaultColor = "0d0d0f"
 
     // Get colors with fallback (matching mobile: topLeft at top, bottomLeft at bottom)
     private var topColor: Color {
-        Color(hex: heroColors?.topLeft ?? defaultColor)
+        theme.pureBlack ? .black : Color(hex: heroColors?.topLeft ?? defaultColor)
     }
 
     private var bottomColor: Color {
-        Color(hex: heroColors?.bottomLeft ?? defaultColor)
+        theme.pureBlack ? .black : Color(hex: heroColors?.bottomLeft ?? defaultColor)
     }
 
     var body: some View {
@@ -685,6 +700,12 @@ struct CollectionSectionRow: View {
 
     @State private var isHeaderHovered = false
     @Environment(\.rowTitleCaption) private var titleCaption
+    @ObservedObject private var profileSettings = ProfileSettings.shared
+    @Environment(\.windowMetrics) private var metrics
+
+    private var posterWidth: CGFloat {
+        metrics.posterWidth(designWidth: 150, storedSize: profileSettings.posterSize)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Space.s12) {
@@ -740,7 +761,7 @@ struct CollectionSectionRow: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(spacing: DS.Space.s12) {
                         ForEach(section.items) { item in
-                            PosterCard(item: item, width: 150) {
+                            PosterCard(item: item, width: posterWidth) {
                                 onTap(item)
                             }
                         }
