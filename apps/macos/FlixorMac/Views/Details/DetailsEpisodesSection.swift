@@ -1,0 +1,621 @@
+//
+//  DetailsEpisodesSection.swift
+//  FlixorMac
+//
+//  Episodes tab: season selector, episode cards and rows
+//
+
+import SwiftUI
+import FlixorKit
+
+struct EpisodesTabContent: View {
+    @ObservedObject var vm: DetailsViewModel
+    let layout: DetailsLayoutMetrics
+    let onPlayEpisode: (DetailsViewModel.Episode) -> Void
+    let onStremioEpisode: (DetailsViewModel.Episode) -> Void
+
+    @ObservedObject private var profileSettings = ProfileSettings.shared
+    @State private var preferStremioEpisodeTap = false
+
+    private let cardWidth: CGFloat = 340
+    private var cardHeight: CGFloat { 180 }
+    private var stremioEnabled: Bool { profileSettings.stremioPlaybackEnabled }
+
+    private var currentSeasonUsesTMDBSource: Bool {
+        vm.selectedSeasonKey?.hasPrefix("tmdb:season:") == true
+    }
+
+    private func episodeRowHasPlexSource(_ episode: DetailsViewModel.Episode) -> Bool {
+        episode.id.hasPrefix("plex:")
+    }
+
+    private var episodeListHasPlexSource: Bool {
+        if !vm.episodes.isEmpty {
+            return vm.episodes.contains { episodeRowHasPlexSource($0) }
+        }
+        return !currentSeasonUsesTMDBSource && (vm.plexRatingKey != nil || (vm.playableId?.hasPrefix("plex:") == true))
+    }
+
+    private func rowTapDisabled(for episode: DetailsViewModel.Episode) -> Bool {
+        !episodeRowHasPlexSource(episode) && !stremioEnabled
+    }
+
+    private func showsExplicitStremioButton(for episode: DetailsViewModel.Episode) -> Bool {
+        episodeRowHasPlexSource(episode) && stremioEnabled && !preferStremioEpisodeTap
+    }
+
+    private func showsStremioActiveBadge(for episode: DetailsViewModel.Episode) -> Bool {
+        let episodeHasPlexSource = episodeRowHasPlexSource(episode)
+        if !episodeHasPlexSource && stremioEnabled {
+            return true
+        }
+        return episodeHasPlexSource && stremioEnabled && preferStremioEpisodeTap
+    }
+
+    // Computed show info for downloads
+    private var showTitle: String {
+        // If viewing a show, use vm.title; if viewing a season/episode, use vm.showTitle
+        vm.showTitle ?? vm.title
+    }
+
+    private var showRatingKey: String? {
+        // If viewing a show, use vm.plexRatingKey; if viewing a season, use parentShowKey
+        vm.showRatingKey ?? vm.parentShowKey ?? vm.plexRatingKey
+    }
+
+    private var serverId: String? {
+        FlixorCore.shared.server?.id
+    }
+
+    private var episodeTapModeTitle: String {
+        preferStremioEpisodeTap ? "Stremio sources" : "Plex playback"
+    }
+
+    private func handleEpisodeSelection(_ episode: DetailsViewModel.Episode) {
+        let episodeHasPlexSource = episodeRowHasPlexSource(episode)
+
+        if !episodeHasPlexSource && !stremioEnabled {
+            return
+        }
+
+        if !episodeHasPlexSource && stremioEnabled {
+            onStremioEpisode(episode)
+            return
+        }
+
+        if stremioEnabled && preferStremioEpisodeTap {
+            onStremioEpisode(episode)
+        } else {
+            onPlayEpisode(episode)
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            HStack(alignment: .center, spacing: 12) {
+                Text("Episodes")
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(.white)
+
+                Spacer(minLength: 12)
+
+                if episodeListHasPlexSource && stremioEnabled {
+                    Menu {
+                        Button {
+                            preferStremioEpisodeTap = false
+                        } label: {
+                            if !preferStremioEpisodeTap {
+                                Label("Plex playback", systemImage: "checkmark")
+                            } else {
+                                Text("Plex playback")
+                            }
+                        }
+
+                        Button {
+                            preferStremioEpisodeTap = true
+                        } label: {
+                            if preferStremioEpisodeTap {
+                                Label("Stremio sources", systemImage: "checkmark")
+                            } else {
+                                Text("Stremio sources")
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "puzzlepiece.extension.fill")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(Color.orange.opacity(0.95))
+                            Text(episodeTapModeTitle)
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(.white)
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(.white.opacity(0.7))
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(Color.white.opacity(0.08))
+                                .overlay(
+                                    Capsule(style: .continuous)
+                                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                                )
+                        )
+                    }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
+                }
+            }
+
+            // Season selector (hide in season-only mode)
+            if !vm.isSeason && vm.seasons.count > 1 {
+                SeasonSelector(
+                    seasons: vm.seasons,
+                    selectedKey: vm.selectedSeasonKey ?? "",
+                    onSelect: { key in
+                        Task { await vm.selectSeason(key) }
+                    }
+                )
+            } else if let season = vm.seasons.first(where: { $0.id == vm.selectedSeasonKey }) {
+                Text(season.title)
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(.white)
+            }
+
+            if vm.episodesLoading {
+                HStack {
+                    Spacer()
+                    ProgressView().progressViewStyle(.circular)
+                    Spacer()
+                }
+                .padding(.vertical, 40)
+            } else if vm.episodes.isEmpty {
+                Text("No episodes found").foregroundStyle(.secondary)
+            } else if profileSettings.episodeLayout == "horizontal" {
+                // Horizontal scroll of episode cards (like mobile)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(spacing: 14) {
+                        ForEach(Array(vm.episodes.enumerated()), id: \.element.id) { index, episode in
+                            HorizontalEpisodeCard(
+                                episode: episode,
+                                episodeNumber: index + 1,
+                                width: cardWidth,
+                                height: cardHeight,
+                                isDisabled: rowTapDisabled(for: episode),
+                                showsStremioButton: showsExplicitStremioButton(for: episode),
+                                showsStremioActiveBadge: showsStremioActiveBadge(for: episode),
+                                showTitle: showTitle,
+                                showRatingKey: showRatingKey,
+                                serverId: episodeRowHasPlexSource(episode) ? serverId : nil,
+                                onPlay: { handleEpisodeSelection(episode) },
+                                onStremio: { onStremioEpisode(episode) }
+                            )
+                        }
+                    }
+                    .padding(.leading, 24)
+                    .padding(.trailing, 60)
+                }
+            } else {
+                // Vertical list layout (original)
+                VStack(spacing: 12) {
+                    ForEach(Array(vm.episodes.enumerated()), id: \.element.id) { index, episode in
+                        VerticalEpisodeRow(
+                            episode: episode,
+                            episodeNumber: index + 1,
+                            layout: layout,
+                            isDisabled: rowTapDisabled(for: episode),
+                            showsStremioButton: showsExplicitStremioButton(for: episode),
+                            showsStremioActiveBadge: showsStremioActiveBadge(for: episode),
+                            showTitle: showTitle,
+                            showRatingKey: showRatingKey,
+                            serverId: episodeRowHasPlexSource(episode) ? serverId : nil,
+                            onPlay: { handleEpisodeSelection(episode) },
+                            onStremio: { onStremioEpisode(episode) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Season Selector
+
+private struct SeasonSelector: View {
+    let seasons: [DetailsViewModel.Season]
+    let selectedKey: String
+    let onSelect: (String) -> Void
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                ForEach(seasons) { season in
+                    Button(action: { onSelect(season.id) }) {
+                        Text(season.title)
+                            .font(.system(size: 14, weight: selectedKey == season.id ? .bold : .medium))
+                            .foregroundStyle(selectedKey == season.id ? .black : .white)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(selectedKey == season.id ? Color.white : Color.white.opacity(0.1))
+                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Horizontal Episode Card (like mobile)
+
+private struct HorizontalEpisodeCard: View {
+    let episode: DetailsViewModel.Episode
+    let episodeNumber: Int
+    let width: CGFloat
+    let height: CGFloat
+    var isDisabled: Bool = false
+    var showsStremioButton: Bool = true
+    var showsStremioActiveBadge: Bool = false
+    var showTitle: String = ""
+    var showRatingKey: String?
+    var serverId: String?
+    let onPlay: () -> Void
+    let onStremio: () -> Void
+
+    @State private var isHovered = false
+    @StateObject private var downloadManager = DownloadManager.shared
+
+    private var progressPct: Double {
+        Double(episode.progressPct ?? 0)
+    }
+
+    private var showProgress: Bool {
+        progressPct > 0 && progressPct < 85
+    }
+
+    private var isCompleted: Bool {
+        progressPct >= 85
+    }
+
+    var body: some View {
+        Button(action: onPlay) {
+            ZStack(alignment: .bottomLeading) {
+                // Thumbnail background
+                if let imgURL = episode.image {
+                    CachedAsyncImage(url: imgURL)
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: width, height: height)
+                        .clipped()
+                } else {
+                    Rectangle()
+                        .fill(Color(white: 0.15))
+                        .frame(width: width, height: height)
+                }
+
+                // Gradient overlay
+                LinearGradient(
+                    stops: [
+                        .init(color: .black.opacity(0.05), location: 0),
+                        .init(color: .black.opacity(0.2), location: 0.25),
+                        .init(color: .black.opacity(0.6), location: 0.6),
+                        .init(color: .black.opacity(0.9), location: 1)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+
+                // Hover play overlay
+                if isHovered {
+                    ZStack {
+                        Color.black.opacity(0.3)
+                        Image(systemName: "play.circle.fill")
+                            .font(.system(size: 48))
+                            .foregroundStyle(.white)
+                            .shadow(color: .black.opacity(0.5), radius: 8)
+                    }
+                }
+
+                // Content
+                VStack(alignment: .leading, spacing: 6) {
+                    // Episode badge
+                    Text("EPISODE \(episodeNumber)")
+                        .font(.system(size: 10, weight: .bold))
+                        .tracking(0.8)
+                        .foregroundStyle(Color(white: 0.9))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.black.opacity(0.5))
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+
+                    // Title
+                    Text(episode.title)
+                        .font(.system(size: 15, weight: .heavy))
+                        .foregroundStyle(.white)
+                        .lineLimit(2)
+
+                    // Overview
+                    if let overview = episode.overview, !overview.isEmpty {
+                        Text(overview)
+                            .font(.system(size: 12))
+                            .foregroundStyle(.white.opacity(0.82))
+                            .lineLimit(3)
+                    }
+
+                    // Meta info
+                    if let duration = episode.durationMin {
+                        HStack(spacing: 4) {
+                            Image(systemName: "clock")
+                                .font(.system(size: 11))
+                            Text("\(duration)m")
+                                .font(.system(size: 11))
+                        }
+                        .foregroundStyle(Color(white: 0.6))
+                    }
+                }
+                .padding(12)
+
+                // Progress bar
+                if showProgress {
+                    VStack {
+                        Spacer()
+                        GeometryReader { geo in
+                            ZStack(alignment: .leading) {
+                                Rectangle()
+                                    .fill(Color.white.opacity(0.33))
+                                    .frame(height: 4)
+
+                                Rectangle()
+                                    .fill(Color.white)
+                                    .frame(width: geo.size.width * CGFloat(min(100, max(0, progressPct))) / 100.0, height: 4)
+                            }
+                        }
+                        .frame(height: 4)
+                    }
+                }
+
+                // Top-right buttons overlay
+                VStack {
+                    HStack {
+                        Spacer()
+                        HStack(spacing: 6) {
+                            // Download button
+                            if let serverId = serverId {
+                                EpisodeDownloadButton(
+                                    ratingKey: episode.id,
+                                    serverId: serverId,
+                                    title: episode.title,
+                                    seasonNumber: episode.seasonNumber ?? 1,
+                                    episodeNumber: episode.episodeNumber ?? episodeNumber,
+                                    showTitle: showTitle,
+                                    showRatingKey: showRatingKey,
+                                    thumb: episode.image?.absoluteString
+                                )
+                            }
+
+                            if showsStremioButton {
+                                Button(action: onStremio) {
+                                    Image(systemName: "puzzlepiece.extension.fill")
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundStyle(.white)
+                                        .frame(width: 22, height: 22)
+                                        .background(Color.orange.opacity(0.75), in: Circle())
+                                }
+                                .buttonStyle(.plain)
+                            }
+
+                            if showsStremioActiveBadge {
+                                EpisodeSourceBadge(compact: true)
+                            }
+
+                            // Completed checkmark
+                            if isCompleted {
+                                ZStack {
+                                    Circle()
+                                        .fill(Color.white)
+                                        .frame(width: 22, height: 22)
+
+                                    Image(systemName: "checkmark")
+                                        .font(.system(size: 12, weight: .bold))
+                                        .foregroundStyle(.black)
+                                }
+                            }
+                        }
+                        .padding(10)
+                    }
+                    Spacer()
+                }
+            }
+            .frame(width: width, height: height)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .strokeBorder(Color.white.opacity(isHovered ? 0.5 : 0.12), lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.4), radius: isHovered ? 12 : 6, y: isHovered ? 6 : 3)
+        }
+        .buttonStyle(.plain)
+        .disabled(isDisabled)
+        .opacity(isDisabled ? 0.5 : 1.0)
+        .animation(.easeOut(duration: 0.2), value: isHovered)
+        .onHover { hovering in
+            if !isDisabled {
+                isHovered = hovering
+            }
+        }
+    }
+}
+
+// MARK: - Vertical Episode Row (original list layout)
+
+private struct VerticalEpisodeRow: View {
+    let episode: DetailsViewModel.Episode
+    let episodeNumber: Int
+    let layout: DetailsLayoutMetrics
+    var isDisabled: Bool = false
+    var showsStremioButton: Bool = true
+    var showsStremioActiveBadge: Bool = false
+    var showTitle: String = ""
+    var showRatingKey: String?
+    var serverId: String?
+    let onPlay: () -> Void
+    let onStremio: () -> Void
+
+    @State private var isHovered = false
+    @StateObject private var downloadManager = DownloadManager.shared
+
+    private var progressPct: Double {
+        Double(episode.progressPct ?? 0)
+    }
+
+    private var showProgress: Bool {
+        progressPct > 0 && progressPct < 85
+    }
+
+    private var isCompleted: Bool {
+        progressPct >= 85
+    }
+
+    var body: some View {
+        Button(action: onPlay) {
+            HStack(alignment: .top, spacing: 16) {
+                // Thumbnail
+                ZStack(alignment: .bottomLeading) {
+                    if let imgURL = episode.image {
+                        CachedAsyncImage(url: imgURL)
+                            .aspectRatio(16/9, contentMode: .fill)
+                            .frame(width: layout.episodeThumbnailWidth)
+                            .clipped()
+                    } else {
+                        Rectangle()
+                            .fill(Color(white: 0.15))
+                            .aspectRatio(16/9, contentMode: .fill)
+                            .frame(width: layout.episodeThumbnailWidth)
+                    }
+
+                    // Progress bar
+                    if showProgress {
+                        GeometryReader { geo in
+                            VStack {
+                                Spacer()
+                                ZStack(alignment: .leading) {
+                                    Rectangle()
+                                        .fill(Color.white.opacity(0.33))
+                                        .frame(height: 4)
+
+                                    Rectangle()
+                                        .fill(Color.white)
+                                        .frame(width: geo.size.width * CGFloat(min(100, max(0, progressPct))) / 100.0, height: 4)
+                                }
+                            }
+                        }
+                    }
+
+                    // Hover play overlay
+                    if isHovered {
+                        ZStack {
+                            Color.black.opacity(0.4)
+                            Image(systemName: "play.circle.fill")
+                                .font(.system(size: 36))
+                                .foregroundStyle(.white)
+                        }
+                    }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(Color.white.opacity(isHovered ? 0.4 : 0.12), lineWidth: 1)
+                )
+
+                // Info
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("\(episodeNumber). \(episode.title)")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .lineLimit(2)
+
+                        Spacer()
+
+                        HStack(spacing: 8) {
+                            // Download button
+                            if let serverId = serverId {
+                                EpisodeDownloadButton(
+                                    ratingKey: episode.id,
+                                    serverId: serverId,
+                                    title: episode.title,
+                                    seasonNumber: episode.seasonNumber ?? 1,
+                                    episodeNumber: episode.episodeNumber ?? episodeNumber,
+                                    showTitle: showTitle,
+                                    showRatingKey: showRatingKey,
+                                    thumb: episode.image?.absoluteString
+                                )
+                            }
+
+                            if showsStremioButton {
+                                Button(action: onStremio) {
+                                    Label("Stremio", systemImage: "puzzlepiece.extension.fill")
+                                        .font(.system(size: 11, weight: .semibold))
+                                        .foregroundStyle(.white)
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 5)
+                                        .background(Color.orange.opacity(0.24), in: Capsule())
+                                }
+                                .buttonStyle(.plain)
+                            }
+
+                            if showsStremioActiveBadge {
+                                EpisodeSourceBadge()
+                            }
+
+                            if isCompleted {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.system(size: 18))
+                                    .foregroundStyle(.green)
+                            }
+                        }
+                    }
+
+                    if let overview = episode.overview, !overview.isEmpty {
+                        Text(overview)
+                            .font(.system(size: 13))
+                            .foregroundStyle(.white.opacity(0.7))
+                            .lineLimit(3)
+                    }
+
+                    if let duration = episode.durationMin {
+                        Text("\(duration) min")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.white.opacity(0.5))
+                    }
+                }
+            }
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color.white.opacity(isHovered ? 0.06 : 0.03))
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(isDisabled)
+        .opacity(isDisabled ? 0.5 : 1.0)
+        .onHover { hovering in
+            if !isDisabled {
+                isHovered = hovering
+            }
+        }
+    }
+}
+
+private struct EpisodeSourceBadge: View {
+    var compact: Bool = false
+
+    var body: some View {
+        Label("Stremio", systemImage: "puzzlepiece.extension.fill")
+            .font(.system(size: compact ? 10 : 11, weight: .semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, compact ? 8 : 10)
+            .padding(.vertical, compact ? 4 : 5)
+            .background(Color.orange.opacity(compact ? 0.5 : 0.24), in: Capsule())
+    }
+}
