@@ -124,6 +124,18 @@ actor StremioService {
         extras: [String: String] = [:],
         limit: Int = 30
     ) async -> [StremioMetaPreview] {
+        (try? await fetchCatalog(installationId: installationId, type: type, catalogId: catalogId, extras: extras, limit: limit)) ?? []
+    }
+
+    /// Same as `getCatalog`, but throws when the addon request fails, so callers
+    /// can tell a failing addon from an empty catalog.
+    func fetchCatalog(
+        installationId: String,
+        type: String,
+        catalogId: String,
+        extras: [String: String] = [:],
+        limit: Int = 30
+    ) async throws -> [StremioMetaPreview] {
         await ensureInitialized()
         guard let addon = addons[installationId], let baseURL = addon.url else { return [] }
 
@@ -150,7 +162,7 @@ actor StremioService {
                 "catalog": "\(type):\(catalogId)",
                 "error": error.localizedDescription,
             ])
-            return []
+            throw error
         }
     }
 

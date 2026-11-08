@@ -54,9 +54,10 @@ struct HomeScreenAppearanceView: View {
                 }
 
                 SettingsGroupCard {
-                    SettingsRow(icon: "arrow.triangle.2.circlepath", iconColor: .orange, title: "Auto-Rotate Hero", showDivider: false) {
+                    SettingsRow(icon: "arrow.triangle.2.circlepath", iconColor: .orange, title: "Auto-Rotate Hero") {
                         Toggle("", isOn: $profileSettings.heroAutoRotate).labelsHidden()
                     }
+                    HeroSourceSettingsRow()
                 }
 
                 // Hero Layout Preview
@@ -109,34 +110,18 @@ struct HomeScreenAppearanceView: View {
                         .padding(.horizontal, 12)
                         .padding(.top, 12)
 
-                    HStack(spacing: 12) {
-                        LayoutOptionButton(
-                            title: "Landscape",
-                            icon: "rectangle.fill",
-                            isSelected: profileSettings.continueWatchingLayout == "landscape"
-                        ) {
-                            profileSettings.continueWatchingLayout = "landscape"
-                        }
-
-                        LayoutOptionButton(
-                            title: "Poster",
-                            icon: "rectangle.portrait.fill",
-                            isSelected: profileSettings.continueWatchingLayout == "poster"
-                        ) {
-                            profileSettings.continueWatchingLayout = "poster"
-                        }
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 12)
+                    ContinueWatchingStylePicker()
+                        .padding(.horizontal, 12)
+                        .padding(.bottom, 12)
                 }
             }
 
             // Continue Watching Preview
             CollapsiblePreviewSection(title: "Continue Watching Preview", isExpanded: $showContinueWatchingPreview) {
-                if profileSettings.continueWatchingLayout == "landscape" {
-                    continueWatchingLandscapePreview
-                } else {
-                    continueWatchingPosterPreview
+                switch ContinueWatchingCardStyle(storageValue: profileSettings.continueWatchingLayout) {
+                case .landscape: continueWatchingLandscapePreview
+                case .poster: continueWatchingPosterPreview
+                case .wide: ContinueWatchingWidePreview(blurUpNext: HomeRowsStore.shared.continueWatchingBlurNextUp)
                 }
             }
 

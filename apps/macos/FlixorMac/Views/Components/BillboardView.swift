@@ -48,8 +48,11 @@ struct BillboardView: View {
         let year: Int?
     }
 
-    // Fixed height to prevent overflow
-    private let billboardHeight: CGFloat = 1000
+    @Environment(\.windowMetrics) private var metrics
+
+    /// Follows the window (see HomeHeroMetrics.swift) instead of a fixed 1000 pt.
+    private var billboardHeight: CGFloat { metrics.homeBillboardHeight }
+    private var isCompact: Bool { metrics.isCompactHero(height: billboardHeight) }
 
     // Check if this is an episode or season that should show series data
     private var isEpisode: Bool { item.type == "episode" }
@@ -143,19 +146,21 @@ struct BillboardView: View {
             .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
 
             // Content Overlay
-            VStack(alignment: .leading, spacing: 20) {
-                Spacer()
+            VStack(alignment: .leading, spacing: isCompact ? DS.Space.s14 : DS.Space.s20) {
+                Spacer(minLength: 0)
 
                 // Title / Logo
                 Group {
                     if let logoURL = logoURL {
                         CachedAsyncImage(url: logoURL, aspectRatio: nil, contentMode: .fit)
-                            .frame(maxWidth: 520)
+                            .frame(maxWidth: isCompact ? 400 : 520, maxHeight: billboardHeight * 0.26)
                             .shadow(color: .black.opacity(0.6), radius: 12)
                     } else {
                         Text(displayTitle)
-                            .font(.system(size: 48, weight: .bold))
+                            .font(.flixor(isCompact ? .display : .displayLarge, weight: .bold))
                             .foregroundStyle(.white)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.7)
                             .shadow(color: .black.opacity(0.6), radius: 12)
                     }
                 }
@@ -191,7 +196,7 @@ struct BillboardView: View {
                     Text(summary)
                         .font(.body)
                         .foregroundStyle(.white.opacity(0.92))
-                        .lineLimit(3)
+                        .lineLimit(isCompact ? 2 : 3)
                         .frame(maxWidth: 680, alignment: .leading)
                         .shadow(color: .black.opacity(0.6), radius: 6)
                 }
@@ -255,8 +260,8 @@ struct BillboardView: View {
                 }
                 .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isHovered)
             }
-            .padding(40)
-            .padding(.bottom, 20)
+            .padding(isCompact ? DS.Space.s32 : DS.Space.s40)
+            .padding(.bottom, isCompact ? DS.Space.s8 : DS.Space.s20)
         }
         .frame(height: billboardHeight)
         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
