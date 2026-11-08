@@ -415,6 +415,11 @@ struct MainView: View {
                 mainViewState.selectedTab = .home
             }
         }
+        // Mouse back/forward buttons, Esc and Go > Back pop the current tab.
+        .background(HostingWindowReader { BackNavigationController.shared.registerWindow($0) })
+        .onAppear {
+            BackNavigationController.shared.register(router: router, mainViewState: mainViewState)
+        }
     }
 
     private func popToRoot(for tab: NavItem) {
