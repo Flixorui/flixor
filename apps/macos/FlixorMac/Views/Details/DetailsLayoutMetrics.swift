@@ -16,14 +16,8 @@ struct DetailsLayoutMetrics {
         width * 9 / 16
     }
 
-    var heroHorizontalPadding: CGFloat {
-        switch width {
-        case ..<900: return 32
-        case ..<1200: return 44
-        case ..<1600: return 60
-        default: return 72
-        }
-    }
+    /// Same left edge as the sections below the hero.
+    var heroHorizontalPadding: CGFloat { DetailsSectionStyle.inset }
 
     // Dynamic top padding - approximately 45% of hero height to push content to lower portion
     var heroTopPadding: CGFloat {

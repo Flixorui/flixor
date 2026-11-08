@@ -7,6 +7,7 @@
 //  the Trakt "Rate" button.
 //
 
+import AppKit
 import SwiftUI
 
 // MARK: - Shared circle label
@@ -60,6 +61,7 @@ struct DetailsWatchedControl: View {
     @ObservedObject var model: DetailsTitleActionsModel
 
     @Environment(\.flixorTheme) private var theme
+    @State private var menuAnchor = MenuAnchor()
 
     private var watched: Bool { model.isWatched == true }
 
@@ -105,33 +107,8 @@ struct DetailsWatchedControl: View {
     }
 
     private func collectionMenu(kind: DetailsTitleActionsModel.TitleKind) -> some View {
-        return Menu {
-            if let progress = model.progressText {
-                Text(progress)
-            }
-            Button {
-                model.setWatched(true)
-            } label: {
-                Label(kind == .show ? "Mark Show as Watched" : "Mark Season as Watched", systemImage: "checkmark.circle")
-            }
-            .disabled(watched)
-
-            Button {
-                model.setWatched(false)
-            } label: {
-                Label(kind == .show ? "Mark Show as Unwatched" : "Mark Season as Unwatched", systemImage: "arrow.uturn.backward.circle")
-            }
-            .disabled(model.isWatched == false && !model.isInProgress)
-
-            if !model.seasonOptions.isEmpty {
-                Divider()
-                ForEach(model.seasonOptions) { season in
-                    Menu(season.title) {
-                        Button("Mark as Watched") { model.setWatched(true, season: season) }
-                        Button("Mark as Unwatched") { model.setWatched(false, season: season) }
-                    }
-                }
-            }
+        Button {
+            showCollectionMenu(kind: kind)
         } label: {
             DetailsCircleActionLabel(
                 systemImage: icon,
@@ -139,12 +116,94 @@ struct DetailsWatchedControl: View {
                 isBusy: model.isWorking
             )
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
+        .buttonStyle(.plain)
+        .background(MenuAnchorReader(anchor: menuAnchor))
         .help("Watched status")
         .accessibilityLabel("Watched status")
         .accessibilityValue(stateDescription)
+    }
+
+    /// A native menu opened from our own button: SwiftUI's `Menu` on macOS discards
+    /// a custom label and draws a small accent-tinted icon instead.
+    private func showCollectionMenu(kind: DetailsTitleActionsModel.TitleKind) {
+        guard let view = menuAnchor.view else { return }
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+
+        if let progress = model.progressText {
+            let item = NSMenuItem(title: progress, action: nil, keyEquivalent: "")
+            item.isEnabled = false
+            menu.addItem(item)
+        }
+
+        menu.addItem(MenuActionItem(
+            title: kind == .show ? String(localized: "Mark Show as Watched") : String(localized: "Mark Season as Watched"),
+            systemImage: "checkmark.circle",
+            isEnabled: !watched
+        ) { model.setWatched(true) })
+
+        menu.addItem(MenuActionItem(
+            title: kind == .show ? String(localized: "Mark Show as Unwatched") : String(localized: "Mark Season as Unwatched"),
+            systemImage: "arrow.uturn.backward.circle",
+            isEnabled: model.isWatched != false || model.isInProgress
+        ) { model.setWatched(false) })
+
+        if !model.seasonOptions.isEmpty {
+            menu.addItem(.separator())
+            for season in model.seasonOptions {
+                let submenu = NSMenu()
+                submenu.addItem(MenuActionItem(title: String(localized: "Mark as Watched")) {
+                    model.setWatched(true, season: season)
+                })
+                submenu.addItem(MenuActionItem(title: String(localized: "Mark as Unwatched")) {
+                    model.setWatched(false, season: season)
+                })
+                let item = NSMenuItem(title: season.title, action: nil, keyEquivalent: "")
+                item.submenu = submenu
+                menu.addItem(item)
+            }
+        }
+
+        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: -DS.Space.s6), in: view)
+    }
+}
+
+private final class MenuActionItem: NSMenuItem {
+    private let handler: () -> Void
+
+    init(title: String, systemImage: String? = nil, isEnabled: Bool = true, handler: @escaping () -> Void) {
+        self.handler = handler
+        super.init(title: title, action: #selector(run), keyEquivalent: "")
+        target = self
+        self.isEnabled = isEnabled
+        image = systemImage.flatMap { NSImage(systemSymbolName: $0, accessibilityDescription: nil) }
+    }
+
+    required init(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    @objc private func run() {
+        handler()
+    }
+}
+
+/// Holds the view a menu opens from.
+private final class MenuAnchor {
+    weak var view: NSView?
+}
+
+private struct MenuAnchorReader: NSViewRepresentable {
+    let anchor: MenuAnchor
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        anchor.view = view
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        anchor.view = nsView
     }
 }
 
