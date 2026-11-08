@@ -10,6 +10,7 @@ import SwiftUI
 // MARK: - Episodes List Panel
 
 struct EpisodesListPanel: View {
+    @Environment(\.flixorTheme) private var theme
     let episodes: [EpisodeMetadata]
     let currentEpisodeKey: String
     let onSelectEpisode: (EpisodeMetadata) -> Void
@@ -75,7 +76,7 @@ struct EpisodesListPanel: View {
             .frame(maxHeight: 350)
         }
         .frame(width: 360)
-        .background(Color.black.opacity(0.95))
+        .background(theme.playerPanelBackground())
         .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r12))
         .overlay(RoundedRectangle(cornerRadius: DS.Radius.r12).strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
         .shadow(color: .black.opacity(0.5), radius: 30, y: 10)
@@ -197,6 +198,7 @@ private struct EpisodeListRow: View {
 // MARK: - Chapters Panel
 
 struct ChaptersPanel: View {
+    @Environment(\.flixorTheme) private var theme
     @ObservedObject var viewModel: PlayerViewModel
     let onClose: () -> Void
 
@@ -262,7 +264,7 @@ struct ChaptersPanel: View {
             .frame(maxHeight: 350)
         }
         .frame(width: 320)
-        .background(Color.black.opacity(0.95))
+        .background(theme.playerPanelBackground())
         .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r12))
         .overlay(RoundedRectangle(cornerRadius: DS.Radius.r12).strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
         .shadow(color: .black.opacity(0.5), radius: 30, y: 10)

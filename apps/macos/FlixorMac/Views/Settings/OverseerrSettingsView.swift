@@ -9,6 +9,7 @@ import SwiftUI
 import AppKit
 
 struct OverseerrSettingsView: View {
+    @Environment(\.flixorTheme) private var theme
     @ObservedObject private var profileSettings = ProfileSettings.shared
     private let defaults = UserDefaults.standard
 
@@ -86,7 +87,7 @@ struct OverseerrSettingsView: View {
                     TextField("https://overseerr.example.com", text: $profileSettings.overseerrUrl)
                         .textFieldStyle(.plain)
                         .padding(DS.Space.s10)
-                        .background(Color(NSColor.textBackgroundColor))
+                        .background(theme.settingsFieldBackground)
                         .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r8, style: .continuous))
                         .disabled(!profileSettings.overseerrEnabled)
                         .opacity(isEnabled ? 1 : 0.5)
@@ -205,7 +206,7 @@ struct OverseerrSettingsView: View {
                             ))
                             .textFieldStyle(.plain)
                             .padding(DS.Space.s10)
-                            .background(Color(NSColor.textBackgroundColor))
+                            .background(theme.settingsFieldBackground)
                             .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r8, style: .continuous))
                             .disabled(!profileSettings.overseerrEnabled)
                             .opacity(isEnabled ? 1 : 0.5)
@@ -489,6 +490,7 @@ private struct AuthMethodRow: View {
 // MARK: - Instruction Step Row
 
 private struct InstructionStepRow: View {
+    @Environment(\.flixorTheme) private var theme
     let number: Int
     let text: String
 
@@ -496,7 +498,7 @@ private struct InstructionStepRow: View {
         HStack(alignment: .top, spacing: DS.Space.s10) {
             Text("\(number)")
                 .font(.flixor(.caption, weight: .bold))
-                .foregroundStyle(.white)
+                .foregroundStyle(theme.onAccent)
                 .frame(width: 20, height: 20)
                 .background(Color.accentColor)
                 .clipShape(Circle())

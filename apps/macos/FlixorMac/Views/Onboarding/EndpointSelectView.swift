@@ -9,6 +9,7 @@ import SwiftUI
 import FlixorKit
 
 struct EndpointSelectView: View {
+    @Environment(\.flixorTheme) private var theme
     let server: PlexServerResource
     let onBack: () -> Void
     let onConnected: () -> Void
@@ -70,7 +71,9 @@ struct EndpointSelectView: View {
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
-            AnimatedGradientBackground()
+            if !theme.pureBlack {
+                AnimatedGradientBackground()
+            }
 
             VStack(spacing: 0) {
                 // Header with back button
@@ -223,7 +226,7 @@ struct EndpointSelectView: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, DS.Space.s14)
                         .background(Color.accentColor)
-                        .foregroundColor(.white)
+                        .foregroundColor(theme.onAccent)
                         .cornerRadius(DS.Radius.r10)
                     }
                     .buttonStyle(.plain)

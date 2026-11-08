@@ -141,6 +141,7 @@ struct SkipMarkerButton: View {
 // MARK: - Next Episode Overlay (Plezy Style)
 
 struct NextEpisodeOverlay: View {
+    @Environment(\.flixorTheme) private var theme
     let episode: EpisodeMetadata
     let countdown: Int
     let onCancel: () -> Void
@@ -213,7 +214,7 @@ struct NextEpisodeOverlay: View {
                 }
                 .padding(DS.Space.s16)
                 .frame(width: 320)
-                .background(Color.black.opacity(0.9))
+                .background(theme.playerPanelBackground(opacity: 0.9))
                 .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r12))
                 .padding(.trailing, DS.Space.s24)
                 .padding(.bottom, 100)
@@ -225,6 +226,7 @@ struct NextEpisodeOverlay: View {
 // MARK: - Next Episode Hover Card
 
 struct NextEpisodeHoverCard: View {
+    @Environment(\.flixorTheme) private var theme
     let episode: EpisodeMetadata
     @ObservedObject var viewModel: PlayerViewModel
 
@@ -318,7 +320,7 @@ struct NextEpisodeHoverCard: View {
             .padding(DS.Space.s12)
         }
         .frame(width: 440)
-        .background(Color.black.opacity(0.9))
+        .background(theme.playerPanelBackground(opacity: 0.9))
         .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r12))
         .overlay(
             RoundedRectangle(cornerRadius: DS.Radius.r12)

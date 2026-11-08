@@ -233,6 +233,7 @@ private struct SidebarSection {
 // MARK: - Main Settings View
 
 struct SettingsView: View {
+    @Environment(\.flixorTheme) private var theme
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var appMode = AppModeStore.shared
     @State private var selectedCategory: SettingsCategory = .plex
@@ -262,7 +263,7 @@ struct SettingsView: View {
             .help("Close Settings")
         }
         .frame(width: 920, height: 680)
-        .background(Color(NSColor.windowBackgroundColor))
+        .background(theme.settingsWindowBackground)
         .onChange(of: appMode.mode) { _ in
             // Disconnecting Plex removes Catalogs from the sidebar; don't leave a
             // pane selected that can no longer be reached.
@@ -295,7 +296,7 @@ struct SettingsView: View {
             }
             .padding(.horizontal, DS.Space.s10)
             .padding(.vertical, 7)
-            .background(Color(NSColor.controlBackgroundColor))
+            .background(theme.settingsGroupBackground)
             .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r8, style: .continuous))
             .padding(.horizontal, DS.Space.s16)
             .padding(.top, DS.Space.s16)
@@ -336,7 +337,7 @@ struct SettingsView: View {
                 .padding(.bottom, DS.Space.s20)
             }
         }
-        .background(Color(NSColor.windowBackgroundColor).opacity(0.5))
+        .background(theme.chromeColor(default: Color(NSColor.windowBackgroundColor).opacity(0.5)))
     }
 
     private func filterCategories(_ categories: [SettingsCategory]) -> [SettingsCategory] {
@@ -380,7 +381,7 @@ struct SettingsView: View {
                 }
             }
         }
-        .background(Color(NSColor.controlBackgroundColor).opacity(0.3))
+        .background(theme.chromeColor(default: Color(NSColor.controlBackgroundColor).opacity(0.3)))
     }
 
     private var contentHeader: some View {
@@ -465,6 +466,7 @@ struct SettingsView: View {
 // MARK: - Settings Sidebar Item
 
 private struct SettingsSidebarRow: View {
+    @Environment(\.flixorTheme) private var theme
     let category: SettingsCategory
     let isSelected: Bool
     let action: () -> Void
@@ -489,7 +491,7 @@ private struct SettingsSidebarRow: View {
 
                 Text(category.title)
                     .font(.flixor(.callout))
-                    .foregroundStyle(isSelected ? .white : .primary)
+                    .foregroundStyle(isSelected ? theme.onAccent : .primary)
 
                 Spacer()
             }
@@ -510,13 +512,14 @@ private struct SettingsSidebarRow: View {
 // MARK: - Settings Group Card
 
 struct SettingsGroupCard<Content: View>: View {
+    @Environment(\.flixorTheme) private var theme
     @ViewBuilder let content: () -> Content
 
     var body: some View {
         VStack(spacing: 0) {
             content()
         }
-        .background(Color(NSColor.controlBackgroundColor))
+        .background(theme.settingsGroupBackground)
         .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r10, style: .continuous))
     }
 }
@@ -1158,6 +1161,7 @@ private struct LogsSheetView: View {
                 .padding(DS.Space.s16)
         }
         .frame(width: 700, height: 550)
+        .pureBlackSheetBackground()
     }
 }
 

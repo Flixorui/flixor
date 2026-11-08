@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct ServerConnectionView: View {
+    @Environment(\.flixorTheme) private var theme
     let server: PlexServer
     @Binding var isPresented: Bool
     var onEndpointSelected: (() -> Void)?
@@ -91,6 +92,7 @@ struct ServerConnectionView: View {
         }
         .padding(DS.Space.s24)
         .frame(width: 520, height: 480)
+        .pureBlackSheetBackground()
         .onAppear { Task { await loadConnections() } }
     }
 
@@ -222,7 +224,7 @@ struct ServerConnectionView: View {
                         .padding(.horizontal, DS.Space.s10)
                         .padding(.vertical, DS.Space.s4)
                         .background(Color.accentColor)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(theme.onAccent)
                         .cornerRadius(DS.Radius.r4)
                         .disabled(testingURI != nil)
                     }

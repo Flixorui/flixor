@@ -134,7 +134,7 @@ struct PlayerAspectPanel: View {
         }
         .padding(DS.Space.s8)
         .frame(width: 260)
-        .background(Color.black.opacity(0.95))
+        .background(theme.playerPanelBackground())
         .clipShape(RoundedRectangle(cornerRadius: DS.Radius.poster))
         .overlay(RoundedRectangle(cornerRadius: DS.Radius.poster).strokeBorder(Color.white.opacity(DS.Opacity.selected), lineWidth: DS.Border.thin))
         .flixorShadow(.modal)
@@ -190,6 +190,7 @@ struct PlayerAspectPanel: View {
 // MARK: - Keyboard shortcuts overlay
 
 struct PlayerShortcutsOverlay: View {
+    @Environment(\.flixorTheme) private var theme
     let smallSeek: Int
     let largeSeek: Int
     let onClose: () -> Void
@@ -275,7 +276,7 @@ struct PlayerShortcutsOverlay: View {
             }
             .padding(DS.Space.sheetPadding)
             .frame(maxWidth: 640)
-            .background(Color.black.opacity(0.95))
+            .background(theme.playerPanelBackground())
             .clipShape(RoundedRectangle(cornerRadius: DS.Radius.sheet))
             .overlay(RoundedRectangle(cornerRadius: DS.Radius.sheet).strokeBorder(Color.white.opacity(DS.Opacity.selected), lineWidth: DS.Border.thin))
             .flixorShadow(.modal)

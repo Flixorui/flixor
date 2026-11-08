@@ -102,6 +102,7 @@ private let stremioOnboardingData: [OnboardingSlide] = [
 ]
 
 struct OnboardingView: View {
+    @Environment(\.flixorTheme) private var theme
     let onComplete: () -> Void
 
     @State private var currentIndex = 0
@@ -121,7 +122,9 @@ struct OnboardingView: View {
             Color.black.ignoresSafeArea()
 
             // Animated gradient background
-            AnimatedGradientBackground()
+            if !theme.pureBlack {
+                AnimatedGradientBackground()
+            }
 
             VStack(spacing: 0) {
                 // Header with skip and progress

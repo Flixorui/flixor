@@ -9,6 +9,7 @@ import SwiftUI
 import FlixorKit
 
 struct ProfileSelectView: View {
+    @Environment(\.flixorTheme) private var theme
     @StateObject private var profileManager = ProfileManager.shared
     @Environment(\.dismiss) private var dismiss
 
@@ -24,8 +25,11 @@ struct ProfileSelectView: View {
         self.onProfileSelected = onProfileSelected
     }
 
-    var body: some View {
-        ZStack {
+    @ViewBuilder
+    private var backdrop: some View {
+        if theme.pureBlack {
+            theme.background.ignoresSafeArea()
+        } else {
             // Background with subtle gradient
             LinearGradient(
                 colors: [
@@ -65,6 +69,12 @@ struct ProfileSelectView: View {
                     .position(x: geo.size.width * 0.8, y: geo.size.height * 0.6)
                     .blur(radius: 60)
             }
+        }
+    }
+
+    var body: some View {
+        ZStack {
+            backdrop
 
             VStack(spacing: 0) {
                 Spacer()

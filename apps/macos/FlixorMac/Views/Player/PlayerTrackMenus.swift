@@ -10,6 +10,7 @@ import SwiftUI
 // MARK: - Audio & Subtitles Combined Modal
 
 struct AudioSubtitlesModal: View {
+    @Environment(\.flixorTheme) private var theme
     @ObservedObject var viewModel: PlayerViewModel
     let onClose: () -> Void
 
@@ -56,7 +57,7 @@ struct AudioSubtitlesModal: View {
             }
         }
         .frame(width: 340)
-        .background(Color.black.opacity(0.95))
+        .background(theme.playerPanelBackground())
         .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r12))
         .overlay(RoundedRectangle(cornerRadius: DS.Radius.r12).strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
         .shadow(color: .black.opacity(0.5), radius: 30, y: 10)
@@ -375,6 +376,7 @@ struct CompactSliderRow: View {
 // MARK: - Playback Speed Modal
 
 struct PlaybackSpeedModal: View {
+    @Environment(\.flixorTheme) private var theme
     let currentSpeed: Float
     let onSelectSpeed: (Float) -> Void
     let onClose: () -> Void
@@ -433,7 +435,7 @@ struct PlaybackSpeedModal: View {
                 .padding(.bottom, DS.Space.s24)
         }
         .frame(width: 600, height: 240)
-        .background(Color.black.opacity(0.95))
+        .background(theme.playerPanelBackground())
         .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r16))
         .padding(.trailing, DS.Space.s32)
         .padding(.bottom, 140)
