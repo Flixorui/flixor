@@ -7,6 +7,22 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		B0F05DD7C33A4E94FBBC28DB /* PlayerView+Keyboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7033643724A2E7C936166FDB /* PlayerView+Keyboard.swift */; };
+		EDDCD094955482BCCCF3CE47 /* PlayerTrackMenus.swift in Sources */ = {isa = PBXBuildFile; fileRef = A44917F0D2FE4AE817BB30A7 /* PlayerTrackMenus.swift */; };
+		8A2BDBD90F737EACEB409E75 /* PlayerOverlays.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AAA02D41A77802466A1DD16 /* PlayerOverlays.swift */; };
+		24156A9FA8EFD4BAEBAEC7F8 /* PlayerIcons.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A61B5FC052C11335D267644 /* PlayerIcons.swift */; };
+		B0A9B217F7652D334F40261C /* PlayerEpisodesAndChaptersPanels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B85BB8EFEF1439CBA539AEA /* PlayerEpisodesAndChaptersPanels.swift */; };
+		6CD5F36D6FD9A0A9CD87F875 /* PlayerControlsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A87C378BB7332A93CB8B6357 /* PlayerControlsView.swift */; };
+		47BD21D0AE39DFA5384E4B17 /* MPVVideoViewWrapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56A19931F58E058B1C91D255 /* MPVVideoViewWrapper.swift */; };
+		B1C60759AAAF1824C90CA87A /* MPVPiPWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BFAADA9EDE13FA8DD24926C /* MPVPiPWindow.swift */; };
+		88B0515EC631E2D68331AE39 /* PlayerViewModel+Types.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69F76947E43D8A4ED30D504A /* PlayerViewModel+Types.swift */; };
+		D534C548D9B4B8A0E6A2CCC8 /* PlayerViewModel+Tracks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14CF13C879850076106BF915 /* PlayerViewModel+Tracks.swift */; };
+		1CFBAAFC20D775FB2BFD4C09 /* PlayerViewModel+StreamLoading.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2743924AD9ABD5F9BAAF28D6 /* PlayerViewModel+StreamLoading.swift */; };
+		F9DEA4F956F1E53741FCA799 /* PlayerViewModel+Progress.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F3401726D574077C02D6F71 /* PlayerViewModel+Progress.swift */; };
+		E4A23C3EAEC4447E2FE30822 /* PlayerViewModel+PlexLoading.swift in Sources */ = {isa = PBXBuildFile; fileRef = F28E72D2AEA58909662F34B5 /* PlayerViewModel+PlexLoading.swift */; };
+		2B60181E5C44560121526FAD /* PlayerViewModel+NowPlaying.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D3B78B96C10A041D6A1B216 /* PlayerViewModel+NowPlaying.swift */; };
+		23A7821171E25FDBD1FE4D24 /* PlayerViewModel+Markers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 477851FDEF00961BAEA03E69 /* PlayerViewModel+Markers.swift */; };
+		E7285F396C243A52A7B528E6 /* PlayerViewModel+Controls.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4C6F94B8745D4DBB0164AFE /* PlayerViewModel+Controls.swift */; };
 		0509E7C9F208A6B61049105C /* PerformanceStats.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CB1C29CA6CFB52E468383D8 /* PerformanceStats.swift */; };
 		1D92310802A81DB458745014 /* ProfileAvatarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46B9A47EEF39400D55626597 /* ProfileAvatarView.swift */; };
 		273B64120BC7ED3EECB25980 /* DownloadStorageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6C5B29F24719D51B9C29264 /* DownloadStorageService.swift */; };
@@ -138,7 +154,6 @@
 		C8BA62692E9C5ABE00CFE44C /* NewPopularData.swift in Resources */ = {isa = PBXBuildFile; fileRef = B065 /* NewPopularData.swift */; };
 		C8BA626A2E9C5ABE00CFE44C /* NewPopularViewModel.swift in Resources */ = {isa = PBXBuildFile; fileRef = B066 /* NewPopularViewModel.swift */; };
 		C8BA626B2E9C5ABE00CFE44C /* NewPopularHero.swift in Resources */ = {isa = PBXBuildFile; fileRef = B067 /* NewPopularHero.swift */; };
-		C8D602A42E97F7D9002C9348 /* MPVVideoLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8D602A32E97F7D9002C9348 /* MPVVideoLayer.swift */; };
 		C8D602AE2E990765002C9348 /* BGRAImageReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8D602AB2E990765002C9348 /* BGRAImageReader.swift */; };
 		C8D602AF2E990765002C9348 /* MPVThumbnailGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8D602AC2E990765002C9348 /* MPVThumbnailGenerator.swift */; };
 		C8D602B02E990765002C9348 /* ThumbnailCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8D602AD2E990765002C9348 /* ThumbnailCache.swift */; };
@@ -153,6 +168,22 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		7033643724A2E7C936166FDB /* PlayerView+Keyboard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "PlayerView+Keyboard.swift"; sourceTree = "<group>"; };
+		A44917F0D2FE4AE817BB30A7 /* PlayerTrackMenus.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlayerTrackMenus.swift; sourceTree = "<group>"; };
+		1AAA02D41A77802466A1DD16 /* PlayerOverlays.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlayerOverlays.swift; sourceTree = "<group>"; };
+		7A61B5FC052C11335D267644 /* PlayerIcons.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlayerIcons.swift; sourceTree = "<group>"; };
+		4B85BB8EFEF1439CBA539AEA /* PlayerEpisodesAndChaptersPanels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlayerEpisodesAndChaptersPanels.swift; sourceTree = "<group>"; };
+		A87C378BB7332A93CB8B6357 /* PlayerControlsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlayerControlsView.swift; sourceTree = "<group>"; };
+		56A19931F58E058B1C91D255 /* MPVVideoViewWrapper.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MPVVideoViewWrapper.swift; sourceTree = "<group>"; };
+		2BFAADA9EDE13FA8DD24926C /* MPVPiPWindow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MPVPiPWindow.swift; sourceTree = "<group>"; };
+		69F76947E43D8A4ED30D504A /* PlayerViewModel+Types.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "PlayerViewModel+Types.swift"; sourceTree = "<group>"; };
+		14CF13C879850076106BF915 /* PlayerViewModel+Tracks.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "PlayerViewModel+Tracks.swift"; sourceTree = "<group>"; };
+		2743924AD9ABD5F9BAAF28D6 /* PlayerViewModel+StreamLoading.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "PlayerViewModel+StreamLoading.swift"; sourceTree = "<group>"; };
+		1F3401726D574077C02D6F71 /* PlayerViewModel+Progress.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "PlayerViewModel+Progress.swift"; sourceTree = "<group>"; };
+		F28E72D2AEA58909662F34B5 /* PlayerViewModel+PlexLoading.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "PlayerViewModel+PlexLoading.swift"; sourceTree = "<group>"; };
+		3D3B78B96C10A041D6A1B216 /* PlayerViewModel+NowPlaying.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "PlayerViewModel+NowPlaying.swift"; sourceTree = "<group>"; };
+		477851FDEF00961BAEA03E69 /* PlayerViewModel+Markers.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "PlayerViewModel+Markers.swift"; sourceTree = "<group>"; };
+		E4C6F94B8745D4DBB0164AFE /* PlayerViewModel+Controls.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "PlayerViewModel+Controls.swift"; sourceTree = "<group>"; };
 		F1A0C0DE0000000000000001 /* Flixor.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config/Flixor.xcconfig; sourceTree = "<group>"; };
 		F1A0C0DE0000000000000002 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		234624854A3AE7BEDC53EB9A /* MpvConfigModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MpvConfigModels.swift; path = MpvConfigModels.swift; sourceTree = "<group>"; };
@@ -276,7 +307,6 @@
 		B54CEB421DB505DF6CAC5D90 /* ProfileSelectView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ProfileSelectView.swift; sourceTree = "<group>"; };
 		B999 /* FlixorMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FlixorMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C6C5B29F24719D51B9C29264 /* DownloadStorageService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = DownloadStorageService.swift; path = Downloads/DownloadStorageService.swift; sourceTree = "<group>"; };
-		C8D602A32E97F7D9002C9348 /* MPVVideoLayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MPVVideoLayer.swift; sourceTree = "<group>"; };
 		C8D602AB2E990765002C9348 /* BGRAImageReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BGRAImageReader.swift; sourceTree = "<group>"; };
 		C8D602AC2E990765002C9348 /* MPVThumbnailGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MPVThumbnailGenerator.swift; sourceTree = "<group>"; };
 		C8D602AD2E990765002C9348 /* ThumbnailCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThumbnailCache.swift; sourceTree = "<group>"; };
@@ -417,6 +447,14 @@
 		D006 /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
+				69F76947E43D8A4ED30D504A /* PlayerViewModel+Types.swift */,
+				14CF13C879850076106BF915 /* PlayerViewModel+Tracks.swift */,
+				2743924AD9ABD5F9BAAF28D6 /* PlayerViewModel+StreamLoading.swift */,
+				1F3401726D574077C02D6F71 /* PlayerViewModel+Progress.swift */,
+				F28E72D2AEA58909662F34B5 /* PlayerViewModel+PlexLoading.swift */,
+				3D3B78B96C10A041D6A1B216 /* PlayerViewModel+NowPlaying.swift */,
+				477851FDEF00961BAEA03E69 /* PlayerViewModel+Markers.swift */,
+				E4C6F94B8745D4DBB0164AFE /* PlayerViewModel+Controls.swift */,
 				B010 /* PlexAuthViewModel.swift */,
 				B029 /* HomeViewModel.swift */,
 				B081 /* BrowseModalViewModel.swift */,
@@ -580,7 +618,14 @@
 		D019 /* Player */ = {
 			isa = PBXGroup;
 			children = (
-				C8D602A32E97F7D9002C9348 /* MPVVideoLayer.swift */,
+				7033643724A2E7C936166FDB /* PlayerView+Keyboard.swift */,
+				A44917F0D2FE4AE817BB30A7 /* PlayerTrackMenus.swift */,
+				1AAA02D41A77802466A1DD16 /* PlayerOverlays.swift */,
+				7A61B5FC052C11335D267644 /* PlayerIcons.swift */,
+				4B85BB8EFEF1439CBA539AEA /* PlayerEpisodesAndChaptersPanels.swift */,
+				A87C378BB7332A93CB8B6357 /* PlayerControlsView.swift */,
+				56A19931F58E058B1C91D255 /* MPVVideoViewWrapper.swift */,
+				2BFAADA9EDE13FA8DD24926C /* MPVPiPWindow.swift */,
 				MPVMETAL002 /* MPVMetalLayer.swift */,
 				B036 /* PlayerView.swift */,
 				B052 /* MPVVideoView.swift */,
@@ -792,6 +837,22 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B0F05DD7C33A4E94FBBC28DB /* PlayerView+Keyboard.swift in Sources */,
+				EDDCD094955482BCCCF3CE47 /* PlayerTrackMenus.swift in Sources */,
+				8A2BDBD90F737EACEB409E75 /* PlayerOverlays.swift in Sources */,
+				24156A9FA8EFD4BAEBAEC7F8 /* PlayerIcons.swift in Sources */,
+				B0A9B217F7652D334F40261C /* PlayerEpisodesAndChaptersPanels.swift in Sources */,
+				6CD5F36D6FD9A0A9CD87F875 /* PlayerControlsView.swift in Sources */,
+				47BD21D0AE39DFA5384E4B17 /* MPVVideoViewWrapper.swift in Sources */,
+				B1C60759AAAF1824C90CA87A /* MPVPiPWindow.swift in Sources */,
+				88B0515EC631E2D68331AE39 /* PlayerViewModel+Types.swift in Sources */,
+				D534C548D9B4B8A0E6A2CCC8 /* PlayerViewModel+Tracks.swift in Sources */,
+				1CFBAAFC20D775FB2BFD4C09 /* PlayerViewModel+StreamLoading.swift in Sources */,
+				F9DEA4F956F1E53741FCA799 /* PlayerViewModel+Progress.swift in Sources */,
+				E4A23C3EAEC4447E2FE30822 /* PlayerViewModel+PlexLoading.swift in Sources */,
+				2B60181E5C44560121526FAD /* PlayerViewModel+NowPlaying.swift in Sources */,
+				23A7821171E25FDBD1FE4D24 /* PlayerViewModel+Markers.swift in Sources */,
+				E7285F396C243A52A7B528E6 /* PlayerViewModel+Controls.swift in Sources */,
 				A001 /* FlixorMacApp.swift in Sources */,
 				A002 /* RootView.swift in Sources */,
 				A004 /* User.swift in Sources */,
@@ -844,7 +905,6 @@
 				A046 /* WatchlistController.swift in Sources */,
 				A047 /* MyListViewModel.swift in Sources */,
 				A204 /* PersonModalView.swift in Sources */,
-				C8D602A42E97F7D9002C9348 /* MPVVideoLayer.swift in Sources */,
 				MPVMETAL001 /* MPVMetalLayer.swift in Sources */,
 				A048 /* MyListView.swift in Sources */,
 				A049 /* WatchlistButton.swift in Sources */,

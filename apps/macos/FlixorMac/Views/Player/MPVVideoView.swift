@@ -152,13 +152,6 @@ class MPVNSView: NSView {
         updateLayerSize()
     }
 
-    // MARK: - Legacy Compatibility (for PiP and other systems)
-
-    /// Provides access to the video layer for PiP and other features
-    var videoLayer: CALayer? {
-        return metalLayer
-    }
-
     /// Force update for new bounds (used during PiP transitions)
     func forceUpdateForNewBounds(_ newBounds: CGRect) {
         guard let layer = metalLayer else { return }

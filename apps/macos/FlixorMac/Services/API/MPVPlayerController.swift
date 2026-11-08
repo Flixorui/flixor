@@ -1190,59 +1190,6 @@ class MPVPlayerController {
         guard mpv != nil else { return }
         mpv_command_string(mpv, "add chapter 1")
     }
-
-    // MARK: - Legacy Compatibility
-
-    // These methods are kept for backward compatibility but are no longer needed
-    // with gpu-next rendering (MPV handles rendering internally)
-
-    /// No longer needed - kept for API compatibility
-    var videoUpdateCallback: (() -> Void)?
-
-    /// No longer needed - MPV renders directly to Metal layer
-    func initializeRendering(openGLContext: CGLContextObj) {
-        print("⚠️ [MPV] initializeRendering(openGLContext:) is deprecated - using gpu-next Metal rendering")
-    }
-
-    /// No longer needed - MPV renders directly to Metal layer
-    func render(width: Int, height: Int, fbo: GLint) {
-        // No-op: gpu-next renders directly to the Metal layer
-    }
-
-    /// No longer needed
-    func reportSwap() {
-        // No-op: gpu-next handles this internally
-    }
-
-    /// No longer needed
-    func shouldRenderUpdateFrame() -> Bool {
-        return false
-    }
-
-    /// No longer needed
-    func getRenderContext() -> OpaquePointer? {
-        return nil
-    }
-
-    /// No longer needed - ICC handled automatically based on HDR/SDR mode
-    func setRenderICCProfile(_ colorSpace: NSColorSpace) {
-        // No-op: configureHDRMode handles ICC profile settings
-    }
-
-    /// Deprecated - use configureHDRMode instead
-    func setHDRProperties(primaries: String) {
-        // No-op: configureHDRMode handles this automatically
-    }
-
-    /// Deprecated - use configureHDRMode instead
-    func setSDRProperties() {
-        // No-op: configureHDRMode handles this automatically
-    }
-
-    /// No longer needed - ICC handled automatically
-    func setICCProfile(path: String?) {
-        // No-op: configureHDRMode handles ICC profile settings
-    }
 }
 
 // MARK: - Supporting Types
