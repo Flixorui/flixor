@@ -135,9 +135,6 @@ class PlayerViewModel: ObservableObject {
     var failedStreamURLs: Set<String> = []
     /// Sources re-fetched during recovery (fetched once per playback).
     var streamRecoveryResults: [StremioAddonStreamResult]?
-    /// Set while a new stream replaces a file that is still open: mpv reports the
-    /// old file's end, which must not count as "finished" or "failed".
-    var streamFileReplacementStartedAt: Date?
 
     // Playback metadata
     private(set) var item: MediaItem
@@ -466,7 +463,8 @@ class PlayerViewModel: ObservableObject {
                     }
                     // An EOF well before the known duration means the stream was cut
                     // off (e.g. a dropped connection), not that the user finished it.
-                    if self.duration > 60, self.currentTime < self.duration * 0.9 {
+                    // Tolerant margin: container durations can be slightly off.
+                    if self.duration > 0, self.duration - self.currentTime > max(120, self.duration * 0.15) {
                         print("⚠️ [Player] File ended at \(Int(self.currentTime))s of \(Int(self.duration))s; treating as interrupted")
                         self.handlePlaybackFailure(early: false)
                         return

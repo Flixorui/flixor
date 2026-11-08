@@ -53,7 +53,6 @@ extension PlayerViewModel {
             }
 
             streamURL = URL(string: streamItem.uri)
-            noteStreamFileReplacement(on: mpvController)
             mpvController.loadFile(streamItem.uri, headers: Dictionary(uniqueKeysWithValues: streamItem.headers.map { ($0.name, $0.value) }))
             startProgressTracking()
 
