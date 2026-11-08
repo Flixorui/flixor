@@ -211,6 +211,7 @@ struct DetailsHeroSection: View {
             .padding(.bottom, layout.heroBottomPadding)
         }
         .frame(maxWidth: .infinity, minHeight: layout.heroHeight, maxHeight: layout.heroHeight)
+        .reportsDetailsHeroFrame()
         .sheet(item: $selectedTrailer) { trailer in
             TrailerModal(
                 trailer: trailer,

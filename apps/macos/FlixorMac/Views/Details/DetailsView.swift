@@ -36,6 +36,10 @@ struct DetailsView: View {
     // Title watch state / Trakt rating (hero action row)
     @StateObject private var titleActions = DetailsTitleActionsModel()
 
+    // Hero position in the scroll view (floating header, inline trailer)
+    @StateObject private var heroScroll = DetailsHeroScrollState()
+    @Environment(\.windowMetrics) private var windowMetrics
+
     // Loading skeleton
     @State private var initialLoadFinished = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -43,6 +47,18 @@ struct DetailsView: View {
     /// Hero skeleton until the title's core metadata is in (or the load ends).
     private var showsLoadingSkeleton: Bool {
         vm.title.isEmpty && (vm.isLoading || !initialLoadFinished)
+    }
+
+    private var showsFloatingHeader: Bool {
+        heroScroll.isHeroScrolledAway && !showsLoadingSkeleton && !showBrowseModal && !showPersonModal
+    }
+
+    /// Same primary action as the hero: Plex when there is a copy, else addons.
+    private var floatingHeaderPlayAction: (() -> Void)? {
+        if vm.isSeason { return nil }
+        if hasResolvedPlexSource { return playContent }
+        if canShowStremioAction { return openHeroStremioSources }
+        return nil
     }
 
     private var resolvedPlexPlayableId: String? {
@@ -76,6 +92,10 @@ struct DetailsView: View {
                 ZStack(alignment: .top) {
                     ScrollView {
                         pageContent(layout: layout)
+                    }
+                    .coordinateSpace(name: DetailsScrollSpace.name)
+                    .onPreferenceChange(DetailsHeroFramePreferenceKey.self) { frame in
+                        heroScroll.update(heroFrame: frame)
                     }
                     .opacity(showsLoadingSkeleton ? 0 : 1)
 
@@ -129,6 +149,19 @@ struct DetailsView: View {
             }
         }
         .ignoresSafeArea(edges: .top)
+        .overlay(alignment: .top) {
+            // Outside ignoresSafeArea, so it sits just below the window toolbar.
+            if showsFloatingHeader {
+                DetailsFloatingHeader(
+                    vm: vm,
+                    onPlay: floatingHeaderPlayAction,
+                    playsFromPlex: hasResolvedPlexSource,
+                    horizontalPadding: DetailsLayoutMetrics(width: max(windowMetrics.width, 640)).heroHorizontalPadding
+                )
+                .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .animation(reduceMotion ? DS.Motion.quick : DS.Motion.standard, value: showsFloatingHeader)
         .environment(\.detailsTitleActions, titleActions)
         .background(HomeBackground(heroColors: vm.heroColors))
         .navigationTitle("")
