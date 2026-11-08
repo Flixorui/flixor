@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		46A11CAA2235D819C46F9262 /* BrowseRoutes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59C341EA229A5DB807400C80 /* BrowseRoutes.swift */; };
 		BC029CD7BE843D1C73E740B0 /* PlayerView+Keyboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FE314CCC603353EE4007DF3 /* PlayerView+Keyboard.swift */; };
 		10AEC547BF1ADF4D4318CD03 /* PlayerTrackMenus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E2D92951DF3D9A5AB65E37D /* PlayerTrackMenus.swift */; };
 		4297592F0124A8580A201037 /* PlayerOverlays.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29A73873254FC5C4746BA9E8 /* PlayerOverlays.swift */; };
@@ -192,6 +193,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		59C341EA229A5DB807400C80 /* BrowseRoutes.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BrowseRoutes.swift; sourceTree = "<group>"; };
 		4FE314CCC603353EE4007DF3 /* PlayerView+Keyboard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "PlayerView+Keyboard.swift"; sourceTree = "<group>"; };
 		5E2D92951DF3D9A5AB65E37D /* PlayerTrackMenus.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlayerTrackMenus.swift; sourceTree = "<group>"; };
 		29A73873254FC5C4746BA9E8 /* PlayerOverlays.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlayerOverlays.swift; sourceTree = "<group>"; };
@@ -453,6 +455,7 @@
 		D004 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				59C341EA229A5DB807400C80 /* BrowseRoutes.swift */,
 				B004 /* User.swift */,
 				B005 /* APIError.swift */,
 				B028 /* HomeScreenData.swift */,
@@ -909,6 +912,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				46A11CAA2235D819C46F9262 /* BrowseRoutes.swift in Sources */,
 				BC029CD7BE843D1C73E740B0 /* PlayerView+Keyboard.swift in Sources */,
 				10AEC547BF1ADF4D4318CD03 /* PlayerTrackMenus.swift in Sources */,
 				4297592F0124A8580A201037 /* PlayerOverlays.swift in Sources */,
