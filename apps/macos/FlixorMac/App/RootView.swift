@@ -123,6 +123,7 @@ struct RootView: View {
             } else {
                 // Fully ready - show main app
                 MainView()
+                    .toast() // single app-wide toast host
                     .transition(.opacity)
             }
         }

@@ -78,7 +78,6 @@ struct SearchView: View {
                 await viewModel.loadInitialContent()
             }
         }
-        .toast()
     }
 
     // MARK: Keyboard

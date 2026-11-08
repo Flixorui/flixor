@@ -60,7 +60,11 @@ struct CardContextMenu: View {
             }
         }
 
-        if CardActions.isWholeShowLike(item) {
+        if item.isGroupedRecentlyAddedShow {
+            // "N new episodes" cards stand for specific episodes, not the whole
+            // show, so whole-show watch actions would hit the wrong scope.
+            EmptyView()
+        } else if CardActions.isWholeShowLike(item) {
             let noun = item.type.lowercased() == "season" ? "Season" : "Show"
             Button {
                 onRequestWholeShowWatched(true)

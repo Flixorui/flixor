@@ -128,30 +128,8 @@ struct HomeScreenAppearanceView: View {
             // Poster Display
             SettingsSectionHeader(title: "Poster Display")
             SettingsGroupCard {
-                SettingsRow(icon: "textformat", iconColor: .purple, title: "Show Titles") {
-                    Toggle("", isOn: $profileSettings.showPosterTitles).labelsHidden()
-                }
-                SettingsRow(icon: "folder", iconColor: .blue, title: "Show Library Titles") {
+                SettingsRow(icon: "folder", iconColor: .blue, title: "Show Library Titles", showDivider: false) {
                     Toggle("", isOn: $profileSettings.showLibraryTitles).labelsHidden()
-                }
-                SettingsRow(icon: "arrow.up.left.and.arrow.down.right", iconColor: .green, title: "Poster Size") {
-                    Picker("", selection: $profileSettings.posterSize) {
-                        Text("Small").tag("small")
-                        Text("Medium").tag("medium")
-                        Text("Large").tag("large")
-                    }
-                    .labelsHidden()
-                    .frame(width: 100)
-                }
-                SettingsRow(icon: "square.on.square", iconColor: .orange, title: "Corner Radius", showDivider: false) {
-                    Picker("", selection: $profileSettings.posterCornerRadius) {
-                        Text("None").tag("none")
-                        Text("Small").tag("small")
-                        Text("Medium").tag("medium")
-                        Text("Large").tag("large")
-                    }
-                    .labelsHidden()
-                    .frame(width: 100)
                 }
             }
             CardStyleSettingsSection()

@@ -179,7 +179,6 @@ struct DetailsView: View {
         }
         .background(HomeBackground(heroColors: vm.heroColors))
         .navigationTitle("")
-        .toast() // watched-state toasts from the Episodes section
         .task {
             await vm.load(for: item)
             initialLoadFinished = true

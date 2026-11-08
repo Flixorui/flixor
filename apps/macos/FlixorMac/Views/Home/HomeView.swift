@@ -66,7 +66,6 @@ struct HomeView: View {
             viewModel.stopBillboardRotation()
             viewModel.stopPolling()
         }
-        .toast()
         .onChange(of: viewModel.pendingAction) { action in
             guard let action = action else { return }
             switch action {
