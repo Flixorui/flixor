@@ -3,8 +3,8 @@
 //  FlixorMac
 //
 //  Anime-Skip (https://anime-skip.com): community timestamps for anime via its
-//  public GraphQL API. Its terms require each app to use its own client id, so
-//  this client only runs when the user has entered one (no shared id is shipped).
+//  public GraphQL API. The API needs a client id; its shared example id is heavily
+//  rate limited, so none is shipped and this client only runs with the user's own.
 //
 
 import Foundation

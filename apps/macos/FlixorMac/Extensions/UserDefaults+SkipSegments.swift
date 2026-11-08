@@ -28,8 +28,8 @@ extension UserDefaults {
         set { set(newValue, forKey: profileKey(SkipSegmentKeys.communitySkipSegmentsEnabled)) }
     }
 
-    /// The user's own Anime-Skip client id (anime-skip.com terms require a per-app
-    /// id). Empty = Anime-Skip is not queried.
+    /// The user's own Anime-Skip client id (the API needs one; see anime-skip.com/api).
+    /// Empty = Anime-Skip is not queried.
     var animeSkipClientId: String {
         get { string(forKey: profileKey(SkipSegmentKeys.animeSkipClientId)) ?? "" }
         set { set(newValue.trimmingCharacters(in: .whitespacesAndNewlines), forKey: profileKey(SkipSegmentKeys.animeSkipClientId)) }
