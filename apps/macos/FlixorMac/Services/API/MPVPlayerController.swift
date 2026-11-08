@@ -119,6 +119,14 @@ class MPVPlayerController {
         setOptionStringWithLog("hwdec", "videotoolbox")
         setOptionStringWithLog("target-colorspace-hint", "yes")
 
+        // Audio output: prefer AVFoundation. When mpv 0.40's CoreAudio output fails
+        // to set up (seen on macOS 27 with err -50 on the channel layout), it leaves
+        // a system audio-device listener registered against freed state, so the next
+        // device change crashes the app in hotplug_cb. Fixed upstream after v0.41.0
+        // (af067b5ea, c5d391adb); revisit once MPVKit ships that fix.
+        // CoreAudio stays as the fallback if AVFoundation can't start.
+        setOptionStringWithLog("ao", "avfoundation,coreaudio")
+
         // Store the Metal layer reference
         self.metalLayer = layer
 
@@ -1038,6 +1046,8 @@ class MPVPlayerController {
 
         case MPV_EVENT_PLAYBACK_RESTART:
             print("▶️ [MPV] Playback restarted")
+            let audioOutput: String? = getProperty("current-ao", type: .string)
+            print("🔊 [MPV] Audio output: \(audioOutput ?? "none")")
             DispatchQueue.main.async { [weak self] in
                 self?.onEvent?("playback-restart")
             }
