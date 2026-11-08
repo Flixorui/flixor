@@ -78,6 +78,7 @@ struct RootView: View {
     @State private var isInitializing = true
     @ObservedObject private var profileSettings = ProfileSettings.shared
     @ObservedObject private var appMode = AppModeStore.shared
+    @Environment(\.flixorTheme) private var theme
 
     /// In Stremio-only mode there is no Plex step at all. A nil mode (existing
     /// installs, upgraded in place) behaves exactly like the old Plex-only flow.
@@ -128,6 +129,9 @@ struct RootView: View {
         .animation(.easeInOut(duration: 0.3), value: needsPlexAuth)
         .animation(.easeInOut(duration: 0.3), value: needsPlexServer)
         .animation(.easeInOut(duration: 0.3), value: profileSettings.hasCompletedOnboarding)
+        // Pure black: paint the window black behind screens that leave areas
+        // transparent. Off by default so the default look is unchanged.
+        .background(theme.pureBlack ? Color.black.ignoresSafeArea() : nil)
         .environmentObject(watchlistController)
         .task {
             if UserDefaults.standard.playerBackend == .avplayer {
@@ -142,6 +146,8 @@ struct RootView: View {
             }
             // Restore session (includes profile context and checking for multiple profiles)
             await sessionManager.restoreSession()
+            // The active profile is known now; load its accent/background.
+            AppearanceStore.shared.reload()
             isInitializing = false
         }
     }

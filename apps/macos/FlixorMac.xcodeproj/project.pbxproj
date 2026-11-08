@@ -7,6 +7,12 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		9633C04F16B2D2E2569B6DD3 /* AppearanceSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3909191953B1B96072648F01 /* AppearanceSettingsView.swift */; };
+		34E1A78CC3CCA1DACCCD648D /* AppearanceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF80D4D0E84A1FC4FBFF4998 /* AppearanceStore.swift */; };
+		326FBEBC27A78471BEFE4E18 /* WindowMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2713C18EB2BDC243C62F3216 /* WindowMetrics.swift */; };
+		E20CE6E27DA98B03F33C34B6 /* UserDefaults+Appearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4AC3EB62F719CB6C163748F /* UserDefaults+Appearance.swift */; };
+		C40B71A9B88AF397BBFC3F33 /* FlixorTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AAE783F09B14721FA98F527 /* FlixorTheme.swift */; };
+		7852EF2557741AD5DE214EC5 /* DesignTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2EE1608FD872002B75218F7 /* DesignTokens.swift */; };
 		0509E7C9F208A6B61049105C /* PerformanceStats.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CB1C29CA6CFB52E468383D8 /* PerformanceStats.swift */; };
 		1D92310802A81DB458745014 /* ProfileAvatarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46B9A47EEF39400D55626597 /* ProfileAvatarView.swift */; };
 		273B64120BC7ED3EECB25980 /* DownloadStorageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6C5B29F24719D51B9C29264 /* DownloadStorageService.swift */; };
@@ -153,6 +159,12 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		3909191953B1B96072648F01 /* AppearanceSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppearanceSettingsView.swift; sourceTree = "<group>"; };
+		EF80D4D0E84A1FC4FBFF4998 /* AppearanceStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppearanceStore.swift; sourceTree = "<group>"; };
+		2713C18EB2BDC243C62F3216 /* WindowMetrics.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WindowMetrics.swift; sourceTree = "<group>"; };
+		F4AC3EB62F719CB6C163748F /* UserDefaults+Appearance.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "UserDefaults+Appearance.swift"; sourceTree = "<group>"; };
+		3AAE783F09B14721FA98F527 /* FlixorTheme.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FlixorTheme.swift; sourceTree = "<group>"; };
+		F2EE1608FD872002B75218F7 /* DesignTokens.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DesignTokens.swift; sourceTree = "<group>"; };
 		F1A0C0DE0000000000000001 /* Flixor.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config/Flixor.xcconfig; sourceTree = "<group>"; };
 		F1A0C0DE0000000000000002 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		234624854A3AE7BEDC53EB9A /* MpvConfigModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MpvConfigModels.swift; path = MpvConfigModels.swift; sourceTree = "<group>"; };
@@ -436,6 +448,7 @@
 		D007 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				EF80D4D0E84A1FC4FBFF4998 /* AppearanceStore.swift */,
 				C8D602AA2E990749002C9348 /* Thumbnail */,
 				D016 /* API */,
 				D017 /* Auth */,
@@ -454,6 +467,10 @@
 		D008 /* Extensions */ = {
 			isa = PBXGroup;
 			children = (
+				2713C18EB2BDC243C62F3216 /* WindowMetrics.swift */,
+				F4AC3EB62F719CB6C163748F /* UserDefaults+Appearance.swift */,
+				3AAE783F09B14721FA98F527 /* FlixorTheme.swift */,
+				F2EE1608FD872002B75218F7 /* DesignTokens.swift */,
 				B016 /* UserDefaults+Extensions.swift */,
 				B034 /* Color+Theme.swift */,
 				B038 /* MediaItem+Hashable.swift */,
@@ -528,6 +545,7 @@
 		D015 /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				3909191953B1B96072648F01 /* AppearanceSettingsView.swift */,
 				B015 /* SettingsView.swift */,
 				B163 /* PlexServersView.swift */,
 				B164 /* ServerConnectionView.swift */,
@@ -792,6 +810,12 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9633C04F16B2D2E2569B6DD3 /* AppearanceSettingsView.swift in Sources */,
+				34E1A78CC3CCA1DACCCD648D /* AppearanceStore.swift in Sources */,
+				326FBEBC27A78471BEFE4E18 /* WindowMetrics.swift in Sources */,
+				E20CE6E27DA98B03F33C34B6 /* UserDefaults+Appearance.swift in Sources */,
+				C40B71A9B88AF397BBFC3F33 /* FlixorTheme.swift in Sources */,
+				7852EF2557741AD5DE214EC5 /* DesignTokens.swift in Sources */,
 				A001 /* FlixorMacApp.swift in Sources */,
 				A002 /* RootView.swift in Sources */,
 				A004 /* User.swift in Sources */,

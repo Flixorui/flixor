@@ -18,6 +18,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
     case rowsSettings
     case sidebar
     case search
+    case appearance
     case homeScreenAppearance
     case detailsScreen
     case tmdb
@@ -39,6 +40,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         case .rowsSettings: return "Rows Settings"
         case .sidebar: return "NavBar"
         case .search: return "Search"
+        case .appearance: return "Appearance"
         case .homeScreenAppearance: return "Home Screen"
         case .detailsScreen: return "Details Screen"
         case .tmdb: return "TMDB"
@@ -60,6 +62,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         case .rowsSettings: return "Choose which content rows to display"
         case .sidebar: return "Configure navigation tabs visibility"
         case .search: return "Configure search sources and behavior"
+        case .appearance: return "Accent color and background style"
         case .homeScreenAppearance: return "Customize hero, posters and visual appearance"
         case .detailsScreen: return "Episode display and layout options"
         case .tmdb: return "The Movie Database metadata settings"
@@ -82,6 +85,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         case .rowsSettings: return "square.grid.3x1.below.line.grid.1x2"
         case .sidebar: return "sidebar.left"
         case .search: return "magnifyingglass"
+        case .appearance: return "paintpalette"
         case .homeScreenAppearance: return "house"
         case .detailsScreen: return "play.rectangle"
         case .tmdb: return "film"
@@ -194,6 +198,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         case .rowsSettings: return .blue
         case .sidebar: return .cyan
         case .search: return .mint
+        case .appearance: return .pink
         case .homeScreenAppearance: return .indigo
         case .detailsScreen: return .teal
         case .tmdb: return Color(hex: "042541")
@@ -218,7 +223,7 @@ private struct SidebarSection {
             SidebarSection(title: "Account", categories: [.plex]),
             SidebarSection(title: "Player", categories: [.player]),
             SidebarSection(title: "Content & Discovery", categories: [.discoveryMode, .catalog, .rowsSettings, .sidebar, .search]),
-            SidebarSection(title: "Appearance", categories: [.homeScreenAppearance, .detailsScreen]),
+            SidebarSection(title: "Appearance", categories: [.appearance, .homeScreenAppearance, .detailsScreen]),
             SidebarSection(title: "Integrations", categories: [.tmdb, .stremio, .mdblist, .overseerr, .trakt]),
             SidebarSection(title: "System", categories: [.advanced, .about])
         ]
@@ -433,6 +438,8 @@ struct SettingsView: View {
             SidebarSettingsView()
         case .search:
             SearchSettingsView()
+        case .appearance:
+            AppearanceSettingsView()
         case .homeScreenAppearance:
             HomeScreenAppearanceView()
         case .detailsScreen:
