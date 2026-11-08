@@ -56,6 +56,8 @@ struct DetailsScreenSettingsView: View {
             SettingsSectionHeader(title: "Page Sections")
             DetailsSectionOrderList()
 
+            DetailsHeroSettingsSection()
+
             // Episode Layout
             SettingsSectionHeader(title: "Episode Display")
             SettingsGroupCard {

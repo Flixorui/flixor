@@ -18,6 +18,20 @@ extension DetailsViewModel {
         isLoading = true
         defer { isLoading = false }
         error = nil
+        // Switching to another title in place: clear the hero text so the loading
+        // skeleton covers it instead of the previous title's metadata. `.task` also
+        // re-runs this for the same item when returning from the player; keep the
+        // text then, so coming back doesn't flash the skeleton.
+        if lastLoadedItemId != item.id {
+            title = ""
+            overview = ""
+            year = nil
+            editionTitle = nil
+            runtime = nil
+            rating = nil
+            genres = []
+        }
+        lastLoadedItemId = item.id
         badges = []
         externalRatings = nil
         plexImdbRating = nil

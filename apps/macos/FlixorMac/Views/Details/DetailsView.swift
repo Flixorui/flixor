@@ -30,6 +30,39 @@ struct DetailsView: View {
     // Profile-scoped layout preference
     @ObservedObject var profileSettings = ProfileSettings.shared
 
+    // Title watch state / Trakt rating (hero action row)
+    @StateObject private var titleActions = DetailsTitleActionsModel()
+
+    // Hero position in the scroll view (floating header, inline trailer)
+    @StateObject private var heroScroll = DetailsHeroScrollState()
+    @Environment(\.windowMetrics) private var windowMetrics
+
+    // Inline hero trailer
+    @StateObject private var heroTrailer = DetailsHeroTrailerController()
+    @Environment(\.controlActiveState) private var controlActiveState
+    @State private var ownTab: NavItem?
+
+    // Loading skeleton
+    @State private var initialLoadFinished = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// Hero skeleton until the title's core metadata is in (or the load ends).
+    private var showsLoadingSkeleton: Bool {
+        vm.title.isEmpty && (vm.isLoading || !initialLoadFinished)
+    }
+
+    private var showsFloatingHeader: Bool {
+        heroScroll.isHeroScrolledAway && !showsLoadingSkeleton && !showBrowseModal
+    }
+
+    /// Same primary action as the hero: Plex when there is a copy, else addons.
+    private var floatingHeaderPlayAction: (() -> Void)? {
+        if vm.isSeason { return nil }
+        if hasResolvedPlexSource { return playContent }
+        if canShowStremioAction { return openHeroStremioSources }
+        return nil
+    }
+
     private var resolvedPlexPlayableId: String? {
         if let playableId = vm.playableId, playableId.hasPrefix("plex:") {
             return playableId
@@ -58,9 +91,23 @@ struct DetailsView: View {
                 let width = max(proxy.size.width, 640)
                 let layout = DetailsLayoutMetrics(width: width)
 
-                ScrollView {
-                    pageContent(layout: layout)
+                ZStack(alignment: .top) {
+                    ScrollView {
+                        pageContent(layout: layout)
+                    }
+                    .coordinateSpace(name: DetailsScrollSpace.name)
+                    .onPreferenceChange(DetailsHeroFramePreferenceKey.self) { frame in
+                        heroScroll.update(heroFrame: frame)
+                    }
+                    .opacity(showsLoadingSkeleton ? 0 : 1)
+
+                    if showsLoadingSkeleton {
+                        DetailsHeroSkeleton(layout: layout)
+                            .transition(.opacity)
+                            .allowsHitTesting(false)
+                    }
                 }
+                .animation(reduceMotion ? nil : DS.Motion.slow, value: showsLoadingSkeleton)
             }
             .frame(maxWidth: .infinity, alignment: .top)
 
@@ -84,16 +131,71 @@ struct DetailsView: View {
             }
         }
         .ignoresSafeArea(edges: .top)
+        .overlay(alignment: .top) {
+            // Outside ignoresSafeArea, so it sits just below the window toolbar.
+            if showsFloatingHeader {
+                DetailsFloatingHeader(
+                    vm: vm,
+                    onPlay: floatingHeaderPlayAction,
+                    playsFromPlex: hasResolvedPlexSource,
+                    horizontalPadding: DetailsLayoutMetrics(width: max(windowMetrics.width, 640)).heroHorizontalPadding
+                )
+                .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .animation(reduceMotion ? DS.Motion.quick : DS.Motion.standard, value: showsFloatingHeader)
+        .environment(\.detailsTitleActions, titleActions)
+        .environment(\.detailsHeroTrailer, heroTrailer)
+        .onReceive(heroScroll.scrollActivity) { _ in
+            heroTrailer.noteActivity()
+        }
+        .onReceive(heroScroll.$isHeroMostlyVisible.removeDuplicates()) { visible in
+            heroTrailer.update { $0.isHeroVisible = visible }
+        }
+        .onChange(of: controlActiveState) { state in
+            heroTrailer.update { $0.isWindowFocused = state == .key }
+        }
+        .onChange(of: mainView.selectedTab) { tab in
+            heroTrailer.update { $0.isTabActive = ownTab == nil || tab == ownTab }
+        }
+        .onChange(of: reduceMotion) { value in
+            heroTrailer.update { $0.isReduceMotion = value }
+        }
+        .onChange(of: showBrowseModal) { obscured in
+            heroTrailer.update { $0.isObscured = obscured }
+        }
+        .onAppear {
+            if ownTab == nil { ownTab = mainView.selectedTab }
+            heroTrailer.update {
+                $0.isPageVisible = true
+                $0.isWindowFocused = controlActiveState == .key
+                $0.isTabActive = mainView.selectedTab == ownTab
+                $0.isReduceMotion = reduceMotion
+            }
+        }
+        .onDisappear {
+            // Leaving the page (including starting playback) stops the trailer.
+            heroTrailer.update { $0.isPageVisible = false }
+        }
         .background(HomeBackground(heroColors: vm.heroColors))
         .navigationTitle("")
         .toast() // watched-state toasts from the Episodes section
         .task {
             await vm.load(for: item)
+            initialLoadFinished = true
             // Set initial tab - DETAILS for episodes, EPISODES for TV shows/seasons
             if vm.isEpisode {
                 activeTab = "DETAILS"
             } else if vm.mediaKind == "tv" || vm.isSeason {
                 activeTab = "EPISODES"
+            }
+        }
+        .onChange(of: vm.isLoading) { loading in
+            if loading {
+                heroTrailer.configure(tmdbId: nil, mediaKind: nil)
+            } else {
+                titleActions.configure(with: vm)
+                heroTrailer.configure(tmdbId: vm.tmdbId, mediaKind: vm.mediaKind)
             }
         }
         .onChange(of: showBrowseModal) { value in

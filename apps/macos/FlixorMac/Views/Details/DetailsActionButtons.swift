@@ -54,6 +54,8 @@ extension DetailsHeroSection {
                     }
                     .buttonStyle(.plain)
                 }
+
+                titleWatchActions
             } else {
                 // With no local Plex copy, Stremio is the only way to play this, so it
                 // becomes the primary button instead of sitting next to a dead one.
@@ -130,6 +132,9 @@ extension DetailsHeroSection {
                     )
                 }
 
+                // Watched toggle / menu and Trakt rating
+                titleWatchActions
+
                 // Overseerr request button - circular (Apple TV+ style)
                 if let tmdbIdStr = vm.tmdbId, let tmdbIdInt = Int(tmdbIdStr) {
                     let overseerrMediaType = vm.mediaKind == "tv" ? "tv" : "movie"
@@ -165,34 +170,47 @@ extension DetailsHeroSection {
         }
     }
 
+    @ViewBuilder private var titleWatchActions: some View {
+        if let titleActions {
+            DetailsWatchedControl(model: titleActions)
+            DetailsRateControl(model: titleActions, title: vm.title)
+        }
+    }
+
     private var hasResolvedPlexSource: Bool {
         effectivePlexRatingKey != nil
     }
 
-    // Get the Plex rating key from either plexRatingKey or playableId (format: "plex:12345")
-    private var effectivePlexRatingKey: String? {
-        if let rk = vm.plexRatingKey {
+    private var effectivePlexRatingKey: String? { vm.heroPlexRatingKey }
+
+    private var canonicalWatchlistId: String? { vm.heroWatchlistCanonicalId }
+
+    private var watchlistMediaType: MyListViewModel.MediaType? { vm.heroWatchlistMediaType }
+}
+
+// Shared by the hero action row and the floating header.
+extension DetailsViewModel {
+    /// Plex rating key from either plexRatingKey or playableId ("plex:12345").
+    var heroPlexRatingKey: String? {
+        if let rk = plexRatingKey {
             return rk
         }
-        // Extract from playableId if it's a plex ID
-        if let playableId = vm.playableId, playableId.hasPrefix("plex:") {
+        if let playableId, playableId.hasPrefix("plex:") {
             return String(playableId.dropFirst(5))
         }
         return nil
     }
 
-    private var canonicalWatchlistId: String? {
-        if let playable = vm.playableId, playable.hasPrefix("plex:") { return playable }
-        if let tmdb = vm.tmdbId {
-            let prefix = (vm.mediaKind == "tv") ? "tmdb:tv:" : "tmdb:movie:"
+    var heroWatchlistCanonicalId: String? {
+        if let playable = playableId, playable.hasPrefix("plex:") { return playable }
+        if let tmdb = tmdbId {
+            let prefix = (mediaKind == "tv") ? "tmdb:tv:" : "tmdb:movie:"
             return prefix + tmdb
         }
         return nil
     }
 
-    private var watchlistMediaType: MyListViewModel.MediaType? {
-        if vm.mediaKind == "tv" { return .show }
-        if vm.mediaKind == "movie" { return .movie }
-        return .movie
+    var heroWatchlistMediaType: MyListViewModel.MediaType {
+        mediaKind == "tv" ? .show : .movie
     }
 }

@@ -29,6 +29,9 @@ struct DetailsHeroSection: View {
 
     // Profile-scoped rating visibility settings
     @ObservedObject private var profileSettings = ProfileSettings.shared
+    @Environment(\.flixorTheme) var theme
+    @Environment(\.detailsTitleActions) var titleActions
+    @Environment(\.detailsHeroTrailer) var heroTrailer
 
     private var hasTrailers: Bool { !trailers.isEmpty }
 
@@ -106,9 +109,21 @@ struct DetailsHeroSection: View {
             // Backdrop with enhanced gradients - sized to show full image (16:9 aspect ratio)
             GeometryReader { geo in
                 ZStack {
-                    CachedAsyncImage(url: vm.backdropURL)
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: geo.size.width, height: geo.size.height)
+                    CachedAsyncImage(url: vm.backdropURL, contentMode: .fill) {
+                        // Themed wash instead of a grey box while the backdrop loads
+                        // (or when the title has none).
+                        LinearGradient(
+                            colors: [theme.surfaceElevated, theme.surface, theme.background],
+                            startPoint: .topTrailing,
+                            endPoint: .bottomLeading
+                        )
+                    }
+                    .frame(width: geo.size.width, height: geo.size.height)
+
+                    // Inline trailer crossfades over the backdrop, under the fades.
+                    if let heroTrailer {
+                        DetailsHeroTrailerLayer(controller: heroTrailer, size: geo.size)
+                    }
 
                     // Top fade for navigation clarity
                     LinearGradient(
@@ -202,6 +217,14 @@ struct DetailsHeroSection: View {
             .padding(.bottom, layout.heroBottomPadding)
         }
         .frame(maxWidth: .infinity, minHeight: layout.heroHeight, maxHeight: layout.heroHeight)
+        .overlay(alignment: .topTrailing) {
+            if let heroTrailer {
+                DetailsHeroTrailerControls(controller: heroTrailer)
+                    .padding(.top, DS.Space.s80)
+                    .padding(.trailing, layout.heroHorizontalPadding)
+            }
+        }
+        .reportsDetailsHeroFrame()
         .sheet(item: $selectedTrailer) { trailer in
             TrailerModal(
                 trailer: trailer,
@@ -343,25 +366,9 @@ struct DetailsHeroSection: View {
                 TechnicalBadge(text: badge, isHighlighted: false)
             }
 
-            // Source indicator - check if "Plex" badge is present
-            let hasPlexBadge = vm.badges.contains(where: { $0.lowercased() == "plex" })
-            if hasPlexBadge {
-                HStack(spacing: 3) {
-                    Image(systemName: "checkmark.seal.fill")
-                        .font(.system(size: 9))
-                    Text("Available")
-                }
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.green.opacity(0.9))
-            } else if vm.tmdbId != nil {
-                HStack(spacing: 3) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 9))
-                    Text("Not available")
-                }
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.orange.opacity(0.9))
-            }
+            // Availability: positive only. Never a warning when addons can play it,
+            // and never a Plex mention in Stremio-only mode.
+            availabilityBadge
 
             // Ratings at the end (with individual visibility settings)
             // Fallback chain: Plex parsed -> Plex direct -> MDBList -> TMDB
@@ -442,25 +449,33 @@ struct DetailsHeroSection: View {
 
     // MARK: - Trailers Section
     @ViewBuilder private var trailersSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: DS.Space.s4) {
             Text("Trailers & Videos".uppercased())
-                .font(.system(size: 11, weight: .semibold))
+                .font(.flixor(.caption, weight: .semibold))
                 .tracking(0.5)
-                .foregroundStyle(.white.opacity(0.6))
+                .foregroundStyle(theme.textTertiary)
 
+            // A horizontal ScrollView takes every bit of height it is offered, which
+            // inside this bottom-aligned column left a large gap above the cards.
+            // Pin it to the card height (plus room for the hover shadow).
             ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: 10) {
+                LazyHStack(spacing: DS.Space.s10) {
                     ForEach(trailers.prefix(5)) { trailer in
                         HeroTrailerCard(
                             trailer: trailer,
-                            width: 160,
+                            width: Self.trailerCardWidth,
                             onPlay: { selectedTrailer = trailer }
                         )
                     }
                 }
+                .padding(.vertical, Self.trailerRowShadowInset)
             }
+            .frame(height: Self.trailerCardWidth * DS.Layout.landscapeAspect + Self.trailerRowShadowInset * 2)
         }
     }
+
+    static let trailerCardWidth: CGFloat = 160
+    static let trailerRowShadowInset: CGFloat = DS.Space.s8
 
     // MARK: - Credits Section (Right Column)
     @ViewBuilder private var creditsSection: some View {
