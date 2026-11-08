@@ -163,6 +163,10 @@ class MPVPlayerController {
     /// (and on finite HLS playlists).
     static let reconnectOptions = "reconnect=1,reconnect_streamed=1,reconnect_on_network_error=1,"
         + "reconnect_on_http_error=[408,429,5xx],reconnect_delay_max=15"
+    /// Same rules with a short backoff (0, 1, 3 s) for Plex, so an unreachable
+    /// endpoint fails fast and the direct-play -> HLS fallback isn't delayed.
+    static let plexReconnectOptions = "reconnect=1,reconnect_streamed=1,reconnect_on_network_error=1,"
+        + "reconnect_on_http_error=[408,429,5xx],reconnect_delay_max=3"
     /// Previous options, used only if mpv rejects `reconnectOptions`.
     static let basicReconnectOptions = "reconnect=1,reconnect_streamed=1,reconnect_delay_max=5"
 
@@ -535,6 +539,12 @@ class MPVPlayerController {
 
         let shouldVerify = verifyTLS && !Self.isLocalNetworkURL(url)
         mpv_set_property_string(mpv, "tls-verify", shouldVerify ? "yes" : "no")
+
+        // verifyTLS == false identifies Plex (see the parameter docs).
+        let reconnect = verifyTLS ? Self.reconnectOptions : Self.plexReconnectOptions
+        if mpv_set_property_string(mpv, "stream-lavf-o", reconnect) < 0 {
+            mpv_set_property_string(mpv, "stream-lavf-o", Self.basicReconnectOptions)
+        }
 
         // HTTP headers (required for some Plex servers and addon streams).
         // Always (re)set the list: mpv keeps `http-header-fields` across files,
