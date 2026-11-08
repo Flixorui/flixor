@@ -141,7 +141,7 @@ final class DetailsEpisodeStateModel: ObservableObject {
         defer { seasonActionInFlight = false }
 
         let episodes = vm.episodes
-        let previous = Dictionary(uniqueKeysWithValues: episodes.map { ($0.id, overrides[$0.id]) })
+        let previous = Dictionary(episodes.map { ($0.id, overrides[$0.id]) }, uniquingKeysWith: { first, _ in first })
         withAnimation(DS.Motion.quick) {
             for episode in episodes { overrides[episode.id] = watched }
         }

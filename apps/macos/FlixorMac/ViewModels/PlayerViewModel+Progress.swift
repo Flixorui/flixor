@@ -20,11 +20,18 @@ extension PlayerViewModel {
         initialSeekApplied = true
 
         var seconds = forcedResumeSeconds ?? TimeInterval(item.viewOffset ?? 0) / 1000.0
+        let resumeIsExact = forcedResumeIsExact
         forcedResumeSeconds = nil
+        forcedResumeIsExact = false
         if seconds <= 2, let s = serverResumeSeconds { seconds = s }
 
+        // Source recovery or switch: carry on from the same spot, even near the end.
+        // Clamped because a replacement file can be slightly shorter.
+        if resumeIsExact {
+            seconds = min(seconds, max(0, duration - 1))
+        }
         // If viewOffset is at or past the duration, definitely restart from beginning
-        if seconds >= duration {
+        else if seconds >= duration {
             print("🔄 [Player] Content fully watched (offset=\(Int(seconds))s >= duration=\(Int(duration))s) - restarting from beginning")
             seconds = 0
         }
@@ -55,6 +62,7 @@ extension PlayerViewModel {
         progressTimer?.invalidate()
         progressTimer = Timer.scheduledTimer(withTimeInterval: 10.0, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
+                self?.resetDirectPlayRetriesAfterRealPlayback()
                 await self?.reportProgress()
                 self?.updateTraktProgress()
             }
@@ -64,6 +72,15 @@ extension PlayerViewModel {
     func stopProgressTracking() {
         progressTimer?.invalidate()
         progressTimer = nil
+    }
+
+    /// A file only counts as working once it has played past the 3 s window in
+    /// which an end is treated as a load failure; resetting earlier would let a
+    /// file that loads and then dies retry forever.
+    private func resetDirectPlayRetriesAfterRealPlayback() {
+        guard directPlayRetryCount > 0, isPlaying,
+              let start = fileStartTime, Date().timeIntervalSince(start) >= 5 else { return }
+        directPlayRetryCount = 0
     }
 
     // MARK: - Trakt Scrobbling
@@ -197,7 +214,8 @@ extension PlayerViewModel {
                 await scrobbler.stopScrobble(progress: 100)
             }
             // Auto-play the next episode of a series stream (same rules as Plex).
-            if item.type == "episode" && nextEpisode != nil && UserDefaults.standard.autoPlayNext && !isResolvingNextEpisode {
+            if item.type == "episode" && nextEpisode != nil && UserDefaults.standard.autoPlayNext
+                && !isResolvingNextEpisode && !nextEpisodeCountdownDismissed {
                 print("▶️ [Player] Auto-playing next stream episode...")
                 playNextStreamEpisode()
             }
@@ -218,7 +236,8 @@ extension PlayerViewModel {
             }
 
             // Auto-play next episode if available and enabled in Player settings
-            if item.type == "episode" && nextEpisode != nil && UserDefaults.standard.autoPlayNext {
+            if item.type == "episode" && nextEpisode != nil && UserDefaults.standard.autoPlayNext
+                && !nextEpisodeCountdownDismissed {
                 print("▶️ [Player] Auto-playing next episode...")
                 // Small delay to ensure scrobble completes
                 try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds

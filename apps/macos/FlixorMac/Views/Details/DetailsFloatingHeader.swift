@@ -60,7 +60,6 @@ struct DetailsFloatingHeader: View {
                     posterURL: vm.posterURL?.absoluteString,
                     style: .icon
                 )
-                .accessibilityLabel("My List")
             }
         }
         .padding(.horizontal, horizontalPadding)

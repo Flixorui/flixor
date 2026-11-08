@@ -228,7 +228,7 @@ struct PlayerView: View {
                 NextEpisodeOverlay(
                     episode: nextEp,
                     countdown: countdown,
-                    onCancel: { viewModel.cancelCountdown() },
+                    onCancel: { viewModel.userCancelledCountdown() },
                     onPlayNow: { viewModel.playNext() }
                 )
                 .transition(.opacity.combined(with: .move(edge: .trailing)))

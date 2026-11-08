@@ -784,7 +784,7 @@ class SearchViewModel: ObservableObject {
                 }
 
                 // Preserve original order
-                let resultMap = Dictionary(uniqueKeysWithValues: results)
+                let resultMap = Dictionary(results, uniquingKeysWith: { first, _ in first })
                 return items.compactMap { resultMap[$0.ratingKey] }
             }
         } catch {

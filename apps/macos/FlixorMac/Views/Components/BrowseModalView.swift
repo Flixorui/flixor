@@ -55,6 +55,7 @@ struct BrowseModalView: View {
         .onExitCommand {
             dismiss()
         }
+        .inPageModal(onDismiss: dismiss)
     }
 
     private var header: some View {

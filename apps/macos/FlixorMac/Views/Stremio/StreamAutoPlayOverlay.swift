@@ -22,6 +22,7 @@ struct StreamAutoPlayOverlay: View {
                     .transition(.opacity)
                     // Leaving the page (back, another tab) ends the search.
                     .onDisappear { controller.cancel() }
+                    .inPageModal(onDismiss: { controller.cancel() })
             }
         }
         .animation(DS.Motion.standard, value: controller.findingTitle)

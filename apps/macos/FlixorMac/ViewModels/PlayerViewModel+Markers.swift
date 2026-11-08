@@ -255,13 +255,17 @@ extension PlayerViewModel {
         }
 
         if currentTime >= triggerStart {
-            // Start 5-second countdown timer if not already running
-            if nextEpisodeCountdown == nil && nextEpisodeCountdownTimer == nil {
+            // Start 5-second countdown timer if not already running. Not after the
+            // user cancelled it, once the player closed, or during a source lookup.
+            if nextEpisodeCountdown == nil && nextEpisodeCountdownTimer == nil,
+               !nextEpisodeCountdownDismissed, !isResolvingNextEpisode,
+               mpvController?.isShutDown == false {
                 print("🎬 [Countdown] TRIGGERED via \(triggerSource)! Starting 5s countdown")
                 startNextEpisodeCountdown()
             }
         } else {
-            // Cancel countdown if we seeked back before trigger point
+            // Seeked back before the trigger point: the countdown may run again later.
+            nextEpisodeCountdownDismissed = false
             if nextEpisodeCountdown != nil {
                 cancelCountdown()
             }
@@ -286,6 +290,11 @@ extension PlayerViewModel {
             playNextStreamEpisode()
             return
         }
+
+        // EOF, the countdown and the Next button can all land here: navigate once,
+        // and never from a player that has already closed.
+        guard !didNavigateToEpisode, mpvController?.isShutDown == false else { return }
+        didNavigateToEpisode = true
 
         // Create MediaItem from next episode, preserving mediaIndex for version consistency
         let nextItem = MediaItem(
@@ -328,6 +337,9 @@ extension PlayerViewModel {
             playStreamEpisode(season: season, episode: number, episodeTitle: episode.title)
             return
         }
+        guard !didNavigateToEpisode, mpvController?.isShutDown == false else { return }
+        didNavigateToEpisode = true
+
         let episodeItem = MediaItem(
             id: "plex:\(episode.ratingKey)",
             title: episode.title,
@@ -365,6 +377,12 @@ extension PlayerViewModel {
         nextEpisodeCountdownTimer?.invalidate()
         nextEpisodeCountdownTimer = nil
         nextEpisodeCountdown = nil
+    }
+
+    /// The user cancelled the countdown: it must not start again for this item.
+    func userCancelledCountdown() {
+        nextEpisodeCountdownDismissed = true
+        cancelCountdown()
     }
 
     private func startNextEpisodeCountdown() {

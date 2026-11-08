@@ -122,7 +122,7 @@ extension PlayerViewModel {
 
         streamPlaybackItem = replacement
         // isPerformingStreamRecovery stays set so loadExternalStream keeps the attempt count.
-        await loadExternalStream(replacement)
+        await loadExternalStream(replacement, resumeIsExact: true)
         isPerformingStreamRecovery = false
         // Status clears once the replacement file loads (applyInitialSeekIfNeeded).
     }
