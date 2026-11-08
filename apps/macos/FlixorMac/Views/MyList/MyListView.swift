@@ -6,12 +6,17 @@
 //
 
 import SwiftUI
+import FlixorKit
 
 struct MyListView: View {
     @EnvironmentObject private var watchlistController: WatchlistController
     @EnvironmentObject private var router: NavigationRouter
     @EnvironmentObject private var mainViewState: MainViewState
     @StateObject private var viewModel = MyListViewModel()
+    @StateObject private var traktLists = TraktListsViewModel()
+
+    @State private var listEditor: TraktListEditorMode?
+    @State private var listPendingDelete: TraktUserList?
 
     private let horizontalPadding: CGFloat = 64
     private let gridSpacing: CGFloat = 18
@@ -23,32 +28,112 @@ struct MyListView: View {
                 .padding(.horizontal, horizontalPadding)
                 .padding(.top, 32)
 
-            controls
-                .padding(.horizontal, horizontalPadding)
-                .padding(.top, 24)
+            if traktLists.isConnected {
+                TraktListSwitcher(
+                    model: traktLists,
+                    myListCount: viewModel.items.count,
+                    horizontalInset: horizontalPadding,
+                    onCreate: { listEditor = .create },
+                    onEdit: { listEditor = .edit($0) },
+                    onDelete: { listPendingDelete = $0 }
+                )
+                .padding(.top, DS.Space.s16)
+            }
 
-            content
-                .padding(.top, 16)
+            if let list = traktLists.selectedList {
+                TraktListContentView(model: traktLists, list: list)
+                    .id(list.id)
+            } else {
+                controls
+                    .padding(.horizontal, horizontalPadding)
+                    .padding(.top, 24)
+
+                content
+                    .padding(.top, 16)
+            }
         }
         .background(HomeBackground())
         .navigationTitle("")
         .task {
             viewModel.attach(watchlistController)
+            traktLists.refreshConnection()
             await viewModel.load()
         }
         .onReceive(NotificationCenter.default.publisher(for: .watchlistDidChange)) { _ in
             Task { await viewModel.reload() }
         }
+        .onChange(of: mainViewState.selectedTab) { _ in
+            traktLists.refreshConnection()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
+            traktLists.refreshConnection()
+        }
+        .sheet(item: $listEditor) { mode in
+            listEditorSheet(mode)
+        }
+        .alert(
+            "Delete List",
+            isPresented: Binding(
+                get: { listPendingDelete != nil },
+                set: { if !$0 { listPendingDelete = nil } }
+            ),
+            presenting: listPendingDelete
+        ) { list in
+            Button("Delete", role: .destructive) {
+                Task { await traktLists.deleteList(list) }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { list in
+            Text("Delete \"\(list.name)\" from your Trakt account? This can't be undone.")
+        }
+    }
+
+    private func listEditorSheet(_ mode: TraktListEditorMode) -> some View {
+        TraktListEditorSheet(mode: mode) { name, description, privacy in
+            switch mode {
+            case .create:
+                return await traktLists.createList(name: name, description: description, privacy: privacy)
+            case .edit(let list):
+                return await traktLists.updateList(list, name: name, description: description, privacy: privacy)
+            }
+        }
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("My List")
-                .font(.system(size: 34, weight: .bold))
-            Text("\(viewModel.items.count) \(viewModel.items.count == 1 ? "title" : "titles")")
-                .foregroundStyle(.white.opacity(0.7))
+        HStack(alignment: .top, spacing: DS.Space.s16) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(traktLists.selectedList?.name ?? "My List")
+                    .font(.system(size: 34, weight: .bold))
+                    .lineLimit(1)
+                Text(headerSubtitle)
+                    .foregroundStyle(.white.opacity(0.7))
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            if let list = traktLists.selectedList {
+                Menu {
+                    TraktListActions(
+                        list: list,
+                        onEdit: { listEditor = .edit($0) },
+                        onDelete: { listPendingDelete = $0 }
+                    )
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .font(.flixorIcon(DS.Icon.lg))
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .disabled(traktLists.isMutating)
+                .accessibilityLabel("List options")
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var headerSubtitle: String {
+        traktLists.selectedListSummary
+            ?? "\(viewModel.items.count) \(viewModel.items.count == 1 ? "title" : "titles")"
     }
 
     private var controls: some View {

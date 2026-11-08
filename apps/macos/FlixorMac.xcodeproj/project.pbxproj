@@ -7,6 +7,12 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		1B7AB5145FE932299CB21F1D /* TraktListSwitcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = C275C0BD2EA872488EEAB5FE /* TraktListSwitcher.swift */; };
+		F87A901B99F8AC3CA53C2662 /* TraktListEditorSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AFD4256E67E60C1F2E0040 /* TraktListEditorSheet.swift */; };
+		477914C684D6CED4C2CA728D /* TraktListContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AA4504ACE4EB8E7F1CB6C8A /* TraktListContentView.swift */; };
+		36D39B91E865781AE53D9108 /* TraktListsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B8295950EDAC2E7CED642E3 /* TraktListsViewModel.swift */; };
+		835231C76BB4EF4D5E6DA095 /* TraktListGridItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9ABB59177F6F1F5F51E9509B /* TraktListGridItem.swift */; };
+		33F381683928CB4B2CBD0FB5 /* TraktListsService+Editing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69884CB689B99834A3F85E9A /* TraktListsService+Editing.swift */; };
 		FE77C7265DCF4098839665E8 /* HomeRowsEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C5AB65547BBF55331DF0A55 /* HomeRowsEditor.swift */; };
 		2B6AD1FA107A8B4055A62C18 /* HeroSourceSettingsRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 946A0638B68C23F7D67219BC /* HeroSourceSettingsRow.swift */; };
 		58DE7384A191D143A107F046 /* ContinueWatchingStylePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5CBBC0B1A9F1EBB944FBE01 /* ContinueWatchingStylePicker.swift */; };
@@ -284,6 +290,12 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		C275C0BD2EA872488EEAB5FE /* TraktListSwitcher.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TraktListSwitcher.swift; sourceTree = "<group>"; };
+		F1AFD4256E67E60C1F2E0040 /* TraktListEditorSheet.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TraktListEditorSheet.swift; sourceTree = "<group>"; };
+		1AA4504ACE4EB8E7F1CB6C8A /* TraktListContentView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TraktListContentView.swift; sourceTree = "<group>"; };
+		1B8295950EDAC2E7CED642E3 /* TraktListsViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TraktListsViewModel.swift; sourceTree = "<group>"; };
+		9ABB59177F6F1F5F51E9509B /* TraktListGridItem.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TraktListGridItem.swift; sourceTree = "<group>"; };
+		69884CB689B99834A3F85E9A /* TraktListsService+Editing.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "TraktListsService+Editing.swift"; sourceTree = "<group>"; };
 		1C5AB65547BBF55331DF0A55 /* HomeRowsEditor.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HomeRowsEditor.swift; sourceTree = "<group>"; };
 		946A0638B68C23F7D67219BC /* HeroSourceSettingsRow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HeroSourceSettingsRow.swift; sourceTree = "<group>"; };
 		A5CBBC0B1A9F1EBB944FBE01 /* ContinueWatchingStylePicker.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ContinueWatchingStylePicker.swift; sourceTree = "<group>"; };
@@ -695,6 +707,8 @@
 		D006 /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
+				1B8295950EDAC2E7CED642E3 /* TraktListsViewModel.swift */,
+				9ABB59177F6F1F5F51E9509B /* TraktListGridItem.swift */,
 				575AC77865246BE6E5B0A2B8 /* HomeViewModel+Rows.swift */,
 				3E575A497C41D0159B73F6A2 /* HomeViewModel+ContinueWatching.swift */,
 				BB2FA3879322AA6534BCE55D /* DetailsTitleActionsModel.swift */,
@@ -738,6 +752,7 @@
 		D007 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				69884CB689B99834A3F85E9A /* TraktListsService+Editing.swift */,
 				7F6EA0458172D028A3B03E5F /* NetworkMonitor.swift */,
 				2B2B3F94538A809B06AEA3CC /* HomeRowsStore.swift */,
 				6CAFC26C00607AAAE3F8C6D1 /* StreamRecoveryService.swift */,
@@ -984,6 +999,9 @@
 		D020 /* MyList */ = {
 			isa = PBXGroup;
 			children = (
+				C275C0BD2EA872488EEAB5FE /* TraktListSwitcher.swift */,
+				F1AFD4256E67E60C1F2E0040 /* TraktListEditorSheet.swift */,
+				1AA4504ACE4EB8E7F1CB6C8A /* TraktListContentView.swift */,
 				B048 /* MyListView.swift */,
 			);
 			path = MyList;
@@ -1185,6 +1203,12 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1B7AB5145FE932299CB21F1D /* TraktListSwitcher.swift in Sources */,
+				F87A901B99F8AC3CA53C2662 /* TraktListEditorSheet.swift in Sources */,
+				477914C684D6CED4C2CA728D /* TraktListContentView.swift in Sources */,
+				36D39B91E865781AE53D9108 /* TraktListsViewModel.swift in Sources */,
+				835231C76BB4EF4D5E6DA095 /* TraktListGridItem.swift in Sources */,
+				33F381683928CB4B2CBD0FB5 /* TraktListsService+Editing.swift in Sources */,
 				FE77C7265DCF4098839665E8 /* HomeRowsEditor.swift in Sources */,
 				2B6AD1FA107A8B4055A62C18 /* HeroSourceSettingsRow.swift in Sources */,
 				58DE7384A191D143A107F046 /* ContinueWatchingStylePicker.swift in Sources */,
