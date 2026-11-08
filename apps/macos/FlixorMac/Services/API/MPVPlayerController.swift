@@ -40,6 +40,10 @@ class MPVPlayerController {
     private var lastGamma: String?
     private var lastPrimaries: String?
     private var isHDRModeActive = false
+    private var lastAppliedTargetPeak: Int?
+    private var lastTargetPeakWasSet = false
+    private var displayObservers: [NSObjectProtocol] = []
+    private var edrPollTimer: Timer?
 
     /// Callback for property changes
     var onPropertyChange: ((String, Any?) -> Void)?
@@ -134,6 +138,9 @@ class MPVPlayerController {
 
         // Configure additional options after initialization
         configureAdditionalOptions()
+
+        // Re-evaluate HDR/EDR when the display changes
+        startDisplayObservers()
 
         isInitialized = true
         print("✅ [MPV] Initialized with gpu-next and Metal rendering")
@@ -271,36 +278,129 @@ class MPVPlayerController {
     /// This follows IINA's approach: detect HDR via transfer function (PQ/HLG),
     /// then configure MPV and the layer colorspace accordingly
     private func configureHDRMode() {
-        guard let layer = metalLayer else { return }
+        guard metalLayer != nil else { return }
         guard let gamma = lastGamma, let primaries = lastPrimaries else {
             // Video properties not yet available
             return
         }
 
-        // Check if screen supports EDR
-        var edrHeadroom: CGFloat = 1.0
-        if let screen = window?.screen ?? NSScreen.main {
-            edrHeadroom = screen.maximumExtendedDynamicRangeColorComponentValue
-        }
-        let screenSupportsEDR = edrHeadroom > 1.0
+        // Check if the screen supports EDR. The *current* headroom is 1.0 until
+        // some EDR content is on screen, so support is decided by the *potential*
+        // headroom; the current value drives target-peak (see updateTargetPeak).
+        let screen = currentScreen
+        let currentHeadroom = screen?.maximumExtendedDynamicRangeColorComponentValue ?? 1.0
+        let potentialHeadroom = screen?.maximumPotentialExtendedDynamicRangeColorComponentValue ?? 1.0
+        let screenSupportsEDR = max(currentHeadroom, potentialHeadroom) > 1.0
 
         // HDR videos use Hybrid Log Gamma (HLG) or Perceptual Quantization (PQ) transfer function
         let isHDRContent = gamma == "pq" || gamma == "hlg"
         let shouldEnableHDR = hdrEnabled && isHDRContent && screenSupportsEDR
 
-        // Avoid redundant configuration
-        if shouldEnableHDR == isHDRModeActive {
-            return
+        if shouldEnableHDR != isHDRModeActive {
+            isHDRModeActive = shouldEnableHDR
+            // configureForHDR/SDR reset target-peak to "auto"
+            lastAppliedTargetPeak = nil
+            lastTargetPeakWasSet = false
+            if shouldEnableHDR {
+                configureForHDR(primaries: primaries, gamma: gamma)
+            } else {
+                configureForSDR()
+            }
+            print("🎨 [MPV] HDR Mode: \(shouldEnableHDR) (gamma: \(gamma), primaries: \(primaries), sigPeak: \(lastSigPeak), headroom: \(currentHeadroom)/\(potentialHeadroom))")
         }
-        isHDRModeActive = shouldEnableHDR
 
         if shouldEnableHDR {
-            configureForHDR(primaries: primaries, gamma: gamma)
+            updateTargetPeak(headroom: currentHeadroom)
+            startEDRMonitoring()
         } else {
-            configureForSDR()
+            stopEDRMonitoring()
         }
+    }
 
-        print("🎨 [MPV] HDR Mode: \(shouldEnableHDR) (gamma: \(gamma), primaries: \(primaries), sigPeak: \(lastSigPeak), headroom: \(edrHeadroom))")
+    // MARK: - Display / EDR headroom monitoring
+
+    /// macOS maps 100 nits (SDR reference white) to EDR value 1.0 for PQ layers,
+    /// so the display can currently show up to `headroom * 100` nits.
+    private static let edrReferenceWhiteNits: Double = 100
+
+    /// Seconds between headroom re-checks while HDR content plays.
+    private static let edrPollInterval: TimeInterval = 2.0
+
+    /// The screen the video is on. The video view can move to another window
+    /// (PiP), so prefer the layer's hosting view's window over the initial one.
+    private var currentScreen: NSScreen? {
+        let hostWindow = (metalLayer?.delegate as? NSView)?.window ?? window
+        return hostWindow?.screen ?? NSScreen.main
+    }
+
+    /// Sets mpv's target-peak from the display's current EDR headroom so bright
+    /// highlights are tone-mapped to what the display can show instead of clipped.
+    /// Falls back to "auto" while the headroom is not (yet) above SDR.
+    private func updateTargetPeak(headroom: CGFloat) {
+        guard mpv != nil, isHDRModeActive else { return }
+        let peak: Int? = headroom > 1.0
+            ? min(10_000, max(Int(Self.edrReferenceWhiteNits), Int((Double(headroom) * Self.edrReferenceWhiteNits).rounded())))
+            : nil
+        // Throttle: ignore changes below 5% to avoid re-tone-mapping on tiny drifts.
+        if let peak, let last = lastAppliedTargetPeak, abs(Double(peak - last)) < Double(last) * 0.05 { return }
+        if peak == nil && lastAppliedTargetPeak == nil && lastTargetPeakWasSet { return }
+        lastAppliedTargetPeak = peak
+        lastTargetPeakWasSet = true
+        mpv_set_property_string(mpv, "target-peak", peak.map(String.init) ?? "auto")
+        print("🌈 [MPV] target-peak = \(peak.map { "\($0) nits" } ?? "auto") (EDR headroom \(headroom))")
+    }
+
+    /// Re-evaluates HDR/EDR when the window changes display or display parameters change.
+    private func startDisplayObservers() {
+        guard displayObservers.isEmpty else { return }
+        let center = NotificationCenter.default
+        displayObservers.append(center.addObserver(forName: NSWindow.didChangeScreenNotification, object: nil, queue: .main) { [weak self] note in
+            guard let self, let changed = note.object as? NSWindow else { return }
+            let hostWindow = (self.metalLayer?.delegate as? NSView)?.window ?? self.window
+            guard changed === hostWindow else { return }
+            self.displayConfigurationChanged(reason: "window moved to another display")
+        })
+        displayObservers.append(center.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.displayConfigurationChanged(reason: "screen parameters changed")
+        })
+    }
+
+    private func stopDisplayObservers() {
+        displayObservers.forEach { NotificationCenter.default.removeObserver($0) }
+        displayObservers.removeAll()
+    }
+
+    private func displayConfigurationChanged(reason: String) {
+        guard mpv != nil, lastGamma != nil else { return }
+        print("🖥️ [MPV] Display change (\(reason)), re-evaluating HDR")
+        lastAppliedTargetPeak = nil
+        lastTargetPeakWasSet = false
+        configureHDRMode()
+    }
+
+    /// While HDR plays, re-check the current headroom periodically: it changes with
+    /// display brightness (and ramps up after EDR is first requested), and macOS
+    /// posts no notification for it. Never runs for SDR content.
+    private func startEDRMonitoring() {
+        guard edrPollTimer == nil else { return }
+        let timer = Timer(timeInterval: Self.edrPollInterval, repeats: true) { [weak self] _ in
+            guard let self, self.isHDRModeActive, self.mpv != nil else { return }
+            let headroom = self.currentScreen?.maximumExtendedDynamicRangeColorComponentValue ?? 1.0
+            self.updateTargetPeak(headroom: headroom)
+        }
+        timer.tolerance = 0.5
+        RunLoop.main.add(timer, forMode: .common)
+        edrPollTimer = timer
+    }
+
+    private func stopEDRMonitoring() {
+        guard let timer = edrPollTimer else { return }
+        edrPollTimer = nil
+        if Thread.isMainThread {
+            timer.invalidate()
+        } else {
+            DispatchQueue.main.async { timer.invalidate() }
+        }
     }
 
     /// Configure MPV and layer for HDR playback
@@ -393,20 +493,24 @@ class MPVPlayerController {
         hdrEnabled = enabled
         print("[MPV] HDR user preference: \(enabled)")
 
-        // Reconfigure based on current video properties
+        // Reconfigure based on current video properties (switches HDR <-> SDR
+        // if the effective mode changes)
         DispatchQueue.main.async {
-            // Reset HDR mode state to force reconfiguration
-            self.isHDRModeActive = false
             self.configureHDRMode()
         }
     }
 
-    /// Reset HDR state (call when loading new file)
+    /// Reset HDR state (call when loading new file).
+    /// `isHDRModeActive` is kept on purpose: it describes how the layer is
+    /// configured right now, so an SDR file after an HDR one switches back to SDR
+    /// once its video params arrive.
     func resetHDRState() {
         lastGamma = nil
         lastPrimaries = nil
         lastSigPeak = 0.0
-        isHDRModeActive = false
+        lastAppliedTargetPeak = nil
+        lastTargetPeakWasSet = false
+        stopEDRMonitoring()
     }
 
     // MARK: - Playback Control
@@ -907,6 +1011,9 @@ class MPVPlayerController {
 
         isShuttingDown = true
         print("🛑 [MPV] Shutting down")
+
+        stopDisplayObservers()
+        stopEDRMonitoring()
 
         // Clear callbacks
         onPropertyChange = nil
