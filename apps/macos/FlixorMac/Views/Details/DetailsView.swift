@@ -184,6 +184,9 @@ struct DetailsView: View {
         .onChange(of: reduceMotion) { value in
             heroTrailer.update { $0.isReduceMotion = value }
         }
+        .onChange(of: showBrowseModal || showPersonModal) { obscured in
+            heroTrailer.update { $0.isObscured = obscured }
+        }
         .onAppear {
             if ownTab == nil { ownTab = mainView.selectedTab }
             heroTrailer.update {

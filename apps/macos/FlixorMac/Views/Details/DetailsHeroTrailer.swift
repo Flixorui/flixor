@@ -37,6 +37,8 @@ final class DetailsHeroTrailerController: ObservableObject {
         var isWindowFocused = true
         var isTabActive = true
         var isReduceMotion = false
+        /// An in-page overlay (browse / person modal) covers the hero.
+        var isObscured = false
     }
 
     @Published private(set) var phase: Phase = .idle
@@ -60,6 +62,7 @@ final class DetailsHeroTrailerController: ObservableObject {
     private var canPlay: Bool {
         isEnabled && conditions.isPageVisible && conditions.isHeroVisible
             && conditions.isWindowFocused && conditions.isTabActive && !conditions.isReduceMotion
+            && !conditions.isObscured
     }
 
     /// Whether the hero should show the trailer controls.
