@@ -173,11 +173,11 @@ final class DetailsTitleActionsModel: ObservableObject {
             if kind == .show, let total = episodeTotalHint, total > 0 {
                 isWatched = count >= total
                 isInProgress = count > 0 && count < total
-                progressText = isInProgress ? "\(count) of \(total) episodes watched" : nil
+                progressText = isInProgress ? String(localized: "\(count) of \(total) episodes watched") : nil
             } else {
                 isWatched = false
                 isInProgress = count > 0
-                progressText = count > 0 ? "\(count) episode\(count == 1 ? "" : "s") watched" : nil
+                progressText = count > 0 ? String(localized: "\(count) episodes watched") : nil
             }
         }
     }
@@ -189,13 +189,13 @@ final class DetailsTitleActionsModel: ObservableObject {
             let offset = meta.viewOffset ?? 0
             isWatched = watched
             isInProgress = !watched && offset > 0
-            progressText = isInProgress ? "In progress" : nil
+            progressText = isInProgress ? String(localized: "In progress") : nil
         case .show, .season:
             let total = meta.leafCount ?? 0
             let viewed = meta.viewedLeafCount ?? 0
             isWatched = total > 0 && viewed >= total
             isInProgress = viewed > 0 && viewed < total
-            progressText = isInProgress ? "\(viewed) of \(total) episodes watched" : nil
+            progressText = isInProgress ? String(localized: "\(viewed) of \(total) episodes watched") : nil
         }
     }
 

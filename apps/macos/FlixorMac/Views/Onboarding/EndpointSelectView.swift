@@ -16,7 +16,7 @@ struct EndpointSelectView: View {
 
     // Auto-test state
     @State private var isAutoTesting = true
-    @State private var autoTestProgress: String = "Testing connections..."
+    @State private var autoTestProgress: String = String(localized: "Testing connections...")
     @State private var selectedConnection: PlexConnectionResource?
     @State private var selectedConnectionType: ConnectionType?
 
@@ -170,7 +170,7 @@ struct EndpointSelectView: View {
 
                         VStack(alignment: .leading, spacing: DS.Space.s4) {
                             HStack(spacing: DS.Space.s8) {
-                                Text("\(type.rawValue) Connection")
+                                Text("\(type.localizedRawValue) Connection")
                                     .font(.flixor(.title3, weight: .semibold))
                                     .foregroundColor(.white)
 
@@ -409,7 +409,7 @@ struct EndpointSelectView: View {
         selectedConnection = nil
         selectedConnectionType = nil
         testResults = [:]
-        autoTestProgress = "Testing all connections..."
+        autoTestProgress = String(localized: "Testing all connections...")
 
         // Filter out IPv6 connections for auto-test (prefer IPv4)
         let nonIPv6Connections = server.connections.filter { !$0.IPv6 }
@@ -487,7 +487,7 @@ struct EndpointSelectView: View {
 
         isAutoTesting = false
         if selectedConnection == nil {
-            autoTestProgress = "No connections available"
+            autoTestProgress = String(localized: "No connections available")
         }
     }
 
@@ -508,7 +508,7 @@ struct EndpointSelectView: View {
         guard testingURI == nil else { return }
         testingURI = connection.uri
         testResults[connection.uri] = .testing
-        statusMessage = "Testing \(connection.uri)..."
+        statusMessage = String(localized: "Testing \(connection.uri)...")
 
         let start = CFAbsoluteTimeGetCurrent()
 
@@ -526,10 +526,10 @@ struct EndpointSelectView: View {
 
             let latency = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
             testResults[connection.uri] = .success(latency)
-            statusMessage = "Endpoint reachable (\(latency)ms)"
+            statusMessage = String(localized: "Endpoint reachable (\(String(latency))ms)")
         } catch {
             testResults[connection.uri] = .failed
-            statusMessage = "Endpoint test failed"
+            statusMessage = String(localized: "Endpoint test failed")
         }
 
         testingURI = nil
@@ -539,7 +539,7 @@ struct EndpointSelectView: View {
     private func testCustomEndpoint() async {
         guard !customEndpoint.isEmpty else { return }
         testingCustom = true
-        statusMessage = "Testing custom endpoint..."
+        statusMessage = String(localized: "Testing custom endpoint...")
 
         let start = CFAbsoluteTimeGetCurrent()
 
@@ -556,9 +556,9 @@ struct EndpointSelectView: View {
             }
 
             let latency = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
-            statusMessage = "Custom endpoint reachable (\(latency)ms)"
+            statusMessage = String(localized: "Custom endpoint reachable (\(String(latency))ms)")
         } catch {
-            statusMessage = "Custom endpoint test failed"
+            statusMessage = String(localized: "Custom endpoint test failed")
         }
 
         testingCustom = false
@@ -568,7 +568,7 @@ struct EndpointSelectView: View {
     private func useEndpoint(_ uri: String) async {
         guard !isConnecting else { return }
         isConnecting = true
-        statusMessage = "Connecting..."
+        statusMessage = String(localized: "Connecting...")
 
         do {
             _ = try await FlixorCore.shared.connectToPlexServerWithUri(server, uri: uri)
@@ -578,7 +578,7 @@ struct EndpointSelectView: View {
             onConnected()
         } catch {
             print("❌ [EndpointSelect] Connection failed: \(error)")
-            statusMessage = "Connection failed: \(error.localizedDescription)"
+            statusMessage = String(localized: "Connection failed: \(error.localizedDescription)")
             isConnecting = false
         }
     }
@@ -616,7 +616,7 @@ private struct EndpointRow: View {
                     }
 
                     if isSelected {
-                        badge("Selected", color: .green)
+                        badge(String(localized: "Selected"), color: .green)
                     }
 
                     // Test result

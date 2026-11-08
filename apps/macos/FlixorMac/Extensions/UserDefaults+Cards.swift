@@ -39,10 +39,10 @@ enum CardPosterSize: String, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .small: return "Small"
-        case .medium: return "Medium"
-        case .large: return "Large"
-        case .xlarge: return "Extra Large"
+        case .small: return String(localized: "Small")
+        case .medium: return String(localized: "Medium")
+        case .large: return String(localized: "Large")
+        case .xlarge: return String(localized: "Extra Large")
         }
     }
 
@@ -63,9 +63,9 @@ enum CardCornerStyle: String, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .sharp: return "Sharp"
-        case .rounded: return "Rounded"
-        case .extraRounded: return "Extra Rounded"
+        case .sharp: return String(localized: "Sharp")
+        case .rounded: return String(localized: "Rounded")
+        case .extraRounded: return String(localized: "Extra Rounded")
         }
     }
 
@@ -103,9 +103,9 @@ enum CardTitleMode: String, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .always: return "Always"
-        case .hover: return "On Hover"
-        case .never: return "Never"
+        case .always: return String(localized: "Always")
+        case .hover: return String(localized: "On Hover")
+        case .never: return String(localized: "Never")
         }
     }
 }
@@ -121,9 +121,9 @@ enum HoverTrailerMode: String, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .off: return "Off"
-        case .muted: return "Muted"
-        case .sound: return "With Sound"
+        case .off: return String(localized: "Off")
+        case .muted: return String(localized: "Muted")
+        case .sound: return String(localized: "With Sound")
         }
     }
 }

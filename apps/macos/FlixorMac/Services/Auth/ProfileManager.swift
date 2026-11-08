@@ -159,7 +159,7 @@ extension PlexHomeUser {
         if let username = username, !username.isEmpty {
             return username
         }
-        return "User"
+        return String(localized: "User")
     }
 
     /// Initials for avatar placeholder

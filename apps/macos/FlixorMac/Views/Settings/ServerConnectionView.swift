@@ -19,7 +19,7 @@ struct ServerConnectionView: View {
     private enum ProtocolFilter: String, CaseIterable, Identifiable {
         case all, https, http
         var id: String { rawValue }
-        var label: String { rawValue == "all" ? "All" : rawValue.uppercased() }
+        var label: String { rawValue == "all" ? String(localized: "All") : rawValue.uppercased() }
     }
 
     private enum ConnectionType: String {
@@ -147,7 +147,7 @@ struct ServerConnectionView: View {
     private var connectionList: some View {
         if filteredConnections.isEmpty {
             messageRow(
-                text: connections.isEmpty ? "No endpoints available" : "No endpoints match filters",
+                text: connections.isEmpty ? String(localized: "No endpoints available") : String(localized: "No endpoints match filters"),
                 style: .info
             )
         } else {
@@ -180,7 +180,7 @@ struct ServerConnectionView: View {
                     .truncationMode(.middle)
 
                 HStack(spacing: DS.Space.s6) {
-                    Text(type.rawValue)
+                    Text(type.localizedRawValue)
                         .font(.flixor(.micro, weight: .medium))
                         .foregroundStyle(type.color)
 
@@ -308,7 +308,7 @@ struct ServerConnectionView: View {
                 return conn1.uri < conn2.uri
             }
         } catch {
-            errorMessage = "Failed to load connections"
+            errorMessage = String(localized: "Failed to load connections")
         }
 
         isLoading = false
@@ -326,9 +326,9 @@ struct ServerConnectionView: View {
         do {
             _ = try await APIClient.shared.setPlexServerEndpoint(serverId: server.id, uri: connection.uri, test: true)
             let latency = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
-            statusMessage = "Reachable (\(latency)ms)"
+            statusMessage = String(localized: "Reachable (\(String(latency))ms)")
         } catch {
-            errorMessage = "Connection failed"
+            errorMessage = String(localized: "Connection failed")
         }
 
         testingURI = nil
@@ -343,11 +343,11 @@ struct ServerConnectionView: View {
 
         do {
             _ = try await APIClient.shared.setPlexServerEndpoint(serverId: server.id, uri: connection.uri, test: true)
-            statusMessage = "Endpoint updated"
+            statusMessage = String(localized: "Endpoint updated")
             onEndpointSelected?()
             await loadConnections()
         } catch {
-            errorMessage = "Failed to update endpoint"
+            errorMessage = String(localized: "Failed to update endpoint")
         }
 
         testingURI = nil
@@ -365,9 +365,9 @@ struct ServerConnectionView: View {
         do {
             _ = try await APIClient.shared.setPlexServerEndpoint(serverId: server.id, uri: customEndpoint, test: true)
             let latency = Int((CFAbsoluteTimeGetCurrent() - start) * 1000)
-            statusMessage = "Reachable (\(latency)ms)"
+            statusMessage = String(localized: "Reachable (\(String(latency))ms)")
         } catch {
-            errorMessage = "Connection failed"
+            errorMessage = String(localized: "Connection failed")
         }
 
         testingCustom = false
@@ -382,11 +382,11 @@ struct ServerConnectionView: View {
 
         do {
             _ = try await APIClient.shared.setPlexServerEndpoint(serverId: server.id, uri: customEndpoint, test: true)
-            statusMessage = "Endpoint updated"
+            statusMessage = String(localized: "Endpoint updated")
             onEndpointSelected?()
             await loadConnections()
         } catch {
-            errorMessage = "Failed to update endpoint"
+            errorMessage = String(localized: "Failed to update endpoint")
         }
 
         testingCustom = false

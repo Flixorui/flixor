@@ -508,7 +508,7 @@ struct ContinueWatchingSection: View {
 
     var body: some View {
         CarouselRow(
-            title: "Continue Watching",
+            title: String(localized: "Continue Watching"),
             items: viewModel.continueWatchingItems,
             itemWidth: 420,
             spacing: 16,
@@ -528,7 +528,7 @@ struct OnDeckSection: View {
 
     var body: some View {
         CarouselRow(
-            title: "On Deck",
+            title: String(localized: "On Deck"),
             items: viewModel.onDeckItems,
             itemWidth: 420,
             spacing: 16,
@@ -548,7 +548,7 @@ struct RecentlyAddedSection: View {
 
     var body: some View {
         CarouselRow(
-            title: "Recently Added",
+            title: String(localized: "Recently Added"),
             items: viewModel.recentlyAddedItems,
             itemWidth: 420,
             spacing: 16,

@@ -26,7 +26,7 @@ final class DetailsCommentsModel: ObservableObject {
         case newest
 
         var id: String { rawValue }
-        var label: String { self == .likes ? "Most Liked" : "Newest" }
+        var label: String { self == .likes ? String(localized: "Most Liked") : String(localized: "Newest") }
         var traktSort: TraktCommentSort { self == .likes ? .likes : .newest }
     }
 
@@ -149,12 +149,12 @@ final class DetailsCommentsModel: ObservableObject {
 
     private static func message(for error: Error) -> String {
         if error is TraktCommentsService.CommentsError {
-            return "This title couldn't be found on Trakt."
+            return String(localized: "This title couldn't be found on Trakt.")
         }
         if let urlError = error as? URLError, urlError.code == .notConnectedToInternet {
-            return "You're offline."
+            return String(localized: "You're offline.")
         }
-        return "Couldn't load comments from Trakt."
+        return String(localized: "Couldn't load comments from Trakt.")
     }
 }
 
@@ -182,12 +182,12 @@ struct DetailsCommentsSection: View {
                 }
                 .padding(.vertical, DS.Space.s24)
             case .failed(let message):
-                stateMessage(icon: "exclamationmark.bubble", title: message, actionTitle: "Try Again") {
+                stateMessage(icon: "exclamationmark.bubble", title: message, actionTitle: String(localized: "Try Again")) {
                     Task { await model.retry() }
                 }
             case .loaded:
                 if model.comments.isEmpty {
-                    stateMessage(icon: "text.bubble", title: "No comments on Trakt yet.", actionTitle: nil, action: nil)
+                    stateMessage(icon: "text.bubble", title: String(localized: "No comments on Trakt yet."), actionTitle: nil, action: nil)
                 } else {
                     LazyVGrid(columns: columns, alignment: .leading, spacing: DS.Space.s16) {
                         ForEach(model.comments) { comment in
@@ -316,7 +316,7 @@ private struct TraktCommentCard: View {
 
     private var authorName: String {
         if let name = comment.user?.name, !name.isEmpty { return name }
-        return comment.user?.username ?? "Trakt user"
+        return comment.user?.username ?? String(localized: "Trakt user")
     }
 
     /// Whole comment flagged as spoiler, or inline [spoiler] tags in the text.
@@ -405,10 +405,10 @@ private struct TraktCommentCard: View {
                         .accessibilityLabel(Text("Rated \(rating) out of 10"))
                 }
                 if comment.review {
-                    badge(text: "REVIEW", icon: "doc.text.fill", tint: theme.accent)
+                    badge(text: String(localized: "REVIEW"), icon: "doc.text.fill", tint: theme.accent)
                 }
                 if hasSpoiler {
-                    badge(text: "SPOILER", icon: "exclamationmark.triangle.fill", tint: theme.danger)
+                    badge(text: String(localized: "SPOILER"), icon: "exclamationmark.triangle.fill", tint: theme.danger)
                 }
             }
         }

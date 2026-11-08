@@ -1,0 +1,2678 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%@ (age %lld)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ (age %2$lld)"
+          }
+        }
+      }
+    },
+    "%@ (aged %lld)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ (aged %2$lld)"
+          }
+        }
+      }
+    },
+    "%@ +%lld more" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ +%2$lld more"
+          }
+        }
+      }
+    },
+    "%@ Connection" : {},
+    "%@ Continue Watching cards" : {},
+    "%@ accent color" : {},
+    "%@ colour %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ colour %2$@"
+          }
+        }
+      }
+    },
+    "%@ isn't installed any more, or no longer offers this catalog." : {},
+    "%@ left" : {},
+    "%@ logo" : {},
+    "%@ movies" : {},
+    "%@ shows" : {},
+    "%@ to %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ to %2$@"
+          }
+        }
+      }
+    },
+    "%@ year" : {},
+    "%@%@. Open details" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@%2$@. Open details"
+          }
+        }
+      }
+    },
+    "%@, but %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, but %2$@"
+          }
+        }
+      }
+    },
+    "%@, currently viewing" : {},
+    "%@, watched" : {},
+    "%@s" : {},
+    "%lld Episode %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld Episode %2$lld"
+          }
+        }
+      }
+    },
+    "%lld Episodes" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%lld Episode"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%lld Episodes"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld Subs" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%lld Subs"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%lld Subs"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld entries" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%lld entry"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%lld entries"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld episodes" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%lld episode"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%lld episodes"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld episodes watched" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%lld episode watched"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%lld episodes watched"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld episodes • %@" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%1$lld episode • %2$@"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%1$lld episodes • %2$@"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld eps" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%lld ep"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%lld eps"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld hr" : {},
+    "%lld hr %lld min" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld hr %2$lld min"
+          }
+        }
+      }
+    },
+    "%lld installed • %lld stream • %lld subtitle" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld installed • %2$lld stream • %3$lld subtitle"
+          }
+        }
+      }
+    },
+    "%lld items" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%lld item"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%lld items"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld items • %@" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%1$lld items • %2$@"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%1$lld items • %2$@"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld likes" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%lld like"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%lld likes"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld lists" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%lld lists"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%lld lists"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld min" : {},
+    "%lld min left" : {},
+    "%lld movies" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%lld movie"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%lld movies"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld movies, in release order" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%lld movies, in release order"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%lld movies, in release order"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld new episodes" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%lld new episode"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%lld new episodes"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld of %lld episodes watched" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld of %2$lld episodes watched"
+          }
+        }
+      }
+    },
+    "%lld of %lld watched" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld of %2$lld watched"
+          }
+        }
+      }
+    },
+    "%lld out of 10" : {},
+    "%lld people not shown" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%lld person not shown"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%lld people not shown"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld properties" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%lld properties"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%lld properties"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld replies" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%lld replies"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%lld replies"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld seconds" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%lld seconds"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%lld seconds"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld shows" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%lld show"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%lld shows"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld sources" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%lld source"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%lld sources"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld stream providers installed" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%lld stream provider installed"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%lld stream providers installed"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld titles" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%lld title"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%lld titles"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld%% watched" : {},
+    "%lld+ stars" : {},
+    "%lld+ titles" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%lld+ titles"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "%lld+ titles"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lldh" : {},
+    "%lldh %lldm" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lldh %2$lldm"
+          }
+        }
+      }
+    },
+    "%lldh %lldm left" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lldh %2$lldm left"
+          }
+        }
+      }
+    },
+    "%lldm" : {},
+    "%llds" : {},
+    "1 hour" : {},
+    "1 movie" : {},
+    "1 show" : {},
+    "100 is the bottom of the picture; lower values move subtitles up" : {},
+    "12 hours" : {},
+    "15 min" : {},
+    "24 hours" : {},
+    "26m left" : {},
+    "30 min" : {},
+    "45 min" : {},
+    "6 hours" : {},
+    "A brief description of the episode goes here..." : {},
+    "A browser window will open to\nauthenticate with Plex.tv" : {},
+    "A native macOS client for Plex and Stremio addons" : {},
+    "A/V Sync" : {},
+    "API Configuration" : {},
+    "API Key" : {},
+    "API Key Required" : {},
+    "API key not configured" : {},
+    "About" : {},
+    "About, production, information and links" : {},
+    "Above limit" : {},
+    "Accent Color" : {},
+    "Accent color and background style" : {},
+    "Account" : {},
+    "Account Owner" : {},
+    "Acting" : {},
+    "Action" : {},
+    "Action & Adventure" : {},
+    "Action Movies" : {},
+    "Active" : {},
+    "Active server updated to %@." : {},
+    "Add" : {},
+    "Add %@" : {},
+    "Add Addons" : {},
+    "Add MPV properties like 'hwdec', 'deband', etc." : {},
+    "Add Property" : {},
+    "Add Source" : {},
+    "Add Stremio addons to fill your home screen with catalogs." : {},
+    "Add a Stream\nProvider" : {},
+    "Add at least one source: an addon catalog, a TMDB query, a movie collection, a person or a Trakt list." : {},
+    "Add custom MPV properties for advanced playback control" : {},
+    "Add movies and TV shows to My List from the details screen." : {},
+    "Add source" : {},
+    "Add to My List" : {},
+    "Add to Trakt List" : {},
+    "Added %@ to My List" : {},
+    "Added to %@" : {},
+    "Addon catalog" : {},
+    "Addon has no transport URL" : {},
+    "Addon installed successfully." : {},
+    "Addon manifest is missing a name" : {},
+    "Addon manifest is missing a version" : {},
+    "Addon manifest is missing an id" : {},
+    "Addon sources, subtitles, and alternate playback" : {},
+    "Addon streams are offered next to your Plex library. You can also use Flixor without Plex by choosing Stremio-only mode." : {},
+    "Advanced" : {},
+    "Adventure" : {},
+    "After a few seconds on a details page, play the trailer behind the title" : {},
+    "Air Date" : {},
+    "All" : {},
+    "All Genres" : {},
+    "All Years" : {},
+    "All crew work" : {},
+    "All endpoints failed to connect. Try a custom endpoint below." : {},
+    "All of your home rows are hidden." : {},
+    "All titles" : {},
+    "All unavailable seasons have some episodes already downloaded. Overseerr cannot request the remaining episodes for partially downloaded seasons." : {},
+    "Allow Stremio playback for TMDB-backed titles when IDs can be resolved" : {},
+    "Allow volume boost beyond 100%" : {},
+    "Already on %@" : {},
+    "Already unwatched" : {},
+    "Already watched" : {},
+    "Alternate Platforms" : {},
+    "Always" : {},
+    "Always open the list of sources" : {},
+    "Always show labels instead of expanding on hover" : {},
+    "Amber" : {},
+    "Amount of video data to pre-load" : {},
+    "Animated Shows" : {},
+    "Animation" : {},
+    "Anime-Skip Client ID" : {},
+    "Anime-Skip client ID" : {},
+    "Another change is still saving." : {},
+    "Any" : {},
+    "Any Rating" : {},
+    "Any Source" : {},
+    "Any Year" : {},
+    "Any addon" : {},
+    "Anyone with the link" : {},
+    "App" : {},
+    "App Logs" : {},
+    "App information and credits" : {},
+    "Appearance" : {},
+    "Appearance preview" : {},
+    "Applies to plain text subtitles" : {},
+    "Applies to plain text subtitles. Styled ASS and image subtitles (PGS, VobSub) keep their own look." : {},
+    "Approved" : {},
+    "Arabic" : {},
+    "Archive streams are not supported in-app" : {},
+    "Are you sure you want to clear all logs?" : {},
+    "Are you sure you want to delete \"%@\"?" : {},
+    "Are you sure you want to sign out of Plex? You'll need to sign in again to access your libraries." : {},
+    "Are you sure you want to sign out?" : {},
+    "Arrow key seek duration" : {},
+    "Artwork, title, actions and overview. Always first." : {},
+    "Aspect Ratio (A)" : {},
+    "Aspect ratio, %@" : {},
+    "Aspect: %@" : {},
+    "Audience score" : {},
+    "Audio" : {},
+    "Audio %lld" : {},
+    "Audio & Subtitles" : {},
+    "Audio Sync" : {},
+    "Audio Tracks" : {},
+    "Audio: %@" : {},
+    "Authenticating..." : {},
+    "Authentication" : {},
+    "Authentication failed" : {},
+    "Authentication failed (%lld)" : {},
+    "Authentication timeout. Please try again." : {},
+    "Auto-Play Next" : {},
+    "Auto-Rotate Hero" : {},
+    "Auto-Select Subtitles" : {},
+    "Auto-Skip" : {},
+    "Auto-skip detected credits segments" : {},
+    "Auto-skip detected intro segments" : {},
+    "Auto-skip detected “previously on” recaps" : {},
+    "Auto-sync watched" : {},
+    "Automatically choose matching subtitles after playback starts" : {},
+    "Automatically play next episode" : {},
+    "Autoplay next episode" : {},
+    "Available" : {},
+    "Available Ratings" : {},
+    "Awful" : {},
+    "Back" : {},
+    "Back to subtitle tracks" : {},
+    "Backdrop" : {},
+    "Background" : {},
+    "Background Color" : {},
+    "Background Opacity" : {},
+    "Bad" : {},
+    "Beautifully Organized" : {},
+    "Before %@" : {},
+    "Best available connection found" : {},
+    "Billboard" : {},
+    "Billboard: Single featured item with full-width display" : {},
+    "Biography" : {},
+    "Bitrate" : {},
+    "Blue" : {},
+    "Blur Next-Up Thumbnails" : {},
+    "Blur thumbnails and hide descriptions until you hover" : {},
+    "Blur thumbnails of next-up episodes" : {},
+    "Bold" : {},
+    "Bold subtitles" : {},
+    "Border" : {},
+    "Border Color" : {},
+    "Border Size" : {},
+    "Born" : {},
+    "Box Office" : {},
+    "Browse" : {},
+    "Browse %@" : {},
+    "Browse titles from %@" : {},
+    "Browse trending and popular titles from TMDB, search everything, and link Trakt for your own history and recommendations." : {},
+    "Browse trending content, search across your library and TMDB, and get recommendations tailored to you." : {},
+    "Budget" : {},
+    "Buffer" : {},
+    "Buffer Size" : {},
+    "Buffering" : {},
+    "Build your own from addon catalogs, TMDB, people and Trakt lists." : {},
+    "CONTENT RATING" : {},
+    "Cache Duration" : {},
+    "Cache Playback Sources" : {},
+    "Cache Used" : {},
+    "Cached" : {},
+    "Cached until %@" : {},
+    "Cancel" : {},
+    "Cancel finding a source" : {},
+    "Cancel selection" : {},
+    "Cannot play %@ type. Only movies and episodes can be played.\n\nPlease select an episode from the show." : {},
+    "Cannot play non-Plex content. Item must be in your Plex library.\n\nID: %@" : {},
+    "Card Poster Size" : {},
+    "Card poster size" : {},
+    "Cards" : {},
+    "Carousel" : {},
+    "Carousel: Multiple items with swipe navigation" : {},
+    "Casino" : {},
+    "Cast & Crew" : {},
+    "Cast, crew and guest stars" : {},
+    "Catalog Rows" : {},
+    "Catalog Rows On Home" : {},
+    "Catalogs" : {},
+    "Change" : {},
+    "Change %@" : {},
+    "Change aspect" : {},
+    "Channels" : {},
+    "Chapter %lld" : {},
+    "Chapters" : {},
+    "Check your internet connection and try again." : {},
+    "Check your network connection. Rows will refresh when you're back online." : {},
+    "Check your settings" : {},
+    "Chinese (Simplified)" : {},
+    "Chinese (Traditional)" : {},
+    "Chips" : {},
+    "Choose" : {},
+    "Choose Cover" : {},
+    "Choose Server" : {},
+    "Choose Source…" : {},
+    "Choose Source… (or hold Option when pressing Play)" : {},
+    "Choose a Plex server to connect to" : {},
+    "Choose a Stremio source" : {},
+    "Choose a different endpoint" : {},
+    "Choose a rating" : {},
+    "Choose an episode to use Stremio playback." : {},
+    "Choose another source" : {},
+    "Choose another source for this title" : {},
+    "Choose between tabbed navigation or a unified scrollable page. Tabs follow the section order below." : {},
+    "Choose cover" : {},
+    "Choose how continue watching items appear" : {},
+    "Choose how you want to discover content" : {},
+    "Choose how you want to discover content." : {},
+    "Choose source" : {},
+    "Choose whether unsupported Stremio stream types stay visible" : {},
+    "Choose which collections appear" : {},
+    "Choose which content rows to display" : {},
+    "Clear" : {},
+    "Clear Logs" : {},
+    "Clear recent searches" : {},
+    "Clear search" : {},
+    "Click a line the moment it is spoken. This track is embedded in the video, so only lines already shown can be listed, and upcoming ones are unknown. If subtitles run late, use the offset instead (G / H)." : {},
+    "Click to reset" : {},
+    "Close" : {},
+    "Close Settings" : {},
+    "Close keyboard shortcuts" : {},
+    "Close player" : {},
+    "Code copied!" : {},
+    "Codec" : {},
+    "Collapse Sidebar" : {},
+    "Collection" : {},
+    "Collection Rows" : {},
+    "Collection name" : {},
+    "Collections" : {},
+    "Color" : {},
+    "Comedy" : {},
+    "Comedy Movies" : {},
+    "Coming Soon" : {},
+    "Comments" : {},
+    "Common Properties" : {},
+    "Community Skip Data" : {},
+    "Community skip data" : {},
+    "Configuration Required" : {},
+    "Configure" : {},
+    "Configure library visibility and filtering" : {},
+    "Configure navigation tabs visibility" : {},
+    "Configure search sources and behavior" : {},
+    "Connect" : {},
+    "Connect Plex" : {},
+    "Connect Trakt in Settings to use lists" : {},
+    "Connect Your Services" : {},
+    "Connect to %@" : {},
+    "Connect to a Plex server to see your libraries." : {},
+    "Connected" : {},
+    "Connected as %@" : {},
+    "Connected successfully!" : {},
+    "Connected to %@" : {},
+    "Connecting..." : {},
+    "Connection Failed" : {},
+    "Connection failed" : {},
+    "Connection failed: %@" : {},
+    "Connections for %@" : {},
+    "Container" : {},
+    "Contains spoilers. Click to reveal" : {},
+    "Content & Discovery" : {},
+    "Continue" : {},
+    "Continue Watching" : {},
+    "Continue Watching Preview" : {},
+    "Continue Watching sort order" : {},
+    "Continue watching across devices, manage your watchlist, and enjoy stunning artwork from TMDB." : {},
+    "Continue watching and My List are kept locally, so they work with no account at all. Link Trakt and they sync too." : {},
+    "Continue without Plex" : {},
+    "Control external content discovery features" : {},
+    "Copy" : {},
+    "Copy All" : {},
+    "Copy the API Key and paste above" : {},
+    "Copy your API key and paste above" : {},
+    "Corner Style" : {},
+    "Corner style" : {},
+    "Could not get Plex access token" : {},
+    "Couldn't add to %@: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Couldn't add to %1$@: %2$@"
+          }
+        }
+      }
+    },
+    "Couldn't delete %@: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Couldn't delete %1$@: %2$@"
+          }
+        }
+      }
+    },
+    "Couldn't find %@ on TMDB." : {},
+    "Couldn't find a Trakt id for this item" : {},
+    "Couldn't find this title on Trakt" : {},
+    "Couldn't load %@" : {},
+    "Couldn't load Discover" : {},
+    "Couldn't load Trakt lists. Retry" : {},
+    "Couldn't load comments from Trakt." : {},
+    "Couldn't load lists. Retry" : {},
+    "Couldn't load lists. Try Again" : {},
+    "Couldn't load more titles." : {},
+    "Couldn't load movie and TV results." : {},
+    "Couldn't load people." : {},
+    "Couldn't load this collection" : {},
+    "Couldn't load this list" : {},
+    "Couldn't load this person" : {},
+    "Couldn't load this person from TMDB." : {},
+    "Couldn't load titles" : {},
+    "Couldn't load titles from TMDB." : {},
+    "Couldn't load titles. Check your connection and try again." : {},
+    "Couldn't mark as unwatched" : {},
+    "Couldn't mark as watched" : {},
+    "Couldn't pick a source for %@ automatically. Close the player and choose one from the episode list." : {},
+    "Couldn't reach Trakt. Check your connection." : {},
+    "Couldn't remove from %@: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Couldn't remove from %1$@: %2$@"
+          }
+        }
+      }
+    },
+    "Couldn't remove from Continue Watching" : {},
+    "Couldn't remove rating" : {},
+    "Couldn't reset progress" : {},
+    "Couldn't save rating" : {},
+    "Couldn't search your Plex server." : {},
+    "Couldn't search your addons." : {},
+    "Cover" : {},
+    "Create" : {},
+    "Create a Collection" : {},
+    "Create a free account at mdblist.com" : {},
+    "Create a new Trakt list" : {},
+    "Create collections in Plex to see them here." : {},
+    "Create list" : {},
+    "Created %@" : {},
+    "Created By" : {},
+    "Creator" : {},
+    "Creators" : {},
+    "Credits" : {},
+    "Credits Fallback" : {},
+    "Crew" : {},
+    "Crime" : {},
+    "Current" : {},
+    "Custom %@ colour" : {},
+    "Custom API Key" : {},
+    "Custom Endpoint" : {},
+    "Custom MPV properties and presets" : {},
+    "Custom Properties" : {},
+    "Custom endpoint reachable (%@ms)" : {},
+    "Custom endpoint test failed" : {},
+    "Customize\nYour Experience" : {},
+    "Customize Your Experience" : {},
+    "Customize hero, posters and visual appearance" : {},
+    "Czech" : {},
+    "Danish" : {},
+    "Dark" : {},
+    "Date Added" : {},
+    "Date Added • Newest" : {},
+    "Date Added • Oldest" : {},
+    "Debrid" : {},
+    "Debug Logging" : {},
+    "Debug logging and diagnostics" : {},
+    "Declined" : {},
+    "Decoder" : {},
+    "Default" : {},
+    "Default Speed" : {},
+    "Delay" : {},
+    "Delete" : {},
+    "Delete \"%@\" from your Trakt account? This can't be undone." : {},
+    "Delete %@?" : {},
+    "Delete Collection" : {},
+    "Delete Download?" : {},
+    "Delete Episode?" : {},
+    "Delete List" : {},
+    "Delete List…" : {},
+    "Delete Preset" : {},
+    "Delete collection" : {},
+    "Deleted %@" : {},
+    "Description" : {},
+    "Description hidden. Hover to reveal." : {},
+    "Details" : {},
+    "Details Page Style" : {},
+    "Details Screen" : {},
+    "Device code expired. Please try again." : {},
+    "Died" : {},
+    "Direct Play • Best Quality" : {},
+    "Direct URL streams, custom headers, advanced codecs, and external subtitles all rely on MPV." : {},
+    "Directed By" : {},
+    "Directing" : {},
+    "Director" : {},
+    "Directors" : {},
+    "Disabled" : {},
+    "Disabled by Library Only Mode" : {},
+    "Disabled libraries will be hidden from the sidebar and home screen." : {},
+    "Disconnect" : {},
+    "Disconnect Plex" : {},
+    "Disconnect Plex and run Flixor as a standalone Stremio app. Your settings are kept." : {},
+    "Disconnect your Plex account? Flixor keeps working as a standalone Stremio app - your addons, watch history and settings are preserved." : {},
+    "Disconnecting..." : {},
+    "Discover" : {},
+    "Discovery" : {},
+    "Discovery Mode" : {},
+    "Discovery Settings" : {},
+    "Display & Caching" : {},
+    "Display FPS" : {},
+    "Display Layout" : {},
+    "Display Style" : {},
+    "Display Style · Plex, Stremio, and discovery catalogs" : {},
+    "Documentaries" : {},
+    "Documentary" : {},
+    "Done" : {},
+    "Download" : {},
+    "Download episodes to watch offline" : {},
+    "Download failed: %@" : {},
+    "Download for offline" : {},
+    "Download for offline viewing" : {},
+    "Download movies to watch offline" : {},
+    "Download stuck. Tap to retry." : {},
+    "Download was cancelled" : {},
+    "Downloaded" : {},
+    "Downloaded - Click to show in Finder" : {},
+    "Downloading" : {},
+    "Downloading %@" : {},
+    "Downloading %@ - Click to pause" : {},
+    "Downloading..." : {},
+    "Downloads" : {},
+    "Drag sections to reorder. In the tabbed layout each visible section becomes a tab." : {},
+    "Drag to reorder" : {},
+    "Drag to reorder. Rows you turn off stay here so you can bring them back. New rows appear next to where they would normally be." : {},
+    "Drama" : {},
+    "Dropped" : {},
+    "Duration" : {},
+    "Dutch" : {},
+    "EPISODE %lld" : {},
+    "Edit" : {},
+    "Edit %@" : {},
+    "Edit Collection" : {},
+    "Edit List" : {},
+    "Edit List…" : {},
+    "Edit Property" : {},
+    "Edit collection" : {},
+    "Emerald" : {},
+    "Emotional" : {},
+    "Enable MDBList" : {},
+    "Enable Overseerr" : {},
+    "Enable Overseerr to request movies and shows" : {},
+    "Enable Stremio Playback" : {},
+    "Enable Subtitle Addons" : {},
+    "Enable and add API key to activate" : {},
+    "Enable debug logging to capture detailed logs" : {},
+    "Enable high dynamic range playback" : {},
+    "Enable scrobbling" : {},
+    "Enable verbose logging for troubleshooting" : {},
+    "Endpoint reachable (%@ms)" : {},
+    "Endpoint test failed" : {},
+    "Endpoint test failed: %@" : {},
+    "Endpoint unreachable" : {},
+    "Endpoint updated" : {},
+    "English" : {},
+    "Enrich Metadata" : {},
+    "Enter PIN for %@" : {},
+    "Enter preset name" : {},
+    "Enter this code at trakt.tv/activate" : {},
+    "Enter your MDBList API key" : {},
+    "Enter your Overseerr API key" : {},
+    "Enter your Overseerr server URL" : {},
+    "Enter your TMDB API key (optional)" : {},
+    "Episode" : {},
+    "Episode %@" : {},
+    "Episode Display" : {},
+    "Episode Preview" : {},
+    "Episode Ratings" : {},
+    "Episode display and layout options" : {},
+    "Episodes" : {},
+    "Error Loading Servers" : {},
+    "Exciting" : {},
+    "Exclude" : {},
+    "Excluded: %@" : {},
+    "Exit full screen or close" : {},
+    "Expands a card with details after resting the pointer on it" : {},
+    "Expires in %llds" : {},
+    "Explore" : {},
+    "External" : {},
+    "External Links" : {},
+    "Extra Large" : {},
+    "Extra Rounded" : {},
+    "Failed" : {},
+    "Failed - Click to retry" : {},
+    "Failed to decode response: %@" : {},
+    "Failed to disconnect." : {},
+    "Failed to load Stremio sources" : {},
+    "Failed to load Stremio stream: %@" : {},
+    "Failed to load anticipated content" : {},
+    "Failed to load collections: %@" : {},
+    "Failed to load connections" : {},
+    "Failed to load libraries" : {},
+    "Failed to load servers. Please try again." : {},
+    "Failed to load top 10 content" : {},
+    "Failed to load trending content" : {},
+    "Failed to load upcoming content" : {},
+    "Failed to load video stream: %@" : {},
+    "Failed to load video. Please check your network connection and try again." : {},
+    "Failed to load video: %@" : {},
+    "Failed to start Trakt device flow." : {},
+    "Failed to update endpoint" : {},
+    "Fair" : {},
+    "Falls back to the default when the source is empty" : {},
+    "Family" : {},
+    "Fantasy" : {},
+    "Featured items" : {},
+    "Features" : {},
+    "Fetch cast, logos, and extras from TMDB" : {},
+    "Fetch external subtitles from Stremio subtitle addons" : {},
+    "Fetch ratings from multiple sources" : {},
+    "Fetching ratings from multiple sources" : {},
+    "File Size" : {},
+    "File system error: %@" : {},
+    "Fill" : {},
+    "Filmography" : {},
+    "Filter by type" : {},
+    "Filter catalogs" : {},
+    "Find" : {},
+    "Find What You Love" : {},
+    "Find your API key in Overseerr Settings → General → API Key" : {},
+    "Finding a source for %@…" : {},
+    "Finding a source…" : {},
+    "Finding the best connection..." : {},
+    "Finnish" : {},
+    "Fit" : {},
+    "Fix the pattern above to see which sources it matches." : {},
+    "Flixor Red" : {},
+    "Flixor plays direct HTTP streams, so a debrid-backed addon (for example Torrentio configured with Real-Debrid) is what you want. Addons that only return magnet links or torrent info hashes can't be played." : {},
+    "Font" : {},
+    "Font Size" : {},
+    "Forward" : {},
+    "French" : {},
+    "French (Canada)" : {},
+    "Friends" : {},
+    "From" : {},
+    "From %@" : {},
+    "From Your Addons" : {},
+    "From year" : {},
+    "Full screen" : {},
+    "Funny" : {},
+    "Genre" : {},
+    "Genres" : {},
+    "German" : {},
+    "Get Started" : {},
+    "Get your free API key from mdblist.com" : {},
+    "Go" : {},
+    "Go to Details" : {},
+    "Go to Settings → API" : {},
+    "Go to Settings → General" : {},
+    "Godfather" : {},
+    "Good" : {},
+    "Goodfellas" : {},
+    "Graphite" : {},
+    "Great" : {},
+    "Greek" : {},
+    "Group Episodes by Series" : {},
+    "Guest Stars" : {},
+    "HDR / Dolby Vision" : {},
+    "HDR passthrough" : {},
+    "HTTP %lld from %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "HTTP %1$lld from %2$@"
+          }
+        }
+      }
+    },
+    "HTTP %lld from %@: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "HTTP %1$lld from %2$@: %3$@"
+          }
+        }
+      }
+    },
+    "HTTP error: %lld" : {},
+    "Hardware Decoding" : {},
+    "Hardware decoding" : {},
+    "Header Icons (64pt)" : {},
+    "Heat" : {},
+    "Hebrew" : {},
+    "Hero" : {},
+    "Hero Layout" : {},
+    "Hero Preview" : {},
+    "Hero Section" : {},
+    "Hero Source" : {},
+    "Hero Trailer" : {},
+    "Hero position is fixed" : {},
+    "Hero source" : {},
+    "Hide" : {},
+    "Hide Spoilers" : {},
+    "Hide Spoilers for Unwatched Episodes" : {},
+    "Hide Unsupported Sources" : {},
+    "Hide hearing-impaired text" : {},
+    "Hide spoilers for unwatched episodes" : {},
+    "Hide stills of episodes you haven't started (Wide cards)" : {},
+    "Highest Resolution" : {},
+    "Highest rated" : {},
+    "Highest resolution" : {},
+    "Highest revenue" : {},
+    "Hindi" : {},
+    "History" : {},
+    "Hold Space" : {},
+    "Home" : {},
+    "Home Rows" : {},
+    "Home Screen" : {},
+    "Horizontal" : {},
+    "Horizontal: Scrollable cards with thumbnails and progress" : {},
+    "Horror" : {},
+    "Hover Preview" : {},
+    "Hover preview delay" : {},
+    "Hover preview trailer" : {},
+    "How Related and Similar content appears" : {},
+    "How episodes appear on TV show details" : {},
+    "How internal and external subtitles are prioritized" : {},
+    "How video fills the player" : {},
+    "Hungarian" : {},
+    "IMDb Rating" : {},
+    "In Library" : {},
+    "In progress" : {},
+    "In your Plex library" : {},
+    "Include" : {},
+    "Include TMDB Results" : {},
+    "Include TMDB results when searching" : {},
+    "Include addon catalog matches in search results" : {},
+    "Include field type" : {},
+    "Indonesian" : {},
+    "Information" : {},
+    "Install" : {},
+    "Install Addon" : {},
+    "Install a Stremio addon that offers catalogs, then come back." : {},
+    "Install a manifest URL to add Stremio stream or subtitle providers." : {},
+    "Install an Addon" : {},
+    "Install at least one Stremio addon that provides streams for this title." : {},
+    "Install stream and subtitle addons" : {},
+    "Install, reorder, configure, and remove Stremio addons." : {},
+    "Installed Addons" : {},
+    "Installed addons responded, but none returned playable sources for this request." : {},
+    "Installing..." : {},
+    "Integration" : {},
+    "Integrations" : {},
+    "Intro" : {},
+    "Invalid API key" : {},
+    "Invalid HLS URL" : {},
+    "Invalid PIN. Please try again." : {},
+    "Invalid URL" : {},
+    "Invalid addon manifest response" : {},
+    "Invalid download URL" : {},
+    "Invalid item ID: %@" : {},
+    "Invalid manifest URL" : {},
+    "Invalid response" : {},
+    "Invalid stream URL" : {},
+    "Invalid stream request URL" : {},
+    "Invalid subtitle URL" : {},
+    "Italian" : {},
+    "Japanese" : {},
+    "KIDS" : {},
+    "Keep Expanded" : {},
+    "Keep Sidebar Expanded" : {},
+    "Keyboard Shortcuts" : {},
+    "Kids" : {},
+    "Known for" : {},
+    "Korean" : {},
+    "Landscape" : {},
+    "Landscape: Wide thumbnails with ratings" : {},
+    "Language" : {},
+    "Languages" : {},
+    "Large" : {},
+    "Large Seek" : {},
+    "Last 5 Years" : {},
+    "Last Install Error" : {},
+    "Layout Style" : {},
+    "Layout style, stream caching options" : {},
+    "Leave empty to use the default app key" : {},
+    "Less" : {},
+    "Library" : {},
+    "Library Only Mode" : {},
+    "Library Only Mode is active" : {},
+    "Library and Downloads are hidden because they need a Plex server. Connect Plex in Settings → Plex to show them." : {},
+    "List description" : {},
+    "List name" : {},
+    "List options" : {},
+    "List privacy" : {},
+    "Listen for a line, then click it the moment it is spoken. The subtitles shift so that line appears right now." : {},
+    "Load" : {},
+    "Loading" : {},
+    "Loading Trakt lists" : {},
+    "Loading addon catalogs" : {},
+    "Loading collections..." : {},
+    "Loading comments…" : {},
+    "Loading details" : {},
+    "Loading direct play..." : {},
+    "Loading endpoints…" : {},
+    "Loading genres..." : {},
+    "Loading libraries..." : {},
+    "Loading list" : {},
+    "Loading lists…" : {},
+    "Loading more titles" : {},
+    "Loading preview" : {},
+    "Loading profiles..." : {},
+    "Loading ratings..." : {},
+    "Loading servers..." : {},
+    "Loading sources…" : {},
+    "Loading titles" : {},
+    "Loading..." : {},
+    "Local" : {
+      "extractionState" : "manual"
+    },
+    "Localized Metadata" : {},
+    "Logs are stored in memory and will be cleared when the app restarts. Sensitive data like tokens and passwords are automatically redacted." : {},
+    "Longest to wait before deciding with the sources that have arrived" : {},
+    "MORE" : {},
+    "MPV Configuration" : {},
+    "MPV Engine" : {},
+    "MPV Properties" : {},
+    "MPV controller not available" : {},
+    "MPV controller not initialized" : {},
+    "MPV controller unavailable" : {},
+    "MPV failed to initialize" : {},
+    "MPV failed to initialize (timeout)" : {},
+    "MPV is required on macOS for Plex, offline files, direct URL playback, custom headers, and Stremio streams." : {},
+    "MPV is the required playback engine on macOS for direct URL streams, custom headers, advanced codecs, and Stremio integration." : {},
+    "Made with love for Plex enthusiasts" : {},
+    "Make sure you have at least one Plex Media Server\nset up and linked to your account." : {},
+    "Manage Addons" : {},
+    "Manage Collections" : {},
+    "Manage your Plex server connections" : {},
+    "Manifest URL is required" : {},
+    "Mark All Unwatched" : {},
+    "Mark All Watched" : {},
+    "Mark Entire Season as Unwatched…" : {},
+    "Mark Entire Season as Watched…" : {},
+    "Mark Entire Show as Unwatched…" : {},
+    "Mark Entire Show as Watched…" : {},
+    "Mark Season as Unwatched" : {},
+    "Mark Season as Watched" : {},
+    "Mark Show as Unwatched" : {},
+    "Mark Show as Watched" : {},
+    "Mark all of %@ as unwatched?" : {},
+    "Mark all of %@ as watched?" : {},
+    "Mark as Unwatched" : {},
+    "Mark as Watched" : {},
+    "Mark as unwatched" : {},
+    "Mark as watched" : {},
+    "Marked as unwatched" : {},
+    "Marked as watched" : {},
+    "Masterpiece" : {},
+    "Match my rules" : {},
+    "Matches" : {},
+    "Matrix" : {},
+    "Max Luma" : {},
+    "Max Volume" : {},
+    "Media request management integration" : {},
+    "Medium" : {},
+    "Meh" : {},
+    "Memory" : {},
+    "Metadata" : {},
+    "Metadata Language" : {},
+    "Min Luma" : {},
+    "Mono" : {},
+    "More" : {},
+    "More Info" : {},
+    "More Like This" : {},
+    "More actions" : {},
+    "More actions for %@" : {},
+    "Most Anticipated" : {},
+    "Most Liked" : {},
+    "Most popular" : {},
+    "Most votes" : {},
+    "Move %@ down" : {},
+    "Move %@ up" : {},
+    "Move Down" : {},
+    "Move Up" : {},
+    "Move down" : {},
+    "Move up" : {},
+    "Movie" : {},
+    "Movie - Music" : {},
+    "Movie Libraries" : {},
+    "Movies" : {},
+    "Movies - Animation" : {},
+    "Movies - Documentary" : {},
+    "Movies - Drama" : {},
+    "Movies - History" : {},
+    "Multi-source ratings aggregation" : {},
+    "Multiple versions available for \"%@\"" : {},
+    "Music" : {},
+    "Mute" : {},
+    "Mute trailer" : {},
+    "Muted" : {},
+    "My Collections" : {},
+    "My List" : {},
+    "Mystery" : {},
+    "N/A" : {},
+    "NZB playback is not supported in-app" : {},
+    "Name" : {},
+    "NavBar" : {},
+    "Navigation" : {},
+    "Navigation Style" : {},
+    "Network" : {},
+    "Network error while fetching %@" : {},
+    "Network error: %@" : {},
+    "Networks" : {},
+    "Never" : {},
+    "New" : {},
+    "New & Hot Tab" : {},
+    "New & Popular" : {
+      "extractionState" : "manual"
+    },
+    "New & Popular Tab" : {},
+    "New Collection" : {},
+    "New List" : {},
+    "New collection" : {},
+    "New on Your Plex" : {},
+    "Newest" : {},
+    "Newest first" : {},
+    "News" : {},
+    "Next" : {},
+    "Next Episode" : {},
+    "Next Episode: %@" : {},
+    "Next audio track" : {},
+    "Next episode" : {},
+    "Next episode first" : {},
+    "Next featured item" : {},
+    "Next subtitle track" : {},
+    "No Movies Downloaded" : {},
+    "No Plex account needed. Discovery comes from TMDB and Trakt, and your Stremio addons provide the streams." : {},
+    "No Plex account. Discovery comes from TMDB and Trakt, streams from your Stremio addons." : {},
+    "No Plex collections found" : {},
+    "No Plex libraries available. Connect a Plex server in Settings." : {},
+    "No Plex server" : {},
+    "No Plex server connected" : {},
+    "No Plex server connection available" : {},
+    "No Servers Found" : {},
+    "No TV Shows Downloaded" : {},
+    "No TV acting credits" : {},
+    "No TV crew credits" : {},
+    "No Working Connection Found" : {},
+    "No acting credits" : {},
+    "No active Plex server configured" : {},
+    "No additional titles found." : {},
+    "No addon catalogs" : {},
+    "No addons installed" : {},
+    "No anticipated content available" : {},
+    "No artwork found" : {},
+    "No audio tracks" : {},
+    "No collections yet" : {},
+    "No comments on Trakt yet." : {},
+    "No compatible Stremio ID could be resolved for this title." : {},
+    "No connections available" : {},
+    "No credits yet" : {},
+    "No crew credits" : {},
+    "No custom properties" : {},
+    "No data received from server" : {},
+    "No endpoints available" : {},
+    "No endpoints match filters" : {},
+    "No episodes found" : {},
+    "No include match" : {},
+    "No installed Stremio addon supports this title’s resolved ID." : {},
+    "No libraries found" : {},
+    "No limit" : {},
+    "No lines shown yet. Keep playing until a few subtitles have appeared." : {},
+    "No lists yet" : {},
+    "No logs yet" : {},
+    "No matching titles" : {},
+    "No media file found for this item" : {},
+    "No movie acting credits" : {},
+    "No movie crew credits" : {},
+    "No movies found" : {},
+    "No playable source arrived within %lld seconds. Showing all sources." : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "No playable source arrived within %lld seconds. Showing all sources."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "No playable source arrived within %lld seconds. Showing all sources."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "No profiles found" : {},
+    "No results for \"%@\"" : {},
+    "No results." : {},
+    "No saved progress" : {},
+    "No seasons available to request" : {},
+    "No servers found. Use Refresh to try again." : {},
+    "No session found" : {},
+    "No shows found" : {},
+    "No source matched your rules within %lld seconds. Showing all sources." : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "No source matched your rules within %lld seconds. Showing all sources."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "No source matched your rules within %lld seconds. Showing all sources."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "No source matched your rules. Showing all sources." : {},
+    "No stream provider installed yet" : {},
+    "No stream-capable Stremio addons are installed for this profile." : {},
+    "No stream-capable addons installed" : {},
+    "No streams found" : {},
+    "No subtitle lines to show." : {},
+    "No subtitle tracks" : {},
+    "No titles found" : {},
+    "No titles match these filters" : {},
+    "No top 10 content available" : {},
+    "No upcoming content available" : {},
+    "None of the first titles have this kind of artwork." : {},
+    "Normal" : {},
+    "Normal speed" : {},
+    "Norwegian" : {},
+    "Not Available" : {},
+    "Not Connected" : {},
+    "Not authenticated with Plex.tv" : {},
+    "Not authenticated with Trakt" : {},
+    "Not enough disk space" : {},
+    "Not in Continue Watching" : {},
+    "Not in your Plex library" : {},
+    "Not rated" : {},
+    "Not signed in to Plex" : {},
+    "Not watched" : {},
+    "Nothing here yet" : {},
+    "Nothing in this collection right now." : {},
+    "Nothing to show yet" : {},
+    "Nothing to update" : {},
+    "OK" : {},
+    "Off" : {},
+    "Offer resume from the last selected Stremio source when cache is valid" : {},
+    "Offline" : {},
+    "Offset" : {},
+    "Oldest" : {},
+    "Oldest first" : {},
+    "On Deck" : {},
+    "On Hover" : {},
+    "Online" : {},
+    "Only HTTP(S) direct streams are supported in-app" : {},
+    "Only one audio track" : {},
+    "Only unsupported sources were returned" : {},
+    "Opacity" : {},
+    "Open %@" : {},
+    "Open Details" : {},
+    "Open MDBList" : {},
+    "Open Settings" : {},
+    "Open Trakt" : {},
+    "Open in Browser" : {},
+    "Open your Overseerr web interface" : {},
+    "Opens details" : {},
+    "Opens externally" : {},
+    "Optional" : {},
+    "Optional. Connect Plex to add your own library alongside Stremio." : {},
+    "Optional. Connect a Plex account to add your own library alongside Stremio." : {},
+    "Optional. Pick a poster or backdrop from this collection." : {},
+    "Optional. Your own ID from anime-skip.com adds its timings for anime" : {},
+    "Or customize individual settings" : {},
+    "Orange" : {},
+    "Order" : {},
+    "Order & Spoilers" : {},
+    "Order of items in the row" : {},
+    "Original Audio" : {},
+    "Original Language" : {},
+    "Originally \"%@\"" : {},
+    "Other Libraries" : {},
+    "Other movies in the franchise" : {},
+    "Overseerr API error (%lld): %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Overseerr API error (%1$lld): %2$@"
+          }
+        }
+      }
+    },
+    "Overseerr Documentation" : {},
+    "Overseerr not configured" : {},
+    "Owned" : {},
+    "PIN Entry Preview" : {},
+    "Page Sections" : {},
+    "Part of %@" : {},
+    "Partial" : {},
+    "Paste a Stremio addon manifest URL. OpenSubtitles is installed automatically the first time Stremio is enabled." : {},
+    "Paste a trakt.tv list URL, or search by name" : {},
+    "Path not found" : {},
+    "Pause" : {},
+    "Paused" : {},
+    "Paused - Click to resume" : {},
+    "Peak: %.0f nits" : {},
+    "Pending" : {},
+    "People" : {},
+    "Performance" : {},
+    "Performance Stats (I)" : {},
+    "Performance stats" : {},
+    "Period" : {},
+    "Person" : {},
+    "Person's credits" : {},
+    "Photo of %@" : {},
+    "Picked from this collection." : {},
+    "Picks Up Where\nYou Left Off" : {},
+    "Picture in Picture" : {},
+    "Picture-in-Picture Error" : {},
+    "Pilot" : {},
+    "Pink" : {},
+    "Place of birth" : {},
+    "Play" : {},
+    "Play %@" : {},
+    "Play Now" : {},
+    "Play Trailer in Background" : {},
+    "Play at 2×" : {},
+    "Play best source" : {},
+    "Play or pause" : {},
+    "Play trailer in background" : {},
+    "Play with addons" : {},
+    "Play/Pause" : {},
+    "Playback" : {},
+    "Playback Engine" : {},
+    "Playback Error" : {},
+    "Playback Source Cache" : {},
+    "Playback Speed" : {},
+    "Playback engine is fixed to MPV" : {},
+    "Playback engine selection is no longer configurable on macOS." : {},
+    "Playback source caching stores recent URLs and provider metadata locally for faster resume across Plex and alternate providers such as Stremio. Disable it if you experience expired or unstable links." : {},
+    "Playback speed for new sessions" : {},
+    "Playback was closed." : {},
+    "Playback was interrupted. Check your connection and try again." : {},
+    "Player" : {},
+    "Playing at double speed" : {},
+    "Plex Collections" : {},
+    "Plex Sign In" : {},
+    "Plex account not authorized on this Overseerr server" : {},
+    "Plex collection" : {},
+    "Plex is not used in Stremio-only mode" : {},
+    "Plex library" : {},
+    "Plex playback" : {},
+    "Plex server not connected" : {},
+    "Polish" : {},
+    "Poor" : {},
+    "Popular" : {},
+    "Popular Movies" : {},
+    "Popular Row" : {},
+    "Popular TV Shows" : {},
+    "Popular TV Shows on Trakt" : {},
+    "Popular on Plex" : {},
+    "Popular on Your Plex" : {},
+    "Portuguese" : {},
+    "Portuguese (Brazil)" : {},
+    "Position" : {},
+    "Post-Credits Scene" : {},
+    "Poster" : {},
+    "Poster Display" : {},
+    "Poster: More items visible with compact layout" : {},
+    "Posters" : {},
+    "Powerful\nIntegrations" : {},
+    "Prefer Cached Source Resume" : {},
+    "Prefer External" : {},
+    "Prefer Internal" : {},
+    "Prefer localized titles and summaries" : {},
+    "Preferred Addon" : {},
+    "Preferred Audio Language" : {},
+    "Preferred Subtitle Language" : {},
+    "Preferred addon" : {},
+    "Preferred audio language" : {},
+    "Preferred subtitle language" : {},
+    "Preset Name" : {},
+    "Presets" : {},
+    "Preview" : {},
+    "Preview (%lld titles)" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "Preview (%lld titles)"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "Preview (%lld titles)"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Preview (first %lld titles, more available)" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "Preview (first %lld titles, more available)"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "Preview (first %lld titles, more available)"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Preview this source" : {},
+    "Preview toggle" : {},
+    "Previous featured item" : {},
+    "Previous or next chapter" : {},
+    "Previously selected source" : {},
+    "Primaries" : {},
+    "Privacy" : {},
+    "Privacy Policy" : {},
+    "Private" : {},
+    "Processing" : {},
+    "Production" : {},
+    "Production company" : {},
+    "Profile" : {},
+    "Profile: %@" : {},
+    "Progress reset" : {},
+    "Property Key" : {},
+    "Public" : {},
+    "Public Trakt list" : {},
+    "Pure Black Background" : {},
+    "Pure black background" : {},
+    "Queries IntroDB and AniSkip for the current title's intro and credits timings" : {},
+    "Queued" : {},
+    "Queued - Click to cancel" : {},
+    "REVIEW" : {},
+    "Rate" : {},
+    "Rate on Trakt" : {},
+    "Rated" : {},
+    "Rated %.1f out of 10" : {},
+    "Rated %lld out of 10" : {},
+    "Rating" : {},
+    "Rating %@" : {},
+    "Rating Badges" : {},
+    "Rating badges" : {},
+    "Rating removed" : {},
+    "Rating saved" : {},
+    "Rating • High to Low" : {},
+    "Rating • Low to High" : {},
+    "Ratings Display" : {},
+    "Reachable (%@ms)" : {},
+    "Read More" : {},
+    "Read full biography" : {},
+    "Read more" : {},
+    "Read the full comment" : {},
+    "Ready to connect" : {},
+    "Reality" : {},
+    "Recap" : {},
+    "Recent Searches" : {},
+    "Recently Added" : {},
+    "Recently Added in %@" : {},
+    "Recently Watched" : {},
+    "Recently watched" : {},
+    "Recommendations" : {},
+    "Recommended TV Shows & Movies" : {},
+    "Recommended for You" : {},
+    "Refresh" : {},
+    "Refresh Servers" : {},
+    "Regular Expression" : {},
+    "Related" : {},
+    "Related and similar titles" : {},
+    "Relay" : {
+      "extractionState" : "manual"
+    },
+    "Release Year" : {},
+    "Release Year • Newest" : {},
+    "Release Year • Oldest" : {},
+    "Released" : {},
+    "Remember Track Selection" : {},
+    "Remember audio/subtitle language choices" : {},
+    "Remote" : {
+      "extractionState" : "manual"
+    },
+    "Remove" : {},
+    "Remove %@" : {},
+    "Remove %@ from %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Remove %1$@ from %2$@"
+          }
+        }
+      }
+    },
+    "Remove %@ from recent searches" : {},
+    "Remove %lld selected from %@" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "Remove %1$lld selected from %2$@"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "Remove %1$lld selected from %2$@"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Remove (%lld)" : {},
+    "Remove Hearing-Impaired Text" : {},
+    "Remove color banding" : {},
+    "Remove cover" : {},
+    "Remove from %@" : {},
+    "Remove from Continue Watching" : {},
+    "Remove from Home" : {},
+    "Remove from My List" : {},
+    "Remove hearing-impaired text from subtitles" : {},
+    "Remove rating" : {},
+    "Removed %@ from %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Removed %1$@ from %2$@"
+          }
+        }
+      }
+    },
+    "Removed %@ from My List" : {},
+    "Removed %lld titles from %@" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "Removed %1$lld titles from %2$@"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "Removed %1$lld titles from %2$@"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Removed from Continue Watching" : {},
+    "Rename" : {},
+    "Rename %@" : {},
+    "Rename Row" : {},
+    "Rename…" : {},
+    "Render FPS" : {},
+    "Replay trailer" : {},
+    "Report Issue" : {},
+    "Request" : {},
+    "Request %@?" : {},
+    "Request %lld Seasons" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "Request %lld Season"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "Request %lld Seasons"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Request Seasons" : {},
+    "Request movies and TV shows" : {},
+    "Request movies and shows from Details screen" : {},
+    "Request timed out while fetching %@" : {},
+    "Request via Overseerr" : {},
+    "Requesting..." : {},
+    "Required" : {},
+    "Reset" : {},
+    "Reset Filters" : {},
+    "Reset appearance to default" : {},
+    "Reset details sections to defaults" : {},
+    "Reset filters" : {},
+    "Reset home rows to default order" : {},
+    "Reset subtitle offset" : {},
+    "Reset to Default" : {},
+    "Reset to Default Order" : {},
+    "Reset to Defaults" : {},
+    "Resolution" : {},
+    "Results from Your Plex" : {},
+    "Resume" : {},
+    "Resume Cached Source" : {},
+    "Retry" : {},
+    "Retry Auto-Test" : {},
+    "Retry failed sources" : {},
+    "Retry loading %@" : {},
+    "Retry loading more titles" : {},
+    "Retry loading this list" : {},
+    "Retry: %@" : {},
+    "Retrying" : {},
+    "Return to player" : {},
+    "Returned by addons but not currently playable in-app" : {},
+    "Reuse recent provider URLs for faster resume" : {},
+    "Reveal Spoilers" : {},
+    "Reveal spoiler comment" : {},
+    "Right-click a poster anywhere in Flixor and choose Add to Trakt List." : {},
+    "Romance" : {},
+    "Romanian" : {},
+    "Rotten Tomatoes (Audience)" : {},
+    "Rotten Tomatoes (Critics)" : {},
+    "Rounded" : {},
+    "Row Visibility" : {},
+    "Row name" : {},
+    "Rows Settings" : {},
+    "Run Time" : {},
+    "Running without Plex" : {},
+    "Runtime" : {},
+    "Russian" : {},
+    "SPOILER" : {},
+    "Sample Rate" : {},
+    "Save" : {},
+    "Save Current as Preset" : {},
+    "Save Preset" : {},
+    "Save list" : {},
+    "Saved" : {},
+    "Saved %@" : {},
+    "Saving" : {},
+    "Scarface" : {},
+    "Scary" : {},
+    "Sci-Fi & Fantasy" : {},
+    "Sci-Fi & Fantasy Shows" : {},
+    "Screen Layout" : {},
+    "Scrobbling reports your watching activity to Trakt in real-time." : {},
+    "Scroll left" : {},
+    "Scroll right" : {},
+    "Search" : {},
+    "Search %@" : {},
+    "Search (Command-F)" : {},
+    "Search Addon Catalogs" : {},
+    "Search My List" : {},
+    "Search Your Library" : {},
+    "Search companies (optional)" : {},
+    "Search for %@" : {},
+    "Search for movies, TV shows, people..." : {},
+    "Search library" : {},
+    "Search movie collections, like Alien" : {},
+    "Search people by name" : {},
+    "Search production companies" : {},
+    "Search this list" : {},
+    "Search view" : {},
+    "Searching" : {},
+    "Searching movies and TV" : {},
+    "Searching people" : {},
+    "Searching your Plex server" : {},
+    "Searching your addons" : {},
+    "Searching..." : {},
+    "Season" : {},
+    "Season %@ Episode %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Season %1$@ Episode %2$@"
+          }
+        }
+      }
+    },
+    "Season %@, Episode %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Season %1$@, Episode %2$@"
+          }
+        }
+      }
+    },
+    "Season %lld" : {},
+    "Season %lld, Episode %lld • %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Season %1$lld, Episode %2$lld • %3$@"
+          }
+        }
+      }
+    },
+    "Season Picker" : {},
+    "Season picker style" : {},
+    "Seasons" : {},
+    "Seasons and episodes (TV shows)" : {},
+    "Secondary details and metadata" : {},
+    "Seconds before auto-skipping" : {},
+    "See All" : {},
+    "See request status on details page" : {},
+    "Seek %lld s" : {},
+    "Seek 2 s" : {},
+    "Seek Durations" : {},
+    "Select" : {},
+    "Select All" : {},
+    "Select Version" : {},
+    "Select Your Server" : {},
+    "Select a profile to continue" : {},
+    "Select the endpoint that works best from this Mac" : {},
+    "Select titles" : {},
+    "Selected" : {},
+    "Selected Title" : {},
+    "Series" : {},
+    "Server URL" : {},
+    "Server error (%lld)" : {},
+    "Server error: %@" : {},
+    "Server not found" : {},
+    "Servers" : {},
+    "Session cookie not received" : {},
+    "Session expired" : {},
+    "Session expired. Please sign in again." : {},
+    "Settings" : {},
+    "Settings Row Icons (28pt)" : {},
+    "Setup Instructions" : {},
+    "Shared" : {},
+    "Sharp" : {},
+    "Shift + arrow key seek duration" : {},
+    "Show" : {},
+    "Show %@" : {},
+    "Show %@ on Home" : {},
+    "Show 'Next' button X seconds before end" : {},
+    "Show Disabled Sources" : {},
+    "Show Hero Section" : {},
+    "Show Hidden Rows" : {},
+    "Show IMDb score" : {},
+    "Show IPv6" : {},
+    "Show Less" : {},
+    "Show Library Titles" : {},
+    "Show More" : {},
+    "Show New & Hot tab in navigation" : {},
+    "Show New & Popular tab in navigation" : {},
+    "Show On TMDB Details" : {},
+    "Show Plex collection rows on home" : {},
+    "Show Preview on Hover" : {},
+    "Show TMDB movies and shows in search" : {},
+    "Show a home row for each catalog your addons provide" : {},
+    "Show a popular titles row" : {},
+    "Show alternate Stremio source buttons on supported details screens" : {},
+    "Show as a row on Home" : {},
+    "Show episode ratings" : {},
+    "Show item %lld of %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Show item %1$lld of %2$lld"
+          }
+        }
+      }
+    },
+    "Show less" : {},
+    "Show less biography" : {},
+    "Show less of this comment" : {},
+    "Show more comments" : {},
+    "Show on Home" : {},
+    "Show or hide this list" : {},
+    "Show popular content on Plex" : {},
+    "Show preview on hover" : {},
+    "Show recommendations from Trakt" : {},
+    "Show series posters instead of individual episodes" : {},
+    "Show sources" : {},
+    "Show tabs in the top bar or in a sidebar" : {},
+    "Show the TMDB rating on each episode" : {},
+    "Show trending content from TMDB" : {},
+    "Sidebar" : {},
+    "Sign In Required" : {},
+    "Sign Out" : {},
+    "Sign in to access your Plex libraries" : {},
+    "Sign in to sync watch history" : {},
+    "Sign in with Plex" : {},
+    "Sign in with Trakt" : {},
+    "Sign in with your Plex account" : {},
+    "Signed In" : {},
+    "Signed in as %@" : {},
+    "Signed in as @%@" : {},
+    "Signing out..." : {},
+    "Similar" : {},
+    "Size" : {},
+    "Skip" : {},
+    "Skip %@" : {},
+    "Skip Backward" : {},
+    "Skip Credits Automatically" : {},
+    "Skip Data" : {},
+    "Skip Delay" : {},
+    "Skip Forward" : {},
+    "Skip Intro Automatically" : {},
+    "Skip Recaps Automatically" : {},
+    "Skip back 10 seconds" : {},
+    "Skip forward 10 seconds" : {},
+    "Skip recaps automatically" : {},
+    "Sky" : {},
+    "Slower or faster" : {},
+    "Small" : {},
+    "Small Seek" : {},
+    "Smart\nDiscovery" : {},
+    "Smooth motion" : {},
+    "Soap" : {},
+    "Software" : {},
+    "Some episodes available - Overseerr cannot request remaining" : {},
+    "Some titles couldn't be removed from %@" : {},
+    "Something went wrong" : {},
+    "Sort" : {},
+    "Sort Order" : {},
+    "Sort by" : {},
+    "Sort by %@" : {},
+    "Sort comments" : {},
+    "Source" : {},
+    "Source Rules" : {},
+    "Source stopped working. Finding a replacement (%lld of %lld)…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Source stopped working. Finding a replacement (%1$lld of %2$lld)…"
+          }
+        }
+      }
+    },
+    "Source stopped working. Finding a replacement…" : {},
+    "Sources" : {},
+    "Sources containing any of these whole words are skipped." : {},
+    "Sources must contain one of these words, separated by | or commas. Leave empty to allow any." : {},
+    "Sources must match this pattern (not case-sensitive). Leave empty to allow any." : {},
+    "Space / K" : {},
+    "Spanish" : {},
+    "Spanish (Latin America)" : {},
+    "Specials" : {},
+    "Speed" : {},
+    "Speed %g×" : {},
+    "Speed 1×" : {},
+    "Spoiler hidden" : {},
+    "Standalone Stremio Client" : {},
+    "Star on Github" : {},
+    "Starring" : {},
+    "Start Muted" : {},
+    "Start Over" : {},
+    "Start the best playable source. Hold Option when pressing Play to see the list." : {},
+    "Start the best source that fits your rules, or show the list if none does" : {},
+    "Start trailer muted" : {},
+    "Starting transcode..." : {},
+    "Status" : {},
+    "Stereo" : {},
+    "Stop looking and choose a source" : {},
+    "Stored On This Mac" : {},
+    "Stranger" : {},
+    "Stranger Things" : {},
+    "Stream URL not set" : {},
+    "Stream your Plex library, with Stremio available as an extra source." : {},
+    "Stream your entire Plex library with a beautiful, Netflix-inspired experience on any device." : {},
+    "Streams" : {},
+    "Stremio Addons" : {},
+    "Stremio Source" : {},
+    "Stremio Sources" : {},
+    "Stremio sources" : {},
+    "Stremio, Plex, and offline playback all use MPV on macOS." : {},
+    "Stretch" : {},
+    "Strip captions such as [MUSIC] and speaker names from text subtitles" : {},
+    "Studio" : {},
+    "Sub %lld" : {},
+    "Subtitle Source Preference" : {},
+    "Subtitle Styling" : {},
+    "Subtitle Sync" : {},
+    "Subtitle font" : {},
+    "Subtitle offset %+.1f s" : {},
+    "Subtitle offset −/+ 0.1 s" : {},
+    "Subtitle text size" : {},
+    "Subtitle vertical position" : {},
+    "Subtitles" : {},
+    "Subtitles off" : {},
+    "Subtitles: %@" : {},
+    "Subtitles: %@ • %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Subtitles: %1$@ • %2$@"
+          }
+        }
+      }
+    },
+    "Suggested" : {},
+    "Suggested Preview" : {},
+    "Suggested Rows" : {},
+    "Superb" : {},
+    "Suspenseful" : {},
+    "Swedish" : {},
+    "Switch" : {},
+    "Switch Profile" : {},
+    "Switching to %@" : {},
+    "Switching to Stremio only..." : {},
+    "Sync by Line" : {},
+    "Sync ratings" : {},
+    "Sync subtitles to line: %@" : {},
+    "Sync watchlist" : {},
+    "Sync with Trakt to track your watch history, get personalized recommendations, and discover new content." : {},
+    "System" : {},
+    "TBA" : {},
+    "THIS MAC" : {},
+    "TMDB Rating" : {},
+    "TMDB discover" : {},
+    "TMDB doesn't list any movies or shows for %@." : {},
+    "TMDB has no entry for this." : {},
+    "TMDB in Search" : {},
+    "TMDB lists nothing here for %@." : {},
+    "TMDB lists nothing here for %@. Try the other media type." : {},
+    "TMDB movie collection" : {},
+    "TMDB provides movie and TV show metadata, artwork, cast information, and logos." : {},
+    "TMDB rating" : {},
+    "TMDB rejected the request: the TMDB API key is missing or invalid." : {},
+    "TV" : {},
+    "TV Movie" : {},
+    "TV Show" : {},
+    "TV Show Libraries" : {},
+    "TV Shows" : {},
+    "TV Shows - Children" : {},
+    "TV Shows - Reality" : {},
+    "TV Shows - Suspense" : {},
+    "TV network" : {},
+    "TV shows" : {},
+    "Tabbed" : {},
+    "Talk" : {},
+    "Teal" : {},
+    "Technical" : {},
+    "Technical Details" : {},
+    "Terms of Service" : {},
+    "Terrible" : {},
+    "Test" : {},
+    "Test & Save" : {},
+    "Test Connection" : {},
+    "Test your connection to save settings" : {},
+    "Testing %@..." : {},
+    "Testing all connections..." : {},
+    "Testing connections..." : {},
+    "Testing custom endpoint..." : {},
+    "Text" : {},
+    "Text Color" : {},
+    "Text chips, or season posters with episode counts" : {},
+    "Thai" : {},
+    "That list no longer exists on Trakt" : {},
+    "The Movie Database metadata settings" : {},
+    "The New & Popular tab shows trending content, top 10 lists, and upcoming releases." : {},
+    "The One Where..." : {},
+    "The chosen source could not be started. Choose another one here." : {},
+    "The full error is also written to Settings > Logs." : {},
+    "The installed addons only returned source types that cannot be played in-app on macOS yet." : {},
+    "The stream stopped and no working replacement was found. Choose another source." : {},
+    "The stream was interrupted. Try again or pick another source." : {},
+    "These settings apply to movie and TV show detail pages." : {},
+    "These sources didn't return any titles. Edit the collection to change them." : {},
+    "Thickness" : {},
+    "This Month" : {
+      "extractionState" : "manual"
+    },
+    "This Trakt list is private or no longer exists." : {},
+    "This Week" : {
+      "extractionState" : "manual"
+    },
+    "This Year" : {},
+    "This addon is already installed. Multiple installs are only allowed for stream providers." : {},
+    "This addon requires configuration before it can return results." : {},
+    "This clears the watched state of every episode in this season." : {},
+    "This clears the watched state of every episode in this show." : {},
+    "This collection no longer exists" : {},
+    "This download couldn't be played. The file may be incomplete or damaged." : {},
+    "This episode can't be looked up from the current source." : {},
+    "This item wasn't found on Trakt" : {},
+    "This list is empty" : {},
+    "This list no longer exists on Trakt." : {},
+    "This marks every episode in this season as watched." : {},
+    "This marks every episode in this show as watched." : {},
+    "This pattern isn't valid, or repeats inside a repeat like (a+)+ and could hang, so Play will show the list of sources." : {},
+    "This person couldn't be found on TMDB." : {},
+    "This profile is protected with a PIN" : {},
+    "This removes the collection and its home row. Titles and sources aren't affected." : {},
+    "This source couldn't be loaded and no working replacement was found. Choose another source." : {},
+    "This source couldn't be loaded." : {},
+    "This source couldn't be loaded. Go back and pick another source." : {},
+    "This source returned no titles." : {},
+    "This stream type is not supported in-app." : {},
+    "This title couldn't be found on Trakt." : {},
+    "This will remove \"%@\" from your downloads." : {},
+    "This will remove this episode from your downloads." : {},
+    "This will submit a request to Overseerr. You'll be notified when it becomes available." : {},
+    "Thriller" : {},
+    "Thriller Movies" : {},
+    "Time limit for waiting on addons" : {},
+    "Title" : {},
+    "Title (A-Z)" : {},
+    "Title • A-Z" : {},
+    "Title • Z-A" : {},
+    "Titles Under Posters" : {},
+    "Titles under posters" : {},
+    "To" : {},
+    "To year" : {},
+    "Today" : {
+      "extractionState" : "manual"
+    },
+    "Toggle Picture in Picture" : {},
+    "Toggle collections to show or hide them on the home screen. Only the top 5 visible collections are displayed." : {},
+    "Toggle which content rows appear on your home screen." : {},
+    "Tomatometer score" : {},
+    "Too slow to check" : {},
+    "Top 10" : {
+      "extractionState" : "manual"
+    },
+    "Top 10 %@" : {},
+    "Top Bar" : {},
+    "Top Rated" : {},
+    "Top Rated Movies" : {},
+    "Top Rated TV Shows" : {},
+    "Top Results" : {},
+    "Top rated" : {},
+    "Torrent playback is not supported in-app" : {},
+    "Track %lld" : {},
+    "Trailer" : {},
+    "Trailers & Videos" : {},
+    "Trailers, teasers and featurettes" : {},
+    "Trakt Rows" : {},
+    "Trakt comments and reviews" : {},
+    "Trakt didn't remove anything from %@" : {},
+    "Trakt is having problems right now. Try again later." : {},
+    "Trakt is limiting requests right now. Try again in a moment." : {},
+    "Trakt list" : {},
+    "Trakt list by %@" : {},
+    "Trakt returned an error (%lld)." : {},
+    "Trakt sent an unexpected response." : {},
+    "Trakt sent data this app couldn't read." : {},
+    "Trakt user" : {},
+    "Trakt's rate limit was reached. Try again in a moment." : {},
+    "Transcoded • H.264" : {},
+    "Transfer" : {},
+    "Trending" : {},
+    "Trending Movies" : {},
+    "Trending Movies on Trakt" : {},
+    "Trending Now" : {},
+    "Trending Rows" : {},
+    "Trending TV Shows" : {},
+    "Trending TV Shows on Trakt" : {},
+    "True black instead of near-black. Looks best on OLED and mini-LED displays." : {},
+    "Try Again" : {},
+    "Try a different genre, year range or rating." : {},
+    "Try a different search or type filter." : {},
+    "Try adjusting filters or search for a different title." : {},
+    "Try loading Plex collections again" : {},
+    "Try searching for something else" : {},
+    "Turkish" : {},
+    "Turn off all discovery features" : {},
+    "Turn off all discovery features. Only show content from your Plex library." : {},
+    "Turn on a subtitle track first, then match a line to the moment it is spoken." : {},
+    "Type" : {},
+    "Type to search for movies and TV shows in your Plex library" : {},
+    "UI FPS" : {},
+    "Ukrainian" : {},
+    "Unable to connect to Overseerr server" : {},
+    "Unable to find MPV video view" : {},
+    "Unable to load Trakt profile." : {},
+    "Unable to load library" : {},
+    "Unable to play trailer" : {},
+    "Unable to set active server." : {},
+    "Unauthorized. Please sign in again." : {},
+    "Unavailable row" : {},
+    "Unified" : {},
+    "Uninstall" : {},
+    "Unknown" : {},
+    "Unknown Library" : {},
+    "Unmute any time with the speaker button on the hero" : {},
+    "Unmute trailer" : {},
+    "Unnamed Stream" : {},
+    "Unsupported Sources" : {},
+    "Unsupported stream type" : {},
+    "Untitled" : {},
+    "Untitled Collection" : {},
+    "Up next" : {},
+    "Up next · %@" : {},
+    "Up next · 1h 15m" : {},
+    "Up to %@" : {},
+    "Updating active server…" : {},
+    "Upscaling algorithm" : {},
+    "Use" : {},
+    "Use Default" : {},
+    "Use Default Name" : {},
+    "Use Flixor as a standalone Stremio app.\nYou can connect Plex later in Settings." : {},
+    "Use Stremio Only" : {},
+    "Use VideoToolbox for GPU-accelerated decoding" : {},
+    "Use an API key for authentication" : {},
+    "Use artwork from %@" : {},
+    "Use your existing Plex account (recommended)" : {},
+    "Used for auto-select, after languages remembered for a title" : {},
+    "Used for selection, progress bars, toggles and highlights. The Flixor logo always stays red." : {},
+    "User" : {},
+    "Uses your existing Plex account to authenticate with Overseerr. Your Plex account must have access to the Overseerr server." : {},
+    "VIEWING" : {},
+    "Value" : {},
+    "Version" : {},
+    "Version %@" : {},
+    "Version %lld" : {},
+    "Vertical" : {},
+    "Vertical Position" : {},
+    "Vertical: Compact list with descriptions and watched status" : {},
+    "Video" : {},
+    "Video Aspect" : {},
+    "Video aspect mode" : {},
+    "Video playback and MPV configuration" : {},
+    "Videos" : {},
+    "Vietnamese" : {},
+    "View Details" : {},
+    "View Logs" : {},
+    "View Show" : {},
+    "View on IMDb" : {},
+    "View on TMDB" : {},
+    "Violet" : {},
+    "Volume" : {},
+    "Wait for Addons" : {},
+    "Waiting for authorization..." : {},
+    "Waiting…" : {},
+    "War" : {},
+    "War & Politics" : {},
+    "Watch history" : {},
+    "Watch history and scrobbling" : {},
+    "Watch state unknown" : {},
+    "Watched" : {},
+    "Watched status" : {},
+    "Watched. Mark as unwatched" : {},
+    "Watchlist" : {},
+    "Website" : {},
+    "Welcome to\nFlixor" : {},
+    "Western" : {},
+    "When I press Play on addon content" : {},
+    "When enabled, search results will include content from The Movie Database (TMDB) in addition to your Plex library. Recommendations will also be shown when not searching." : {},
+    "When enabled, the app captures detailed logs that can help diagnose issues. Logs are stored in memory and cleared when the app restarts." : {},
+    "When enabled, this disables all external discovery features including trending rows, Trakt recommendations, Popular on Plex, New & Popular tab, and TMDB search results. Only content from your Plex library will be shown." : {},
+    "Who's Watching?" : {},
+    "Wide" : {},
+    "Winter Is Coming" : {},
+    "With Sound" : {},
+    "Words" : {},
+    "Works alongside Plex" : {},
+    "Works with Radarr and Sonarr" : {},
+    "Worth the Wait" : {
+      "extractionState" : "manual"
+    },
+    "Written By" : {},
+    "Year" : {},
+    "Year range" : {},
+    "Years: %@" : {},
+    "You already have a list with that name." : {},
+    "You can change these settings anytime in Settings → Discovery Mode" : {},
+    "You can now request movies and shows" : {},
+    "You're offline" : {},
+    "You're offline." : {},
+    "You've reached the number of lists your Trakt account allows." : {},
+    "YouTube playback is not supported in-app" : {},
+    "Your\nLibrary" : {},
+    "Your Personal Media Hub" : {},
+    "Your Trakt Watchlist" : {},
+    "Your Trakt account is locked." : {},
+    "Your Trakt rating: %lld/10" : {},
+    "Your Trakt session has expired. Reconnect Trakt in Settings." : {},
+    "Your addons provide catalogs, metadata and streams. Watch history and My List are stored on this Mac (and synced with Trakt if connected)." : {},
+    "Your collection" : {},
+    "Your collection · %@" : {},
+    "Your include pattern took too long to check. Simplify it in Settings, or choose a source here." : {},
+    "Your libraries and rows came back empty. Check your Plex server in Settings." : {},
+    "Your list is empty" : {},
+    "Your rows appear here once the home screen has loaded." : {},
+    "Your source rules have an invalid pattern. Fix it in Settings, or choose a source here." : {},
+    "Zoom" : {},
+    "another change to this item is in progress" : {},
+    "by %@" : {},
+    "connect Trakt in Settings" : {},
+    "couldn't clear saved progress" : {},
+    "couldn't find this episode on the server" : {},
+    "couldn't find this movie on the server" : {},
+    "couldn't find this season on the server" : {},
+    "couldn't find this show on the server" : {},
+    "couldn't match on Trakt" : {},
+    "couldn't read saved progress" : {},
+    "couldn't remove %lld saved progress entries" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "couldn't remove %lld saved progress entry"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "new",
+                  "value" : "couldn't remove %lld saved progress entries"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "e.g., hwdec" : {},
+    "e.g., videotoolbox" : {},
+    "error %lld" : {},
+    "from %@" : {},
+    "from Trakt" : {},
+    "github.com/Flixorui/flixor" : {},
+    "https://custom-server:32400" : {},
+    "https://example.com/manifest.json" : {},
+    "https://overseerr.example.com" : {},
+    "https://your-server.example.com:32400" : {},
+    "no TMDB or IMDb id" : {},
+    "no aired episodes found" : {},
+    "no aired episodes on Trakt" : {},
+    "no server connected" : {},
+    "not supported by this server" : {},
+    "not used in Stremio-only mode" : {},
+    "nothing to update for this item" : {},
+    "now" : {},
+    "r/Flixor" : {},
+    "rate limited, try again shortly" : {},
+    "rating must be 1-10" : {},
+    "science fiction" : {},
+    "season/episode not known yet" : {},
+    "sign-in expired" : {},
+    "this Mac" : {},
+    "this card is for new episodes; open the show to pick episodes" : {},
+    "to" : {},
+    "unsupported item" : {},
+    "user" : {}
+  },
+  "version" : "1.0"
+}

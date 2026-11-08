@@ -42,7 +42,7 @@ extension PlayerViewModel {
 
         do {
             guard let mpvController = self.mpvController else {
-                throw NSError(domain: "PlayerError", code: -1, userInfo: [NSLocalizedDescriptionKey: "MPV controller not initialized"])
+                throw NSError(domain: "PlayerError", code: -1, userInfo: [NSLocalizedDescriptionKey: String(localized: "MPV controller not initialized")])
             }
 
             var waitCount = 0
@@ -53,7 +53,7 @@ extension PlayerViewModel {
             }
 
             guard mpvController.isInitialized else {
-                throw NSError(domain: "PlayerError", code: -1, userInfo: [NSLocalizedDescriptionKey: "MPV failed to initialize"])
+                throw NSError(domain: "PlayerError", code: -1, userInfo: [NSLocalizedDescriptionKey: String(localized: "MPV failed to initialize")])
             }
 
             streamURL = URL(string: streamItem.uri)
@@ -93,7 +93,7 @@ extension PlayerViewModel {
                 "uri": streamItem.uri,
                 "error": error.localizedDescription,
             ])
-            self.error = "Failed to load Stremio stream: \(error.localizedDescription)"
+            self.error = String(localized: "Failed to load Stremio stream: \(error.localizedDescription)")
             self.isLoading = false
         }
     }

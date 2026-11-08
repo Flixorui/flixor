@@ -132,7 +132,7 @@ class MPVPiPWindowManager {
 
         // Extract the actual MPVNSView from the hosting view hierarchy
         guard let mpvView = mpvViewController.getMPVNSView() else {
-            showError(message: "Unable to find MPV video view")
+            showError(message: String(localized: "Unable to find MPV video view"))
             return
         }
 
@@ -465,10 +465,10 @@ class MPVPiPWindowManager {
 
     private func showError(message: String) {
         let alert = NSAlert()
-        alert.messageText = "Picture-in-Picture Error"
+        alert.messageText = String(localized: "Picture-in-Picture Error")
         alert.informativeText = message
         alert.alertStyle = .warning
-        alert.addButton(withTitle: "OK")
+        alert.addButton(withTitle: String(localized: "OK"))
         alert.runModal()
     }
 
@@ -519,11 +519,11 @@ class MPVPiPWindowManager {
             controlsContainer.addSubview(topBar)
             controlsContainer.addSubview(bottomBar)
 
-            configureSmallButton(returnButton, symbolName: "arrow.down.forward.and.arrow.up.backward", description: "Return to player")
-            configureSmallButton(closeButton, symbolName: "xmark", description: "Close player")
-            configureTransportButton(skipBackButton, symbolName: "gobackward.10", description: "Skip back 10 seconds", diameter: 34)
-            configureTransportButton(playPauseButton, symbolName: "pause.fill", description: "Pause", diameter: 52)
-            configureTransportButton(skipForwardButton, symbolName: "goforward.10", description: "Skip forward 10 seconds", diameter: 34)
+            configureSmallButton(returnButton, symbolName: "arrow.down.forward.and.arrow.up.backward", description: String(localized: "Return to player"))
+            configureSmallButton(closeButton, symbolName: "xmark", description: String(localized: "Close player"))
+            configureTransportButton(skipBackButton, symbolName: "gobackward.10", description: String(localized: "Skip back 10 seconds"), diameter: 34)
+            configureTransportButton(playPauseButton, symbolName: "pause.fill", description: String(localized: "Pause"), diameter: 52)
+            configureTransportButton(skipForwardButton, symbolName: "goforward.10", description: String(localized: "Skip forward 10 seconds"), diameter: 34)
 
             titleLabel.font = .systemFont(ofSize: 13, weight: .semibold)
             titleLabel.textColor = .white
@@ -723,7 +723,7 @@ class MPVPiPWindowManager {
         func updatePlayPauseState(isPlaying: Bool) {
             self.isPlaying = isPlaying
             let imageName = isPlaying ? "pause.fill" : "play.fill"
-            playPauseButton.image = NSImage(systemSymbolName: imageName, accessibilityDescription: isPlaying ? "Pause" : "Play")
+            playPauseButton.image = NSImage(systemSymbolName: imageName, accessibilityDescription: isPlaying ? String(localized: "Pause") : String(localized: "Play"))
             playPauseButton.layer?.backgroundColor = NSColor.white.withAlphaComponent(isPlaying ? 0.18 : 0.24).cgColor
         }
 

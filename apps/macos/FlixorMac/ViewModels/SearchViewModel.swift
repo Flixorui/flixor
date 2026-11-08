@@ -52,8 +52,8 @@ class SearchViewModel: ObservableObject {
 
         var label: String {
             switch self {
-            case .explore: return "Explore"
-            case .discover: return "Discover"
+            case .explore: return String(localized: "Explore")
+            case .discover: return String(localized: "Discover")
             }
         }
     }
@@ -73,20 +73,20 @@ class SearchViewModel: ObservableObject {
         /// Shown in the inline error row when the source fails.
         var failureMessage: String {
             switch self {
-            case .plex: return "Couldn't search your Plex server."
-            case .addons: return "Couldn't search your addons."
-            case .tmdb: return "Couldn't load movie and TV results."
-            case .people: return "Couldn't load people."
+            case .plex: return String(localized: "Couldn't search your Plex server.")
+            case .addons: return String(localized: "Couldn't search your addons.")
+            case .tmdb: return String(localized: "Couldn't load movie and TV results.")
+            case .people: return String(localized: "Couldn't load people.")
             }
         }
 
         /// Shown while the source is still loading after others returned.
         var loadingMessage: String {
             switch self {
-            case .plex: return "Searching your Plex server"
-            case .addons: return "Searching your addons"
-            case .tmdb: return "Searching movies and TV"
-            case .people: return "Searching people"
+            case .plex: return String(localized: "Searching your Plex server")
+            case .addons: return String(localized: "Searching your addons")
+            case .tmdb: return String(localized: "Searching movies and TV")
+            case .people: return String(localized: "Searching people")
             }
         }
     }
@@ -122,12 +122,12 @@ class SearchViewModel: ObservableObject {
 
     // TMDB Genre mapping
     static let genreMap: [Int: String] = [
-        28: "Action", 12: "Adventure", 16: "Animation", 35: "Comedy", 80: "Crime",
-        99: "Documentary", 18: "Drama", 10751: "Family", 14: "Fantasy", 36: "History",
-        27: "Horror", 10402: "Music", 9648: "Mystery", 10749: "Romance", 878: "Sci-Fi",
-        10770: "TV Movie", 53: "Thriller", 10752: "War", 37: "Western",
-        10759: "Action & Adventure", 10762: "Kids", 10763: "News", 10764: "Reality",
-        10765: "Sci-Fi & Fantasy", 10766: "Soap", 10767: "Talk", 10768: "War & Politics"
+        28: String(localized: "Action"), 12: String(localized: "Adventure"), 16: String(localized: "Animation"), 35: String(localized: "Comedy"), 80: String(localized: "Crime"),
+        99: String(localized: "Documentary"), 18: String(localized: "Drama"), 10751: String(localized: "Family"), 14: String(localized: "Fantasy"), 36: String(localized: "History"),
+        27: String(localized: "Horror"), 10402: String(localized: "Music"), 9648: String(localized: "Mystery"), 10749: String(localized: "Romance"), 878: "Sci-Fi",
+        10770: String(localized: "TV Movie"), 53: String(localized: "Thriller"), 10752: String(localized: "War"), 37: String(localized: "Western"),
+        10759: String(localized: "Action & Adventure"), 10762: String(localized: "Kids"), 10763: String(localized: "News"), 10764: String(localized: "Reality"),
+        10765: String(localized: "Sci-Fi & Fantasy"), 10766: String(localized: "Soap"), 10767: String(localized: "Talk"), 10768: String(localized: "War & Politics")
     ]
 
     private let api = APIClient.shared

@@ -196,17 +196,17 @@ enum DownloadError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .noServer:
-            return "No Plex server connected"
+            return String(localized: "No Plex server connected")
         case .invalidUrl:
-            return "Invalid download URL"
+            return String(localized: "Invalid download URL")
         case .downloadFailed(let msg):
-            return "Download failed: \(msg)"
+            return String(localized: "Download failed: \(msg)")
         case .insufficientSpace:
-            return "Not enough disk space"
+            return String(localized: "Not enough disk space")
         case .fileSystemError(let msg):
-            return "File system error: \(msg)"
+            return String(localized: "File system error: \(msg)")
         case .cancelled:
-            return "Download was cancelled"
+            return String(localized: "Download was cancelled")
         }
     }
 }

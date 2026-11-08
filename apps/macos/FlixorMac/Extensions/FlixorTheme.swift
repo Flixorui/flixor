@@ -39,16 +39,16 @@ enum AccentPalette: String, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .crimson: return "Flixor Red"
-        case .orange: return "Orange"
-        case .amber: return "Amber"
-        case .emerald: return "Emerald"
-        case .teal: return "Teal"
-        case .sky: return "Sky"
-        case .blue: return "Blue"
-        case .violet: return "Violet"
-        case .pink: return "Pink"
-        case .mono: return "Graphite"
+        case .crimson: return String(localized: "Flixor Red")
+        case .orange: return String(localized: "Orange")
+        case .amber: return String(localized: "Amber")
+        case .emerald: return String(localized: "Emerald")
+        case .teal: return String(localized: "Teal")
+        case .sky: return String(localized: "Sky")
+        case .blue: return String(localized: "Blue")
+        case .violet: return String(localized: "Violet")
+        case .pink: return String(localized: "Pink")
+        case .mono: return String(localized: "Graphite")
         }
     }
 

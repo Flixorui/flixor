@@ -21,9 +21,9 @@ final class LibraryViewModel: ObservableObject {
 
         var title: String {
             switch self {
-            case .all: return "All"
-            case .movies: return "Movies"
-            case .shows: return "TV Shows"
+            case .all: return String(localized: "All")
+            case .movies: return String(localized: "Movies")
+            case .shows: return String(localized: "TV Shows")
             }
         }
     }
@@ -42,14 +42,14 @@ final class LibraryViewModel: ObservableObject {
 
         var label: String {
             switch self {
-            case .dateAddedDesc: return "Date Added • Newest"
-            case .dateAddedAsc: return "Date Added • Oldest"
-            case .titleAsc: return "Title • A-Z"
-            case .titleDesc: return "Title • Z-A"
-            case .yearDesc: return "Release Year • Newest"
-            case .yearAsc: return "Release Year • Oldest"
-            case .ratingDesc: return "Rating • High to Low"
-            case .ratingAsc: return "Rating • Low to High"
+            case .dateAddedDesc: return String(localized: "Date Added • Newest")
+            case .dateAddedAsc: return String(localized: "Date Added • Oldest")
+            case .titleAsc: return String(localized: "Title • A-Z")
+            case .titleDesc: return String(localized: "Title • Z-A")
+            case .yearDesc: return String(localized: "Release Year • Newest")
+            case .yearAsc: return String(localized: "Release Year • Oldest")
+            case .ratingDesc: return String(localized: "Rating • High to Low")
+            case .ratingAsc: return String(localized: "Rating • Low to High")
             }
         }
 
@@ -82,8 +82,8 @@ final class LibraryViewModel: ObservableObject {
 
         var title: String {
             switch self {
-            case .library: return "Library"
-            case .collections: return "Collections"
+            case .library: return String(localized: "Library")
+            case .collections: return String(localized: "Collections")
             }
         }
     }
@@ -256,7 +256,7 @@ final class LibraryViewModel: ObservableObject {
         }
         sections = mapped.filter { $0.kind != .other }
         if sections.isEmpty {
-            errorMessage = "No Plex libraries available. Connect a Plex server in Settings."
+            errorMessage = String(localized: "No Plex libraries available. Connect a Plex server in Settings.")
         }
     }
 

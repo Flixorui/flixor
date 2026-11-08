@@ -21,8 +21,8 @@ enum NavigationStyle: String, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .topBar: return "Top Bar"
-        case .sidebar: return "Sidebar"
+        case .topBar: return String(localized: "Top Bar")
+        case .sidebar: return String(localized: "Sidebar")
         }
     }
 }

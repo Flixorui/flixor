@@ -21,8 +21,8 @@ enum DiscoverMediaType: String, Codable, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .movie: return "Movies"
-        case .tv: return "TV Shows"
+        case .movie: return String(localized: "Movies")
+        case .tv: return String(localized: "TV Shows")
         }
     }
 
@@ -45,11 +45,11 @@ enum DiscoverSortOption: String, Codable, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .popular: return "Popular"
-        case .topRated: return "Top Rated"
-        case .newest: return "Newest"
-        case .oldest: return "Oldest"
-        case .title: return "Title (A-Z)"
+        case .popular: return String(localized: "Popular")
+        case .topRated: return String(localized: "Top Rated")
+        case .newest: return String(localized: "Newest")
+        case .oldest: return String(localized: "Oldest")
+        case .title: return String(localized: "Title (A-Z)")
         }
     }
 }
@@ -139,16 +139,16 @@ struct DiscoverFilters: Codable, Equatable {
     /// Short label for the year chip.
     var yearLabel: String {
         switch (yearFrom, yearTo) {
-        case (nil, nil): return "Any"
+        case (nil, nil): return String(localized: "Any")
         case let (from?, to?) where from == to: return String(from)
         case let (from?, to?): return "\(from)-\(to)"
         case let (from?, nil): return "\(from)+"
-        case let (nil, to?): return "Before \(to + 1)"
+        case let (nil, to?): return String(localized: "Before \(String(to + 1))")
         }
     }
 
     var ratingLabel: String {
-        guard let minimumRating else { return "Any" }
+        guard let minimumRating else { return String(localized: "Any") }
         return "\(Int(minimumRating))+"
     }
 }
@@ -383,7 +383,7 @@ final class DiscoverViewModel: ObservableObject {
                 guard !Task.isCancelled, currentGeneration == generation else { return }
                 print("❌ [Discover] Page \(nextPage) failed: \(error)")
                 if items.isEmpty {
-                    errorMessage = "Couldn't load titles. Check your connection and try again."
+                    errorMessage = String(localized: "Couldn't load titles. Check your connection and try again.")
                 } else {
                     loadMoreFailed = true
                 }

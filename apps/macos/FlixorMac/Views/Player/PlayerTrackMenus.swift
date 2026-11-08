@@ -67,7 +67,7 @@ struct AudioSubtitlesModal: View {
 }
 
 private struct TabButton: View {
-    let title: String
+    let title: LocalizedStringKey
     let isSelected: Bool
     let action: () -> Void
 
@@ -151,7 +151,7 @@ private struct SubtitlesTabContent: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: DS.Space.s10) {
                     VStack(spacing: DS.Space.s2) {
-                        TrackRow(title: "Off", isSelected: viewModel.currentSubtitleTrackId == nil && viewModel.selectedExternalSubtitleId == nil) {
+                        TrackRow(title: String(localized: "Off"), isSelected: viewModel.currentSubtitleTrackId == nil && viewModel.selectedExternalSubtitleId == nil) {
                             viewModel.disableSubtitles()
                         }
 
@@ -228,7 +228,7 @@ private struct SourcesTabContent: View {
                                 .foregroundStyle(source.id == viewModel.currentStremioSourceId ? Color.accentColor : .white.opacity(0.3))
 
                             VStack(alignment: .leading, spacing: DS.Space.s4) {
-                                Text(source.title ?? source.name ?? "Source")
+                                Text(source.title ?? source.name ?? String(localized: "Source"))
                                     .font(.flixor(.callout))
                                     .foregroundStyle(.white)
                                     .lineLimit(1)
@@ -292,7 +292,7 @@ private struct TrackRow: View {
 }
 
 private struct SyncOffsetControl: View {
-    let label: String
+    let label: LocalizedStringKey
     let value: Double
     let onDecrement: () -> Void
     let onIncrement: () -> Void
@@ -344,7 +344,7 @@ private struct SyncOffsetControl: View {
 }
 
 struct CompactSliderRow: View {
-    let label: String
+    let label: LocalizedStringKey
     let value: String
     let sliderValue: Double
     let range: ClosedRange<Double>

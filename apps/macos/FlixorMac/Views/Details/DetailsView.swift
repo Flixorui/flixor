@@ -350,7 +350,7 @@ struct DetailsView: View {
         guard item.type == "episode", let showKey = item.grandparentRatingKey else { return }
         let showItem = MediaItem(
             id: "plex:\(showKey)",
-            title: item.grandparentTitle ?? "TV Show",
+            title: item.grandparentTitle ?? String(localized: "TV Show"),
             type: "show",
             thumb: item.grandparentThumb,
             art: item.grandparentArt,
@@ -490,7 +490,7 @@ struct DetailsView: View {
         }
 
         stremioAlertOffersSettings = false
-        stremioAlertMessage = "Choose an episode to use Stremio playback."
+        stremioAlertMessage = String(localized: "Choose an episode to use Stremio playback.")
         if profileSettings.detailsScreenLayout == "tabbed" {
             activeTab = "EPISODES"
         }
@@ -521,13 +521,13 @@ struct DetailsView: View {
             switch result.error {
             case .noStreamAddons:
                 stremioAlertOffersSettings = true
-                stremioAlertMessage = "No stream-capable Stremio addons are installed for this profile."
+                stremioAlertMessage = String(localized: "No stream-capable Stremio addons are installed for this profile.")
             case .unsupportedID:
                 stremioAlertOffersSettings = false
-                stremioAlertMessage = "No installed Stremio addon supports this title’s resolved ID."
+                stremioAlertMessage = String(localized: "No installed Stremio addon supports this title’s resolved ID.")
             default:
                 stremioAlertOffersSettings = false
-                stremioAlertMessage = "No compatible Stremio ID could be resolved for this title."
+                stremioAlertMessage = String(localized: "No compatible Stremio ID could be resolved for this title.")
             }
             return
         }

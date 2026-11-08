@@ -29,7 +29,7 @@ extension PlayerMarker {
 
     /// Label for the skip button: "Skip Intro", "Skip Recap", "Skip Credits", "Skip Preview".
     var skipButtonTitle: String {
-        "Skip \(segmentType?.displayName ?? type.capitalized)"
+        String(localized: "Skip \(segmentType?.displayName ?? type.capitalized)")
     }
 
     /// Builds a marker from a community segment. Open-ended segments need the

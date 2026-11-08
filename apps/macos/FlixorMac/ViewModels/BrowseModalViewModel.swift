@@ -137,45 +137,44 @@ class BrowseModalViewModel: ObservableObject {
     private func headerText(for context: BrowseContext) -> (title: String, subtitle: String?) {
         switch context {
         case .plexDirectory(_, let customTitle):
-            return (customTitle ?? "Browse", nil)
+            return (customTitle ?? String(localized: "Browse"), nil)
         case .plexLibrary(_, let libraryTitle):
-            return (libraryTitle ?? "Library", "All titles")
+            return (libraryTitle ?? String(localized: "Library"), String(localized: "All titles"))
         case .plexWatchlist:
-            return ("Watchlist", "Plex.tv")
+            return (String(localized: "Watchlist"), "Plex.tv")
         case .plexCollection(_, let collectionTitle):
-            return (collectionTitle, "Collection")
+            return (collectionTitle, String(localized: "Collection"))
         case .tmdb(let kind, let media, _, let display):
-            let mediaLabel = media == .movie ? "Movies" : "TV Shows"
             switch kind {
             case .trending:
-                return ("Trending", "TMDB")
+                return (String(localized: "Trending"), "TMDB")
             case .recommendations:
-                return ("Recommendations", display)
+                return (String(localized: "Recommendations"), display)
             case .similar:
-                return ("More Like This", display)
+                return (String(localized: "More Like This"), display)
             case .popular:
-                return (display ?? "Popular \(mediaLabel)", "TMDB")
+                return (display ?? (media == .movie ? String(localized: "Popular Movies") : String(localized: "Popular TV Shows")), "TMDB")
             case .topRated:
-                return (display ?? "Top Rated \(mediaLabel)", "TMDB")
+                return (display ?? (media == .movie ? String(localized: "Top Rated Movies") : String(localized: "Top Rated TV Shows")), "TMDB")
             case .upcoming:
-                return (display ?? "Coming Soon", "TMDB")
+                return (display ?? String(localized: "Coming Soon"), "TMDB")
             case .genre:
-                return (display ?? "Browse", "TMDB")
+                return (display ?? String(localized: "Browse"), "TMDB")
             }
         case .trakt(let kind):
             switch kind {
             case .trendingMovies:
-                return ("Trending Movies", "Trakt")
+                return (String(localized: "Trending Movies"), "Trakt")
             case .trendingShows:
-                return ("Trending TV Shows", "Trakt")
+                return (String(localized: "Trending TV Shows"), "Trakt")
             case .watchlist:
-                return ("Your Trakt Watchlist", nil)
+                return (String(localized: "Your Trakt Watchlist"), nil)
             case .history:
-                return ("Recently Watched", "Trakt")
+                return (String(localized: "Recently Watched"), "Trakt")
             case .recommendations:
-                return ("Recommended for You", "Trakt")
+                return (String(localized: "Recommended for You"), "Trakt")
             case .popularShows:
-                return ("Popular TV Shows", "Trakt")
+                return (String(localized: "Popular TV Shows"), "Trakt")
             }
         }
     }
@@ -254,7 +253,7 @@ class BrowseModalViewModel: ObservableObject {
         return items.map { plex in
             MediaItem(
                 id: plex.ratingKey ?? plex.key ?? "",
-                title: plex.title ?? "Unknown",
+                title: plex.title ?? String(localized: "Unknown"),
                 type: plex.type ?? "unknown",
                 thumb: plex.thumb,
                 art: plex.art,

@@ -163,8 +163,8 @@ extension PlayerViewModel {
             "attempts": streamRecoveryAttempts,
         ])
         failPlayback(early
-            ? "This source couldn't be loaded and no working replacement was found. Choose another source."
-            : "The stream stopped and no working replacement was found. Choose another source.")
+            ? String(localized: "This source couldn't be loaded and no working replacement was found. Choose another source.")
+            : String(localized: "The stream stopped and no working replacement was found. Choose another source."))
     }
 
     /// Clears the "recovering" status once a replacement has loaded.

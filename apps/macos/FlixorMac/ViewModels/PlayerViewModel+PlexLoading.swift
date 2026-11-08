@@ -55,11 +55,11 @@ extension PlayerViewModel {
                 }
             } else {
                 // Already using HLS, can't retry further
-                failPlayback("Failed to load video. Please check your network connection and try again.")
+                failPlayback(String(localized: "Failed to load video. Please check your network connection and try again."))
             }
         case .plex:
             Task { await self.reportProgress() }
-            failPlayback("Playback was interrupted. Check your connection and try again.")
+            failPlayback(String(localized: "Playback was interrupted. Check your connection and try again."))
         case .stream:
             print("❌ [Player] Stream source failed (early: \(early))")
             // Dying in the last moments counts as finishing; recovering would only
@@ -81,10 +81,10 @@ extension PlayerViewModel {
             }
             if !early { Task { await self.reportProgress() } }
             failPlayback(early
-                ? "This source couldn't be loaded. Go back and pick another source."
-                : "The stream was interrupted. Try again or pick another source.")
+                ? String(localized: "This source couldn't be loaded. Go back and pick another source.")
+                : String(localized: "The stream was interrupted. Try again or pick another source."))
         case .offline:
-            failPlayback("This download couldn't be played. The file may be incomplete or damaged.")
+            failPlayback(String(localized: "This download couldn't be played. The file may be incomplete or damaged."))
         }
     }
 
@@ -123,7 +123,7 @@ extension PlayerViewModel {
                 throw NSError(
                     domain: "PlayerError",
                     code: -1,
-                    userInfo: [NSLocalizedDescriptionKey: "Cannot play non-Plex content. Item must be in your Plex library.\n\nID: \(item.id)"]
+                    userInfo: [NSLocalizedDescriptionKey: String(localized: "Cannot play non-Plex content. Item must be in your Plex library.\n\nID: \(item.id)")]
                 )
             }
 
@@ -132,7 +132,7 @@ extension PlayerViewModel {
                 throw NSError(
                     domain: "PlayerError",
                     code: -2,
-                    userInfo: [NSLocalizedDescriptionKey: "Cannot play \(item.type) type. Only movies and episodes can be played.\n\nPlease select an episode from the show."]
+                    userInfo: [NSLocalizedDescriptionKey: String(localized: "Cannot play \(item.type) type. Only movies and episodes can be played.\n\nPlease select an episode from the show.")]
                 )
             }
 
@@ -140,7 +140,7 @@ extension PlayerViewModel {
             let ratingKey = item.id.replacingOccurrences(of: "plex:", with: "")
 
             guard !ratingKey.isEmpty else {
-                throw NSError(domain: "PlayerError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid item ID: \(item.id)"])
+                throw NSError(domain: "PlayerError", code: -1, userInfo: [NSLocalizedDescriptionKey: String(localized: "Invalid item ID: \(item.id)")])
             }
 
             print("📺 [Player] Fetching stream URL for ratingKey: \(ratingKey)")
@@ -169,7 +169,7 @@ extension PlayerViewModel {
             // Get Plex server connection details (like mobile app)
             let servers = try await api.getPlexServers()
             guard let activeServer = servers.first(where: { $0.isActive == true }) else {
-                throw NSError(domain: "PlayerError", code: -1, userInfo: [NSLocalizedDescriptionKey: "No active Plex server configured"])
+                throw NSError(domain: "PlayerError", code: -1, userInfo: [NSLocalizedDescriptionKey: String(localized: "No active Plex server configured")])
             }
 
             print("📺 [Player] Using server: \(activeServer.name)")
@@ -182,7 +182,7 @@ extension PlayerViewModel {
                     ?? connections.first(where: { $0.isPreferred == true })
                     ?? connections.first(where: { $0.local == true })
                     ?? connections.first else {
-                throw NSError(domain: "PlayerError", code: -1, userInfo: [NSLocalizedDescriptionKey: "No Plex server connection available"])
+                throw NSError(domain: "PlayerError", code: -1, userInfo: [NSLocalizedDescriptionKey: String(localized: "No Plex server connection available")])
             }
 
             let baseUrl = selectedConnection.uri.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
@@ -197,7 +197,7 @@ extension PlayerViewModel {
                 $0.clientIdentifier == activeServer.id ||
                 $0.clientIdentifier == activeServer.machineIdentifier
             }), let token = serverWithToken.token as String? else {
-                throw NSError(domain: "PlayerError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Could not get Plex access token"])
+                throw NSError(domain: "PlayerError", code: -1, userInfo: [NSLocalizedDescriptionKey: String(localized: "Could not get Plex access token")])
             }
 
             // Store for cleanup
@@ -270,7 +270,7 @@ extension PlayerViewModel {
                 )
                 print("📺 [Player] Received stream URL: \(response.url)")
                 guard let u = URL(string: response.url) else {
-                    throw NSError(domain: "PlayerError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid stream URL"])
+                    throw NSError(domain: "PlayerError", code: -1, userInfo: [NSLocalizedDescriptionKey: String(localized: "Invalid stream URL")])
                 }
                 startURL = u
                 self.currentURLIsHLS = true
@@ -300,12 +300,12 @@ extension PlayerViewModel {
 
             // Initialize player
             guard let finalURL = self.streamURL else {
-                throw NSError(domain: "PlayerError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Stream URL not set"])
+                throw NSError(domain: "PlayerError", code: -1, userInfo: [NSLocalizedDescriptionKey: String(localized: "Stream URL not set")])
             }
 
             // Load file in MPV
             guard let mpvController = self.mpvController else {
-                throw NSError(domain: "PlayerError", code: -1, userInfo: [NSLocalizedDescriptionKey: "MPV controller not initialized"])
+                throw NSError(domain: "PlayerError", code: -1, userInfo: [NSLocalizedDescriptionKey: String(localized: "MPV controller not initialized")])
             }
 
             // Wait for MPV to be initialized (view must be in window first)
@@ -318,7 +318,7 @@ extension PlayerViewModel {
             }
 
             guard mpvController.isInitialized else {
-                throw NSError(domain: "PlayerError", code: -1, userInfo: [NSLocalizedDescriptionKey: "MPV failed to initialize (timeout)"])
+                throw NSError(domain: "PlayerError", code: -1, userInfo: [NSLocalizedDescriptionKey: String(localized: "MPV failed to initialize (timeout)")])
             }
 
             print("🎬 [MPV] Loading file: \(finalURL.absoluteString)")
@@ -346,7 +346,7 @@ extension PlayerViewModel {
                 return
             }
 
-            self.error = "Failed to load video stream: \(error.localizedDescription)"
+            self.error = String(localized: "Failed to load video stream: \(error.localizedDescription)")
             self.isLoading = false
         }
     }
@@ -569,7 +569,7 @@ extension PlayerViewModel {
                 queryItems: buildTranscodeQueryItems(quality: selectedQuality)
             )
             guard let url = URL(string: response.url) else {
-                throw NSError(domain: "PlayerError", code: -2, userInfo: [NSLocalizedDescriptionKey: "Invalid HLS URL"])
+                throw NSError(domain: "PlayerError", code: -2, userInfo: [NSLocalizedDescriptionKey: String(localized: "Invalid HLS URL")])
             }
 
             self.streamURL = url
@@ -613,7 +613,7 @@ extension PlayerViewModel {
             let savedPosition = currentTime > 2 ? currentTime : 0
 
             guard let mpvController = self.mpvController else {
-                throw NSError(domain: "PlayerError", code: -1, userInfo: [NSLocalizedDescriptionKey: "MPV controller not available"])
+                throw NSError(domain: "PlayerError", code: -1, userInfo: [NSLocalizedDescriptionKey: String(localized: "MPV controller not available")])
             }
 
             print("🎬 [MPV] Loading HLS stream")
@@ -634,7 +634,7 @@ extension PlayerViewModel {
 
         } catch {
             print("❌ [Player] HLS fallback failed: \(error)")
-            self.error = "Failed to load video: \(error.localizedDescription)"
+            self.error = String(localized: "Failed to load video: \(error.localizedDescription)")
             self.isLoading = false
             self.isPlaying = false
         }

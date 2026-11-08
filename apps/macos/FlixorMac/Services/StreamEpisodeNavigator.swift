@@ -157,7 +157,7 @@ enum StreamEpisodeNavigator {
                 return StreamEpisodeInfo(
                     season: season,
                     episode: episode,
-                    title: video.title ?? "Episode \(episode)",
+                    title: video.title ?? String(localized: "Episode \(String(episode))"),
                     overview: video.overview,
                     stillURL: video.thumbnail,
                     airDate: video.released,

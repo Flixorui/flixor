@@ -34,44 +34,44 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .plex: return "Plex"
-        case .player: return "Player"
-        case .discoveryMode: return "Discovery Mode"
-        case .catalog: return "Catalogs"
-        case .rowsSettings: return "Rows Settings"
-        case .sidebar: return "NavBar"
-        case .search: return "Search"
-        case .appearance: return "Appearance"
-        case .homeScreenAppearance: return "Home Screen"
-        case .detailsScreen: return "Details Screen"
+        case .player: return String(localized: "Player")
+        case .discoveryMode: return String(localized: "Discovery Mode")
+        case .catalog: return String(localized: "Catalogs")
+        case .rowsSettings: return String(localized: "Rows Settings")
+        case .sidebar: return String(localized: "NavBar")
+        case .search: return String(localized: "Search")
+        case .appearance: return String(localized: "Appearance")
+        case .homeScreenAppearance: return String(localized: "Home Screen")
+        case .detailsScreen: return String(localized: "Details Screen")
         case .tmdb: return "TMDB"
         case .stremio: return "Stremio"
         case .mdblist: return "MDBList"
         case .overseerr: return "Overseerr"
         case .trakt: return "Trakt"
-        case .advanced: return "Advanced"
-        case .about: return "About"
+        case .advanced: return String(localized: "Advanced")
+        case .about: return String(localized: "About")
         }
     }
 
     var description: String {
         switch self {
-        case .plex: return "Manage your Plex server connections"
-        case .player: return "Video playback and MPV configuration"
-        case .discoveryMode: return "Control external content discovery features"
-        case .catalog: return "Configure library visibility and filtering"
-        case .rowsSettings: return "Choose which content rows to display"
-        case .sidebar: return "Configure navigation tabs visibility"
-        case .search: return "Configure search sources and behavior"
-        case .appearance: return "Accent color and background style"
-        case .homeScreenAppearance: return "Customize hero, posters and visual appearance"
-        case .detailsScreen: return "Episode display and layout options"
-        case .tmdb: return "The Movie Database metadata settings"
-        case .stremio: return "Addon sources, subtitles, and alternate playback"
-        case .mdblist: return "Multi-source ratings aggregation"
-        case .overseerr: return "Media request management integration"
-        case .trakt: return "Watch history and scrobbling"
-        case .advanced: return "Debug logging and diagnostics"
-        case .about: return "App information and credits"
+        case .plex: return String(localized: "Manage your Plex server connections")
+        case .player: return String(localized: "Video playback and MPV configuration")
+        case .discoveryMode: return String(localized: "Control external content discovery features")
+        case .catalog: return String(localized: "Configure library visibility and filtering")
+        case .rowsSettings: return String(localized: "Choose which content rows to display")
+        case .sidebar: return String(localized: "Configure navigation tabs visibility")
+        case .search: return String(localized: "Configure search sources and behavior")
+        case .appearance: return String(localized: "Accent color and background style")
+        case .homeScreenAppearance: return String(localized: "Customize hero, posters and visual appearance")
+        case .detailsScreen: return String(localized: "Episode display and layout options")
+        case .tmdb: return String(localized: "The Movie Database metadata settings")
+        case .stremio: return String(localized: "Addon sources, subtitles, and alternate playback")
+        case .mdblist: return String(localized: "Multi-source ratings aggregation")
+        case .overseerr: return String(localized: "Media request management integration")
+        case .trakt: return String(localized: "Watch history and scrobbling")
+        case .advanced: return String(localized: "Debug logging and diagnostics")
+        case .about: return String(localized: "App information and credits")
         }
     }
 
@@ -220,12 +220,12 @@ private struct SidebarSection {
 
     static var all: [SidebarSection] {
         [
-            SidebarSection(title: "Account", categories: [.plex]),
-            SidebarSection(title: "Player", categories: [.player]),
-            SidebarSection(title: "Content & Discovery", categories: [.discoveryMode, .catalog, .rowsSettings, .sidebar, .search]),
-            SidebarSection(title: "Appearance", categories: [.appearance, .homeScreenAppearance, .detailsScreen]),
-            SidebarSection(title: "Integrations", categories: [.tmdb, .stremio, .mdblist, .overseerr, .trakt]),
-            SidebarSection(title: "System", categories: [.advanced, .about])
+            SidebarSection(title: String(localized: "Account"), categories: [.plex]),
+            SidebarSection(title: String(localized: "Player"), categories: [.player]),
+            SidebarSection(title: String(localized: "Content & Discovery"), categories: [.discoveryMode, .catalog, .rowsSettings, .sidebar, .search]),
+            SidebarSection(title: String(localized: "Appearance"), categories: [.appearance, .homeScreenAppearance, .detailsScreen]),
+            SidebarSection(title: String(localized: "Integrations"), categories: [.tmdb, .stremio, .mdblist, .overseerr, .trakt]),
+            SidebarSection(title: String(localized: "System"), categories: [.advanced, .about])
         ]
     }
 }
@@ -417,7 +417,7 @@ struct SettingsView: View {
     /// already set up.
     private func categoryDescription(for category: SettingsCategory) -> String {
         if category == .plex && appMode.isStremioOnly {
-            return "Optional. Connect a Plex account to add your own library alongside Stremio."
+            return String(localized: "Optional. Connect a Plex account to add your own library alongside Stremio.")
         }
         return category.description
     }
@@ -527,10 +527,11 @@ struct SettingsGroupCard<Content: View>: View {
 // MARK: - Settings Section Header
 
 struct SettingsSectionHeader: View {
-    let title: String
+    let title: LocalizedStringKey
 
     var body: some View {
-        Text(title.uppercased())
+        Text(title)
+            .textCase(.uppercase)
             .font(.flixor(.caption, weight: .medium))
             .foregroundStyle(.secondary)
             .padding(.leading, DS.Space.s4)
@@ -542,8 +543,8 @@ struct SettingsSectionHeader: View {
 struct SettingsRow<Trailing: View>: View {
     let icon: String?
     let iconColor: Color
-    let title: String
-    let subtitle: String?
+    let title: LocalizedStringKey
+    let subtitle: LocalizedStringKey?
     let showChevron: Bool
     let showDivider: Bool
     let useImageAsset: Bool
@@ -552,8 +553,8 @@ struct SettingsRow<Trailing: View>: View {
     init(
         icon: String? = nil,
         iconColor: Color = .gray,
-        title: String,
-        subtitle: String? = nil,
+        title: LocalizedStringKey,
+        subtitle: LocalizedStringKey? = nil,
         showChevron: Bool = false,
         showDivider: Bool = true,
         useImageAsset: Bool = false,
@@ -630,16 +631,16 @@ struct SettingsRow<Trailing: View>: View {
 struct SettingsNavigationRow: View {
     let icon: String?
     let iconColor: Color
-    let title: String
-    let subtitle: String?
+    let title: LocalizedStringKey
+    let subtitle: LocalizedStringKey?
     let showDivider: Bool
     let action: () -> Void
 
     init(
         icon: String? = nil,
         iconColor: Color = .gray,
-        title: String,
-        subtitle: String? = nil,
+        title: LocalizedStringKey,
+        subtitle: LocalizedStringKey? = nil,
         showDivider: Bool = true,
         action: @escaping () -> Void
     ) {
@@ -961,7 +962,7 @@ private struct TraktSettingsContent: View {
                         let pb = NSPasteboard.general
                         pb.clearContents()
                         pb.setString(code.user_code, forType: .string)
-                        statusMessage = "Code copied!"
+                        statusMessage = String(localized: "Code copied!")
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
@@ -1006,7 +1007,7 @@ private struct TraktSettingsContent: View {
         } catch {
             profile = nil
             if force {
-                errorMessage = "Unable to load Trakt profile."
+                errorMessage = String(localized: "Unable to load Trakt profile.")
             }
         }
     }
@@ -1025,10 +1026,10 @@ private struct TraktSettingsContent: View {
             let code = try await APIClient.shared.traktDeviceCode()
             deviceCode = code
             expiresAt = Date().addingTimeInterval(TimeInterval(code.expires_in))
-            statusMessage = "Waiting for authorization..."
+            statusMessage = String(localized: "Waiting for authorization...")
             beginPolling(deviceCode: code)
         } catch {
-            errorMessage = "Failed to start Trakt device flow."
+            errorMessage = String(localized: "Failed to start Trakt device flow.")
         }
     }
 
@@ -1042,7 +1043,7 @@ private struct TraktSettingsContent: View {
                 if Date() > expiry {
                     await MainActor.run {
                         statusMessage = nil
-                        errorMessage = "Device code expired. Please try again."
+                        errorMessage = String(localized: "Device code expired. Please try again.")
                         self.deviceCode = nil
                     }
                     return
@@ -1052,7 +1053,7 @@ private struct TraktSettingsContent: View {
                     let response = try await APIClient.shared.traktDeviceToken(code: deviceCode.device_code)
                     if response.ok {
                         await MainActor.run {
-                            statusMessage = "Connected successfully!"
+                            statusMessage = String(localized: "Connected successfully!")
                             self.deviceCode = nil
                         }
                         await refreshProfile(force: true)
@@ -1083,7 +1084,7 @@ private struct TraktSettingsContent: View {
             _ = try await APIClient.shared.traktSignOut()
             profile = nil
         } catch {
-            errorMessage = "Failed to disconnect."
+            errorMessage = String(localized: "Failed to disconnect.")
         }
     }
 }
@@ -1124,7 +1125,7 @@ private struct AdvancedSettingsContent: View {
                     icon: "doc.text.fill",
                     iconColor: .blue,
                     title: "View Logs",
-                    subtitle: "\(logger.logCount) \(logger.logCount == 1 ? "entry" : "entries")",
+                    subtitle: "\(logger.logCount) entries",
                     showDivider: false
                 ) {
                     showLogsSheet = true
@@ -1262,10 +1263,10 @@ private struct AboutSettingsContent: View {
 // MARK: - Legacy Components (for compatibility)
 
 struct SettingsCard<Content: View>: View {
-    let title: String?
+    let title: LocalizedStringKey?
     @ViewBuilder let content: () -> Content
 
-    init(title: String? = nil, @ViewBuilder content: @escaping () -> Content) {
+    init(title: LocalizedStringKey? = nil, @ViewBuilder content: @escaping () -> Content) {
         self.title = title
         self.content = content
     }
@@ -1273,7 +1274,8 @@ struct SettingsCard<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Space.s8) {
             if let title {
-                Text(title.uppercased())
+                Text(title)
+                    .textCase(.uppercase)
                     .font(.flixor(.caption, weight: .medium))
                     .foregroundStyle(.secondary)
                     .padding(.leading, DS.Space.s4)
@@ -1288,16 +1290,16 @@ struct SettingsCard<Content: View>: View {
 struct SettingRow<TrailingContent: View>: View {
     let icon: String
     let iconColor: Color
-    let title: String
-    let description: String?
+    let title: LocalizedStringKey
+    let description: LocalizedStringKey?
     let showDivider: Bool
     @ViewBuilder let trailing: () -> TrailingContent
 
     init(
         icon: String,
         iconColor: Color = .gray,
-        title: String,
-        description: String? = nil,
+        title: LocalizedStringKey,
+        description: LocalizedStringKey? = nil,
         showDivider: Bool = true,
         @ViewBuilder trailing: @escaping () -> TrailingContent
     ) {
@@ -1324,8 +1326,8 @@ struct SettingRow<TrailingContent: View>: View {
 struct StatusCard: View {
     let icon: String
     let color: Color
-    let title: String
-    let description: String
+    let title: LocalizedStringKey
+    let description: LocalizedStringKey
 
     var body: some View {
         HStack(spacing: DS.Space.s12) {

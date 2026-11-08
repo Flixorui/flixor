@@ -120,7 +120,7 @@ extension DetailsViewModel {
                 do {
                     print("📦 [Details] Fetching Plex metadata for ratingKey: \(rk)")
                     guard let plexServer = FlixorCore.shared.plexServer else {
-                        throw NSError(domain: "DetailsVM", code: -1, userInfo: [NSLocalizedDescriptionKey: "No Plex server connected"])
+                        throw NSError(domain: "DetailsVM", code: -1, userInfo: [NSLocalizedDescriptionKey: String(localized: "No Plex server connected")])
                     }
                     let plexItem = try await plexServer.getMetadata(ratingKey: rk)
                     let meta = plexItemToMeta(plexItem)
@@ -396,13 +396,13 @@ extension DetailsViewModel {
     func deriveTags(from genres: [String]) -> [String] {
         let lower = Set(genres.map { $0.lowercased() })
         var tags: [String] = []
-        if lower.contains("horror") { tags.append(contentsOf: ["Scary", "Suspenseful"]) }
-        if lower.contains("mystery") { tags.append("Mystery") }
-        if lower.contains("action") { tags.append("Exciting") }
-        if lower.contains("comedy") { tags.append("Funny") }
-        if lower.contains("drama") { tags.append("Emotional") }
-        if lower.contains("thriller") { tags.append("Suspenseful") }
-        if lower.contains("sci-fi") || lower.contains("science fiction") { tags.append("Mind-bending") }
+        if lower.contains("horror") { tags.append(contentsOf: [String(localized: "Scary"), String(localized: "Suspenseful")]) }
+        if lower.contains("mystery") { tags.append(String(localized: "Mystery")) }
+        if lower.contains("action") { tags.append(String(localized: "Exciting")) }
+        if lower.contains("comedy") { tags.append(String(localized: "Funny")) }
+        if lower.contains("drama") { tags.append(String(localized: "Emotional")) }
+        if lower.contains("thriller") { tags.append(String(localized: "Suspenseful")) }
+        if lower.contains("sci-fi") || lower.contains(String(localized: "science fiction")) { tags.append("Mind-bending") }
         // Dedupe and limit
         var seen = Set<String>()
         let out = tags.filter { seen.insert($0).inserted }

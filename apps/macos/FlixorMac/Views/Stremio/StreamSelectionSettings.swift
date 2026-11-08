@@ -41,7 +41,7 @@ struct StreamPlayActionRows: View {
             icon: "bolt.fill",
             iconColor: .yellow,
             title: "When I press Play on addon content",
-            subtitle: store.action.settingsSubtitle
+            subtitle: .verbatim(store.action.settingsSubtitle)
         ) {
             Picker("", selection: $store.action) {
                 ForEach(StremioPlayAction.allCases) { action in
@@ -77,11 +77,11 @@ private extension StremioPlayAction {
     var settingsSubtitle: String {
         switch self {
         case .showSources:
-            return "Always open the list of sources"
+            return String(localized: "Always open the list of sources")
         case .playBest:
-            return "Start the best playable source. Hold Option when pressing Play to see the list."
+            return String(localized: "Start the best playable source. Hold Option when pressing Play to see the list.")
         case .matchRules:
-            return "Start the best source that fits your rules, or show the list if none does"
+            return String(localized: "Start the best source that fits your rules, or show the list if none does")
         }
     }
 }
@@ -260,11 +260,11 @@ struct StreamRulesEditor: View {
 private extension StreamRuleVerdict {
     var previewLabel: String {
         switch self {
-        case .match: return "Matches"
-        case .timedOut: return "Too slow to check"
-        case .missingInclude: return "No include match"
-        case .excluded(let word): return "Excluded: \(word)"
-        case .aboveResolutionLimit: return "Above limit"
+        case .match: return String(localized: "Matches")
+        case .timedOut: return String(localized: "Too slow to check")
+        case .missingInclude: return String(localized: "No include match")
+        case .excluded(let word): return String(localized: "Excluded: \(word)")
+        case .aboveResolutionLimit: return String(localized: "Above limit")
         }
     }
 }

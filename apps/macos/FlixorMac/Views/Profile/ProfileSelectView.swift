@@ -282,7 +282,7 @@ struct ProfileSelectView: View {
             dismiss()
         } catch {
             if error.localizedDescription.contains("Invalid PIN") {
-                errorMessage = "Invalid PIN. Please try again."
+                errorMessage = String(localized: "Invalid PIN. Please try again.")
                 if user.protected {
                     showPinEntry = true
                 }

@@ -51,7 +51,7 @@ final class HoverPreviewModel: ObservableObject {
         year = item.year.map(String.init)
         runtime = Self.formatRuntime(minutes: item.duration.map { $0 / 60_000 })
         rating = item.rating.flatMap { $0 > 0 ? $0 : nil }
-        overview = item.summary.flatMap { $0.isEmpty || $0.contains("new episode") ? nil : $0 }
+        overview = item.summary.flatMap { $0.isEmpty || item.isGroupedRecentlyAddedShow ? nil : $0 }
         backdropURL = ImageService.shared.continueWatchingURL(for: item, width: 960, height: 540)
     }
 
@@ -150,7 +150,7 @@ final class HoverPreviewModel: ObservableObject {
         guard let minutes, minutes > 0 else { return nil }
         let hours = minutes / 60
         let rest = minutes % 60
-        if hours == 0 { return "\(rest)m" }
-        return rest == 0 ? "\(hours)h" : "\(hours)h \(rest)m"
+        if hours == 0 { return String(localized: "\(rest)m") }
+        return rest == 0 ? String(localized: "\(hours)h") : String(localized: "\(hours)h \(rest)m")
     }
 }

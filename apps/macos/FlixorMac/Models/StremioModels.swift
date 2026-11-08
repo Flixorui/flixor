@@ -38,9 +38,9 @@ enum StremioUnsupportedSourceVisibility: String, Codable, CaseIterable, Hashable
     var description: String {
         switch self {
         case .showDisabled:
-            return "Show Disabled Sources"
+            return String(localized: "Show Disabled Sources")
         case .hide:
-            return "Hide Unsupported Sources"
+            return String(localized: "Hide Unsupported Sources")
         }
     }
 }
@@ -53,11 +53,11 @@ enum SubtitleSourcePreference: String, Codable, CaseIterable, Hashable {
     var description: String {
         switch self {
         case .internal:
-            return "Prefer Internal"
+            return String(localized: "Prefer Internal")
         case .external:
-            return "Prefer External"
+            return String(localized: "Prefer External")
         case .any:
-            return "Any Source"
+            return String(localized: "Any Source")
         }
     }
 }

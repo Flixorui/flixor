@@ -178,14 +178,14 @@ extension PlayerView {
             stepSpeed(by: Self.speedStep)
         case "/":
             viewModel.setPlaybackSpeed(1.0)
-            showKeyboardFeedback("Speed 1×")
+            showKeyboardFeedback(String(localized: "Speed 1×"))
         case "n":
             guard event.modifierFlags.contains(.shift) else { return false }
             if !isRepeat { viewModel.playNext() }
         case "a":
             guard !isRepeat else { return true }
             viewModel.cycleAspectMode()
-            showKeyboardFeedback("Aspect: \(viewModel.aspectMode.displayName)")
+            showKeyboardFeedback(String(localized: "Aspect: \(viewModel.aspectMode.displayName)"))
         case "?":
             if !isRepeat {
                 withAnimation(DS.Motion.standard) { showShortcutsOverlay.toggle() }
@@ -226,14 +226,14 @@ extension PlayerView {
 
     private func stepSpeed(by delta: Float) {
         viewModel.stepPlaybackSpeed(by: delta)
-        showKeyboardFeedback(String(format: "Speed %g×", viewModel.playbackSpeed))
+        showKeyboardFeedback(String(format: String(localized: "Speed %g×"), viewModel.playbackSpeed))
     }
 
     private func adjustSubtitleDelay(by delta: Double) {
         let limit = Self.subtitleDelayLimit
         let delay = min(limit, max(-limit, ((viewModel.subtitleDelay + delta) * 1000).rounded() / 1000))
         viewModel.setSubtitleDelay(delay)
-        showKeyboardFeedback(String(format: "Subtitle offset %+.1f s", delay))
+        showKeyboardFeedback(String(format: String(localized: "Subtitle offset %+.1f s"), delay))
     }
 
     /// Off -> embedded tracks -> addon subtitles -> Off.
@@ -241,7 +241,7 @@ extension PlayerView {
         let embedded = viewModel.availableSubtitleTracks
         let external = viewModel.availableExternalSubtitleOptions
         guard !embedded.isEmpty || !external.isEmpty else {
-            showKeyboardFeedback("No subtitle tracks")
+            showKeyboardFeedback(String(localized: "No subtitle tracks"))
             return
         }
 
@@ -258,28 +258,28 @@ extension PlayerView {
         let next = (current + 1) % (1 + embedded.count + external.count)
         if next == 0 {
             viewModel.disableSubtitles()
-            showKeyboardFeedback("Subtitles off")
+            showKeyboardFeedback(String(localized: "Subtitles off"))
         } else if next <= embedded.count {
             let track = embedded[next - 1]
             viewModel.setSubtitleTrack(track.id)
-            showKeyboardFeedback("Subtitles: \(track.displayName)")
+            showKeyboardFeedback(String(localized: "Subtitles: \(track.displayName)"))
         } else {
             let subtitle = external[next - 1 - embedded.count]
             viewModel.loadExternalSubtitle(subtitle)
-            showKeyboardFeedback("Subtitles: \(subtitle.lang.uppercased()) • \(subtitle.addonName ?? "Stremio")")
+            showKeyboardFeedback(String(localized: "Subtitles: \(subtitle.lang.uppercased()) • \(subtitle.addonName ?? "Stremio")"))
         }
     }
 
     private func cycleAudioTrack() {
         let tracks = viewModel.availableAudioTracks
         guard tracks.count > 1 else {
-            showKeyboardFeedback(tracks.isEmpty ? "No audio tracks" : "Only one audio track")
+            showKeyboardFeedback(tracks.isEmpty ? String(localized: "No audio tracks") : String(localized: "Only one audio track"))
             return
         }
         let current = tracks.firstIndex(where: { $0.id == viewModel.currentAudioTrackId }) ?? -1
         let track = tracks[(current + 1) % tracks.count]
         viewModel.setAudioTrack(track.id)
-        showKeyboardFeedback("Audio: \(track.displayName)")
+        showKeyboardFeedback(String(localized: "Audio: \(track.displayName)"))
     }
 
     /// Brief confirmation for shortcuts that change something off-screen.

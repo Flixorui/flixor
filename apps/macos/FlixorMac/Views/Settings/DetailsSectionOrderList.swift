@@ -81,8 +81,8 @@ struct DetailsSectionOrderList: View {
             SettingsRow(
                 icon: key.icon,
                 iconColor: iconColor(for: key),
-                title: key.title,
-                subtitle: key.subtitle,
+                title: .verbatim(key.title),
+                subtitle: .verbatim(key.subtitle),
                 showDivider: !isLast
             ) {
                 HStack(spacing: DS.Space.s4) {

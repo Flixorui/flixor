@@ -1554,7 +1554,7 @@ struct MPVTrack {
         if let lang = lang, !lang.isEmpty {
             return lang.uppercased()
         }
-        return "Track \(id)"
+        return String(localized: "Track \(id)")
     }
 }
 
@@ -1570,7 +1570,7 @@ struct MPVChapter: Identifiable {
         if let title = title, !title.isEmpty {
             return title
         }
-        return "Chapter \(index + 1)"
+        return String(localized: "Chapter \(index + 1)")
     }
 
     /// Formatted time string

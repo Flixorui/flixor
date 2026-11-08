@@ -60,22 +60,22 @@ struct PerformanceStats {
     // MARK: - Computed Properties
 
     var formattedResolution: String {
-        guard let width = videoWidth, let height = videoHeight else { return "N/A" }
+        guard let width = videoWidth, let height = videoHeight else { return String(localized: "N/A") }
         return "\(width)x\(height)"
     }
 
     var formattedFps: String {
-        guard let fps = videoFps else { return "N/A" }
+        guard let fps = videoFps else { return String(localized: "N/A") }
         return String(format: "%.2f fps", fps)
     }
 
     var formattedEstimatedFps: String {
-        guard let fps = estimatedVfFps else { return "N/A" }
+        guard let fps = estimatedVfFps else { return String(localized: "N/A") }
         return String(format: "%.2f fps", fps)
     }
 
     var formattedVideoBitrate: String {
-        guard let bitrate = videoBitrate else { return "N/A" }
+        guard let bitrate = videoBitrate else { return String(localized: "N/A") }
         if bitrate >= 1_000_000 {
             return String(format: "%.1f Mbps", bitrate / 1_000_000)
         } else if bitrate >= 1_000 {
@@ -85,7 +85,7 @@ struct PerformanceStats {
     }
 
     var formattedAudioBitrate: String {
-        guard let bitrate = audioBitrate else { return "N/A" }
+        guard let bitrate = audioBitrate else { return String(localized: "N/A") }
         if bitrate >= 1_000 {
             return String(format: "%.0f Kbps", bitrate / 1_000)
         }
@@ -93,10 +93,10 @@ struct PerformanceStats {
     }
 
     var formattedAudioChannels: String {
-        guard let channels = audioChannels else { return "N/A" }
+        guard let channels = audioChannels else { return String(localized: "N/A") }
         switch channels {
-        case 1: return "Mono"
-        case 2: return "Stereo"
+        case 1: return String(localized: "Mono")
+        case 2: return String(localized: "Stereo")
         case 6: return "5.1"
         case 8: return "7.1"
         default: return "\(channels) ch"
@@ -104,7 +104,7 @@ struct PerformanceStats {
     }
 
     var formattedSampleRate: String {
-        guard let rate = audioSampleRate else { return "N/A" }
+        guard let rate = audioSampleRate else { return String(localized: "N/A") }
         if rate >= 1000 {
             return String(format: "%.1f kHz", Double(rate) / 1000)
         }
@@ -112,7 +112,7 @@ struct PerformanceStats {
     }
 
     var formattedAvsync: String {
-        guard let sync = avsync else { return "N/A" }
+        guard let sync = avsync else { return String(localized: "N/A") }
         return String(format: "%.3f s", sync)
     }
 
@@ -123,12 +123,12 @@ struct PerformanceStats {
     }
 
     var formattedCacheDuration: String {
-        guard let duration = demuxerCacheDuration else { return "N/A" }
+        guard let duration = demuxerCacheDuration else { return String(localized: "N/A") }
         return String(format: "%.1f s", duration)
     }
 
     var formattedCacheUsed: String {
-        guard let used = cacheUsed else { return "N/A" }
+        guard let used = cacheUsed else { return String(localized: "N/A") }
         if used >= 1_000_000 {
             return String(format: "%.1f MB", Double(used) / 1_000_000)
         } else if used >= 1_000 {
@@ -164,22 +164,22 @@ struct PerformanceStats {
     }
 
     var formattedMaxLuma: String {
-        guard let luma = maxLuma else { return "N/A" }
+        guard let luma = maxLuma else { return String(localized: "N/A") }
         return String(format: "%.0f cd/m²", luma)
     }
 
     var formattedMinLuma: String {
-        guard let luma = minLuma else { return "N/A" }
+        guard let luma = minLuma else { return String(localized: "N/A") }
         return String(format: "%.4f cd/m²", luma)
     }
 
     var formattedMaxCll: String {
-        guard let cll = maxCll else { return "N/A" }
+        guard let cll = maxCll else { return String(localized: "N/A") }
         return String(format: "%.0f cd/m²", cll)
     }
 
     var formattedMaxFall: String {
-        guard let fall = maxFall else { return "N/A" }
+        guard let fall = maxFall else { return String(localized: "N/A") }
         return String(format: "%.0f cd/m²", fall)
     }
 
@@ -191,7 +191,7 @@ struct PerformanceStats {
         var parts: [String] = []
 
         if let peak = sigPeak, peak > 1.0 {
-            parts.append(String(format: "Peak: %.0f nits", peak * 203))
+            parts.append(String(format: String(localized: "Peak: %.0f nits"), peak * 203))
         }
 
         if let cll = maxCll {
@@ -202,28 +202,28 @@ struct PerformanceStats {
             parts.append(String(format: "MaxFALL: %.0f", fall))
         }
 
-        return parts.isEmpty ? "N/A" : parts.joined(separator: ", ")
+        return parts.isEmpty ? String(localized: "N/A") : parts.joined(separator: ", ")
     }
 
     var formattedDisplayFps: String {
-        guard let fps = displayFps else { return "N/A" }
+        guard let fps = displayFps else { return String(localized: "N/A") }
         return String(format: "%.0f", fps)
     }
 
     var formattedCacheSpeed: String {
-        guard let speed = cacheSpeed else { return "N/A" }
+        guard let speed = cacheSpeed else { return String(localized: "N/A") }
         let mbps = speed / (1024 * 1024)
         return String(format: "%.1f MB/s", mbps)
     }
 
     var formattedAppMemory: String {
-        guard let bytes = appMemoryBytes else { return "N/A" }
+        guard let bytes = appMemoryBytes else { return String(localized: "N/A") }
         let mb = Double(bytes) / (1024 * 1024)
         return String(format: "%.1f MB", mb)
     }
 
     var formattedUiFps: String {
-        guard let fps = uiFps else { return "N/A" }
+        guard let fps = uiFps else { return String(localized: "N/A") }
         return String(format: "%.1f", fps)
     }
 
@@ -238,12 +238,12 @@ struct PerformanceStats {
             parts.append(gamma)
         }
 
-        return parts.isEmpty ? "N/A" : parts.joined(separator: " / ")
+        return parts.isEmpty ? String(localized: "N/A") : parts.joined(separator: " / ")
     }
 
     var decoderType: String {
         guard let hwdec = hwdecCurrent, !hwdec.isEmpty, hwdec != "no" else {
-            return "Software"
+            return String(localized: "Software")
         }
         return hwdec.uppercased()
     }

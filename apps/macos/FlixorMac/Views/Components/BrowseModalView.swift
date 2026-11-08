@@ -61,7 +61,7 @@ struct BrowseModalView: View {
     private var header: some View {
         HStack(alignment: .center, spacing: DS.Space.s16) {
             VStack(alignment: .leading, spacing: DS.Space.s4) {
-                Text(viewModel.title.isEmpty ? "Browse" : viewModel.title)
+                Text(viewModel.title.isEmpty ? String(localized: "Browse") : viewModel.title)
                     .font(.flixor(.largeTitle, weight: .semibold))
                     .foregroundStyle(.white)
 

@@ -9,17 +9,17 @@ import SwiftUI
 
 struct OnboardingSlide: Identifiable {
     let id: Int
-    let title: String
-    let subtitle: String
-    let description: String
+    let title: LocalizedStringKey
+    let subtitle: LocalizedStringKey
+    let description: LocalizedStringKey
     let isConfig: Bool
     let isAddonSetup: Bool
 
     init(
         id: Int,
-        title: String,
-        subtitle: String,
-        description: String,
+        title: LocalizedStringKey,
+        subtitle: LocalizedStringKey,
+        description: LocalizedStringKey,
         isConfig: Bool = false,
         isAddonSetup: Bool = false
     ) {
@@ -362,9 +362,8 @@ private struct AddonSetupSlideView: View {
 
     private var statusText: String {
         switch streamAddonCount {
-        case 0: return "No stream provider installed yet"
-        case 1: return "1 stream provider installed"
-        default: return "\(streamAddonCount) stream providers installed"
+        case 0: return String(localized: "No stream provider installed yet")
+        default: return String(localized: "\(streamAddonCount) stream providers installed")
         }
     }
 
@@ -561,8 +560,8 @@ private struct ConfigSlideView: View {
 private struct SettingRowView: View {
     let icon: String
     let iconColor: Color
-    let title: String
-    let subtitle: String
+    let title: LocalizedStringKey
+    let subtitle: LocalizedStringKey
     @Binding var isOn: Bool
     let showDivider: Bool
 

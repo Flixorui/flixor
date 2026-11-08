@@ -24,9 +24,9 @@ final class EntityBrowseViewModel: ObservableObject {
         var id: String { rawValue }
         var title: String {
             switch self {
-            case .popular: return "Popular"
-            case .topRated: return "Top rated"
-            case .newest: return "Newest"
+            case .popular: return String(localized: "Popular")
+            case .topRated: return String(localized: "Top rated")
+            case .newest: return String(localized: "Newest")
             }
         }
         var tmdbSort: TMDBDiscoverSort {
@@ -85,7 +85,7 @@ final class EntityBrowseViewModel: ObservableObject {
     }
 
     var subtitle: String {
-        var parts: [String] = [route.kind == .network ? "TV network" : "Production company"]
+        var parts: [String] = [route.kind == .network ? String(localized: "TV network") : String(localized: "Production company")]
         if let headquarters = details?.headquarters, !headquarters.isEmpty {
             parts.append(headquarters)
         } else if let country = details?.originCountry, !country.isEmpty {
@@ -96,12 +96,11 @@ final class EntityBrowseViewModel: ObservableObject {
 
     var countText: String? {
         guard let totalResults, totalResults > 0 else { return nil }
-        let noun: String
+        // Keeps the thousands separators, so singular and plural are separate keys.
         switch mediaType {
-        case .movie: noun = totalResults == 1 ? "movie" : "movies"
-        case .tv: noun = totalResults == 1 ? "show" : "shows"
+        case .movie: return totalResults == 1 ? String(localized: "1 movie") : String(localized: "\(totalResults.formatted()) movies")
+        case .tv: return totalResults == 1 ? String(localized: "1 show") : String(localized: "\(totalResults.formatted()) shows")
         }
-        return "\(totalResults.formatted()) \(noun)"
     }
 
     var backdropURL: URL? {
@@ -191,7 +190,7 @@ final class EntityBrowseViewModel: ObservableObject {
                 self.apply(response, page: nextPage, mediaType: mediaType)
             } catch {
                 guard let self, self.generation == generation, !Task.isCancelled else { return }
-                let message = TMDBErrorMessage.message(for: error, fallback: "Couldn't load titles from TMDB.")
+                let message = TMDBErrorMessage.message(for: error, fallback: String(localized: "Couldn't load titles from TMDB."))
                 self.isLoadingMore = false
                 if nextPage == 1 {
                     self.phase = .failed(message)

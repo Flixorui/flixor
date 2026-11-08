@@ -21,14 +21,14 @@ enum OverseerrStatus: String, Codable {
 
     var displayName: String {
         switch self {
-        case .notRequested: return "Request"
-        case .pending: return "Pending"
-        case .approved: return "Approved"
-        case .declined: return "Declined"
-        case .processing: return "Processing"
-        case .partiallyAvailable: return "Partial"
-        case .available: return "Available"
-        case .unknown: return "Unknown"
+        case .notRequested: return String(localized: "Request")
+        case .pending: return String(localized: "Pending")
+        case .approved: return String(localized: "Approved")
+        case .declined: return String(localized: "Declined")
+        case .processing: return String(localized: "Processing")
+        case .partiallyAvailable: return String(localized: "Partial")
+        case .available: return String(localized: "Available")
+        case .unknown: return String(localized: "Unknown")
         }
     }
 

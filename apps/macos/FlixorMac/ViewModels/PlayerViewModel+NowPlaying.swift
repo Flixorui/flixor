@@ -24,7 +24,7 @@ extension PlayerViewModel {
 
             // Episode info
             if let seasonNum = item.parentIndex, let episodeNum = item.index {
-                nowPlayingInfo[MPMediaItemPropertyAlbumTitle] = "Season \(seasonNum), Episode \(episodeNum)"
+                nowPlayingInfo[MPMediaItemPropertyAlbumTitle] = String(localized: "Season \(String(seasonNum)), Episode \(String(episodeNum))")
             }
         } else {
             // Movie - use year as artist

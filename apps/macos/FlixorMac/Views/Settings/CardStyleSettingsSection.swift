@@ -26,13 +26,13 @@ struct CardStyleSettingsSection: View {
             SettingsSectionHeader(title: "Cards")
             SettingsGroupCard {
                 SettingsRow(icon: "arrow.up.left.and.arrow.down.right", iconColor: .green, title: "Card Poster Size") {
-                    picker(selection: posterSize, label: "Card poster size")
+                    picker(selection: posterSize, label: String(localized: "Card poster size"))
                 }
                 SettingsRow(icon: "square.on.square", iconColor: .orange, title: "Corner Style") {
-                    picker(selection: $style.cornerStyle, label: "Corner style")
+                    picker(selection: $style.cornerStyle, label: String(localized: "Corner style"))
                 }
                 SettingsRow(icon: "textformat", iconColor: .purple, title: "Titles Under Posters") {
-                    picker(selection: $style.titleMode, label: "Titles under posters")
+                    picker(selection: $style.titleMode, label: String(localized: "Titles under posters"))
                 }
                 SettingsRow(icon: "star.fill", iconColor: .yellow, title: "Rating Badges", showDivider: false) {
                     Toggle("", isOn: $style.showRatingBadges)
@@ -70,7 +70,7 @@ struct CardStyleSettingsSection: View {
                         }
                     }
                     SettingsRow(icon: "play.rectangle", iconColor: .red, title: "Trailer", showDivider: false) {
-                        picker(selection: $style.hoverTrailerMode, label: "Hover preview trailer")
+                        picker(selection: $style.hoverTrailerMode, label: String(localized: "Hover preview trailer"))
                     }
                 }
             }

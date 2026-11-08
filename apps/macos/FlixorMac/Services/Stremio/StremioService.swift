@@ -259,7 +259,7 @@ actor StremioService {
 
         let manifestURL = normalizeStremioManifestURL(url)
         guard !manifestURL.isEmpty else {
-            throw StremioError(message: "Manifest URL is required")
+            throw StremioError(message: String(localized: "Manifest URL is required"))
         }
 
         logger.info("[Stremio] Installing addon", data: ["manifestUrl": manifestURL])
@@ -268,7 +268,7 @@ actor StremioService {
             let manifest = try await getManifest(from: manifestURL)
             let existing = addons.values.filter { $0.id == manifest.id }
             if !existing.isEmpty && !addonProvidesStreams(manifest) {
-                throw StremioError(message: "This addon is already installed. Multiple installs are only allowed for stream providers.")
+                throw StremioError(message: String(localized: "This addon is already installed. Multiple installs are only allowed for stream providers."))
             }
 
             addons[manifest.installationId] = manifest
@@ -541,7 +541,7 @@ actor StremioService {
     private func getManifest(from url: String) async throws -> StremioAddonManifest {
         let normalizedURL = normalizeStremioManifestURL(url)
         guard let requestURL = URL(string: normalizedURL) else {
-            throw StremioError(message: "Invalid manifest URL")
+            throw StremioError(message: String(localized: "Invalid manifest URL"))
         }
 
         let data = try await requestData(from: requestURL, config: RequestConfig(timeout: 60, accept: "application/json"))
@@ -567,7 +567,7 @@ actor StremioService {
 
     private func fetchStreams(for addon: StremioAddonManifest, identity: StremioContentIdentity) async -> StremioAddonStreamResult {
         guard let baseURL = addon.url else {
-            return StremioAddonStreamResult(addonId: addon.id, addonName: addon.name, installationId: addon.installationId, streams: [], error: "Addon has no transport URL")
+            return StremioAddonStreamResult(addonId: addon.id, addonName: addon.name, installationId: addon.installationId, streams: [], error: String(localized: "Addon has no transport URL"))
         }
 
         do {
@@ -581,7 +581,7 @@ actor StremioService {
             let requestType = identity.requestType
             let resourcePath = "/stream/\(requestType)/\(identity.requestId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? identity.requestId).json"
             guard let requestURL = URL(string: buildResourceURL(baseURL: baseURL, resourcePath: resourcePath)) else {
-                return StremioAddonStreamResult(addonId: addon.id, addonName: addon.name, installationId: addon.installationId, streams: [], error: "Invalid stream request URL")
+                return StremioAddonStreamResult(addonId: addon.id, addonName: addon.name, installationId: addon.installationId, streams: [], error: String(localized: "Invalid stream request URL"))
             }
 
             let data = try await requestData(from: requestURL, config: RequestConfig(timeout: 60, accept: "application/json"))
@@ -666,9 +666,9 @@ actor StremioService {
                 let responseText = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
                 let summary = String(responseText.prefix(240))
                 if summary.isEmpty {
-                    throw StremioError(message: "HTTP \(httpResponse.statusCode) from \(url.absoluteString)")
+                    throw StremioError(message: String(localized: "HTTP \(httpResponse.statusCode) from \(url.absoluteString)"))
                 }
-                throw StremioError(message: "HTTP \(httpResponse.statusCode) from \(url.absoluteString): \(summary)")
+                throw StremioError(message: String(localized: "HTTP \(httpResponse.statusCode) from \(url.absoluteString): \(summary)"))
             }
             return data
         } catch let error as StremioError {
@@ -676,9 +676,9 @@ actor StremioService {
         } catch let error as URLError {
             switch error.code {
             case .timedOut:
-                throw StremioError(message: "Request timed out while fetching \(url.absoluteString)")
+                throw StremioError(message: String(localized: "Request timed out while fetching \(url.absoluteString)"))
             case .notConnectedToInternet, .networkConnectionLost, .cannotConnectToHost, .cannotFindHost:
-                throw StremioError(message: "Network error while fetching \(url.absoluteString)")
+                throw StremioError(message: String(localized: "Network error while fetching \(url.absoluteString)"))
             default:
                 throw StremioError(message: error.localizedDescription)
             }
@@ -689,7 +689,7 @@ actor StremioService {
 
     private func parseManifestPayload(data: Data) throws -> ManifestPayload {
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw StremioError(message: "Invalid addon manifest response")
+            throw StremioError(message: String(localized: "Invalid addon manifest response"))
         }
 
         let id = (json["id"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -697,13 +697,13 @@ actor StremioService {
         let version = (json["version"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard let finalId = id, !finalId.isEmpty else {
-            throw StremioError(message: "Addon manifest is missing an id")
+            throw StremioError(message: String(localized: "Addon manifest is missing an id"))
         }
         guard let finalName = name, !finalName.isEmpty else {
-            throw StremioError(message: "Addon manifest is missing a name")
+            throw StremioError(message: String(localized: "Addon manifest is missing a name"))
         }
         guard let finalVersion = version, !finalVersion.isEmpty else {
-            throw StremioError(message: "Addon manifest is missing a version")
+            throw StremioError(message: String(localized: "Addon manifest is missing a version"))
         }
 
         let normalizedResources = normalizeResources(json["resources"])
@@ -955,7 +955,7 @@ actor StremioService {
         let isPlayableURL = sourceType == .url && (playableURL?.lowercased().hasPrefix("http://") == true || playableURL?.lowercased().hasPrefix("https://") == true)
         let disabledReason: String?
         if sourceType == .url, playableURL != nil, !isPlayableURL {
-            disabledReason = "Only HTTP(S) direct streams are supported in-app"
+            disabledReason = String(localized: "Only HTTP(S) direct streams are supported in-app")
         } else if isPlayableURL {
             disabledReason = nil
         } else {
@@ -1056,19 +1056,19 @@ actor StremioService {
     private func unsupportedReason(for sourceType: StremioSourceType) -> String {
         switch sourceType {
         case .externalUrl:
-            return "Opens externally"
+            return String(localized: "Opens externally")
         case .ytId:
-            return "YouTube playback is not supported in-app"
+            return String(localized: "YouTube playback is not supported in-app")
         case .infoHash:
-            return "Torrent playback is not supported in-app"
+            return String(localized: "Torrent playback is not supported in-app")
         case .nzbUrl:
-            return "NZB playback is not supported in-app"
+            return String(localized: "NZB playback is not supported in-app")
         case .archive:
-            return "Archive streams are not supported in-app"
+            return String(localized: "Archive streams are not supported in-app")
         case .unknown:
-            return "Unsupported stream type"
+            return String(localized: "Unsupported stream type")
         case .url:
-            return "Only HTTP(S) direct streams are supported in-app"
+            return String(localized: "Only HTTP(S) direct streams are supported in-app")
         }
     }
 }

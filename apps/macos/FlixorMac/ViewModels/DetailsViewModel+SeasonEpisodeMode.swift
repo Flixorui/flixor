@@ -19,7 +19,7 @@ extension DetailsViewModel {
         mediaKind = "tv"
 
         // Basic metadata
-        title = meta.title ?? "Season"
+        title = meta.title ?? String(localized: "Season")
         overview = meta.summary ?? ""
         parentShowKey = meta.parentRatingKey
         episodeCount = meta.leafCount
@@ -78,7 +78,7 @@ extension DetailsViewModel {
         mediaKind = "tv"
 
         // Basic metadata from Plex
-        let originalEpisodeTitle = meta.title ?? "Episode"
+        let originalEpisodeTitle = meta.title ?? String(localized: "Episode")
         episodeTitle = originalEpisodeTitle  // Store original title for player
         title = originalEpisodeTitle
         overview = meta.summary ?? ""
@@ -150,7 +150,7 @@ extension DetailsViewModel {
             do {
                 print("📡 [loadEpisodeDirect] Fetching show metadata for TMDB ID...")
                 guard let plexServer = FlixorCore.shared.plexServer else {
-                    throw NSError(domain: "DetailsVM", code: -1, userInfo: [NSLocalizedDescriptionKey: "No Plex server"])
+                    throw NSError(domain: "DetailsVM", code: -1, userInfo: [NSLocalizedDescriptionKey: String(localized: "No Plex server")])
                 }
                 let showItem = try await plexServer.getMetadata(ratingKey: showKey)
                 let showMeta = plexItemToMeta(showItem)

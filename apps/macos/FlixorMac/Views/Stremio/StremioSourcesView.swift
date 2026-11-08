@@ -135,7 +135,7 @@ struct StremioSourcesView: View {
         Group {
             if !viewModel.unsupportedGroups.isEmpty {
                 VStack(alignment: .leading, spacing: DS.Space.s18) {
-                    sectionHeader(title: "Alternate Platforms", subtitle: "Returned by addons but not currently playable in-app")
+                    sectionHeader(title: String(localized: "Alternate Platforms"), subtitle: String(localized: "Returned by addons but not currently playable in-app"))
                     ForEach(viewModel.unsupportedGroups) { group in
                         VStack(alignment: .leading, spacing: DS.Space.s12) {
                             Text(group.addonName)
@@ -175,7 +175,7 @@ struct StremioSourcesView: View {
                     Text("Resume Cached Source")
                         .font(.flixor(.bodyLarge, weight: .semibold))
                         .foregroundStyle(.white)
-                    Text(cached.playbackItem.streamLabel ?? cached.playbackItem.addonName ?? "Previously selected source")
+                    Text(cached.playbackItem.streamLabel ?? cached.playbackItem.addonName ?? String(localized: "Previously selected source"))
                         .font(.flixor(.footnote))
                         .foregroundStyle(.secondary)
                 }

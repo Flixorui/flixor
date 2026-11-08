@@ -9,7 +9,7 @@ import SwiftUI
 import FlixorKit
 
 struct ContinueWatchingLandscapeRow: View {
-    var title: String = "Continue Watching"
+    var title: String = String(localized: "Continue Watching")
     let items: [MediaItem]
     var itemsWithMultipleVersions: Set<String>? = nil
     /// Item ids with a watch-state action running (menus disabled).
@@ -88,14 +88,14 @@ struct ContinueWatchingLandscapeCard: View {
         let totalMinutes = duration / 60000
 
         if totalMinutes < 60 {
-            return "\(totalMinutes)m"
+            return String(localized: "\(totalMinutes)m")
         } else {
             let hours = totalMinutes / 60
             let mins = totalMinutes % 60
             if mins == 0 {
-                return "\(hours)h"
+                return String(localized: "\(hours)h")
             }
-            return "\(hours)h \(mins)m"
+            return String(localized: "\(hours)h \(mins)m")
         }
     }
 
@@ -113,7 +113,7 @@ struct ContinueWatchingLandscapeCard: View {
         // Duration
         if let duration = item.duration {
             let mins = duration / 60000
-            parts.append("\(mins)m")
+            parts.append(String(localized: "\(mins)m"))
         }
 
         return parts.isEmpty ? nil : parts.joined(separator: " · ")

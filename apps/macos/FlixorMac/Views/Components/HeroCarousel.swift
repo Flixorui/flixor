@@ -445,9 +445,9 @@ struct HeroCarouselCard: View {
         let mins = minutes % 60
 
         if hours > 0 {
-            return "\(hours)h \(mins)m"
+            return String(localized: "\(hours)h \(mins)m")
         } else {
-            return "\(minutes)m"
+            return String(localized: "\(minutes)m")
         }
     }
 

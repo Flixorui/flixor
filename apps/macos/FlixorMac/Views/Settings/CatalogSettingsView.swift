@@ -144,8 +144,8 @@ struct CatalogSettingsView: View {
         return SettingsRow(
             icon: libraryIcon(for: library.type),
             iconColor: libraryColor(for: library.type),
-            title: library.title ?? "Unknown Library",
-            subtitle: library.type.capitalized,
+            title: .verbatim(library.title ?? String(localized: "Unknown Library")),
+            subtitle: .verbatim(library.type.capitalized),
             showDivider: showDivider
         ) {
             Toggle("", isOn: Binding(

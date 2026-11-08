@@ -25,7 +25,7 @@ struct TraktListSwitcher: View {
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: DS.Space.controlGap) {
-                BrowseChip(title: "My List", count: myListCount, isSelected: model.selectedListId == nil) {
+                BrowseChip(title: String(localized: "My List"), count: myListCount, isSelected: model.selectedListId == nil) {
                     withAnimation(DS.Motion.quick) { model.select(nil) }
                 }
 

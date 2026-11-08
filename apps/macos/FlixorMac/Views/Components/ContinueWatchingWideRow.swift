@@ -10,7 +10,7 @@
 import SwiftUI
 
 struct ContinueWatchingWideRow: View {
-    var title: String = "Continue Watching"
+    var title: String = String(localized: "Continue Watching")
     let items: [MediaItem]
     /// Item ids with a watch-state action running (menus disabled).
     var busyItemIds: Set<String> = []
@@ -90,13 +90,13 @@ struct ContinueWatchingWideCard: View {
 
     private var timeText: String? {
         guard let duration = item.duration, duration > 0 else {
-            return item.isUpNextEpisode ? "Up next" : nil
+            return item.isUpNextEpisode ? String(localized: "Up next") : nil
         }
         if let offset = item.viewOffset, offset > 0 {
-            return "\(Self.format(milliseconds: max(0, duration - offset))) left"
+            return String(localized: "\(Self.format(milliseconds: max(0, duration - offset))) left")
         }
         let length = Self.format(milliseconds: duration)
-        return item.isUpNextEpisode ? "Up next · \(length)" : length
+        return item.isUpNextEpisode ? String(localized: "Up next · \(length)") : length
     }
 
     /// Episode still for Plex episodes; backdrop otherwise (local history
@@ -236,7 +236,7 @@ struct ContinueWatchingWideCard: View {
         let totalMinutes = max(1, Int((Double(milliseconds) / 60000).rounded()))
         let hours = totalMinutes / 60
         let minutes = totalMinutes % 60
-        if hours == 0 { return "\(minutes)m" }
-        return minutes == 0 ? "\(hours)h" : "\(hours)h \(minutes)m"
+        if hours == 0 { return String(localized: "\(minutes)m") }
+        return minutes == 0 ? String(localized: "\(hours)h") : String(localized: "\(hours)h \(minutes)m")
     }
 }

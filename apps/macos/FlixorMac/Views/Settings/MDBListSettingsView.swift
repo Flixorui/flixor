@@ -159,7 +159,7 @@ private struct RatingProviderBadge: View {
 private struct InstructionRow: View {
     @Environment(\.flixorTheme) private var theme
     let number: Int
-    let text: String
+    let text: LocalizedStringKey
 
     var body: some View {
         HStack(alignment: .top, spacing: DS.Space.s10) {

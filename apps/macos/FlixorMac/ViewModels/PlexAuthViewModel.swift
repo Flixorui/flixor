@@ -101,7 +101,7 @@ class PlexAuthViewModel: ObservableObject {
             // Timeout
             if !Task.isCancelled {
                 print("⏱️ [Auth] Polling timeout after \(attempts) attempts")
-                error = "Authentication timeout. Please try again."
+                error = String(localized: "Authentication timeout. Please try again.")
                 isAuthenticating = false
             } else {
                 print("🛑 [Auth] Polling cancelled")

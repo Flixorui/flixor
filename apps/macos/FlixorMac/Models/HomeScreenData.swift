@@ -72,11 +72,11 @@ extension MediaItem {
         let minutes = remaining / 60000
 
         if minutes < 60 {
-            return "\(minutes) min left"
+            return String(localized: "\(minutes) min left")
         } else {
             let hours = minutes / 60
             let mins = minutes % 60
-            return "\(hours)h \(mins)m left"
+            return String(localized: "\(hours)h \(mins)m left")
         }
     }
 }

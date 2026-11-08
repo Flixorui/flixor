@@ -313,13 +313,13 @@ struct DetailsHeroTrailerControls: View {
                 if controller.phase != .ended {
                     controlButton(
                         systemImage: controller.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill",
-                        label: controller.isMuted ? "Unmute trailer" : "Mute trailer",
+                        label: controller.isMuted ? String(localized: "Unmute trailer") : String(localized: "Mute trailer"),
                         action: controller.toggleMute
                     )
                 }
                 controlButton(
                     systemImage: "arrow.counterclockwise",
-                    label: "Replay trailer",
+                    label: String(localized: "Replay trailer"),
                     action: controller.replay
                 )
             }

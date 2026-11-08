@@ -22,13 +22,13 @@ final class StremioSourcesViewModel: ObservableObject {
             case .none:
                 return ""
             case .noAddons:
-                return "No stream-capable addons installed"
+                return String(localized: "No stream-capable addons installed")
             case .noStreams:
-                return "No streams found"
+                return String(localized: "No streams found")
             case .unsupportedOnly:
-                return "Only unsupported sources were returned"
+                return String(localized: "Only unsupported sources were returned")
             case .error:
-                return "Failed to load Stremio sources"
+                return String(localized: "Failed to load Stremio sources")
             }
         }
 
@@ -37,11 +37,11 @@ final class StremioSourcesViewModel: ObservableObject {
             case .none:
                 return ""
             case .noAddons:
-                return "Install at least one Stremio addon that provides streams for this title."
+                return String(localized: "Install at least one Stremio addon that provides streams for this title.")
             case .noStreams:
-                return "Installed addons responded, but none returned playable sources for this request."
+                return String(localized: "Installed addons responded, but none returned playable sources for this request.")
             case .unsupportedOnly:
-                return "The installed addons only returned source types that cannot be played in-app on macOS yet."
+                return String(localized: "The installed addons only returned source types that cannot be played in-app on macOS yet.")
             case .error(let message):
                 return message
             }
@@ -178,7 +178,7 @@ final class StremioSourcesViewModel: ObservableObject {
         do {
             selector = try StreamAutoSelector(rules: action == .matchRules ? defaults.stremioStreamRules : nil)
         } catch {
-            return .showSources(notice: "Your source rules have an invalid pattern. Fix it in Settings, or choose a source here.")
+            return .showSources(notice: String(localized: "Your source rules have an invalid pattern. Fix it in Settings, or choose a source here."))
         }
 
         let timeLimit = defaults.stremioAutoPickTimeLimit
@@ -190,7 +190,7 @@ final class StremioSourcesViewModel: ObservableObject {
 
         let picked = await selector.pickOffActor(in: fetched.results)
         if selector.rulesTimedOut {
-            return .showSources(notice: "Your include pattern took too long to check. Simplify it in Settings, or choose a source here.")
+            return .showSources(notice: String(localized: "Your include pattern took too long to check. Simplify it in Settings, or choose a source here."))
         }
         guard let stream = picked else {
             return .showSources(notice: fallbackNotice(
@@ -199,7 +199,7 @@ final class StremioSourcesViewModel: ObservableObject {
             ))
         }
         guard let playback = await select(stream: stream, saveToCache: true, includeAlertOnFailure: false, subtitleDeadline: deadline) else {
-            return .showSources(notice: "The chosen source could not be started. Choose another one here.")
+            return .showSources(notice: String(localized: "The chosen source could not be started. Choose another one here."))
         }
 
         AppLogger.shared.info("[Stremio] Auto-selected source", data: [
@@ -224,11 +224,14 @@ final class StremioSourcesViewModel: ObservableObject {
 
     /// Nil when no addon had anything playable and all answered: the page's empty state explains that.
     private func fallbackNotice(results: [StremioAddonStreamResult], waitedSeconds: Int?) -> String? {
-        let within = waitedSeconds.map { " within \($0) seconds" } ?? ""
         if results.contains(where: { $0.streams.contains(where: \.playable) }) {
-            return "No source matched your rules\(within). Showing all sources."
+            if let waitedSeconds {
+                return String(localized: "No source matched your rules within \(waitedSeconds) seconds. Showing all sources.")
+            }
+            return String(localized: "No source matched your rules. Showing all sources.")
         }
-        return waitedSeconds == nil ? nil : "No playable source arrived\(within). Showing all sources."
+        guard let waitedSeconds else { return nil }
+        return String(localized: "No playable source arrived within \(waitedSeconds) seconds. Showing all sources.")
     }
 
     var contentKey: String {
@@ -244,7 +247,7 @@ final class StremioSourcesViewModel: ObservableObject {
     ) async -> PlayerDestination? {
         guard stream.playable, let uri = stream.url else {
             if includeAlertOnFailure {
-                alertMessage = stream.disabledReason ?? "This stream type is not supported in-app."
+                alertMessage = stream.disabledReason ?? String(localized: "This stream type is not supported in-app.")
             }
             return nil
         }
@@ -372,7 +375,7 @@ final class StremioSourcesViewModel: ObservableObject {
     }
 
     private func streamLabel(for stream: StremioPlayableStream) -> String {
-        stream.title ?? stream.name ?? stream.description ?? "Stremio Source"
+        stream.title ?? stream.name ?? stream.description ?? String(localized: "Stremio Source")
     }
 
     private func mergedHeaders(for stream: StremioPlayableStream) -> [HTTPHeaderField] {

@@ -90,10 +90,10 @@ struct DetailsHeroSection: View {
         if minutes >= 60 {
             let hours = minutes / 60
             let mins = minutes % 60
-            if mins == 0 { return "\(hours)h" }
-            return "\(hours)h \(mins)m"
+            if mins == 0 { return String(localized: "\(hours)h") }
+            return String(localized: "\(hours)h \(mins)m")
         }
-        return "\(minutes)m"
+        return String(localized: "\(minutes)m")
     }
 
     private func hasRatings(_ ratings: DetailsViewModel.ExternalRatings) -> Bool {
@@ -269,7 +269,7 @@ struct DetailsHeroSection: View {
             if !isEpisode && vm.mediaKind != "movie", let count = vm.episodeCount, count > 0 {
                 Text("·")
                     .foregroundStyle(.white.opacity(0.5))
-                Text("\(count) Episode\(count == 1 ? "" : "s")")
+                Text("\(count) Episodes")
             }
 
             // Separator
@@ -451,7 +451,7 @@ struct DetailsHeroSection: View {
     // MARK: - Trailers Section
     @ViewBuilder private var trailersSection: some View {
         VStack(alignment: .leading, spacing: DS.Space.s4) {
-            Text("Trailers & Videos".uppercased())
+            Text("Trailers & Videos").textCase(.uppercase)
                 .font(.flixor(.caption, weight: .semibold))
                 .tracking(0.5)
                 .foregroundStyle(theme.textTertiary)
@@ -529,7 +529,7 @@ struct DetailsHeroSection: View {
         let names = vm.castShort.map { $0.name }
         let summary = names.joined(separator: ", ")
         if vm.castMoreCount > 0 {
-            return summary + " +\(vm.castMoreCount) more"
+            return String(localized: "\(summary) +\(vm.castMoreCount) more")
         }
         return summary
     }

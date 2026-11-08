@@ -97,7 +97,7 @@ struct EntityBrowseView: View {
                 BrowseChipBar(
                     options: TMDBDiscoverMediaType.allCases,
                     selection: $viewModel.mediaType,
-                    title: { $0 == .movie ? "Movies" : "TV Shows" }
+                    title: { $0 == .movie ? String(localized: "Movies") : String(localized: "TV Shows") }
                 )
             }
             Spacer(minLength: DS.Space.s8)
@@ -121,7 +121,7 @@ struct EntityBrowseView: View {
             BrowseMessageView(
                 systemImage: "exclamationmark.triangle",
                 title: "Couldn't load titles",
-                message: message,
+                message: .verbatim(message),
                 retryTitle: "Try Again",
                 onRetry: { viewModel.reload() }
             )

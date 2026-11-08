@@ -54,51 +54,51 @@ struct PlaybackLanguageOption: Hashable, Identifiable {
     var id: String { code }
 
     private static let common: [PlaybackLanguageOption] = [
-        .init(code: "en", name: "English"),
-        .init(code: "es", name: "Spanish"),
-        .init(code: "es-419", name: "Spanish (Latin America)"),
-        .init(code: "pt", name: "Portuguese"),
-        .init(code: "pt-BR", name: "Portuguese (Brazil)"),
-        .init(code: "fr", name: "French"),
-        .init(code: "fr-CA", name: "French (Canada)"),
-        .init(code: "de", name: "German"),
-        .init(code: "it", name: "Italian"),
-        .init(code: "ja", name: "Japanese"),
-        .init(code: "ko", name: "Korean"),
-        .init(code: "zh-Hans", name: "Chinese (Simplified)"),
-        .init(code: "zh-Hant", name: "Chinese (Traditional)"),
-        .init(code: "ru", name: "Russian"),
-        .init(code: "ar", name: "Arabic"),
-        .init(code: "hi", name: "Hindi"),
-        .init(code: "nl", name: "Dutch"),
-        .init(code: "sv", name: "Swedish"),
-        .init(code: "no", name: "Norwegian"),
-        .init(code: "da", name: "Danish"),
-        .init(code: "fi", name: "Finnish"),
-        .init(code: "pl", name: "Polish"),
-        .init(code: "tr", name: "Turkish"),
-        .init(code: "he", name: "Hebrew"),
-        .init(code: "th", name: "Thai"),
-        .init(code: "vi", name: "Vietnamese"),
-        .init(code: "id", name: "Indonesian"),
-        .init(code: "cs", name: "Czech"),
-        .init(code: "el", name: "Greek"),
-        .init(code: "hu", name: "Hungarian"),
-        .init(code: "ro", name: "Romanian"),
-        .init(code: "uk", name: "Ukrainian"),
+        .init(code: "en", name: String(localized: "English")),
+        .init(code: "es", name: String(localized: "Spanish")),
+        .init(code: "es-419", name: String(localized: "Spanish (Latin America)")),
+        .init(code: "pt", name: String(localized: "Portuguese")),
+        .init(code: "pt-BR", name: String(localized: "Portuguese (Brazil)")),
+        .init(code: "fr", name: String(localized: "French")),
+        .init(code: "fr-CA", name: String(localized: "French (Canada)")),
+        .init(code: "de", name: String(localized: "German")),
+        .init(code: "it", name: String(localized: "Italian")),
+        .init(code: "ja", name: String(localized: "Japanese")),
+        .init(code: "ko", name: String(localized: "Korean")),
+        .init(code: "zh-Hans", name: String(localized: "Chinese (Simplified)")),
+        .init(code: "zh-Hant", name: String(localized: "Chinese (Traditional)")),
+        .init(code: "ru", name: String(localized: "Russian")),
+        .init(code: "ar", name: String(localized: "Arabic")),
+        .init(code: "hi", name: String(localized: "Hindi")),
+        .init(code: "nl", name: String(localized: "Dutch")),
+        .init(code: "sv", name: String(localized: "Swedish")),
+        .init(code: "no", name: String(localized: "Norwegian")),
+        .init(code: "da", name: String(localized: "Danish")),
+        .init(code: "fi", name: String(localized: "Finnish")),
+        .init(code: "pl", name: String(localized: "Polish")),
+        .init(code: "tr", name: String(localized: "Turkish")),
+        .init(code: "he", name: String(localized: "Hebrew")),
+        .init(code: "th", name: String(localized: "Thai")),
+        .init(code: "vi", name: String(localized: "Vietnamese")),
+        .init(code: "id", name: String(localized: "Indonesian")),
+        .init(code: "cs", name: String(localized: "Czech")),
+        .init(code: "el", name: String(localized: "Greek")),
+        .init(code: "hu", name: String(localized: "Hungarian")),
+        .init(code: "ro", name: String(localized: "Romanian")),
+        .init(code: "uk", name: String(localized: "Ukrainian")),
     ]
 
     /// Audio choices; a code typed in an earlier version stays selectable.
     static func audioOptions(including current: String) -> [PlaybackLanguageOption] {
         withCurrent(current, leading: [
-            .init(code: "", name: "Default"),
-            .init(code: PlaybackLanguagePreference.original, name: "Original Language"),
+            .init(code: "", name: String(localized: "Default")),
+            .init(code: PlaybackLanguagePreference.original, name: String(localized: "Original Language")),
         ])
     }
 
     /// Subtitle choices; "" means the first available track.
     static func subtitleOptions(including current: String) -> [PlaybackLanguageOption] {
-        withCurrent(current, leading: [.init(code: "", name: "Any")])
+        withCurrent(current, leading: [.init(code: "", name: String(localized: "Any"))])
     }
 
     private static func withCurrent(_ current: String, leading: [PlaybackLanguageOption]) -> [PlaybackLanguageOption] {

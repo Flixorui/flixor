@@ -23,7 +23,7 @@ struct LogsView: View {
         VStack(alignment: .leading, spacing: DS.Space.s16) {
             // Header with count
             HStack {
-                Text("\(logger.logCount) \(logger.logCount == 1 ? "entry" : "entries")")
+                Text("\(logger.logCount) entries")
                     .font(.flixor(.footnote))
                     .foregroundStyle(.secondary)
 

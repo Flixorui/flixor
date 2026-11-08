@@ -21,10 +21,10 @@ enum StreamEngineStatus: Equatable {
         switch self {
         case .recoveringSource(let attempt, let maxAttempts):
             return maxAttempts > 1
-                ? "Source stopped working. Finding a replacement (\(attempt) of \(maxAttempts))…"
-                : "Source stopped working. Finding a replacement…"
+                ? String(localized: "Source stopped working. Finding a replacement (\(attempt) of \(maxAttempts))…")
+                : String(localized: "Source stopped working. Finding a replacement…")
         case .findingNextEpisodeSource(let label):
-            return "Finding a source for \(label)…"
+            return String(localized: "Finding a source for \(label)…")
         }
     }
 }

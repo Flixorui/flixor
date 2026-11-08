@@ -28,11 +28,11 @@ enum SkipSegmentType: String, Codable, CaseIterable, Hashable {
 
     var displayName: String {
         switch self {
-        case .intro: return "Intro"
-        case .recap: return "Recap"
-        case .credits: return "Credits"
-        case .preview: return "Preview"
-        case .postCredits: return "Post-Credits Scene"
+        case .intro: return String(localized: "Intro")
+        case .recap: return String(localized: "Recap")
+        case .credits: return String(localized: "Credits")
+        case .preview: return String(localized: "Preview")
+        case .postCredits: return String(localized: "Post-Credits Scene")
         }
     }
 

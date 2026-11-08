@@ -94,7 +94,7 @@ final class UserCollectionsStore: ObservableObject {
                 defaultTitle: $0.name,
                 kind: .userCollection,
                 group: .userCollections,
-                detail: "Your collection · \($0.sourceSummary)"
+                detail: String(localized: "Your collection · \($0.sourceSummary)")
             )
         }
         HomeRowsStore.shared.register(descriptors, group: .userCollections)

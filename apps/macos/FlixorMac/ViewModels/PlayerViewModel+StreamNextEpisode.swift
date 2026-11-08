@@ -90,7 +90,7 @@ extension PlayerViewModel {
                 if self.onOpenStremioSources != nil {
                     self.openSourcesPicker()
                 } else {
-                    self.error = "Couldn't pick a source for \(label) automatically. Close the player and choose one from the episode list."
+                    self.error = String(localized: "Couldn't pick a source for \(label) automatically. Close the player and choose one from the episode list.")
                     self.isLoading = false
                 }
             case .unavailable(let message):
@@ -138,7 +138,7 @@ extension PlayerViewModel {
         }
         nextEpisodeSourceTask?.cancel()
         let task = Task { [weak self] () -> StreamEpisodeSourceOutcome in
-            guard let self else { return .unavailable("Playback was closed.") }
+            guard let self else { return .unavailable(String(localized: "Playback was closed.")) }
             return await self.resolveStreamSource(season: season, episode: episode, episodeTitle: episodeTitle)
         }
         nextEpisodeSourceTask = task
@@ -148,7 +148,7 @@ extension PlayerViewModel {
 
     private func resolveStreamSource(season: Int, episode: Int, episodeTitle: String?) async -> StreamEpisodeSourceOutcome {
         guard let current = streamPlaybackItem, let ref = StreamSeriesRef(item: current) else {
-            return .unavailable("This episode can't be looked up from the current source.")
+            return .unavailable(String(localized: "This episode can't be looked up from the current source."))
         }
         let identity = ref.identity(season: season, episode: episode, source: "player-next-episode")
         let destination = StremioSourcesDestination(

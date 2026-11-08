@@ -77,7 +77,7 @@ struct CollectionRowsSettingsView: View {
                                 SettingsRow(
                                     icon: "sparkles",
                                     iconColor: .purple,
-                                    title: collection.title ?? "Untitled Collection",
+                                    title: .verbatim(collection.title ?? String(localized: "Untitled Collection")),
                                     subtitle: collection.childCount != nil ? "\(collection.childCount!) items" : "Collection",
                                     showDivider: index < collections.count - 1
                                 ) {
@@ -117,8 +117,8 @@ struct CollectionRowsSettingsView: View {
                         SettingsRow(
                             icon: "rectangle.stack.fill",
                             iconColor: .blue,
-                            title: collection.name,
-                            subtitle: collection.sourceSummary,
+                            title: .verbatim(collection.name),
+                            subtitle: .verbatim(collection.sourceSummary),
                             showDivider: index < userCollections.collections.count - 1
                         ) {
                             Toggle("", isOn: Binding(
@@ -138,7 +138,7 @@ struct CollectionRowsSettingsView: View {
 
     private func loadCollections() async {
         guard let plexServer = FlixorCore.shared.plexServer else {
-            errorMessage = "Plex server not connected"
+            errorMessage = String(localized: "Plex server not connected")
             isLoading = false
             return
         }
@@ -156,7 +156,7 @@ struct CollectionRowsSettingsView: View {
             }
         } catch {
             await MainActor.run {
-                self.errorMessage = "Failed to load collections: \(error.localizedDescription)"
+                self.errorMessage = String(localized: "Failed to load collections: \(error.localizedDescription)")
                 self.isLoading = false
             }
         }

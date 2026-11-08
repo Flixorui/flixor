@@ -125,7 +125,7 @@ struct PlexServersView: View {
                         }
 
                         VStack(alignment: .leading, spacing: DS.Space.s2) {
-                            Text(plexUsername ?? "Signed In")
+                            Text(plexUsername ?? String(localized: "Signed In"))
                                 .font(.flixor(.callout, weight: .semibold))
                             if let email = plexEmail {
                                 Text(email)
@@ -237,7 +237,7 @@ struct PlexServersView: View {
             } else if let errorMessage {
                 messageRow(text: errorMessage, style: .error)
             } else if servers.isEmpty {
-                messageRow(text: "No servers found. Use Refresh to try again.", style: .info)
+                messageRow(text: String(localized: "No servers found. Use Refresh to try again."), style: .info)
             } else {
                 serverList
             }
@@ -392,7 +392,7 @@ struct PlexServersView: View {
             let fetched = try await APIClient.shared.getPlexServers()
             servers = fetched.sorted { ($0.name.lowercased()) < ($1.name.lowercased()) }
         } catch {
-            errorMessage = "Failed to load servers. Please try again."
+            errorMessage = String(localized: "Failed to load servers. Please try again.")
             print("❌ [Settings] Failed to load Plex servers: \(error)")
         }
 
@@ -403,14 +403,14 @@ struct PlexServersView: View {
     private func setActiveServer(_ server: PlexServer) async {
         guard !isPerformingAction else { return }
         isPerformingAction = true
-        statusMessage = "Updating active server…"
+        statusMessage = String(localized: "Updating active server…")
 
         do {
             _ = try await APIClient.shared.setCurrentPlexServer(serverId: server.id)
-            statusMessage = "Active server updated to \(server.name)."
+            statusMessage = String(localized: "Active server updated to \(server.name).")
             await loadServers(force: true)
         } catch {
-            errorMessage = "Unable to set active server."
+            errorMessage = String(localized: "Unable to set active server.")
             print("❌ [Settings] Failed to set active server: \(error)")
         }
 
@@ -420,7 +420,7 @@ struct PlexServersView: View {
     @MainActor
     private func signOut() async {
         isPerformingAction = true
-        statusMessage = appMode.isStremioOnly ? "Disconnecting..." : "Signing out..."
+        statusMessage = appMode.isStremioOnly ? String(localized: "Disconnecting...") : String(localized: "Signing out...")
 
         if appMode.isStremioOnly {
             // Keep the app usable standalone; don't reset settings or bounce to the chooser.
@@ -441,7 +441,7 @@ struct PlexServersView: View {
     @MainActor
     private func switchToStremioOnly() async {
         isPerformingAction = true
-        statusMessage = "Switching to Stremio only..."
+        statusMessage = String(localized: "Switching to Stremio only...")
 
         await SessionManager.shared.disconnectPlex()
         servers = []

@@ -52,7 +52,7 @@ struct UserCollectionHomeRow: View {
         case .loaded(let items):
             row(items)
         case .empty:
-            messageRow("Nothing in this collection right now.", retry: nil)
+            messageRow(String(localized: "Nothing in this collection right now."), retry: nil)
         case .failed(let message):
             messageRow(message) {
                 Task { await load(collection, forceRefresh: true) }

@@ -87,7 +87,7 @@ enum CardActions {
                 await LocalLibraryStore.shared.removeFromWatchlist(id: id)
                 controller?.registerRemove(id: id)
             }
-            ToastManager.shared.show("Removed \(title) from My List", type: .success)
+            ToastManager.shared.show(String(localized: "Removed \(title) from My List"), type: .success)
             return false
         } else {
             async let plexResult: Bool = addToPlexWatchlist(plexIdentifier)
@@ -107,7 +107,7 @@ enum CardActions {
                 )
             )
             controller?.registerAdd(id: canonicalId)
-            ToastManager.shared.show("Added \(title) to My List", type: .success)
+            ToastManager.shared.show(String(localized: "Added \(title) to My List"), type: .success)
             return true
         }
     }
@@ -130,12 +130,12 @@ enum CardActions {
         do {
             let result = try await TraktListsService.shared.add(item, toList: list.id)
             if result.addedCount == 0 && result.existingCount > 0 {
-                ToastManager.shared.show("Already on \(list.name)", type: .info)
+                ToastManager.shared.show(String(localized: "Already on \(list.name)"), type: .info)
             } else {
-                ToastManager.shared.show("Added to \(list.name)", type: .success)
+                ToastManager.shared.show(String(localized: "Added to \(list.name)"), type: .success)
             }
         } catch {
-            ToastManager.shared.show("Couldn't add to \(list.name): \(error.localizedDescription)", type: .error)
+            ToastManager.shared.show(String(localized: "Couldn't add to \(list.name): \(error.localizedDescription)"), type: .error)
         }
     }
 

@@ -81,7 +81,7 @@ class APIClient: ObservableObject {
 
     private func routePlexRequest<T: Decodable>(path: String, params: [String: String], bypassCache: Bool = false) async throws -> T {
         guard let plexServer = FlixorCore.shared.plexServer else {
-            throw APIError.serverError("No Plex server connected")
+            throw APIError.serverError(String(localized: "No Plex server connected"))
         }
 
         let subpath = String(path.dropFirst("/api/plex/".count))
@@ -538,7 +538,7 @@ class APIClient: ObservableObject {
         // /api/trakt/users/me (profile)
         if subpath == "users/me" {
             guard trakt.isAuthenticated else {
-                throw APIError.serverError("Not authenticated with Trakt")
+                throw APIError.serverError(String(localized: "Not authenticated with Trakt"))
             }
             let result = try await trakt.getUserProfile()
             return try encodeAndDecode(result)
@@ -817,7 +817,7 @@ class APIClient: ObservableObject {
         // Handle Plex progress reporting
         if path == "/api/plex/progress" {
             guard let plexServer = FlixorCore.shared.plexServer else {
-                throw APIError.serverError("No Plex server connected")
+                throw APIError.serverError(String(localized: "No Plex server connected"))
             }
 
             // Decode the progress request body
@@ -845,10 +845,10 @@ class APIClient: ObservableObject {
         if path == "/api/plex/scrobble" || path == "/api/plex/unscrobble" {
             // Plex is never written in Stremio-only mode (matches WatchStateService).
             guard !isStremioOnlyMode else {
-                throw APIError.serverError("Plex is not used in Stremio-only mode")
+                throw APIError.serverError(String(localized: "Plex is not used in Stremio-only mode"))
             }
             guard let plexServer = FlixorCore.shared.plexServer else {
-                throw APIError.serverError("No Plex server connected")
+                throw APIError.serverError(String(localized: "No Plex server connected"))
             }
             guard let body,
                   let json = try JSONSerialization.jsonObject(with: try JSONEncoder().encode(body)) as? [String: Any],
@@ -965,7 +965,7 @@ class APIClient: ObservableObject {
         // PUT /api/plextv/watchlist/:id - Add to Plex.tv watchlist
         if path.hasPrefix("/api/plextv/watchlist/") {
             guard let plexTv = FlixorCore.shared.plexTv else {
-                throw APIError.serverError("Not authenticated with Plex.tv")
+                throw APIError.serverError(String(localized: "Not authenticated with Plex.tv"))
             }
 
             // Extract the ID from the path (URL decoded)
@@ -1014,7 +1014,7 @@ class APIClient: ObservableObject {
         // DELETE /api/plextv/watchlist/:id - Remove from Plex.tv watchlist
         if path.hasPrefix("/api/plextv/watchlist/") {
             guard let plexTv = FlixorCore.shared.plexTv else {
-                throw APIError.serverError("Not authenticated with Plex.tv")
+                throw APIError.serverError(String(localized: "Not authenticated with Plex.tv"))
             }
 
             let idPart = String(path.dropFirst("/api/plextv/watchlist/".count))
@@ -1173,7 +1173,7 @@ class APIClient: ObservableObject {
         // Find the server in our list
         let servers = try await FlixorCore.shared.getPlexServers()
         guard let server = servers.first(where: { $0.id == serverId || $0.name == serverId }) else {
-            throw APIError.serverError("Server not found")
+            throw APIError.serverError(String(localized: "Server not found"))
         }
 
         // Connect to the server via FlixorCore
@@ -1186,7 +1186,7 @@ class APIClient: ObservableObject {
         // Find the server
         let servers = try await FlixorCore.shared.getPlexServers()
         guard let server = servers.first(where: { $0.id == serverId || $0.name == serverId }) else {
-            throw APIError.serverError("Server not found")
+            throw APIError.serverError(String(localized: "Server not found"))
         }
 
         // Test the endpoint connectivity
@@ -1200,10 +1200,10 @@ class APIClient: ObservableObject {
                 let (_, response) = try await URLSession.shared.data(for: request)
                 guard let httpResponse = response as? HTTPURLResponse,
                       (200...399).contains(httpResponse.statusCode) else {
-                    throw APIError.serverError("Endpoint unreachable")
+                    throw APIError.serverError(String(localized: "Endpoint unreachable"))
                 }
             } catch {
-                throw APIError.serverError("Endpoint test failed: \(error.localizedDescription)")
+                throw APIError.serverError(String(localized: "Endpoint test failed: \(error.localizedDescription)"))
             }
         }
 
@@ -1518,7 +1518,7 @@ struct TMDBPersonCombinedResponse: Codable {
         let poster_path: String?
         let backdrop_path: String?
 
-        var displayTitle: String { title ?? name ?? "Untitled" }
+        var displayTitle: String { title ?? name ?? String(localized: "Untitled") }
     }
 
     let cast: [Credit]?

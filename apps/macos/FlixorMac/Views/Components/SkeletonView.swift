@@ -159,7 +159,7 @@ struct SkeletonGrid: View {
 // MARK: - Loading View
 
 struct LoadingView: View {
-    var message: String = "Loading..."
+    var message: String = String(localized: "Loading...")
 
     var body: some View {
         VStack(spacing: DS.Space.s16) {

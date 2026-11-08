@@ -50,7 +50,7 @@ enum PersonDates {
         guard let born = date(birthday) else { return nil }
         if date(deathday) != nil { return format(born) }
         if let age = years(from: born, to: Date()), age >= 0 {
-            return "\(format(born)) (age \(age))"
+            return String(localized: "\(format(born)) (age \(age))")
         }
         return format(born)
     }
@@ -59,7 +59,7 @@ enum PersonDates {
     static func diedLine(birthday: String?, deathday: String?) -> String? {
         guard let died = date(deathday) else { return nil }
         if let born = date(birthday), let age = years(from: born, to: died), age >= 0 {
-            return "\(format(died)) (aged \(age))"
+            return String(localized: "\(format(died)) (aged \(age))")
         }
         return format(died)
     }
@@ -121,19 +121,19 @@ extension PersonDetailViewModel {
         guard let profile else { return [] }
         var facts: [PersonFact] = []
         if let department = knownForDepartment {
-            facts.append(PersonFact(label: "Known for", value: department))
+            facts.append(PersonFact(label: String(localized: "Known for"), value: department))
         }
         if let born = PersonDates.bornLine(birthday: profile.birthday, deathday: profile.deathday) {
-            facts.append(PersonFact(label: "Born", value: born))
+            facts.append(PersonFact(label: String(localized: "Born"), value: born))
         }
         if let died = PersonDates.diedLine(birthday: profile.birthday, deathday: profile.deathday) {
-            facts.append(PersonFact(label: "Died", value: died))
+            facts.append(PersonFact(label: String(localized: "Died"), value: died))
         }
         if let place = profile.placeOfBirth?.trimmingCharacters(in: .whitespaces), !place.isEmpty {
-            facts.append(PersonFact(label: "Place of birth", value: place))
+            facts.append(PersonFact(label: String(localized: "Place of birth"), value: place))
         }
         if let summary = creditSummary {
-            facts.append(PersonFact(label: "Credits", value: summary))
+            facts.append(PersonFact(label: String(localized: "Credits"), value: summary))
         }
         return facts
     }
@@ -154,7 +154,7 @@ struct PersonFactsList: View {
         ) {
             ForEach(facts) { fact in
                 VStack(alignment: .leading, spacing: DS.Space.s4) {
-                    PersonSectionLabel(text: fact.label)
+                    PersonSectionLabel(text: .verbatim(fact.label))
                     Text(fact.value)
                         .flixorFont(.body)
                         .foregroundStyle(theme.textSecondary)
@@ -169,11 +169,12 @@ struct PersonFactsList: View {
 }
 
 struct PersonSectionLabel: View {
-    let text: String
+    let text: LocalizedStringKey
     @Environment(\.flixorTheme) private var theme
 
     var body: some View {
-        Text(text.uppercased())
+        Text(text)
+            .textCase(.uppercase)
             .flixorFont(.micro)
             .foregroundStyle(theme.textTertiary)
     }
@@ -197,7 +198,7 @@ struct PersonLinksRow: View {
         var links: [PersonLink] = []
         if let url = viewModel.imdbURL { links.append(PersonLink(title: "IMDb", icon: "film", url: url)) }
         if let url = viewModel.instagramURL { links.append(PersonLink(title: "Instagram", icon: "camera", url: url)) }
-        if let url = viewModel.homepageURL { links.append(PersonLink(title: "Website", icon: "globe", url: url)) }
+        if let url = viewModel.homepageURL { links.append(PersonLink(title: String(localized: "Website"), icon: "globe", url: url)) }
         return links
     }
 

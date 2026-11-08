@@ -12,12 +12,12 @@ struct StremioProviderFilterBar: View {
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: DS.Space.s10) {
-                providerChip(title: "All", subtitle: nil, id: "all")
+                providerChip(title: String(localized: "All"), subtitle: nil, id: "all")
 
                 ForEach(providers) { provider in
                     providerChip(
                         title: provider.addonName,
-                        subtitle: provider.streams.isEmpty ? provider.error : "\(provider.streams.count) source\(provider.streams.count == 1 ? "" : "s")",
+                        subtitle: provider.streams.isEmpty ? provider.error : String(localized: "\(provider.streams.count) sources"),
                         id: provider.installationId
                     )
                 }

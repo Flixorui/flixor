@@ -15,7 +15,7 @@ struct ContinueWatchingStylePicker: View {
         HStack(spacing: DS.Space.itemGap) {
             ForEach(ContinueWatchingCardStyle.allCases) { style in
                 LayoutOptionButton(
-                    title: style.title,
+                    title: .verbatim(style.title),
                     icon: style.iconName,
                     isSelected: ContinueWatchingCardStyle(storageValue: profileSettings.continueWatchingLayout) == style
                 ) {
@@ -33,8 +33,8 @@ struct ContinueWatchingWidePreview: View {
     @Environment(\.flixorTheme) private var theme
 
     private let samples: [(show: String, episode: String, label: String, progress: Double, time: String, upNext: Bool)] = [
-        ("Breaking Bad", "Ozymandias", "S5 · E14", 0.45, "26m left", false),
-        ("Stranger Things", "The Massacre at Hawkins Lab", "S4 · E2", 0, "Up next · 1h 15m", true),
+        ("Breaking Bad", "Ozymandias", "S5 · E14", 0.45, String(localized: "26m left"), false),
+        ("Stranger Things", "The Massacre at Hawkins Lab", "S4 · E2", 0, String(localized: "Up next · 1h 15m"), true),
     ]
 
     var body: some View {

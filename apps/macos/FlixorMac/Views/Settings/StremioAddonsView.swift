@@ -146,9 +146,9 @@ struct StremioAddonsView: View {
                 }
                 Spacer()
                 HStack(spacing: DS.Space.s6) {
-                    capabilityBadge(title: "Streams", active: addon.streamCapable, color: .blue)
-                    capabilityBadge(title: "Subtitles", active: addon.subtitleCapable, color: .purple)
-                    capabilityBadge(title: "Catalogs", active: addon.catalogCapable, color: .teal)
+                    capabilityBadge(title: String(localized: "Streams"), active: addon.streamCapable, color: .blue)
+                    capabilityBadge(title: String(localized: "Subtitles"), active: addon.subtitleCapable, color: .purple)
+                    capabilityBadge(title: String(localized: "Catalogs"), active: addon.catalogCapable, color: .teal)
                 }
             }
 
@@ -217,7 +217,7 @@ struct StremioAddonsView: View {
             _ = try await StremioService.shared.installAddon(from: trimmed)
             await MainActor.run {
                 manifestURL = ""
-                alertMessage = "Addon installed successfully."
+                alertMessage = String(localized: "Addon installed successfully.")
             }
             await refresh()
         } catch {

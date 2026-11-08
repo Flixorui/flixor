@@ -132,16 +132,16 @@ struct DetailsRatingSheet: View {
 
     static func label(for value: Int) -> String {
         switch value {
-        case 1: return "Awful"
-        case 2: return "Terrible"
-        case 3: return "Bad"
-        case 4: return "Poor"
-        case 5: return "Meh"
-        case 6: return "Fair"
-        case 7: return "Good"
-        case 8: return "Great"
-        case 9: return "Superb"
-        default: return "Masterpiece"
+        case 1: return String(localized: "Awful")
+        case 2: return String(localized: "Terrible")
+        case 3: return String(localized: "Bad")
+        case 4: return String(localized: "Poor")
+        case 5: return String(localized: "Meh")
+        case 6: return String(localized: "Fair")
+        case 7: return String(localized: "Good")
+        case 8: return String(localized: "Great")
+        case 9: return String(localized: "Superb")
+        default: return String(localized: "Masterpiece")
         }
     }
 }
