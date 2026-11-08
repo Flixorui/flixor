@@ -20,7 +20,7 @@ struct ContinueWatchingPosterRow: View {
     private let cardWidth: CGFloat = 160
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DS.Space.s12) {
             // Header
             HStack {
                 Text(title)
@@ -29,11 +29,11 @@ struct ContinueWatchingPosterRow: View {
 
                 Spacer()
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, DS.Space.s20)
 
             // Horizontal scroll of cards
             ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: 14) {
+                LazyHStack(spacing: DS.Space.s14) {
                     ForEach(items) { item in
                         let showVersion = itemsWithMultipleVersions?.contains(item.id) ?? false
                         ContinueWatchingPosterCard(
@@ -51,7 +51,7 @@ struct ContinueWatchingPosterRow: View {
                         .transition(.opacity.combined(with: .scale(scale: 0.95)))
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, DS.Space.s20)
             }
         }
     }
@@ -119,28 +119,28 @@ struct ContinueWatchingPosterCard: View {
 
                 // Title overlay (only on hover)
                 if isHovered {
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: DS.Space.s4) {
                         Text(item.type == "episode" ? (item.grandparentTitle ?? item.title) : item.title)
-                            .font(.system(size: 13, weight: .semibold))
+                            .font(.flixor(.callout, weight: .semibold))
                             .foregroundStyle(.white)
                             .lineLimit(2)
 
                         if item.type == "episode", let label = item.episodeLabel {
                             Text(label)
-                                .font(.system(size: 11))
+                                .font(.flixor(.caption))
                                 .foregroundStyle(.white.opacity(0.85))
                                 .lineLimit(1)
                         }
 
                         if let version = versionText {
                             Text(version)
-                                .font(.system(size: 10))
+                                .font(.flixor(.micro))
                                 .foregroundStyle(.white.opacity(0.7))
                                 .lineLimit(1)
                         }
                     }
                     .frame(width: width - 16, alignment: .leading)
-                    .padding(8)
+                    .padding(DS.Space.s8)
                     .transition(.opacity)
                 }
 
@@ -151,23 +151,23 @@ struct ContinueWatchingPosterCard: View {
                             Spacer()
                             ProgressRing(progress: progressPercentage)
                                 .frame(width: 36, height: 36)
-                                .padding(8)
+                                .padding(DS.Space.s8)
                         }
                         Spacer()
                     }
                 }
             }
             .frame(width: width, height: height)
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r10, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                RoundedRectangle(cornerRadius: DS.Radius.r10, style: .continuous)
                     .strokeBorder(Color.white.opacity(isHovered ? 0.6 : 0.1), lineWidth: isHovered ? 2 : 1)
             )
             .shadow(color: .black.opacity(0.3), radius: 6, y: 3)
         }
         .buttonStyle(.plain)
         .onHover { hovering in
-            withAnimation(.easeOut(duration: 0.15)) {
+            withAnimation(DS.Motion.quick) {
                 isHovered = hovering
             }
         }
@@ -277,7 +277,7 @@ struct ProgressRing: View {
 
             // Play icon in center
             Image(systemName: "play.fill")
-                .font(.system(size: 10))
+                .font(.flixor(.micro))
                 .foregroundStyle(.white)
         }
         .background(Color.black.opacity(0.6))

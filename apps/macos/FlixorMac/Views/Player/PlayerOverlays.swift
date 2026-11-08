@@ -13,25 +13,25 @@ struct PlayerLoadingOverlay: View {
     @ObservedObject var viewModel: PlayerViewModel
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: DS.Space.s12) {
             ProgressView()
                 .scaleEffect(1.5)
                 .tint(.white)
 
             // Show quality change message if applicable
             if viewModel.isChangingQuality {
-                VStack(spacing: 4) {
+                VStack(spacing: DS.Space.s4) {
                     Text("Switching to \(viewModel.selectedQuality.rawValue)")
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(.flixor(.headline, weight: .semibold))
                         .foregroundStyle(.white)
 
                     if viewModel.isTranscoding {
                         Text("Starting transcode...")
-                            .font(.system(size: 13))
+                            .font(.flixor(.callout))
                             .foregroundStyle(.white.opacity(0.7))
                     } else {
                         Text("Loading direct play...")
-                            .font(.system(size: 13))
+                            .font(.flixor(.callout))
                             .foregroundStyle(.white.opacity(0.7))
                     }
                 }
@@ -50,9 +50,9 @@ struct PlayerErrorOverlay: View {
     var onChooseSource: (() -> Void)? = nil
 
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: DS.Space.s16) {
             Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 48))
+                .font(.flixorIcon(DS.Icon.huge))
                 .foregroundStyle(.orange)
 
             Text("Playback Error")
@@ -63,9 +63,9 @@ struct PlayerErrorOverlay: View {
                 .font(.body)
                 .foregroundStyle(.white.opacity(0.8))
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, 40)
+                .padding(.horizontal, DS.Space.s40)
 
-            HStack(spacing: 12) {
+            HStack(spacing: DS.Space.s12) {
                 Button("Close") {
                     onClose()
                 }
@@ -115,23 +115,23 @@ struct SkipMarkerButton: View {
                 Button(action: {
                     viewModel.skipMarker()
                 }) {
-                    HStack(spacing: 8) {
+                    HStack(spacing: DS.Space.s8) {
                         Text(title)
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(.flixor(.headline, weight: .semibold))
                             .foregroundStyle(.black)
                         Image(systemName: "forward.fill")
-                            .font(.system(size: 14, weight: .semibold))
+                            .font(.flixorIcon(DS.Icon.sm, weight: .semibold))
                             .foregroundStyle(.black)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
+                    .padding(.horizontal, DS.Space.s16)
+                    .padding(.vertical, DS.Space.s12)
                     .background(Color.white.opacity(0.9))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r8))
                     .shadow(color: .black.opacity(0.3), radius: 8, y: 2)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(marker.skipButtonTitle)
-                .padding(.trailing, 24)
+                .padding(.trailing, DS.Space.s24)
                 .padding(.bottom, 115)
             }
         }
@@ -151,37 +151,37 @@ struct NextEpisodeOverlay: View {
             Spacer()
             HStack {
                 Spacer()
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: DS.Space.s12) {
                     // Header
                     Text("Next Episode")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.flixor(.footnote, weight: .medium))
                         .foregroundStyle(.white.opacity(0.7))
 
                     // Episode info
                     if let parentIndex = episode.parentIndex, let index = episode.index {
                         Text("S\(parentIndex) E\(index) · \(episode.title)")
-                            .font(.system(size: 14, weight: .semibold))
+                            .font(.flixor(.body, weight: .semibold))
                             .foregroundStyle(.white)
                             .lineLimit(2)
                     } else {
                         Text(episode.title)
-                            .font(.system(size: 14, weight: .semibold))
+                            .font(.flixor(.body, weight: .semibold))
                             .foregroundStyle(.white)
                             .lineLimit(2)
                     }
 
                     // Action buttons
-                    HStack(spacing: 8) {
+                    HStack(spacing: DS.Space.s8) {
                         // Cancel button (outlined)
                         Button(action: onCancel) {
                             Text("Cancel")
-                                .font(.system(size: 14, weight: .medium))
+                                .font(.flixor(.body, weight: .medium))
                                 .foregroundStyle(.white)
                                 .frame(maxWidth: .infinity)
-                                .padding(.vertical, 12)
+                                .padding(.vertical, DS.Space.s12)
                                 .background(Color.clear)
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: 6)
+                                    RoundedRectangle(cornerRadius: DS.Radius.r6)
                                         .stroke(Color.white.opacity(0.5), lineWidth: 1)
                                 )
                         }
@@ -189,33 +189,33 @@ struct NextEpisodeOverlay: View {
 
                         // Play button (filled white with countdown)
                         Button(action: onPlayNow) {
-                            HStack(spacing: 4) {
+                            HStack(spacing: DS.Space.s4) {
                                 if countdown > 0 {
                                     Text("\(countdown)")
-                                        .font(.system(size: 14, weight: .semibold))
+                                        .font(.flixor(.body, weight: .semibold))
                                         .foregroundStyle(.black)
                                     Image(systemName: "play.fill")
-                                        .font(.system(size: 12, weight: .semibold))
+                                        .font(.flixorIcon(DS.Icon.xs, weight: .semibold))
                                         .foregroundStyle(.black)
                                 } else {
                                     Text("Play Now")
-                                        .font(.system(size: 14, weight: .semibold))
+                                        .font(.flixor(.body, weight: .semibold))
                                         .foregroundStyle(.black)
                                 }
                             }
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
+                            .padding(.vertical, DS.Space.s12)
                             .background(Color.white)
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r6))
                         }
                         .buttonStyle(.plain)
                     }
                 }
-                .padding(16)
+                .padding(DS.Space.s16)
                 .frame(width: 320)
                 .background(Color.black.opacity(0.9))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                .padding(.trailing, 24)
+                .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r12))
+                .padding(.trailing, DS.Space.s24)
                 .padding(.bottom, 100)
             }
         }
@@ -232,15 +232,15 @@ struct NextEpisodeHoverCard: View {
         VStack(alignment: .leading, spacing: 0) {
             // Header
             Text("Next Episode")
-                .font(.system(size: 16, weight: .bold))
+                .font(.flixor(.headline, weight: .bold))
                 .foregroundStyle(.white)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
+                .padding(.horizontal, DS.Space.s16)
+                .padding(.vertical, DS.Space.s12)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color.white.opacity(0.05))
 
             // Content grid
-            HStack(spacing: 12) {
+            HStack(spacing: DS.Space.s12) {
                 // Episode thumbnail with play icon overlay
                 ZStack {
                     // Thumbnail
@@ -287,27 +287,27 @@ struct NextEpisodeHoverCard: View {
                     }
                 }
                 .frame(width: 180, height: 100)
-                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r6))
 
                 // Episode info
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: DS.Space.s4) {
                     // Season and Episode number (compact)
                     if let parentIndex = episode.parentIndex, let index = episode.index {
                         Text("\(parentIndex) Episode \(index)")
-                            .font(.system(size: 14, weight: .semibold))
+                            .font(.flixor(.body, weight: .semibold))
                             .foregroundStyle(.white.opacity(0.9))
                     }
 
                     // Episode title
                     Text(episode.title)
-                        .font(.system(size: 16, weight: .bold))
+                        .font(.flixor(.headline, weight: .bold))
                         .foregroundStyle(.white)
                         .lineLimit(1)
 
                     // Episode summary
                     if let summary = episode.summary {
                         Text(summary)
-                            .font(.system(size: 12))
+                            .font(.flixor(.footnote))
                             .foregroundStyle(.white.opacity(0.8))
                             .lineSpacing(2)
                             .lineLimit(3)
@@ -315,13 +315,13 @@ struct NextEpisodeHoverCard: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(12)
+            .padding(DS.Space.s12)
         }
         .frame(width: 440)
         .background(Color.black.opacity(0.9))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r12))
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: DS.Radius.r12)
                 .strokeBorder(Color.white.opacity(0.1), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.3), radius: 20, y: 8)

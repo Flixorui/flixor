@@ -25,7 +25,7 @@ struct ServerEndpointFlowView: View {
             switch currentStep {
             case .serverSelect:
                 ServerSelectView { server in
-                    withAnimation(.easeInOut(duration: 0.3)) {
+                    withAnimation(DS.Motion.emphasized) {
                         currentStep = .endpointSelect(server)
                     }
                 }
@@ -38,7 +38,7 @@ struct ServerEndpointFlowView: View {
                 EndpointSelectView(
                     server: server,
                     onBack: {
-                        withAnimation(.easeInOut(duration: 0.3)) {
+                        withAnimation(DS.Motion.emphasized) {
                             currentStep = .serverSelect
                         }
                     },

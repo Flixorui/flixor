@@ -27,7 +27,7 @@ struct DownloadsView: View {
 
             // Content
             ScrollView {
-                LazyVStack(spacing: 16) {
+                LazyVStack(spacing: DS.Space.s16) {
                     // Active downloads section
                     if !downloadManager.activeTasks.isEmpty {
                         activeDownloadsSection
@@ -36,8 +36,8 @@ struct DownloadsView: View {
                     // Completed downloads
                     completedDownloadsSection
                 }
-                .padding(.horizontal, 24)
-                .padding(.bottom, 24)
+                .padding(.horizontal, DS.Space.s24)
+                .padding(.bottom, DS.Space.s24)
             }
         }
         .background(Color.black)
@@ -57,8 +57,8 @@ struct DownloadsView: View {
                 storageInfo
             }
         }
-        .padding(.horizontal, 24)
-        .padding(.top, 16)
+        .padding(.horizontal, DS.Space.s24)
+        .padding(.top, DS.Space.s16)
     }
 
     private var storageInfo: some View {
@@ -81,14 +81,14 @@ struct DownloadsView: View {
             }
         }
         .pickerStyle(.segmented)
-        .padding(.horizontal, 24)
-        .padding(.vertical, 16)
+        .padding(.horizontal, DS.Space.s24)
+        .padding(.vertical, DS.Space.s16)
     }
 
     // MARK: - Active Downloads
 
     private var activeDownloadsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DS.Space.s12) {
             Text("Downloading")
                 .font(.headline)
                 .foregroundStyle(.secondary)
@@ -97,7 +97,7 @@ struct DownloadsView: View {
                 DownloadProgressRow(task: task)
             }
         }
-        .padding(.bottom, 8)
+        .padding(.bottom, DS.Space.s8)
     }
 
     // MARK: - Completed Downloads
@@ -121,7 +121,7 @@ struct DownloadsView: View {
                 subtitle: "Download movies to watch offline"
             )
         } else {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: DS.Space.s12) {
                 ForEach(downloadManager.downloadedMovies) { item in
                     DownloadedItemRow(item: item)
                 }
@@ -138,7 +138,7 @@ struct DownloadsView: View {
                 subtitle: "Download episodes to watch offline"
             )
         } else {
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: DS.Space.s20) {
                 ForEach(downloadManager.downloadedShows) { show in
                     DownloadedShowSection(show: show)
                 }
@@ -154,9 +154,9 @@ struct DownloadProgressRow: View {
     @StateObject private var downloadManager = DownloadManager.shared
 
     var body: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: DS.Space.s16) {
             // Thumbnail placeholder
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: DS.Radius.r8)
                 .fill(Color.white.opacity(0.1))
                 .frame(width: 80, height: 45)
                 .overlay(
@@ -165,13 +165,13 @@ struct DownloadProgressRow: View {
                 )
 
             // Info
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: DS.Space.s4) {
                 Text(task.displayTitle)
                     .font(.headline)
                     .foregroundStyle(.white)
                     .lineLimit(1)
 
-                HStack(spacing: 8) {
+                HStack(spacing: DS.Space.s8) {
                     // Progress bar
                     ProgressView(value: task.progress)
                         .progressViewStyle(.linear)
@@ -196,16 +196,16 @@ struct DownloadProgressRow: View {
             // Status/Actions
             statusButtons
         }
-        .padding(12)
+        .padding(DS.Space.s12)
         .background(Color.white.opacity(0.05))
-        .cornerRadius(12)
+        .cornerRadius(DS.Radius.r12)
     }
 
     @ViewBuilder
     private var statusButtons: some View {
         switch task.status {
         case .queued:
-            HStack(spacing: 8) {
+            HStack(spacing: DS.Space.s8) {
                 Text("Queued")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -217,7 +217,7 @@ struct DownloadProgressRow: View {
             }
 
         case .downloading:
-            HStack(spacing: 8) {
+            HStack(spacing: DS.Space.s8) {
                 Button(action: { downloadManager.pauseDownload(task.id) }) {
                     Image(systemName: "pause.circle.fill")
                         .font(.title2)
@@ -233,7 +233,7 @@ struct DownloadProgressRow: View {
             }
 
         case .paused:
-            HStack(spacing: 8) {
+            HStack(spacing: DS.Space.s8) {
                 Button(action: { downloadManager.resumeDownload(task.id) }) {
                     Image(systemName: "play.circle.fill")
                         .font(.title2)
@@ -249,7 +249,7 @@ struct DownloadProgressRow: View {
             }
 
         case .failed:
-            HStack(spacing: 8) {
+            HStack(spacing: DS.Space.s8) {
                 Text(task.errorMessage ?? "Failed")
                     .font(.caption)
                     .foregroundStyle(.red)
@@ -289,18 +289,18 @@ struct DownloadedItemRow: View {
 
     var body: some View {
         Button(action: playItem) {
-            HStack(spacing: 16) {
+            HStack(spacing: DS.Space.s16) {
                 // Artwork
                 artworkView
 
                 // Info
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: DS.Space.s4) {
                     Text(item.title)
                         .font(.headline)
                         .foregroundStyle(.white)
                         .lineLimit(1)
 
-                    HStack(spacing: 8) {
+                    HStack(spacing: DS.Space.s8) {
                         if let year = item.year {
                             Text(String(year))
                                 .font(.subheadline)
@@ -319,7 +319,7 @@ struct DownloadedItemRow: View {
                 Spacer()
 
                 // Actions
-                HStack(spacing: 12) {
+                HStack(spacing: DS.Space.s12) {
                     // Play button
                     Image(systemName: "play.circle.fill")
                         .font(.title)
@@ -333,9 +333,9 @@ struct DownloadedItemRow: View {
                     .buttonStyle(.plain)
                 }
             }
-            .padding(12)
+            .padding(DS.Space.s12)
             .background(isHovered ? Color.white.opacity(0.1) : Color.white.opacity(0.05))
-            .cornerRadius(12)
+            .cornerRadius(DS.Radius.r12)
         }
         .buttonStyle(.plain)
         .onHover { hovering in
@@ -367,14 +367,14 @@ struct DownloadedItemRow: View {
                 artworkPlaceholder
             }
             .frame(width: 80, height: 45)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r8))
         } else {
             artworkPlaceholder
         }
     }
 
     private var artworkPlaceholder: some View {
-        RoundedRectangle(cornerRadius: 8)
+        RoundedRectangle(cornerRadius: DS.Radius.r8)
             .fill(Color.white.opacity(0.1))
             .frame(width: 80, height: 45)
             .overlay(
@@ -412,15 +412,15 @@ struct DownloadedShowSection: View {
     @StateObject private var downloadManager = DownloadManager.shared
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DS.Space.s12) {
             // Show header
             Button(action: { withAnimation { isExpanded.toggle() } }) {
-                HStack(spacing: 12) {
+                HStack(spacing: DS.Space.s12) {
                     // Show artwork
                     showArtwork
 
                     // Show info
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: DS.Space.s2) {
                         Text(show.title)
                             .font(.headline)
                             .foregroundStyle(.white)
@@ -441,17 +441,17 @@ struct DownloadedShowSection: View {
 
             // Episodes
             if isExpanded {
-                VStack(spacing: 8) {
+                VStack(spacing: DS.Space.s8) {
                     ForEach(show.sortedEpisodes) { episode in
                         EpisodeRow(episode: episode)
                     }
                 }
-                .padding(.leading, 16)
+                .padding(.leading, DS.Space.s16)
             }
         }
-        .padding(12)
+        .padding(DS.Space.s12)
         .background(Color.white.opacity(0.05))
-        .cornerRadius(12)
+        .cornerRadius(DS.Radius.r12)
     }
 
     @ViewBuilder
@@ -468,14 +468,14 @@ struct DownloadedShowSection: View {
                 showArtworkPlaceholder
             }
             .frame(width: 60, height: 60)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r8))
         } else {
             showArtworkPlaceholder
         }
     }
 
     private var showArtworkPlaceholder: some View {
-        RoundedRectangle(cornerRadius: 8)
+        RoundedRectangle(cornerRadius: DS.Radius.r8)
             .fill(Color.white.opacity(0.1))
             .frame(width: 60, height: 60)
             .overlay(
@@ -498,15 +498,15 @@ struct EpisodeRow: View {
 
     var body: some View {
         Button(action: playEpisode) {
-            HStack(spacing: 12) {
+            HStack(spacing: DS.Space.s12) {
                 // Episode number badge
                 Text(episode.episodeNumber ?? "")
                     .font(.caption.bold())
                     .foregroundStyle(.white)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
+                    .padding(.horizontal, DS.Space.s8)
+                    .padding(.vertical, DS.Space.s4)
                     .background(Color.blue.opacity(0.3))
-                    .cornerRadius(4)
+                    .cornerRadius(DS.Radius.r4)
 
                 // Episode title
                 Text(episode.title)
@@ -534,10 +534,10 @@ struct EpisodeRow: View {
                 }
                 .buttonStyle(.plain)
             }
-            .padding(.vertical, 8)
-            .padding(.horizontal, 12)
+            .padding(.vertical, DS.Space.s8)
+            .padding(.horizontal, DS.Space.s12)
             .background(isHovered ? Color.white.opacity(0.08) : Color.clear)
-            .cornerRadius(8)
+            .cornerRadius(DS.Radius.r8)
         }
         .buttonStyle(.plain)
         .onHover { hovering in
@@ -585,9 +585,9 @@ struct EmptyDownloadsView: View {
     let subtitle: String
 
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: DS.Space.s16) {
             Image(systemName: icon)
-                .font(.system(size: 48))
+                .font(.flixorIcon(DS.Icon.huge))
                 .foregroundStyle(.secondary)
 
             Text(title)
@@ -599,6 +599,6 @@ struct EmptyDownloadsView: View {
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 60)
+        .padding(.vertical, DS.Space.s60)
     }
 }

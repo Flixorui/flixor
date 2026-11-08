@@ -46,16 +46,16 @@ struct TrailersRow: View {
     private var cardHeight: CGFloat { cardWidth * 0.5625 } // 16:9
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DS.Space.s12) {
             // Header - styled like DetailsSectionHeader
             Text(title)
-                .font(.system(size: 18, weight: .bold))
+                .font(.flixor(.title3, weight: .bold))
                 .foregroundStyle(.white.opacity(0.95))
-                .padding(.horizontal, 24)
+                .padding(.horizontal, DS.Space.s24)
 
             // Horizontal scroll of trailer cards
             ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: 16) {
+                LazyHStack(spacing: DS.Space.s16) {
                     ForEach(trailers) { trailer in
                         TrailerCard(
                             trailer: trailer,
@@ -64,8 +64,8 @@ struct TrailersRow: View {
                         )
                     }
                 }
-                .padding(.leading, 24)
-                .padding(.trailing, 60)
+                .padding(.leading, DS.Space.s24)
+                .padding(.trailing, DS.Space.s60)
             }
         }
     }
@@ -111,16 +111,16 @@ struct TrailerCard: View {
                 )
 
                 // Info
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: DS.Space.s4) {
                     Spacer()
 
                     // Type badge
                     Text(trailer.type)
-                        .font(.system(size: 10, weight: .bold))
-                        .padding(.horizontal, 8)
+                        .font(.flixor(.micro, weight: .bold))
+                        .padding(.horizontal, DS.Space.s8)
                         .padding(.vertical, 3)
                         .background(badgeColor(for: trailer.type))
-                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r4))
                         .foregroundStyle(.white)
 
                     // Title
@@ -131,12 +131,12 @@ struct TrailerCard: View {
                         .lineLimit(2)
                         .shadow(color: .black.opacity(0.7), radius: 4)
                 }
-                .padding(12)
+                .padding(DS.Space.s12)
             }
             .frame(width: width, height: height)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r12, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: DS.Radius.r12, style: .continuous)
                     .strokeBorder(Color.white.opacity(isHovered ? 0.6 : 0.1), lineWidth: isHovered ? 2 : 1)
             )
             .shadow(color: .black.opacity(isHovered ? 0.5 : 0.3), radius: isHovered ? 16 : 8, y: isHovered ? 8 : 4)

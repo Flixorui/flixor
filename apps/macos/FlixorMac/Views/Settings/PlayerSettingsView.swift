@@ -80,7 +80,7 @@ struct PlayerSettingsView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: DS.Space.s16) {
             SettingsCard(title: "Playback Engine") {
                 SettingsRow(
                     icon: "play.rectangle.fill",
@@ -90,15 +90,15 @@ struct PlayerSettingsView: View {
                     showDivider: false
                 ) {
                     Text("MPV")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.flixor(.callout, weight: .semibold))
                         .foregroundStyle(.white)
                 }
             }
 
             Text("MPV is the required playback engine on macOS for direct URL streams, custom headers, advanced codecs, and Stremio integration.")
-                .font(.system(size: 11))
+                .font(.flixor(.caption))
                 .foregroundStyle(.secondary)
-                .padding(.horizontal, 4)
+                .padding(.horizontal, DS.Space.s4)
 
             // Player Engine (MPV-specific settings) - GLOBAL
             SettingsCard(title: "MPV Engine") {
@@ -433,7 +433,7 @@ struct PlayerSettingsView: View {
                     title: "Vertical Position",
                     subtitle: "100 is the bottom of the picture; lower values move subtitles up"
                 ) {
-                    HStack(spacing: 8) {
+                    HStack(spacing: DS.Space.s8) {
                         Slider(
                             value: Binding(
                                 get: { Double(engineSettings.position) },
@@ -445,7 +445,7 @@ struct PlayerSettingsView: View {
                         .frame(width: 100)
                         .accessibilityLabel("Subtitle vertical position")
                         Text("\(engineSettings.position)")
-                            .font(.system(size: 11))
+                            .font(.flixor(.caption))
                             .foregroundStyle(.secondary)
                             .frame(width: 35, alignment: .trailing)
                     }
@@ -485,11 +485,11 @@ struct PlayerSettingsView: View {
                     iconColor: .secondary,
                     title: "Background Opacity"
                 ) {
-                    HStack(spacing: 8) {
+                    HStack(spacing: DS.Space.s8) {
                         Slider(value: $profileSettings.subtitleBackgroundOpacity, in: 0...1, step: 0.1)
                             .frame(width: 100)
                         Text("\(Int(profileSettings.subtitleBackgroundOpacity * 100))%")
-                            .font(.system(size: 11))
+                            .font(.flixor(.caption))
                             .foregroundStyle(.secondary)
                             .frame(width: 35, alignment: .trailing)
                     }
@@ -529,12 +529,12 @@ struct PlayerSettingsView: View {
                 Spacer()
                 Button(action: resetToDefaults) {
                     Text("Reset to Defaults")
-                        .font(.system(size: 12))
+                        .font(.flixor(.footnote))
                 }
                 .buttonStyle(.borderless)
                 .foregroundStyle(.secondary)
             }
-            .padding(.top, 8)
+            .padding(.top, DS.Space.s8)
         }
         .sheet(isPresented: $showMpvConfigView) {
             MpvConfigView()

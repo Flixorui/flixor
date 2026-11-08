@@ -78,34 +78,34 @@ struct EndpointSelectView: View {
                     Button {
                         onBack()
                     } label: {
-                        HStack(spacing: 6) {
+                        HStack(spacing: DS.Space.s6) {
                             Image(systemName: "chevron.left")
-                                .font(.system(size: 12, weight: .semibold))
+                                .font(.flixorIcon(DS.Icon.xs, weight: .semibold))
                             Text("Back")
-                                .font(.system(size: 14, weight: .medium))
+                                .font(.flixor(.body, weight: .medium))
                         }
                         .foregroundColor(.white.opacity(0.6))
                     }
                     .buttonStyle(.plain)
                     Spacer()
                 }
-                .padding(.horizontal, 60)
+                .padding(.horizontal, DS.Space.s60)
                 .padding(.top, 30)
 
                 // Title
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: DS.Space.s8) {
                     Text("Connect to \(server.name)")
-                        .font(.system(size: 32, weight: .heavy))
+                        .font(.flixor(.display, weight: .heavy))
                         .foregroundColor(.white)
 
                     Text(isAutoTesting ? "Finding the best connection..." : "Ready to connect")
-                        .font(.system(size: 15))
+                        .font(.flixor(.bodyLarge))
                         .foregroundColor(.white.opacity(0.5))
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 60)
-                .padding(.top, 20)
-                .padding(.bottom, 32)
+                .padding(.horizontal, DS.Space.s60)
+                .padding(.top, DS.Space.s20)
+                .padding(.bottom, DS.Space.s32)
 
                 // Main content
                 if isAutoTesting {
@@ -127,7 +127,7 @@ struct EndpointSelectView: View {
     // MARK: - Auto Testing View
 
     private var autoTestingView: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: DS.Space.s24) {
             // Progress indicator
             ZStack {
                 Circle()
@@ -140,7 +140,7 @@ struct EndpointSelectView: View {
             }
 
             Text(autoTestProgress)
-                .font(.system(size: 14))
+                .font(.flixor(.body))
                 .foregroundColor(.white.opacity(0.6))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -150,25 +150,25 @@ struct EndpointSelectView: View {
 
     private func selectedConnectionView(connection: PlexConnectionResource, type: ConnectionType) -> some View {
         ScrollView {
-            VStack(spacing: 24) {
+            VStack(spacing: DS.Space.s24) {
                 // Success card
-                VStack(spacing: 16) {
+                VStack(spacing: DS.Space.s16) {
                     // Icon and type
-                    HStack(spacing: 12) {
+                    HStack(spacing: DS.Space.s12) {
                         ZStack {
                             Circle()
                                 .fill(type.color.opacity(0.2))
                                 .frame(width: 56, height: 56)
 
                             Image(systemName: type.icon)
-                                .font(.system(size: 24))
+                                .font(.flixorIcon(DS.Icon.xl))
                                 .foregroundColor(type.color)
                         }
 
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack(spacing: 8) {
+                        VStack(alignment: .leading, spacing: DS.Space.s4) {
+                            HStack(spacing: DS.Space.s8) {
                                 Text("\(type.rawValue) Connection")
-                                    .font(.system(size: 18, weight: .semibold))
+                                    .font(.flixor(.title3, weight: .semibold))
                                     .foregroundColor(.white)
 
                                 Image(systemName: "checkmark.circle.fill")
@@ -176,7 +176,7 @@ struct EndpointSelectView: View {
                             }
 
                             Text("Best available connection found")
-                                .font(.system(size: 13))
+                                .font(.flixor(.callout))
                                 .foregroundColor(.white.opacity(0.5))
                         }
 
@@ -186,7 +186,7 @@ struct EndpointSelectView: View {
                     // URI display
                     HStack {
                         Text(connection.uri)
-                            .font(.system(size: 13, design: .monospaced))
+                            .font(.flixor(.callout, design: .monospaced))
                             .foregroundColor(.white.opacity(0.7))
                             .lineLimit(1)
                             .truncationMode(.middle)
@@ -195,46 +195,46 @@ struct EndpointSelectView: View {
 
                         if let result = testResults[connection.uri], case .success(let ms) = result {
                             Text("\(ms)ms")
-                                .font(.system(size: 12, weight: .medium))
+                                .font(.flixor(.footnote, weight: .medium))
                                 .foregroundColor(.green)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
+                                .padding(.horizontal, DS.Space.s8)
+                                .padding(.vertical, DS.Space.s4)
                                 .background(Color.green.opacity(0.15))
-                                .cornerRadius(6)
+                                .cornerRadius(DS.Radius.r6)
                         }
                     }
-                    .padding(12)
+                    .padding(DS.Space.s12)
                     .background(Color.white.opacity(0.05))
-                    .cornerRadius(8)
+                    .cornerRadius(DS.Radius.r8)
 
                     // Continue button
                     Button {
                         Task { await useEndpoint(connection.uri) }
                     } label: {
-                        HStack(spacing: 8) {
+                        HStack(spacing: DS.Space.s8) {
                             if isConnecting {
                                 ProgressView()
                                     .scaleEffect(0.8)
                                     .progressViewStyle(CircularProgressViewStyle(tint: .white))
                             }
                             Text(isConnecting ? "Connecting..." : "Continue")
-                                .font(.system(size: 15, weight: .semibold))
+                                .font(.flixor(.bodyLarge, weight: .semibold))
                         }
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
+                        .padding(.vertical, DS.Space.s14)
                         .background(Color.accentColor)
                         .foregroundColor(.white)
-                        .cornerRadius(10)
+                        .cornerRadius(DS.Radius.r10)
                     }
                     .buttonStyle(.plain)
                     .disabled(isConnecting)
                 }
-                .padding(20)
+                .padding(DS.Space.s20)
                 .background(
-                    RoundedRectangle(cornerRadius: 16)
+                    RoundedRectangle(cornerRadius: DS.Radius.r16)
                         .fill(Color.white.opacity(0.06))
                         .overlay(
-                            RoundedRectangle(cornerRadius: 16)
+                            RoundedRectangle(cornerRadius: DS.Radius.r16)
                                 .stroke(type.color.opacity(0.3), lineWidth: 1)
                         )
                 )
@@ -242,33 +242,33 @@ struct EndpointSelectView: View {
                 // Manual override section
                 manualOverrideSection
             }
-            .padding(.horizontal, 60)
-            .padding(.bottom, 40)
+            .padding(.horizontal, DS.Space.s60)
+            .padding(.bottom, DS.Space.s40)
         }
     }
 
     // MARK: - No Connection View
 
     private var noConnectionView: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: DS.Space.s24) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 48))
+                .font(.flixorIcon(DS.Icon.huge))
                 .foregroundColor(.orange)
 
-            VStack(spacing: 8) {
+            VStack(spacing: DS.Space.s8) {
                 Text("No Working Connection Found")
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(.flixor(.title3, weight: .semibold))
                     .foregroundColor(.white)
 
                 Text("All endpoints failed to connect. Try a custom endpoint below.")
-                    .font(.system(size: 14))
+                    .font(.flixor(.body))
                     .foregroundColor(.white.opacity(0.5))
                     .multilineTextAlignment(.center)
             }
 
             // Custom endpoint for fallback
             customEndpointSection
-                .padding(.horizontal, 60)
+                .padding(.horizontal, DS.Space.s60)
 
             Button("Retry Auto-Test") {
                 Task { await autoTestEndpoints() }
@@ -281,29 +281,29 @@ struct EndpointSelectView: View {
     // MARK: - Manual Override Section
 
     private var manualOverrideSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DS.Space.s12) {
             Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
+                withAnimation(DS.Motion.standard) {
                     showManualOverride.toggle()
                 }
             } label: {
                 HStack {
                     Text("Choose a different endpoint")
-                        .font(.system(size: 14, weight: .medium))
+                        .font(.flixor(.body, weight: .medium))
                         .foregroundColor(.white.opacity(0.6))
 
                     Spacer()
 
                     Image(systemName: showManualOverride ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.flixorIcon(DS.Icon.xs, weight: .semibold))
                         .foregroundColor(.white.opacity(0.4))
                 }
-                .padding(.vertical, 12)
+                .padding(.vertical, DS.Space.s12)
             }
             .buttonStyle(.plain)
 
             if showManualOverride {
-                VStack(spacing: 12) {
+                VStack(spacing: DS.Space.s12) {
                     // Endpoints list
                     endpointsList
 
@@ -317,14 +317,14 @@ struct EndpointSelectView: View {
     // MARK: - Endpoints List
 
     private var endpointsList: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: DS.Space.s8) {
             // IPv6 toggle if there are IPv6 connections
             if server.connections.contains(where: { $0.IPv6 }) {
                 HStack {
                     Spacer()
                     Toggle(isOn: $showIPv6Endpoints) {
                         Text("Show IPv6")
-                            .font(.system(size: 12))
+                            .font(.flixor(.footnote))
                             .foregroundColor(.white.opacity(0.5))
                     }
                     .toggleStyle(.switch)
@@ -350,10 +350,10 @@ struct EndpointSelectView: View {
                 }
             }
             .background(
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: DS.Radius.r12)
                     .fill(Color.white.opacity(0.04))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 12)
+                        RoundedRectangle(cornerRadius: DS.Radius.r12)
                             .stroke(Color.white.opacity(0.06), lineWidth: 1)
                     )
             )
@@ -363,21 +363,21 @@ struct EndpointSelectView: View {
     // MARK: - Custom Endpoint Section
 
     private var customEndpointSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: DS.Space.s10) {
             Text("Custom Endpoint")
-                .font(.system(size: 12, weight: .medium))
+                .font(.flixor(.footnote, weight: .medium))
                 .foregroundColor(.white.opacity(0.5))
 
-            HStack(spacing: 10) {
+            HStack(spacing: DS.Space.s10) {
                 TextField("https://your-server.example.com:32400", text: $customEndpoint)
                     .textFieldStyle(.plain)
-                    .font(.system(size: 13))
+                    .font(.flixor(.callout))
                     .foregroundColor(.white)
-                    .padding(10)
+                    .padding(DS.Space.s10)
                     .background(Color.white.opacity(0.05))
-                    .cornerRadius(8)
+                    .cornerRadius(DS.Radius.r8)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 8)
+                        RoundedRectangle(cornerRadius: DS.Radius.r8)
                             .stroke(Color.white.opacity(0.1), lineWidth: 1)
                     )
 
@@ -602,10 +602,10 @@ private struct EndpointRow: View {
     }
 
     var body: some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 6) {
+        HStack(spacing: DS.Space.s12) {
+            VStack(alignment: .leading, spacing: DS.Space.s6) {
                 // Badges
-                HStack(spacing: 6) {
+                HStack(spacing: DS.Space.s6) {
                     badge(connectionType.rawValue, color: connectionType.color)
 
                     if connection.IPv6 {
@@ -623,24 +623,24 @@ private struct EndpointRow: View {
                             ProgressView()
                                 .scaleEffect(0.5)
                         case .success(let ms):
-                            HStack(spacing: 4) {
+                            HStack(spacing: DS.Space.s4) {
                                 Image(systemName: "checkmark.circle.fill")
                                     .foregroundColor(.green)
-                                    .font(.system(size: 12))
+                                    .font(.flixorIcon(DS.Icon.xs))
                                 Text("\(ms)ms")
-                                    .font(.system(size: 10))
+                                    .font(.flixor(.micro))
                                     .foregroundColor(.green)
                             }
                         case .failed:
                             Image(systemName: "xmark.circle.fill")
                                 .foregroundColor(.red)
-                                .font(.system(size: 12))
+                                .font(.flixorIcon(DS.Icon.xs))
                         }
                     }
                 }
 
                 Text(connection.uri)
-                    .font(.system(size: 12))
+                    .font(.flixor(.footnote))
                     .foregroundColor(.white.opacity(0.8))
                     .lineLimit(1)
                     .truncationMode(.middle)
@@ -648,7 +648,7 @@ private struct EndpointRow: View {
 
             Spacer()
 
-            HStack(spacing: 8) {
+            HStack(spacing: DS.Space.s8) {
                 Button("Test") { onTest() }
                     .buttonStyle(.bordered)
                     .controlSize(.mini)
@@ -660,18 +660,18 @@ private struct EndpointRow: View {
                     .disabled(isTesting)
             }
         }
-        .padding(12)
+        .padding(DS.Space.s12)
         .background(isSelected ? Color.white.opacity(0.03) : Color.clear)
     }
 
     private func badge(_ text: String, color: Color) -> some View {
         Text(text)
-            .font(.system(size: 10, weight: .semibold))
+            .font(.flixor(.micro, weight: .semibold))
             .foregroundColor(color)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
+            .padding(.horizontal, DS.Space.s6)
+            .padding(.vertical, DS.Space.s2)
             .background(color.opacity(0.15))
-            .cornerRadius(4)
+            .cornerRadius(DS.Radius.r4)
     }
 }
 

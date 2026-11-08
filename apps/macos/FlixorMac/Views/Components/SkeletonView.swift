@@ -69,11 +69,11 @@ struct SkeletonPosterCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            SkeletonView(width: width, height: height, cornerRadius: 8)
+        VStack(alignment: .leading, spacing: DS.Space.s8) {
+            SkeletonView(width: width, height: height, cornerRadius: DS.Radius.r8)
 
-            SkeletonView(width: width * 0.7, height: 14, cornerRadius: 4)
-            SkeletonView(width: width * 0.4, height: 12, cornerRadius: 4)
+            SkeletonView(width: width * 0.7, height: 14, cornerRadius: DS.Radius.r4)
+            SkeletonView(width: width * 0.4, height: 12, cornerRadius: DS.Radius.r4)
         }
     }
 }
@@ -88,13 +88,13 @@ struct SkeletonLandscapeCard: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            SkeletonView(width: width, height: height, cornerRadius: 8)
+        HStack(alignment: .top, spacing: DS.Space.s12) {
+            SkeletonView(width: width, height: height, cornerRadius: DS.Radius.r8)
 
-            VStack(alignment: .leading, spacing: 8) {
-                SkeletonView(width: 200, height: 16, cornerRadius: 4)
-                SkeletonView(width: 300, height: 12, cornerRadius: 4)
-                SkeletonView(width: 250, height: 12, cornerRadius: 4)
+            VStack(alignment: .leading, spacing: DS.Space.s8) {
+                SkeletonView(width: 200, height: 16, cornerRadius: DS.Radius.r4)
+                SkeletonView(width: 300, height: 12, cornerRadius: DS.Radius.r4)
+                SkeletonView(width: 250, height: 12, cornerRadius: DS.Radius.r4)
             }
         }
     }
@@ -113,14 +113,14 @@ struct SkeletonCarouselRow: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DS.Space.s12) {
             // Title skeleton
-            SkeletonView(width: 200, height: 28, cornerRadius: 6)
-                .padding(.horizontal, 20)
+            SkeletonView(width: 200, height: 28, cornerRadius: DS.Radius.r6)
+                .padding(.horizontal, DS.Space.s20)
 
             // Cards
             ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: 12) {
+                LazyHStack(spacing: DS.Space.s12) {
                     ForEach(0..<itemCount, id: \.self) { _ in
                         switch cardType {
                         case .poster:
@@ -130,7 +130,7 @@ struct SkeletonCarouselRow: View {
                         }
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, DS.Space.s20)
             }
         }
     }
@@ -152,7 +152,7 @@ struct SkeletonGrid: View {
                 SkeletonPosterCard(width: itemWidth)
             }
         }
-        .padding(20)
+        .padding(DS.Space.s20)
     }
 }
 
@@ -162,7 +162,7 @@ struct LoadingView: View {
     var message: String = "Loading..."
 
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: DS.Space.s16) {
             ProgressView()
                 .scaleEffect(1.5)
                 .tint(.white)
@@ -214,7 +214,7 @@ struct SectionContainer<Content: View, Skeleton: View>: View {
             }
         }
         .frame(height: expectedHeight)
-        .animation(.easeInOut(duration: 0.3), value: state)
+        .animation(DS.Motion.emphasized, value: state)
     }
 }
 
@@ -228,7 +228,7 @@ enum RowHeights {
 
 #if DEBUG && canImport(PreviewsMacros)
 #Preview("Skeleton Poster") {
-    HStack(spacing: 12) {
+    HStack(spacing: DS.Space.s12) {
         SkeletonPosterCard(width: 150)
         SkeletonPosterCard(width: 150)
         SkeletonPosterCard(width: 150)

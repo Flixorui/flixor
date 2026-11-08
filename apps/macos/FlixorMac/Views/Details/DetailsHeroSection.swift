@@ -165,9 +165,9 @@ struct DetailsHeroSection: View {
             .clipped()
 
             // Two-column layout: content left, credits right
-            HStack(alignment: .bottom, spacing: 40) {
+            HStack(alignment: .bottom, spacing: DS.Space.s40) {
                 // LEFT COLUMN - Primary Content
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: DS.Space.s16) {
                     Spacer(minLength: 0)
 
                     // Logo or Title
@@ -243,14 +243,14 @@ struct DetailsHeroSection: View {
 
     // MARK: - Type/Genre/Rating Row (Apple TV+ style)
     @ViewBuilder private var typeGenreRatingRow: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: DS.Space.s8) {
             // Media type with icon
-            HStack(spacing: 4) {
+            HStack(spacing: DS.Space.s4) {
                 Image(systemName: isEpisode ? "tv" : (vm.mediaKind == "movie" ? "film" : "tv"))
-                    .font(.system(size: 11))
+                    .font(.flixor(.caption))
                 Text(isEpisode ? "Episode" : (vm.mediaKind == "movie" ? "Movie" : (vm.isSeason ? "Season" : "Series")))
             }
-            .font(.system(size: 13, weight: .medium))
+            .font(.flixor(.callout, weight: .medium))
 
             // Episode/Season info for episodes
             if isEpisode {
@@ -258,10 +258,10 @@ struct DetailsHeroSection: View {
                     .foregroundStyle(.white.opacity(0.5))
                 if let season = seasonNumber, let episode = episodeNumber {
                     Text("S\(season) E\(episode)")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.flixor(.callout, weight: .semibold))
                 } else if let episode = episodeNumber {
                     Text("E\(episode)")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.flixor(.callout, weight: .semibold))
                 }
             }
 
@@ -292,15 +292,15 @@ struct DetailsHeroSection: View {
                 ContentRatingBadge(rating: rating)
             }
         }
-        .font(.system(size: 13))
+        .font(.flixor(.callout))
         .foregroundStyle(.white.opacity(0.9))
     }
 
     // MARK: - Description with MORE button
     @ViewBuilder private var descriptionSection: some View {
-        HStack(alignment: .bottom, spacing: 8) {
+        HStack(alignment: .bottom, spacing: DS.Space.s8) {
             Text(vm.overview)
-                .font(.system(size: 14))
+                .font(.flixor(.body))
                 .foregroundStyle(.white.opacity(0.85))
                 .lineLimit(2)
                 .frame(maxWidth: layout.heroTextMaxWidth, alignment: .leading)
@@ -308,12 +308,12 @@ struct DetailsHeroSection: View {
             if vm.overview.count > 100 {
                 Button(action: { showFullOverview = true }) {
                     Text("MORE")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(.flixor(.caption, weight: .semibold))
                         .foregroundStyle(.white.opacity(0.8))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
+                        .padding(.horizontal, DS.Space.s10)
+                        .padding(.vertical, DS.Space.s4)
                         .background(Color.white.opacity(0.15))
-                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r4))
                 }
                 .buttonStyle(.plain)
             }
@@ -322,7 +322,7 @@ struct DetailsHeroSection: View {
 
     // MARK: - Technical Metadata Row
     @ViewBuilder private var technicalMetadataRow: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: DS.Space.s10) {
             // Year and Edition
             if let year = vm.year, !year.isEmpty {
                 if let edition = vm.editionTitle, !edition.isEmpty {
@@ -386,10 +386,10 @@ struct DetailsHeroSection: View {
                     return nil
                 }()
                 if let score = imdbScore {
-                    HStack(spacing: 4) {
+                    HStack(spacing: DS.Space.s4) {
                         IMDbMark()
                         Text(String(format: "%.1f", score))
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(.flixor(.footnote, weight: .semibold))
                     }
                 }
             }
@@ -402,10 +402,10 @@ struct DetailsHeroSection: View {
                     return nil
                 }()
                 if let score = criticScore {
-                    HStack(spacing: 4) {
+                    HStack(spacing: DS.Space.s4) {
                         TomatoIcon(score: score)
                         Text("\(score)%")
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(.flixor(.footnote, weight: .semibold))
                     }
                 }
             }
@@ -419,15 +419,15 @@ struct DetailsHeroSection: View {
                     return nil
                 }()
                 if let score = audienceScore {
-                    HStack(spacing: 4) {
+                    HStack(spacing: DS.Space.s4) {
                         PopcornIcon(score: score)
                         Text("\(score)%")
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(.flixor(.footnote, weight: .semibold))
                     }
                 }
             }
         }
-        .font(.system(size: 12, weight: .medium))
+        .font(.flixor(.footnote, weight: .medium))
         .foregroundStyle(.white.opacity(0.7))
     }
 
@@ -437,7 +437,7 @@ struct DetailsHeroSection: View {
         let hasMdbRatings = vm.mdblistRatings?.hasAnyRating ?? false
 
         if hasExternalRatings || hasMdbRatings {
-            HStack(spacing: 12) {
+            HStack(spacing: DS.Space.s12) {
                 if let ratings = vm.externalRatings, hasRatings(ratings) {
                     RatingsStrip(ratings: ratings)
                 }
@@ -480,15 +480,15 @@ struct DetailsHeroSection: View {
 
     // MARK: - Credits Section (Right Column)
     @ViewBuilder private var creditsSection: some View {
-        VStack(alignment: .trailing, spacing: 20) {
+        VStack(alignment: .trailing, spacing: DS.Space.s20) {
             // Starring
             if !vm.castShort.isEmpty {
-                VStack(alignment: .trailing, spacing: 4) {
+                VStack(alignment: .trailing, spacing: DS.Space.s4) {
                     Text("Starring")
-                        .font(.system(size: 12))
+                        .font(.flixor(.footnote))
                         .foregroundStyle(.white.opacity(0.5))
                     Text(vm.castShort.prefix(4).map { $0.name }.joined(separator: ", "))
-                        .font(.system(size: 13, weight: .medium))
+                        .font(.flixor(.callout, weight: .medium))
                         .foregroundStyle(.white.opacity(0.9))
                         .multilineTextAlignment(.trailing)
                         .lineLimit(2)
@@ -497,12 +497,12 @@ struct DetailsHeroSection: View {
 
             // Director(s) - directors is [String]
             if !vm.directors.isEmpty {
-                VStack(alignment: .trailing, spacing: 4) {
+                VStack(alignment: .trailing, spacing: DS.Space.s4) {
                     Text(vm.directors.count > 1 ? "Directors" : "Director")
-                        .font(.system(size: 12))
+                        .font(.flixor(.footnote))
                         .foregroundStyle(.white.opacity(0.5))
                     Text(vm.directors.prefix(2).joined(separator: ", "))
-                        .font(.system(size: 13, weight: .medium))
+                        .font(.flixor(.callout, weight: .medium))
                         .foregroundStyle(.white.opacity(0.9))
                         .multilineTextAlignment(.trailing)
                 }
@@ -510,18 +510,18 @@ struct DetailsHeroSection: View {
 
             // Creator(s) for TV shows - creators is [String]
             if vm.mediaKind == "tv", !vm.creators.isEmpty {
-                VStack(alignment: .trailing, spacing: 4) {
+                VStack(alignment: .trailing, spacing: DS.Space.s4) {
                     Text(vm.creators.count > 1 ? "Creators" : "Creator")
-                        .font(.system(size: 12))
+                        .font(.flixor(.footnote))
                         .foregroundStyle(.white.opacity(0.5))
                     Text(vm.creators.prefix(2).joined(separator: ", "))
-                        .font(.system(size: 13, weight: .medium))
+                        .font(.flixor(.callout, weight: .medium))
                         .foregroundStyle(.white.opacity(0.9))
                         .multilineTextAlignment(.trailing)
                 }
             }
         }
-        .padding(.bottom, 60)
+        .padding(.bottom, DS.Space.s60)
     }
 
     private var castSummary: String {
@@ -536,13 +536,13 @@ struct DetailsHeroSection: View {
 
     @ViewBuilder
     private func heroFactBlock(title: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: DS.Space.s4) {
             Text(title.uppercased())
-                .font(.system(size: 12, weight: .semibold))
+                .font(.flixor(.footnote, weight: .semibold))
                 .tracking(0.6)
                 .foregroundStyle(.white.opacity(0.72))
             Text(value)
-                .font(.system(size: 13))
+                .font(.flixor(.callout))
                 .foregroundStyle(.white.opacity(0.78))
                 .lineLimit(2)
         }
@@ -614,30 +614,30 @@ private struct HeroTrailerCard: View {
                 )
 
                 // Info
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: DS.Space.s4) {
                     Spacer()
 
                     // Type badge
                     Text(trailer.type.uppercased())
-                        .font(.system(size: 9, weight: .bold))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
+                        .font(.flixor(.nano, weight: .bold))
+                        .padding(.horizontal, DS.Space.s6)
+                        .padding(.vertical, DS.Space.s2)
                         .background(trailerBadgeColor)
                         .clipShape(RoundedRectangle(cornerRadius: 3))
                         .foregroundStyle(.white)
 
                     // Title
                     Text(trailer.name)
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.flixor(.callout, weight: .semibold))
                         .foregroundStyle(.white)
                         .lineLimit(1)
                 }
-                .padding(10)
+                .padding(DS.Space.s10)
             }
             .frame(width: width, height: height)
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r10, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                RoundedRectangle(cornerRadius: DS.Radius.r10, style: .continuous)
                     .strokeBorder(Color.white.opacity(isHovered ? 0.5 : 0.1), lineWidth: 1)
             )
             .shadow(color: .black.opacity(0.4), radius: isHovered ? 12 : 6)

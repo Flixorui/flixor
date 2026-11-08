@@ -35,7 +35,7 @@ struct CachedAsyncImage<Placeholder: View>: View {
                 Image(nsImage: image)
                     .resizable()
                     .aspectRatio(aspectRatio, contentMode: contentMode)
-                    .transition(.opacity.animation(.easeInOut(duration: 0.3)))
+                    .transition(.opacity.animation(DS.Motion.emphasized))
             } else if isLoading {
                 placeholder()
                     .aspectRatio(aspectRatio, contentMode: contentMode)
@@ -206,6 +206,6 @@ extension CachedAsyncImage where Placeholder == Color {
         aspectRatio: 2/3
     )
     .frame(width: 200)
-    .cornerRadius(8)
+    .cornerRadius(DS.Radius.r8)
 }
 #endif

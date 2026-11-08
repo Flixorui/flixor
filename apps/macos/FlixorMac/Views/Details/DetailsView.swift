@@ -126,7 +126,7 @@ struct DetailsView: View {
                         }
                     }
                 )
-                .padding(.top, 80)
+                .padding(.top, DS.Space.s80)
                 .transition(.opacity)
                 .zIndex(2)
             }

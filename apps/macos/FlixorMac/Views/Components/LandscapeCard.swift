@@ -76,28 +76,28 @@ struct LandscapeCard: View {
 
                 // Title overlay (only on hover)
                 if isHovered {
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: DS.Space.s4) {
                         // For episodes, show the show name (grandparentTitle)
                         // For movies, show the movie title
                         Text(item.type == "episode" ? (item.grandparentTitle ?? item.title) : item.title)
-                            .font(.system(size: 15, weight: .semibold))
+                            .font(.flixor(.bodyLarge, weight: .semibold))
                             .foregroundStyle(.white)
                             .lineLimit(1)
 
                         if let label = item.episodeLabel {
                             Text(label)
-                                .font(.system(size: 12))
+                                .font(.flixor(.footnote))
                                 .foregroundStyle(.white.opacity(0.85))
                                 .lineLimit(1)
                         } else if item.year != nil || item.editionTitle != nil {
                             // For movies/shows, show year and edition
                             Text(yearEditionText)
-                                .font(.system(size: 12))
+                                .font(.flixor(.footnote))
                                 .foregroundStyle(.white.opacity(0.85))
                                 .lineLimit(1)
                         }
                     }
-                    .padding(12)
+                    .padding(DS.Space.s12)
                     .transition(.opacity)
                 }
 
@@ -247,7 +247,7 @@ struct LandscapeCard: View {
 }
 #if DEBUG && canImport(PreviewsMacros)
 #Preview {
-    HStack(spacing: 20) {
+    HStack(spacing: DS.Space.s20) {
         LandscapeCard(
             item: MediaItem(
                 id: "1",

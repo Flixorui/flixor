@@ -12,8 +12,8 @@ struct LibraryFilterBarView: View {
     var onSelectSection: (LibraryViewModel.LibrarySectionSummary) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack(spacing: 16) {
+        VStack(alignment: .leading, spacing: DS.Space.s18) {
+            HStack(spacing: DS.Space.s16) {
                 
 
                 Spacer()
@@ -21,7 +21,7 @@ struct LibraryFilterBarView: View {
                 viewModeToggle
             }
 
-            HStack(alignment: .center, spacing: 16) {
+            HStack(alignment: .center, spacing: DS.Space.s16) {
                 searchField
 
                 if !viewModel.genres.isEmpty {
@@ -53,22 +53,22 @@ struct LibraryFilterBarView: View {
 
             if !viewModel.sections.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 10) {
+                    HStack(spacing: DS.Space.s10) {
                         ForEach(viewModel.sections) { section in
                             let isActive = viewModel.activeSection?.id == section.id
                             Button {
                                 onSelectSection(section)
                             } label: {
                                 Text(section.title)
-                                    .font(.system(size: 13, weight: .semibold))
-                                    .padding(.horizontal, 14)
-                                    .padding(.vertical, 8)
+                                    .font(.flixor(.callout, weight: .semibold))
+                                    .padding(.horizontal, DS.Space.s14)
+                                    .padding(.vertical, DS.Space.s8)
                                     .background(
-                                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                        RoundedRectangle(cornerRadius: DS.Radius.r20, style: .continuous)
                                             .fill(isActive ? Color.white : Color.white.opacity(0.1))
                                     )
                                     .overlay(
-                                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                        RoundedRectangle(cornerRadius: DS.Radius.r20, style: .continuous)
                                             .stroke(Color.white.opacity(isActive ? 0 : 0.2), lineWidth: 1)
                                     )
                                     .foregroundStyle(isActive ? Color.black : Color.white.opacity(0.9))
@@ -76,28 +76,28 @@ struct LibraryFilterBarView: View {
                             .buttonStyle(.plain)
                         }
                     }
-                    .padding(.vertical, 2)
+                    .padding(.vertical, DS.Space.s2)
                 }
             }
         }
-        .padding(.horizontal, 64)
-        .padding(.top, 24)
+        .padding(.horizontal, DS.Space.s64)
+        .padding(.top, DS.Space.s24)
     }
 
     private var searchField: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: DS.Space.s8) {
             Image(systemName: "magnifyingglass")
                 .foregroundStyle(.white.opacity(0.6))
             TextField("Search library", text: $viewModel.searchQuery)
                 .textFieldStyle(.plain)
                 .foregroundColor(.white)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .padding(.horizontal, DS.Space.s14)
+        .padding(.vertical, DS.Space.s10)
         .background(Color.white.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r10, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: DS.Radius.r10, style: .continuous)
                 .stroke(Color.white.opacity(0.12), lineWidth: 1)
         )
         .frame(maxWidth: 260)
@@ -117,21 +117,21 @@ struct LibraryFilterBarView: View {
                 }
             }
         } label: {
-            HStack(spacing: 6) {
+            HStack(spacing: DS.Space.s6) {
                 Image(systemName: "arrow.up.arrow.down.circle")
                 Text(viewModel.sort.label)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.flixor(.callout, weight: .semibold))
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
+            .padding(.horizontal, DS.Space.s14)
+            .padding(.vertical, DS.Space.s10)
             .background(Color.white.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r10, style: .continuous))
         }
         .menuStyle(.borderlessButton)
     }
 
     private var viewModeToggle: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: DS.Space.s8) {
             toggleButton(
                 systemImage: "square.grid.2x2",
                 isActive: viewModel.viewMode == .grid
@@ -151,15 +151,15 @@ struct LibraryFilterBarView: View {
     private func toggleButton(systemImage: String, isActive: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemImage)
-                .font(.system(size: 14, weight: .semibold))
+                .font(.flixorIcon(DS.Icon.sm, weight: .semibold))
                 .foregroundStyle(isActive ? Color.black : Color.white.opacity(0.85))
                 .frame(width: 34, height: 34)
                 .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    RoundedRectangle(cornerRadius: DS.Radius.r8, style: .continuous)
                         .fill(isActive ? Color.white : Color.white.opacity(0.08))
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    RoundedRectangle(cornerRadius: DS.Radius.r8, style: .continuous)
                         .stroke(Color.white.opacity(isActive ? 0 : 0.2), lineWidth: 1)
                 )
         }

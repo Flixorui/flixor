@@ -53,7 +53,7 @@ struct PosterCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: DS.Space.s8) {
             // Poster Image
             Button(action: {
                 onTap?()
@@ -87,7 +87,7 @@ struct PosterCard: View {
                     .overlay(alignment: .topTrailing) {
                         // Top trailing overlay (e.g., watchlist button)
                         if let overlay = topTrailingOverlay {
-                            overlay.padding(10)
+                            overlay.padding(DS.Space.s10)
                         }
                     }
 
@@ -116,16 +116,16 @@ struct PosterCard: View {
 
             // Title ("Never" hides it; "Always" and "On Hover" keep the caption here)
             if showTitle && cardStyle.titleMode != .never {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: DS.Space.s2) {
                     Text(item.title)
-                        .font(.system(size: 13, weight: .medium))
+                        .font(.flixor(.callout, weight: .medium))
                         .foregroundStyle(.primary)
                         .lineLimit(2)
                         .frame(width: width, alignment: .leading)
 
                     if item.year != nil || item.editionTitle != nil {
                         Text(yearEditionText)
-                            .font(.system(size: 11))
+                            .font(.flixor(.caption))
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -137,7 +137,7 @@ struct PosterCard: View {
 }
 #if DEBUG && canImport(PreviewsMacros)
 #Preview {
-    HStack(spacing: 12) {
+    HStack(spacing: DS.Space.s12) {
         PosterCard(
             item: MediaItem(
                 id: "1",

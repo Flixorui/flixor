@@ -14,7 +14,7 @@ struct HomeScreenAppearanceView: View {
     @State private var showContinueWatchingPreview: Bool = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
+        VStack(alignment: .leading, spacing: DS.Space.s24) {
             // Hero Section
             SettingsSectionHeader(title: "Hero Section")
             SettingsGroupCard {
@@ -25,13 +25,13 @@ struct HomeScreenAppearanceView: View {
 
             if profileSettings.showHeroSection {
                 SettingsGroupCard {
-                    VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: DS.Space.s12) {
                         Text("Hero Layout")
-                            .font(.system(size: 13, weight: .medium))
-                            .padding(.horizontal, 12)
-                            .padding(.top, 12)
+                            .font(.flixor(.callout, weight: .medium))
+                            .padding(.horizontal, DS.Space.s12)
+                            .padding(.top, DS.Space.s12)
 
-                        HStack(spacing: 12) {
+                        HStack(spacing: DS.Space.s12) {
                             LayoutOptionButton(
                                 title: "Billboard",
                                 icon: "rectangle.fill",
@@ -48,8 +48,8 @@ struct HomeScreenAppearanceView: View {
                                 profileSettings.heroLayout = "carousel"
                             }
                         }
-                        .padding(.horizontal, 12)
-                        .padding(.bottom, 12)
+                        .padding(.horizontal, DS.Space.s12)
+                        .padding(.bottom, DS.Space.s12)
                     }
                 }
 
@@ -73,13 +73,13 @@ struct HomeScreenAppearanceView: View {
             // Shared layout for every catalog row
             SettingsSectionHeader(title: "Catalog Rows")
             SettingsGroupCard {
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: DS.Space.s12) {
                     Text("Display Style · Plex, Stremio, and discovery catalogs")
-                        .font(.system(size: 13, weight: .medium))
-                        .padding(.horizontal, 12)
-                        .padding(.top, 12)
+                        .font(.flixor(.callout, weight: .medium))
+                        .padding(.horizontal, DS.Space.s12)
+                        .padding(.top, DS.Space.s12)
 
-                    HStack(spacing: 12) {
+                    HStack(spacing: DS.Space.s12) {
                         LayoutOptionButton(
                             title: "Landscape",
                             icon: "rectangle.fill",
@@ -96,23 +96,23 @@ struct HomeScreenAppearanceView: View {
                             profileSettings.rowLayout = "poster"
                         }
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 12)
+                    .padding(.horizontal, DS.Space.s12)
+                    .padding(.bottom, DS.Space.s12)
                 }
             }
 
             // Continue Watching Layout
             SettingsSectionHeader(title: "Continue Watching")
             SettingsGroupCard {
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: DS.Space.s12) {
                     Text("Display Style")
-                        .font(.system(size: 13, weight: .medium))
-                        .padding(.horizontal, 12)
-                        .padding(.top, 12)
+                        .font(.flixor(.callout, weight: .medium))
+                        .padding(.horizontal, DS.Space.s12)
+                        .padding(.top, DS.Space.s12)
 
                     ContinueWatchingStylePicker()
-                        .padding(.horizontal, 12)
-                        .padding(.bottom, 12)
+                        .padding(.horizontal, DS.Space.s12)
+                        .padding(.bottom, DS.Space.s12)
                 }
             }
 
@@ -139,10 +139,10 @@ struct HomeScreenAppearanceView: View {
     // MARK: - Hero Previews
 
     private var billboardPreview: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DS.Space.s12) {
             // Single large billboard card
             ZStack(alignment: .bottomLeading) {
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: DS.Radius.r12)
                     .fill(
                         LinearGradient(
                             colors: [Color.blue.opacity(0.3), Color.purple.opacity(0.3)],
@@ -158,18 +158,18 @@ struct HomeScreenAppearanceView: View {
                     startPoint: .center,
                     endPoint: .bottom
                 )
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r12))
 
                 // Content
-                VStack(alignment: .leading, spacing: 8) {
-                    RoundedRectangle(cornerRadius: 4)
+                VStack(alignment: .leading, spacing: DS.Space.s8) {
+                    RoundedRectangle(cornerRadius: DS.Radius.r4)
                         .fill(Color.white.opacity(0.9))
                         .frame(width: 120, height: 30)
 
-                    HStack(spacing: 6) {
+                    HStack(spacing: DS.Space.s6) {
                         ForEach(["2024", "2h 15m", "PG-13"], id: \.self) { text in
                             Text(text)
-                                .font(.system(size: 10))
+                                .font(.flixor(.micro))
                                 .foregroundStyle(.white.opacity(0.8))
                         }
                     }
@@ -178,31 +178,31 @@ struct HomeScreenAppearanceView: View {
                         .fill(Color.white.opacity(0.5))
                         .frame(width: 200, height: 8)
 
-                    HStack(spacing: 8) {
-                        RoundedRectangle(cornerRadius: 6)
+                    HStack(spacing: DS.Space.s8) {
+                        RoundedRectangle(cornerRadius: DS.Radius.r6)
                             .fill(Color.white)
                             .frame(width: 60, height: 28)
-                        RoundedRectangle(cornerRadius: 6)
+                        RoundedRectangle(cornerRadius: DS.Radius.r6)
                             .fill(Color.white.opacity(0.3))
                             .frame(width: 60, height: 28)
                     }
                 }
-                .padding(16)
+                .padding(DS.Space.s16)
             }
 
             Text("Billboard: Single featured item with full-width display")
-                .font(.system(size: 11))
+                .font(.flixor(.caption))
                 .foregroundStyle(.secondary)
         }
     }
 
     private var carouselPreview: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DS.Space.s12) {
             // Multiple carousel cards
-            HStack(spacing: 12) {
+            HStack(spacing: DS.Space.s12) {
                 ForEach(0..<3, id: \.self) { index in
                     ZStack(alignment: .bottomLeading) {
-                        RoundedRectangle(cornerRadius: 10)
+                        RoundedRectangle(cornerRadius: DS.Radius.r10)
                             .fill(
                                 LinearGradient(
                                     colors: [
@@ -222,28 +222,28 @@ struct HomeScreenAppearanceView: View {
                             startPoint: .center,
                             endPoint: .bottom
                         )
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r10))
 
                         // Content
-                        VStack(alignment: .leading, spacing: 4) {
+                        VStack(alignment: .leading, spacing: DS.Space.s4) {
                             RoundedRectangle(cornerRadius: 3)
                                 .fill(Color.white.opacity(0.9))
                                 .frame(width: 60, height: 16)
-                            RoundedRectangle(cornerRadius: 2)
+                            RoundedRectangle(cornerRadius: DS.Radius.r2)
                                 .fill(Color.white.opacity(0.5))
                                 .frame(width: 80, height: 6)
                         }
-                        .padding(10)
+                        .padding(DS.Space.s10)
                     }
                     .overlay(
-                        RoundedRectangle(cornerRadius: 10)
+                        RoundedRectangle(cornerRadius: DS.Radius.r10)
                             .stroke(index == 0 ? Color.white.opacity(0.5) : Color.clear, lineWidth: 2)
                     )
                 }
             }
 
             // Page indicators
-            HStack(spacing: 6) {
+            HStack(spacing: DS.Space.s6) {
                 ForEach(0..<3, id: \.self) { index in
                     Circle()
                         .fill(index == 0 ? Color.white : Color.white.opacity(0.3))
@@ -253,7 +253,7 @@ struct HomeScreenAppearanceView: View {
             .frame(maxWidth: .infinity)
 
             Text("Carousel: Multiple items with swipe navigation")
-                .font(.system(size: 11))
+                .font(.flixor(.caption))
                 .foregroundStyle(.secondary)
         }
     }
@@ -261,11 +261,11 @@ struct HomeScreenAppearanceView: View {
     // MARK: - Continue Watching Previews
 
     private var continueWatchingLandscapePreview: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: DS.Space.s12) {
             ForEach(0..<3, id: \.self) { index in
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: DS.Space.s6) {
                     ZStack(alignment: .bottom) {
-                        RoundedRectangle(cornerRadius: 8)
+                        RoundedRectangle(cornerRadius: DS.Radius.r8)
                             .fill(Color.white.opacity(0.1))
                             .aspectRatio(16/9, contentMode: .fit)
 
@@ -287,7 +287,7 @@ struct HomeScreenAppearanceView: View {
 
                         // Play icon
                         Image(systemName: "play.circle.fill")
-                            .font(.system(size: 24))
+                            .font(.flixorIcon(DS.Icon.xl))
                             .foregroundStyle(.white.opacity(0.9))
                     }
 
@@ -306,11 +306,11 @@ struct HomeScreenAppearanceView: View {
     }
 
     private var continueWatchingPosterPreview: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: DS.Space.s12) {
             ForEach(0..<4, id: \.self) { index in
-                VStack(alignment: .center, spacing: 6) {
+                VStack(alignment: .center, spacing: DS.Space.s6) {
                     ZStack {
-                        RoundedRectangle(cornerRadius: 8)
+                        RoundedRectangle(cornerRadius: DS.Radius.r8)
                             .fill(Color.white.opacity(0.1))
                             .aspectRatio(2/3, contentMode: .fit)
 
@@ -326,7 +326,7 @@ struct HomeScreenAppearanceView: View {
                             .rotationEffect(.degrees(-90))
 
                         Image(systemName: "play.fill")
-                            .font(.system(size: 10))
+                            .font(.flixor(.micro))
                             .foregroundStyle(.white)
                     }
 
@@ -351,23 +351,23 @@ struct LayoutOptionButton: View {
 
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 8) {
+            VStack(spacing: DS.Space.s8) {
                 Image(systemName: icon)
-                    .font(.system(size: 20))
+                    .font(.flixorIcon(DS.Icon.lg))
                 Text(title)
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.flixor(.footnote, weight: .medium))
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 16)
+            .padding(.vertical, DS.Space.s16)
             .background(
                 isSelected
                     ? Color.accentColor
                     : Color(NSColor.controlBackgroundColor)
             )
             .foregroundStyle(isSelected ? .white : .primary)
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r10, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                RoundedRectangle(cornerRadius: DS.Radius.r10, style: .continuous)
                     .strokeBorder(
                         isSelected ? Color.clear : Color(NSColor.separatorColor),
                         lineWidth: 1
@@ -386,32 +386,32 @@ struct CollapsiblePreviewSection<Content: View>: View {
     @ViewBuilder let content: () -> Content
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DS.Space.s12) {
             // Header with toggle button
             Button(action: {
-                withAnimation(.easeInOut(duration: 0.2)) {
+                withAnimation(DS.Motion.standard) {
                     isExpanded.toggle()
                 }
             }) {
                 HStack {
                     Text(title.uppercased())
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.flixor(.footnote, weight: .semibold))
                         .foregroundStyle(.secondary)
                         .tracking(0.5)
 
                     Spacer()
 
-                    HStack(spacing: 4) {
+                    HStack(spacing: DS.Space.s4) {
                         Text(isExpanded ? "Hide" : "Show")
-                            .font(.system(size: 11, weight: .medium))
+                            .font(.flixor(.caption, weight: .medium))
                         Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                            .font(.system(size: 10, weight: .semibold))
+                            .font(.flixor(.micro, weight: .semibold))
                     }
                     .foregroundStyle(.secondary)
-                    .padding(.horizontal, 10)
+                    .padding(.horizontal, DS.Space.s10)
                     .padding(.vertical, 5)
                     .background(Color(NSColor.controlBackgroundColor))
-                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r6, style: .continuous))
                 }
             }
             .buttonStyle(.plain)
@@ -420,7 +420,7 @@ struct CollapsiblePreviewSection<Content: View>: View {
             if isExpanded {
                 SettingsGroupCard {
                     content()
-                        .padding(16)
+                        .padding(DS.Space.s16)
                 }
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }

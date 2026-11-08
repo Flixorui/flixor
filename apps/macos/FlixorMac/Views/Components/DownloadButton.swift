@@ -54,14 +54,14 @@ struct DownloadButton: View {
 
     var body: some View {
         Button(action: handleTap) {
-            HStack(spacing: 8) {
+            HStack(spacing: DS.Space.s8) {
                 iconView
                 textView
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
+            .padding(.horizontal, DS.Space.s16)
+            .padding(.vertical, DS.Space.s10)
             .background(backgroundColor)
-            .cornerRadius(8)
+            .cornerRadius(DS.Radius.r8)
         }
         .buttonStyle(.plain)
         .onHover { hovering in
@@ -74,7 +74,7 @@ struct DownloadButton: View {
         switch downloadState {
         case .none:
             Image(systemName: "arrow.down.circle")
-                .font(.system(size: 16, weight: .medium))
+                .font(.flixorIcon(DS.Icon.md, weight: .medium))
                 .foregroundStyle(.white)
 
         case .queued:
@@ -95,17 +95,17 @@ struct DownloadButton: View {
 
         case .paused:
             Image(systemName: "pause.circle")
-                .font(.system(size: 16, weight: .medium))
+                .font(.flixorIcon(DS.Icon.md, weight: .medium))
                 .foregroundStyle(.orange)
 
         case .downloaded:
             Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 16, weight: .medium))
+                .font(.flixorIcon(DS.Icon.md, weight: .medium))
                 .foregroundStyle(.green)
 
         case .failed:
             Image(systemName: "exclamationmark.circle")
-                .font(.system(size: 16, weight: .medium))
+                .font(.flixorIcon(DS.Icon.md, weight: .medium))
                 .foregroundStyle(.red)
         }
     }
@@ -115,32 +115,32 @@ struct DownloadButton: View {
         switch downloadState {
         case .none:
             Text("Download")
-                .font(.system(size: 14, weight: .medium))
+                .font(.flixor(.body, weight: .medium))
                 .foregroundStyle(.white)
 
         case .queued:
             Text("Queued")
-                .font(.system(size: 14, weight: .medium))
+                .font(.flixor(.body, weight: .medium))
                 .foregroundStyle(.white.opacity(0.8))
 
         case .downloading(let progress):
             Text("\(Int(progress * 100))%")
-                .font(.system(size: 14, weight: .medium))
+                .font(.flixor(.body, weight: .medium))
                 .foregroundStyle(.white)
 
         case .paused:
             Text("Paused")
-                .font(.system(size: 14, weight: .medium))
+                .font(.flixor(.body, weight: .medium))
                 .foregroundStyle(.orange)
 
         case .downloaded:
             Text("Downloaded")
-                .font(.system(size: 14, weight: .medium))
+                .font(.flixor(.body, weight: .medium))
                 .foregroundStyle(.green)
 
         case .failed:
             Text("Retry")
-                .font(.system(size: 14, weight: .medium))
+                .font(.flixor(.body, weight: .medium))
                 .foregroundStyle(.red)
         }
     }
@@ -282,10 +282,10 @@ struct CompactDownloadButton: View {
                         .foregroundStyle(isHovered ? .white : .white.opacity(0.7))
                 }
             }
-            .font(.system(size: 20))
+            .font(.flixor(.title2))
             .frame(width: 32, height: 32)
             .background(isHovered && !isDownloaded ? Color.white.opacity(0.1) : Color.clear)
-            .cornerRadius(6)
+            .cornerRadius(DS.Radius.r6)
         }
         .buttonStyle(.plain)
         .onHover { hovering in
@@ -388,7 +388,7 @@ struct DetailsDownloadButton: View {
             ZStack {
                 if isDownloaded {
                     Image(systemName: "checkmark")
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.flixorIcon(DS.Icon.sm, weight: .semibold))
                         .foregroundStyle(.green)
                 } else if isDownloading {
                     if let progress = progress {
@@ -408,11 +408,11 @@ struct DetailsDownloadButton: View {
                     }
                 } else if downloadTask?.status == .failed {
                     Image(systemName: "exclamationmark")
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.flixorIcon(DS.Icon.sm, weight: .semibold))
                         .foregroundStyle(.red)
                 } else {
                     Image(systemName: "arrow.down.to.line")
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.flixorIcon(DS.Icon.sm, weight: .semibold))
                         .foregroundStyle(.white)
                 }
             }
@@ -548,7 +548,7 @@ struct EpisodeDownloadButton: View {
             ZStack {
                 if isDownloaded {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 16, weight: .medium))
+                        .font(.flixorIcon(DS.Icon.md, weight: .medium))
                         .foregroundStyle(.green)
                 } else if isDownloading {
                     if let progress = progress {
@@ -567,15 +567,15 @@ struct EpisodeDownloadButton: View {
                     }
                 } else if downloadTask?.status == .failed {
                     Image(systemName: "exclamationmark.circle.fill")
-                        .font(.system(size: 16, weight: .medium))
+                        .font(.flixorIcon(DS.Icon.md, weight: .medium))
                         .foregroundStyle(.red)
                 } else if downloadTask?.status == .paused {
                     Image(systemName: "pause.circle.fill")
-                        .font(.system(size: 16, weight: .medium))
+                        .font(.flixorIcon(DS.Icon.md, weight: .medium))
                         .foregroundStyle(.orange)
                 } else {
                     Image(systemName: "icloud.and.arrow.down")
-                        .font(.system(size: 14, weight: .medium))
+                        .font(.flixorIcon(DS.Icon.sm, weight: .medium))
                         .foregroundStyle(isHovered ? .white : .white.opacity(0.8))
                 }
             }

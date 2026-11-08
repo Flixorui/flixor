@@ -54,7 +54,7 @@ struct OverseerrSettingsView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
+        VStack(alignment: .leading, spacing: DS.Space.s24) {
             // Status
             SettingsSectionHeader(title: "Status")
             statusCard
@@ -82,12 +82,12 @@ struct OverseerrSettingsView: View {
             // Server URL
             SettingsSectionHeader(title: "Server URL")
             SettingsGroupCard {
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: DS.Space.s12) {
                     TextField("https://overseerr.example.com", text: $profileSettings.overseerrUrl)
                         .textFieldStyle(.plain)
-                        .padding(10)
+                        .padding(DS.Space.s10)
                         .background(Color(NSColor.textBackgroundColor))
-                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r8, style: .continuous))
                         .disabled(!profileSettings.overseerrEnabled)
                         .opacity(isEnabled ? 1 : 0.5)
                         .onChange(of: profileSettings.overseerrUrl) { _ in
@@ -95,13 +95,13 @@ struct OverseerrSettingsView: View {
                             isSaved = false
                         }
                 }
-                .padding(12)
+                .padding(DS.Space.s12)
             }
 
             // Authentication Method
             SettingsSectionHeader(title: "Authentication")
             SettingsGroupCard {
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: DS.Space.s12) {
                     // Plex Auth Option
                     AuthMethodRow(
                         icon: "person.crop.circle.fill",
@@ -132,20 +132,20 @@ struct OverseerrSettingsView: View {
                         isSaved = false
                     }
                 }
-                .padding(12)
+                .padding(DS.Space.s12)
             }
 
             // Plex Sign In Section
             if authMethod == .plex {
                 SettingsSectionHeader(title: "Plex Sign In")
                 SettingsGroupCard {
-                    VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: DS.Space.s12) {
                         if isPlexSignedIn {
                             // Signed in state
                             Button(action: {}) {
-                                HStack(spacing: 8) {
+                                HStack(spacing: DS.Space.s8) {
                                     Image(systemName: "checkmark.circle.fill")
-                                        .font(.system(size: 16))
+                                        .font(.flixorIcon(DS.Icon.md))
                                     Text("Signed in as \(defaults.overseerrPlexUsername.isEmpty ? "Plex User" : defaults.overseerrPlexUsername)")
                                         .fontWeight(.semibold)
                                 }
@@ -165,14 +165,14 @@ struct OverseerrSettingsView: View {
                         } else {
                             // Sign in button
                             Button(action: signInWithPlex) {
-                                HStack(spacing: 8) {
+                                HStack(spacing: DS.Space.s8) {
                                     if isTesting {
                                         ProgressView()
                                             .scaleEffect(0.6)
                                             .frame(width: 14, height: 14)
                                     } else {
                                         Image(systemName: "person.crop.circle.badge.checkmark")
-                                            .font(.system(size: 14))
+                                            .font(.flixorIcon(DS.Icon.sm))
                                     }
                                     Text("Sign in with Plex")
                                         .fontWeight(.semibold)
@@ -186,10 +186,10 @@ struct OverseerrSettingsView: View {
                         }
 
                         Text("Uses your existing Plex account to authenticate with Overseerr. Your Plex account must have access to the Overseerr server.")
-                            .font(.system(size: 11))
+                            .font(.flixor(.caption))
                             .foregroundStyle(.secondary)
                     }
-                    .padding(12)
+                    .padding(DS.Space.s12)
                     .opacity(isEnabled ? 1 : 0.5)
                 }
             }
@@ -198,15 +198,15 @@ struct OverseerrSettingsView: View {
             if authMethod == .apiKey {
                 SettingsSectionHeader(title: "API Key")
                 SettingsGroupCard {
-                    VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: DS.Space.s12) {
                         SecureField("Enter your Overseerr API key", text: Binding(
                                 get: { defaults.overseerrApiKey },
                                 set: { defaults.overseerrApiKey = $0 }
                             ))
                             .textFieldStyle(.plain)
-                            .padding(10)
+                            .padding(DS.Space.s10)
                             .background(Color(NSColor.textBackgroundColor))
-                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r8, style: .continuous))
                             .disabled(!profileSettings.overseerrEnabled)
                             .opacity(isEnabled ? 1 : 0.5)
                             .onChange(of: defaults.overseerrApiKey) { _ in
@@ -215,7 +215,7 @@ struct OverseerrSettingsView: View {
                             }
 
                         Button(action: testApiKeyConnection) {
-                            HStack(spacing: 6) {
+                            HStack(spacing: DS.Space.s6) {
                                 if isTesting {
                                     ProgressView()
                                         .scaleEffect(0.6)
@@ -231,17 +231,17 @@ struct OverseerrSettingsView: View {
                         .disabled(!canTestApiKey || isTesting || (isSaved && !hasChanges))
 
                         Text("Find your API key in Overseerr Settings → General → API Key")
-                            .font(.system(size: 11))
+                            .font(.flixor(.caption))
                             .foregroundStyle(.secondary)
                     }
-                    .padding(12)
+                    .padding(DS.Space.s12)
                     .opacity(isEnabled ? 1 : 0.5)
                 }
 
                 // Instructions for API Key
                 SettingsSectionHeader(title: "Setup Instructions")
                 SettingsGroupCard {
-                    VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: DS.Space.s12) {
                         InstructionStepRow(number: 1, text: "Open your Overseerr web interface")
                         InstructionStepRow(number: 2, text: "Go to Settings → General")
                         InstructionStepRow(number: 3, text: "Copy the API Key and paste above")
@@ -253,28 +253,28 @@ struct OverseerrSettingsView: View {
                                 NSWorkspace.shared.open(url)
                             }
                         }) {
-                            HStack(spacing: 6) {
+                            HStack(spacing: DS.Space.s6) {
                                 Text("Overseerr Documentation")
                                 Image(systemName: "arrow.up.right")
-                                    .font(.system(size: 10))
+                                    .font(.flixor(.micro))
                             }
-                            .font(.system(size: 13))
+                            .font(.flixor(.callout))
                         }
                         .buttonStyle(.link)
                     }
-                    .padding(12)
+                    .padding(DS.Space.s12)
                 }
             }
 
             // Features
             SettingsSectionHeader(title: "Features")
             SettingsGroupCard {
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: DS.Space.s10) {
                     FeatureCheckRow(text: "Request movies and TV shows")
                     FeatureCheckRow(text: "See request status on details page")
                     FeatureCheckRow(text: "Works with Radarr and Sonarr")
                 }
-                .padding(12)
+                .padding(DS.Space.s12)
             }
         }
         .onAppear {
@@ -325,20 +325,20 @@ struct OverseerrSettingsView: View {
         let info = statusInfo
 
         return SettingsGroupCard {
-            HStack(spacing: 12) {
+            HStack(spacing: DS.Space.s12) {
                 Image(systemName: info.icon)
-                    .font(.system(size: 20))
+                    .font(.flixorIcon(DS.Icon.lg))
                     .foregroundStyle(info.color)
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: DS.Space.s2) {
                     Text(info.title)
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.flixor(.callout, weight: .semibold))
                     Text(info.description)
-                        .font(.system(size: 11))
+                        .font(.flixor(.caption))
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
             }
-            .padding(12)
+            .padding(DS.Space.s12)
         }
     }
 
@@ -447,18 +447,18 @@ private struct AuthMethodRow: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 12) {
+            HStack(spacing: DS.Space.s12) {
                 Image(systemName: icon)
-                    .font(.system(size: 16))
+                    .font(.flixorIcon(DS.Icon.md))
                     .foregroundStyle(isSelected ? iconColor : .secondary)
                     .frame(width: 24)
 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: DS.Space.s2) {
                     Text(title)
-                        .font(.system(size: 13, weight: .medium))
+                        .font(.flixor(.callout, weight: .medium))
                         .foregroundStyle(isSelected ? .primary : .secondary)
                     Text(subtitle)
-                        .font(.system(size: 11))
+                        .font(.flixor(.caption))
                         .foregroundStyle(.secondary)
                 }
 
@@ -466,17 +466,17 @@ private struct AuthMethodRow: View {
 
                 if isSelected {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 16))
+                        .font(.flixorIcon(DS.Icon.md))
                         .foregroundStyle(.green)
                 }
             }
-            .padding(10)
+            .padding(DS.Space.s10)
             .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                RoundedRectangle(cornerRadius: DS.Radius.r8, style: .continuous)
                     .fill(isSelected ? iconColor.opacity(0.1) : Color.clear)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                RoundedRectangle(cornerRadius: DS.Radius.r8, style: .continuous)
                     .strokeBorder(isSelected ? iconColor.opacity(0.3) : Color.clear, lineWidth: 1)
             )
         }
@@ -493,15 +493,15 @@ private struct InstructionStepRow: View {
     let text: String
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .top, spacing: DS.Space.s10) {
             Text("\(number)")
-                .font(.system(size: 11, weight: .bold))
+                .font(.flixor(.caption, weight: .bold))
                 .foregroundStyle(.white)
                 .frame(width: 20, height: 20)
                 .background(Color.accentColor)
                 .clipShape(Circle())
             Text(text)
-                .font(.system(size: 12))
+                .font(.flixor(.footnote))
                 .foregroundStyle(.secondary)
         }
     }
@@ -513,12 +513,12 @@ private struct FeatureCheckRow: View {
     let text: String
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: DS.Space.s8) {
             Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 14))
+                .font(.flixorIcon(DS.Icon.sm))
                 .foregroundStyle(.green)
             Text(text)
-                .font(.system(size: 12))
+                .font(.flixor(.footnote))
                 .foregroundStyle(.secondary)
         }
     }

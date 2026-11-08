@@ -23,7 +23,7 @@ struct CastCrewCard: View, Identifiable {
 
     var body: some View {
         Button(action: onTap) {
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: DS.Space.s10) {
                 ZStack {
                     if let imageURL = person.image {
                         CachedAsyncImage(url: imageURL)
@@ -36,41 +36,41 @@ struct CastCrewCard: View, Identifiable {
                             .aspectRatio(2/3, contentMode: .fit)
                             .overlay(
                                 Image(systemName: "person.fill")
-                                    .font(.system(size: 28))
+                                    .font(.flixor(.largeTitle))
                                     .foregroundStyle(.white.opacity(0.25))
                             )
                     }
                 }
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r10, style: .continuous))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    RoundedRectangle(cornerRadius: DS.Radius.r10, style: .continuous)
                         .stroke(Color.white.opacity(0.12), lineWidth: 1)
                 )
                 .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text(person.name)
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.flixor(.callout, weight: .semibold))
                         .lineLimit(2)
                         .foregroundStyle(.white.opacity(0.95))
                     if let role = person.role, !role.isEmpty {
                         Text(role)
-                            .font(.system(size: 11))
+                            .font(.flixor(.caption))
                             .foregroundStyle(.white.opacity(0.55))
                             .lineLimit(1)
                     }
                 }
             }
-            .padding(.bottom, 2)
+            .padding(.bottom, DS.Space.s2)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: DS.Radius.r12, style: .continuous)
                 .fill(Color.white.opacity(isHovered ? 0.06 : 0))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: DS.Radius.r12, style: .continuous)
                 .stroke(Color.white.opacity(isHovered ? 0.18 : 0.12), lineWidth: isHovered ? 1 : 0.5)
         )
         .scaleEffect(isHovered ? 1.02 : 1.0)
@@ -145,7 +145,7 @@ private struct CastCrewCircleCard: View {
 
     var body: some View {
         Button(action: onTap) {
-            VStack(spacing: 10) {
+            VStack(spacing: DS.Space.s10) {
                 // Circular profile image
                 Group {
                     if let imageURL = person.image {
@@ -157,7 +157,7 @@ private struct CastCrewCircleCard: View {
                             Circle()
                                 .fill(Color.gray.opacity(0.3))
                             Text(initials(for: person.name))
-                                .font(.system(size: 28, weight: .medium))
+                                .font(.flixor(.largeTitle, weight: .medium))
                                 .foregroundStyle(.white.opacity(0.6))
                         }
                     }
@@ -172,14 +172,14 @@ private struct CastCrewCircleCard: View {
 
                 // Name
                 Text(person.name)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.flixor(.callout, weight: .medium))
                     .foregroundStyle(.white)
                     .lineLimit(1)
 
                 // Role/Character
                 if let role = person.role {
                     Text(role)
-                        .font(.system(size: 12))
+                        .font(.flixor(.footnote))
                         .foregroundStyle(.white.opacity(0.5))
                         .lineLimit(1)
                 }
@@ -209,7 +209,7 @@ private struct CastCrewSection: View {
     var onPersonTap: (CastCrewCard.Person) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: DS.Space.s20) {
             DetailsSectionHeader(title: "Cast & Crew")
             LazyVGrid(columns: [GridItem(.adaptive(minimum: layout.castGridMinimum), spacing: 20)], spacing: 24) {
                 ForEach(Array(people.prefix(15))) { person in
@@ -241,7 +241,7 @@ private struct TechnicalDetailsSection: View {
     let layout: DetailsLayoutMetrics
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: DS.Space.s20) {
             DetailsSectionHeader(title: "Technical Details")
 
             // Main technical specs grid
@@ -253,20 +253,20 @@ private struct TechnicalDetailsSection: View {
 
             // Audio & Subtitle tracks
             if !version.audioTracks.isEmpty || !version.subtitleTracks.isEmpty {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: DS.Space.s16) {
                     if !version.audioTracks.isEmpty {
-                        VStack(alignment: .leading, spacing: 10) {
+                        VStack(alignment: .leading, spacing: DS.Space.s10) {
                             Text("Audio Tracks")
-                                .font(.system(size: 13, weight: .semibold))
+                                .font(.flixor(.callout, weight: .semibold))
                                 .foregroundStyle(.white.opacity(0.6))
                                 .textCase(.uppercase)
                             FlowChipGroup(texts: version.audioTracks.map { $0.name })
                         }
                     }
                     if !version.subtitleTracks.isEmpty {
-                        VStack(alignment: .leading, spacing: 10) {
+                        VStack(alignment: .leading, spacing: DS.Space.s10) {
                             Text("Subtitles")
-                                .font(.system(size: 13, weight: .semibold))
+                                .font(.flixor(.callout, weight: .semibold))
                                 .foregroundStyle(.white.opacity(0.6))
                                 .textCase(.uppercase)
                             FlowChipGroup(texts: version.subtitleTracks.map { $0.name })
@@ -312,19 +312,19 @@ private struct ProductionSection: View {
     let companies: [DetailsViewModel.ProductionCompany]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DS.Space.s12) {
             DetailsSectionHeader(title: title)
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 16) {
+                HStack(spacing: DS.Space.s16) {
                     ForEach(companies) { company in
-                        VStack(spacing: 8) {
+                        VStack(spacing: DS.Space.s8) {
                             if let logoURL = company.logoURL {
                                 CachedAsyncImage(url: logoURL)
                                     .frame(width: 80, height: 40)
                                     .background(Color.white.opacity(0.9))
-                                    .cornerRadius(6)
+                                    .cornerRadius(DS.Radius.r6)
                             } else {
-                                RoundedRectangle(cornerRadius: 6)
+                                RoundedRectangle(cornerRadius: DS.Radius.r6)
                                     .fill(Color.white.opacity(0.1))
                                     .frame(width: 80, height: 40)
                                     .overlay(
@@ -333,7 +333,7 @@ private struct ProductionSection: View {
                                     )
                             }
                             Text(company.name)
-                                .font(.system(size: 11))
+                                .font(.flixor(.caption))
                                 .foregroundStyle(.white.opacity(0.7))
                                 .lineLimit(2)
                                 .multilineTextAlignment(.center)
@@ -351,22 +351,22 @@ private struct TechnicalInfoTile: View {
     let value: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: DS.Space.s8) {
             Text(label)
-                .font(.system(size: 11, weight: .semibold))
+                .font(.flixor(.caption, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.5))
                 .textCase(.uppercase)
             Text(value)
-                .font(.system(size: 15, weight: .medium))
+                .font(.flixor(.bodyLarge, weight: .medium))
                 .foregroundStyle(.white.opacity(0.95))
         }
-        .padding(14)
+        .padding(DS.Space.s14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: DS.Radius.r10, style: .continuous)
                 .fill(Color.white.opacity(0.05))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    RoundedRectangle(cornerRadius: DS.Radius.r10, style: .continuous)
                         .stroke(Color.white.opacity(0.1), lineWidth: 1)
                 )
         )
@@ -378,7 +378,7 @@ private struct DetailsSectionHeader: View {
 
     var body: some View {
         Text(title)
-            .font(.system(size: 18, weight: .bold))
+            .font(.flixor(.title3, weight: .bold))
             .foregroundStyle(.white.opacity(0.95))
     }
 }
@@ -390,9 +390,9 @@ private struct FlowChipGroup: View {
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 130), spacing: 10)], alignment: .leading, spacing: 10) {
             ForEach(texts, id: \.self) { text in
                 Text(text)
-                    .font(.system(size: 13))
+                    .font(.flixor(.callout))
                     .foregroundStyle(.white.opacity(0.85))
-                    .padding(.horizontal, 12)
+                    .padding(.horizontal, DS.Space.s12)
                     .padding(.vertical, 7)
                     .background(
                         Capsule()

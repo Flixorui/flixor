@@ -21,7 +21,7 @@ struct ContinueWatchingLandscapeRow: View {
     private var cardHeight: CGFloat { cardWidth * 0.5625 } // 16:9 aspect ratio
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DS.Space.s12) {
             // Header
             HStack {
                 Text(title)
@@ -30,11 +30,11 @@ struct ContinueWatchingLandscapeRow: View {
 
                 Spacer()
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, DS.Space.s20)
 
             // Horizontal scroll of cards
             ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: 16) {
+                LazyHStack(spacing: DS.Space.s16) {
                     ForEach(items) { item in
                         let showVersion = itemsWithMultipleVersions?.contains(item.id) ?? false
                         ContinueWatchingLandscapeCard(
@@ -48,7 +48,7 @@ struct ContinueWatchingLandscapeRow: View {
                         .transition(.opacity.combined(with: .scale(scale: 0.95)))
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, DS.Space.s20)
             }
         }
     }
@@ -158,10 +158,10 @@ struct ContinueWatchingLandscapeCard: View {
                 VStack {
                     Spacer()
 
-                    HStack(spacing: 10) {
+                    HStack(spacing: DS.Space.s10) {
                         // Play icon
                         Image(systemName: "play.fill")
-                            .font(.system(size: 11, weight: .semibold))
+                            .font(.flixor(.caption, weight: .semibold))
                             .foregroundStyle(.white)
 
                         // Progress bar - fixed width, rounded, thicker
@@ -179,16 +179,16 @@ struct ContinueWatchingLandscapeCard: View {
 
                         // Duration or episode info
                         Text(bottomInfoText)
-                            .font(.system(size: 13, weight: .medium))
+                            .font(.flixor(.callout, weight: .medium))
                             .foregroundStyle(.white)
 
                         // Version info (only shown if multiple versions exist across libraries)
                         if let version = versionText {
                             Text("·")
-                                .font(.system(size: 13, weight: .medium))
+                                .font(.flixor(.callout, weight: .medium))
                                 .foregroundStyle(.white.opacity(0.7))
                             Text(version)
-                                .font(.system(size: 12, weight: .medium))
+                                .font(.flixor(.footnote, weight: .medium))
                                 .foregroundStyle(.white.opacity(0.7))
                         }
 
@@ -198,8 +198,8 @@ struct ContinueWatchingLandscapeCard: View {
                         // (outside this Button) so it gets its own clicks.
                         Color.clear.frame(width: 16, height: 1)
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
+                    .padding(.horizontal, DS.Space.s12)
+                    .padding(.vertical, DS.Space.s10)
                     .background(
                         Rectangle().fill(.ultraThinMaterial).opacity(0.3)
                     )
@@ -219,9 +219,9 @@ struct ContinueWatchingLandscapeCard: View {
                 }
             }
             .frame(width: width, height: height)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r14, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: DS.Radius.r14, style: .continuous)
                     .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
             )
             .shadow(color: .black.opacity(0.4), radius: 8, y: 4)

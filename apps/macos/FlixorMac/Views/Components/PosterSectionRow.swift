@@ -178,40 +178,40 @@ struct PosterSectionCard: View {
 
                 // Title overlay (only on hover)
                 if showsHoverTitle {
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: DS.Space.s4) {
                         // Series/Movie title
                         Text(displayTitle)
-                            .font(.system(size: 13, weight: .semibold))
+                            .font(.flixor(.callout, weight: .semibold))
                             .foregroundStyle(.white)
                             .lineLimit(2)
 
-                        HStack(spacing: 6) {
+                        HStack(spacing: DS.Space.s6) {
                             // Episode label (S1E1 format)
                             if let epLabel = episodeLabel {
                                 Text(epLabel)
-                                    .font(.system(size: 11, weight: .medium))
+                                    .font(.flixor(.caption, weight: .medium))
                                     .foregroundStyle(.white.opacity(0.85))
                             }
 
                             if let year = item.year {
                                 Text(String(year))
-                                    .font(.system(size: 11))
+                                    .font(.flixor(.caption))
                                     .foregroundStyle(.white.opacity(0.85))
                             }
 
                             if let rating = item.rating {
-                                HStack(spacing: 2) {
+                                HStack(spacing: DS.Space.s2) {
                                     Image(systemName: "star.fill")
-                                        .font(.system(size: 9))
+                                        .font(.flixor(.nano))
                                     Text(String(format: "%.1f", rating))
-                                        .font(.system(size: 11))
+                                        .font(.flixor(.caption))
                                 }
                                 .foregroundStyle(.yellow.opacity(0.9))
                             }
                         }
                     }
                     .frame(width: width - 16, alignment: .leading)
-                    .padding(8)
+                    .padding(DS.Space.s8)
                     .transition(.opacity)
                 }
 
@@ -222,13 +222,13 @@ struct PosterSectionCard: View {
                         HStack {
                             Spacer()
                             Text(badgeText)
-                                .font(.system(size: 10, weight: .bold))
+                                .font(.flixor(.micro, weight: .bold))
                                 .foregroundStyle(.white)
-                                .padding(.horizontal, 6)
+                                .padding(.horizontal, DS.Space.s6)
                                 .padding(.vertical, 3)
                                 .background(badgeColor)
-                                .clipShape(RoundedRectangle(cornerRadius: 4))
-                                .padding(6)
+                                .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r4))
+                                .padding(DS.Space.s6)
                         }
                         Spacer()
                     }

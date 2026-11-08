@@ -21,24 +21,24 @@ struct MpvConfigView: View {
         VStack(spacing: 0) {
             // Header
             HStack {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: DS.Space.s4) {
                     Text("MPV Configuration")
-                        .font(.system(size: 18, weight: .semibold))
+                        .font(.flixor(.title3, weight: .semibold))
                     Text("Add custom MPV properties for advanced playback control")
-                        .font(.system(size: 12))
+                        .font(.flixor(.footnote))
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
                 Button("Done") { dismiss() }
                     .buttonStyle(.borderedProminent)
             }
-            .padding(20)
+            .padding(DS.Space.s20)
             .background(Color(NSColor.windowBackgroundColor))
 
             Divider()
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: DS.Space.s20) {
                     // Presets Section
                     if !presets.isEmpty {
                         SettingsSectionHeader(title: "Presets")
@@ -73,31 +73,31 @@ struct MpvConfigView: View {
                     SettingsGroupCard {
                         HStack {
                             Text("Custom Properties")
-                                .font(.system(size: 13, weight: .medium))
+                                .font(.flixor(.callout, weight: .medium))
                             Spacer()
                             Button(action: { showAddSheet = true }) {
                                 Image(systemName: "plus.circle.fill")
-                                    .font(.system(size: 18))
+                                    .font(.flixor(.title3))
                                     .foregroundStyle(.blue)
                             }
                             .buttonStyle(.plain)
                         }
-                        .padding(12)
+                        .padding(DS.Space.s12)
 
                         if entries.isEmpty {
-                            VStack(spacing: 8) {
+                            VStack(spacing: DS.Space.s8) {
                                 Image(systemName: "terminal")
-                                    .font(.system(size: 24))
+                                    .font(.flixorIcon(DS.Icon.xl))
                                     .foregroundStyle(.secondary)
                                 Text("No custom properties")
-                                    .font(.system(size: 13))
+                                    .font(.flixor(.callout))
                                     .foregroundStyle(.secondary)
                                 Text("Add MPV properties like 'hwdec', 'deband', etc.")
-                                    .font(.system(size: 11))
+                                    .font(.flixor(.caption))
                                     .foregroundStyle(.tertiary)
                             }
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 24)
+                            .padding(.vertical, DS.Space.s24)
                         } else {
                             Divider()
                             ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
@@ -112,9 +112,9 @@ struct MpvConfigView: View {
                     }
 
                     // Help text
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: DS.Space.s8) {
                         Text("Common Properties")
-                            .font(.system(size: 11, weight: .medium))
+                            .font(.flixor(.caption, weight: .medium))
                             .foregroundStyle(.secondary)
 
                         Group {
@@ -125,9 +125,9 @@ struct MpvConfigView: View {
                             helpRow(key: "video-sync", value: "display-resample", description: "Smooth motion")
                         }
                     }
-                    .padding(.horizontal, 4)
+                    .padding(.horizontal, DS.Space.s4)
                 }
-                .padding(20)
+                .padding(DS.Space.s20)
             }
         }
         .frame(width: 550, height: 600)
@@ -166,18 +166,18 @@ struct MpvConfigView: View {
 
     @ViewBuilder
     private func helpRow(key: String, value: String, description: String) -> some View {
-        HStack(spacing: 8) {
+        HStack(spacing: DS.Space.s8) {
             Text(key)
-                .font(.system(size: 10, weight: .medium, design: .monospaced))
+                .font(.flixor(.micro, weight: .medium, design: .monospaced))
                 .foregroundStyle(.blue)
             Text("=")
-                .font(.system(size: 10, design: .monospaced))
+                .font(.flixor(.micro, design: .monospaced))
                 .foregroundStyle(.tertiary)
             Text(value)
-                .font(.system(size: 10, design: .monospaced))
+                .font(.flixor(.micro, design: .monospaced))
                 .foregroundStyle(.secondary)
             Text("(\(description))")
-                .font(.system(size: 10))
+                .font(.flixor(.micro))
                 .foregroundStyle(.tertiary)
         }
     }
@@ -236,12 +236,12 @@ private struct PresetRow: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: DS.Space.s12) {
+                VStack(alignment: .leading, spacing: DS.Space.s2) {
                     Text(preset.name)
-                        .font(.system(size: 13, weight: .medium))
+                        .font(.flixor(.callout, weight: .medium))
                     Text("\(preset.entriesCount) properties")
-                        .font(.system(size: 11))
+                        .font(.flixor(.caption))
                         .foregroundStyle(.secondary)
                 }
 
@@ -257,18 +257,18 @@ private struct PresetRow: View {
                     }
                 } label: {
                     Image(systemName: "ellipsis.circle")
-                        .font(.system(size: 14))
+                        .font(.flixorIcon(DS.Icon.sm))
                         .foregroundStyle(.secondary)
                 }
                 .menuStyle(.borderlessButton)
                 .frame(width: 24)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
+            .padding(.horizontal, DS.Space.s12)
+            .padding(.vertical, DS.Space.s10)
 
             if !isLast {
                 Divider()
-                    .padding(.leading, 12)
+                    .padding(.leading, DS.Space.s12)
             }
         }
     }
@@ -284,18 +284,18 @@ private struct MpvConfigEntryRow: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 12) {
+            HStack(spacing: DS.Space.s12) {
                 Toggle("", isOn: $entry.isEnabled)
                     .labelsHidden()
                     .toggleStyle(.switch)
                     .controlSize(.small)
 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: DS.Space.s2) {
                     Text(entry.key)
-                        .font(.system(size: 13, weight: .medium, design: .monospaced))
+                        .font(.flixor(.callout, weight: .medium, design: .monospaced))
                         .foregroundStyle(entry.isEnabled ? .primary : .secondary)
                     Text(entry.value)
-                        .font(.system(size: 11, design: .monospaced))
+                        .font(.flixor(.caption, design: .monospaced))
                         .foregroundStyle(.secondary)
                 }
 
@@ -310,14 +310,14 @@ private struct MpvConfigEntryRow: View {
                     }
                 } label: {
                     Image(systemName: "ellipsis.circle")
-                        .font(.system(size: 14))
+                        .font(.flixorIcon(DS.Icon.sm))
                         .foregroundStyle(.secondary)
                 }
                 .menuStyle(.borderlessButton)
                 .frame(width: 24)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
+            .padding(.horizontal, DS.Space.s12)
+            .padding(.vertical, DS.Space.s10)
 
             if !isLast {
                 Divider()
@@ -340,25 +340,25 @@ struct MpvConfigEntryEditor: View {
     private var isEditing: Bool { entry != nil }
 
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: DS.Space.s20) {
             // Header
             Text(isEditing ? "Edit Property" : "Add Property")
-                .font(.system(size: 16, weight: .semibold))
+                .font(.flixor(.headline, weight: .semibold))
 
             // Form
-            VStack(alignment: .leading, spacing: 16) {
-                VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: DS.Space.s16) {
+                VStack(alignment: .leading, spacing: DS.Space.s6) {
                     Text("Property Key")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.flixor(.footnote, weight: .medium))
                         .foregroundStyle(.secondary)
                     TextField("e.g., hwdec", text: $key)
                         .textFieldStyle(.roundedBorder)
                         .font(.system(.body, design: .monospaced))
                 }
 
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: DS.Space.s6) {
                     Text("Value")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.flixor(.footnote, weight: .medium))
                         .foregroundStyle(.secondary)
                     TextField("e.g., videotoolbox", text: $value)
                         .textFieldStyle(.roundedBorder)
@@ -367,7 +367,7 @@ struct MpvConfigEntryEditor: View {
             }
 
             // Buttons
-            HStack(spacing: 12) {
+            HStack(spacing: DS.Space.s12) {
                 Button("Cancel") { dismiss() }
                     .buttonStyle(.bordered)
 
@@ -386,7 +386,7 @@ struct MpvConfigEntryEditor: View {
                          value.trimmingCharacters(in: .whitespaces).isEmpty)
             }
         }
-        .padding(24)
+        .padding(DS.Space.s24)
         .frame(width: 350)
         .onAppear {
             if let entry = entry {
@@ -406,19 +406,19 @@ private struct SavePresetSheet: View {
     @State private var presetName = ""
 
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: DS.Space.s20) {
             Text("Save Preset")
-                .font(.system(size: 16, weight: .semibold))
+                .font(.flixor(.headline, weight: .semibold))
 
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: DS.Space.s6) {
                 Text("Preset Name")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.flixor(.footnote, weight: .medium))
                     .foregroundStyle(.secondary)
                 TextField("Enter preset name", text: $presetName)
                     .textFieldStyle(.roundedBorder)
             }
 
-            HStack(spacing: 12) {
+            HStack(spacing: DS.Space.s12) {
                 Button("Cancel") { dismiss() }
                     .buttonStyle(.bordered)
 
@@ -430,7 +430,7 @@ private struct SavePresetSheet: View {
                 .disabled(presetName.trimmingCharacters(in: .whitespaces).isEmpty)
             }
         }
-        .padding(24)
+        .padding(DS.Space.s24)
         .frame(width: 300)
     }
 }

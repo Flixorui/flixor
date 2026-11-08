@@ -31,25 +31,25 @@ struct BrowseModalView: View {
                     header
                     Divider()
                         .background(Color.white.opacity(0.08))
-                        .padding(.bottom, 20)
+                        .padding(.bottom, DS.Space.s20)
                     content
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 24)
+                        .padding(.horizontal, DS.Space.s24)
+                        .padding(.vertical, DS.Space.s24)
                 }
                 .frame(width: width, height: height, alignment: .top)
                 .background(
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    RoundedRectangle(cornerRadius: DS.Radius.r24, style: .continuous)
                         .fill(.ultraThinMaterial.opacity(0.95))
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    RoundedRectangle(cornerRadius: DS.Radius.r24, style: .continuous)
                         .stroke(Color.white.opacity(0.12), lineWidth: 1)
                 )
                 .shadow(color: .black.opacity(0.45), radius: 30, x: 0, y: 18)
                 .padding(.horizontal, max(0, (proxy.size.width - width) / 2))
             }
-            .padding(.vertical, 40)
+            .padding(.vertical, DS.Space.s40)
         }
         .transition(.opacity.combined(with: .scale))
         .onExitCommand {
@@ -59,10 +59,10 @@ struct BrowseModalView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .center, spacing: 16) {
-            VStack(alignment: .leading, spacing: 4) {
+        HStack(alignment: .center, spacing: DS.Space.s16) {
+            VStack(alignment: .leading, spacing: DS.Space.s4) {
                 Text(viewModel.title.isEmpty ? "Browse" : viewModel.title)
-                    .font(.system(size: 28, weight: .semibold))
+                    .font(.flixor(.largeTitle, weight: .semibold))
                     .foregroundStyle(.white)
 
                 if let subtitle = viewModel.subtitle, !subtitle.isEmpty {
@@ -76,9 +76,9 @@ struct BrowseModalView: View {
 
             Button(action: dismiss) {
                 Image(systemName: "xmark")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.flixor(.bodyLarge, weight: .semibold))
                     .foregroundStyle(.white)
-                    .padding(10)
+                    .padding(DS.Space.s10)
                     .background(
                         Circle()
                             .fill(Color.white.opacity(0.18))
@@ -92,7 +92,7 @@ struct BrowseModalView: View {
             .keyboardShortcut(.cancelAction)
             .help("Close")
         }
-        .padding(.horizontal, 24)
+        .padding(.horizontal, DS.Space.s24)
         .padding(.vertical, 22)
     }
 
@@ -102,7 +102,7 @@ struct BrowseModalView: View {
         case .idle, .loading:
             BrowseSkeletonGrid(cardWidth: cardWidth)
         case .error(let message):
-            VStack(spacing: 16) {
+            VStack(spacing: DS.Space.s16) {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.system(size: 36))
                     .foregroundStyle(.orange)
@@ -114,14 +114,14 @@ struct BrowseModalView: View {
                 }) {
                     Text("Retry")
                         .font(.headline)
-                        .padding(.horizontal, 28)
-                        .padding(.vertical, 10)
+                        .padding(.horizontal, DS.Space.s28)
+                        .padding(.vertical, DS.Space.s10)
                 }
                 .buttonStyle(.borderedProminent)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .empty:
-            VStack(spacing: 12) {
+            VStack(spacing: DS.Space.s12) {
                 Image(systemName: "film")
                     .font(.system(size: 40))
                     .foregroundStyle(.white.opacity(0.6))
@@ -131,7 +131,7 @@ struct BrowseModalView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .loaded:
             ScrollView {
-                VStack(spacing: 24) {
+                VStack(spacing: DS.Space.s24) {
                     LazyVGrid(
                         columns: [GridItem(.adaptive(minimum: cardWidth), spacing: 24)],
                         spacing: 24
@@ -155,8 +155,8 @@ struct BrowseModalView: View {
                             .frame(maxWidth: .infinity)
                     }
                 }
-                .padding(.top, 12)
-                .padding(.bottom, 12)
+                .padding(.top, DS.Space.s12)
+                .padding(.bottom, DS.Space.s12)
             }
             .scrollIndicators(.hidden)
         }
@@ -182,7 +182,7 @@ struct BrowseSkeletonGrid: View {
                 spacing: 24
             ) {
                 ForEach(placeholders, id: \.self) { _ in
-                    SkeletonView(width: cardWidth, height: cardWidth * 0.5, cornerRadius: 16)
+                    SkeletonView(width: cardWidth, height: cardWidth * 0.5, cornerRadius: DS.Radius.r16)
                         .frame(width: cardWidth)
                 }
             }

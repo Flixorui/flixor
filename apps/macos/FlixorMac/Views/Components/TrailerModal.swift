@@ -29,7 +29,7 @@ struct TrailerModal: View {
             VStack(spacing: 0) {
                 // Header bar
                 HStack {
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: DS.Space.s4) {
                         Text(trailer.name)
                             .font(.headline)
                             .foregroundStyle(.white)
@@ -44,7 +44,7 @@ struct TrailerModal: View {
                     // Close button
                     Button(action: close) {
                         Image(systemName: "xmark")
-                            .font(.system(size: 16, weight: .bold))
+                            .font(.flixorIcon(DS.Icon.md, weight: .bold))
                             .foregroundStyle(.white)
                             .frame(width: 32, height: 32)
                             .background(Color.white.opacity(0.1))
@@ -52,8 +52,8 @@ struct TrailerModal: View {
                     }
                     .buttonStyle(.plain)
                 }
-                .padding(.horizontal, 24)
-                .padding(.vertical, 16)
+                .padding(.horizontal, DS.Space.s24)
+                .padding(.vertical, DS.Space.s16)
                 .background(Color.black.opacity(0.6))
 
                 // Video player
@@ -67,9 +67,9 @@ struct TrailerModal: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     // Fallback if not YouTube
-                    VStack(spacing: 16) {
+                    VStack(spacing: DS.Space.s16) {
                         Image(systemName: "play.slash")
-                            .font(.system(size: 48))
+                            .font(.flixorIcon(DS.Icon.huge))
                             .foregroundStyle(.secondary)
 
                         Text("Unable to play trailer")
@@ -78,7 +78,7 @@ struct TrailerModal: View {
 
                         if let youtubeURL = trailer.youtubeURL {
                             Link(destination: youtubeURL) {
-                                HStack(spacing: 8) {
+                                HStack(spacing: DS.Space.s8) {
                                     Image(systemName: "arrow.up.right.square")
                                     Text("Open in Browser")
                                 }
@@ -92,9 +92,9 @@ struct TrailerModal: View {
                 }
             }
             .frame(width: 960, height: 600)
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r16, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                RoundedRectangle(cornerRadius: DS.Radius.r16, style: .continuous)
                     .strokeBorder(Color.white.opacity(0.1), lineWidth: 1)
             )
             .shadow(color: .black.opacity(0.5), radius: 30)

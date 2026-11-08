@@ -131,29 +131,29 @@ struct OnboardingView: View {
                     }
                     .buttonStyle(.plain)
                     .foregroundColor(.white.opacity(0.4))
-                    .font(.system(size: 14, weight: .medium))
+                    .font(.flixor(.body, weight: .medium))
 
                     Spacer()
 
                     // Progress bar
                     GeometryReader { geo in
                         ZStack(alignment: .leading) {
-                            RoundedRectangle(cornerRadius: 2)
+                            RoundedRectangle(cornerRadius: DS.Radius.r2)
                                 .fill(Color.white.opacity(0.1))
                                 .frame(height: 3)
 
-                            RoundedRectangle(cornerRadius: 2)
+                            RoundedRectangle(cornerRadius: DS.Radius.r2)
                                 .fill(Color.white)
                                 .frame(width: geo.size.width * progress, height: 3)
-                                .animation(.easeInOut(duration: 0.3), value: currentIndex)
+                                .animation(DS.Motion.emphasized, value: currentIndex)
                         }
                     }
                     .frame(height: 3)
-                    .padding(.leading, 24)
+                    .padding(.leading, DS.Space.s24)
                 }
-                .padding(.horizontal, 40)
+                .padding(.horizontal, DS.Space.s40)
                 .padding(.top, 30)
-                .padding(.bottom, 20)
+                .padding(.bottom, DS.Space.s20)
 
                 // Content
                 TabView(selection: $currentIndex) {
@@ -182,37 +182,37 @@ struct OnboardingView: View {
                 .tabViewStyle(.automatic)
 
                 // Footer with pagination and navigation
-                VStack(spacing: 24) {
+                VStack(spacing: DS.Space.s24) {
                     // Pagination dots
-                    HStack(spacing: 8) {
+                    HStack(spacing: DS.Space.s8) {
                         ForEach(0..<onboardingData.count, id: \.self) { index in
-                            RoundedRectangle(cornerRadius: 4)
+                            RoundedRectangle(cornerRadius: DS.Radius.r4)
                                 .fill(Color.white.opacity(index == currentIndex ? 1 : 0.3))
                                 .frame(width: index == currentIndex ? 32 : 8, height: 8)
-                                .animation(.easeInOut(duration: 0.3), value: currentIndex)
+                                .animation(DS.Motion.emphasized, value: currentIndex)
                         }
                     }
 
                     // Navigation buttons
-                    HStack(spacing: 16) {
+                    HStack(spacing: DS.Space.s16) {
                         // Previous button
                         Button {
-                            withAnimation(.easeInOut(duration: 0.3)) {
+                            withAnimation(DS.Motion.emphasized) {
                                 if currentIndex > 0 {
                                     currentIndex -= 1
                                 }
                             }
                         } label: {
-                            HStack(spacing: 6) {
+                            HStack(spacing: DS.Space.s6) {
                                 Image(systemName: "chevron.left")
-                                    .font(.system(size: 14, weight: .semibold))
+                                    .font(.flixorIcon(DS.Icon.sm, weight: .semibold))
                                 Text("Back")
-                                    .font(.system(size: 14, weight: .medium))
+                                    .font(.flixor(.body, weight: .medium))
                             }
                             .foregroundColor(.white.opacity(currentIndex > 0 ? 0.7 : 0.2))
                             .frame(width: 100, height: 50)
                             .background(Color.white.opacity(0.1))
-                            .cornerRadius(10)
+                            .cornerRadius(DS.Radius.r10)
                         }
                         .buttonStyle(.plain)
                         .disabled(currentIndex == 0)
@@ -222,30 +222,30 @@ struct OnboardingView: View {
                             if currentIndex == onboardingData.count - 1 {
                                 completeOnboarding()
                             } else {
-                                withAnimation(.easeInOut(duration: 0.3)) {
+                                withAnimation(DS.Motion.emphasized) {
                                     currentIndex += 1
                                 }
                             }
                         } label: {
-                            HStack(spacing: 6) {
+                            HStack(spacing: DS.Space.s6) {
                                 Text(currentIndex == onboardingData.count - 1 ? "Get Started" : "Next")
-                                    .font(.system(size: 14, weight: .semibold))
+                                    .font(.flixor(.body, weight: .semibold))
                                 if currentIndex < onboardingData.count - 1 {
                                     Image(systemName: "chevron.right")
-                                        .font(.system(size: 14, weight: .semibold))
+                                        .font(.flixorIcon(DS.Icon.sm, weight: .semibold))
                                 }
                             }
                             .foregroundColor(currentIndex == onboardingData.count - 1 ? .black : .white)
                             .frame(width: 140, height: 50)
                             .background(currentIndex == onboardingData.count - 1 ? Color.white : Color.white.opacity(0.15))
-                            .cornerRadius(10)
+                            .cornerRadius(DS.Radius.r10)
                         }
                         .buttonStyle(.plain)
                     }
                 }
-                .padding(.horizontal, 40)
-                .padding(.bottom, 40)
-                .animation(.easeInOut(duration: 0.3), value: currentIndex)
+                .padding(.horizontal, DS.Space.s40)
+                .padding(.bottom, DS.Space.s40)
+                .animation(DS.Motion.emphasized, value: currentIndex)
             }
         }
         .onChange(of: profileSettings.discoveryDisabled) { newValue in
@@ -272,7 +272,7 @@ private struct SlideView: View {
     let slide: OnboardingSlide
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: DS.Space.s16) {
             Text(slide.title)
                 .font(.system(size: 52, weight: .heavy))
                 .foregroundColor(.white)
@@ -283,15 +283,15 @@ private struct SlideView: View {
                 .foregroundColor(.white.opacity(0.6))
 
             Text(slide.description)
-                .font(.system(size: 15))
+                .font(.flixor(.bodyLarge))
                 .foregroundColor(.white.opacity(0.4))
                 .lineSpacing(6)
                 .frame(maxWidth: 400, alignment: .leading)
 
             Spacer()
         }
-        .padding(.horizontal, 60)
-        .padding(.top, 60)
+        .padding(.horizontal, DS.Space.s60)
+        .padding(.top, DS.Space.s60)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 }
@@ -307,7 +307,7 @@ private struct AddonSetupSlideView: View {
     @State private var streamAddonCount = 0
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: DS.Space.s16) {
             Text(slide.title)
                 .font(.system(size: 52, weight: .heavy))
                 .foregroundColor(.white)
@@ -318,38 +318,38 @@ private struct AddonSetupSlideView: View {
                 .foregroundColor(.white.opacity(0.6))
 
             Text(slide.description)
-                .font(.system(size: 15))
+                .font(.flixor(.bodyLarge))
                 .foregroundColor(.white.opacity(0.4))
                 .lineSpacing(6)
                 .frame(maxWidth: 460, alignment: .leading)
 
-            HStack(spacing: 12) {
+            HStack(spacing: DS.Space.s12) {
                 Button {
                     showingAddons = true
                 } label: {
                     Text(streamAddonCount > 0 ? "Manage Addons" : "Install an Addon")
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.flixor(.body, weight: .semibold))
                         .foregroundColor(.black)
                         .frame(width: 180, height: 44)
                         .background(Color.white)
-                        .cornerRadius(10)
+                        .cornerRadius(DS.Radius.r10)
                 }
                 .buttonStyle(.plain)
 
-                HStack(spacing: 6) {
+                HStack(spacing: DS.Space.s6) {
                     Image(systemName: streamAddonCount > 0 ? "checkmark.circle.fill" : "exclamationmark.circle")
                         .foregroundStyle(streamAddonCount > 0 ? .green : .orange)
                     Text(statusText)
-                        .font(.system(size: 13))
+                        .font(.flixor(.callout))
                         .foregroundColor(.white.opacity(0.7))
                 }
             }
-            .padding(.top, 8)
+            .padding(.top, DS.Space.s8)
 
             Spacer()
         }
-        .padding(.horizontal, 60)
-        .padding(.top, 60)
+        .padding(.horizontal, DS.Space.s60)
+        .padding(.top, DS.Space.s60)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .sheet(isPresented: $showingAddons, onDismiss: { Task { await refreshCount() } }) {
             StremioAddonsView()
@@ -386,15 +386,15 @@ private struct ConfigSlideView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: DS.Space.s20) {
                 Text("Customize Your Experience")
-                    .font(.system(size: 28, weight: .heavy))
+                    .font(.flixor(.largeTitle, weight: .heavy))
                     .foregroundColor(.white)
 
                 Text("Choose how you want to discover content")
-                    .font(.system(size: 15))
+                    .font(.flixor(.bodyLarge))
                     .foregroundColor(.white.opacity(0.5))
-                    .padding(.bottom, 8)
+                    .padding(.bottom, DS.Space.s8)
 
                 // Library Only Mode Card - Plex-library-only makes no sense without Plex
                 if !isStremioOnly {
@@ -415,30 +415,30 @@ private struct ConfigSlideView: View {
 
                 Spacer(minLength: 80)
             }
-            .padding(.horizontal, 60)
-            .padding(.top, 40)
+            .padding(.horizontal, DS.Space.s60)
+            .padding(.top, DS.Space.s40)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private var libraryOnlyModeCard: some View {
                 VStack(alignment: .leading, spacing: 0) {
-                    HStack(spacing: 16) {
+                    HStack(spacing: DS.Space.s16) {
                         ZStack {
-                            RoundedRectangle(cornerRadius: 12)
+                            RoundedRectangle(cornerRadius: DS.Radius.r12)
                                 .fill(Color.red.opacity(0.15))
                                 .frame(width: 48, height: 48)
                             Image(systemName: "eye.slash.fill")
-                                .font(.system(size: 20))
+                                .font(.flixorIcon(DS.Icon.lg))
                                 .foregroundColor(.red)
                         }
 
-                        VStack(alignment: .leading, spacing: 4) {
+                        VStack(alignment: .leading, spacing: DS.Space.s4) {
                             Text("Library Only Mode")
                                 .font(.system(size: 17, weight: .semibold))
                                 .foregroundColor(.white)
                             Text("Turn off all discovery features. Only show content from your Plex library.")
-                                .font(.system(size: 13))
+                                .font(.flixor(.callout))
                                 .foregroundColor(.white.opacity(0.5))
                                 .lineLimit(2)
                         }
@@ -449,13 +449,13 @@ private struct ConfigSlideView: View {
                             .toggleStyle(.switch)
                             .labelsHidden()
                     }
-                    .padding(20)
+                    .padding(DS.Space.s20)
                 }
                 .background(
-                    RoundedRectangle(cornerRadius: 16)
+                    RoundedRectangle(cornerRadius: DS.Radius.r16)
                         .fill(Color.white.opacity(0.08))
                         .overlay(
-                            RoundedRectangle(cornerRadius: 16)
+                            RoundedRectangle(cornerRadius: DS.Radius.r16)
                                 .stroke(Color.white.opacity(0.1), lineWidth: 1)
                         )
                 )
@@ -463,20 +463,20 @@ private struct ConfigSlideView: View {
 
     private var expandToggle: some View {
                 Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
+                    withAnimation(DS.Motion.standard) {
                         showIndividualSettings.toggle()
                     }
                 } label: {
                     HStack {
                         Text("Or customize individual settings")
-                            .font(.system(size: 14, weight: .medium))
+                            .font(.flixor(.body, weight: .medium))
                             .foregroundColor(discoveryDisabled ? .white.opacity(0.2) : .white.opacity(0.5))
                         Image(systemName: showIndividualSettings ? "chevron.up" : "chevron.down")
-                            .font(.system(size: 12))
+                            .font(.flixorIcon(DS.Icon.xs))
                             .foregroundColor(discoveryDisabled ? .white.opacity(0.2) : .white.opacity(0.5))
                     }
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
+                    .padding(.vertical, DS.Space.s16)
                 }
                 .buttonStyle(.plain)
                 .disabled(discoveryDisabled)
@@ -530,10 +530,10 @@ private struct ConfigSlideView: View {
                         )
                     }
                     .background(
-                        RoundedRectangle(cornerRadius: 16)
+                        RoundedRectangle(cornerRadius: DS.Radius.r16)
                             .fill(Color.white.opacity(0.05))
                             .overlay(
-                                RoundedRectangle(cornerRadius: 16)
+                                RoundedRectangle(cornerRadius: DS.Radius.r16)
                                     .stroke(Color.white.opacity(0.08), lineWidth: 1)
                             )
                     )
@@ -541,15 +541,15 @@ private struct ConfigSlideView: View {
     }
 
     private var infoText: some View {
-                HStack(spacing: 8) {
+                HStack(spacing: DS.Space.s8) {
                     Image(systemName: "info.circle")
-                        .font(.system(size: 14))
+                        .font(.flixorIcon(DS.Icon.sm))
                         .foregroundColor(.white.opacity(0.4))
                     Text("You can change these settings anytime in Settings → Discovery Mode")
-                        .font(.system(size: 13))
+                        .font(.flixor(.callout))
                         .foregroundColor(.white.opacity(0.4))
                 }
-                .padding(.top, 16)
+                .padding(.top, DS.Space.s16)
     }
 }
 
@@ -565,22 +565,22 @@ private struct SettingRowView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 12) {
+            HStack(spacing: DS.Space.s12) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 8)
+                    RoundedRectangle(cornerRadius: DS.Radius.r8)
                         .fill(iconColor.opacity(0.15))
                         .frame(width: 36, height: 36)
                     Image(systemName: icon)
-                        .font(.system(size: 16))
+                        .font(.flixorIcon(DS.Icon.md))
                         .foregroundColor(iconColor)
                 }
 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: DS.Space.s2) {
                     Text(title)
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.flixor(.body, weight: .semibold))
                         .foregroundColor(.white)
                     Text(subtitle)
-                        .font(.system(size: 12))
+                        .font(.flixor(.footnote))
                         .foregroundColor(.white.opacity(0.4))
                 }
 
@@ -591,13 +591,13 @@ private struct SettingRowView: View {
                     .labelsHidden()
                     .scaleEffect(0.8)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
+            .padding(.horizontal, DS.Space.s16)
+            .padding(.vertical, DS.Space.s14)
 
             if showDivider {
                 Divider()
                     .background(Color.white.opacity(0.08))
-                    .padding(.leading, 64)
+                    .padding(.leading, DS.Space.s64)
             }
         }
     }

@@ -180,7 +180,7 @@ struct ActiveProfileAvatarView: View {
 #if DEBUG
 struct ProfileAvatarView_Previews: PreviewProvider {
     static var previews: some View {
-        HStack(spacing: 20) {
+        HStack(spacing: DS.Space.s20) {
             Circle()
                 .fill(
                     LinearGradient(
@@ -192,7 +192,7 @@ struct ProfileAvatarView_Previews: PreviewProvider {
                 .frame(width: 60, height: 60)
                 .overlay(
                     Text("D")
-                        .font(.system(size: 24, weight: .semibold, design: .rounded))
+                        .font(.flixor(.title1, weight: .semibold, design: .rounded))
                         .foregroundColor(.white)
                 )
 
@@ -207,7 +207,7 @@ struct ProfileAvatarView_Previews: PreviewProvider {
                 .frame(width: 60, height: 60)
                 .overlay(
                     Text("T")
-                        .font(.system(size: 24, weight: .semibold, design: .rounded))
+                        .font(.flixor(.title1, weight: .semibold, design: .rounded))
                         .foregroundColor(.white)
                 )
         }

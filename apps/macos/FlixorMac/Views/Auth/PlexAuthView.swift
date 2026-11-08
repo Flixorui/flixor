@@ -26,30 +26,30 @@ struct PlexAuthView: View {
             )
             .ignoresSafeArea()
 
-            VStack(spacing: 40) {
+            VStack(spacing: DS.Space.s40) {
                 Spacer()
 
                 // Logo
-                VStack(spacing: 12) {
+                VStack(spacing: DS.Space.s12) {
                     Image(systemName: "play.rectangle.fill")
                         .font(.system(size: 80))
                         .foregroundStyle(.white)
 
                     Text("FLIXOR")
-                        .font(.system(size: 48, weight: .bold, design: .rounded))
+                        .font(.flixor(.displayLarge, weight: .bold, design: .rounded))
                         .foregroundStyle(.white)
                 }
 
                 Spacer()
 
                 // Sign in button
-                VStack(spacing: 20) {
+                VStack(spacing: DS.Space.s20) {
                     Button(action: {
                         Task {
                             await viewModel.startAuthentication()
                         }
                     }) {
-                        HStack(spacing: 12) {
+                        HStack(spacing: DS.Space.s12) {
                             if viewModel.isAuthenticating {
                                 ProgressView()
                                     .scaleEffect(0.8)
@@ -63,7 +63,7 @@ struct PlexAuthView: View {
                         .padding()
                         .background(Color.brand)
                         .foregroundStyle(.white)
-                        .cornerRadius(8)
+                        .cornerRadius(DS.Radius.r8)
                     }
                     .buttonStyle(.plain)
                     .disabled(viewModel.isAuthenticating)
@@ -74,7 +74,7 @@ struct PlexAuthView: View {
                         .multilineTextAlignment(.center)
 
                     // Standalone Stremio path - no Plex account needed.
-                    VStack(spacing: 8) {
+                    VStack(spacing: DS.Space.s8) {
                         Divider()
                             .frame(maxWidth: 300)
                             .overlay(Color.white.opacity(0.15))
@@ -88,7 +88,7 @@ struct PlexAuthView: View {
                                 .padding()
                                 .background(Color.white.opacity(0.12))
                                 .foregroundStyle(.white)
-                                .cornerRadius(8)
+                                .cornerRadius(DS.Radius.r8)
                         }
                         .buttonStyle(.plain)
                         .disabled(viewModel.isAuthenticating)
@@ -98,7 +98,7 @@ struct PlexAuthView: View {
                             .foregroundStyle(.white.opacity(0.6))
                             .multilineTextAlignment(.center)
                     }
-                    .padding(.top, 12)
+                    .padding(.top, DS.Space.s12)
 
                     if let error = viewModel.error {
                         Text(error)

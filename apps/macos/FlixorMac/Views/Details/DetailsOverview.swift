@@ -15,10 +15,10 @@ struct OverviewModal: View {
     let onClose: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: DS.Space.s20) {
             HStack {
                 Text(title)
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(.flixor(.title3, weight: .semibold))
                 Spacer()
                 Button(action: onClose) {
                     Image(systemName: "xmark.circle.fill")
@@ -30,13 +30,13 @@ struct OverviewModal: View {
 
             ScrollView {
                 Text(overview)
-                    .font(.system(size: 14))
+                    .font(.flixor(.body))
                     .foregroundStyle(.primary.opacity(0.9))
                     .lineSpacing(4)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .padding(24)
+        .padding(DS.Space.s24)
         .frame(width: 500, height: 400)
         .background(Color(NSColor.windowBackgroundColor))
     }
@@ -57,9 +57,9 @@ private struct CollapsibleOverview: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: DS.Space.s10) {
             Text(text)
-                .font(.system(size: 16))
+                .font(.flixor(.headline))
                 .foregroundStyle(.white.opacity(0.88))
                 .lineSpacing(4)
                 .lineLimit(isExpanded ? nil : 2)
@@ -81,7 +81,7 @@ private struct CollapsibleOverview: View {
                 .background(
                     // Hidden text without line limit to get intrinsic height
                     Text(text)
-                        .font(.system(size: 16))
+                        .font(.flixor(.headline))
                         .lineSpacing(4)
                         .frame(maxWidth: maxWidth, alignment: .leading)
                         .fixedSize(horizontal: false, vertical: true)
@@ -101,19 +101,19 @@ private struct CollapsibleOverview: View {
 
             if isTruncated {
                 Button(action: {
-                    withAnimation(.easeInOut(duration: 0.2)) {
+                    withAnimation(DS.Motion.standard) {
                         isExpanded.toggle()
                     }
                 }) {
-                    HStack(spacing: 6) {
+                    HStack(spacing: DS.Space.s6) {
                         Text(isExpanded ? "Less" : "More")
-                            .font(.system(size: 14, weight: .semibold))
+                            .font(.flixor(.body, weight: .semibold))
                         Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(.flixorIcon(DS.Icon.xs, weight: .semibold))
                     }
                     .foregroundStyle(.white)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
+                    .padding(.horizontal, DS.Space.s16)
+                    .padding(.vertical, DS.Space.s8)
                     .background(
                         Capsule()
                             .fill(Color.white.opacity(0.18))

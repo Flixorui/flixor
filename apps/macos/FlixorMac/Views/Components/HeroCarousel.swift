@@ -64,7 +64,7 @@ struct HeroCarousel: View {
                         // Left arrow (shown on hover)
                         Button(action: previousItem) {
                             Image(systemName: "chevron.left")
-                                .font(.system(size: 24, weight: .semibold))
+                                .font(.flixorIcon(DS.Icon.xl, weight: .semibold))
                                 .foregroundStyle(.white)
                                 .frame(width: 48, height: 48)
                                 .background(.ultraThinMaterial.opacity(0.6))
@@ -91,7 +91,7 @@ struct HeroCarousel: View {
                         // Right arrow (shown on hover)
                         Button(action: nextItem) {
                             Image(systemName: "chevron.right")
-                                .font(.system(size: 24, weight: .semibold))
+                                .font(.flixorIcon(DS.Icon.xl, weight: .semibold))
                                 .foregroundStyle(.white)
                                 .frame(width: 48, height: 48)
                                 .background(.ultraThinMaterial.opacity(0.6))
@@ -101,20 +101,20 @@ struct HeroCarousel: View {
                         .opacity(isHovered && items.count > 1 ? 1 : 0)
                         .accessibilityLabel(Text("Next featured item"))
                     }
-                    .padding(.horizontal, 40)
-                    .padding(.bottom, 28)
+                    .padding(.horizontal, DS.Space.s40)
+                    .padding(.bottom, DS.Space.s28)
                 }
             }
-            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r20, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                RoundedRectangle(cornerRadius: DS.Radius.r20, style: .continuous)
                     .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
             )
             .shadow(color: .black.opacity(0.5), radius: 30, y: 15)
         }
         .frame(height: carouselHeight)
         .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.2)) {
+            withAnimation(DS.Motion.standard) {
                 isHovered = hovering
             }
             // Pause/resume auto-advance on hover (only if auto-rotate is enabled)
@@ -126,7 +126,7 @@ struct HeroCarousel: View {
                 }
             }
         }
-        .animation(.easeInOut(duration: 0.5), value: currentIndex)
+        .animation(DS.Motion.slow, value: currentIndex)
         .onAppear {
             if profileSettings.heroAutoRotate {
                 startTimer()
@@ -148,7 +148,7 @@ struct HeroCarousel: View {
 
     private func previousItem() {
         direction = .backward
-        withAnimation(.easeInOut(duration: 0.5)) {
+        withAnimation(DS.Motion.slow) {
             if currentIndex > 0 {
                 currentIndex -= 1
             } else {
@@ -161,7 +161,7 @@ struct HeroCarousel: View {
 
     private func nextItem() {
         direction = .forward
-        withAnimation(.easeInOut(duration: 0.5)) {
+        withAnimation(DS.Motion.slow) {
             if currentIndex < items.count - 1 {
                 currentIndex += 1
             } else {
@@ -174,7 +174,7 @@ struct HeroCarousel: View {
 
     private func goToIndex(_ index: Int) {
         direction = index > currentIndex ? .forward : .backward
-        withAnimation(.easeInOut(duration: 0.5)) {
+        withAnimation(DS.Motion.slow) {
             currentIndex = index
         }
         restartTimer()
@@ -333,42 +333,42 @@ struct HeroCarouselCard: View {
                 }
 
                 // Metadata Row
-                HStack(spacing: 12) {
+                HStack(spacing: DS.Space.s12) {
                     if let year = displayYear {
                         Text(String(year))
-                            .font(.system(size: 15, weight: .medium))
+                            .font(.flixor(.bodyLarge, weight: .medium))
                             .foregroundStyle(.white.opacity(0.9))
                     }
 
                     if let rating = item.rating {
                         HStack(spacing: 5) {
                             Image(systemName: "star.fill")
-                                .font(.system(size: 12))
+                                .font(.flixorIcon(DS.Icon.xs))
                             Text(String(format: "%.1f", rating))
-                                .font(.system(size: 14, weight: .semibold))
+                                .font(.flixor(.body, weight: .semibold))
                         }
                         .foregroundStyle(.yellow)
                     }
 
                     if let duration = item.duration {
                         Text(formatDuration(duration))
-                            .font(.system(size: 15, weight: .medium))
+                            .font(.flixor(.bodyLarge, weight: .medium))
                             .foregroundStyle(.white.opacity(0.9))
                     }
 
                     // Type badge - always show "Series" for episodes/seasons
                     Text(item.type == "movie" ? "Movie" : "Series")
-                        .font(.system(size: 12, weight: .semibold))
-                        .padding(.horizontal, 8)
+                        .font(.flixor(.footnote, weight: .semibold))
+                        .padding(.horizontal, DS.Space.s8)
                         .padding(.vertical, 3)
                         .background(Color.white.opacity(0.2))
-                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r4))
                 }
 
                 // Summary/Overview
                 if let summary = displaySummary, !summary.isEmpty {
                     Text(summary)
-                        .font(.system(size: 15))
+                        .font(.flixor(.bodyLarge))
                         .foregroundStyle(.white.opacity(0.85))
                         .lineLimit(isCompact ? 2 : 3)
                         .frame(maxWidth: 520, alignment: .leading)
@@ -376,39 +376,39 @@ struct HeroCarouselCard: View {
                 }
 
                 // Action Buttons
-                HStack(spacing: 14) {
+                HStack(spacing: DS.Space.s14) {
                     // Play Button
                     Button(action: { onPlay?() }) {
-                        HStack(spacing: 8) {
+                        HStack(spacing: DS.Space.s8) {
                             Image(systemName: "play.fill")
-                                .font(.system(size: 16))
+                                .font(.flixorIcon(DS.Icon.md))
                             Text("Play")
-                                .font(.system(size: 16, weight: .semibold))
+                                .font(.flixor(.headline, weight: .semibold))
                         }
                         .foregroundStyle(.black)
-                        .padding(.horizontal, 28)
-                        .padding(.vertical, 14)
+                        .padding(.horizontal, DS.Space.s28)
+                        .padding(.vertical, DS.Space.s14)
                         .background(Color.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r8, style: .continuous))
                     }
                     .buttonStyle(.plain)
                     .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
 
                     // More Info Button
                     Button(action: { onInfo?() }) {
-                        HStack(spacing: 8) {
+                        HStack(spacing: DS.Space.s8) {
                             Image(systemName: "info.circle")
-                                .font(.system(size: 16))
+                                .font(.flixorIcon(DS.Icon.md))
                             Text("More Info")
-                                .font(.system(size: 16, weight: .semibold))
+                                .font(.flixor(.headline, weight: .semibold))
                         }
                         .foregroundStyle(.white)
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 14)
+                        .padding(.horizontal, DS.Space.s24)
+                        .padding(.vertical, DS.Space.s14)
                         .background(.ultraThinMaterial.opacity(0.5))
-                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r8, style: .continuous))
                         .overlay(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            RoundedRectangle(cornerRadius: DS.Radius.r8, style: .continuous)
                                 .strokeBorder(Color.white.opacity(0.2), lineWidth: 1)
                         )
                     }
@@ -417,7 +417,7 @@ struct HeroCarouselCard: View {
                     // My List Button
                     Button(action: { onMyList?() }) {
                         Image(systemName: "plus")
-                            .font(.system(size: 18, weight: .medium))
+                            .font(.flixor(.title3, weight: .medium))
                             .foregroundStyle(.white)
                             .frame(width: 46, height: 46)
                             .background(.ultraThinMaterial.opacity(0.5))
@@ -429,7 +429,7 @@ struct HeroCarouselCard: View {
                     }
                     .buttonStyle(.plain)
                 }
-                .padding(.top, 6)
+                .padding(.top, DS.Space.s6)
             }
             .padding(.horizontal, isCompact ? DS.Space.s40 : 56)
             .padding(.bottom, isCompact ? DS.Space.s60 : 72)

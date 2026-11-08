@@ -205,7 +205,7 @@ struct RequestButton: View {
                 }
             }
         } label: {
-            HStack(spacing: 8) {
+            HStack(spacing: DS.Space.s8) {
                 if isLoading || isRequesting {
                     ProgressView()
                         .progressViewStyle(.circular)
@@ -215,15 +215,15 @@ struct RequestButton: View {
                     OverseerrIcon(size: 18)
                 } else {
                     Image(systemName: buttonIcon)
-                        .font(.system(size: 14, weight: .bold))
+                        .font(.flixorIcon(DS.Icon.sm, weight: .bold))
                 }
                 Text(buttonLabel)
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.flixor(.bodyLarge, weight: .semibold))
             }
             .padding(.horizontal, 22)
-            .padding(.vertical, 12)
+            .padding(.vertical, DS.Space.s12)
             .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                RoundedRectangle(cornerRadius: DS.Radius.r8, style: .continuous)
                     .fill(buttonColor.opacity(canRequest ? 0.9 : 0.4))
             )
             .foregroundStyle(.white)
@@ -251,7 +251,7 @@ struct RequestButton: View {
                     OverseerrIcon(size: 20)
                 } else {
                     Image(systemName: buttonIcon)
-                        .font(.system(size: 14, weight: .bold))
+                        .font(.flixorIcon(DS.Icon.sm, weight: .bold))
                 }
             }
             .frame(width: 32, height: 32)
@@ -283,7 +283,7 @@ struct RequestButton: View {
                     OverseerrIcon(size: 24)
                 } else {
                     Image(systemName: buttonIcon)
-                        .font(.system(size: 20, weight: .medium))
+                        .font(.flixorIcon(DS.Icon.lg, weight: .medium))
                 }
             }
             .frame(width: 44, height: 44)
@@ -365,11 +365,11 @@ private struct SeasonPickerSheet: View {
         VStack(spacing: 0) {
             // Header
             HStack {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: DS.Space.s4) {
                     Text("Request Seasons")
-                        .font(.system(size: 18, weight: .semibold))
+                        .font(.flixor(.title3, weight: .semibold))
                     Text(title)
-                        .font(.system(size: 14))
+                        .font(.flixor(.body))
                         .foregroundStyle(.secondary)
                 }
 
@@ -379,37 +379,37 @@ private struct SeasonPickerSheet: View {
                     dismiss()
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 24))
+                        .font(.flixorIcon(DS.Icon.xl))
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
             }
-            .padding(20)
+            .padding(DS.Space.s20)
 
             Divider()
 
             // Warning message if no requestable seasons
             if !hasRequestableSeasons {
-                HStack(spacing: 12) {
+                HStack(spacing: DS.Space.s12) {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 24))
+                        .font(.flixorIcon(DS.Icon.xl))
                         .foregroundStyle(.yellow)
 
                     Text("All unavailable seasons have some episodes already downloaded. Overseerr cannot request the remaining episodes for partially downloaded seasons.")
-                        .font(.system(size: 13))
+                        .font(.flixor(.callout))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(16)
+                .padding(DS.Space.s16)
                 .background(Color.yellow.opacity(0.1))
-                .cornerRadius(8)
-                .padding(.horizontal, 20)
-                .padding(.top, 16)
+                .cornerRadius(DS.Radius.r8)
+                .padding(.horizontal, DS.Space.s20)
+                .padding(.top, DS.Space.s16)
             }
 
             // Season list
             ScrollView {
-                VStack(spacing: 8) {
+                VStack(spacing: DS.Space.s8) {
                     ForEach(seasons.sorted(by: { $0.seasonNumber < $1.seasonNumber }), id: \.seasonNumber) { season in
                         SeasonRow(
                             season: season,
@@ -425,7 +425,7 @@ private struct SeasonPickerSheet: View {
                         )
                     }
                 }
-                .padding(20)
+                .padding(DS.Space.s20)
             }
 
             Divider()
@@ -453,7 +453,7 @@ private struct SeasonPickerSheet: View {
                     Button {
                         onRequest()
                     } label: {
-                        HStack(spacing: 6) {
+                        HStack(spacing: DS.Space.s6) {
                             if isRequesting {
                                 ProgressView()
                                     .progressViewStyle(.circular)
@@ -461,10 +461,10 @@ private struct SeasonPickerSheet: View {
                             }
                             Text("Request \(selectedSeasons.count) Season\(selectedSeasons.count == 1 ? "" : "s")")
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
+                        .padding(.horizontal, DS.Space.s16)
+                        .padding(.vertical, DS.Space.s8)
                         .background(
-                            RoundedRectangle(cornerRadius: 8)
+                            RoundedRectangle(cornerRadius: DS.Radius.r8)
                                 .fill(selectedSeasons.isEmpty ? Color.gray.opacity(0.3) : Color(hex: "6366F1"))
                         )
                         .foregroundStyle(.white)
@@ -473,7 +473,7 @@ private struct SeasonPickerSheet: View {
                     .disabled(selectedSeasons.isEmpty || isRequesting)
                 }
             }
-            .padding(20)
+            .padding(DS.Space.s20)
         }
         .frame(width: 400, height: 550)
         .background(Color(nsColor: .windowBackgroundColor))
@@ -543,14 +543,14 @@ private struct SeasonRow: View {
                 onToggle()
             }
         } label: {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: DS.Space.s4) {
                 HStack {
                     Image(systemName: iconName)
-                        .font(.system(size: 20))
+                        .font(.flixorIcon(DS.Icon.lg))
                         .foregroundStyle(iconColor)
 
                     Text("Season \(season.seasonNumber)")
-                        .font(.system(size: 15, weight: .medium))
+                        .font(.flixor(.bodyLarge, weight: .medium))
                         .foregroundStyle(isRequestable ? .primary : .secondary)
 
                     Spacer()
@@ -563,15 +563,15 @@ private struct SeasonRow: View {
                 // Show message for partially available seasons
                 if season.isPartiallyAvailable {
                     Text("Some episodes available - Overseerr cannot request remaining")
-                        .font(.system(size: 11))
+                        .font(.flixor(.caption))
                         .foregroundStyle(.secondary)
-                        .padding(.leading, 28)
+                        .padding(.leading, DS.Space.s28)
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.horizontal, DS.Space.s16)
+            .padding(.vertical, DS.Space.s12)
             .background(
-                RoundedRectangle(cornerRadius: 8)
+                RoundedRectangle(cornerRadius: DS.Radius.r8)
                     .fill(isSelected && isRequestable ? Color(hex: "6366F1").opacity(0.15) : Color.secondary.opacity(0.1))
             )
             .opacity(isRequestable ? 1.0 : 0.6)

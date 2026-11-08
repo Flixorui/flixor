@@ -19,7 +19,7 @@ struct StremioSettingsView: View {
     private var subtitleAddonCount: Int { addonSummaries.filter(\.subtitleCapable).count }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
+        VStack(alignment: .leading, spacing: DS.Space.s24) {
             SettingsSectionHeader(title: "Playback")
             SettingsGroupCard {
                 SettingsRow(
@@ -120,17 +120,17 @@ struct StremioSettingsView: View {
 
             SettingsSectionHeader(title: "Status")
             SettingsGroupCard {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: DS.Space.s12) {
+                    HStack(spacing: DS.Space.s12) {
                         Image(systemName: isStremioOnlyMode ? "puzzlepiece.extension.fill" : "server.rack")
                             .foregroundStyle(.secondary)
                         VStack(alignment: .leading, spacing: 3) {
                             Text(isStremioOnlyMode ? "Running without Plex" : "Works alongside Plex")
-                                .font(.system(size: 13, weight: .semibold))
+                                .font(.flixor(.callout, weight: .semibold))
                             Text(isStremioOnlyMode
                                  ? "Your addons provide catalogs, metadata and streams. Watch history and My List are stored on this Mac (and synced with Trakt if connected)."
                                  : "Addon streams are offered next to your Plex library. You can also use Flixor without Plex by choosing Stremio-only mode.")
-                                .font(.system(size: 11))
+                                .font(.flixor(.caption))
                                 .foregroundStyle(.secondary)
                         }
                         Spacer()
@@ -138,20 +138,20 @@ struct StremioSettingsView: View {
 
                     Divider()
 
-                    HStack(spacing: 12) {
+                    HStack(spacing: DS.Space.s12) {
                         Image(systemName: "play.rectangle.fill")
                             .foregroundStyle(.secondary)
                         VStack(alignment: .leading, spacing: 3) {
                             Text("Playback engine is fixed to MPV")
-                                .font(.system(size: 13, weight: .semibold))
+                                .font(.flixor(.callout, weight: .semibold))
                             Text("Direct URL streams, custom headers, advanced codecs, and external subtitles all rely on MPV.")
-                                .font(.system(size: 11))
+                                .font(.flixor(.caption))
                                 .foregroundStyle(.secondary)
                         }
                         Spacer()
                     }
                 }
-                .padding(12)
+                .padding(DS.Space.s12)
             }
 
             if isLoadingAddons {

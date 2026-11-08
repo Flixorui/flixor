@@ -16,16 +16,16 @@ struct StremioStreamRow: View {
 
     var body: some View {
         Button(action: onSelect) {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: DS.Space.s10) {
+                HStack(alignment: .top, spacing: DS.Space.s12) {
                     VStack(alignment: .leading, spacing: 5) {
                         Text(rowTitle)
-                            .font(.system(size: 14, weight: .semibold))
+                            .font(.flixor(.body, weight: .semibold))
                             .foregroundStyle(stream.playable ? .white : .secondary)
                             .multilineTextAlignment(.leading)
 
                         Text(addonName)
-                            .font(.system(size: 11))
+                            .font(.flixor(.caption))
                             .foregroundStyle(.secondary)
                     }
 
@@ -33,12 +33,12 @@ struct StremioStreamRow: View {
 
                     if stream.playable {
                         Image(systemName: "play.circle.fill")
-                            .font(.system(size: 18))
+                            .font(.flixor(.title3))
                             .foregroundStyle(.orange)
                     }
                 }
 
-                HStack(spacing: 8) {
+                HStack(spacing: DS.Space.s8) {
                     if let quality = stream.quality, !quality.isEmpty {
                         badge(quality.uppercased(), color: .blue)
                     }
@@ -59,17 +59,17 @@ struct StremioStreamRow: View {
 
                 if let disabledReason = stream.disabledReason, !stream.playable {
                     Text(disabledReason)
-                        .font(.system(size: 11))
+                        .font(.flixor(.caption))
                         .foregroundStyle(.orange)
                 }
             }
-            .padding(14)
+            .padding(DS.Space.s14)
             .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: DS.Radius.r14, style: .continuous)
                     .fill(Color.white.opacity(stream.playable ? 0.05 : 0.03))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: DS.Radius.r14, style: .continuous)
                     .stroke(stream.playable ? Color.white.opacity(0.08) : Color.orange.opacity(0.14), lineWidth: 1)
             )
         }
@@ -79,9 +79,9 @@ struct StremioStreamRow: View {
 
     private func badge(_ title: String, color: Color, background: Color? = nil) -> some View {
         Text(title)
-            .font(.system(size: 10, weight: .semibold))
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
+            .font(.flixor(.micro, weight: .semibold))
+            .padding(.horizontal, DS.Space.s8)
+            .padding(.vertical, DS.Space.s4)
             .foregroundStyle(color)
             .background(
                 Capsule()

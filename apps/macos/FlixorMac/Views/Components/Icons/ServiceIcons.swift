@@ -44,7 +44,7 @@ struct SettingsHeaderIconView<IconShape: Shape>: View {
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: DS.Radius.r14, style: .continuous)
                 .fill(backgroundColor.gradient)
                 .frame(width: size, height: size)
 
@@ -570,10 +570,10 @@ struct MDBListServiceIcon: View {
 #if DEBUG
 struct ServiceIcons_Previews: PreviewProvider {
     static var previews: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: DS.Space.s20) {
             Text("Settings Row Icons (28pt)")
                 .font(.headline)
-            HStack(spacing: 16) {
+            HStack(spacing: DS.Space.s16) {
                 PlexServiceIcon()
                 TMDBServiceIcon()
                 TraktServiceIcon()
@@ -583,7 +583,7 @@ struct ServiceIcons_Previews: PreviewProvider {
 
             Text("Header Icons (64pt)")
                 .font(.headline)
-            HStack(spacing: 16) {
+            HStack(spacing: DS.Space.s16) {
                 PlexServiceIcon(size: 64)
                 TMDBServiceIcon(size: 64)
                 TraktServiceIcon(size: 64)
@@ -591,7 +591,7 @@ struct ServiceIcons_Previews: PreviewProvider {
                 MDBListServiceIcon(size: 64)
             }
         }
-        .padding(40)
+        .padding(DS.Space.s40)
         .background(Color(NSColor.windowBackgroundColor))
     }
 }

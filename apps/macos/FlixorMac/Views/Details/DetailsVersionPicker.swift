@@ -33,7 +33,7 @@ struct VersionPickerSheet: View {
                 }
                 .buttonStyle(.plain)
             }
-            .padding(20)
+            .padding(DS.Space.s20)
 
             Divider()
 
@@ -41,19 +41,19 @@ struct VersionPickerSheet: View {
             Text("Multiple versions available for \"\(title)\"")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-                .padding(.top, 16)
-                .padding(.horizontal, 20)
+                .padding(.top, DS.Space.s16)
+                .padding(.horizontal, DS.Space.s20)
 
             // Version list
             ScrollView {
-                VStack(spacing: 12) {
+                VStack(spacing: DS.Space.s12) {
                     ForEach(versions) { version in
                         VersionRowButton(version: version) {
                             onSelect(version)
                         }
                     }
                 }
-                .padding(20)
+                .padding(DS.Space.s20)
             }
         }
         .frame(width: 500, height: min(CGFloat(versions.count) * 90 + 180, 500))
@@ -110,21 +110,21 @@ private struct VersionRowButton: View {
 
     var body: some View {
         Button(action: onTap) {
-            HStack(spacing: 16) {
+            HStack(spacing: DS.Space.s16) {
                 // Play icon
                 Image(systemName: "play.circle.fill")
-                    .font(.system(size: 32))
+                    .font(.flixorIcon(DS.Icon.xxl))
                     .foregroundStyle(.white)
 
                 // Version info
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: DS.Space.s6) {
                     // Main label (e.g., "4K HEVC 8CH")
                     Text(version.label)
                         .font(.headline)
                         .foregroundStyle(.white)
 
                     // Technical badges row
-                    HStack(spacing: 6) {
+                    HStack(spacing: DS.Space.s6) {
                         // Resolution badge (4K, HD, etc.)
                         if let res = resolutionBadge {
                             TechnicalBadge(text: res, isHighlighted: false)
@@ -157,7 +157,7 @@ private struct VersionRowButton: View {
                     }
 
                     // Additional info row
-                    HStack(spacing: 8) {
+                    HStack(spacing: DS.Space.s8) {
                         if let codec = version.technical.videoCodec?.uppercased() {
                             Text(codec)
                                 .font(.caption)
@@ -192,22 +192,22 @@ private struct VersionRowButton: View {
 
                 // Chevron
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.flixorIcon(DS.Icon.sm, weight: .semibold))
                     .foregroundStyle(.secondary)
             }
-            .padding(16)
+            .padding(DS.Space.s16)
             .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: DS.Radius.r12, style: .continuous)
                     .fill(isHovered ? Color.white.opacity(0.15) : Color.white.opacity(0.08))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: DS.Radius.r12, style: .continuous)
                     .strokeBorder(Color.white.opacity(isHovered ? 0.3 : 0.1), lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
         .onHover { hovering in
-            withAnimation(.easeOut(duration: 0.15)) {
+            withAnimation(DS.Motion.quick) {
                 isHovered = hovering
             }
         }

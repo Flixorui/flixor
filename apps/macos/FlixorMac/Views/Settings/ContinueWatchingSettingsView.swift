@@ -22,37 +22,37 @@ struct ContinueWatchingSettingsView: View {
             // Header with close button
             HStack {
                 Text("Continue Watching")
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.flixor(.headline, weight: .semibold))
                 Spacer()
                 Button(action: { dismiss() }) {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 20))
+                        .font(.flixorIcon(DS.Icon.lg))
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
                 .help("Close")
             }
-            .padding(.horizontal, 24)
-            .padding(.top, 20)
-            .padding(.bottom, 16)
+            .padding(.horizontal, DS.Space.s24)
+            .padding(.top, DS.Space.s20)
+            .padding(.bottom, DS.Space.s16)
 
             Divider()
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: DS.Space.s24) {
                     // Layout Section
                     SettingsSectionHeader(title: "Display Layout")
                     SettingsGroupCard {
-                        VStack(alignment: .leading, spacing: 12) {
+                        VStack(alignment: .leading, spacing: DS.Space.s12) {
                             Text("Choose how continue watching items appear")
-                                .font(.system(size: 12))
+                                .font(.flixor(.footnote))
                                 .foregroundStyle(.secondary)
-                                .padding(.horizontal, 12)
-                                .padding(.top, 12)
+                                .padding(.horizontal, DS.Space.s12)
+                                .padding(.top, DS.Space.s12)
 
                             ContinueWatchingStylePicker()
-                                .padding(.horizontal, 12)
-                                .padding(.bottom, 12)
+                                .padding(.horizontal, DS.Space.s12)
+                                .padding(.bottom, DS.Space.s12)
                         }
                     }
 
@@ -104,10 +104,10 @@ struct ContinueWatchingSettingsView: View {
                         }
 
                         if profileSettings.useCachedStreams {
-                            VStack(alignment: .leading, spacing: 8) {
+                            VStack(alignment: .leading, spacing: DS.Space.s8) {
                                 Text("Cache Duration")
-                                    .font(.system(size: 12, weight: .medium))
-                                    .padding(.horizontal, 12)
+                                    .font(.flixor(.footnote, weight: .medium))
+                                    .padding(.horizontal, DS.Space.s12)
 
                                 Picker("", selection: $profileSettings.streamCacheTTL) {
                                     Text("15 min").tag(900)
@@ -118,18 +118,18 @@ struct ContinueWatchingSettingsView: View {
                                     Text("24 hours").tag(86400)
                                 }
                                 .pickerStyle(.segmented)
-                                .padding(.horizontal, 12)
-                                .padding(.bottom, 12)
+                                .padding(.horizontal, DS.Space.s12)
+                                .padding(.bottom, DS.Space.s12)
                             }
                         }
                     }
 
                     Text("Playback source caching stores recent URLs and provider metadata locally for faster resume across Plex and alternate providers such as Stremio. Disable it if you experience expired or unstable links.")
-                        .font(.system(size: 11))
+                        .font(.flixor(.caption))
                         .foregroundStyle(.secondary)
-                        .padding(.horizontal, 4)
+                        .padding(.horizontal, DS.Space.s4)
                 }
-                .padding(24)
+                .padding(DS.Space.s24)
             }
         }
         .background(Color(NSColor.windowBackgroundColor))
@@ -139,11 +139,11 @@ struct ContinueWatchingSettingsView: View {
     // Landscape / poster previews below; the Wide preview is ContinueWatchingWidePreview.
 
     private var landscapePreview: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: DS.Space.s12) {
             ForEach(0..<3, id: \.self) { index in
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: DS.Space.s6) {
                     ZStack(alignment: .bottom) {
-                        RoundedRectangle(cornerRadius: 8)
+                        RoundedRectangle(cornerRadius: DS.Radius.r8)
                             .fill(Color.white.opacity(0.1))
                             .aspectRatio(16/9, contentMode: .fit)
 
@@ -165,7 +165,7 @@ struct ContinueWatchingSettingsView: View {
 
                         // Play icon
                         Image(systemName: "play.circle.fill")
-                            .font(.system(size: 24))
+                            .font(.flixorIcon(DS.Icon.xl))
                             .foregroundStyle(.white.opacity(0.9))
                     }
 
@@ -184,11 +184,11 @@ struct ContinueWatchingSettingsView: View {
     }
 
     private var posterPreview: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: DS.Space.s12) {
             ForEach(0..<4, id: \.self) { index in
-                VStack(alignment: .center, spacing: 6) {
+                VStack(alignment: .center, spacing: DS.Space.s6) {
                     ZStack {
-                        RoundedRectangle(cornerRadius: 8)
+                        RoundedRectangle(cornerRadius: DS.Radius.r8)
                             .fill(Color.white.opacity(0.1))
                             .aspectRatio(2/3, contentMode: .fit)
 
@@ -204,7 +204,7 @@ struct ContinueWatchingSettingsView: View {
                             .rotationEffect(.degrees(-90))
 
                         Image(systemName: "play.fill")
-                            .font(.system(size: 10))
+                            .font(.flixor(.micro))
                             .foregroundStyle(.white)
                     }
 

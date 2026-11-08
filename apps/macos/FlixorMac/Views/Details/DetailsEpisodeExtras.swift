@@ -84,7 +84,7 @@ struct EpisodeWatchedButton: View {
                     .frame(width: size, height: size)
                 } else {
                     Image(systemName: isWatched ? "checkmark.circle.fill" : "checkmark.circle")
-                        .font(.system(size: 18))
+                        .font(.flixor(.title3))
                         .foregroundStyle(isWatched ? theme.success : theme.textSecondary)
                         .frame(width: size, height: size)
                 }

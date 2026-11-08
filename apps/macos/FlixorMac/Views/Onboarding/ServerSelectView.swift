@@ -25,19 +25,19 @@ struct ServerSelectView: View {
 
             VStack(spacing: 0) {
                 // Header
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: DS.Space.s8) {
                     Text("Select Your Server")
                         .font(.system(size: 36, weight: .heavy))
                         .foregroundColor(.white)
 
                     Text("Choose a Plex server to connect to")
-                        .font(.system(size: 15))
+                        .font(.flixor(.bodyLarge))
                         .foregroundColor(.white.opacity(0.5))
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 60)
-                .padding(.top, 60)
-                .padding(.bottom, 40)
+                .padding(.horizontal, DS.Space.s60)
+                .padding(.top, DS.Space.s60)
+                .padding(.bottom, DS.Space.s40)
 
                 // Content
                 if isLoading {
@@ -56,21 +56,21 @@ struct ServerSelectView: View {
                 Button {
                     Task { await loadServers() }
                 } label: {
-                    HStack(spacing: 8) {
+                    HStack(spacing: DS.Space.s8) {
                         Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 14, weight: .semibold))
+                            .font(.flixorIcon(DS.Icon.sm, weight: .semibold))
                         Text("Refresh Servers")
-                            .font(.system(size: 14, weight: .medium))
+                            .font(.flixor(.body, weight: .medium))
                     }
                     .foregroundColor(.white.opacity(0.6))
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 12)
+                    .padding(.horizontal, DS.Space.s20)
+                    .padding(.vertical, DS.Space.s12)
                     .background(Color.white.opacity(0.1))
-                    .cornerRadius(10)
+                    .cornerRadius(DS.Radius.r10)
                 }
                 .buttonStyle(.plain)
                 .disabled(isLoading)
-                .padding(.bottom, 40)
+                .padding(.bottom, DS.Space.s40)
             }
         }
         .task {
@@ -79,48 +79,48 @@ struct ServerSelectView: View {
     }
 
     private var loadingState: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: DS.Space.s16) {
             ProgressView()
                 .scaleEffect(1.5)
                 .progressViewStyle(CircularProgressViewStyle(tint: .white))
             Text("Loading servers...")
-                .font(.system(size: 14))
+                .font(.flixor(.body))
                 .foregroundColor(.white.opacity(0.5))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func errorState(message: String) -> some View {
-        VStack(spacing: 16) {
+        VStack(spacing: DS.Space.s16) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 48))
+                .font(.flixorIcon(DS.Icon.huge))
                 .foregroundColor(.orange)
 
             Text("Error Loading Servers")
-                .font(.system(size: 18, weight: .semibold))
+                .font(.flixor(.title3, weight: .semibold))
                 .foregroundColor(.white)
 
             Text(message)
-                .font(.system(size: 14))
+                .font(.flixor(.body))
                 .foregroundColor(.white.opacity(0.5))
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, 40)
+                .padding(.horizontal, DS.Space.s40)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var emptyState: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: DS.Space.s16) {
             Image(systemName: "server.rack")
-                .font(.system(size: 48))
+                .font(.flixorIcon(DS.Icon.huge))
                 .foregroundColor(.white.opacity(0.3))
 
             Text("No Servers Found")
-                .font(.system(size: 18, weight: .semibold))
+                .font(.flixor(.title3, weight: .semibold))
                 .foregroundColor(.white)
 
             Text("Make sure you have at least one Plex Media Server\nset up and linked to your account.")
-                .font(.system(size: 14))
+                .font(.flixor(.body))
                 .foregroundColor(.white.opacity(0.5))
                 .multilineTextAlignment(.center)
         }
@@ -129,14 +129,14 @@ struct ServerSelectView: View {
 
     private var serverList: some View {
         ScrollView {
-            VStack(spacing: 12) {
+            VStack(spacing: DS.Space.s12) {
                 ForEach(servers) { server in
                     ServerRow(server: server) {
                         onServerSelected(server)
                     }
                 }
             }
-            .padding(.horizontal, 60)
+            .padding(.horizontal, DS.Space.s60)
         }
     }
 
@@ -167,39 +167,39 @@ private struct ServerRow: View {
 
     var body: some View {
         Button(action: onTap) {
-            HStack(spacing: 16) {
+            HStack(spacing: DS.Space.s16) {
                 // Server icon
                 ZStack {
-                    RoundedRectangle(cornerRadius: 12)
+                    RoundedRectangle(cornerRadius: DS.Radius.r12)
                         .fill(Color.white.opacity(0.08))
                         .frame(width: 48, height: 48)
 
                     Image(systemName: server.owned == true ? "server.rack" : "cloud")
-                        .font(.system(size: 20))
+                        .font(.flixorIcon(DS.Icon.lg))
                         .foregroundColor(server.presence == true ? .green : .orange)
                 }
 
                 // Server info
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: DS.Space.s4) {
                     Text(server.name)
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(.flixor(.headline, weight: .semibold))
                         .foregroundColor(.white)
 
-                    HStack(spacing: 6) {
+                    HStack(spacing: DS.Space.s6) {
                         // Online status
                         Circle()
                             .fill(server.presence == true ? Color.green : Color.orange)
                             .frame(width: 8, height: 8)
 
                         Text(server.presence == true ? "Online" : "Offline")
-                            .font(.system(size: 12))
+                            .font(.flixor(.footnote))
                             .foregroundColor(.white.opacity(0.5))
 
                         Text("·")
                             .foregroundColor(.white.opacity(0.3))
 
                         Text(server.owned == true ? "Owned" : "Shared")
-                            .font(.system(size: 12))
+                            .font(.flixor(.footnote))
                             .foregroundColor(.white.opacity(0.5))
                     }
                 }
@@ -208,15 +208,15 @@ private struct ServerRow: View {
 
                 // Arrow
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.flixorIcon(DS.Icon.sm, weight: .semibold))
                     .foregroundColor(.white.opacity(0.4))
             }
-            .padding(16)
+            .padding(DS.Space.s16)
             .background(
-                RoundedRectangle(cornerRadius: 16)
+                RoundedRectangle(cornerRadius: DS.Radius.r16)
                     .fill(Color.white.opacity(isHovered ? 0.12 : 0.06))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 16)
+                        RoundedRectangle(cornerRadius: DS.Radius.r16)
                             .stroke(Color.white.opacity(isHovered ? 0.15 : 0.08), lineWidth: 1)
                     )
             )

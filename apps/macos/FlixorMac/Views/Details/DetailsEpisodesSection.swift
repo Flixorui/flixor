@@ -157,10 +157,10 @@ struct EpisodesTabContent: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            HStack(alignment: .center, spacing: 12) {
+        VStack(alignment: .leading, spacing: DS.Space.s20) {
+            HStack(alignment: .center, spacing: DS.Space.s12) {
                 Text("Episodes")
-                    .font(.system(size: 20, weight: .bold))
+                    .font(.flixor(.title2, weight: .bold))
                     .foregroundStyle(.white)
 
                 Spacer(minLength: 12)
@@ -187,19 +187,19 @@ struct EpisodesTabContent: View {
                             }
                         }
                     } label: {
-                        HStack(spacing: 8) {
+                        HStack(spacing: DS.Space.s8) {
                             Image(systemName: "puzzlepiece.extension.fill")
-                                .font(.system(size: 12, weight: .semibold))
+                                .font(.flixorIcon(DS.Icon.xs, weight: .semibold))
                                 .foregroundStyle(Color.orange.opacity(0.95))
                             Text(episodeTapModeTitle)
-                                .font(.system(size: 12, weight: .semibold))
+                                .font(.flixor(.footnote, weight: .semibold))
                                 .foregroundStyle(.white)
                             Image(systemName: "chevron.down")
-                                .font(.system(size: 11, weight: .semibold))
+                                .font(.flixor(.caption, weight: .semibold))
                                 .foregroundStyle(.white.opacity(0.7))
                         }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
+                        .padding(.horizontal, DS.Space.s12)
+                        .padding(.vertical, DS.Space.s8)
                         .background(
                             Capsule(style: .continuous)
                                 .fill(Color.white.opacity(0.08))
@@ -237,7 +237,7 @@ struct EpisodesTabContent: View {
                 }
             } else if let season = vm.seasons.first(where: { $0.id == vm.selectedSeasonKey }) {
                 Text(season.title)
-                    .font(.system(size: 20, weight: .bold))
+                    .font(.flixor(.title2, weight: .bold))
                     .foregroundStyle(.white)
             }
 
@@ -247,13 +247,13 @@ struct EpisodesTabContent: View {
                     ProgressView().progressViewStyle(.circular)
                     Spacer()
                 }
-                .padding(.vertical, 40)
+                .padding(.vertical, DS.Space.s40)
             } else if vm.episodes.isEmpty {
                 Text("No episodes found").foregroundStyle(.secondary)
             } else if profileSettings.episodeLayout == "horizontal" {
                 // Horizontal scroll of episode cards (like mobile)
                 ScrollView(.horizontal, showsIndicators: false) {
-                    LazyHStack(spacing: 14) {
+                    LazyHStack(spacing: DS.Space.s14) {
                         ForEach(Array(vm.episodes.enumerated()), id: \.element.id) { index, episode in
                             HorizontalEpisodeCard(
                                 episode: episode,
@@ -277,12 +277,12 @@ struct EpisodesTabContent: View {
                             .contextMenu { episodeMenu(for: episode) }
                         }
                     }
-                    .padding(.leading, 24)
-                    .padding(.trailing, 60)
+                    .padding(.leading, DS.Space.s24)
+                    .padding(.trailing, DS.Space.s60)
                 }
             } else {
                 // Vertical list layout (original)
-                LazyVStack(spacing: 12) {
+                LazyVStack(spacing: DS.Space.s12) {
                     ForEach(Array(vm.episodes.enumerated()), id: \.element.id) { index, episode in
                         VerticalEpisodeRow(
                             episode: episode,
@@ -329,16 +329,16 @@ private struct SeasonSelector: View {
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            LazyHStack(spacing: 10) {
+            LazyHStack(spacing: DS.Space.s10) {
                 ForEach(seasons) { season in
                     Button(action: { onSelect(season.id) }) {
                         Text(season.title)
                             .font(.system(size: 14, weight: selectedKey == season.id ? .bold : .medium))
                             .foregroundStyle(selectedKey == season.id ? .black : .white)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 10)
+                            .padding(.horizontal, DS.Space.s16)
+                            .padding(.vertical, DS.Space.s10)
                             .background(selectedKey == season.id ? Color.white : Color.white.opacity(0.1))
-                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r8, style: .continuous))
                     }
                     .buttonStyle(.plain)
                 }
@@ -421,24 +421,24 @@ private struct HorizontalEpisodeCard: View {
                     ZStack {
                         Color.black.opacity(0.3)
                         Image(systemName: "play.circle.fill")
-                            .font(.system(size: 48))
+                            .font(.flixorIcon(DS.Icon.huge))
                             .foregroundStyle(.white)
                             .shadow(color: .black.opacity(0.5), radius: 8)
                     }
                 }
 
                 // Content
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: DS.Space.s6) {
                     // Episode badge (+ rating chip)
                     HStack(spacing: DS.Space.s6) {
                         Text("EPISODE \(episodeNumber)")
-                            .font(.system(size: 10, weight: .bold))
+                            .font(.flixor(.micro, weight: .bold))
                             .tracking(0.8)
                             .foregroundStyle(Color(white: 0.9))
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
+                            .padding(.horizontal, DS.Space.s8)
+                            .padding(.vertical, DS.Space.s4)
                             .background(Color.black.opacity(0.5))
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r6))
 
                         if let rating {
                             EpisodeRatingChip(rating: rating)
@@ -447,7 +447,7 @@ private struct HorizontalEpisodeCard: View {
 
                     // Title
                     Text(episode.title)
-                        .font(.system(size: 15, weight: .heavy))
+                        .font(.flixor(.bodyLarge, weight: .heavy))
                         .foregroundStyle(.white)
                         .lineLimit(2)
 
@@ -457,7 +457,7 @@ private struct HorizontalEpisodeCard: View {
                             EpisodeSpoilerNotice()
                         } else {
                             Text(overview)
-                                .font(.system(size: 12))
+                                .font(.flixor(.footnote))
                                 .foregroundStyle(.white.opacity(0.82))
                                 .lineLimit(3)
                         }
@@ -465,16 +465,16 @@ private struct HorizontalEpisodeCard: View {
 
                     // Meta info
                     if let duration = episode.durationMin {
-                        HStack(spacing: 4) {
+                        HStack(spacing: DS.Space.s4) {
                             Image(systemName: "clock")
-                                .font(.system(size: 11))
+                                .font(.flixor(.caption))
                             Text("\(duration)m")
-                                .font(.system(size: 11))
+                                .font(.flixor(.caption))
                         }
                         .foregroundStyle(Color(white: 0.6))
                     }
                 }
-                .padding(12)
+                .padding(DS.Space.s12)
 
                 // Progress bar
                 if showProgress {
@@ -499,7 +499,7 @@ private struct HorizontalEpisodeCard: View {
                 VStack {
                     HStack {
                         Spacer()
-                        HStack(spacing: 6) {
+                        HStack(spacing: DS.Space.s6) {
                             // Download button
                             if let serverId = serverId {
                                 EpisodeDownloadButton(
@@ -517,7 +517,7 @@ private struct HorizontalEpisodeCard: View {
                             if showsStremioButton {
                                 Button(action: onStremio) {
                                     Image(systemName: "puzzlepiece.extension.fill")
-                                        .font(.system(size: 12, weight: .semibold))
+                                        .font(.flixorIcon(DS.Icon.xs, weight: .semibold))
                                         .foregroundStyle(.white)
                                         .frame(width: 22, height: 22)
                                         .background(Color.orange.opacity(0.75), in: Circle())
@@ -539,15 +539,15 @@ private struct HorizontalEpisodeCard: View {
                                 )
                             }
                         }
-                        .padding(10)
+                        .padding(DS.Space.s10)
                     }
                     Spacer()
                 }
             }
             .frame(width: width, height: height)
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r16, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                RoundedRectangle(cornerRadius: DS.Radius.r16, style: .continuous)
                     .strokeBorder(Color.white.opacity(isHovered ? 0.5 : 0.12), lineWidth: 1)
             )
             .shadow(color: .black.opacity(0.4), radius: isHovered ? 12 : 6, y: isHovered ? 6 : 3)
@@ -606,7 +606,7 @@ private struct VerticalEpisodeRow: View {
 
     var body: some View {
         Button(action: onPlay) {
-            HStack(alignment: .top, spacing: 16) {
+            HStack(alignment: .top, spacing: DS.Space.s16) {
                 // Thumbnail
                 ZStack(alignment: .bottomLeading) {
                     if let imgURL = episode.image {
@@ -650,23 +650,23 @@ private struct VerticalEpisodeRow: View {
                         }
                     }
                 }
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r10, style: .continuous))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    RoundedRectangle(cornerRadius: DS.Radius.r10, style: .continuous)
                         .stroke(Color.white.opacity(isHovered ? 0.4 : 0.12), lineWidth: 1)
                 )
 
                 // Info
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: DS.Space.s8) {
                     HStack {
                         Text("\(episodeNumber). \(episode.title)")
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(.flixor(.headline, weight: .semibold))
                             .foregroundStyle(.white)
                             .lineLimit(2)
 
                         Spacer()
 
-                        HStack(spacing: 8) {
+                        HStack(spacing: DS.Space.s8) {
                             // Download button
                             if let serverId = serverId {
                                 EpisodeDownloadButton(
@@ -684,9 +684,9 @@ private struct VerticalEpisodeRow: View {
                             if showsStremioButton {
                                 Button(action: onStremio) {
                                     Label("Stremio", systemImage: "puzzlepiece.extension.fill")
-                                        .font(.system(size: 11, weight: .semibold))
+                                        .font(.flixor(.caption, weight: .semibold))
                                         .foregroundStyle(.white)
-                                        .padding(.horizontal, 10)
+                                        .padding(.horizontal, DS.Space.s10)
                                         .padding(.vertical, 5)
                                         .background(Color.orange.opacity(0.24), in: Capsule())
                                 }
@@ -713,7 +713,7 @@ private struct VerticalEpisodeRow: View {
                             EpisodeSpoilerNotice()
                         } else {
                             Text(overview)
-                                .font(.system(size: 13))
+                                .font(.flixor(.callout))
                                 .foregroundStyle(.white.opacity(0.7))
                                 .lineLimit(3)
                         }
@@ -723,7 +723,7 @@ private struct VerticalEpisodeRow: View {
                         HStack(spacing: DS.Space.controlGap) {
                             if let duration = episode.durationMin {
                                 Text("\(duration) min")
-                                    .font(.system(size: 12))
+                                    .font(.flixor(.footnote))
                                     .foregroundStyle(.white.opacity(0.5))
                             }
                             if let rating {
@@ -733,9 +733,9 @@ private struct VerticalEpisodeRow: View {
                     }
                 }
             }
-            .padding(12)
+            .padding(DS.Space.s12)
             .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: DS.Radius.r12, style: .continuous)
                     .fill(Color.white.opacity(isHovered ? 0.06 : 0.03))
             )
         }

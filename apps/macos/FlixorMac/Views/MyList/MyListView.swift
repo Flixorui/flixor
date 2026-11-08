@@ -26,7 +26,7 @@ struct MyListView: View {
         VStack(spacing: 0) {
             header
                 .padding(.horizontal, horizontalPadding)
-                .padding(.top, 32)
+                .padding(.top, DS.Space.s32)
 
             if traktLists.isConnected {
                 TraktListSwitcher(
@@ -46,10 +46,10 @@ struct MyListView: View {
             } else {
                 controls
                     .padding(.horizontal, horizontalPadding)
-                    .padding(.top, 24)
+                    .padding(.top, DS.Space.s24)
 
                 content
-                    .padding(.top, 16)
+                    .padding(.top, DS.Space.s16)
             }
         }
         .background(HomeBackground())
@@ -101,7 +101,7 @@ struct MyListView: View {
 
     private var header: some View {
         HStack(alignment: .top, spacing: DS.Space.s16) {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: DS.Space.s8) {
                 Text(traktLists.selectedList?.name ?? "My List")
                     .font(.system(size: 34, weight: .bold))
                     .lineLimit(1)
@@ -137,15 +137,15 @@ struct MyListView: View {
     }
 
     private var controls: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 16) {
+        VStack(alignment: .leading, spacing: DS.Space.s16) {
+            HStack(spacing: DS.Space.s16) {
                 TextField("Search My List", text: $viewModel.searchQuery)
                     .textFieldStyle(.plain)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .padding(.horizontal, DS.Space.s14)
+                    .padding(.vertical, DS.Space.s10)
+                    .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: DS.Radius.r10, style: .continuous))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        RoundedRectangle(cornerRadius: DS.Radius.r10, style: .continuous)
                             .stroke(Color.white.opacity(0.12), lineWidth: 1)
                     )
                     .frame(width: 260)
@@ -175,10 +175,10 @@ struct MyListView: View {
                     }
                 } label: {
                     Text(viewModel.bulkMode ? "Cancel" : "Select")
-                        .font(.system(size: 13, weight: .semibold))
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-                        .background(Color.white.opacity(0.1), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .font(.flixor(.callout, weight: .semibold))
+                        .padding(.horizontal, DS.Space.s16)
+                        .padding(.vertical, DS.Space.s10)
+                        .background(Color.white.opacity(0.1), in: RoundedRectangle(cornerRadius: DS.Radius.r10, style: .continuous))
                 }
                 .buttonStyle(.plain)
 
@@ -187,10 +187,10 @@ struct MyListView: View {
                         Task { await viewModel.removeSelected() }
                     } label: {
                         Text("Remove (\(viewModel.selectedIDs.count))")
-                            .font(.system(size: 13, weight: .semibold))
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 10)
-                            .background(Color.red.opacity(0.7), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            .font(.flixor(.callout, weight: .semibold))
+                            .padding(.horizontal, DS.Space.s16)
+                            .padding(.vertical, DS.Space.s10)
+                            .background(Color.red.opacity(0.7), in: RoundedRectangle(cornerRadius: DS.Radius.r10, style: .continuous))
                     }
                     .buttonStyle(.plain)
                 }
@@ -228,12 +228,12 @@ struct MyListView: View {
             ScrollView {
                 LazyVGrid(columns: gridColumns(width: geometry.size.width), spacing: gridSpacing) {
                     ForEach(0..<12, id: \.self) { _ in
-                        SkeletonView(height: minGridItemWidth * 1.5, cornerRadius: 12)
+                        SkeletonView(height: minGridItemWidth * 1.5, cornerRadius: DS.Radius.r12)
                             .frame(height: minGridItemWidth * 1.5)
                     }
                 }
                 .padding(.horizontal, horizontalPadding)
-                .padding(.vertical, 32)
+                .padding(.vertical, DS.Space.s32)
             }
         }
     }
@@ -294,10 +294,10 @@ struct MyListView: View {
                                     )
                                     .overlay(
                                         Image(systemName: "checkmark")
-                                            .font(.system(size: 14, weight: .bold))
+                                            .font(.flixorIcon(DS.Icon.sm, weight: .bold))
                                             .foregroundStyle(viewModel.selectedIDs.contains(item.id) ? Color.black : Color.white.opacity(0.6))
                                     )
-                                    .padding(10)
+                                    .padding(DS.Space.s10)
                             }
                         }
                         .contextMenu {
@@ -316,13 +316,13 @@ struct MyListView: View {
                     }
                 }
                 .padding(.horizontal, horizontalPadding)
-                .padding(.vertical, 32)
+                .padding(.vertical, DS.Space.s32)
             }
         }
     }
 
     private var emptyState: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: DS.Space.s12) {
             Image(systemName: "bookmark.slash")
                 .font(.system(size: 44))
                 .foregroundStyle(.secondary)
@@ -332,7 +332,7 @@ struct MyListView: View {
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(80)
+        .padding(DS.Space.s80)
     }
 }
 
@@ -357,14 +357,14 @@ private struct WatchlistCard: View {
             }
         }) {
             ZStack(alignment: .topTrailing) {
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: DS.Space.s8) {
                     ZStack(alignment: .topTrailing) {
                         CachedAsyncImage(url: item.imageURL)
                             .aspectRatio(2/3, contentMode: .fill)
                             .frame(width: width, height: width * 1.5)
-                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r12, style: .continuous))
                             .overlay(
-                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                RoundedRectangle(cornerRadius: DS.Radius.r12, style: .continuous)
                                     .stroke(
                                         isSelected ? Color.white : Color.white.opacity(isHovered ? 0.9 : 0.15),
                                         lineWidth: isSelected ? 2 : (isHovered ? 2 : 1)
@@ -374,7 +374,7 @@ private struct WatchlistCard: View {
                             .overlay(alignment: .topLeading) {
                                 // Source badge overlay
                                 SourceBadge(source: item.source)
-                                    .padding(8)
+                                    .padding(DS.Space.s8)
                             }
 
                         WatchlistButton(
@@ -388,24 +388,24 @@ private struct WatchlistCard: View {
                             year: Int(item.year ?? ""),
                             style: .icon
                         )
-                        .padding(10)
+                        .padding(DS.Space.s10)
                     }
 
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: DS.Space.s4) {
                         Text(item.title)
-                            .font(.system(size: 14, weight: .semibold))
+                            .font(.flixor(.body, weight: .semibold))
                             .foregroundStyle(.white)
                             .lineLimit(2)
 
-                        HStack(spacing: 8) {
+                        HStack(spacing: DS.Space.s8) {
                             if let year = item.year {
                                 Text(year)
-                                    .font(.system(size: 12, weight: .medium))
+                                    .font(.flixor(.footnote, weight: .medium))
                                     .foregroundStyle(.white.opacity(0.7))
                             }
                             if let rating = item.ratingText {
                                 Text(rating)
-                                    .font(.system(size: 12, weight: .medium))
+                                    .font(.flixor(.footnote, weight: .medium))
                                     .foregroundStyle(.white.opacity(0.7))
                             }
                         }
@@ -423,16 +423,16 @@ private struct WatchlistCard: View {
                         )
                         .overlay(
                             Image(systemName: "checkmark")
-                                .font(.system(size: 14, weight: .bold))
+                                .font(.flixorIcon(DS.Icon.sm, weight: .bold))
                                 .foregroundStyle(isSelected ? Color.black : Color.white.opacity(0.6))
                         )
-                        .padding(10)
+                        .padding(DS.Space.s10)
                 }
             }
         }
         .buttonStyle(.plain)
         .onHover { hovering in
-            withAnimation(.easeOut(duration: 0.15)) {
+            withAnimation(DS.Motion.quick) {
                 isHovered = hovering
             }
         }
@@ -456,7 +456,7 @@ private struct SourceBadge: View {
     let source: MyListViewModel.Source
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: DS.Space.s4) {
             switch source {
             case .plex:
                 badgeView(text: "PLEX", color: .orange)
@@ -475,11 +475,11 @@ private struct SourceBadge: View {
 
     private func badgeView(text: String, color: Color) -> some View {
         Text(text)
-            .font(.system(size: 9, weight: .bold))
+            .font(.flixor(.nano, weight: .bold))
             .foregroundStyle(.white)
-            .padding(.horizontal, 6)
+            .padding(.horizontal, DS.Space.s6)
             .padding(.vertical, 3)
-            .background(color.opacity(0.9), in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+            .background(color.opacity(0.9), in: RoundedRectangle(cornerRadius: DS.Radius.r4, style: .continuous))
             .shadow(color: .black.opacity(0.3), radius: 2, y: 1)
     }
 }

@@ -12,7 +12,7 @@ struct RatingsDisplay: View {
 
     var body: some View {
         if let ratings = ratings, ratings.hasAnyRating {
-            HStack(spacing: 10) {
+            HStack(spacing: DS.Space.s10) {
                 if let imdb = ratings.imdb {
                     RatingBadge(provider: "imdb", score: imdb)
                 }
@@ -74,13 +74,13 @@ struct RatingBadge: View {
     }
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: DS.Space.s4) {
             Image(systemName: iconName)
-                .font(.system(size: 12))
+                .font(.flixorIcon(DS.Icon.xs))
                 .foregroundStyle(providerInfo?.color ?? .gray)
 
             Text(displayScore)
-                .font(.system(size: 12, weight: .semibold))
+                .font(.flixor(.footnote, weight: .semibold))
         }
         .help(providerInfo?.name ?? provider.capitalized)
     }
@@ -105,7 +105,7 @@ struct RatingsLoaderView: View {
         Group {
             if shouldShow {
                 if isLoading {
-                    HStack(spacing: 6) {
+                    HStack(spacing: DS.Space.s6) {
                         ProgressView()
                             .controlSize(.small)
                         Text("Loading ratings...")

@@ -209,8 +209,8 @@ struct PlayerView: View {
                 VStack {
                     HStack {
                         PerformanceOverlayView(stats: stats)
-                            .padding(.leading, 20)
-                            .padding(.top, 60)
+                            .padding(.leading, DS.Space.s20)
+                            .padding(.top, DS.Space.s60)
                         Spacer()
                     }
                     Spacer()
@@ -432,7 +432,7 @@ struct PlayerView: View {
         showCursor()
 
         // Show controls on mouse movement
-        withAnimation(.easeInOut(duration: 0.2)) {
+        withAnimation(DS.Motion.standard) {
             showControls = true
         }
         // Restart the hide timer
@@ -446,7 +446,7 @@ struct PlayerView: View {
             // Double-check task wasn't cancelled, we're still playing and no panel is open
             guard !Task.isCancelled && !viewModel.isLeavingPlayer && viewModel.isPlaying && !isControlsPanelOpen else { return }
 
-            withAnimation(.easeInOut(duration: 0.2)) {
+            withAnimation(DS.Motion.standard) {
                 showControls = false
             }
             // Only hide cursor if task is still valid (not cancelled)

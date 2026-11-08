@@ -41,10 +41,10 @@ struct AudioSubtitlesModal: View {
                     TabButton(title: "Sources", isSelected: selectedTab == 2) { selectedTab = 2 }
                 }
             }
-            .padding(.horizontal, 4)
-            .padding(.top, 4)
+            .padding(.horizontal, DS.Space.s4)
+            .padding(.top, DS.Space.s4)
 
-            Divider().background(Color.white.opacity(0.1)).padding(.top, 8)
+            Divider().background(Color.white.opacity(0.1)).padding(.top, DS.Space.s8)
 
             // Tab Content
             if selectedTab == 0 {
@@ -57,10 +57,10 @@ struct AudioSubtitlesModal: View {
         }
         .frame(width: 340)
         .background(Color.black.opacity(0.95))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r12))
+        .overlay(RoundedRectangle(cornerRadius: DS.Radius.r12).strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
         .shadow(color: .black.opacity(0.5), radius: 30, y: 10)
-        .padding(.trailing, 32)
+        .padding(.trailing, DS.Space.s32)
         .padding(.bottom, 140)
     }
 }
@@ -76,9 +76,9 @@ private struct TabButton: View {
                 .font(.system(size: 14, weight: isSelected ? .semibold : .regular))
                 .foregroundStyle(isSelected ? .white : .white.opacity(0.5))
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
+                .padding(.vertical, DS.Space.s10)
                 .background(isSelected ? Color.white.opacity(0.1) : Color.clear)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r8))
         }
         .buttonStyle(.plain)
     }
@@ -91,7 +91,7 @@ private struct AudioTabContent: View {
         VStack(alignment: .leading, spacing: 0) {
             // Track Selection
             ScrollView {
-                VStack(spacing: 2) {
+                VStack(spacing: DS.Space.s2) {
                     ForEach(viewModel.availableAudioTracks, id: \.id) { track in
                         TrackRow(
                             title: track.displayName,
@@ -101,8 +101,8 @@ private struct AudioTabContent: View {
                         }
                     }
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
+                .padding(.horizontal, DS.Space.s12)
+                .padding(.vertical, DS.Space.s8)
             }
             .frame(maxHeight: 150)
 
@@ -116,7 +116,7 @@ private struct AudioTabContent: View {
                 onIncrement: { viewModel.setAudioDelay(min(2.0, viewModel.audioDelay + 0.05)) },
                 onReset: { viewModel.setAudioDelay(0) }
             )
-            .padding(12)
+            .padding(DS.Space.s12)
         }
     }
 }
@@ -148,8 +148,8 @@ private struct SubtitlesTabContent: View {
         VStack(alignment: .leading, spacing: 0) {
             // Track Selection
             ScrollView {
-                VStack(alignment: .leading, spacing: 10) {
-                    VStack(spacing: 2) {
+                VStack(alignment: .leading, spacing: DS.Space.s10) {
+                    VStack(spacing: DS.Space.s2) {
                         TrackRow(title: "Off", isSelected: viewModel.currentSubtitleTrackId == nil && viewModel.selectedExternalSubtitleId == nil) {
                             viewModel.disableSubtitles()
                         }
@@ -165,11 +165,11 @@ private struct SubtitlesTabContent: View {
                     }
 
                     if !viewModel.availableExternalSubtitleOptions.isEmpty {
-                        VStack(alignment: .leading, spacing: 6) {
+                        VStack(alignment: .leading, spacing: DS.Space.s6) {
                             Text("External")
-                                .font(.system(size: 11, weight: .semibold))
+                                .font(.flixor(.caption, weight: .semibold))
                                 .foregroundStyle(.secondary)
-                                .padding(.horizontal, 10)
+                                .padding(.horizontal, DS.Space.s10)
 
                             ForEach(viewModel.availableExternalSubtitleOptions) { subtitle in
                                 TrackRow(
@@ -182,8 +182,8 @@ private struct SubtitlesTabContent: View {
                         }
                     }
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
+                .padding(.horizontal, DS.Space.s12)
+                .padding(.vertical, DS.Space.s8)
             }
             .frame(maxHeight: 150)
 
@@ -197,8 +197,8 @@ private struct SubtitlesTabContent: View {
                 onIncrement: { viewModel.setSubtitleDelay(min(subtitleDelayLimit, viewModel.subtitleDelay + 0.05)) },
                 onReset: { viewModel.setSubtitleDelay(0) }
             )
-            .padding(.horizontal, 12)
-            .padding(.top, 12)
+            .padding(.horizontal, DS.Space.s12)
+            .padding(.top, DS.Space.s12)
 
             SubtitlePanelNavRow(title: "Sync by Line", systemImage: "text.line.first.and.arrowtriangle.forward") {
                 page = .syncByLine
@@ -218,21 +218,21 @@ private struct SourcesTabContent: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 8) {
+            VStack(spacing: DS.Space.s8) {
                 ForEach(viewModel.availableStremioSources) { source in
                     Button(action: { viewModel.switchStreamSource(source) }) {
-                        HStack(spacing: 10) {
+                        HStack(spacing: DS.Space.s10) {
                             Image(systemName: source.id == viewModel.currentStremioSourceId ? "checkmark.circle.fill" : "circle")
-                                .font(.system(size: 16))
+                                .font(.flixorIcon(DS.Icon.md))
                                 .foregroundStyle(source.id == viewModel.currentStremioSourceId ? Color.accentColor : .white.opacity(0.3))
 
-                            VStack(alignment: .leading, spacing: 4) {
+                            VStack(alignment: .leading, spacing: DS.Space.s4) {
                                 Text(source.title ?? source.name ?? "Source")
-                                    .font(.system(size: 13))
+                                    .font(.flixor(.callout))
                                     .foregroundStyle(.white)
                                     .lineLimit(1)
                                 Text(source.addonName ?? "Stremio")
-                                    .font(.system(size: 11))
+                                    .font(.flixor(.caption))
                                     .foregroundStyle(.secondary)
                             }
 
@@ -240,23 +240,23 @@ private struct SourcesTabContent: View {
 
                             if let quality = source.quality {
                                 Text(quality.uppercased())
-                                    .font(.system(size: 10, weight: .semibold))
+                                    .font(.flixor(.micro, weight: .semibold))
                                     .foregroundStyle(.orange)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
+                                    .padding(.horizontal, DS.Space.s8)
+                                    .padding(.vertical, DS.Space.s4)
                                     .background(Color.orange.opacity(0.16), in: Capsule())
                             }
                         }
-                        .padding(.vertical, 8)
-                        .padding(.horizontal, 10)
+                        .padding(.vertical, DS.Space.s8)
+                        .padding(.horizontal, DS.Space.s10)
                         .background(source.id == viewModel.currentStremioSourceId ? Color.white.opacity(0.08) : Color.clear)
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r6))
                     }
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.horizontal, DS.Space.s12)
+            .padding(.vertical, DS.Space.s8)
         }
         .frame(maxHeight: 180)
     }
@@ -269,22 +269,22 @@ private struct TrackRow: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 10) {
+            HStack(spacing: DS.Space.s10) {
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 16))
+                    .font(.flixorIcon(DS.Icon.md))
                     .foregroundStyle(isSelected ? Color.accentColor : .white.opacity(0.3))
 
                 Text(title)
-                    .font(.system(size: 13))
+                    .font(.flixor(.callout))
                     .foregroundStyle(isSelected ? .white : .white.opacity(0.7))
                     .lineLimit(1)
 
                 Spacer()
             }
-            .padding(.vertical, 8)
-            .padding(.horizontal, 10)
+            .padding(.vertical, DS.Space.s8)
+            .padding(.horizontal, DS.Space.s10)
             .background(isSelected ? Color.white.opacity(0.08) : Color.clear)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r6))
         }
         .buttonStyle(.plain)
     }
@@ -298,29 +298,29 @@ private struct SyncOffsetControl: View {
     let onReset: () -> Void
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: DS.Space.s12) {
             Text(label)
-                .font(.system(size: 13))
+                .font(.flixor(.callout))
                 .foregroundStyle(.white.opacity(0.8))
 
             Spacer()
 
-            HStack(spacing: 8) {
+            HStack(spacing: DS.Space.s8) {
                 // Decrement button
                 Button(action: onDecrement) {
                     Image(systemName: "minus")
-                        .font(.system(size: 12, weight: .bold))
+                        .font(.flixorIcon(DS.Icon.xs, weight: .bold))
                         .foregroundStyle(.white)
                         .frame(width: 28, height: 28)
                         .background(Color.white.opacity(0.15))
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r6))
                 }
                 .buttonStyle(.plain)
 
                 // Value display (tappable to reset)
                 Button(action: onReset) {
                     Text(String(format: "%+.0fms", value * 1000))
-                        .font(.system(size: 13, weight: .medium, design: .monospaced))
+                        .font(.flixor(.callout, weight: .medium, design: .monospaced))
                         .foregroundStyle(value == 0 ? .white.opacity(0.6) : .orange)
                         .frame(width: 70)
                 }
@@ -330,11 +330,11 @@ private struct SyncOffsetControl: View {
                 // Increment button
                 Button(action: onIncrement) {
                     Image(systemName: "plus")
-                        .font(.system(size: 12, weight: .bold))
+                        .font(.flixorIcon(DS.Icon.xs, weight: .bold))
                         .foregroundStyle(.white)
                         .frame(width: 28, height: 28)
                         .background(Color.white.opacity(0.15))
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r6))
                 }
                 .buttonStyle(.plain)
             }
@@ -353,9 +353,9 @@ struct CompactSliderRow: View {
     @State private var localValue: Double = 0
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: DS.Space.s10) {
             Text(label)
-                .font(.system(size: 12))
+                .font(.flixor(.footnote))
                 .foregroundStyle(.white.opacity(0.6))
                 .frame(width: 70, alignment: .leading)
 
@@ -365,7 +365,7 @@ struct CompactSliderRow: View {
                 .onChange(of: localValue) { newValue in onChange(newValue) }
 
             Text(value)
-                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                .font(.flixor(.caption, weight: .medium, design: .monospaced))
                 .foregroundStyle(.white.opacity(0.7))
                 .frame(width: 40, alignment: .trailing)
         }
@@ -424,32 +424,32 @@ struct PlaybackSpeedModal: View {
         VStack(spacing: 0) {
             // Title
             Text("Playback Speed")
-                .font(.system(size: 20, weight: .bold))
+                .font(.flixor(.title2, weight: .bold))
                 .foregroundStyle(.white)
-                .padding(.top, 24)
-                .padding(.bottom, 20)
+                .padding(.top, DS.Space.s24)
+                .padding(.bottom, DS.Space.s20)
 
             speedSlider
-                .padding(.bottom, 24)
+                .padding(.bottom, DS.Space.s24)
         }
         .frame(width: 600, height: 240)
         .background(Color.black.opacity(0.95))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .padding(.trailing, 32)
+        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r16))
+        .padding(.trailing, DS.Space.s32)
         .padding(.bottom, 140)
     }
 
     private var speedSlider: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: DS.Space.s16) {
             // Current speed display
             HStack(alignment: .firstTextBaseline, spacing: DS.Space.s8) {
                 Text(String(format: "%.2fx", displaySpeed))
-                    .font(.system(size: 28, weight: .bold))
+                    .font(.flixor(.largeTitle, weight: .bold))
                     .foregroundStyle(.white)
 
                 if abs(displaySpeed - 1.0) < 0.01 {
                     Text("Normal")
-                        .font(.system(size: 14))
+                        .font(.flixor(.body))
                         .foregroundStyle(.white.opacity(0.6))
                 }
             }
@@ -459,11 +459,11 @@ struct PlaybackSpeedModal: View {
                 draggableTrack(width: geometry.size.width)
             }
             .frame(height: 28)
-            .padding(.horizontal, 40)
+            .padding(.horizontal, DS.Space.s40)
 
             // Speed labels
             speedLabels
-                .padding(.horizontal, 40)
+                .padding(.horizontal, DS.Space.s40)
         }
     }
 
@@ -493,14 +493,14 @@ struct PlaybackSpeedModal: View {
         Rectangle()
             .fill(Color.white.opacity(0.2))
             .frame(height: 4)
-            .cornerRadius(2)
+            .cornerRadius(DS.Radius.r2)
     }
 
     private func progressFill(width: CGFloat) -> some View {
         Rectangle()
             .fill(Color.white)
             .frame(width: width, height: 4)
-            .cornerRadius(2)
+            .cornerRadius(DS.Radius.r2)
     }
 
     private func speedMarkers(trackWidth: CGFloat) -> some View {
@@ -545,7 +545,7 @@ struct PlaybackSpeedModal: View {
                 ForEach(Array(speeds.enumerated()), id: \.offset) { index, speed in
                     let xPosition = geometry.size.width * CGFloat(index) / CGFloat(speeds.count - 1)
                     Text(String(format: "%gx", speed))
-                        .font(.system(size: 11))
+                        .font(.flixor(.caption))
                         .foregroundStyle(.white.opacity(0.5))
                         .frame(width: 44)
                         .offset(x: xPosition - 22)

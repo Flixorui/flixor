@@ -37,7 +37,7 @@ struct VirtualGrid<Item: Identifiable, Content: View>: View {
                         .modifier(RaiseOnHoverModifier())
                 }
             }
-            .padding(20)
+            .padding(DS.Space.s20)
         }
     }
 }

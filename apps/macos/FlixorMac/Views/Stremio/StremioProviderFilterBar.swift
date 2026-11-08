@@ -11,7 +11,7 @@ struct StremioProviderFilterBar: View {
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
+            HStack(spacing: DS.Space.s10) {
                 providerChip(title: "All", subtitle: nil, id: "all")
 
                 ForEach(providers) { provider in
@@ -22,30 +22,30 @@ struct StremioProviderFilterBar: View {
                     )
                 }
             }
-            .padding(.vertical, 4)
+            .padding(.vertical, DS.Space.s4)
         }
     }
 
     private func providerChip(title: String, subtitle: String?, id: String) -> some View {
         Button(action: { selectedProvider = id }) {
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: DS.Space.s2) {
                 Text(title)
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.flixor(.footnote, weight: .semibold))
                 if let subtitle {
                     Text(subtitle)
-                        .font(.system(size: 10))
+                        .font(.flixor(.micro))
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
+            .padding(.horizontal, DS.Space.s12)
+            .padding(.vertical, DS.Space.s8)
             .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                RoundedRectangle(cornerRadius: DS.Radius.r10, style: .continuous)
                     .fill(selectedProvider == id ? Color.orange.opacity(0.18) : Color.white.opacity(0.05))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                RoundedRectangle(cornerRadius: DS.Radius.r10, style: .continuous)
                     .stroke(selectedProvider == id ? Color.orange.opacity(0.4) : Color.white.opacity(0.08), lineWidth: 1)
             )
         }

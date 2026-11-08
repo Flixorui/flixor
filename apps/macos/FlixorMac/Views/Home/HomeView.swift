@@ -177,8 +177,8 @@ struct HomeView: View {
                     HeroSkeleton()
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 16)
+            .padding(.horizontal, DS.Space.s20)
+            .padding(.vertical, DS.Space.s16)
         }
     }
 
@@ -376,7 +376,7 @@ struct BillboardSection: View {
                     // Left arrow
                     Button(action: previousItem) {
                         Image(systemName: "chevron.left")
-                            .font(.system(size: 24, weight: .semibold))
+                            .font(.flixorIcon(DS.Icon.xl, weight: .semibold))
                             .foregroundStyle(.white)
                             .frame(width: 48, height: 48)
                             .background(.ultraThinMaterial.opacity(0.6))
@@ -391,7 +391,7 @@ struct BillboardSection: View {
                     // Right arrow
                     Button(action: nextItem) {
                         Image(systemName: "chevron.right")
-                            .font(.system(size: 24, weight: .semibold))
+                            .font(.flixorIcon(DS.Icon.xl, weight: .semibold))
                             .foregroundStyle(.white)
                             .frame(width: 48, height: 48)
                             .background(.ultraThinMaterial.opacity(0.6))
@@ -401,7 +401,7 @@ struct BillboardSection: View {
                     .opacity(isHovered ? 1 : 0)
                     .accessibilityLabel(Text("Next featured item"))
                 }
-                .padding(.horizontal, 24)
+                .padding(.horizontal, DS.Space.s24)
 
                 // Page indicators at the bottom
                 VStack {
@@ -418,7 +418,7 @@ struct BillboardSection: View {
             }
         }
         .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.2)) {
+            withAnimation(DS.Motion.standard) {
                 isHovered = hovering
             }
             // Pause/resume auto-rotation on hover
@@ -430,7 +430,7 @@ struct BillboardSection: View {
                 }
             }
         }
-        .animation(.easeInOut(duration: 0.5), value: viewModel.currentBillboardIndex)
+        .animation(DS.Motion.slow, value: viewModel.currentBillboardIndex)
         .onChange(of: profileSettings.heroAutoRotate) { newValue in
             if newValue {
                 viewModel.resumeBillboardRotation()
@@ -443,7 +443,7 @@ struct BillboardSection: View {
     // MARK: - Navigation
 
     private func previousItem() {
-        withAnimation(.easeInOut(duration: 0.5)) {
+        withAnimation(DS.Motion.slow) {
             if viewModel.currentBillboardIndex > 0 {
                 viewModel.currentBillboardIndex -= 1
             } else {
@@ -454,7 +454,7 @@ struct BillboardSection: View {
     }
 
     private func nextItem() {
-        withAnimation(.easeInOut(duration: 0.5)) {
+        withAnimation(DS.Motion.slow) {
             if viewModel.currentBillboardIndex < viewModel.billboardItems.count - 1 {
                 viewModel.currentBillboardIndex += 1
             } else {
@@ -465,7 +465,7 @@ struct BillboardSection: View {
     }
 
     private func goToIndex(_ index: Int) {
-        withAnimation(.easeInOut(duration: 0.5)) {
+        withAnimation(DS.Motion.slow) {
             viewModel.currentBillboardIndex = index
         }
         viewModel.updateHeroColorsForCurrentItem()
@@ -483,12 +483,12 @@ struct HeroSkeleton: View {
     }
 
     var body: some View {
-        SkeletonView(height: height, cornerRadius: 22)
+        SkeletonView(height: height, cornerRadius: DS.Radius.r22)
             .frame(maxWidth: .infinity)
             .background(Color.black.opacity(0.4))
-            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r22, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                RoundedRectangle(cornerRadius: DS.Radius.r22, style: .continuous)
                     .stroke(Color.white.opacity(0.10), lineWidth: 1)
             )
     }
@@ -634,8 +634,8 @@ struct HomeBackground: View {
             endPoint: .bottom
         )
         .ignoresSafeArea()
-        .animation(.easeInOut(duration: 0.8), value: heroColors?.topLeft)
-        .animation(.easeInOut(duration: 0.8), value: heroColors?.bottomLeft)
+        .animation(DS.Motion.cinematic, value: heroColors?.topLeft)
+        .animation(DS.Motion.cinematic, value: heroColors?.bottomLeft)
     }
 }
 
@@ -646,7 +646,7 @@ struct ErrorView: View {
     let onRetry: () -> Void
 
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: DS.Space.s20) {
             Image(systemName: "exclamationmark.triangle")
                 .font(.system(size: 60))
                 .foregroundStyle(.orange)
@@ -658,16 +658,16 @@ struct ErrorView: View {
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, 40)
+                .padding(.horizontal, DS.Space.s40)
 
             Button(action: onRetry) {
                 Text("Try Again")
                     .font(.headline)
                     .foregroundStyle(.white)
-                    .padding(.horizontal, 32)
-                    .padding(.vertical, 12)
+                    .padding(.horizontal, DS.Space.s32)
+                    .padding(.vertical, DS.Space.s12)
                     .background(Color.orange)
-                    .cornerRadius(8)
+                    .cornerRadius(DS.Radius.r8)
             }
             .buttonStyle(.plain)
         }
@@ -687,15 +687,15 @@ struct CollectionSectionRow: View {
     @Environment(\.rowTitleCaption) private var titleCaption
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DS.Space.s12) {
             // Header with sparkles icon
-            HStack(spacing: 8) {
+            HStack(spacing: DS.Space.s8) {
                 Image(systemName: "sparkles")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.flixorIcon(DS.Icon.sm, weight: .semibold))
                     .foregroundStyle(.white)
 
                 Text(section.title)
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(.flixor(.title3, weight: .semibold))
                     .foregroundStyle(.white)
 
                 if let titleCaption {
@@ -704,16 +704,16 @@ struct CollectionSectionRow: View {
 
                 if let browseContext = section.browseContext {
                     Button(action: { onBrowse?(browseContext) }) {
-                        HStack(spacing: 4) {
+                        HStack(spacing: DS.Space.s4) {
                             Text("Browse")
                             Image(systemName: "chevron.right")
                         }
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 4)
+                        .padding(.horizontal, DS.Space.s6)
+                        .padding(.vertical, DS.Space.s4)
                         .background(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            RoundedRectangle(cornerRadius: DS.Radius.r6, style: .continuous)
                                 .fill(Color.white.opacity(isHeaderHovered ? 0.12 : 0))
                         )
                         .contentShape(Rectangle())
@@ -727,7 +727,7 @@ struct CollectionSectionRow: View {
 
                 Spacer()
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, DS.Space.s20)
             .onHover { hovering in
                 withAnimation(.easeOut(duration: 0.2)) {
                     isHeaderHovered = hovering
@@ -738,25 +738,25 @@ struct CollectionSectionRow: View {
             // Row content
             if rowLayout == "poster" {
                 ScrollView(.horizontal, showsIndicators: false) {
-                    LazyHStack(spacing: 12) {
+                    LazyHStack(spacing: DS.Space.s12) {
                         ForEach(section.items) { item in
                             PosterCard(item: item, width: 150) {
                                 onTap(item)
                             }
                         }
                     }
-                    .padding(.horizontal, 20)
+                    .padding(.horizontal, DS.Space.s20)
                 }
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
-                    LazyHStack(spacing: 16) {
+                    LazyHStack(spacing: DS.Space.s16) {
                         ForEach(section.items) { item in
                             LandscapeCard(item: item, width: 420) {
                                 onTap(item)
                             }
                         }
                     }
-                    .padding(.horizontal, 20)
+                    .padding(.horizontal, DS.Space.s20)
                 }
             }
         }

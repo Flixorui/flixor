@@ -11,7 +11,7 @@ import FlixorKit
 extension DetailsHeroSection {
     // MARK: - Action Buttons (Apple TV+ style)
     @ViewBuilder var actionButtonsRow: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: DS.Space.s16) {
             // For seasons, show "View Show" button
             if vm.isSeason {
                 if let parentKey = vm.parentShowKey {
@@ -40,17 +40,17 @@ extension DetailsHeroSection {
                         )
                         Task { await vm.load(for: showItem) }
                     }) {
-                        HStack(spacing: 8) {
+                        HStack(spacing: DS.Space.s8) {
                             Image(systemName: "tv.fill")
-                                .font(.system(size: 16, weight: .semibold))
+                                .font(.flixorIcon(DS.Icon.md, weight: .semibold))
                             Text("View Show")
-                                .font(.system(size: 16, weight: .semibold))
+                                .font(.flixor(.headline, weight: .semibold))
                         }
                         .foregroundStyle(.black)
-                        .padding(.horizontal, 32)
-                        .padding(.vertical, 12)
+                        .padding(.horizontal, DS.Space.s32)
+                        .padding(.vertical, DS.Space.s12)
                         .background(Color.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r8))
                     }
                     .buttonStyle(.plain)
                 }
@@ -64,17 +64,17 @@ extension DetailsHeroSection {
                 if !stremioIsPrimary {
                     // Play button - large, white (Apple TV+ style)
                     Button(action: onPlay) {
-                        HStack(spacing: 8) {
+                        HStack(spacing: DS.Space.s8) {
                             Image(systemName: "play.fill")
-                                .font(.system(size: 16, weight: .semibold))
+                                .font(.flixorIcon(DS.Icon.md, weight: .semibold))
                             Text("Play")
-                                .font(.system(size: 16, weight: .semibold))
+                                .font(.flixor(.headline, weight: .semibold))
                         }
                         .foregroundStyle(hasResolvedPlexSource ? .black : .gray)
-                        .padding(.horizontal, 32)
-                        .padding(.vertical, 12)
+                        .padding(.horizontal, DS.Space.s32)
+                        .padding(.vertical, DS.Space.s12)
                         .background(hasResolvedPlexSource ? Color.white : Color.white.opacity(0.5))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r8))
                     }
                     .buttonStyle(.plain)
                     .disabled(!hasResolvedPlexSource)
@@ -82,17 +82,17 @@ extension DetailsHeroSection {
 
                 if showsStremioButton {
                     Button(action: onStremio) {
-                        HStack(spacing: 8) {
+                        HStack(spacing: DS.Space.s8) {
                             Image(systemName: stremioIsPrimary ? "play.fill" : "puzzlepiece.extension.fill")
-                                .font(.system(size: 16, weight: .semibold))
+                                .font(.flixorIcon(DS.Icon.md, weight: .semibold))
                             Text(stremioIsPrimary ? "Play" : "Stremio")
-                                .font(.system(size: 16, weight: .semibold))
+                                .font(.flixor(.headline, weight: .semibold))
                         }
                         .foregroundStyle(stremioIsPrimary ? .black : .white)
                         .padding(.horizontal, stremioIsPrimary ? 32 : 22)
-                        .padding(.vertical, 12)
+                        .padding(.vertical, DS.Space.s12)
                         .background(stremioIsPrimary ? Color.white : Color.orange.opacity(0.22))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r8))
                     }
                     .buttonStyle(.plain)
 
@@ -102,17 +102,17 @@ extension DetailsHeroSection {
                 // View Show button for episodes
                 if isEpisode, item.grandparentRatingKey != nil {
                     Button(action: onViewShow) {
-                        HStack(spacing: 8) {
+                        HStack(spacing: DS.Space.s8) {
                             Image(systemName: "tv.fill")
-                                .font(.system(size: 16, weight: .semibold))
+                                .font(.flixorIcon(DS.Icon.md, weight: .semibold))
                             Text("View Show")
-                                .font(.system(size: 16, weight: .semibold))
+                                .font(.flixor(.headline, weight: .semibold))
                         }
                         .foregroundStyle(.white)
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 12)
+                        .padding(.horizontal, DS.Space.s24)
+                        .padding(.vertical, DS.Space.s12)
                         .background(Color.white.opacity(0.2))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r8))
                     }
                     .buttonStyle(.plain)
                 }

@@ -88,12 +88,12 @@ struct LibraryView: View {
             ScrollView {
                 LazyVGrid(columns: gridColumns(for: geometry.size.width), spacing: gridSpacing) {
                     ForEach(0..<12, id: \.self) { _ in
-                        SkeletonView(height: minGridItemWidth * 1.5, cornerRadius: 12)
+                        SkeletonView(height: minGridItemWidth * 1.5, cornerRadius: DS.Radius.r12)
                             .frame(height: minGridItemWidth * 1.5)
                     }
                 }
                 .padding(.horizontal, horizontalPadding)
-                .padding(.vertical, 32)
+                .padding(.vertical, DS.Space.s32)
             }
         }
     }
@@ -127,12 +127,12 @@ struct LibraryView: View {
                     }
                 }
                 .padding(.horizontal, horizontalPadding)
-                .padding(.vertical, 32)
+                .padding(.vertical, DS.Space.s32)
 
                 if viewModel.isLoadingMore {
                     ProgressView()
                         .progressViewStyle(.circular)
-                        .padding(.bottom, 40)
+                        .padding(.bottom, DS.Space.s40)
                 }
             }
         }
@@ -140,7 +140,7 @@ struct LibraryView: View {
 
     private var listView: some View {
         ScrollView {
-            LazyVStack(spacing: 14) {
+            LazyVStack(spacing: DS.Space.s14) {
                 ForEach(viewModel.visibleItems) { entry in
                     LibraryListRow(entry: entry) {
                         router.libraryPath.append(DetailsNavigationItem(item: entry.media))
@@ -154,16 +154,16 @@ struct LibraryView: View {
                 if viewModel.isLoadingMore {
                     ProgressView()
                         .progressViewStyle(.circular)
-                        .padding(.vertical, 24)
+                        .padding(.vertical, DS.Space.s24)
                 }
             }
-            .padding(.top, 24)
-            .padding(.bottom, 48)
+            .padding(.top, DS.Space.s24)
+            .padding(.bottom, DS.Space.s48)
         }
     }
 
     private var emptyState: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: DS.Space.s12) {
             Image(systemName: "film.stack")
                 .font(.system(size: 42))
                 .foregroundStyle(.secondary)
@@ -173,11 +173,11 @@ struct LibraryView: View {
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(80)
+        .padding(DS.Space.s80)
     }
 
     private func errorState(message: String) -> some View {
-        VStack(spacing: 16) {
+        VStack(spacing: DS.Space.s16) {
             Image(systemName: "exclamationmark.triangle")
                 .font(.system(size: 46))
                 .foregroundStyle(.orange)
@@ -193,7 +193,7 @@ struct LibraryView: View {
             .buttonStyle(.borderedProminent)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(80)
+        .padding(DS.Space.s80)
     }
 }
 
@@ -205,23 +205,23 @@ private struct LibraryListRow: View {
 
     var body: some View {
         Button(action: onTap) {
-            HStack(spacing: 16) {
+            HStack(spacing: DS.Space.s16) {
                 CachedAsyncImage(
                     url: ImageService.shared.thumbURL(for: entry.media, width: Int(imageWidth * 2), height: Int(imageWidth * 3))
                 )
                 .aspectRatio(2/3, contentMode: .fill)
                 .frame(width: imageWidth, height: imageWidth * 1.5)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r12, style: .continuous))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    RoundedRectangle(cornerRadius: DS.Radius.r12, style: .continuous)
                         .stroke(Color.white.opacity(0.18), lineWidth: 1)
                 )
 
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: DS.Space.s6) {
                     Text(entry.media.title)
                         .font(.headline)
                         .foregroundStyle(.white)
-                    HStack(spacing: 12) {
+                    HStack(spacing: DS.Space.s12) {
                         if entry.year != nil || entry.media.editionTitle != nil {
                             Label {
                                 Text(yearEditionText(year: entry.year, edition: entry.media.editionTitle))
@@ -258,9 +258,9 @@ private struct LibraryListRow: View {
                 Image(systemName: "chevron.right")
                     .foregroundStyle(.white.opacity(0.4))
             }
-            .padding(16)
+            .padding(DS.Space.s16)
             .background(Color.white.opacity(0.06))
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r14, style: .continuous))
         }
         .buttonStyle(.plain)
     }

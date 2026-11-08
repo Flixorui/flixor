@@ -71,7 +71,7 @@ struct ProfileSelectView: View {
                     .frame(height: 60)
 
                 // Header
-                VStack(spacing: 8) {
+                VStack(spacing: DS.Space.s8) {
                     Text("Who's Watching?")
                         .font(.system(size: 42, weight: .bold, design: .rounded))
                         .foregroundStyle(
@@ -85,12 +85,12 @@ struct ProfileSelectView: View {
                         .offset(y: appearAnimation ? 0 : -20)
 
                     Text("Select a profile to continue")
-                        .font(.system(size: 15, weight: .medium))
+                        .font(.flixor(.bodyLarge, weight: .medium))
                         .foregroundColor(.white.opacity(0.5))
                         .opacity(appearAnimation ? 1 : 0)
                         .offset(y: appearAnimation ? 0 : -10)
                 }
-                .padding(.bottom, 48)
+                .padding(.bottom, DS.Space.s48)
 
                 // Profile Grid
                 if profileManager.isLoading && profileManager.homeUsers.isEmpty {
@@ -113,7 +113,7 @@ struct ProfileSelectView: View {
                     cancelButton
                 }
             }
-            .padding(.horizontal, 60)
+            .padding(.horizontal, DS.Space.s60)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .sheet(isPresented: $showPinEntry) {
@@ -136,19 +136,19 @@ struct ProfileSelectView: View {
     // MARK: - Subviews
 
     private var loadingView: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: DS.Space.s20) {
             ProgressView()
                 .scaleEffect(1.5)
                 .tint(.white.opacity(0.7))
             Text("Loading profiles...")
-                .font(.system(size: 14))
+                .font(.flixor(.body))
                 .foregroundColor(.white.opacity(0.5))
         }
-        .padding(60)
+        .padding(DS.Space.s60)
     }
 
     private var emptyStateView: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: DS.Space.s20) {
             ZStack {
                 Circle()
                     .fill(Color.white.opacity(0.05))
@@ -158,10 +158,10 @@ struct ProfileSelectView: View {
                     .foregroundStyle(.white.opacity(0.4))
             }
             Text("No profiles found")
-                .font(.system(size: 16, weight: .medium))
+                .font(.flixor(.headline, weight: .medium))
                 .foregroundColor(.white.opacity(0.5))
         }
-        .padding(60)
+        .padding(DS.Space.s60)
     }
 
     private var profileGrid: some View {
@@ -169,9 +169,9 @@ struct ProfileSelectView: View {
         let users = profileManager.homeUsers
         let rows = users.chunked(into: 5)
 
-        return VStack(spacing: 40) {
+        return VStack(spacing: DS.Space.s40) {
             ForEach(Array(rows.enumerated()), id: \.offset) { rowIndex, rowUsers in
-                HStack(spacing: 48) {
+                HStack(spacing: DS.Space.s48) {
                     ForEach(Array(rowUsers.enumerated()), id: \.element.id) { colIndex, user in
                         let index = rowIndex * 5 + colIndex
                         ProfileCard(
@@ -184,7 +184,7 @@ struct ProfileSelectView: View {
                         .opacity(appearAnimation ? 1 : 0)
                         .offset(y: appearAnimation ? 0 : 30)
                         .animation(
-                            .spring(response: 0.6, dampingFraction: 0.8).delay(Double(index) * 0.08),
+                            DS.Motion.gentleSpring.delay(Double(index) * 0.08),
                             value: appearAnimation
                         )
                     }
@@ -194,37 +194,37 @@ struct ProfileSelectView: View {
     }
 
     private func errorView(_ error: String) -> some View {
-        HStack(spacing: 8) {
+        HStack(spacing: DS.Space.s8) {
             Image(systemName: "exclamationmark.circle.fill")
                 .foregroundColor(.red)
             Text(error)
                 .foregroundColor(.red.opacity(0.9))
         }
-        .font(.system(size: 14, weight: .medium))
-        .padding(.horizontal, 20)
-        .padding(.vertical, 12)
+        .font(.flixor(.body, weight: .medium))
+        .padding(.horizontal, DS.Space.s20)
+        .padding(.vertical, DS.Space.s12)
         .background(
             Capsule()
                 .fill(Color.red.opacity(0.15))
                 .overlay(Capsule().strokeBorder(Color.red.opacity(0.3), lineWidth: 1))
         )
-        .padding(.top, 24)
+        .padding(.top, DS.Space.s24)
     }
 
     private var cancelButton: some View {
         Button(action: { dismiss() }) {
             Text("Cancel")
-                .font(.system(size: 15, weight: .medium))
+                .font(.flixor(.bodyLarge, weight: .medium))
                 .foregroundColor(.white.opacity(0.5))
-                .padding(.horizontal, 32)
-                .padding(.vertical, 12)
+                .padding(.horizontal, DS.Space.s32)
+                .padding(.vertical, DS.Space.s12)
                 .background(
                     Capsule()
                         .fill(Color.white.opacity(0.08))
                 )
         }
         .buttonStyle(.plain)
-        .padding(.bottom, 48)
+        .padding(.bottom, DS.Space.s48)
         .opacity(appearAnimation ? 1 : 0)
     }
 
@@ -318,7 +318,7 @@ struct ProfileCard: View {
 
     var body: some View {
         Button(action: onTap) {
-            VStack(spacing: 12) {
+            VStack(spacing: DS.Space.s12) {
                 // Avatar container with glow - fixed size
                 ZStack {
                     // Glow effect for active/hovered state
@@ -366,14 +366,14 @@ struct ProfileCard: View {
                 .frame(width: avatarSize + 24, height: avatarSize + 24)
 
                 // Name and subtitle - fixed height
-                VStack(spacing: 2) {
+                VStack(spacing: DS.Space.s2) {
                     Text(user.displayName)
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(.flixor(.bodyLarge, weight: .semibold))
                         .foregroundColor(isHovered || isActive ? .white : .white.opacity(0.8))
                         .lineLimit(1)
 
                     Text(user.admin ? "Account Owner" : " ")
-                        .font(.system(size: 11, weight: .medium))
+                        .font(.flixor(.caption, weight: .medium))
                         .foregroundColor(.white.opacity(user.admin ? 0.4 : 0))
                 }
                 .frame(height: 36)
@@ -408,7 +408,7 @@ struct ProfileCard: View {
                                 )
                                 .frame(width: 26, height: 26)
                             Image(systemName: "lock.fill")
-                                .font(.system(size: 10, weight: .semibold))
+                                .font(.flixor(.micro, weight: .semibold))
                                 .foregroundColor(.white.opacity(0.9))
                         }
                         .offset(x: 2, y: -2)
@@ -422,11 +422,11 @@ struct ProfileCard: View {
                 VStack {
                     Spacer()
                     Text("KIDS")
-                        .font(.system(size: 9, weight: .bold))
+                        .font(.flixor(.nano, weight: .bold))
                         .tracking(0.5)
                         .foregroundColor(.white)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
+                        .padding(.horizontal, DS.Space.s10)
+                        .padding(.vertical, DS.Space.s4)
                         .background(
                             Capsule()
                                 .fill(

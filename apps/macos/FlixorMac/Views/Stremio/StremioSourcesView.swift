@@ -19,7 +19,7 @@ struct StremioSourcesView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: DS.Space.s24) {
                 heroSection
 
                 if let notice = viewModel.destination.autoSelectNotice {
@@ -41,7 +41,7 @@ struct StremioSourcesView: View {
                     ProgressView("Loading sources…")
                         .progressViewStyle(.circular)
                         .frame(maxWidth: .infinity, alignment: .center)
-                        .padding(.vertical, 40)
+                        .padding(.vertical, DS.Space.s40)
                 } else if case .none = viewModel.emptyState {
                     playableSections
                     unsupportedSections
@@ -49,9 +49,9 @@ struct StremioSourcesView: View {
                     emptyStateView
                 }
             }
-            .padding(.horizontal, 28)
-            .padding(.top, 28)
-            .padding(.bottom, 48)
+            .padding(.horizontal, DS.Space.s28)
+            .padding(.top, DS.Space.s28)
+            .padding(.bottom, DS.Space.s48)
         }
         .background(Color.black)
         .navigationTitle("Stremio Sources")
@@ -66,28 +66,28 @@ struct StremioSourcesView: View {
     }
 
     private var heroSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: DS.Space.s14) {
             Text("Choose a Stremio source")
-                .font(.system(size: 28, weight: .bold))
+                .font(.flixor(.largeTitle, weight: .bold))
                 .foregroundStyle(.white)
 
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: DS.Space.s6) {
                 Text(viewModel.destination.title)
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(.flixor(.title3, weight: .semibold))
                     .foregroundStyle(.white)
                 if viewModel.destination.mediaType == .episode,
                    let season = viewModel.destination.seasonNumber,
                    let episode = viewModel.destination.episodeNumber {
                     Text("Season \(season), Episode \(episode) • \(viewModel.destination.episodeTitle ?? "Episode")")
-                        .font(.system(size: 13))
+                        .font(.flixor(.callout))
                         .foregroundStyle(.secondary)
                 } else if let imdbId = viewModel.destination.imdbId {
                     Text("IMDb \(imdbId)")
-                        .font(.system(size: 13))
+                        .font(.flixor(.callout))
                         .foregroundStyle(.secondary)
                 } else if let tmdbId = viewModel.destination.tmdbId {
                     Text("TMDB \(tmdbId)")
-                        .font(.system(size: 13))
+                        .font(.flixor(.callout))
                         .foregroundStyle(.secondary)
                 }
             }
@@ -111,11 +111,11 @@ struct StremioSourcesView: View {
     }
 
     private var playableSections: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: DS.Space.s18) {
             ForEach(viewModel.playableGroups) { group in
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: DS.Space.s12) {
                     sectionHeader(title: group.addonName, subtitle: group.error)
-                    VStack(spacing: 12) {
+                    VStack(spacing: DS.Space.s12) {
                         ForEach(group.streams) { stream in
                             StremioStreamRow(stream: stream, addonName: group.addonName) {
                                 Task {
@@ -134,14 +134,14 @@ struct StremioSourcesView: View {
     private var unsupportedSections: some View {
         Group {
             if !viewModel.unsupportedGroups.isEmpty {
-                VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: DS.Space.s18) {
                     sectionHeader(title: "Alternate Platforms", subtitle: "Returned by addons but not currently playable in-app")
                     ForEach(viewModel.unsupportedGroups) { group in
-                        VStack(alignment: .leading, spacing: 12) {
+                        VStack(alignment: .leading, spacing: DS.Space.s12) {
                             Text(group.addonName)
-                                .font(.system(size: 14, weight: .semibold))
+                                .font(.flixor(.body, weight: .semibold))
                                 .foregroundStyle(.white.opacity(0.9))
-                            VStack(spacing: 12) {
+                            VStack(spacing: DS.Space.s12) {
                                 ForEach(group.streams) { stream in
                                     StremioStreamRow(stream: stream, addonName: group.addonName) {}
                                 }
@@ -154,29 +154,29 @@ struct StremioSourcesView: View {
     }
 
     private var emptyStateView: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: DS.Space.s10) {
             Text(viewModel.emptyState.title)
-                .font(.system(size: 18, weight: .semibold))
+                .font(.flixor(.title3, weight: .semibold))
                 .foregroundStyle(.white)
             Text(viewModel.emptyState.message)
-                .font(.system(size: 13))
+                .font(.flixor(.callout))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(18)
+        .padding(DS.Space.s18)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: DS.Radius.r16, style: .continuous))
     }
 
     private func cachedResumeCard(_ cached: CachedPlaybackSource) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: DS.Space.s10) {
             HStack {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: DS.Space.s4) {
                     Text("Resume Cached Source")
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(.flixor(.bodyLarge, weight: .semibold))
                         .foregroundStyle(.white)
                     Text(cached.playbackItem.streamLabel ?? cached.playbackItem.addonName ?? "Previously selected source")
-                        .font(.system(size: 12))
+                        .font(.flixor(.footnote))
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -191,25 +191,25 @@ struct StremioSourcesView: View {
             }
 
             Text("Cached until \(cached.expiresAt.formatted(date: .abbreviated, time: .shortened))")
-                .font(.system(size: 11))
+                .font(.flixor(.caption))
                 .foregroundStyle(.secondary)
         }
-        .padding(16)
-        .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .padding(DS.Space.s16)
+        .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: DS.Radius.r16, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: DS.Radius.r16, style: .continuous)
                 .stroke(Color.orange.opacity(0.22), lineWidth: 1)
         )
     }
 
     private func sectionHeader(title: String, subtitle: String?) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: DS.Space.s4) {
             Text(title)
-                .font(.system(size: 16, weight: .bold))
+                .font(.flixor(.headline, weight: .bold))
                 .foregroundStyle(.white)
             if let subtitle, !subtitle.isEmpty {
                 Text(subtitle)
-                    .font(.system(size: 11))
+                    .font(.flixor(.caption))
                     .foregroundStyle(.orange)
             }
         }

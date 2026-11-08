@@ -51,7 +51,7 @@ struct CarouselView<Item: Identifiable, Content: View>: View {
                                 cell(for: item, at: index)
                             }
                         }
-                        .padding(.horizontal, 20)
+                        .padding(.horizontal, DS.Space.s20)
                         .padding(.vertical, CardMetrics.rowOverflowInset)
                     }
                     .coordinateSpace(name: "scrollView")
@@ -75,7 +75,7 @@ struct CarouselView<Item: Identifiable, Content: View>: View {
                         // Left arrow
                         if showLeftArrow {
                             navButton(direction: .left, geometry: geometry)
-                                .padding(.leading, 8)
+                                .padding(.leading, DS.Space.s8)
                         } else {
                             Color.clear.frame(width: 60, height: 44)
                         }
@@ -85,7 +85,7 @@ struct CarouselView<Item: Identifiable, Content: View>: View {
                         // Right arrow
                         if showRightArrow {
                             navButton(direction: .right, geometry: geometry)
-                                .padding(.trailing, 8)
+                                .padding(.trailing, DS.Space.s8)
                         } else {
                             Color.clear.frame(width: 60, height: 44)
                         }
@@ -217,7 +217,7 @@ struct CarouselView<Item: Identifiable, Content: View>: View {
                     )
 
                 Image(systemName: direction == .left ? "chevron.left" : "chevron.right")
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(.flixor(.title3, weight: .semibold))
                     .foregroundStyle(.white)
             }
             .shadow(color: .black.opacity(0.5), radius: 8, x: 0, y: 2)
@@ -249,7 +249,7 @@ struct CarouselView<Item: Identifiable, Content: View>: View {
         // This ensures consistency between manual scrolling and arrow navigation
 
         // Scroll to target with animation
-        withAnimation(.easeInOut(duration: 0.3)) {
+        withAnimation(DS.Motion.emphasized) {
             proxy.scrollTo(targetIndex, anchor: .leading)
         }
     }
@@ -340,13 +340,13 @@ struct CarouselRow<Item: Identifiable, Content: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DS.Space.s12) {
             // Header
-            HStack(spacing: 12) {
+            HStack(spacing: DS.Space.s12) {
                 Text(title)
                     .font(.title2.bold())
                     .foregroundStyle(.primary)
-                    .padding(.vertical, 4)
+                    .padding(.vertical, DS.Space.s4)
 
                 if let titleCaption {
                     RowTitleCaptionText(caption: titleCaption)
@@ -354,16 +354,16 @@ struct CarouselRow<Item: Identifiable, Content: View>: View {
 
                 if let browseAction {
                     Button(action: browseAction) {
-                        HStack(spacing: 4) {
+                        HStack(spacing: DS.Space.s4) {
                             Text(browseLabel)
                             Image(systemName: "chevron.right")
                         }
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 4)
+                        .padding(.horizontal, DS.Space.s6)
+                        .padding(.vertical, DS.Space.s4)
                         .background(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            RoundedRectangle(cornerRadius: DS.Radius.r6, style: .continuous)
                                 .fill(Color.white.opacity(isHeaderHovered || browseFocused ? 0.12 : 0))
                         )
                         .contentShape(Rectangle())
@@ -381,7 +381,7 @@ struct CarouselRow<Item: Identifiable, Content: View>: View {
 
                 Spacer()
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, DS.Space.s20)
             .onHover { hovering in
                 updateHoverState(hovering: hovering)
             }
@@ -431,7 +431,7 @@ struct CarouselRow<Item: Identifiable, Content: View>: View {
         )
     }
 
-    VStack(spacing: 40) {
+    VStack(spacing: DS.Space.s40) {
         CarouselRow(
             title: "Popular Movies",
             items: sampleItems,

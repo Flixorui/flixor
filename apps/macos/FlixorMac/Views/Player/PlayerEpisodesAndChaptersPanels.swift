@@ -36,27 +36,27 @@ struct EpisodesListPanel: View {
             // Header
             HStack {
                 Text("Episodes")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.flixor(.bodyLarge, weight: .semibold))
                     .foregroundStyle(.white)
 
                 Spacer()
 
                 Button(action: onClose) {
                     Image(systemName: "xmark")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.flixorIcon(DS.Icon.xs, weight: .medium))
                         .foregroundStyle(.white.opacity(0.6))
                 }
                 .buttonStyle(.plain)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.horizontal, DS.Space.s16)
+            .padding(.vertical, DS.Space.s12)
 
             Divider().background(Color.white.opacity(0.1))
 
             // Episodes List
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(spacing: 2) {
+                    LazyVStack(spacing: DS.Space.s2) {
                         ForEach(episodes) { episode in
                             EpisodeListRow(
                                 episode: episode,
@@ -66,7 +66,7 @@ struct EpisodesListPanel: View {
                             .id(episode.ratingKey)
                         }
                     }
-                    .padding(8)
+                    .padding(DS.Space.s8)
                 }
                 .onAppear {
                     proxy.scrollTo(currentEpisodeKey, anchor: .center)
@@ -76,10 +76,10 @@ struct EpisodesListPanel: View {
         }
         .frame(width: 360)
         .background(Color.black.opacity(0.95))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r12))
+        .overlay(RoundedRectangle(cornerRadius: DS.Radius.r12).strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
         .shadow(color: .black.opacity(0.5), radius: 30, y: 10)
-        .padding(.trailing, 32)
+        .padding(.trailing, DS.Space.s32)
         .padding(.bottom, 140)
     }
 }
@@ -93,7 +93,7 @@ private struct EpisodeListRow: View {
 
     var body: some View {
         Button(action: onSelect) {
-            HStack(spacing: 12) {
+            HStack(spacing: DS.Space.s12) {
                 // Episode number with progress indicator
                 ZStack {
                     Circle()
@@ -110,7 +110,7 @@ private struct EpisodeListRow: View {
 
                     if let index = episode.index {
                         Text("\(index)")
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(.flixor(.footnote, weight: .semibold))
                             .foregroundStyle(isCurrentEpisode ? .white : .white.opacity(0.8))
                     }
                 }
@@ -122,24 +122,24 @@ private struct EpisodeListRow: View {
                         CachedAsyncImage(url: imageURL)
                             .frame(width: 100, height: 56)
                     } else {
-                        RoundedRectangle(cornerRadius: 4)
+                        RoundedRectangle(cornerRadius: DS.Radius.r4)
                             .fill(Color.white.opacity(0.1))
                             .frame(width: 100, height: 56)
                     }
 
                     // Hover play overlay
                     if isHovered {
-                        RoundedRectangle(cornerRadius: 4)
+                        RoundedRectangle(cornerRadius: DS.Radius.r4)
                             .fill(Color.black.opacity(0.4))
                             .frame(width: 100, height: 56)
 
                         Image(systemName: "play.fill")
-                            .font(.system(size: 20))
+                            .font(.flixorIcon(DS.Icon.lg))
                             .foregroundStyle(.white)
                     }
                 }
                 .frame(width: 100, height: 56)
-                .clipShape(RoundedRectangle(cornerRadius: 4))
+                .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r4))
 
                 // Episode info
                 VStack(alignment: .leading, spacing: 3) {
@@ -148,16 +148,16 @@ private struct EpisodeListRow: View {
                         .foregroundStyle(isCurrentEpisode ? .white : .white.opacity(0.85))
                         .lineLimit(1)
 
-                    HStack(spacing: 6) {
+                    HStack(spacing: DS.Space.s6) {
                         if let duration = episode.duration {
                             Text("\(duration / 60000) min")
-                                .font(.system(size: 11))
+                                .font(.flixor(.caption))
                                 .foregroundStyle(.white.opacity(0.5))
                         }
 
                         if let progress = episode.progressPercent, progress >= 95 {
                             Image(systemName: "checkmark.circle.fill")
-                                .font(.system(size: 10))
+                                .font(.flixor(.micro))
                                 .foregroundStyle(.green.opacity(0.8))
                         }
                     }
@@ -167,14 +167,14 @@ private struct EpisodeListRow: View {
 
                 if isCurrentEpisode {
                     Image(systemName: "play.fill")
-                        .font(.system(size: 10))
+                        .font(.flixor(.micro))
                         .foregroundStyle(Color.accentColor)
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
+            .padding(.horizontal, DS.Space.s12)
+            .padding(.vertical, DS.Space.s10)
             .background(
-                RoundedRectangle(cornerRadius: 8)
+                RoundedRectangle(cornerRadius: DS.Radius.r8)
                     .fill(isCurrentEpisode ? Color.white.opacity(0.1) : (isHovered ? Color.white.opacity(0.05) : Color.clear))
             )
         }
@@ -221,25 +221,25 @@ struct ChaptersPanel: View {
             // Header
             HStack {
                 Text("Chapters")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.flixor(.bodyLarge, weight: .semibold))
                     .foregroundStyle(.white)
                 Spacer()
                 Button(action: onClose) {
                     Image(systemName: "xmark")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.flixorIcon(DS.Icon.xs, weight: .medium))
                         .foregroundStyle(.white.opacity(0.6))
                 }
                 .buttonStyle(.plain)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.horizontal, DS.Space.s16)
+            .padding(.vertical, DS.Space.s12)
 
             Divider().background(Color.white.opacity(0.1))
 
             // Chapters List
             ScrollViewReader { proxy in
                 ScrollView {
-                    VStack(spacing: 2) {
+                    VStack(spacing: DS.Space.s2) {
                         ForEach(viewModel.chapters) { chapter in
                             ChapterListRow(
                                 chapter: chapter,
@@ -251,7 +251,7 @@ struct ChaptersPanel: View {
                             .id(chapter.index)
                         }
                     }
-                    .padding(8)
+                    .padding(DS.Space.s8)
                 }
                 .onAppear {
                     if let currentIndex = viewModel.currentChapterIndex {
@@ -263,10 +263,10 @@ struct ChaptersPanel: View {
         }
         .frame(width: 320)
         .background(Color.black.opacity(0.95))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r12))
+        .overlay(RoundedRectangle(cornerRadius: DS.Radius.r12).strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
         .shadow(color: .black.opacity(0.5), radius: 30, y: 10)
-        .padding(.trailing, 32)
+        .padding(.trailing, DS.Space.s32)
         .padding(.bottom, 140)
     }
 
@@ -297,7 +297,7 @@ private struct ChapterListRow: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 12) {
+            HStack(spacing: DS.Space.s12) {
                 // Chapter number with progress indicator
                 ZStack {
                     Circle()
@@ -313,18 +313,18 @@ private struct ChapterListRow: View {
                     }
 
                     Text("\(chapter.index + 1)")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(.flixor(.caption, weight: .semibold))
                         .foregroundStyle(isCurrent ? .white : .white.opacity(0.8))
                 }
 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: DS.Space.s2) {
                     Text(chapter.displayName)
                         .font(.system(size: 13, weight: isCurrent ? .semibold : .regular))
                         .foregroundStyle(isCurrent ? .white : .white.opacity(0.85))
                         .lineLimit(1)
 
                     Text(chapter.formattedTime)
-                        .font(.system(size: 11, design: .monospaced))
+                        .font(.flixor(.caption, design: .monospaced))
                         .foregroundStyle(.white.opacity(0.5))
                 }
 
@@ -332,14 +332,14 @@ private struct ChapterListRow: View {
 
                 if isCurrent {
                     Image(systemName: "play.fill")
-                        .font(.system(size: 10))
+                        .font(.flixor(.micro))
                         .foregroundStyle(Color.accentColor)
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
+            .padding(.horizontal, DS.Space.s12)
+            .padding(.vertical, DS.Space.s10)
             .background(
-                RoundedRectangle(cornerRadius: 8)
+                RoundedRectangle(cornerRadius: DS.Radius.r8)
                     .fill(isCurrent ? Color.white.opacity(0.1) : (isHovered ? Color.white.opacity(0.05) : Color.clear))
             )
         }

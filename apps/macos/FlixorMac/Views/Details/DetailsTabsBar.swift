@@ -20,15 +20,15 @@ struct DetailsTabsBar: View {
     @State private var hoveredTab: String?
 
     var body: some View {
-        HStack(alignment: .bottom, spacing: 32) {
-            HStack(alignment: .bottom, spacing: 32){
+        HStack(alignment: .bottom, spacing: DS.Space.s32) {
+            HStack(alignment: .bottom, spacing: DS.Space.s32){
                 ForEach(tabs) { tab in
                     TabButton(
                         tab: tab,
                         isActive: activeTab == tab.id,
                         isHovered: hoveredTab == tab.id,
                         underlineNamespace: underline,
-                        onTap: { withAnimation(.easeInOut(duration: 0.2)) { activeTab = tab.id } },
+                        onTap: { withAnimation(DS.Motion.standard) { activeTab = tab.id } },
                         onHover: { hovering in
                             withAnimation(.easeInOut(duration: 0.15)) {
                                 hoveredTab = hovering ? tab.id : nil
@@ -36,10 +36,10 @@ struct DetailsTabsBar: View {
                         }
                     )
                 }
-            }.padding(.horizontal, 20)
+            }.padding(.horizontal, DS.Space.s20)
             Spacer()
         }
-        .padding(.vertical, 16)
+        .padding(.vertical, DS.Space.s16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.ultraThinMaterial.opacity(0.6))
         .overlay(
@@ -63,19 +63,19 @@ private struct TabButton: View {
     var body: some View {
         Button(action: onTap) {
             VStack(alignment: .leading, spacing: 0) {
-                HStack(spacing: 8) {
+                HStack(spacing: DS.Space.s8) {
                     Text(tab.label)
-                        .font(.system(size: 14, weight: .medium))
+                        .font(.flixor(.body, weight: .medium))
                         .foregroundStyle(textColor)
 
                     if let count = tab.count {
                         Text("(\(count))")
-                            .font(.system(size: 12))
+                            .font(.flixor(.footnote))
                             .foregroundStyle(.white.opacity(0.4))
                     }
                 }
                 .fixedSize()
-                .padding(.bottom, 8)
+                .padding(.bottom, DS.Space.s8)
 
                 // Underline indicator
                 if isActive {

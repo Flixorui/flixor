@@ -22,16 +22,16 @@ struct CollectionRowsSettingsView: View {
             // Header
             HStack {
                 Text("Collection Rows")
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.flixor(.headline, weight: .semibold))
                 Spacer()
                 Button("Done") {
                     dismiss()
                 }
                 .keyboardShortcut(.defaultAction)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 20)
-            .padding(.bottom, 16)
+            .padding(.horizontal, DS.Space.s20)
+            .padding(.top, DS.Space.s20)
+            .padding(.bottom, DS.Space.s16)
 
             Divider()
 
@@ -39,38 +39,38 @@ struct CollectionRowsSettingsView: View {
 
             // Content
             if isLoading {
-                VStack(spacing: 12) {
+                VStack(spacing: DS.Space.s12) {
                     ProgressView()
                         .scaleEffect(0.8)
                     Text("Loading collections...")
-                        .font(.system(size: 13))
+                        .font(.flixor(.callout))
                         .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if let error = errorMessage {
-                VStack(spacing: 12) {
+                VStack(spacing: DS.Space.s12) {
                     Image(systemName: "exclamationmark.triangle")
-                        .font(.system(size: 32))
+                        .font(.flixorIcon(DS.Icon.xxl))
                         .foregroundStyle(.orange)
                     Text(error)
-                        .font(.system(size: 13))
+                        .font(.flixor(.callout))
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if collections.isEmpty {
-                VStack(spacing: 12) {
+                VStack(spacing: DS.Space.s12) {
                     Image(systemName: "tray")
-                        .font(.system(size: 32))
+                        .font(.flixorIcon(DS.Icon.xxl))
                         .foregroundStyle(.secondary)
                     Text("No Plex collections found")
-                        .font(.system(size: 13))
+                        .font(.flixor(.callout))
                         .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollView {
-                    VStack(spacing: 16) {
+                    VStack(spacing: DS.Space.s16) {
                         SettingsGroupCard {
                             ForEach(Array(collections.enumerated()), id: \.element.id) { index, collection in
                                 let isVisible = !profileSettings.hiddenCollectionKeys.contains(collection.ratingKey)
@@ -93,11 +93,11 @@ struct CollectionRowsSettingsView: View {
                         }
 
                         Text("Toggle collections to show or hide them on the home screen. Only the top 5 visible collections are displayed.")
-                            .font(.system(size: 11))
+                            .font(.flixor(.caption))
                             .foregroundStyle(.secondary)
-                            .padding(.horizontal, 4)
+                            .padding(.horizontal, DS.Space.s4)
                     }
-                    .padding(20)
+                    .padding(DS.Space.s20)
                 }
             }
         }
@@ -110,7 +110,7 @@ struct CollectionRowsSettingsView: View {
     @ViewBuilder
     private var userCollectionToggles: some View {
         if !userCollections.collections.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: DS.Space.s8) {
                 SettingsSectionHeader(title: "My Collections")
                 SettingsGroupCard {
                     ForEach(Array(userCollections.collections.enumerated()), id: \.element.id) { index, collection in
@@ -131,8 +131,8 @@ struct CollectionRowsSettingsView: View {
                     }
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 16)
+            .padding(.horizontal, DS.Space.s20)
+            .padding(.top, DS.Space.s16)
         }
     }
 

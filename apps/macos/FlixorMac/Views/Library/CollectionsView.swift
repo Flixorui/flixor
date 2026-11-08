@@ -36,8 +36,8 @@ struct CollectionsView: View {
                         plexCollections
                     }
                 }
-                .padding(.horizontal, 64)
-                .padding(.vertical, 32)
+                .padding(.horizontal, DS.Space.s64)
+                .padding(.vertical, DS.Space.s32)
             }
 
             if showBrowseModal {
@@ -60,9 +60,9 @@ struct CollectionsView: View {
     @ViewBuilder
     private var plexCollections: some View {
         if isLoading {
-            LazyVGrid(columns: columns, spacing: 20) {
+            LazyVGrid(columns: columns, spacing: DS.Space.s20) {
                 ForEach(0..<6, id: \.self) { _ in
-                    SkeletonView(height: 240, cornerRadius: 18)
+                    SkeletonView(height: 240, cornerRadius: DS.Radius.r18)
                         .frame(height: 240)
                 }
             }
@@ -81,7 +81,7 @@ struct CollectionsView: View {
                 .flixorFont(.callout)
                 .foregroundStyle(theme.textSecondary)
         } else {
-            LazyVGrid(columns: columns, spacing: 20) {
+            LazyVGrid(columns: columns, spacing: DS.Space.s20) {
                 ForEach(collections) { collection in
                     Button {
                         open(collection)
@@ -108,31 +108,31 @@ struct CollectionsView: View {
             CachedAsyncImage(url: collection.artwork)
                 .aspectRatio(16/9, contentMode: .fill)
                 .frame(height: 240)
-                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r18, style: .continuous))
                 .overlay(
                     LinearGradient(
                         colors: [Color.black.opacity(0.75), Color.black.opacity(0)],
                         startPoint: .bottom,
                         endPoint: .top
                     )
-                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r18, style: .continuous))
                 )
 
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: DS.Space.s6) {
                 Text(collection.title)
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(.white)
                     .lineLimit(2)
                 Text("\(collection.count) \(collection.count == 1 ? "item" : "items")")
                     .font(.footnote.weight(.semibold))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
+                    .padding(.horizontal, DS.Space.s10)
+                    .padding(.vertical, DS.Space.s6)
                     .background(Color.white.opacity(0.18), in: Capsule())
             }
-            .padding(18)
+            .padding(DS.Space.s18)
         }
         .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: DS.Radius.r18, style: .continuous)
                 .stroke(Color.white.opacity(0.18), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.35), radius: 12, y: 8)

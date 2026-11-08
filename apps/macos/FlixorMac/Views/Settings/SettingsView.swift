@@ -134,7 +134,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         switch self {
         case .plex:
             ZStack {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: DS.Radius.r14, style: .continuous)
                     .fill(color)
                     .frame(width: size, height: size)
                 Image("plexcolor")
@@ -144,7 +144,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
             }
         case .tmdb:
             ZStack {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: DS.Radius.r14, style: .continuous)
                     .fill(color)
                     .frame(width: size, height: size)
                 Image("tmdbcolor")
@@ -154,7 +154,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
             }
         case .mdblist:
             ZStack {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: DS.Radius.r14, style: .continuous)
                     .fill(color)
                     .frame(width: size, height: size)
                 Image("mdblistcolor")
@@ -164,7 +164,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
             }
         case .overseerr:
             ZStack {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: DS.Radius.r14, style: .continuous)
                     .fill(color)
                     .frame(width: size, height: size)
                 Image("overseerr")
@@ -174,7 +174,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
             }
         case .trakt:
             ZStack {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: DS.Radius.r14, style: .continuous)
                     .fill(color)
                     .frame(width: size, height: size)
                 Image("trakt")
@@ -253,12 +253,12 @@ struct SettingsView: View {
             // Close button
             Button(action: { dismiss() }) {
                 Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 20))
+                    .font(.flixorIcon(DS.Icon.lg))
                     .foregroundStyle(.secondary)
                     .contentShape(Circle())
             }
             .buttonStyle(.plain)
-            .padding(12)
+            .padding(DS.Space.s12)
             .help("Close Settings")
         }
         .frame(width: 920, height: 680)
@@ -277,46 +277,46 @@ struct SettingsView: View {
     private var sidebar: some View {
         VStack(spacing: 0) {
             // Search
-            HStack(spacing: 8) {
+            HStack(spacing: DS.Space.s8) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
-                    .font(.system(size: 13))
+                    .font(.flixor(.callout))
                 TextField("Search", text: $searchText)
                     .textFieldStyle(.plain)
-                    .font(.system(size: 13))
+                    .font(.flixor(.callout))
                 if !searchText.isEmpty {
                     Button(action: { searchText = "" }) {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundStyle(.secondary)
-                            .font(.system(size: 12))
+                            .font(.flixorIcon(DS.Icon.xs))
                     }
                     .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, 10)
+            .padding(.horizontal, DS.Space.s10)
             .padding(.vertical, 7)
             .background(Color(NSColor.controlBackgroundColor))
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .padding(.horizontal, 16)
-            .padding(.top, 16)
-            .padding(.bottom, 12)
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r8, style: .continuous))
+            .padding(.horizontal, DS.Space.s16)
+            .padding(.top, DS.Space.s16)
+            .padding(.bottom, DS.Space.s12)
 
             // Categories with section headers
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: DS.Space.s16) {
                     ForEach(Array(SidebarSection.all.enumerated()), id: \.offset) { _, section in
                         let filteredCategories = filterCategories(section.categories)
                         if !filteredCategories.isEmpty {
-                            VStack(alignment: .leading, spacing: 4) {
+                            VStack(alignment: .leading, spacing: DS.Space.s4) {
                                 // Section header
                                 Text(section.title.uppercased())
-                                    .font(.system(size: 11, weight: .semibold))
+                                    .font(.flixor(.caption, weight: .semibold))
                                     .foregroundStyle(.secondary)
-                                    .padding(.leading, 14)
-                                    .padding(.top, 4)
+                                    .padding(.leading, DS.Space.s14)
+                                    .padding(.top, DS.Space.s4)
 
                                 // Section items
-                                VStack(spacing: 2) {
+                                VStack(spacing: DS.Space.s2) {
                                     ForEach(filteredCategories) { category in
                                         SettingsSidebarRow(
                                             category: category,
@@ -332,8 +332,8 @@ struct SettingsView: View {
                         }
                     }
                 }
-                .padding(.horizontal, 12)
-                .padding(.bottom, 20)
+                .padding(.horizontal, DS.Space.s12)
+                .padding(.bottom, DS.Space.s20)
             }
         }
         .background(Color(NSColor.windowBackgroundColor).opacity(0.5))
@@ -366,17 +366,17 @@ struct SettingsView: View {
                     // Header (hide for About screen)
                     if selectedCategory != .about {
                         contentHeader
-                            .padding(.top, 32)
-                            .padding(.bottom, 24)
+                            .padding(.top, DS.Space.s32)
+                            .padding(.bottom, DS.Space.s24)
                     }
 
                     // Content
-                    VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: DS.Space.s16) {
                         categoryContent(for: selectedCategory)
                     }
-                    .padding(.horizontal, 40)
+                    .padding(.horizontal, DS.Space.s40)
                     .padding(.top, selectedCategory == .about ? 32 : 0)
-                    .padding(.bottom, 40)
+                    .padding(.bottom, DS.Space.s40)
                 }
             }
         }
@@ -384,17 +384,17 @@ struct SettingsView: View {
     }
 
     private var contentHeader: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: DS.Space.s12) {
             // Icon - use custom service icon or SF Symbol
             if selectedCategory.hasCustomIcon {
                 selectedCategory.headerIcon
             } else {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    RoundedRectangle(cornerRadius: DS.Radius.r14, style: .continuous)
                         .fill(selectedCategory.color.gradient)
                         .frame(width: 64, height: 64)
                     Image(systemName: selectedCategory.icon)
-                        .font(.system(size: 28, weight: .medium))
+                        .font(.flixor(.largeTitle, weight: .medium))
                         .foregroundStyle(.white)
                 }
             }
@@ -405,7 +405,7 @@ struct SettingsView: View {
 
             // Description
             Text(categoryDescription(for: selectedCategory))
-                .font(.system(size: 13))
+                .font(.flixor(.callout))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 400)
@@ -471,7 +471,7 @@ private struct SettingsSidebarRow: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 12) {
+            HStack(spacing: DS.Space.s12) {
                 // Use custom service icon or SF Symbol
                 if category.hasCustomIcon {
                     category.sidebarIcon
@@ -482,24 +482,24 @@ private struct SettingsSidebarRow: View {
                             .fill(Color.gray.opacity(0.3))
                             .frame(width: 24, height: 24)
                         Image(systemName: category.icon)
-                            .font(.system(size: 12, weight: .medium))
+                            .font(.flixorIcon(DS.Icon.xs, weight: .medium))
                             .foregroundStyle(.white)
                     }
                 }
 
                 Text(category.title)
-                    .font(.system(size: 13))
+                    .font(.flixor(.callout))
                     .foregroundStyle(isSelected ? .white : .primary)
 
                 Spacer()
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
+            .padding(.horizontal, DS.Space.s10)
+            .padding(.vertical, DS.Space.s8)
             .background(
                 isSelected
                     ? Color.accentColor
                     : Color.clear,
-                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                in: RoundedRectangle(cornerRadius: DS.Radius.r8, style: .continuous)
             )
             .contentShape(Rectangle())
         }
@@ -517,7 +517,7 @@ struct SettingsGroupCard<Content: View>: View {
             content()
         }
         .background(Color(NSColor.controlBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r10, style: .continuous))
     }
 }
 
@@ -528,9 +528,9 @@ struct SettingsSectionHeader: View {
 
     var body: some View {
         Text(title.uppercased())
-            .font(.system(size: 11, weight: .medium))
+            .font(.flixor(.caption, weight: .medium))
             .foregroundStyle(.secondary)
-            .padding(.leading, 4)
+            .padding(.leading, DS.Space.s4)
     }
 }
 
@@ -568,7 +568,7 @@ struct SettingsRow<Trailing: View>: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 12) {
+            HStack(spacing: DS.Space.s12) {
                 if let icon {
                     if useImageAsset {
                         // Use image from assets
@@ -576,26 +576,26 @@ struct SettingsRow<Trailing: View>: View {
                             .resizable()
                             .scaledToFit()
                             .frame(width: 28, height: 28)
-                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r6, style: .continuous))
                     } else {
                         // Use SF Symbol with colored background
                         ZStack {
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            RoundedRectangle(cornerRadius: DS.Radius.r6, style: .continuous)
                                 .fill(iconColor.gradient)
                                 .frame(width: 28, height: 28)
                             Image(systemName: icon)
-                                .font(.system(size: 14, weight: .medium))
+                                .font(.flixorIcon(DS.Icon.sm, weight: .medium))
                                 .foregroundStyle(.white)
                         }
                     }
                 }
 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: DS.Space.s2) {
                     Text(title)
-                        .font(.system(size: 13))
+                        .font(.flixor(.callout))
                     if let subtitle {
                         Text(subtitle)
-                            .font(.system(size: 11))
+                            .font(.flixor(.caption))
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -607,12 +607,12 @@ struct SettingsRow<Trailing: View>: View {
 
                 if showChevron {
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.flixorIcon(DS.Icon.xs, weight: .semibold))
                         .foregroundStyle(.tertiary)
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
+            .padding(.horizontal, DS.Space.s12)
+            .padding(.vertical, DS.Space.s10)
 
             if showDivider {
                 Divider()
@@ -671,7 +671,7 @@ private struct DiscoveryModeSettingsView: View {
     @ObservedObject private var settings = ProfileSettings.shared
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: DS.Space.s16) {
             SettingsGroupCard {
                 SettingsRow(
                     icon: "eye.slash.fill",
@@ -691,18 +691,18 @@ private struct DiscoveryModeSettingsView: View {
             }
 
             Text("When enabled, this disables all external discovery features including trending rows, Trakt recommendations, Popular on Plex, New & Popular tab, and TMDB search results. Only content from your Plex library will be shown.")
-                .font(.system(size: 11))
+                .font(.flixor(.caption))
                 .foregroundStyle(.secondary)
-                .padding(.horizontal, 4)
+                .padding(.horizontal, DS.Space.s4)
 
             if settings.discoveryDisabled {
-                HStack(spacing: 8) {
+                HStack(spacing: DS.Space.s8) {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(.green)
                     Text("Library Only Mode is active")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.flixor(.footnote, weight: .medium))
                 }
-                .padding(.horizontal, 4)
+                .padding(.horizontal, DS.Space.s4)
             }
         }
     }
@@ -714,7 +714,7 @@ private struct SidebarSettingsView: View {
     @ObservedObject private var settings = ProfileSettings.shared
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: DS.Space.s16) {
             NavigationStyleSettingsSection()
 
             SettingsGroupCard {
@@ -732,15 +732,15 @@ private struct SidebarSettingsView: View {
             }
 
             Text("The New & Popular tab shows trending content, top 10 lists, and upcoming releases.")
-                .font(.system(size: 11))
+                .font(.flixor(.caption))
                 .foregroundStyle(.secondary)
-                .padding(.horizontal, 4)
+                .padding(.horizontal, DS.Space.s4)
 
             if AppModeStore.shared.isStremioOnly {
                 Text("Library and Downloads are hidden because they need a Plex server. Connect Plex in Settings → Plex to show them.")
-                    .font(.system(size: 11))
+                    .font(.flixor(.caption))
                     .foregroundStyle(.secondary)
-                    .padding(.horizontal, 4)
+                    .padding(.horizontal, DS.Space.s4)
             }
         }
     }
@@ -752,7 +752,7 @@ private struct SearchSettingsView: View {
     @ObservedObject private var settings = ProfileSettings.shared
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: DS.Space.s16) {
             SettingsGroupCard {
                 SettingsRow(
                     icon: "film.fill",
@@ -768,9 +768,9 @@ private struct SearchSettingsView: View {
             }
 
             Text("When enabled, search results will include content from The Movie Database (TMDB) in addition to your Plex library. Recommendations will also be shown when not searching.")
-                .font(.system(size: 11))
+                .font(.flixor(.caption))
                 .foregroundStyle(.secondary)
-                .padding(.horizontal, 4)
+                .padding(.horizontal, DS.Space.s4)
         }
     }
 }
@@ -788,24 +788,24 @@ private struct GeneralSettingsContent: View {
                     showDivider: false
                 ) {
                     Text("MPV")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.flixor(.callout, weight: .semibold))
                         .foregroundStyle(.white)
                 }
             }
         }
 
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: DS.Space.s8) {
             Label("MPV is required on macOS for Plex, offline files, direct URL playback, custom headers, and Stremio streams.", systemImage: "checkmark.circle.fill")
-                .font(.system(size: 12))
+                .font(.flixor(.footnote))
                 .foregroundStyle(.secondary)
         }
-        .padding(.horizontal, 4)
-        .padding(.top, 8)
+        .padding(.horizontal, DS.Space.s4)
+        .padding(.top, DS.Space.s8)
 
         Text("Playback engine selection is no longer configurable on macOS.")
-            .font(.system(size: 11))
+            .font(.flixor(.caption))
             .foregroundStyle(.secondary)
-            .padding(.top, 4)
+            .padding(.top, DS.Space.s4)
     }
 }
 
@@ -826,19 +826,19 @@ private struct TraktSettingsContent: View {
     private var traktColor: Color { Color(hex: "ED1C24") }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
+        VStack(alignment: .leading, spacing: DS.Space.s24) {
         // Status
         if let profile {
             SettingsGroupCard {
-                HStack(spacing: 12) {
+                HStack(spacing: DS.Space.s12) {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 24))
+                        .font(.flixorIcon(DS.Icon.xl))
                         .foregroundStyle(.green)
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: DS.Space.s2) {
                         Text("Connected")
-                            .font(.system(size: 13, weight: .semibold))
+                            .font(.flixor(.callout, weight: .semibold))
                         Text("Signed in as @\(profile.ids?.slug ?? profile.username ?? "user")")
-                            .font(.system(size: 11))
+                            .font(.flixor(.caption))
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
@@ -848,26 +848,26 @@ private struct TraktSettingsContent: View {
                     .buttonStyle(.bordered)
                     .controlSize(.small)
                 }
-                .padding(12)
+                .padding(DS.Space.s12)
             }
         } else {
             SettingsGroupCard {
-                VStack(spacing: 12) {
-                    HStack(spacing: 12) {
+                VStack(spacing: DS.Space.s12) {
+                    HStack(spacing: DS.Space.s12) {
                         Image(systemName: "person.crop.circle.badge.questionmark")
-                            .font(.system(size: 24))
+                            .font(.flixorIcon(DS.Icon.xl))
                             .foregroundStyle(.secondary)
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: DS.Space.s2) {
                             Text("Not Connected")
-                                .font(.system(size: 13, weight: .semibold))
+                                .font(.flixor(.callout, weight: .semibold))
                             Text("Sign in to sync watch history")
-                                .font(.system(size: 11))
+                                .font(.flixor(.caption))
                                 .foregroundStyle(.secondary)
                         }
                         Spacer()
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.top, 12)
+                    .padding(.horizontal, DS.Space.s12)
+                    .padding(.top, DS.Space.s12)
 
                     if let deviceCode {
                         Divider()
@@ -888,29 +888,29 @@ private struct TraktSettingsContent: View {
                         .tint(traktColor)
                         .controlSize(.large)
                         .disabled(isRequestingCode)
-                        .padding(.horizontal, 12)
-                        .padding(.bottom, 12)
+                        .padding(.horizontal, DS.Space.s12)
+                        .padding(.bottom, DS.Space.s12)
                     }
                 }
             }
         }
 
         if let statusMessage {
-            HStack(spacing: 8) {
+            HStack(spacing: DS.Space.s8) {
                 Image(systemName: "info.circle.fill")
                     .foregroundStyle(.blue)
                 Text(statusMessage)
-                    .font(.system(size: 11))
+                    .font(.flixor(.caption))
                     .foregroundStyle(.secondary)
             }
         }
 
         if let errorMessage {
-            HStack(spacing: 8) {
+            HStack(spacing: DS.Space.s8) {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .foregroundStyle(.red)
                 Text(errorMessage)
-                    .font(.system(size: 11))
+                    .font(.flixor(.caption))
                     .foregroundStyle(.red)
             }
         }
@@ -932,9 +932,9 @@ private struct TraktSettingsContent: View {
         }
 
         Text("Scrobbling reports your watching activity to Trakt in real-time.")
-            .font(.system(size: 11))
+            .font(.flixor(.caption))
             .foregroundStyle(.secondary)
-            .padding(.horizontal, 4)
+            .padding(.horizontal, DS.Space.s4)
         }
         .onAppear {
             Task { await refreshProfile() }
@@ -943,17 +943,17 @@ private struct TraktSettingsContent: View {
 
     @ViewBuilder
     private func deviceCodeView(_ code: TraktDeviceCodeResponse) -> some View {
-        VStack(spacing: 12) {
+        VStack(spacing: DS.Space.s12) {
             Text("Enter this code at trakt.tv/activate")
-                .font(.system(size: 12))
+                .font(.flixor(.footnote))
                 .foregroundStyle(.secondary)
 
-            HStack(spacing: 16) {
+            HStack(spacing: DS.Space.s16) {
                 Text(code.user_code)
-                    .font(.system(size: 32, weight: .bold, design: .monospaced))
+                    .font(.flixor(.display, weight: .bold, design: .monospaced))
                     .kerning(6)
 
-                VStack(spacing: 8) {
+                VStack(spacing: DS.Space.s8) {
                     Button("Copy") {
                         let pb = NSPasteboard.general
                         pb.clearContents()
@@ -977,16 +977,16 @@ private struct TraktSettingsContent: View {
             if let expiresAt {
                 let remaining = Int(max(0, expiresAt.timeIntervalSinceNow))
                 Text("Expires in \(remaining)s")
-                    .font(.system(size: 11))
+                    .font(.flixor(.caption))
                     .foregroundStyle(.secondary)
             }
 
             Button("Cancel") { cancelDeviceFlow() }
                 .buttonStyle(.plain)
-                .font(.system(size: 12))
+                .font(.flixor(.footnote))
                 .foregroundStyle(.secondary)
         }
-        .padding(16)
+        .padding(DS.Space.s16)
     }
 
     // MARK: - Actions
@@ -1092,7 +1092,7 @@ private struct AdvancedSettingsContent: View {
     @State private var showLogsSheet = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
+        VStack(alignment: .leading, spacing: DS.Space.s24) {
             // Debug Logging Toggle
             SettingsGroupCard {
                 SettingsRow(
@@ -1111,9 +1111,9 @@ private struct AdvancedSettingsContent: View {
             }
 
             Text("When enabled, the app captures detailed logs that can help diagnose issues. Logs are stored in memory and cleared when the app restarts.")
-                .font(.system(size: 11))
+                .font(.flixor(.caption))
                 .foregroundStyle(.secondary)
-                .padding(.horizontal, 4)
+                .padding(.horizontal, DS.Space.s4)
 
             // View Logs
             SettingsGroupCard {
@@ -1144,18 +1144,18 @@ private struct LogsSheetView: View {
             // Header
             HStack {
                 Text("App Logs")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.flixor(.bodyLarge, weight: .semibold))
                 Spacer()
                 Button("Done") { isPresented = false }
                     .keyboardShortcut(.defaultAction)
             }
-            .padding(16)
+            .padding(DS.Space.s16)
 
             Divider()
 
             // Logs content
             LogsView()
-                .padding(16)
+                .padding(DS.Space.s16)
         }
         .frame(width: 700, height: 550)
     }
@@ -1166,28 +1166,28 @@ private struct LogsSheetView: View {
 private struct AboutSettingsContent: View {
     var body: some View {
         SettingsGroupCard {
-            VStack(spacing: 20) {
+            VStack(spacing: DS.Space.s20) {
                 // App Icon from assets
                 Image(nsImage: NSApp.applicationIconImage)
                     .resizable()
                     .scaledToFit()
                     .frame(width: 80, height: 80)
-                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r18, style: .continuous))
 
-                VStack(spacing: 4) {
+                VStack(spacing: DS.Space.s4) {
                     Text("Flixor")
-                        .font(.system(size: 20, weight: .bold))
+                        .font(.flixor(.title2, weight: .bold))
                     Text("Version \(Bundle.main.appVersion)")
-                        .font(.system(size: 12))
+                        .font(.flixor(.footnote))
                         .foregroundStyle(.secondary)
                 }
 
                 Text("A native macOS client for Plex and Stremio addons")
-                    .font(.system(size: 13))
+                    .font(.flixor(.callout))
                     .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 24)
+            .padding(.vertical, DS.Space.s24)
         }
 
         SettingsGroupCard {
@@ -1248,10 +1248,10 @@ private struct AboutSettingsContent: View {
         }
 
         Text("Made with love for Plex enthusiasts")
-            .font(.system(size: 11))
+            .font(.flixor(.caption))
             .foregroundStyle(.tertiary)
             .frame(maxWidth: .infinity)
-            .padding(.top, 8)
+            .padding(.top, DS.Space.s8)
     }
 }
 
@@ -1267,12 +1267,12 @@ struct SettingsCard<Content: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: DS.Space.s8) {
             if let title {
                 Text(title.uppercased())
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.flixor(.caption, weight: .medium))
                     .foregroundStyle(.secondary)
-                    .padding(.leading, 4)
+                    .padding(.leading, DS.Space.s4)
             }
             SettingsGroupCard {
                 content()
@@ -1324,22 +1324,22 @@ struct StatusCard: View {
     let description: String
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: DS.Space.s12) {
             Image(systemName: icon)
-                .font(.system(size: 18))
+                .font(.flixor(.title3))
                 .foregroundStyle(color)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: DS.Space.s2) {
                 Text(title)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.flixor(.callout, weight: .semibold))
                 Text(description)
-                    .font(.system(size: 11))
+                    .font(.flixor(.caption))
                     .foregroundStyle(.secondary)
             }
             Spacer()
         }
-        .padding(12)
-        .background(color.opacity(0.1), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .padding(DS.Space.s12)
+        .background(color.opacity(0.1), in: RoundedRectangle(cornerRadius: DS.Radius.r10, style: .continuous))
     }
 }
 

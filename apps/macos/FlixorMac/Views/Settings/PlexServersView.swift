@@ -34,7 +34,7 @@ struct PlexServersView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
+        VStack(alignment: .leading, spacing: DS.Space.s24) {
             // Account Status Section
             accountSection
 
@@ -94,12 +94,12 @@ struct PlexServersView: View {
     // MARK: - Account Section
 
     private var accountSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: DS.Space.s16) {
             SettingsSectionHeader(title: "Account")
 
             SettingsGroupCard {
                 if isAuthenticated {
-                    HStack(spacing: 12) {
+                    HStack(spacing: DS.Space.s12) {
                         // User avatar or Plex icon
                         ZStack {
                             if let thumbUrl = plexThumb, let url = URL(string: thumbUrl) {
@@ -111,29 +111,29 @@ struct PlexServersView: View {
                                     Color(hex: "E5A00D")
                                 }
                                 .frame(width: 40, height: 40)
-                                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r8, style: .continuous))
                             } else {
-                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                RoundedRectangle(cornerRadius: DS.Radius.r8, style: .continuous)
                                     .fill(Color(hex: "E5A00D").gradient)
                                     .frame(width: 40, height: 40)
                                     .overlay(
                                         Text(plexUsername?.prefix(1).uppercased() ?? "P")
-                                            .font(.system(size: 18, weight: .bold))
+                                            .font(.flixor(.title3, weight: .bold))
                                             .foregroundStyle(.white)
                                     )
                             }
                         }
 
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: DS.Space.s2) {
                             Text(plexUsername ?? "Signed In")
-                                .font(.system(size: 13, weight: .semibold))
+                                .font(.flixor(.callout, weight: .semibold))
                             if let email = plexEmail {
                                 Text(email)
-                                    .font(.system(size: 11))
+                                    .font(.flixor(.caption))
                                     .foregroundStyle(.secondary)
                             } else if let server = activeServer {
                                 Text("Connected to \(server.name)")
-                                    .font(.system(size: 11))
+                                    .font(.flixor(.caption))
                                     .foregroundStyle(.secondary)
                             }
                         }
@@ -154,20 +154,20 @@ struct PlexServersView: View {
                         .buttonStyle(.bordered)
                         .controlSize(.small)
                     }
-                    .padding(12)
+                    .padding(DS.Space.s12)
                 } else {
-                    HStack(spacing: 12) {
+                    HStack(spacing: DS.Space.s12) {
                         Image(systemName: "person.crop.circle.badge.questionmark")
-                            .font(.system(size: 28))
+                            .font(.flixor(.largeTitle))
                             .foregroundStyle(.secondary)
 
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: DS.Space.s2) {
                             Text("Not Connected")
-                                .font(.system(size: 13, weight: .semibold))
+                                .font(.flixor(.callout, weight: .semibold))
                             Text(appMode.isStremioOnly
                                  ? "Optional. Connect Plex to add your own library alongside Stremio."
                                  : "Sign in to access your Plex libraries")
-                                .font(.system(size: 11))
+                                .font(.flixor(.caption))
                                 .foregroundStyle(.secondary)
                         }
 
@@ -180,26 +180,26 @@ struct PlexServersView: View {
                         .controlSize(.small)
                         .disabled(authViewModel.isAuthenticating)
                     }
-                    .padding(12)
+                    .padding(DS.Space.s12)
                 }
 
                 if let authError = authViewModel.error, !authError.isEmpty {
                     Divider()
                     Text(authError)
-                        .font(.system(size: 11))
+                        .font(.flixor(.caption))
                         .foregroundStyle(.red)
-                        .padding(12)
+                        .padding(DS.Space.s12)
                 }
 
                 // Switching to Stremio-only keeps every setting; signing out resets them.
                 if isAuthenticated && !appMode.isStremioOnly {
                     Divider()
-                    HStack(spacing: 12) {
-                        VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: DS.Space.s12) {
+                        VStack(alignment: .leading, spacing: DS.Space.s2) {
                             Text("Use Stremio Only")
-                                .font(.system(size: 13, weight: .semibold))
+                                .font(.flixor(.callout, weight: .semibold))
                             Text("Disconnect Plex and run Flixor as a standalone Stremio app. Your settings are kept.")
-                                .font(.system(size: 11))
+                                .font(.flixor(.caption))
                                 .foregroundStyle(.secondary)
                         }
                         Spacer()
@@ -210,7 +210,7 @@ struct PlexServersView: View {
                         .controlSize(.small)
                         .disabled(isPerformingAction)
                     }
-                    .padding(12)
+                    .padding(DS.Space.s12)
                 }
             }
         }
@@ -219,20 +219,20 @@ struct PlexServersView: View {
     // MARK: - Servers Section
 
     private var serversSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: DS.Space.s16) {
             SettingsSectionHeader(title: "Servers")
 
             if isLoading {
                 SettingsGroupCard {
-                    HStack(spacing: 12) {
+                    HStack(spacing: DS.Space.s12) {
                         ProgressView()
                             .scaleEffect(0.7)
                         Text("Loading servers...")
-                            .font(.system(size: 13))
+                            .font(.flixor(.callout))
                             .foregroundStyle(.secondary)
                         Spacer()
                     }
-                    .padding(16)
+                    .padding(DS.Space.s16)
                 }
             } else if let errorMessage {
                 messageRow(text: errorMessage, style: .error)
@@ -247,7 +247,7 @@ struct PlexServersView: View {
                 Spacer()
                 Button(action: { Task { await loadServers(force: true) } }) {
                     Label("Refresh Servers", systemImage: "arrow.clockwise")
-                        .font(.system(size: 12))
+                        .font(.flixor(.footnote))
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
@@ -263,27 +263,27 @@ struct PlexServersView: View {
         SettingsGroupCard {
             ForEach(Array(servers.enumerated()), id: \.element.id) { index, server in
                 VStack(spacing: 0) {
-                    HStack(spacing: 12) {
+                    HStack(spacing: DS.Space.s12) {
                         // Server icon
                         ZStack {
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            RoundedRectangle(cornerRadius: DS.Radius.r6, style: .continuous)
                                 .fill(server.isActive == true ? Color.blue.gradient : Color.gray.opacity(0.3).gradient)
                                 .frame(width: 32, height: 32)
                             Image(systemName: "server.rack")
-                                .font(.system(size: 14, weight: .medium))
+                                .font(.flixorIcon(DS.Icon.sm, weight: .medium))
                                 .foregroundStyle(server.isActive == true ? .white : .secondary)
                         }
 
-                        VStack(alignment: .leading, spacing: 2) {
-                            HStack(spacing: 6) {
+                        VStack(alignment: .leading, spacing: DS.Space.s2) {
+                            HStack(spacing: DS.Space.s6) {
                                 Text(server.name)
-                                    .font(.system(size: 13, weight: .medium))
+                                    .font(.flixor(.callout, weight: .medium))
 
                                 if server.isActive == true {
                                     Text("Active")
-                                        .font(.system(size: 9, weight: .semibold))
+                                        .font(.flixor(.nano, weight: .semibold))
                                         .padding(.horizontal, 5)
-                                        .padding(.vertical, 2)
+                                        .padding(.vertical, DS.Space.s2)
                                         .background(Color.blue.opacity(0.2))
                                         .foregroundStyle(.blue)
                                         .clipShape(RoundedRectangle(cornerRadius: 3))
@@ -291,9 +291,9 @@ struct PlexServersView: View {
 
                                 if server.owned == true {
                                     Text("Owned")
-                                        .font(.system(size: 9, weight: .semibold))
+                                        .font(.flixor(.nano, weight: .semibold))
                                         .padding(.horizontal, 5)
-                                        .padding(.vertical, 2)
+                                        .padding(.vertical, DS.Space.s2)
                                         .background(Color.green.opacity(0.2))
                                         .foregroundStyle(.green)
                                         .clipShape(RoundedRectangle(cornerRadius: 3))
@@ -301,13 +301,13 @@ struct PlexServersView: View {
                             }
 
                             Text(server.baseURLDisplay)
-                                .font(.system(size: 11))
+                                .font(.flixor(.caption))
                                 .foregroundStyle(.secondary)
                         }
 
                         Spacer()
 
-                        HStack(spacing: 8) {
+                        HStack(spacing: DS.Space.s8) {
                             if server.isActive != true {
                                 Button("Connect") {
                                     Task { await setActiveServer(server) }
@@ -319,14 +319,14 @@ struct PlexServersView: View {
 
                             Button(action: { selectedServer = server }) {
                                 Image(systemName: "ellipsis.circle")
-                                    .font(.system(size: 16))
+                                    .font(.flixorIcon(DS.Icon.md))
                             }
                             .buttonStyle(.plain)
                             .foregroundStyle(.secondary)
                             .disabled(isPerformingAction)
                         }
                     }
-                    .padding(12)
+                    .padding(DS.Space.s12)
 
                     if index < servers.count - 1 {
                         Divider()
@@ -340,25 +340,25 @@ struct PlexServersView: View {
     private func badge(text: String, tint: Color) -> some View {
         Text(text)
             .font(.caption2)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
+            .padding(.horizontal, DS.Space.s6)
+            .padding(.vertical, DS.Space.s2)
             .background(tint.opacity(0.2))
             .foregroundStyle(tint)
-            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r4, style: .continuous))
     }
 
     private enum MessageStyle { case error, success, info }
 
     private func messageRow(text: String, style: MessageStyle) -> some View {
-        HStack(alignment: .center, spacing: 8) {
+        HStack(alignment: .center, spacing: DS.Space.s8) {
             Image(systemName: icon(for: style))
             Text(text)
         }
         .font(.footnote)
-        .padding(10)
+        .padding(DS.Space.s10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(background(for: style))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r8, style: .continuous))
     }
 
     private func icon(for style: MessageStyle) -> String {

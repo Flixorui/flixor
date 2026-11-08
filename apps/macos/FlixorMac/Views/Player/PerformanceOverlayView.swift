@@ -12,9 +12,9 @@ struct PerformanceOverlayView: View {
     let stats: PerformanceStats
 
     var body: some View {
-        HStack(alignment: .top, spacing: 24) {
+        HStack(alignment: .top, spacing: DS.Space.s24) {
             // Left column
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: DS.Space.s10) {
                 // Video section
                 SectionHeader(icon: "video", title: "Video")
                 StatRow(label: "Codec", value: stats.videoCodec ?? "N/A")
@@ -56,7 +56,7 @@ struct PerformanceOverlayView: View {
             }
 
             // Right column
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: DS.Space.s10) {
                 // Audio section
                 SectionHeader(icon: "speaker.wave.2", title: "Audio")
                 StatRow(label: "Codec", value: stats.audioCodec ?? "N/A")
@@ -91,9 +91,9 @@ struct PerformanceOverlayView: View {
                 }
             }
         }
-        .padding(12)
+        .padding(DS.Space.s12)
         .background(Color.black.opacity(0.8))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r8))
     }
 }
 
@@ -102,12 +102,12 @@ private struct SectionHeader: View {
     let title: String
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: DS.Space.s4) {
             Image(systemName: icon)
-                .font(.system(size: 10))
+                .font(.flixor(.micro))
                 .foregroundStyle(.white.opacity(0.7))
             Text(title)
-                .font(.system(size: 11, weight: .semibold))
+                .font(.flixor(.caption, weight: .semibold))
                 .foregroundStyle(.white)
         }
     }
@@ -118,13 +118,13 @@ private struct StatRow: View {
     let value: String
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: DS.Space.s8) {
             Text("\(label):")
-                .font(.system(size: 10))
+                .font(.flixor(.micro))
                 .foregroundStyle(.white.opacity(0.6))
 
             Text(value)
-                .font(.system(size: 10, weight: .medium, design: .monospaced))
+                .font(.flixor(.micro, weight: .medium, design: .monospaced))
                 .foregroundStyle(.white)
                 .lineLimit(1)
         }

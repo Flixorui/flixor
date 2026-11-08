@@ -57,22 +57,22 @@ struct WatchlistButton: View {
         Button {
             Task { await toggle() }
         } label: {
-            HStack(spacing: 8) {
+            HStack(spacing: DS.Space.s8) {
                 if isLoading {
                     ProgressView()
                         .progressViewStyle(.circular)
                         .controlSize(.small)
                 } else {
                     Image(systemName: isInWatchlist ? "checkmark" : "plus")
-                        .font(.system(size: 14, weight: .bold))
+                        .font(.flixorIcon(DS.Icon.sm, weight: .bold))
                 }
                 Text(isInWatchlist ? "My List" : "Watchlist")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.flixor(.bodyLarge, weight: .semibold))
             }
             .padding(.horizontal, 22)
-            .padding(.vertical, 12)
+            .padding(.vertical, DS.Space.s12)
             .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                RoundedRectangle(cornerRadius: DS.Radius.r8, style: .continuous)
                     .fill(isInWatchlist ? Color.white.opacity(0.22) : Color.white.opacity(0.12))
             )
         }
@@ -91,7 +91,7 @@ struct WatchlistButton: View {
                         .controlSize(.mini)
                 } else {
                     Image(systemName: isInWatchlist ? "checkmark" : "plus")
-                        .font(.system(size: 14, weight: .bold))
+                        .font(.flixorIcon(DS.Icon.sm, weight: .bold))
                 }
             }
             .frame(width: 32, height: 32)
@@ -115,7 +115,7 @@ struct WatchlistButton: View {
                         .controlSize(.small)
                 } else {
                     Image(systemName: isInWatchlist ? "checkmark" : "plus")
-                        .font(.system(size: 20, weight: .medium))
+                        .font(.flixorIcon(DS.Icon.lg, weight: .medium))
                 }
             }
             .frame(width: 44, height: 44)

@@ -55,7 +55,7 @@ struct NewPopularHero: View {
             )
 
             // Content Overlay
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: DS.Space.s20) {
                 Spacer()
 
                 // Title or Logo
@@ -66,14 +66,14 @@ struct NewPopularHero: View {
                             .shadow(color: .black.opacity(0.6), radius: 12)
                     } else {
                         Text(data.title)
-                            .font(.system(size: 48, weight: .bold))
+                            .font(.flixor(.displayLarge, weight: .bold))
                             .foregroundStyle(.white)
                             .shadow(color: .black.opacity(0.6), radius: 12)
                     }
                 }
 
                 // Metadata row
-                HStack(spacing: 12) {
+                HStack(spacing: DS.Space.s12) {
                     if let rating = data.rating {
                         Text(rating)
                             .fontWeight(.semibold)
@@ -107,23 +107,23 @@ struct NewPopularHero: View {
                 }
 
                 // Action Buttons
-                HStack(spacing: 16) {
+                HStack(spacing: DS.Space.s16) {
                     // Play Button (only if available on Plex)
                     if data.canPlay {
                         Button(action: {
                             onPlay?()
                         }) {
-                            HStack(spacing: 8) {
+                            HStack(spacing: DS.Space.s8) {
                                 Image(systemName: "play.fill")
                                     .font(.title3)
                                 Text("Play")
                                     .font(.headline)
                             }
                             .foregroundStyle(.black)
-                            .padding(.horizontal, 32)
-                            .padding(.vertical, 14)
+                            .padding(.horizontal, DS.Space.s32)
+                            .padding(.vertical, DS.Space.s14)
                             .background(Color.white)
-                            .cornerRadius(6)
+                            .cornerRadius(DS.Radius.r6)
                         }
                         .buttonStyle(.plain)
                         .scaleEffect(isHovered ? 1.05 : 1.0)
@@ -133,17 +133,17 @@ struct NewPopularHero: View {
                     Button(action: {
                         onMoreInfo?()
                     }) {
-                        HStack(spacing: 8) {
+                        HStack(spacing: DS.Space.s8) {
                             Image(systemName: "info.circle")
                                 .font(.title3)
                             Text("More Info")
                                 .font(.headline)
                         }
                         .foregroundStyle(.white)
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 14)
+                        .padding(.horizontal, DS.Space.s24)
+                        .padding(.vertical, DS.Space.s14)
                         .background(Color.white.opacity(0.25))
-                        .cornerRadius(6)
+                        .cornerRadius(DS.Radius.r6)
                     }
                     .buttonStyle(.plain)
 
@@ -151,17 +151,17 @@ struct NewPopularHero: View {
                     Button(action: {
                         onMyList?()
                     }) {
-                        HStack(spacing: 8) {
+                        HStack(spacing: DS.Space.s8) {
                             Image(systemName: isInMyList ? "checkmark" : "plus")
                                 .font(.title3)
                             Text("My List")
                                 .font(.headline)
                         }
                         .foregroundStyle(.white)
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 14)
+                        .padding(.horizontal, DS.Space.s24)
+                        .padding(.vertical, DS.Space.s14)
                         .background(Color.white.opacity(0.25))
-                        .cornerRadius(6)
+                        .cornerRadius(DS.Radius.r6)
                     }
                     .buttonStyle(.plain)
 
@@ -170,25 +170,25 @@ struct NewPopularHero: View {
                         Button(action: {
                             openYouTubeTrailer(ytKey)
                         }) {
-                            HStack(spacing: 8) {
+                            HStack(spacing: DS.Space.s8) {
                                 Image(systemName: "play.rectangle")
                                     .font(.title3)
                                 Text("Trailer")
                                     .font(.headline)
                             }
                             .foregroundStyle(.white)
-                            .padding(.horizontal, 24)
-                            .padding(.vertical, 14)
+                            .padding(.horizontal, DS.Space.s24)
+                            .padding(.vertical, DS.Space.s14)
                             .background(Color.white.opacity(0.25))
-                            .cornerRadius(6)
+                            .cornerRadius(DS.Radius.r6)
                         }
                         .buttonStyle(.plain)
                     }
                 }
-                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isHovered)
+                .animation(DS.Motion.spring, value: isHovered)
             }
-            .padding(.horizontal, 64)
-            .padding(.bottom, 40)
+            .padding(.horizontal, DS.Space.s64)
+            .padding(.bottom, DS.Space.s40)
         }
         .frame(height: heroHeight)
         .background(Color.black)

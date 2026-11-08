@@ -58,7 +58,7 @@ struct SuggestedSections: View {
                     onBrowse?(context)
                 }
             )
-            .padding(.trailing, 60)
+            .padding(.trailing, DS.Space.s60)
         } else {
             LandscapeSectionView(
                 section: section,
@@ -69,7 +69,7 @@ struct SuggestedSections: View {
                     onBrowse?(context)
                 }
             )
-            .padding(.trailing, 60)
+            .padding(.trailing, DS.Space.s60)
         }
     }
 }

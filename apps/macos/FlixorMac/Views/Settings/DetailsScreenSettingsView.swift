@@ -15,22 +15,22 @@ struct DetailsScreenSettingsView: View {
     @State private var showSuggestedPreview: Bool = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
+        VStack(alignment: .leading, spacing: DS.Space.s24) {
             // Screen Layout
             SettingsSectionHeader(title: "Screen Layout")
             SettingsGroupCard {
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: DS.Space.s12) {
                     Text("Details Page Style")
-                        .font(.system(size: 13, weight: .medium))
-                        .padding(.horizontal, 12)
-                        .padding(.top, 12)
+                        .font(.flixor(.callout, weight: .medium))
+                        .padding(.horizontal, DS.Space.s12)
+                        .padding(.top, DS.Space.s12)
 
                     Text("Choose between tabbed navigation or a unified scrollable page. Tabs follow the section order below.")
-                        .font(.system(size: 11))
+                        .font(.flixor(.caption))
                         .foregroundStyle(.secondary)
-                        .padding(.horizontal, 12)
+                        .padding(.horizontal, DS.Space.s12)
 
-                    HStack(spacing: 12) {
+                    HStack(spacing: DS.Space.s12) {
                         LayoutOptionButton(
                             title: "Tabbed",
                             icon: "rectangle.split.3x1",
@@ -47,8 +47,8 @@ struct DetailsScreenSettingsView: View {
                             profileSettings.detailsScreenLayout = "unified"
                         }
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 12)
+                    .padding(.horizontal, DS.Space.s12)
+                    .padding(.bottom, DS.Space.s12)
                 }
             }
 
@@ -61,18 +61,18 @@ struct DetailsScreenSettingsView: View {
             // Episode Layout
             SettingsSectionHeader(title: "Episode Display")
             SettingsGroupCard {
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: DS.Space.s12) {
                     Text("Layout Style")
-                        .font(.system(size: 13, weight: .medium))
-                        .padding(.horizontal, 12)
-                        .padding(.top, 12)
+                        .font(.flixor(.callout, weight: .medium))
+                        .padding(.horizontal, DS.Space.s12)
+                        .padding(.top, DS.Space.s12)
 
                     Text("How episodes appear on TV show details")
-                        .font(.system(size: 11))
+                        .font(.flixor(.caption))
                         .foregroundStyle(.secondary)
-                        .padding(.horizontal, 12)
+                        .padding(.horizontal, DS.Space.s12)
 
-                    HStack(spacing: 12) {
+                    HStack(spacing: DS.Space.s12) {
                         LayoutOptionButton(
                             title: "Horizontal",
                             icon: "rectangle.split.3x1.fill",
@@ -89,8 +89,8 @@ struct DetailsScreenSettingsView: View {
                             profileSettings.episodeLayout = "vertical"
                         }
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 12)
+                    .padding(.horizontal, DS.Space.s12)
+                    .padding(.bottom, DS.Space.s12)
                 }
             }
 
@@ -145,18 +145,18 @@ struct DetailsScreenSettingsView: View {
             // Suggested Rows Layout
             SettingsSectionHeader(title: "Suggested Rows")
             SettingsGroupCard {
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: DS.Space.s12) {
                     Text("Layout Style")
-                        .font(.system(size: 13, weight: .medium))
-                        .padding(.horizontal, 12)
-                        .padding(.top, 12)
+                        .font(.flixor(.callout, weight: .medium))
+                        .padding(.horizontal, DS.Space.s12)
+                        .padding(.top, DS.Space.s12)
 
                     Text("How Related and Similar content appears")
-                        .font(.system(size: 11))
+                        .font(.flixor(.caption))
                         .foregroundStyle(.secondary)
-                        .padding(.horizontal, 12)
+                        .padding(.horizontal, DS.Space.s12)
 
-                    HStack(spacing: 12) {
+                    HStack(spacing: DS.Space.s12) {
                         LayoutOptionButton(
                             title: "Landscape",
                             icon: "rectangle.fill",
@@ -173,8 +173,8 @@ struct DetailsScreenSettingsView: View {
                             profileSettings.suggestedLayout = "poster"
                         }
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 12)
+                    .padding(.horizontal, DS.Space.s12)
+                    .padding(.bottom, DS.Space.s12)
                 }
             }
 
@@ -202,22 +202,22 @@ struct DetailsScreenSettingsView: View {
             }
 
             Text("These settings apply to movie and TV show detail pages.")
-                .font(.system(size: 11))
+                .font(.flixor(.caption))
                 .foregroundStyle(.secondary)
-                .padding(.horizontal, 4)
+                .padding(.horizontal, DS.Space.s4)
         }
     }
 
     // MARK: - Episode Previews
 
     private var horizontalEpisodePreview: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DS.Space.s12) {
             // Horizontal scroll of episode cards
-            HStack(spacing: 12) {
+            HStack(spacing: DS.Space.s12) {
                 ForEach(0..<3, id: \.self) { index in
                     ZStack(alignment: .bottomLeading) {
                         // Thumbnail
-                        RoundedRectangle(cornerRadius: 10)
+                        RoundedRectangle(cornerRadius: DS.Radius.r10)
                             .fill(
                                 LinearGradient(
                                     colors: [
@@ -237,29 +237,29 @@ struct DetailsScreenSettingsView: View {
                             startPoint: .top,
                             endPoint: .bottom
                         )
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r10))
 
                         // Content
-                        VStack(alignment: .leading, spacing: 4) {
+                        VStack(alignment: .leading, spacing: DS.Space.s4) {
                             Text("EPISODE \(index + 1)")
                                 .font(.system(size: 8, weight: .bold))
                                 .tracking(0.5)
                                 .foregroundStyle(.white.opacity(0.8))
-                                .padding(.horizontal, 6)
+                                .padding(.horizontal, DS.Space.s6)
                                 .padding(.vertical, 3)
                                 .background(Color.black.opacity(0.4))
-                                .clipShape(RoundedRectangle(cornerRadius: 4))
+                                .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r4))
 
                             Text(["Pilot", "The One Where...", "Winter Is Coming"][index])
-                                .font(.system(size: 11, weight: .semibold))
+                                .font(.flixor(.caption, weight: .semibold))
                                 .foregroundStyle(.white)
                                 .lineLimit(1)
 
                             Text("45m")
-                                .font(.system(size: 9))
+                                .font(.flixor(.nano))
                                 .foregroundStyle(.white.opacity(0.6))
                         }
-                        .padding(8)
+                        .padding(DS.Space.s8)
 
                         // Progress bar
                         VStack {
@@ -278,25 +278,25 @@ struct DetailsScreenSettingsView: View {
                         }
                     }
                     .frame(width: 140)
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r10))
                 }
             }
 
             Text("Horizontal: Scrollable cards with thumbnails and progress")
-                .font(.system(size: 11))
+                .font(.flixor(.caption))
                 .foregroundStyle(.secondary)
         }
     }
 
     private var verticalEpisodePreview: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DS.Space.s12) {
             // Vertical list of episode rows
-            VStack(spacing: 8) {
+            VStack(spacing: DS.Space.s8) {
                 ForEach(0..<3, id: \.self) { index in
-                    HStack(spacing: 12) {
+                    HStack(spacing: DS.Space.s12) {
                         // Thumbnail
                         ZStack {
-                            RoundedRectangle(cornerRadius: 8)
+                            RoundedRectangle(cornerRadius: DS.Radius.r8)
                                 .fill(
                                     LinearGradient(
                                         colors: [
@@ -311,47 +311,47 @@ struct DetailsScreenSettingsView: View {
                                 .aspectRatio(16/9, contentMode: .fit)
 
                             Image(systemName: "play.circle.fill")
-                                .font(.system(size: 20))
+                                .font(.flixorIcon(DS.Icon.lg))
                                 .foregroundStyle(.white.opacity(0.8))
                         }
                         .frame(width: 100)
 
                         // Info
-                        VStack(alignment: .leading, spacing: 4) {
+                        VStack(alignment: .leading, spacing: DS.Space.s4) {
                             HStack {
                                 Text("\(index + 1). \(["Pilot", "The One Where...", "Winter Is Coming"][index])")
-                                    .font(.system(size: 12, weight: .semibold))
+                                    .font(.flixor(.footnote, weight: .semibold))
                                     .lineLimit(1)
 
                                 Spacer()
 
                                 if index == 0 {
                                     Image(systemName: "checkmark.circle.fill")
-                                        .font(.system(size: 14))
+                                        .font(.flixorIcon(DS.Icon.sm))
                                         .foregroundStyle(.green)
                                 }
                             }
 
                             Text("A brief description of the episode goes here...")
-                                .font(.system(size: 10))
+                                .font(.flixor(.micro))
                                 .foregroundStyle(.secondary)
                                 .lineLimit(2)
 
                             Text("45 min")
-                                .font(.system(size: 9))
+                                .font(.flixor(.nano))
                                 .foregroundStyle(.secondary)
                         }
                     }
-                    .padding(8)
+                    .padding(DS.Space.s8)
                     .background(
-                        RoundedRectangle(cornerRadius: 8)
+                        RoundedRectangle(cornerRadius: DS.Radius.r8)
                             .fill(Color.white.opacity(0.05))
                     )
                 }
             }
 
             Text("Vertical: Compact list with descriptions and watched status")
-                .font(.system(size: 11))
+                .font(.flixor(.caption))
                 .foregroundStyle(.secondary)
         }
     }
@@ -359,23 +359,23 @@ struct DetailsScreenSettingsView: View {
     // MARK: - Suggested Row Previews
 
     private var suggestedLandscapePreview: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DS.Space.s12) {
             // Section header
             HStack {
                 Text("Related")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.flixor(.body, weight: .semibold))
                 Spacer()
                 Text("See All")
-                    .font(.system(size: 11))
+                    .font(.flixor(.caption))
                     .foregroundStyle(.secondary)
             }
 
             // Landscape cards
-            HStack(spacing: 12) {
+            HStack(spacing: DS.Space.s12) {
                 ForEach(0..<3, id: \.self) { index in
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: DS.Space.s6) {
                         ZStack {
-                            RoundedRectangle(cornerRadius: 8)
+                            RoundedRectangle(cornerRadius: DS.Radius.r8)
                                 .fill(
                                     LinearGradient(
                                         colors: [
@@ -390,20 +390,20 @@ struct DetailsScreenSettingsView: View {
                                 .aspectRatio(16/9, contentMode: .fit)
 
                             Image(systemName: "play.circle.fill")
-                                .font(.system(size: 24))
+                                .font(.flixorIcon(DS.Icon.xl))
                                 .foregroundStyle(.white.opacity(0.8))
                         }
 
                         Text(["The Godfather", "Goodfellas", "Casino"][index])
-                            .font(.system(size: 11, weight: .medium))
+                            .font(.flixor(.caption, weight: .medium))
                             .lineLimit(1)
 
-                        HStack(spacing: 4) {
+                        HStack(spacing: DS.Space.s4) {
                             Image(systemName: "star.fill")
                                 .font(.system(size: 8))
                                 .foregroundStyle(.yellow)
                             Text(["9.2", "8.7", "8.2"][index])
-                                .font(.system(size: 9))
+                                .font(.flixor(.nano))
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -412,29 +412,29 @@ struct DetailsScreenSettingsView: View {
             }
 
             Text("Landscape: Wide thumbnails with ratings")
-                .font(.system(size: 11))
+                .font(.flixor(.caption))
                 .foregroundStyle(.secondary)
         }
     }
 
     private var suggestedPosterPreview: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DS.Space.s12) {
             // Section header
             HStack {
                 Text("Related")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.flixor(.body, weight: .semibold))
                 Spacer()
                 Text("See All")
-                    .font(.system(size: 11))
+                    .font(.flixor(.caption))
                     .foregroundStyle(.secondary)
             }
 
             // Poster cards
-            HStack(spacing: 10) {
+            HStack(spacing: DS.Space.s10) {
                 ForEach(0..<5, id: \.self) { index in
-                    VStack(alignment: .center, spacing: 6) {
+                    VStack(alignment: .center, spacing: DS.Space.s6) {
                         ZStack(alignment: .topTrailing) {
-                            RoundedRectangle(cornerRadius: 8)
+                            RoundedRectangle(cornerRadius: DS.Radius.r8)
                                 .fill(
                                     LinearGradient(
                                         colors: [
@@ -451,7 +451,7 @@ struct DetailsScreenSettingsView: View {
                                 .aspectRatio(2/3, contentMode: .fit)
 
                             // Rating badge
-                            HStack(spacing: 2) {
+                            HStack(spacing: DS.Space.s2) {
                                 Image(systemName: "star.fill")
                                     .font(.system(size: 7))
                                 Text(["9.2", "8.7", "8.2", "7.9", "8.5"][index])
@@ -461,12 +461,12 @@ struct DetailsScreenSettingsView: View {
                             .padding(.horizontal, 5)
                             .padding(.vertical, 3)
                             .background(Color.black.opacity(0.6))
-                            .clipShape(RoundedRectangle(cornerRadius: 4))
-                            .padding(4)
+                            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r4))
+                            .padding(DS.Space.s4)
                         }
 
                         Text(["Godfather", "Goodfellas", "Casino", "Scarface", "Heat"][index])
-                            .font(.system(size: 10, weight: .medium))
+                            .font(.flixor(.micro, weight: .medium))
                             .lineLimit(1)
                     }
                     .frame(width: 70)
@@ -474,7 +474,7 @@ struct DetailsScreenSettingsView: View {
             }
 
             Text("Poster: More items visible with compact layout")
-                .font(.system(size: 11))
+                .font(.flixor(.caption))
                 .foregroundStyle(.secondary)
         }
     }

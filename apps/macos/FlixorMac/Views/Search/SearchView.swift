@@ -395,7 +395,7 @@ struct SearchHorizontalRow: View {
             PosterCard(
                 item: item.asMediaItem(),
                 width: 150,
-                topTrailingOverlay: item.available ? AnyView(AvailableBadge().padding(6)) : nil
+                topTrailingOverlay: item.available ? AnyView(AvailableBadge().padding(DS.Space.s6)) : nil
             ) {
                 onTap(item)
             }
@@ -436,15 +436,15 @@ extension SearchViewModel.SearchResult {
 
 struct AvailableBadge: View {
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: DS.Space.s4) {
             Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 10))
+                .font(.flixor(.micro))
             Text("In Library")
-                .font(.system(size: 10, weight: .semibold))
+                .font(.flixor(.micro, weight: .semibold))
         }
         .foregroundStyle(.white)
-        .padding(.horizontal, 6)
-        .padding(.vertical, 4)
+        .padding(.horizontal, DS.Space.s6)
+        .padding(.vertical, DS.Space.s4)
         .background(.green.opacity(0.9))
         .clipShape(Capsule())
     }
@@ -469,7 +469,7 @@ struct EmptyStateView: View {
     let query: String
 
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: DS.Space.s16) {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 60))
                 .foregroundStyle(.secondary)
@@ -490,7 +490,7 @@ struct EmptyStateView: View {
 
 struct SearchPlaceholderView: View {
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: DS.Space.s16) {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 60))
                 .foregroundStyle(.secondary)
@@ -505,7 +505,7 @@ struct SearchPlaceholderView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.top, 120)
-        .padding(.horizontal, 40)
+        .padding(.horizontal, DS.Space.s40)
     }
 }
 

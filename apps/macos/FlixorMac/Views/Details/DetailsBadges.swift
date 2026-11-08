@@ -58,14 +58,14 @@ struct TechnicalBadge: View {
                 .frame(height: 12)
         } else {
             Text(text)
-                .font(.system(size: 10, weight: .semibold))
+                .font(.flixor(.micro, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.8))
-                .padding(.horizontal, 6)
+                .padding(.horizontal, DS.Space.s6)
                 .padding(.vertical, 3)
                 .background(
                     Color.white.opacity(0.15)
                 )
-                .clipShape(RoundedRectangle(cornerRadius: 4))
+                .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r4))
         }
     }
 }
@@ -109,11 +109,11 @@ struct ContentRatingBadge: View {
                 .frame(height: 12)
         } else {
             Text(rating)
-                .font(.system(size: 11, weight: .semibold))
-                .padding(.horizontal, 6)
+                .font(.flixor(.caption, weight: .semibold))
+                .padding(.horizontal, DS.Space.s6)
                 .padding(.vertical, 3)
                 .background(Color.white.opacity(0.2))
-                .clipShape(RoundedRectangle(cornerRadius: 4))
+                .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r4))
         }
     }
 }
@@ -122,26 +122,26 @@ struct RatingsStrip: View {
     let ratings: DetailsViewModel.ExternalRatings
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: DS.Space.s12) {
             if let imdbScore = ratings.imdb?.score {
-                HStack(spacing: 4) {
+                HStack(spacing: DS.Space.s4) {
                     IMDbMark()
                     Text(String(format: "%.1f", imdbScore))
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.flixor(.footnote, weight: .semibold))
                 }
             }
             if let critic = ratings.rottenTomatoes?.critic {
-                HStack(spacing: 4) {
+                HStack(spacing: DS.Space.s4) {
                     TomatoIcon(score: critic)
                     Text("\(critic)%")
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.flixor(.footnote, weight: .semibold))
                 }
             }
             if let audience = ratings.rottenTomatoes?.audience {
-                HStack(spacing: 4) {
+                HStack(spacing: DS.Space.s4) {
                     PopcornIcon(score: audience)
                     Text("\(audience)%")
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.flixor(.footnote, weight: .semibold))
                 }
             }
         }
@@ -177,10 +177,10 @@ private struct RatingsPill<Content: View>: View {
 
     var body: some View {
         content
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
+            .padding(.horizontal, DS.Space.s12)
+            .padding(.vertical, DS.Space.s6)
             .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                RoundedRectangle(cornerRadius: DS.Radius.r8, style: .continuous)
                     .fill(Color.white.opacity(0.18))
             )
     }
@@ -249,17 +249,17 @@ private struct HeroMetaPill: View {
     var body: some View {
         let colors = palette
         Text(text)
-            .font(.system(size: 12, weight: .semibold))
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
+            .font(.flixor(.footnote, weight: .semibold))
+            .padding(.horizontal, DS.Space.s12)
+            .padding(.vertical, DS.Space.s6)
             .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                RoundedRectangle(cornerRadius: DS.Radius.r8, style: .continuous)
                     .fill(colors.background)
             )
             .overlay(
                 Group {
                     if let border = colors.border {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        RoundedRectangle(cornerRadius: DS.Radius.r8, style: .continuous)
                             .stroke(border, lineWidth: 1)
                     }
                 }
@@ -274,27 +274,27 @@ private struct MetadataBadge: View {
     let text: String
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: DS.Space.s6) {
             Image(systemName: icon)
-                .font(.system(size: 11, weight: .semibold))
+                .font(.flixor(.caption, weight: .semibold))
             Text(text)
-                .font(.system(size: 13, weight: .medium))
+                .font(.flixor(.callout, weight: .medium))
         }
         .foregroundStyle(.white.opacity(0.75))
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.horizontal, DS.Space.s12)
+        .padding(.vertical, DS.Space.s8)
         .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: DS.Radius.r8, style: .continuous)
                 .fill(Color.white.opacity(0.08))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    RoundedRectangle(cornerRadius: DS.Radius.r8, style: .continuous)
                         .stroke(Color.white.opacity(0.15), lineWidth: 1)
                 )
         )
     }
 }
 
-private struct Badge: View { let text: String; var body: some View { Text(text).font(.caption).padding(.horizontal, 8).padding(.vertical, 4).background(Color.white.opacity(0.12)).cornerRadius(6) } }
+private struct Badge: View { let text: String; var body: some View { Text(text).font(.caption).padding(.horizontal, DS.Space.s8).padding(.vertical, DS.Space.s4).background(Color.white.opacity(0.12)).cornerRadius(DS.Radius.r6) } }
 
 // MARK: - Availability Badge
 

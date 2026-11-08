@@ -84,7 +84,7 @@ struct PlayerControlsView: View {
                 }
                 .buttonStyle(.plain)
                 .onHover { hovering in
-                    withAnimation(.easeInOut(duration: 0.2)) {
+                    withAnimation(DS.Motion.standard) {
                         isBackHovered = hovering
                     }
                 }
@@ -106,14 +106,14 @@ struct PlayerControlsView: View {
                         viewModel.togglePerformanceOverlay()
                     }) {
                         Image(systemName: "info.circle")
-                            .font(.system(size: 18))
+                            .font(.flixor(.title3))
                             .frame(width: 32, height: 32)
                             .foregroundStyle(viewModel.showPerformanceOverlay ? Color.accentColor : .white)
                     }
                     .buttonStyle(.plain)
                     .scaleEffect(isStatsHovered ? 1.1 : 1.0)
                     .onHover { hovering in
-                        withAnimation(.easeInOut(duration: 0.2)) {
+                        withAnimation(DS.Motion.standard) {
                             isStatsHovered = hovering
                         }
                     }
@@ -126,11 +126,11 @@ struct PlayerControlsView: View {
                         Button(action: {
                             viewModel.changeQuality(quality)
                         }) {
-                            HStack(spacing: 8) {
+                            HStack(spacing: DS.Space.s8) {
                                 // Checkmark
                                 if quality == viewModel.selectedQuality {
                                     Image(systemName: "checkmark")
-                                        .font(.system(size: 12, weight: .semibold))
+                                        .font(.flixorIcon(DS.Icon.xs, weight: .semibold))
                                         .foregroundStyle(Color.accentColor)
                                         .frame(width: 12)
                                 } else {
@@ -138,7 +138,7 @@ struct PlayerControlsView: View {
                                 }
 
                                 // Quality name
-                                VStack(alignment: .leading, spacing: 2) {
+                                VStack(alignment: .leading, spacing: DS.Space.s2) {
                                     Text(quality.rawValue)
                                         .font(.system(size: 13, weight: quality == viewModel.selectedQuality ? .semibold : .regular))
                                         .foregroundStyle(quality == viewModel.selectedQuality ? .white : .white.opacity(0.85))
@@ -146,26 +146,26 @@ struct PlayerControlsView: View {
                                     // Description
                                     if quality == .original {
                                         Text("Direct Play • Best Quality")
-                                            .font(.system(size: 11))
+                                            .font(.flixor(.caption))
                                             .foregroundStyle(.white.opacity(0.5))
                                     } else {
                                         Text("Transcoded • H.264")
-                                            .font(.system(size: 11))
+                                            .font(.flixor(.caption))
                                             .foregroundStyle(.orange.opacity(0.7))
                                     }
                                 }
 
                                 Spacer()
                             }
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 4)
+                            .padding(.horizontal, DS.Space.s4)
+                            .padding(.vertical, DS.Space.s4)
                         }
                     }
                 } label: {
-                    HStack(spacing: 6) {
+                    HStack(spacing: DS.Space.s6) {
                         // Quality text
                         Text(viewModel.selectedQuality.rawValue)
-                            .font(.system(size: 14, weight: .medium))
+                            .font(.flixor(.body, weight: .medium))
 
                         // Transcoding indicator badge
                         if viewModel.isTranscoding {
@@ -175,25 +175,25 @@ struct PlayerControlsView: View {
                         }
 
                         Image(systemName: "chevron.down")
-                            .font(.system(size: 10, weight: .semibold))
+                            .font(.flixor(.micro, weight: .semibold))
                     }
                     .foregroundStyle(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
+                    .padding(.horizontal, DS.Space.s12)
+                    .padding(.vertical, DS.Space.s6)
                     .background(viewModel.isTranscoding ? Color.orange.opacity(0.2) : Color.black.opacity(0.5))
                     .clipShape(Capsule())
                 }
                 .menuStyle(.borderlessButton)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 20)
+            .padding(.horizontal, DS.Space.s20)
+            .padding(.top, DS.Space.s20)
 
             Spacer()
 
             // Bottom Controls
-            VStack(spacing: 12) {
+            VStack(spacing: DS.Space.s12) {
                 // Timeline
-                VStack(spacing: 4) {
+                VStack(spacing: DS.Space.s4) {
                     GeometryReader { geometry in
                         ZStack(alignment: .leading) {
                             // Background
@@ -271,7 +271,7 @@ struct PlayerControlsView: View {
                             .foregroundStyle(.white)
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, DS.Space.s20)
 
                 // Play/Pause & Volume
                 HStack(spacing: metrics.sizeClass == .compact ? DS.Space.s12 : DS.Space.s20) {
@@ -290,7 +290,7 @@ struct PlayerControlsView: View {
                     .buttonStyle(.plain)
                     .scaleEffect(isPlayPauseHovered ? 1.1 : 1.0)
                     .onHover { hovering in
-                        withAnimation(.easeInOut(duration: 0.2)) {
+                        withAnimation(DS.Motion.standard) {
                             isPlayPauseHovered = hovering
                         }
                     }
@@ -304,7 +304,7 @@ struct PlayerControlsView: View {
                     .buttonStyle(.plain)
                     .scaleEffect(isSkipBackHovered ? 1.1 : 1.0)
                     .onHover { hovering in
-                        withAnimation(.easeInOut(duration: 0.2)) {
+                        withAnimation(DS.Motion.standard) {
                             isSkipBackHovered = hovering
                         }
                     }
@@ -318,7 +318,7 @@ struct PlayerControlsView: View {
                     .buttonStyle(.plain)
                     .scaleEffect(isSkipForwardHovered ? 1.1 : 1.0)
                     .onHover { hovering in
-                        withAnimation(.easeInOut(duration: 0.2)) {
+                        withAnimation(DS.Motion.standard) {
                             isSkipForwardHovered = hovering
                         }
                     }
@@ -326,7 +326,7 @@ struct PlayerControlsView: View {
                     // Volume control
                     HStack(spacing: 0) {
                         Button(action: {
-                            withAnimation(.easeInOut(duration: 0.2)) {
+                            withAnimation(DS.Motion.standard) {
                                 showVolumeSlider.toggle()
                             }
                         }) {
@@ -337,7 +337,7 @@ struct PlayerControlsView: View {
                         .buttonStyle(.plain)
                         .scaleEffect(isVolumeButtonHovered ? 1.1 : 1.0)
                         .onHover { hovering in
-                            withAnimation(.easeInOut(duration: 0.2)) {
+                            withAnimation(DS.Motion.standard) {
                                 isVolumeButtonHovered = hovering
                             }
                         }
@@ -373,7 +373,7 @@ struct PlayerControlsView: View {
                             .buttonStyle(.plain)
                             .scaleEffect(isNextEpisodeHovered ? 1.1 : 1.0)
                             .onHover { hovering in
-                                withAnimation(.easeInOut(duration: 0.2)) {
+                                withAnimation(DS.Motion.standard) {
                                     isNextEpisodeHovered = hovering
                                     showNextEpisodeHover = hovering
                                 }
@@ -391,7 +391,7 @@ struct PlayerControlsView: View {
                         .buttonStyle(.plain)
                         .scaleEffect(isEpisodeListHovered ? 1.1 : 1.0)
                         .onHover { hovering in
-                            withAnimation(.easeInOut(duration: 0.2)) {
+                            withAnimation(DS.Motion.standard) {
                                 isEpisodeListHovered = hovering
                             }
                         }
@@ -410,7 +410,7 @@ struct PlayerControlsView: View {
                         .buttonStyle(.plain)
                         .scaleEffect(isAudioSubtitlesHovered ? 1.1 : 1.0)
                         .onHover { hovering in
-                            withAnimation(.easeInOut(duration: 0.2)) {
+                            withAnimation(DS.Motion.standard) {
                                 isAudioSubtitlesHovered = hovering
                             }
                         }
@@ -428,7 +428,7 @@ struct PlayerControlsView: View {
                     .buttonStyle(.plain)
                     .scaleEffect(isSpeedHovered ? 1.1 : 1.0)
                     .onHover { hovering in
-                        withAnimation(.easeInOut(duration: 0.2)) {
+                        withAnimation(DS.Motion.standard) {
                             isSpeedHovered = hovering
                         }
                     }
@@ -449,7 +449,7 @@ struct PlayerControlsView: View {
                         .buttonStyle(.plain)
                         .scaleEffect(isChaptersHovered ? 1.1 : 1.0)
                         .onHover { hovering in
-                            withAnimation(.easeInOut(duration: 0.2)) {
+                            withAnimation(DS.Motion.standard) {
                                 isChaptersHovered = hovering
                             }
                         }
@@ -483,14 +483,14 @@ struct PlayerControlsView: View {
                             onToggleMPVPiP()
                         }) {
                             Image(systemName: isPiPActive ? "pip.exit" : "pip.enter")
-                                .font(.system(size: 20))
+                                .font(.flixorIcon(DS.Icon.lg))
                                 .frame(width: 32, height: 32)
                                 .foregroundStyle(isPiPActive ? Color.accentColor : .white)
                         }
                         .buttonStyle(.plain)
                         .scaleEffect(isPiPHovered ? 1.1 : 1.0)
                         .onHover { hovering in
-                            withAnimation(.easeInOut(duration: 0.2)) {
+                            withAnimation(DS.Motion.standard) {
                                 isPiPHovered = hovering
                             }
                         }
@@ -512,14 +512,14 @@ struct PlayerControlsView: View {
                     .buttonStyle(.plain)
                     .scaleEffect(isFullscreenHovered ? 1.1 : 1.0)
                     .onHover { hovering in
-                        withAnimation(.easeInOut(duration: 0.2)) {
+                        withAnimation(DS.Motion.standard) {
                             isFullscreenHovered = hovering
                         }
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, DS.Space.s20)
             }
-            .padding(.bottom, 20)
+            .padding(.bottom, DS.Space.s20)
             .background(
                 LinearGradient(
                     colors: [.clear, Color.black.opacity(0.8)],
@@ -599,7 +599,7 @@ struct PlayerControlsView: View {
             if showNextEpisodeHover, let nextEp = viewModel.nextEpisode {
                 NextEpisodeHoverCard(episode: nextEp, viewModel: viewModel)
                     .padding(.trailing, 120)
-                    .padding(.bottom, 80)
+                    .padding(.bottom, DS.Space.s80)
                     .transition(.opacity.combined(with: .scale(scale: 0.95)))
             }
         }
@@ -691,7 +691,7 @@ private struct VolumeSliderPopover: View {
     let isMuted: Bool
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: DS.Space.s12) {
             // Volume icon in popover
             VolumeIcon(volume: volume, isMuted: isMuted)
                 .frame(width: 20, height: 20)
@@ -735,21 +735,21 @@ private struct VolumeSliderPopover: View {
 
             // Percentage display
             Text("\(Int(volume * 100))%")
-                .font(.system(size: 12))
+                .font(.flixor(.footnote))
                 .foregroundStyle(.white.opacity(0.7))
                 .frame(width: 38, alignment: .trailing)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.horizontal, DS.Space.s16)
+        .padding(.vertical, DS.Space.s12)
         .frame(width: 288)
         .background(Color.black.opacity(0.9))
-        .cornerRadius(16)
+        .cornerRadius(DS.Radius.r16)
         .overlay(
-            RoundedRectangle(cornerRadius: 16)
+            RoundedRectangle(cornerRadius: DS.Radius.r16)
                 .strokeBorder(Color.white.opacity(0.1), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.3), radius: 20, y: 8)
-        .padding(.leading, 12)
+        .padding(.leading, DS.Space.s12)
     }
 }
 
@@ -762,7 +762,7 @@ private struct ThumbnailPreviewView: View {
     let isLoading: Bool
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: DS.Space.s8) {
             // Thumbnail image or loading state
             ZStack {
                 if let image = image {
@@ -770,10 +770,10 @@ private struct ThumbnailPreviewView: View {
                         .resizable()
                         .aspectRatio(contentMode: .fill)
                         .frame(width: 200, height: 112)
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r6))
                 } else if isLoading {
                     // Loading state
-                    RoundedRectangle(cornerRadius: 6)
+                    RoundedRectangle(cornerRadius: DS.Radius.r6)
                         .fill(Color.black.opacity(0.6))
                         .frame(width: 200, height: 112)
                         .overlay(
@@ -783,12 +783,12 @@ private struct ThumbnailPreviewView: View {
                         )
                 } else {
                     // Placeholder
-                    RoundedRectangle(cornerRadius: 6)
+                    RoundedRectangle(cornerRadius: DS.Radius.r6)
                         .fill(Color.black.opacity(0.6))
                         .frame(width: 200, height: 112)
                         .overlay(
                             Image(systemName: "photo")
-                                .font(.system(size: 32))
+                                .font(.flixorIcon(DS.Icon.xxl))
                                 .foregroundStyle(.white.opacity(0.3))
                         )
                 }
@@ -804,14 +804,14 @@ private struct ThumbnailPreviewView: View {
                         .truncationMode(.tail)
                 }
                 Text(formatTime(time))
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.flixor(.body, weight: .semibold))
                     .foregroundStyle(.white)
             }
                 .frame(maxWidth: 200)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
+                .padding(.horizontal, DS.Space.s12)
+                .padding(.vertical, DS.Space.s6)
                 .background(Color.black.opacity(0.9))
-                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r6))
         }
         .shadow(color: .black.opacity(0.4), radius: 12, y: 4)
     }

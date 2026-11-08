@@ -14,9 +14,9 @@ struct DetailsTabContent: View {
     var onEntityTap: (EntityBrowseRoute) -> Void = { _ in }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 40) {
+        VStack(alignment: .leading, spacing: DS.Space.s40) {
             // About Section (Apple TV+ style cards) - moved above Cast & Crew
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: DS.Space.s16) {
                 Text("About")
                     .font(.system(size: 22, weight: .semibold))
                     .foregroundStyle(.white)
@@ -24,62 +24,62 @@ struct DetailsTabContent: View {
                 // Tagline (if available)
                 if let tagline = vm.tagline, !tagline.isEmpty {
                     Text("\"\(tagline)\"")
-                        .font(.system(size: 15, weight: .regular))
+                        .font(.flixor(.bodyLarge, weight: .regular))
                         .italic()
                         .foregroundStyle(.white.opacity(0.7))
-                        .padding(.bottom, 4)
+                        .padding(.bottom, DS.Space.s4)
                 }
 
-                HStack(alignment: .top, spacing: 16) {
+                HStack(alignment: .top, spacing: DS.Space.s16) {
                     // Main info card
-                    VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: DS.Space.s12) {
                         Text(vm.title)
-                            .font(.system(size: 18, weight: .semibold))
+                            .font(.flixor(.title3, weight: .semibold))
                             .foregroundStyle(.white)
 
                         if !vm.genres.isEmpty {
                             Text(vm.genres.joined(separator: ", ").uppercased())
-                                .font(.system(size: 12, weight: .medium))
+                                .font(.flixor(.footnote, weight: .medium))
                                 .foregroundStyle(.white.opacity(0.6))
                         }
 
                         if !vm.overview.isEmpty {
                             Text(vm.overview)
-                                .font(.system(size: 14))
+                                .font(.flixor(.body))
                                 .lineSpacing(4)
                                 .foregroundStyle(.white.opacity(0.85))
                         }
 
                         Spacer(minLength: 0)
                     }
-                    .padding(20)
+                    .padding(DS.Space.s20)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
                     .background(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        RoundedRectangle(cornerRadius: DS.Radius.r12, style: .continuous)
                             .fill(Color.white.opacity(0.08))
                     )
 
                     // Content rating card - height matches description card
                     if let rating = vm.rating {
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack(spacing: 8) {
+                        VStack(alignment: .leading, spacing: DS.Space.s8) {
+                            HStack(spacing: DS.Space.s8) {
                                 Image(systemName: "checkmark.seal.fill")
                                     .foregroundStyle(.green)
-                                    .font(.system(size: 18))
+                                    .font(.flixor(.title3))
                                 Text(rating)
-                                    .font(.system(size: 24, weight: .bold))
+                                    .font(.flixor(.title1, weight: .bold))
                                     .foregroundStyle(.white)
                             }
                             Text("CONTENT RATING")
-                                .font(.system(size: 11, weight: .medium))
+                                .font(.flixor(.caption, weight: .medium))
                                 .foregroundStyle(.white.opacity(0.5))
                             Spacer(minLength: 0)
                         }
-                        .padding(20)
+                        .padding(DS.Space.s20)
                         .frame(width: 200)
                         .frame(maxHeight: .infinity)
                         .background(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            RoundedRectangle(cornerRadius: DS.Radius.r12, style: .continuous)
                                 .fill(Color.white.opacity(0.08))
                         )
                     }
@@ -108,14 +108,14 @@ struct DetailsTabContent: View {
             }
 
             // Three-column info section (Apple TV+ style)
-            HStack(alignment: .top, spacing: 40) {
+            HStack(alignment: .top, spacing: DS.Space.s40) {
                 // Information column
-                VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: DS.Space.s20) {
                     Text("Information")
-                        .font(.system(size: 18, weight: .semibold))
+                        .font(.flixor(.title3, weight: .semibold))
                         .foregroundStyle(.white)
 
-                    VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: DS.Space.s16) {
                         // Episode-specific info
                         if vm.isEpisode {
                             if let showTitle = vm.showTitle {
@@ -203,35 +203,35 @@ struct DetailsTabContent: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
                 // Languages column
-                VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: DS.Space.s20) {
                     Text("Languages")
-                        .font(.system(size: 18, weight: .semibold))
+                        .font(.flixor(.title3, weight: .semibold))
                         .foregroundStyle(.white)
 
-                    VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: DS.Space.s16) {
                         if let lang = vm.originalLanguage {
                             InfoRow(label: "Original Audio", value: languageName(for: lang))
                         }
 
                         if !vm.audioTracks.isEmpty {
-                            VStack(alignment: .leading, spacing: 4) {
+                            VStack(alignment: .leading, spacing: DS.Space.s4) {
                                 Text("Audio")
-                                    .font(.system(size: 13, weight: .medium))
+                                    .font(.flixor(.callout, weight: .medium))
                                     .foregroundStyle(.white.opacity(0.5))
                                 Text(vm.audioTracks.map { $0.name }.joined(separator: ", "))
-                                    .font(.system(size: 14))
+                                    .font(.flixor(.body))
                                     .foregroundStyle(.white.opacity(0.9))
                                     .lineLimit(4)
                             }
                         }
 
                         if !vm.subtitleTracks.isEmpty {
-                            VStack(alignment: .leading, spacing: 4) {
+                            VStack(alignment: .leading, spacing: DS.Space.s4) {
                                 Text("Subtitles")
-                                    .font(.system(size: 13, weight: .medium))
+                                    .font(.flixor(.callout, weight: .medium))
                                     .foregroundStyle(.white.opacity(0.5))
                                 Text(vm.subtitleTracks.map { $0.name }.joined(separator: ", "))
-                                    .font(.system(size: 14))
+                                    .font(.flixor(.body))
                                     .foregroundStyle(.white.opacity(0.9))
                                     .lineLimit(6)
                             }
@@ -241,12 +241,12 @@ struct DetailsTabContent: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
                 // Technical / Production column
-                VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: DS.Space.s20) {
                     Text("Technical")
-                        .font(.system(size: 18, weight: .semibold))
+                        .font(.flixor(.title3, weight: .semibold))
                         .foregroundStyle(.white)
 
-                    VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: DS.Space.s16) {
                         if let version = vm.activeVersionDetail {
                             if let res = version.technical.resolution {
                                 InfoRow(label: "Resolution", value: res)
@@ -280,20 +280,20 @@ struct DetailsTabContent: View {
 
             // Collections (from Plex) - if any
             if !vm.collections.isEmpty {
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: DS.Space.s12) {
                     Text("Collections")
-                        .font(.system(size: 18, weight: .semibold))
+                        .font(.flixor(.title3, weight: .semibold))
                         .foregroundStyle(.white)
 
                     FlowLayout(spacing: 8) {
                         ForEach(vm.collections, id: \.self) { collection in
                             Text(collection)
-                                .font(.system(size: 13, weight: .medium))
+                                .font(.flixor(.callout, weight: .medium))
                                 .foregroundStyle(.white.opacity(0.9))
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 8)
+                                .padding(.horizontal, DS.Space.s14)
+                                .padding(.vertical, DS.Space.s8)
                                 .background(
-                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    RoundedRectangle(cornerRadius: DS.Radius.r8, style: .continuous)
                                         .fill(Color.white.opacity(0.1))
                                 )
                         }
@@ -303,27 +303,27 @@ struct DetailsTabContent: View {
 
             // External Links
             if vm.imdbId != nil || vm.tmdbId != nil {
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: DS.Space.s12) {
                     Text("External Links")
-                        .font(.system(size: 18, weight: .semibold))
+                        .font(.flixor(.title3, weight: .semibold))
                         .foregroundStyle(.white)
 
-                    HStack(spacing: 12) {
+                    HStack(spacing: DS.Space.s12) {
                         if let imdbId = vm.imdbId {
                             Link(destination: URL(string: "https://www.imdb.com/title/\(imdbId)")!) {
-                                HStack(spacing: 8) {
+                                HStack(spacing: DS.Space.s8) {
                                     Image("imdb")
                                         .resizable()
                                         .aspectRatio(contentMode: .fit)
                                         .frame(height: 18)
                                     Text("View on IMDb")
-                                        .font(.system(size: 13, weight: .medium))
+                                        .font(.flixor(.callout, weight: .medium))
                                 }
                                 .foregroundStyle(.black)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 10)
+                                .padding(.horizontal, DS.Space.s16)
+                                .padding(.vertical, DS.Space.s10)
                                 .background(
-                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    RoundedRectangle(cornerRadius: DS.Radius.r8, style: .continuous)
                                         .fill(Color(red: 0.96, green: 0.77, blue: 0.09)) // IMDb yellow
                                 )
                             }
@@ -331,24 +331,24 @@ struct DetailsTabContent: View {
                         if let tmdbId = vm.tmdbId {
                             let mediaPath = vm.mediaKind == "tv" ? "tv" : "movie"
                             Link(destination: URL(string: "https://www.themoviedb.org/\(mediaPath)/\(tmdbId)")!) {
-                                HStack(spacing: 8) {
+                                HStack(spacing: DS.Space.s8) {
                                     // TMDB logo representation
                                     ZStack {
                                         Circle()
                                             .fill(Color(red: 0.02, green: 0.82, blue: 0.61)) // TMDB teal
                                             .frame(width: 20, height: 20)
                                         Text("T")
-                                            .font(.system(size: 12, weight: .bold))
+                                            .font(.flixor(.footnote, weight: .bold))
                                             .foregroundStyle(.white)
                                     }
                                     Text("View on TMDB")
-                                        .font(.system(size: 13, weight: .medium))
+                                        .font(.flixor(.callout, weight: .medium))
                                 }
                                 .foregroundStyle(.white)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 10)
+                                .padding(.horizontal, DS.Space.s16)
+                                .padding(.vertical, DS.Space.s10)
                                 .background(
-                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    RoundedRectangle(cornerRadius: DS.Radius.r8, style: .continuous)
                                         .fill(Color(red: 0.03, green: 0.21, blue: 0.33)) // TMDB dark blue
                                 )
                             }
@@ -492,12 +492,12 @@ private struct InfoRow: View {
     let value: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: DS.Space.s4) {
             Text(label)
-                .font(.system(size: 13, weight: .medium))
+                .font(.flixor(.callout, weight: .medium))
                 .foregroundStyle(.white.opacity(0.5))
             Text(value)
-                .font(.system(size: 14))
+                .font(.flixor(.body))
                 .foregroundStyle(.white.opacity(0.9))
         }
     }
@@ -551,14 +551,14 @@ private struct InfoColumn: View {
     let content: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: DS.Space.s8) {
             Text(title)
-                .font(.system(size: 13, weight: .semibold))
+                .font(.flixor(.callout, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.6))
                 .textCase(.uppercase)
 
             Text(content)
-                .font(.system(size: 15))
+                .font(.flixor(.bodyLarge))
                 .lineSpacing(3)
                 .foregroundStyle(.white.opacity(0.9))
                 .fixedSize(horizontal: false, vertical: true)

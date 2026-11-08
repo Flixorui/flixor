@@ -36,7 +36,7 @@ struct ToastView: View {
     }
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: DS.Space.s12) {
             Image(systemName: type.icon)
                 .font(.title3)
                 .foregroundStyle(type.color)
@@ -58,7 +58,7 @@ struct ToastView: View {
         }
         .padding()
         .background(Color.black.opacity(0.9))
-        .cornerRadius(12)
+        .cornerRadius(DS.Radius.r12)
         .shadow(color: .black.opacity(0.3), radius: 10, y: 5)
         .transition(.move(edge: .top).combined(with: .opacity))
         .onAppear {
@@ -139,7 +139,7 @@ extension View {
 
 #if DEBUG && canImport(PreviewsMacros)
 #Preview {
-    VStack(spacing: 20) {
+    VStack(spacing: DS.Space.s20) {
         ToastView(
             message: "Successfully added to My List",
             type: .success,

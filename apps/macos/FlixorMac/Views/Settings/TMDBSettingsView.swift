@@ -14,28 +14,28 @@ struct TMDBSettingsView: View {
     private let tmdbColor = Color(hex: "01B4E4")
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
+        VStack(alignment: .leading, spacing: DS.Space.s24) {
             // API Key
             SettingsSectionHeader(title: "API Configuration")
             SettingsGroupCard {
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: DS.Space.s12) {
                     Text("Custom API Key")
-                        .font(.system(size: 13, weight: .medium))
-                        .padding(.horizontal, 12)
-                        .padding(.top, 12)
+                        .font(.flixor(.callout, weight: .medium))
+                        .padding(.horizontal, DS.Space.s12)
+                        .padding(.top, DS.Space.s12)
 
                     TextField("Enter your TMDB API key (optional)", text: Binding(get: { defaults.tmdbApiKey }, set: { defaults.tmdbApiKey = $0 }))
                         .textFieldStyle(.plain)
-                        .padding(10)
+                        .padding(DS.Space.s10)
                         .background(Color(NSColor.textBackgroundColor))
-                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                        .padding(.horizontal, 12)
+                        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r8, style: .continuous))
+                        .padding(.horizontal, DS.Space.s12)
 
                     Text("Leave empty to use the default app key")
-                        .font(.system(size: 11))
+                        .font(.flixor(.caption))
                         .foregroundStyle(.secondary)
-                        .padding(.horizontal, 12)
-                        .padding(.bottom, 12)
+                        .padding(.horizontal, DS.Space.s12)
+                        .padding(.bottom, DS.Space.s12)
                 }
             }
 
@@ -68,9 +68,9 @@ struct TMDBSettingsView: View {
 
             // Info
             Text("TMDB provides movie and TV show metadata, artwork, cast information, and logos.")
-                .font(.system(size: 11))
+                .font(.flixor(.caption))
                 .foregroundStyle(.secondary)
-                .padding(.horizontal, 4)
+                .padding(.horizontal, DS.Space.s4)
         }
     }
 }

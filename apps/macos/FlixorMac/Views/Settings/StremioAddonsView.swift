@@ -21,41 +21,41 @@ struct StremioAddonsView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: DS.Space.s4) {
                     Text("Stremio Addons")
-                        .font(.system(size: 18, weight: .semibold))
+                        .font(.flixor(.title3, weight: .semibold))
                     Text("Install, reorder, configure, and remove Stremio addons.")
-                        .font(.system(size: 12))
+                        .font(.flixor(.footnote))
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
                 Button(action: { dismiss() }) {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 20))
+                        .font(.flixorIcon(DS.Icon.lg))
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
             }
-            .padding(.horizontal, 24)
-            .padding(.top, 20)
-            .padding(.bottom, 16)
+            .padding(.horizontal, DS.Space.s24)
+            .padding(.top, DS.Space.s20)
+            .padding(.bottom, DS.Space.s16)
 
             Divider()
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: DS.Space.s24) {
                     SettingsSectionHeader(title: "Install")
                     SettingsGroupCard {
-                        VStack(alignment: .leading, spacing: 12) {
+                        VStack(alignment: .leading, spacing: DS.Space.s12) {
                             TextField("https://example.com/manifest.json", text: $manifestURL)
                                 .textFieldStyle(.plain)
-                                .padding(10)
+                                .padding(DS.Space.s10)
                                 .background(Color(NSColor.textBackgroundColor))
-                                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r8, style: .continuous))
 
                             HStack {
                                 Text("Paste a Stremio addon manifest URL. OpenSubtitles is installed automatically the first time Stremio is enabled.")
-                                    .font(.system(size: 11))
+                                    .font(.flixor(.caption))
                                     .foregroundStyle(.secondary)
                                 Spacer()
                                 Button(isInstalling ? "Installing..." : "Install Addon") {
@@ -65,41 +65,41 @@ struct StremioAddonsView: View {
                                 .disabled(isInstalling || manifestURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                             }
                         }
-                        .padding(12)
+                        .padding(DS.Space.s12)
                     }
 
                     if let lastInstallError, !lastInstallError.isEmpty {
                         SettingsSectionHeader(title: "Last Install Error")
                         SettingsGroupCard {
-                            VStack(alignment: .leading, spacing: 8) {
+                            VStack(alignment: .leading, spacing: DS.Space.s8) {
                                 Text(lastInstallError)
-                                    .font(.system(size: 12, design: .monospaced))
+                                    .font(.flixor(.footnote, design: .monospaced))
                                     .foregroundStyle(.red)
                                     .textSelection(.enabled)
                                 Text("The full error is also written to Settings > Logs.")
-                                    .font(.system(size: 11))
+                                    .font(.flixor(.caption))
                                     .foregroundStyle(.secondary)
                             }
-                            .padding(12)
+                            .padding(DS.Space.s12)
                         }
                     }
 
                     SettingsSectionHeader(title: "Installed Addons")
                     if addonSummaries.isEmpty && !isLoading {
                         SettingsGroupCard {
-                            VStack(spacing: 10) {
+                            VStack(spacing: DS.Space.s10) {
                                 Image(systemName: "puzzlepiece.extension")
-                                    .font(.system(size: 28))
+                                    .font(.flixor(.largeTitle))
                                     .foregroundStyle(.secondary)
                                 Text("No addons installed")
-                                    .font(.system(size: 13, weight: .medium))
+                                    .font(.flixor(.callout, weight: .medium))
                                 Text("Install a manifest URL to add Stremio stream or subtitle providers.")
-                                    .font(.system(size: 11))
+                                    .font(.flixor(.caption))
                                     .foregroundStyle(.secondary)
                                     .multilineTextAlignment(.center)
                             }
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 24)
+                            .padding(.vertical, DS.Space.s24)
                         }
                     } else {
                         List {
@@ -113,7 +113,7 @@ struct StremioAddonsView: View {
                         .frame(minHeight: 320)
                     }
                 }
-                .padding(24)
+                .padding(DS.Space.s24)
             }
         }
         .frame(width: 760, height: 720)
@@ -130,21 +130,21 @@ struct StremioAddonsView: View {
 
     @ViewBuilder
     private func addonRow(_ addon: StremioAddonSummary) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top, spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: DS.Space.s10) {
+            HStack(alignment: .top, spacing: DS.Space.s12) {
+                VStack(alignment: .leading, spacing: DS.Space.s4) {
                     Text(addon.name)
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.flixor(.body, weight: .semibold))
                     if let manifestURL = addon.manifestURL, !manifestURL.isEmpty {
                         Text(manifestURL)
-                            .font(.system(size: 11, design: .monospaced))
+                            .font(.flixor(.caption, design: .monospaced))
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
                             .textSelection(.enabled)
                     }
                 }
                 Spacer()
-                HStack(spacing: 6) {
+                HStack(spacing: DS.Space.s6) {
                     capabilityBadge(title: "Streams", active: addon.streamCapable, color: .blue)
                     capabilityBadge(title: "Subtitles", active: addon.subtitleCapable, color: .purple)
                     capabilityBadge(title: "Catalogs", active: addon.catalogCapable, color: .teal)
@@ -153,11 +153,11 @@ struct StremioAddonsView: View {
 
             if addon.configurationRequired {
                 Label("This addon requires configuration before it can return results.", systemImage: "exclamationmark.triangle.fill")
-                    .font(.system(size: 11))
+                    .font(.flixor(.caption))
                     .foregroundStyle(.orange)
             }
 
-            HStack(spacing: 8) {
+            HStack(spacing: DS.Space.s8) {
                 if addon.configureURL != nil {
                     Button("Configure") {
                         Task { await configureAddon(addon) }
@@ -179,15 +179,15 @@ struct StremioAddonsView: View {
                     .help("Drag to reorder")
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, DS.Space.s4)
     }
 
     private func capabilityBadge(title: String, active: Bool, color: Color) -> some View {
         Text(title)
-            .font(.system(size: 10, weight: .semibold))
+            .font(.flixor(.micro, weight: .semibold))
             .foregroundStyle(active ? color : .secondary)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
+            .padding(.horizontal, DS.Space.s8)
+            .padding(.vertical, DS.Space.s4)
             .background((active ? color.opacity(0.14) : Color.white.opacity(0.06)), in: Capsule())
             .overlay(
                 Capsule()

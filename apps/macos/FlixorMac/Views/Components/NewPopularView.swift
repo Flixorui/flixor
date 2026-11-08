@@ -38,7 +38,7 @@ struct NewPopularView: View {
                 }
 
                 // Tab Navigation + Filters
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: DS.Space.s16) {
                     HStack(spacing: 0) {
                         // Tabs
                         tabNavigation
@@ -47,7 +47,7 @@ struct NewPopularView: View {
                         filterControls
                     }
                     .padding(.horizontal, horizontalPadding)
-                    .padding(.top, 32)
+                    .padding(.top, DS.Space.s32)
 
                     Divider()
                         .padding(.horizontal, horizontalPadding)
@@ -57,14 +57,14 @@ struct NewPopularView: View {
                 if viewModel.isLoading {
                     loadingView
                         .padding(.horizontal, horizontalPadding)
-                        .padding(.top, 32)
+                        .padding(.top, DS.Space.s32)
                 } else if let errorMessage = viewModel.errorMessage {
                     errorView(errorMessage)
                         .padding(.horizontal, horizontalPadding)
-                        .padding(.top, 32)
+                        .padding(.top, DS.Space.s32)
                 } else {
                     contentView
-                        .padding(.top, 32)
+                        .padding(.top, DS.Space.s32)
                 }
             }
         }
@@ -87,14 +87,14 @@ struct NewPopularView: View {
     // MARK: - Tab Navigation
 
     private var tabNavigation: some View {
-        HStack(spacing: 32) {
+        HStack(spacing: DS.Space.s32) {
             ForEach(NewPopularViewModel.Tab.allCases) { tab in
                 Button(action: {
                     viewModel.activeTab = tab
                 }) {
-                    VStack(spacing: 6) {
+                    VStack(spacing: DS.Space.s6) {
                         Text(tab.rawValue)
-                            .font(.system(size: 15, weight: .semibold))
+                            .font(.flixor(.bodyLarge, weight: .semibold))
                             .foregroundStyle(viewModel.activeTab == tab ? .white : .white.opacity(0.5))
 
                         Rectangle()
@@ -110,7 +110,7 @@ struct NewPopularView: View {
     // MARK: - Filter Controls
 
     private var filterControls: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: DS.Space.s16) {
             // Content Type Filter
             Picker("Type", selection: $viewModel.contentType) {
                 ForEach(NewPopularViewModel.ContentType.allCases) { type in
@@ -150,7 +150,7 @@ struct NewPopularView: View {
     }
 
     private var trendingContent: some View {
-        VStack(alignment: .leading, spacing: 40) {
+        VStack(alignment: .leading, spacing: DS.Space.s40) {
             // New on Plex
             if !viewModel.recentlyAdded.isEmpty {
                 contentRow(title: "New on Your Plex", items: viewModel.recentlyAdded)
@@ -171,13 +171,13 @@ struct NewPopularView: View {
                 contentRow(title: "Trending TV Shows", items: viewModel.trendingShows)
             }
         }
-        .padding(.bottom, 40)
+        .padding(.bottom, DS.Space.s40)
     }
 
     private var top10Content: some View {
-        VStack(alignment: .leading, spacing: 24) {
+        VStack(alignment: .leading, spacing: DS.Space.s24) {
             Text("Top 10 \(viewModel.period.rawValue)")
-                .font(.system(size: 24, weight: .semibold))
+                .font(.flixor(.title1, weight: .semibold))
                 .foregroundStyle(.white)
                 .padding(.horizontal, horizontalPadding)
 
@@ -192,11 +192,11 @@ struct NewPopularView: View {
                     .padding(.horizontal, horizontalPadding)
             }
         }
-        .padding(.bottom, 32)
+        .padding(.bottom, DS.Space.s32)
     }
 
     private var comingSoonContent: some View {
-        VStack(alignment: .leading, spacing: 24) {
+        VStack(alignment: .leading, spacing: DS.Space.s24) {
             if !viewModel.upcoming.isEmpty {
                 contentRow(title: "Coming Soon", items: viewModel.upcoming)
                     .padding(.horizontal, horizontalPadding)
@@ -206,11 +206,11 @@ struct NewPopularView: View {
                     .padding(.horizontal, horizontalPadding)
             }
         }
-        .padding(.bottom, 32)
+        .padding(.bottom, DS.Space.s32)
     }
 
     private var worthWaitContent: some View {
-        VStack(alignment: .leading, spacing: 24) {
+        VStack(alignment: .leading, spacing: DS.Space.s24) {
             if !viewModel.anticipated.isEmpty {
                 contentRow(title: "Most Anticipated", items: viewModel.anticipated)
                     .padding(.horizontal, horizontalPadding)
@@ -220,18 +220,18 @@ struct NewPopularView: View {
                     .padding(.horizontal, horizontalPadding)
             }
         }
-        .padding(.bottom, 32)
+        .padding(.bottom, DS.Space.s32)
     }
 
     // MARK: - Content Row
 
     private func contentRow(title: String, items: [DisplayMediaItem]) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: DS.Space.s12) {
             // Header
             Text(title)
                 .font(.title2.bold())
                 .foregroundStyle(.primary)
-                .padding(.horizontal, 20)
+                .padding(.horizontal, DS.Space.s20)
 
             // Carousel with navigation arrows
             CarouselView(
@@ -255,23 +255,23 @@ struct NewPopularView: View {
     // MARK: - Loading & Error States
 
     private var loadingView: some View {
-        VStack(spacing: 40) {
+        VStack(spacing: DS.Space.s40) {
             ForEach(0..<3, id: \.self) { _ in
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: DS.Space.s12) {
                     // Title skeleton
-                    SkeletonView(height: 24, cornerRadius: 8)
+                    SkeletonView(height: 24, cornerRadius: DS.Radius.r8)
                         .frame(width: 200)
-                        .padding(.horizontal, 20)
+                        .padding(.horizontal, DS.Space.s20)
 
                     // Cards skeleton - landscape aspect ratio (2:1) with 420px width
                     ScrollView(.horizontal, showsIndicators: false) {
-                        LazyHStack(spacing: 16) {
+                        LazyHStack(spacing: DS.Space.s16) {
                             ForEach(0..<8, id: \.self) { _ in
-                                SkeletonView(height: 210, cornerRadius: 14)
+                                SkeletonView(height: 210, cornerRadius: DS.Radius.r14)
                                     .frame(width: 420)
                             }
                         }
-                        .padding(.horizontal, 20)
+                        .padding(.horizontal, DS.Space.s20)
                     }
                     .frame(height: (420 * 0.5) + 56)
                 }
@@ -280,9 +280,9 @@ struct NewPopularView: View {
     }
 
     private func errorView(_ message: String) -> some View {
-        VStack(spacing: 16) {
+        VStack(spacing: DS.Space.s16) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 48))
+                .font(.flixorIcon(DS.Icon.huge))
                 .foregroundStyle(.orange)
 
             Text(message)
@@ -295,7 +295,7 @@ struct NewPopularView: View {
             .buttonStyle(.borderedProminent)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 80)
+        .padding(.vertical, DS.Space.s80)
     }
 
     // MARK: - Navigation Helpers
@@ -385,9 +385,9 @@ private struct Top10Card: View {
                 if let imageURL = item.imageURL {
                     CachedAsyncImage(url: imageURL)
                         .aspectRatio(2/3, contentMode: .fill)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r12))
                 } else {
-                    RoundedRectangle(cornerRadius: 12)
+                    RoundedRectangle(cornerRadius: DS.Radius.r12)
                         .fill(Color.gray.opacity(0.3))
                         .aspectRatio(2/3, contentMode: .fit)
                 }
@@ -397,15 +397,15 @@ private struct Top10Card: View {
                     .font(.system(size: 72, weight: .black))
                     .foregroundStyle(.white)
                     .shadow(color: .black.opacity(0.8), radius: 4, x: 2, y: 2)
-                    .padding(16)
+                    .padding(DS.Space.s16)
             }
             .overlay(
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: DS.Radius.r12)
                     .stroke(Color.white.opacity(isHovered ? 0.9 : 0.15), lineWidth: isHovered ? 2 : 1)
             )
             .shadow(color: .black.opacity(isHovered ? 0.5 : 0.2), radius: isHovered ? 12 : 6, y: isHovered ? 6 : 3)
             .scaleEffect(isHovered ? 1.05 : 1.0)
-            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isHovered)
+            .animation(DS.Motion.spring, value: isHovered)
         }
         .buttonStyle(.plain)
         .onHover { hovering in

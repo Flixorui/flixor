@@ -44,14 +44,14 @@ struct ServerConnectionView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Header
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: DS.Space.s6) {
                 Text("Connections for \(server.name)")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.flixor(.bodyLarge, weight: .semibold))
                 Text("Select the endpoint that works best from this Mac")
-                    .font(.system(size: 12))
+                    .font(.flixor(.footnote))
                     .foregroundStyle(.secondary)
             }
-            .padding(.bottom, 16)
+            .padding(.bottom, DS.Space.s16)
 
             if isLoading {
                 loadingState
@@ -60,24 +60,24 @@ struct ServerConnectionView: View {
             } else {
                 // Filters
                 filtersRow
-                    .padding(.bottom, 12)
+                    .padding(.bottom, DS.Space.s12)
 
                 // Connection list
                 connectionList
 
                 // Custom endpoint
                 customEndpointSection
-                    .padding(.top, 12)
+                    .padding(.top, DS.Space.s12)
             }
 
             // Status message
             if let status = statusMessage {
                 messageRow(text: status, style: .success)
-                    .padding(.top, 12)
+                    .padding(.top, DS.Space.s12)
             }
             if let error = errorMessage, !connections.isEmpty {
                 messageRow(text: error, style: .error)
-                    .padding(.top, 12)
+                    .padding(.top, DS.Space.s12)
             }
 
             Spacer(minLength: 16)
@@ -89,13 +89,13 @@ struct ServerConnectionView: View {
                     .keyboardShortcut(.defaultAction)
             }
         }
-        .padding(24)
+        .padding(DS.Space.s24)
         .frame(width: 520, height: 480)
         .onAppear { Task { await loadConnections() } }
     }
 
     private var loadingState: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: DS.Space.s12) {
             ProgressView()
             Text("Loading endpoints…")
                 .font(.caption)
@@ -105,7 +105,7 @@ struct ServerConnectionView: View {
     }
 
     private var filtersRow: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: DS.Space.s12) {
             Picker("", selection: $protocolFilter) {
                 ForEach(ProtocolFilter.allCases) { filter in
                     Text(filter.label).tag(filter)
@@ -150,7 +150,7 @@ struct ServerConnectionView: View {
             )
         } else {
             ScrollView {
-                VStack(spacing: 8) {
+                VStack(spacing: DS.Space.s8) {
                     ForEach(filteredConnections) { connection in
                         connectionCard(connection)
                     }
@@ -164,33 +164,33 @@ struct ServerConnectionView: View {
         let isCurrent = connection.isCurrent == true
         let type = connectionType(for: connection)
 
-        return HStack(spacing: 12) {
+        return HStack(spacing: DS.Space.s12) {
             // Type indicator
             Circle()
                 .fill(type.color)
                 .frame(width: 8, height: 8)
 
             // URI
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: DS.Space.s2) {
                 Text(connection.uri)
-                    .font(.system(size: 11, design: .monospaced))
+                    .font(.flixor(.caption, design: .monospaced))
                     .lineLimit(1)
                     .truncationMode(.middle)
 
-                HStack(spacing: 6) {
+                HStack(spacing: DS.Space.s6) {
                     Text(type.rawValue)
-                        .font(.system(size: 10, weight: .medium))
+                        .font(.flixor(.micro, weight: .medium))
                         .foregroundStyle(type.color)
 
                     if isCurrent {
                         Text("Current")
-                            .font(.system(size: 10, weight: .medium))
+                            .font(.flixor(.micro, weight: .medium))
                             .foregroundStyle(.secondary)
                     }
 
                     if connection.IPv6 == true {
                         Text("IPv6")
-                            .font(.system(size: 10, weight: .medium))
+                            .font(.flixor(.micro, weight: .medium))
                             .foregroundStyle(.purple)
                     }
                 }
@@ -204,12 +204,12 @@ struct ServerConnectionView: View {
                     .scaleEffect(0.6)
                     .frame(width: 50)
             } else {
-                HStack(spacing: 6) {
+                HStack(spacing: DS.Space.s6) {
                     Button("Test") {
                         Task { await testConnection(connection) }
                     }
                     .buttonStyle(.plain)
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.flixor(.caption, weight: .medium))
                     .foregroundStyle(.blue)
                     .disabled(testingURI != nil)
 
@@ -218,24 +218,24 @@ struct ServerConnectionView: View {
                             Task { await select(connection) }
                         }
                         .buttonStyle(.plain)
-                        .font(.system(size: 11, weight: .medium))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
+                        .font(.flixor(.caption, weight: .medium))
+                        .padding(.horizontal, DS.Space.s10)
+                        .padding(.vertical, DS.Space.s4)
                         .background(Color.accentColor)
                         .foregroundStyle(.white)
-                        .cornerRadius(4)
+                        .cornerRadius(DS.Radius.r4)
                         .disabled(testingURI != nil)
                     }
                 }
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.horizontal, DS.Space.s12)
+        .padding(.vertical, DS.Space.s10)
         .background(
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: DS.Radius.r8)
                 .fill(isCurrent ? Color.accentColor.opacity(0.08) : Color.primary.opacity(0.03))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 8)
+                    RoundedRectangle(cornerRadius: DS.Radius.r8)
                         .stroke(isCurrent ? Color.accentColor.opacity(0.3) : Color.primary.opacity(0.06), lineWidth: 1)
                 )
         )
@@ -250,15 +250,15 @@ struct ServerConnectionView: View {
     // MARK: - Custom Endpoint
 
     private var customEndpointSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: DS.Space.s8) {
             Text("Custom Endpoint")
-                .font(.system(size: 11, weight: .medium))
+                .font(.flixor(.caption, weight: .medium))
                 .foregroundStyle(.secondary)
 
-            HStack(spacing: 8) {
+            HStack(spacing: DS.Space.s8) {
                 TextField("https://custom-server:32400", text: $customEndpoint)
                     .textFieldStyle(.roundedBorder)
-                    .font(.system(size: 11))
+                    .font(.flixor(.caption))
 
                 if testingCustom {
                     ProgressView()
@@ -395,19 +395,19 @@ struct ServerConnectionView: View {
     private enum MessageStyle { case error, success, info }
 
     private func messageRow(text: String, style: MessageStyle) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: DS.Space.s6) {
             Image(systemName: style == .error ? "exclamationmark.circle.fill" :
                     style == .success ? "checkmark.circle.fill" : "info.circle.fill")
-                .font(.system(size: 12))
+                .font(.flixorIcon(DS.Icon.xs))
             Text(text)
-                .font(.system(size: 12))
+                .font(.flixor(.footnote))
         }
         .foregroundStyle(style == .error ? .red : style == .success ? .green : .secondary)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.horizontal, DS.Space.s12)
+        .padding(.vertical, DS.Space.s8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 6)
+            RoundedRectangle(cornerRadius: DS.Radius.r6)
                 .fill(style == .error ? Color.red.opacity(0.1) :
                         style == .success ? Color.green.opacity(0.1) : Color.primary.opacity(0.03))
         )

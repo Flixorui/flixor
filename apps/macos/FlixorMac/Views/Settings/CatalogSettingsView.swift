@@ -20,7 +20,7 @@ struct CatalogSettingsView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
+        VStack(alignment: .leading, spacing: DS.Space.s24) {
             if isLoading {
                 loadingSection
             } else if let error = errorMessage {
@@ -36,31 +36,31 @@ struct CatalogSettingsView: View {
 
     private var loadingSection: some View {
         SettingsGroupCard {
-            HStack(spacing: 12) {
+            HStack(spacing: DS.Space.s12) {
                 ProgressView()
                     .scaleEffect(0.7)
                 Text("Loading libraries...")
-                    .font(.system(size: 13))
+                    .font(.flixor(.callout))
                     .foregroundStyle(.secondary)
                 Spacer()
             }
-            .padding(16)
+            .padding(DS.Space.s16)
         }
     }
 
     private func errorSection(_ error: String) -> some View {
-        VStack(spacing: 16) {
+        VStack(spacing: DS.Space.s16) {
             SettingsGroupCard {
-                VStack(spacing: 12) {
+                VStack(spacing: DS.Space.s12) {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 32))
+                        .font(.flixorIcon(DS.Icon.xxl))
                         .foregroundStyle(.orange)
 
                     Text("Failed to load libraries")
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(.flixor(.bodyLarge, weight: .semibold))
 
                     Text(error)
-                        .font(.system(size: 12))
+                        .font(.flixor(.footnote))
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
 
@@ -71,32 +71,32 @@ struct CatalogSettingsView: View {
                     .controlSize(.regular)
                 }
                 .frame(maxWidth: .infinity)
-                .padding(24)
+                .padding(DS.Space.s24)
             }
         }
     }
 
     private var emptySection: some View {
         SettingsGroupCard {
-            VStack(spacing: 12) {
+            VStack(spacing: DS.Space.s12) {
                 Image(systemName: "folder.badge.questionmark")
-                    .font(.system(size: 32))
+                    .font(.flixorIcon(DS.Icon.xxl))
                     .foregroundStyle(.secondary)
 
                 Text("No libraries found")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.flixor(.bodyLarge, weight: .semibold))
 
                 Text("Connect to a Plex server to see your libraries.")
-                    .font(.system(size: 12))
+                    .font(.flixor(.footnote))
                     .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity)
-            .padding(24)
+            .padding(DS.Space.s24)
         }
     }
 
     private var librariesSection: some View {
-        VStack(alignment: .leading, spacing: 24) {
+        VStack(alignment: .leading, spacing: DS.Space.s24) {
             // Movies
             let movieLibraries = libraries.filter { $0.type.lowercased() == "movie" }
             if !movieLibraries.isEmpty {
@@ -132,9 +132,9 @@ struct CatalogSettingsView: View {
 
             // Info
             Text("Disabled libraries will be hidden from the sidebar and home screen.")
-                .font(.system(size: 11))
+                .font(.flixor(.caption))
                 .foregroundStyle(.secondary)
-                .padding(.horizontal, 4)
+                .padding(.horizontal, DS.Space.s4)
         }
     }
 

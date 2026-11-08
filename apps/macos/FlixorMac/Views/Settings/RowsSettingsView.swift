@@ -15,7 +15,7 @@ struct RowsSettingsView: View {
     @State private var showCollectionRowsSettings = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
+        VStack(alignment: .leading, spacing: DS.Space.s24) {
             // Row Visibility
             SettingsSectionHeader(title: "Row Visibility")
             SettingsGroupCard {
@@ -72,9 +72,9 @@ struct RowsSettingsView: View {
             }
 
             Text("Toggle which content rows appear on your home screen.")
-                .font(.system(size: 11))
+                .font(.flixor(.caption))
                 .foregroundStyle(.secondary)
-                .padding(.horizontal, 4)
+                .padding(.horizontal, DS.Space.s4)
 
             // Reorder, rename and hide individual rows
             HomeRowsEditor()

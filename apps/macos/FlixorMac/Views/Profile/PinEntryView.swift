@@ -20,9 +20,9 @@ struct PinEntryView: View {
     private let pinLength = 4
 
     var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: DS.Space.s24) {
             // Header
-            VStack(spacing: 16) {
+            VStack(spacing: DS.Space.s16) {
                 ProfileAvatarView(user: user, size: 80)
 
                 Text("Enter PIN for \(user.displayName)")
@@ -36,7 +36,7 @@ struct PinEntryView: View {
             }
 
             // PIN Input Display
-            HStack(spacing: 16) {
+            HStack(spacing: DS.Space.s16) {
                 ForEach(0..<pinLength, id: \.self) { index in
                     PinDigitView(
                         digit: digitAt(index),
@@ -44,7 +44,7 @@ struct PinEntryView: View {
                     )
                 }
             }
-            .padding(.vertical, 20)
+            .padding(.vertical, DS.Space.s20)
 
             // Hidden text field for keyboard input
             TextField("", text: $pin)
@@ -68,9 +68,9 @@ struct PinEntryView: View {
                 }
 
             // Number Pad
-            VStack(spacing: 12) {
+            VStack(spacing: DS.Space.s12) {
                 ForEach(0..<3, id: \.self) { row in
-                    HStack(spacing: 12) {
+                    HStack(spacing: DS.Space.s12) {
                         ForEach(1...3, id: \.self) { col in
                             let digit = row * 3 + col
                             NumberPadButton(digit: String(digit)) {
@@ -79,7 +79,7 @@ struct PinEntryView: View {
                         }
                     }
                 }
-                HStack(spacing: 12) {
+                HStack(spacing: DS.Space.s12) {
                     // Empty space for alignment
                     NumberPadButton(digit: "", action: {})
                         .opacity(0)
@@ -93,19 +93,19 @@ struct PinEntryView: View {
                     }
                 }
             }
-            .padding(.horizontal, 40)
+            .padding(.horizontal, DS.Space.s40)
 
             Spacer()
 
             // Buttons
-            HStack(spacing: 16) {
+            HStack(spacing: DS.Space.s16) {
                 Button("Cancel") {
                     dismiss()
                 }
                 .buttonStyle(.plain)
                 .foregroundColor(.secondary)
-                .padding(.horizontal, 24)
-                .padding(.vertical, 12)
+                .padding(.horizontal, DS.Space.s24)
+                .padding(.vertical, DS.Space.s12)
 
                 Button {
                     submit()
@@ -119,10 +119,10 @@ struct PinEntryView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(pin.count != pinLength || isSubmitting)
-                .padding(.horizontal, 24)
-                .padding(.vertical, 12)
+                .padding(.horizontal, DS.Space.s24)
+                .padding(.vertical, DS.Space.s12)
             }
-            .padding(.bottom, 20)
+            .padding(.bottom, DS.Space.s20)
         }
         .frame(width: 400, height: 550)
         .background(Color(nsColor: .windowBackgroundColor))
@@ -165,11 +165,11 @@ struct PinDigitView: View {
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: DS.Radius.r8)
                 .fill(Color(nsColor: .controlBackgroundColor))
                 .frame(width: 50, height: 60)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 8)
+                    RoundedRectangle(cornerRadius: DS.Radius.r8)
                         .stroke(isFilled ? Color.accentColor : Color.gray.opacity(0.3), lineWidth: 2)
                 )
 

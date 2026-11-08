@@ -99,7 +99,7 @@ struct RootView: View {
                         .scaleEffect(1.5)
                     Text("Loading...")
                         .foregroundColor(.secondary)
-                        .padding(.top, 8)
+                        .padding(.top, DS.Space.s8)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color.black)
@@ -115,7 +115,7 @@ struct RootView: View {
             } else if !profileSettings.hasCompletedOnboarding {
                 // Connected but not onboarded - show onboarding
                 OnboardingView {
-                    withAnimation(.easeInOut(duration: 0.3)) {
+                    withAnimation(DS.Motion.emphasized) {
                         profileSettings.hasCompletedOnboarding = true
                     }
                 }
@@ -127,9 +127,9 @@ struct RootView: View {
                     .transition(.opacity)
             }
         }
-        .animation(.easeInOut(duration: 0.3), value: needsPlexAuth)
-        .animation(.easeInOut(duration: 0.3), value: needsPlexServer)
-        .animation(.easeInOut(duration: 0.3), value: profileSettings.hasCompletedOnboarding)
+        .animation(DS.Motion.emphasized, value: needsPlexAuth)
+        .animation(DS.Motion.emphasized, value: needsPlexServer)
+        .animation(DS.Motion.emphasized, value: profileSettings.hasCompletedOnboarding)
         // Pure black: paint the window black behind screens that leave areas
         // transparent. Off by default so the default look is unchanged.
         .background(theme.pureBlack ? Color.black.ignoresSafeArea() : nil)
@@ -329,7 +329,7 @@ struct MainView: View {
         .toolbar {
             // Logo on left
             ToolbarItem(placement: .navigation) {
-                HStack(spacing: 8) {
+                HStack(spacing: DS.Space.s8) {
                     ToolbarBackButton()
 
                     Image(systemName: "play.rectangle.fill")
@@ -339,14 +339,14 @@ struct MainView: View {
                     Text("FLIXOR")
                         .font(.title3.bold())
                         .foregroundStyle(.white)
-                }.padding(.horizontal, 10)
+                }.padding(.horizontal, DS.Space.s10)
             }
 
             // In sidebar mode the tabs and the profile menu live in the rail.
             if !navigationStyle.usesSidebar {
                 // Navigation links in center
                 ToolbarItemGroup(placement: .principal) {
-                    HStack(spacing: 32) {
+                    HStack(spacing: DS.Space.s32) {
                         ForEach(visibleNavItems) { item in
                             ToolbarNavButton(
                                 item: item,
@@ -410,10 +410,10 @@ struct MainView: View {
                             .frame(width: 28, height: 28)
                             .overlay(
                                 Text(profileInitials)
-                                    .font(.system(size: 11, weight: .bold))
+                                    .font(.flixor(.caption, weight: .bold))
                                     .foregroundColor(.white)
                             )
-                            .padding(.horizontal, 20)
+                            .padding(.horizontal, DS.Space.s20)
                     }
                     .menuStyle(.borderlessButton)
                     .menuIndicator(.hidden)
@@ -562,7 +562,7 @@ struct ToolbarBackButton: View {
                 navigation.goBack()
             } label: {
                 Image(systemName: "chevron.left")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.flixorIcon(DS.Icon.sm, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.8))
                     .frame(width: 28, height: 28)
                     .contentShape(Rectangle())
