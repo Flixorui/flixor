@@ -500,7 +500,7 @@ private struct InstructionStepRow: View {
                 .font(.flixor(.caption, weight: .bold))
                 .foregroundStyle(theme.onAccent)
                 .frame(width: 20, height: 20)
-                .background(Color.accentColor)
+                .background(theme.accent)
                 .clipShape(Circle())
             Text(text)
                 .font(.flixor(.footnote))

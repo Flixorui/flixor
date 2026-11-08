@@ -37,6 +37,9 @@ class BrowseModalViewModel: ObservableObject {
     private var tmdbTotalPages = 1
     private var traktPage = 1
     private let pageSize = 20
+    /// Next `skip` value for an addon catalog, and what it has returned so far.
+    private var stremioSkip = 0
+    private var stremioSeenIds: Set<String> = []
 
     // Reset state when modal is dismissed
     func reset() {
@@ -50,6 +53,8 @@ class BrowseModalViewModel: ObservableObject {
         tmdbPage = 1
         tmdbTotalPages = 1
         traktPage = 1
+        stremioSkip = 0
+        stremioSeenIds = []
     }
 
     func load(context: BrowseContext) async {
@@ -57,6 +62,8 @@ class BrowseModalViewModel: ObservableObject {
         tmdbPage = 1
         tmdbTotalPages = 1
         traktPage = 1
+        stremioSkip = 0
+        stremioSeenIds = []
         canLoadMore = false
         isLoadingMore = false
 
@@ -129,7 +136,26 @@ class BrowseModalViewModel: ObservableObject {
             return try await fetchTMDB(kind: kind, media: media, identifier: id, displayTitle: display, page: page, append: append)
         case .trakt(let kind):
             return try await fetchTrakt(kind: kind, page: page, append: append)
+        case .stremioCatalog(let catalog):
+            return try await fetchStremioCatalog(catalog)
         }
+    }
+
+    /// Addons don't report totals, so paging stops when a page brings nothing new.
+    /// That also ends the list for an addon that ignores `skip`.
+    private func fetchStremioCatalog(_ catalog: StremioCatalogBrowse) async throws -> [MediaItem] {
+        let previews = try await StremioService.shared.fetchCatalog(
+            installationId: catalog.installationId,
+            type: catalog.type,
+            catalogId: catalog.catalogId,
+            extras: stremioSkip > 0 ? ["skip": String(stremioSkip)] : [:],
+            limit: 100
+        )
+        let items = await StremioCatalogMapper.shared.mediaItems(from: previews)
+        let fresh = items.filter { stremioSeenIds.insert($0.id).inserted }
+        stremioSkip += previews.count
+        canLoadMore = catalog.supportsPaging && !fresh.isEmpty
+        return fresh
     }
 
     // MARK: - Header Helpers
@@ -144,6 +170,8 @@ class BrowseModalViewModel: ObservableObject {
             return (String(localized: "Watchlist"), "Plex.tv")
         case .plexCollection(_, let collectionTitle):
             return (collectionTitle, String(localized: "Collection"))
+        case .stremioCatalog(let catalog):
+            return (catalog.title, catalog.addonName)
         case .tmdb(let kind, let media, _, let display):
             switch kind {
             case .trending:

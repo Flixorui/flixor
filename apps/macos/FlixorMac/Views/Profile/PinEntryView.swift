@@ -161,6 +161,7 @@ struct PinEntryView: View {
 // MARK: - PIN Digit Display
 
 struct PinDigitView: View {
+    @Environment(\.flixorTheme) private var theme
     let digit: String?
     let isFilled: Bool
 
@@ -171,7 +172,7 @@ struct PinDigitView: View {
                 .frame(width: 50, height: 60)
                 .overlay(
                     RoundedRectangle(cornerRadius: DS.Radius.r8)
-                        .stroke(isFilled ? Color.accentColor : Color.gray.opacity(0.3), lineWidth: 2)
+                        .stroke(isFilled ? theme.accent : Color.gray.opacity(0.3), lineWidth: 2)
                 )
 
             if isFilled {

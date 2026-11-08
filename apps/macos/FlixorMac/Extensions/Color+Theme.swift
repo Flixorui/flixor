@@ -5,9 +5,10 @@
 //  Theme colors matching the web app
 //
 //  Which red to use:
-//  - `Color.flixorAccent` for anything interactive (selection, progress,
-//    focus rings, toggles, highlighted icons). It follows the accent colour the
-//    user picks in Settings > Appearance (Flixor red by default).
+//  - `theme.accent` (from `\.flixorTheme`) for anything interactive (selection,
+//    progress, focus rings, toggles, highlighted icons). It follows the accent
+//    colour the user picks in Settings > Appearance (Flixor red by default).
+//    Don't use `Color.accentColor`: on macOS it stays the red asset colour.
 //  - `Color.flixorBrand` / `Color.brand` for brand marks (the logo, the
 //    sign-in screen's primary action). Always Flixor red.
 //  Surface colours that honour the "pure black" option come from
@@ -23,13 +24,6 @@ extension Color {
 
     /// Brand red for logos and brand marks. Never follows the accent setting.
     static let flixorBrand = brand
-
-    // MARK: - Accent
-
-    /// Interactive accent. Resolves through the environment to the accent the
-    /// user picked (applied with `.tint`/`.accentColor` at the app root by
-    /// `.flixorAppearance()`), so it is the same colour as `Color.accentColor`.
-    static var flixorAccent: Color { .accentColor }
 
     // MARK: - Background Colors
     static let backgroundPrimary = Color(hex: "#0a0a0a")

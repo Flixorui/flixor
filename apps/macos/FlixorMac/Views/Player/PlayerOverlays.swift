@@ -277,25 +277,11 @@ struct NextEpisodeHoverCard: View {
                                     .strokeBorder(Color.white.opacity(0.2), lineWidth: 1)
                             )
 
-                        // Play icon
-                        Path { path in
-                            let scale: CGFloat = 1.6
-                            path.move(to: CGPoint(x: 5 * scale, y: 2.69127 * scale))
-                            path.addCurve(
-                                to: CGPoint(x: 5 * scale, y: 21.3087 * scale),
-                                control1: CGPoint(x: 5 * scale, y: 1.93067 * scale),
-                                control2: CGPoint(x: 5 * scale, y: 22.0693 * scale)
-                            )
-                            path.addCurve(
-                                to: CGPoint(x: 23.4069 * scale, y: 12.8762 * scale),
-                                control1: CGPoint(x: 5.81546 * scale, y: 22.5515 * scale),
-                                control2: CGPoint(x: 24.0977 * scale, y: 12.4963 * scale)
-                            )
-                            path.addLine(to: CGPoint(x: 6.48192 * scale, y: 1.81506 * scale))
-                            path.closeSubpath()
-                        }
-                        .fill(Color.white)
-                        .frame(width: 24, height: 24)
+                        // Nudged right so the triangle looks centered in the circle.
+                        Image(systemName: "play.fill")
+                            .font(.flixorIcon(DS.Icon.md))
+                            .foregroundStyle(.white)
+                            .offset(x: 1)
                     }
                 }
                 .frame(width: 180, height: 100)

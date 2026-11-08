@@ -499,7 +499,7 @@ private struct SettingsSidebarRow: View {
             .padding(.vertical, DS.Space.s8)
             .background(
                 isSelected
-                    ? Color.accentColor
+                    ? theme.accent
                     : Color.clear,
                 in: RoundedRectangle(cornerRadius: DS.Radius.r8, style: .continuous)
             )

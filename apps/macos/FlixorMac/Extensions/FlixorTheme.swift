@@ -11,9 +11,9 @@
 //      .background(theme.background)
 //      .foregroundStyle(theme.accent)
 //
-//  For interactive accents `Color.flixorAccent` (== Color.accentColor) also
-//  works, because `.flixorAppearance()` applies the accent with `.tint` and
-//  `.accentColor` at the root of every window.
+//  Don't use `Color.accentColor` for the accent: on macOS it resolves to the
+//  red AccentColor asset whatever the user picked. System controls follow the
+//  accent through `.flixorAppearance()`.
 //
 
 import SwiftUI
@@ -53,7 +53,7 @@ enum AccentPalette: String, CaseIterable, Identifiable {
     }
 
     /// Base accent. Mid-to-deep shades so white text on an accent fill stays
-    /// readable (existing views put white labels on `Color.accentColor`).
+    /// readable (views put white labels on accent fills).
     var color: Color {
         switch self {
         case .crimson: return Color(hex: 0xE50914)  // Flixor red, same as the AccentColor asset
@@ -205,15 +205,14 @@ private struct FlixorAppearanceModifier: ViewModifier {
         content
             .environment(\.flixorTheme, theme)
             .tint(theme.accent)
-            // Keeps `Color.accentColor` (used by many existing views) in step
-            // with the picked accent; `.tint` alone does not drive it everywhere.
+            // For system controls that still read the older modifier.
             .accentColor(theme.accent)
     }
 }
 
 extension View {
     /// Applies the current profile's appearance: injects `\.flixorTheme` and
-    /// tints system controls and `Color.accentColor` with the accent. Apply
+    /// tints system controls with the accent. Apply
     /// once at the root of each window / scene.
     func flixorAppearance() -> some View {
         modifier(FlixorAppearanceModifier())

@@ -1033,7 +1033,8 @@ class HomeViewModel: ObservableObject {
                     type: entry.catalog.type,
                     catalogId: entry.catalog.catalogId,
                     displayName: entry.catalog.displayName,
-                    addonName: entry.addonName
+                    addonName: entry.addonName,
+                    supportsPaging: entry.catalog.extra?.contains { $0.name == "skip" } ?? false
                 )
                 group.addTask {
                     (index, await Self.fetchStremioCatalogSlot(ref))
@@ -1086,9 +1087,14 @@ class HomeViewModel: ObservableObject {
             items: items,
             totalCount: items.count,
             libraryKey: nil,
-            // No browse context: paging a catalog needs the `skip` extra,
-            // which the browse modal doesn't model yet.
-            browseContext: nil
+            browseContext: .stremioCatalog(StremioCatalogBrowse(
+                installationId: ref.installationId,
+                type: ref.type,
+                catalogId: ref.catalogId,
+                title: ref.displayName,
+                addonName: ref.addonName,
+                supportsPaging: ref.supportsPaging
+            ))
         ))
     }
 

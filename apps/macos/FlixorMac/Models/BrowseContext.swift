@@ -14,6 +14,18 @@ enum BrowseContext: Equatable {
     case plexCollection(ratingKey: String, title: String)
     case tmdb(kind: TMDBBrowseKind, media: TMDBMediaType, id: String?, displayTitle: String?)
     case trakt(kind: TraktBrowseKind)
+    case stremioCatalog(StremioCatalogBrowse)
+}
+
+/// One addon catalog, as opened from its home row.
+struct StremioCatalogBrowse: Equatable {
+    let installationId: String
+    let type: String
+    let catalogId: String
+    let title: String
+    let addonName: String
+    /// The catalog declares the `skip` extra, so more pages can be requested.
+    let supportsPaging: Bool
 }
 
 enum TMDBBrowseKind: Equatable {

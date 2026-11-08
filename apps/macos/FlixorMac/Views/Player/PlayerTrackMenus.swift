@@ -210,6 +210,7 @@ private struct SubtitlesTabContent: View {
 }
 
 private struct TrackRow: View {
+    @Environment(\.flixorTheme) private var theme
     let title: String
     let isSelected: Bool
     let action: () -> Void
@@ -219,7 +220,7 @@ private struct TrackRow: View {
             HStack(spacing: DS.Space.s10) {
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .font(.flixorIcon(DS.Icon.md))
-                    .foregroundStyle(isSelected ? Color.accentColor : .white.opacity(0.3))
+                    .foregroundStyle(isSelected ? theme.accent : .white.opacity(0.3))
 
                 Text(title)
                     .font(.flixor(.callout))
@@ -290,6 +291,7 @@ private struct SyncOffsetControl: View {
 }
 
 struct CompactSliderRow: View {
+    @Environment(\.flixorTheme) private var theme
     let label: LocalizedStringKey
     let value: String
     let sliderValue: Double
@@ -307,7 +309,7 @@ struct CompactSliderRow: View {
                 .frame(width: 70, alignment: .leading)
 
             Slider(value: $localValue, in: range, step: step)
-                .tint(Color.accentColor)
+                .tint(theme.accent)
                 .onAppear { localValue = sliderValue }
                 .onChange(of: localValue) { newValue in onChange(newValue) }
 

@@ -109,7 +109,7 @@ struct PlayerControlsView: View {
                         Image(systemName: "info.circle")
                             .font(.flixor(.title3))
                             .frame(width: 32, height: 32)
-                            .foregroundStyle(viewModel.showPerformanceOverlay ? Color.accentColor : .white)
+                            .foregroundStyle(viewModel.showPerformanceOverlay ? theme.accent : .white)
                     }
                     .buttonStyle(.plain)
                     .scaleEffect(isStatsHovered ? 1.1 : 1.0)
@@ -132,7 +132,7 @@ struct PlayerControlsView: View {
                                 if quality == viewModel.selectedQuality {
                                     Image(systemName: "checkmark")
                                         .font(.flixorIcon(DS.Icon.xs, weight: .semibold))
-                                        .foregroundStyle(Color.accentColor)
+                                        .foregroundStyle(theme.accent)
                                         .frame(width: 12)
                                 } else {
                                     Color.clear.frame(width: 12)
@@ -204,7 +204,7 @@ struct PlayerControlsView: View {
 
                             // Progress
                             Rectangle()
-                                .fill(Color.accentColor)
+                                .fill(theme.accent)
                                 .frame(width: geometry.size.width * CGFloat(currentProgress), height: 4)
 
                             // Chapter ticks and intro/recap/credits ranges
@@ -213,7 +213,7 @@ struct PlayerControlsView: View {
 
                             // Scrubber
                             Circle()
-                                .fill(Color.accentColor)
+                                .fill(theme.accent)
                                 .frame(width: 12, height: 12)
                                 .offset(x: geometry.size.width * CGFloat(currentProgress) - 6)
                         }
@@ -463,7 +463,7 @@ struct PlayerControlsView: View {
                                 .renderingMode(.template)
                                 .scaledToFit()
                                 .frame(width: 42, height: 42)
-                                .foregroundStyle(showChaptersPanel ? Color.accentColor : .white)
+                                .foregroundStyle(showChaptersPanel ? theme.accent : .white)
                         }
                         .buttonStyle(.plain)
                         .scaleEffect(isChaptersHovered ? 1.1 : 1.0)
@@ -504,7 +504,7 @@ struct PlayerControlsView: View {
                             Image(systemName: isPiPActive ? "pip.exit" : "pip.enter")
                                 .font(.flixorIcon(DS.Icon.lg))
                                 .frame(width: 32, height: 32)
-                                .foregroundStyle(isPiPActive ? Color.accentColor : .white)
+                                .foregroundStyle(isPiPActive ? theme.accent : .white)
                         }
                         .buttonStyle(.plain)
                         .scaleEffect(isPiPHovered ? 1.1 : 1.0)

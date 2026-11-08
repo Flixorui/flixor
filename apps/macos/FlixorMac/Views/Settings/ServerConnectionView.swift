@@ -223,7 +223,7 @@ struct ServerConnectionView: View {
                         .font(.flixor(.caption, weight: .medium))
                         .padding(.horizontal, DS.Space.s10)
                         .padding(.vertical, DS.Space.s4)
-                        .background(Color.accentColor)
+                        .background(theme.accent)
                         .foregroundStyle(theme.onAccent)
                         .cornerRadius(DS.Radius.r4)
                         .disabled(testingURI != nil)
@@ -235,10 +235,10 @@ struct ServerConnectionView: View {
         .padding(.vertical, DS.Space.s10)
         .background(
             RoundedRectangle(cornerRadius: DS.Radius.r8)
-                .fill(isCurrent ? Color.accentColor.opacity(0.08) : Color.primary.opacity(0.03))
+                .fill(isCurrent ? theme.accent.opacity(0.08) : Color.primary.opacity(0.03))
                 .overlay(
                     RoundedRectangle(cornerRadius: DS.Radius.r8)
-                        .stroke(isCurrent ? Color.accentColor.opacity(0.3) : Color.primary.opacity(0.06), lineWidth: 1)
+                        .stroke(isCurrent ? theme.accent.opacity(0.3) : Color.primary.opacity(0.06), lineWidth: 1)
                 )
         )
     }

@@ -20,6 +20,7 @@ struct StremioCatalogRef: Equatable {
     let catalogId: String
     let displayName: String
     let addonName: String
+    let supportsPaging: Bool
 }
 
 /// How to retry a failed row.

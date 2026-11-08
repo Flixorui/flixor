@@ -362,7 +362,7 @@ struct LayoutOptionButton: View {
             .padding(.vertical, DS.Space.s16)
             .background(
                 isSelected
-                    ? Color.accentColor
+                    ? theme.accent
                     : theme.settingsGroupBackground
             )
             .foregroundStyle(isSelected ? theme.onAccent : .primary)

@@ -136,6 +136,7 @@ private extension EpisodesListPanel {
 }
 
 private struct EpisodeListRow: View {
+    @Environment(\.flixorTheme) private var theme
     let episode: EpisodeMetadata
     let isCurrentEpisode: Bool
     let onSelect: () -> Void
@@ -154,7 +155,7 @@ private struct EpisodeListRow: View {
                     if let progress = episode.progressPercent, progress > 0, progress < 95 {
                         Circle()
                             .trim(from: 0, to: CGFloat(progress) / 100.0)
-                            .stroke(Color.accentColor, lineWidth: 2)
+                            .stroke(theme.accent, lineWidth: 2)
                             .frame(width: 32, height: 32)
                             .rotationEffect(.degrees(-90))
                     }
@@ -219,7 +220,7 @@ private struct EpisodeListRow: View {
                 if isCurrentEpisode {
                     Image(systemName: "play.fill")
                         .font(.flixor(.micro))
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(theme.accent)
                 }
             }
             .padding(.horizontal, DS.Space.s12)
@@ -236,7 +237,7 @@ private struct EpisodeListRow: View {
     private var progressColor: Color {
         if let progress = episode.progressPercent {
             if progress >= 95 {
-                return Color.accentColor.opacity(0.3)
+                return theme.accent.opacity(0.3)
             } else if progress > 0 {
                 return Color.white.opacity(0.15)
             }
@@ -340,6 +341,7 @@ struct ChaptersPanel: View {
 }
 
 private struct ChapterListRow: View {
+    @Environment(\.flixorTheme) private var theme
     let chapter: MPVChapter
     let isCurrent: Bool
     let progress: Double?
@@ -359,7 +361,7 @@ private struct ChapterListRow: View {
                     if let progress = progress, progress < 1.0 && progress > 0 {
                         Circle()
                             .trim(from: 0, to: progress)
-                            .stroke(Color.accentColor, lineWidth: 2)
+                            .stroke(theme.accent, lineWidth: 2)
                             .frame(width: 28, height: 28)
                             .rotationEffect(.degrees(-90))
                     }
@@ -385,7 +387,7 @@ private struct ChapterListRow: View {
                 if isCurrent {
                     Image(systemName: "play.fill")
                         .font(.flixor(.micro))
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(theme.accent)
                 }
             }
             .padding(.horizontal, DS.Space.s12)
@@ -402,7 +404,7 @@ private struct ChapterListRow: View {
     private var progressColor: Color {
         if let progress = progress {
             if progress >= 1.0 {
-                return Color.accentColor.opacity(0.3)
+                return theme.accent.opacity(0.3)
             } else if progress > 0 {
                 return Color.white.opacity(0.15)
             }

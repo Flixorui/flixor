@@ -225,7 +225,7 @@ struct EndpointSelectView: View {
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, DS.Space.s14)
-                        .background(Color.accentColor)
+                        .background(theme.accent)
                         .foregroundColor(theme.onAccent)
                         .cornerRadius(DS.Radius.r10)
                     }
