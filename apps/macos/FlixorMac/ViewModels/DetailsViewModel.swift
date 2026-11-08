@@ -137,6 +137,7 @@ class DetailsViewModel: ObservableObject {
     @Published var episodeWriter: String?           // Episode writer
 
     var lastFetchedRatingsKey: String?
+    var lastLoadedItemId: String?
 
     struct ExternalRatings {
         struct IMDb { let score: Double?; let votes: Int? }
