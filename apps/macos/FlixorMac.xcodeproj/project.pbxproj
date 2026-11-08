@@ -7,6 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		4492E2159DE57AC4B09D15A9 /* PersonIdentityViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6FA77EC7BFE4A533F7ADBE5 /* PersonIdentityViews.swift */; };
+		B45611B04EC1B484AB9C2A0C /* PersonDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4191E8F10274874A1BFD357D /* PersonDetailViewModel.swift */; };
+		A2ABFBC17FF9042EDAF2001E /* PersonDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AD843CB333334327BB7EEE1 /* PersonDetailView.swift */; };
+		C5A078DDBA487A0E8F1C377C /* TMDBBrowseMapping.swift in Sources */ = {isa = PBXBuildFile; fileRef = 205817F1D266C925502B61A3 /* TMDBBrowseMapping.swift */; };
+		015EC4CD9AF12F339A9720C1 /* BrowseControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1ED340E5FC3603B4CFE0FC8B /* BrowseControls.swift */; };
 		81589FE15E5F3A60DF37596B /* WatchStateService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46D031E0858D60EF3A8C739E /* WatchStateService.swift */; };
 		63AA8F5C8099B3513A6C3852 /* TraktListsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC85992E13EE4C4C1C8C2704 /* TraktListsService.swift */; };
 		3FC7D91559AFA7117387D2C8 /* TraktCommentsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 863179F8A6086C93AB02C84E /* TraktCommentsService.swift */; };
@@ -141,8 +146,6 @@
 		A200 /* BrowseContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = B080 /* BrowseContext.swift */; };
 		A201 /* BrowseModalViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B081 /* BrowseModalViewModel.swift */; };
 		A202 /* BrowseModalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B082 /* BrowseModalView.swift */; };
-		A203 /* PersonModalViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B083 /* PersonModalViewModel.swift */; };
-		A204 /* PersonModalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B084 /* PersonModalView.swift */; };
 		A205 /* TMDBSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B165 /* TMDBSettingsView.swift */; };
 		A206 /* MDBListSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B166 /* MDBListSettingsView.swift */; };
 		A207 /* OverseerrSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B167 /* OverseerrSettingsView.swift */; };
@@ -202,6 +205,11 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		F6FA77EC7BFE4A533F7ADBE5 /* PersonIdentityViews.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Person/PersonIdentityViews.swift; sourceTree = "<group>"; };
+		4191E8F10274874A1BFD357D /* PersonDetailViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Person/PersonDetailViewModel.swift; sourceTree = "<group>"; };
+		9AD843CB333334327BB7EEE1 /* PersonDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Person/PersonDetailView.swift; sourceTree = "<group>"; };
+		205817F1D266C925502B61A3 /* TMDBBrowseMapping.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Browse/TMDBBrowseMapping.swift; sourceTree = "<group>"; };
+		1ED340E5FC3603B4CFE0FC8B /* BrowseControls.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Browse/BrowseControls.swift; sourceTree = "<group>"; };
 		46D031E0858D60EF3A8C739E /* WatchStateService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchStateService.swift; sourceTree = "<group>"; };
 		EC85992E13EE4C4C1C8C2704 /* TraktListsService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TraktListsService.swift; sourceTree = "<group>"; };
 		863179F8A6086C93AB02C84E /* TraktCommentsService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TraktCommentsService.swift; sourceTree = "<group>"; };
@@ -345,8 +353,6 @@
 		B080 /* BrowseContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowseContext.swift; sourceTree = "<group>"; };
 		B081 /* BrowseModalViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowseModalViewModel.swift; sourceTree = "<group>"; };
 		B082 /* BrowseModalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowseModalView.swift; sourceTree = "<group>"; };
-		B083 /* PersonModalViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonModalViewModel.swift; sourceTree = "<group>"; };
-		B084 /* PersonModalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonModalView.swift; sourceTree = "<group>"; };
 		B085 /* TraktScrobbler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraktScrobbler.swift; sourceTree = "<group>"; };
 		B163 /* PlexServersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlexServersView.swift; sourceTree = "<group>"; };
 		B164 /* ServerConnectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerConnectionView.swift; sourceTree = "<group>"; };
@@ -498,6 +504,11 @@
 		D005 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				F6FA77EC7BFE4A533F7ADBE5 /* PersonIdentityViews.swift */,
+				4191E8F10274874A1BFD357D /* PersonDetailViewModel.swift */,
+				9AD843CB333334327BB7EEE1 /* PersonDetailView.swift */,
+				205817F1D266C925502B61A3 /* TMDBBrowseMapping.swift */,
+				1ED340E5FC3603B4CFE0FC8B /* BrowseControls.swift */,
 				D010 /* Auth */,
 				D011 /* Components */,
 				D012 /* Home */,
@@ -536,7 +547,6 @@
 				B010 /* PlexAuthViewModel.swift */,
 				B029 /* HomeViewModel.swift */,
 				B081 /* BrowseModalViewModel.swift */,
-				B083 /* PersonModalViewModel.swift */,
 				B037 /* DetailsViewModel.swift */,
 				B040 /* SearchViewModel.swift */,
 				B041 /* PlayerViewModel.swift */,
@@ -607,7 +617,6 @@
 				B020 /* LandscapeCard.swift */,
 				B022 /* CarouselView.swift */,
 				B082 /* BrowseModalView.swift */,
-				B084 /* PersonModalView.swift */,
 				B023 /* BillboardView.swift */,
 				B067 /* NewPopularHero.swift */,
 				B024 /* VirtualGrid.swift */,
@@ -939,6 +948,11 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4492E2159DE57AC4B09D15A9 /* PersonIdentityViews.swift in Sources */,
+				B45611B04EC1B484AB9C2A0C /* PersonDetailViewModel.swift in Sources */,
+				A2ABFBC17FF9042EDAF2001E /* PersonDetailView.swift in Sources */,
+				C5A078DDBA487A0E8F1C377C /* TMDBBrowseMapping.swift in Sources */,
+				015EC4CD9AF12F339A9720C1 /* BrowseControls.swift in Sources */,
 				81589FE15E5F3A60DF37596B /* WatchStateService.swift in Sources */,
 				63AA8F5C8099B3513A6C3852 /* TraktListsService.swift in Sources */,
 				3FC7D91559AFA7117387D2C8 /* TraktCommentsService.swift in Sources */,
@@ -1022,7 +1036,6 @@
 				A200 /* BrowseContext.swift in Sources */,
 				A029 /* HomeViewModel.swift in Sources */,
 				A201 /* BrowseModalViewModel.swift in Sources */,
-				A203 /* PersonModalViewModel.swift in Sources */,
 				A030 /* HomeView.swift in Sources */,
 				A034 /* Color+Theme.swift in Sources */,
 				A035 /* DetailsView.swift in Sources */,
@@ -1040,7 +1053,6 @@
 				A045 /* CollectionsView.swift in Sources */,
 				A046 /* WatchlistController.swift in Sources */,
 				A047 /* MyListViewModel.swift in Sources */,
-				A204 /* PersonModalView.swift in Sources */,
 				MPVMETAL001 /* MPVMetalLayer.swift in Sources */,
 				A048 /* MyListView.swift in Sources */,
 				A049 /* WatchlistButton.swift in Sources */,

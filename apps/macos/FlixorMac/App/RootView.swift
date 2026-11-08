@@ -465,6 +465,9 @@ extension View {
             .navigationDestination(for: StremioSourcesDestination.self) { destination in
                 StremioSourcesView(destination: destination)
             }
+            .navigationDestination(for: PersonRoute.self) { route in
+                PersonDetailView(route: route)
+            }
     }
 }
 
