@@ -7,6 +7,18 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		5ACD82B698BFBB1F21057515 /* UserCollectionsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED77F4B75039CE468EDFDCD1 /* UserCollectionsSection.swift */; };
+		0BBBF50C601861FBECD1F7CC /* UserCollectionHomeRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = F608B7D60281C6A070F15876 /* UserCollectionHomeRow.swift */; };
+		64CDDD684EC0D5B0C6300283 /* UserCollectionEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 693F3A2062B21B6CFBBC852C /* UserCollectionEditorView.swift */; };
+		A361DEAE3AD08F0DA888C604 /* UserCollectionDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEF1D6BA4EE5A19AB40EF797 /* UserCollectionDetailView.swift */; };
+		8C91BC6B9AB948EB2A81D13C /* CollectionSourceEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 991B2B79CB0D733C543C9BF1 /* CollectionSourceEditorView.swift */; };
+		1BF388DFCB3C41BEF2625E6F /* CollectionCoverPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = E08C166E9035B863C92DD64A /* CollectionCoverPicker.swift */; };
+		5193C8731FE07012E38C146E /* UserCollectionDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6487051E5A63D69E833F074D /* UserCollectionDetailViewModel.swift */; };
+		24D77ED0E98744AA07F00D49 /* CollectionSourceEditorModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04FFF1EFBC941331215E7291 /* CollectionSourceEditorModel.swift */; };
+		7D9339B7B4E9EEA121CB30A8 /* UserCollectionsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07C1A616AA59DFB962529B2E /* UserCollectionsStore.swift */; };
+		8DDBF580F4D35F0B67C93FD9 /* UserCollectionSourceResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9F75B5605DB4DCE7E8CD938 /* UserCollectionSourceResolver.swift */; };
+		2F64D7113ACD5A4BBBF1BE36 /* UserCollection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83D1EEBD415D8E9117F8C4A4 /* UserCollection.swift */; };
+		21B1DBA778A251E9FB482298 /* UserDefaults+Collections.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62328165DD5959F427B5892A /* UserDefaults+Collections.swift */; };
 		FE77C7265DCF4098839665E8 /* HomeRowsEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C5AB65547BBF55331DF0A55 /* HomeRowsEditor.swift */; };
 		2B6AD1FA107A8B4055A62C18 /* HeroSourceSettingsRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 946A0638B68C23F7D67219BC /* HeroSourceSettingsRow.swift */; };
 		58DE7384A191D143A107F046 /* ContinueWatchingStylePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5CBBC0B1A9F1EBB944FBE01 /* ContinueWatchingStylePicker.swift */; };
@@ -284,6 +296,18 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		ED77F4B75039CE468EDFDCD1 /* UserCollectionsSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Collections/UserCollectionsSection.swift; sourceTree = "<group>"; };
+		F608B7D60281C6A070F15876 /* UserCollectionHomeRow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Collections/UserCollectionHomeRow.swift; sourceTree = "<group>"; };
+		693F3A2062B21B6CFBBC852C /* UserCollectionEditorView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Collections/UserCollectionEditorView.swift; sourceTree = "<group>"; };
+		AEF1D6BA4EE5A19AB40EF797 /* UserCollectionDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Collections/UserCollectionDetailView.swift; sourceTree = "<group>"; };
+		991B2B79CB0D733C543C9BF1 /* CollectionSourceEditorView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Collections/CollectionSourceEditorView.swift; sourceTree = "<group>"; };
+		E08C166E9035B863C92DD64A /* CollectionCoverPicker.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Collections/CollectionCoverPicker.swift; sourceTree = "<group>"; };
+		6487051E5A63D69E833F074D /* UserCollectionDetailViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UserCollectionDetailViewModel.swift; sourceTree = "<group>"; };
+		04FFF1EFBC941331215E7291 /* CollectionSourceEditorModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CollectionSourceEditorModel.swift; sourceTree = "<group>"; };
+		07C1A616AA59DFB962529B2E /* UserCollectionsStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UserCollectionsStore.swift; sourceTree = "<group>"; };
+		B9F75B5605DB4DCE7E8CD938 /* UserCollectionSourceResolver.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UserCollectionSourceResolver.swift; sourceTree = "<group>"; };
+		83D1EEBD415D8E9117F8C4A4 /* UserCollection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UserCollection.swift; sourceTree = "<group>"; };
+		62328165DD5959F427B5892A /* UserDefaults+Collections.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "UserDefaults+Collections.swift"; sourceTree = "<group>"; };
 		1C5AB65547BBF55331DF0A55 /* HomeRowsEditor.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HomeRowsEditor.swift; sourceTree = "<group>"; };
 		946A0638B68C23F7D67219BC /* HeroSourceSettingsRow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HeroSourceSettingsRow.swift; sourceTree = "<group>"; };
 		A5CBBC0B1A9F1EBB944FBE01 /* ContinueWatchingStylePicker.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ContinueWatchingStylePicker.swift; sourceTree = "<group>"; };
@@ -637,6 +661,7 @@
 		D004 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				83D1EEBD415D8E9117F8C4A4 /* UserCollection.swift */,
 				1099D6DE3B8526FA18912D4F /* HomeRowModels.swift */,
 				6E758D953ADDD07BBBA497F1 /* WatchStateTarget.swift */,
 				B36B30D33BFFE4EBEA5F1182 /* LocalWatchedEntry.swift */,
@@ -663,6 +688,12 @@
 		D005 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				ED77F4B75039CE468EDFDCD1 /* UserCollectionsSection.swift */,
+				F608B7D60281C6A070F15876 /* UserCollectionHomeRow.swift */,
+				693F3A2062B21B6CFBBC852C /* UserCollectionEditorView.swift */,
+				AEF1D6BA4EE5A19AB40EF797 /* UserCollectionDetailView.swift */,
+				991B2B79CB0D733C543C9BF1 /* CollectionSourceEditorView.swift */,
+				E08C166E9035B863C92DD64A /* CollectionCoverPicker.swift */,
 				6E05ADB72B8811118261746F /* PersonIdentityViews.swift */,
 				BA15B834584960B4261DA181 /* PersonDetailViewModel.swift */,
 				EDBA249F7AD9DEB96CA22A5E /* PersonDetailView.swift */,
@@ -695,6 +726,8 @@
 		D006 /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
+				6487051E5A63D69E833F074D /* UserCollectionDetailViewModel.swift */,
+				04FFF1EFBC941331215E7291 /* CollectionSourceEditorModel.swift */,
 				575AC77865246BE6E5B0A2B8 /* HomeViewModel+Rows.swift */,
 				3E575A497C41D0159B73F6A2 /* HomeViewModel+ContinueWatching.swift */,
 				BB2FA3879322AA6534BCE55D /* DetailsTitleActionsModel.swift */,
@@ -738,6 +771,8 @@
 		D007 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				07C1A616AA59DFB962529B2E /* UserCollectionsStore.swift */,
+				B9F75B5605DB4DCE7E8CD938 /* UserCollectionSourceResolver.swift */,
 				7F6EA0458172D028A3B03E5F /* NetworkMonitor.swift */,
 				2B2B3F94538A809B06AEA3CC /* HomeRowsStore.swift */,
 				6CAFC26C00607AAAE3F8C6D1 /* StreamRecoveryService.swift */,
@@ -780,6 +815,7 @@
 		D008 /* Extensions */ = {
 			isa = PBXGroup;
 			children = (
+				62328165DD5959F427B5892A /* UserDefaults+Collections.swift */,
 				D9C937A927B8FBD09A6143DB /* UserDefaults+HomeRows.swift */,
 				52C2BDF2027BE69EEB804C07 /* UserDefaults+Cards.swift */,
 				C6797534B5967731053F353A /* UserDefaults+DetailsHero.swift */,
@@ -1185,6 +1221,18 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5ACD82B698BFBB1F21057515 /* UserCollectionsSection.swift in Sources */,
+				0BBBF50C601861FBECD1F7CC /* UserCollectionHomeRow.swift in Sources */,
+				64CDDD684EC0D5B0C6300283 /* UserCollectionEditorView.swift in Sources */,
+				A361DEAE3AD08F0DA888C604 /* UserCollectionDetailView.swift in Sources */,
+				8C91BC6B9AB948EB2A81D13C /* CollectionSourceEditorView.swift in Sources */,
+				1BF388DFCB3C41BEF2625E6F /* CollectionCoverPicker.swift in Sources */,
+				5193C8731FE07012E38C146E /* UserCollectionDetailViewModel.swift in Sources */,
+				24D77ED0E98744AA07F00D49 /* CollectionSourceEditorModel.swift in Sources */,
+				7D9339B7B4E9EEA121CB30A8 /* UserCollectionsStore.swift in Sources */,
+				8DDBF580F4D35F0B67C93FD9 /* UserCollectionSourceResolver.swift in Sources */,
+				2F64D7113ACD5A4BBBF1BE36 /* UserCollection.swift in Sources */,
+				21B1DBA778A251E9FB482298 /* UserDefaults+Collections.swift in Sources */,
 				FE77C7265DCF4098839665E8 /* HomeRowsEditor.swift in Sources */,
 				2B6AD1FA107A8B4055A62C18 /* HeroSourceSettingsRow.swift in Sources */,
 				58DE7384A191D143A107F046 /* ContinueWatchingStylePicker.swift in Sources */,

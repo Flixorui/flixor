@@ -11,16 +11,37 @@ struct LibraryView: View {
     @StateObject private var viewModel = LibraryViewModel()
     @EnvironmentObject private var router: NavigationRouter
     @EnvironmentObject private var mainViewState: MainViewState
+    @ObservedObject private var appMode = AppModeStore.shared
 
     private let horizontalPadding: CGFloat = 64
     private let gridSpacing: CGFloat = 18
     private let minGridItemWidth: CGFloat = 180
 
     var body: some View {
+        if appMode.isStremioOnly {
+            // No Plex libraries to browse: the page is the user's collections.
+            UserCollectionsPage()
+        } else {
+            plexLibrary
+        }
+    }
+
+    private var plexLibrary: some View {
         VStack(spacing: 0) {
             LibraryFilterBarView(viewModel: viewModel) { section in
                 viewModel.selectSection(section)
             }
+
+            HStack {
+                BrowseChipBar(
+                    options: LibraryViewModel.ContentTab.allCases,
+                    selection: $viewModel.contentTab,
+                    title: { $0.title }
+                )
+                Spacer()
+            }
+            .padding(.horizontal, horizontalPadding)
+            .padding(.bottom, DS.Space.s8)
 
             content
         }

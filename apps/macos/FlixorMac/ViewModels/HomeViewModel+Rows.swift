@@ -81,6 +81,8 @@ struct HomeDisplayRow: Identifiable {
         case section(LibrarySection)
         case skeleton(SkeletonCarouselRow.CardType)
         case failure(HomeRowFailure)
+        /// Loads itself when it scrolls into view.
+        case userCollection(id: String)
     }
 
     let id: String
@@ -166,6 +168,12 @@ extension HomeViewModel {
             case .loaded, .empty:
                 collectionSections.forEach(add)
             }
+        }
+
+        // User-built collections
+        for collection in UserCollectionsStore.shared.homeCollections {
+            let title = store.title(for: collection.homeRowId, default: collection.name)
+            rows.append(HomeDisplayRow(id: collection.homeRowId, title: title, content: .userCollection(id: collection.id)))
         }
 
         // Discovery, watchlist, Trakt and Stremio catalogs
