@@ -21,6 +21,23 @@ struct UserCollectionCover: Codable, Hashable {
 
     var url: String
     var style: Style
+
+    private enum CodingKeys: String, CodingKey {
+        case url, style
+    }
+}
+
+// Decoding is tolerant below: a missing or unknown optional field falls back to its
+// default, so entries written by another build aren't dropped and then erased by the
+// next save. Only what identifies an entry stays required. Each `init(from:)` is in
+// an extension to keep the memberwise initializer.
+
+extension UserCollectionCover {
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        url = try container.decode(String.self, forKey: .url)
+        style = (try? container.decodeIfPresent(Style.self, forKey: .style)) ?? .poster
+    }
 }
 
 struct UserCollection: Codable, Identifiable, Hashable {
@@ -30,6 +47,10 @@ struct UserCollection: Codable, Identifiable, Hashable {
     var sources: [UserCollectionSource]
     var showOnHome: Bool
     var createdAt: Date = Date()
+
+    private enum CodingKeys: String, CodingKey {
+        case id, name, cover, sources, showOnHome, createdAt
+    }
 
     /// Stable id of this collection's row in the home row system.
     var homeRowId: String { "user-collection-\(id)" }
@@ -43,6 +64,28 @@ struct UserCollection: Codable, Identifiable, Hashable {
 
     static func new() -> UserCollection {
         UserCollection(name: "", cover: nil, sources: [], showOnHome: false)
+    }
+}
+
+extension UserCollection {
+    /// Keeps the sources it can read when another one can't be decoded.
+    private struct LossySource: Decodable {
+        let value: UserCollectionSource?
+
+        init(from decoder: Decoder) throws {
+            value = try? UserCollectionSource(from: decoder)
+        }
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        cover = try? container.decodeIfPresent(UserCollectionCover.self, forKey: .cover)
+        let entries = (try? container.decodeIfPresent([LossySource].self, forKey: .sources)) ?? []
+        sources = entries.compactMap(\.value)
+        showOnHome = (try? container.decodeIfPresent(Bool.self, forKey: .showOnHome)) ?? false
+        createdAt = (try? container.decodeIfPresent(Date.self, forKey: .createdAt)) ?? Date()
     }
 }
 
@@ -65,6 +108,10 @@ struct UserCollectionSource: Codable, Identifiable, Hashable {
         var type: String
         var catalogId: String
         var displayName: String
+
+        private enum CodingKeys: String, CodingKey {
+            case installationId, addonId, addonName, type, catalogId, displayName
+        }
     }
 
     struct Discover: Codable, Hashable {
@@ -78,6 +125,10 @@ struct UserCollectionSource: Codable, Identifiable, Hashable {
         var yearFrom: Int?
         var yearTo: Int?
         var sort: TMDBDiscoverSort = .popularity
+
+        private enum CodingKeys: String, CodingKey {
+            case mediaType, genreIds, genreNames, companyId, companyName, networkId, networkName, yearFrom, yearTo, sort
+        }
     }
 
     struct MovieCollection: Codable, Hashable {
@@ -129,6 +180,10 @@ struct UserCollectionSource: Codable, Identifiable, Hashable {
         var profilePath: String?
         var credits: Credits = .knownFor
         var order: Order = .popularity
+
+        private enum CodingKeys: String, CodingKey {
+            case id, name, profilePath, credits, order
+        }
     }
 
     struct TraktList: Codable, Hashable {
@@ -192,6 +247,45 @@ struct UserCollectionSource: Codable, Identifiable, Hashable {
         case .person(let person): return "\(person.credits.title), \(person.order.title.lowercased())"
         case .traktList(let list): return list.owner.map { "Trakt list by \($0)" } ?? "Trakt list"
         }
+    }
+}
+
+extension UserCollectionSource.AddonCatalog {
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        installationId = try container.decode(String.self, forKey: .installationId)
+        addonId = try container.decode(String.self, forKey: .addonId)
+        type = try container.decode(String.self, forKey: .type)
+        catalogId = try container.decode(String.self, forKey: .catalogId)
+        addonName = (try? container.decodeIfPresent(String.self, forKey: .addonName)) ?? ""
+        displayName = (try? container.decodeIfPresent(String.self, forKey: .displayName)) ?? catalogId
+    }
+}
+
+extension UserCollectionSource.Discover {
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        mediaType = (try? container.decodeIfPresent(TMDBDiscoverMediaType.self, forKey: .mediaType)) ?? .movie
+        genreIds = (try? container.decodeIfPresent([Int].self, forKey: .genreIds)) ?? []
+        genreNames = (try? container.decodeIfPresent([String].self, forKey: .genreNames)) ?? []
+        companyId = try? container.decodeIfPresent(Int.self, forKey: .companyId)
+        companyName = try? container.decodeIfPresent(String.self, forKey: .companyName)
+        networkId = try? container.decodeIfPresent(Int.self, forKey: .networkId)
+        networkName = try? container.decodeIfPresent(String.self, forKey: .networkName)
+        yearFrom = try? container.decodeIfPresent(Int.self, forKey: .yearFrom)
+        yearTo = try? container.decodeIfPresent(Int.self, forKey: .yearTo)
+        sort = (try? container.decodeIfPresent(TMDBDiscoverSort.self, forKey: .sort)) ?? .popularity
+    }
+}
+
+extension UserCollectionSource.Person {
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(Int.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        profilePath = try? container.decodeIfPresent(String.self, forKey: .profilePath)
+        credits = (try? container.decodeIfPresent(Credits.self, forKey: .credits)) ?? .knownFor
+        order = (try? container.decodeIfPresent(Order.self, forKey: .order)) ?? .popularity
     }
 }
 

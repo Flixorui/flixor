@@ -58,6 +58,21 @@ extension UserDefaults {
         static let maxResolution = "stremioRulesMaxResolution"
     }
 
+    /// Back to defaults: show sources, no rules, default time limit.
+    func resetStreamSelectionSettings() {
+        for key in [
+            StreamSelectionKeys.playAction,
+            StreamSelectionKeys.timeLimit,
+            StreamSelectionKeys.include,
+            StreamSelectionKeys.includeIsRegex,
+            StreamSelectionKeys.exclude,
+            StreamSelectionKeys.preferredAddon,
+            StreamSelectionKeys.maxResolution,
+        ] {
+            removeObject(forKey: profileKey(key))
+        }
+    }
+
     /// What pressing Play on addon content does. Profiles that turned on the older
     /// "Auto-Play Best Source" toggle and never chose here keep auto-playing.
     var stremioPlayAction: StremioPlayAction {

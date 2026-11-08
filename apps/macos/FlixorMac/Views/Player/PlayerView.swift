@@ -23,7 +23,9 @@ struct PlayerView: View {
     @State private var mpvPiPViewController: NSViewController?
     @State var keyboardMonitor: Any?
     /// A panel in the controls is open: keep the controls up (the panel lives inside them).
-    @State private var isControlsPanelOpen = false
+    @State var isControlsPanelOpen = false
+    /// Incremented to ask the controls to close their open panel (Esc).
+    @State var closePanelsRequest = 0
 
     // Hold-Space speed boost (see PlayerView+Keyboard.swift)
     @State var spaceHoldTask: Task<Void, Never>?
@@ -195,8 +197,9 @@ struct PlayerView: View {
                     onToggleMPVPiP: toggleMPVPiP,
                     onPanelOpenChanged: { isOpen in
                         isControlsPanelOpen = isOpen
-                        if !isOpen { scheduleHideControls() }
-                    }
+                        if !isOpen && !viewModel.isLeavingPlayer { scheduleHideControls() }
+                    },
+                    closePanelsRequest: closePanelsRequest
                 )
                 .transition(.opacity)
             }
@@ -252,6 +255,7 @@ struct PlayerView: View {
             }
         }
         .onDisappear {
+            viewModel.isLeavingPlayer = true
             // Cancel any pending hide controls task FIRST to prevent cursor hiding after dismiss
             hideControlsTask?.cancel()
             hideControlsTask = nil
@@ -268,6 +272,7 @@ struct PlayerView: View {
             }
         }
         .onAppear {
+            viewModel.isLeavingPlayer = false
             showControls = true
             scheduleHideControls()
             startMouseTracking()
@@ -439,7 +444,7 @@ struct PlayerView: View {
         hideControlsTask = Task { @MainActor in
             try? await Task.sleep(nanoseconds: 3_000_000_000) // 3 seconds of inactivity
             // Double-check task wasn't cancelled, we're still playing and no panel is open
-            guard !Task.isCancelled && viewModel.isPlaying && !isControlsPanelOpen else { return }
+            guard !Task.isCancelled && !viewModel.isLeavingPlayer && viewModel.isPlaying && !isControlsPanelOpen else { return }
 
             withAnimation(.easeInOut(duration: 0.2)) {
                 showControls = false

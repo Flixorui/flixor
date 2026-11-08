@@ -94,6 +94,11 @@ final class BackNavigationController: ObservableObject {
         return inPageModals.last { $0.tab == tab && $0.depth == depth }
     }
 
+    /// True for the window hosting MainView (and when none is registered yet).
+    func isMainWindow(_ window: NSWindow) -> Bool {
+        mainWindow == nil || window === mainWindow
+    }
+
     private func observeState() {
         observers.removeAll()
         guard let router, let mainViewState else { return }

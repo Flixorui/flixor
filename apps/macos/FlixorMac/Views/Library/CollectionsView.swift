@@ -10,6 +10,8 @@ import SwiftUI
 struct CollectionsView: View {
     let collections: [LibraryViewModel.CollectionEntry]
     let isLoading: Bool
+    var plexError: String? = nil
+    var onRetryPlex: (() -> Void)? = nil
     var onSelect: (LibraryViewModel.CollectionEntry) -> Void
 
     @EnvironmentObject private var router: NavigationRouter
@@ -62,6 +64,16 @@ struct CollectionsView: View {
                 ForEach(0..<6, id: \.self) { _ in
                     SkeletonView(height: 240, cornerRadius: 18)
                         .frame(height: 240)
+                }
+            }
+        } else if let plexError {
+            VStack(alignment: .leading, spacing: DS.Space.s8) {
+                Text(plexError)
+                    .flixorFont(.callout)
+                    .foregroundStyle(theme.textSecondary)
+                if let onRetryPlex {
+                    Button("Try Again", action: onRetryPlex)
+                        .accessibilityLabel("Try loading Plex collections again")
                 }
             }
         } else if collections.isEmpty {

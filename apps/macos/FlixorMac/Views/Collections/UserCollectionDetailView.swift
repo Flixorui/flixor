@@ -153,7 +153,8 @@ struct UserCollectionDetailView: View {
                 message: "These sources didn't return any titles. Edit the collection to change them."
             )
         case .loaded:
-            VStack(spacing: DS.Space.s24) {
+            // Lazy so the footer's load-more fallback only appears near the visible end.
+            LazyVStack(spacing: DS.Space.s24) {
                 BrowsePosterGrid(
                     items: viewModel.items,
                     layout: grid,

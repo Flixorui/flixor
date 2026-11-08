@@ -407,7 +407,7 @@ actor StremioService {
     func getStreams(
         identity: StremioContentIdentity,
         timeLimit: TimeInterval,
-        shouldStop: @escaping @Sendable ([StremioAddonStreamResult], Set<String>) -> Bool
+        shouldStop: @escaping @Sendable ([StremioAddonStreamResult], Set<String>) async -> Bool
     ) async -> (results: [StremioAddonStreamResult], timedOut: Bool) {
         await ensureInitialized()
         let requestType = StremioRequestType(rawValue: identity.requestType) ?? .movie
@@ -436,7 +436,8 @@ actor StremioService {
                 results.append(result)
                 results.sort { self.order.firstIndex(of: $0.installationId) ?? .max < self.order.firstIndex(of: $1.installationId) ?? .max }
                 pending.remove(result.installationId)
-                if pending.isEmpty || shouldStop(results, pending) { break }
+                if pending.isEmpty { break }
+                if await shouldStop(results, pending) { break }
             }
             group.cancelAll()
             return (results, timedOut)

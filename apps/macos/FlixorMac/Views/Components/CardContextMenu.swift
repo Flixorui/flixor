@@ -15,6 +15,15 @@
 import SwiftUI
 import FlixorKit
 
+/// An extra action a card's owner adds to the bottom of its context menu.
+struct CardMenuAction: Identifiable {
+    var id: String { title }
+    let title: String
+    var role: ButtonRole? = nil
+    var isDisabled = false
+    let action: () -> Void
+}
+
 struct CardContextMenu: View {
     let item: MediaItem
     let onOpen: (() -> Void)?
@@ -23,6 +32,7 @@ struct CardContextMenu: View {
     /// Called for shows/seasons with `true` (watched) or `false` (unwatched);
     /// the host asks for confirmation before acting.
     let onRequestWholeShowWatched: (Bool) -> Void
+    var extraActions: [CardMenuAction] = []
 
     @ObservedObject private var traktLists = CardTraktListsCache.shared
 
@@ -99,6 +109,14 @@ struct CardContextMenu: View {
                 Label("Add to Trakt List", systemImage: "list.bullet")
             }
         }
+
+        if !extraActions.isEmpty {
+            Divider()
+            ForEach(extraActions) { extra in
+                Button(extra.title, role: extra.role, action: extra.action)
+                    .disabled(extra.isDisabled)
+            }
+        }
     }
 
     @ViewBuilder
@@ -132,6 +150,7 @@ private struct CardContextMenuModifier: ViewModifier {
     let onOpen: (() -> Void)?
     let onPlay: (() -> Void)?
     let watchlistController: WatchlistController?
+    var extraActions: [CardMenuAction] = []
 
     @State private var pendingWholeShowWatched: Bool?
 
@@ -146,7 +165,8 @@ private struct CardContextMenuModifier: ViewModifier {
                     onRequestWholeShowWatched: { watched in
                         // The menu may still be closing; present on the next turn.
                         DispatchQueue.main.async { pendingWholeShowWatched = watched }
-                    }
+                    },
+                    extraActions: extraActions
                 )
                 .onAppear {
                     // Lists load lazily, the first time any card menu opens.
@@ -196,8 +216,15 @@ extension View {
         item: MediaItem,
         onOpen: (() -> Void)?,
         onPlay: (() -> Void)? = nil,
-        watchlistController: WatchlistController?
+        watchlistController: WatchlistController?,
+        extraActions: [CardMenuAction] = []
     ) -> some View {
-        modifier(CardContextMenuModifier(item: item, onOpen: onOpen, onPlay: onPlay, watchlistController: watchlistController))
+        modifier(CardContextMenuModifier(
+            item: item,
+            onOpen: onOpen,
+            onPlay: onPlay,
+            watchlistController: watchlistController,
+            extraActions: extraActions
+        ))
     }
 }

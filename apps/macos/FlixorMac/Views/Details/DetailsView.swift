@@ -159,6 +159,8 @@ struct DetailsView: View {
         }
         .onChange(of: mainView.selectedTab) { tab in
             heroTrailer.update { $0.isTabActive = ownTab == nil || tab == ownTab }
+            // Tabs stay alive when hidden, so the overlay's onDisappear doesn't fire.
+            if let ownTab, tab != ownTab { streamAutoPlay.cancel() }
         }
         .onChange(of: reduceMotion) { value in
             heroTrailer.update { $0.isReduceMotion = value }
@@ -343,17 +345,6 @@ struct DetailsView: View {
         }
     }
 
-    private func appendToCurrentTabPath(_ destination: StremioSourcesDestination) {
-        switch mainView.selectedTab {
-        case .home: router.homePath.append(destination)
-        case .search: router.searchPath.append(destination)
-        case .library: router.libraryPath.append(destination)
-        case .myList: router.myListPath.append(destination)
-        case .newPopular: router.newPopularPath.append(destination)
-        case .downloads: router.downloadsPath.append(destination)
-        }
-    }
-
     func viewParentShow() {
         // Navigate to the parent TV show for episodes
         guard item.type == "episode", let showKey = item.grandparentRatingKey else { return }
@@ -517,6 +508,8 @@ struct DetailsView: View {
             "title": vm.title,
         ])
 
+        // Everything below lands on the tab Play was pressed on.
+        let originTab = mainView.selectedTab
         let playAction = forcePicker ? StremioPlayAction.showSources : UserDefaults.standard.stremioPlayAction
         if playAction.isAutomatic {
             streamAutoPlay.begin(title: vm.title.isEmpty ? item.title : vm.title)
@@ -553,14 +546,14 @@ struct DetailsView: View {
             episodeTitle: episode?.title ?? vm.episodeTitle
         )
         guard playAction.isAutomatic else {
-            appendToCurrentTabPath(destination)
+            router.push(destination, on: originTab)
             return
         }
         streamAutoPlay.run(
             destination: destination,
             action: playAction,
-            onPlay: { appendToCurrentTabPath($0) },
-            onShowSources: { appendToCurrentTabPath($0) }
+            onPlay: { router.push($0, on: originTab) },
+            onShowSources: { router.push($0, on: originTab) }
         )
     }
 }

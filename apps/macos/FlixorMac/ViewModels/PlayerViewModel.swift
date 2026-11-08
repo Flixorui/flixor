@@ -141,6 +141,10 @@ class PlayerViewModel: ObservableObject {
     /// Sources re-fetched during recovery (fetched once per playback).
     var streamRecoveryResults: [StremioAddonStreamResult]?
 
+    /// The player view is going away: nothing may schedule hiding the cursor.
+    /// Lives here, not in @State, so it still reads true after the view is gone.
+    var isLeavingPlayer = false
+
     // Playback metadata
     private(set) var item: MediaItem
     @Published var mpvController: MPVPlayerController?

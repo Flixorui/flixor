@@ -182,18 +182,23 @@ final class StremioSourcesViewModel: ObservableObject {
         }
 
         let timeLimit = defaults.stremioAutoPickTimeLimit
+        let deadline = Date().addingTimeInterval(TimeInterval(timeLimit))
         let fetched = await service.getStreams(identity: destination.identity, timeLimit: TimeInterval(timeLimit)) { results, pending in
-            selector.earlyPick(in: results, pending: pending) != nil
+            await selector.shouldStopWaiting(in: results, pending: pending)
         }
         groupedResults = fetched.results
 
-        guard let stream = selector.pick(in: fetched.results) else {
+        let picked = await selector.pickOffActor(in: fetched.results)
+        if selector.rulesTimedOut {
+            return .showSources(notice: "Your include pattern took too long to check. Simplify it in Settings, or choose a source here.")
+        }
+        guard let stream = picked else {
             return .showSources(notice: fallbackNotice(
                 results: fetched.results,
                 waitedSeconds: fetched.timedOut ? timeLimit : nil
             ))
         }
-        guard let playback = await select(stream: stream, saveToCache: true, includeAlertOnFailure: false) else {
+        guard let playback = await select(stream: stream, saveToCache: true, includeAlertOnFailure: false, subtitleDeadline: deadline) else {
             return .showSources(notice: "The chosen source could not be started. Choose another one here.")
         }
 
@@ -230,7 +235,13 @@ final class StremioSourcesViewModel: ObservableObject {
         StremioContentResolver.buildContentKey(identity: destination.identity)
     }
 
-    func select(stream: StremioPlayableStream, saveToCache: Bool = true, includeAlertOnFailure: Bool = true) async -> PlayerDestination? {
+    /// - Parameter subtitleDeadline: Stop waiting on subtitle addons at this time.
+    func select(
+        stream: StremioPlayableStream,
+        saveToCache: Bool = true,
+        includeAlertOnFailure: Bool = true,
+        subtitleDeadline: Date? = nil
+    ) async -> PlayerDestination? {
         guard stream.playable, let uri = stream.url else {
             if includeAlertOnFailure {
                 alertMessage = stream.disabledReason ?? "This stream type is not supported in-app."
@@ -239,7 +250,7 @@ final class StremioSourcesViewModel: ObservableObject {
         }
 
         let resumeMs = await resumeStore.get(contentKey: contentKey)?.positionMs
-        let externalSubtitles = await mergedExternalSubtitles(for: stream)
+        let externalSubtitles = await mergedExternalSubtitles(for: stream, deadline: subtitleDeadline)
         let playbackItem = StreamPlaybackItem(
             id: "stremio-\(destination.identity.requestId)-\(stream.id)",
             provider: .stremio,
@@ -317,10 +328,30 @@ final class StremioSourcesViewModel: ObservableObject {
         return .stream(playback)
     }
 
-    private func mergedExternalSubtitles(for stream: StremioPlayableStream) async -> [StremioSubtitleCandidate] {
+    /// Subtitle addon results, or nothing if they don't arrive by `deadline`.
+    private func addonSubtitles(deadline: Date?) async -> [StremioSubtitleCandidate] {
+        let service = self.service
+        let identity = destination.identity
+        guard let deadline else { return await service.getSubtitles(identity: identity) }
+
+        let wait = deadline.timeIntervalSinceNow
+        guard wait > 0 else { return [] }
+        return await withTaskGroup(of: [StremioSubtitleCandidate]?.self) { group in
+            group.addTask { await service.getSubtitles(identity: identity) }
+            group.addTask {
+                try? await Task.sleep(nanoseconds: UInt64(wait * 1_000_000_000))
+                return nil
+            }
+            let first = await group.next() ?? nil
+            group.cancelAll()
+            return first ?? []
+        }
+    }
+
+    private func mergedExternalSubtitles(for stream: StremioPlayableStream, deadline: Date?) async -> [StremioSubtitleCandidate] {
         var subtitles: [StremioSubtitleCandidate] = stream.subtitles ?? []
         if profileSettings.stremioSubtitleAddonsEnabled {
-            let fetched = await service.getSubtitles(identity: destination.identity)
+            let fetched = await addonSubtitles(deadline: deadline)
             subtitles.append(contentsOf: fetched)
         }
 

@@ -746,6 +746,7 @@ extension UserDefaults {
         stremioPreferCachedSourceResume = true
         stremioSubtitleAddonsEnabled = true
         stremioUnsupportedSourceVisibility = .showDisabled
+        resetStreamSelectionSettings()
     }
 }
 
