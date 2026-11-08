@@ -140,6 +140,21 @@ class MPVPlayerController {
         return true
     }
 
+    /// FFmpeg HTTP reconnect options (MPVKit ships FFmpeg 8.0, which supports all of them).
+    /// - reconnect / reconnect_streamed: reconnect dropped connections, also for non-seekable streams.
+    /// - reconnect_on_network_error: also reconnect when the TCP/TLS connection fails (not only on EOF).
+    /// - reconnect_on_http_error: retry on 408 (timeout), 429 (rate limited) and any 5xx. Auth and
+    ///   not-found errors (401/403/404) still fail at once, so Plex direct-play -> HLS fallback and
+    ///   expired-token retries are unaffected. The list is wrapped in [...] because mpv's key=value
+    ///   list is itself comma separated.
+    /// - reconnect_delay_max=15: exponential backoff 0, 1, 3, 7, 15 s before giving up.
+    /// reconnect_at_eof is deliberately NOT set: it would loop at the real end of a file
+    /// (and on finite HLS playlists).
+    static let reconnectOptions = "reconnect=1,reconnect_streamed=1,reconnect_on_network_error=1,"
+        + "reconnect_on_http_error=[408,429,5xx],reconnect_delay_max=15"
+    /// Previous options, used only if mpv rejects `reconnectOptions`.
+    static let basicReconnectOptions = "reconnect=1,reconnect_streamed=1,reconnect_delay_max=5"
+
     private func configureAdditionalOptions() {
         // Additional properties set AFTER mpv_initialize
         // Use mpv_set_property_string for post-init settings
@@ -155,7 +170,11 @@ class MPVPlayerController {
         // (off for Plex, which can use custom certs; on for addon streams).
         mpv_set_property_string(mpv, "tls-verify", "no")
         mpv_set_property_string(mpv, "network-timeout", "30")
-        mpv_set_property_string(mpv, "stream-lavf-o", "reconnect=1,reconnect_streamed=1,reconnect_delay_max=5")
+        if mpv_set_property_string(mpv, "stream-lavf-o", Self.reconnectOptions) < 0 {
+            // Never end up without reconnects if this mpv rejects the extended list.
+            mpv_set_property_string(mpv, "stream-lavf-o", Self.basicReconnectOptions)
+            print("⚠️ [MPV] Extended reconnect options rejected, using basic reconnect")
+        }
         print("[MPV] Network options configured")
 
         // Apply user settings from UserDefaults
@@ -406,10 +425,11 @@ class MPVPlayerController {
         let shouldVerify = verifyTLS && !Self.isLocalNetworkURL(url)
         mpv_set_property_string(mpv, "tls-verify", shouldVerify ? "yes" : "no")
 
-        // Set HTTP headers if provided (required for some Plex servers)
-        if let headers = headers, !headers.isEmpty {
-            let headerString = headers.map { "\($0.key): \($0.value)" }.joined(separator: ",")
-            mpv_set_property_string(mpv, "http-header-fields", headerString)
+        // HTTP headers (required for some Plex servers and addon streams).
+        // Always (re)set the list: mpv keeps `http-header-fields` across files,
+        // so loading without headers must clear the previous file's headers.
+        mpv_set_property_string(mpv, "http-header-fields", Self.httpHeaderFieldsValue(headers))
+        if let headers, !headers.isEmpty {
             print("📺 [MPV] HTTP headers set: \(headers.count) headers")
         }
 
@@ -419,6 +439,16 @@ class MPVPlayerController {
         if status < 0 {
             print("❌ [MPV] Failed to load file: \(String(cString: mpv_error_string(status)))")
         }
+    }
+
+    /// mpv string-list value for `http-header-fields`. Items are separated by
+    /// commas, so a comma inside a header value is escaped as `\,` (mpv's list escape).
+    /// Returns "" (empty list) when there are no headers.
+    static func httpHeaderFieldsValue(_ headers: [String: String]?) -> String {
+        guard let headers, !headers.isEmpty else { return "" }
+        return headers.keys.sorted().map { key in
+            "\(key): \(headers[key] ?? "")".replacingOccurrences(of: ",", with: "\\,")
+        }.joined(separator: ",")
     }
 
     /// True for localhost, *.local and private IPv4 ranges (self-hosted addons, LAN servers).
