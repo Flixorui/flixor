@@ -11,6 +11,7 @@ struct PlayerSettingsView: View {
     // MARK: - Profile Settings (profile-scoped)
     @ObservedObject private var profileSettings = ProfileSettings.shared
     @StateObject private var engineSettings = PlaybackEngineSettingsModel()
+    @StateObject private var skipSettings = SkipSegmentSettingsModel()
 
     // MARK: - Global Hardware Settings (device-specific, not profile-scoped)
     private let defaults = UserDefaults.standard
@@ -56,10 +57,12 @@ struct PlayerSettingsView: View {
     @State private var showMpvConfigView = false
 
     private let bufferOptions = [64, 128, 256, 512, 1024]
-    private let subtitleFontOptions = [
+    /// Font families offered here and in the player's subtitle panel.
+    static let subtitleFontFamilies = [
         "Helvetica Neue", "Arial", "Avenir Next", "Futura", "Gill Sans",
         "Verdana", "Trebuchet MS", "Georgia", "Times New Roman", "Menlo",
     ]
+    private var subtitleFontOptions: [String] { Self.subtitleFontFamilies }
 
     /// 0.25x-2x, plus a faster default saved by an earlier version so it stays selected.
     private var playbackSpeedOptions: [Double] {
@@ -325,6 +328,17 @@ struct PlayerSettingsView: View {
                 }
 
                 SettingsRow(
+                    icon: "backward.end.alt.fill",
+                    iconColor: .pink,
+                    title: "Skip Recaps Automatically",
+                    subtitle: "Auto-skip detected \u{201C}previously on\u{201D} recaps"
+                ) {
+                    Toggle("", isOn: $skipSettings.skipRecapAutomatically)
+                        .labelsHidden()
+                        .accessibilityLabel("Skip recaps automatically")
+                }
+
+                SettingsRow(
                     icon: "timer",
                     iconColor: .teal,
                     title: "Skip Delay",
@@ -343,6 +357,34 @@ struct PlayerSettingsView: View {
                 ) {
                     Stepper("\(profileSettings.creditsCountdownFallback)s", value: $profileSettings.creditsCountdownFallback, in: 10...120, step: 5)
                         .frame(width: 80)
+                }
+            }
+
+            // Community skip data - PROFILE-SCOPED
+            SettingsCard(title: "Skip Data") {
+                SettingsRow(
+                    icon: "person.3.fill",
+                    iconColor: .green,
+                    title: "Community Skip Data",
+                    subtitle: "Queries IntroDB and AniSkip for the current title's intro and credits timings"
+                ) {
+                    Toggle("", isOn: $skipSettings.communitySkipSegmentsEnabled)
+                        .labelsHidden()
+                        .accessibilityLabel("Community skip data")
+                }
+
+                SettingsRow(
+                    icon: "key.fill",
+                    iconColor: .gray,
+                    title: "Anime-Skip Client ID",
+                    subtitle: "Optional. Your own ID from anime-skip.com adds its timings for anime",
+                    showDivider: false
+                ) {
+                    TextField("Optional", text: $skipSettings.animeSkipClientId)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 200)
+                        .disabled(!skipSettings.communitySkipSegmentsEnabled)
+                        .accessibilityLabel("Anime-Skip client ID")
                 }
             }
 
@@ -397,7 +439,7 @@ struct PlayerSettingsView: View {
                                 get: { Double(engineSettings.position) },
                                 set: { engineSettings.position = Int($0) }
                             ),
-                            in: 50...100,
+                            in: 0...100,
                             step: 1
                         )
                         .frame(width: 100)
@@ -499,6 +541,7 @@ struct PlayerSettingsView: View {
         }
         .onAppear {
             engineSettings.reload()
+            skipSettings.reload()
             loadColors()
         }
         .onChange(of: subtitleTextColor) { newColor in
@@ -536,6 +579,7 @@ struct PlayerSettingsView: View {
         defaults.resetPlayerSettings()
         defaults.resetPlaybackEngineSettings()
         engineSettings.reload()
+        skipSettings.resetToDefaults()
         // Reload colors after reset
         loadColors()
         PlaybackEngineSettingsModel.notifyPlayer()

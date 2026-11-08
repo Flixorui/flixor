@@ -123,9 +123,28 @@ private struct AudioTabContent: View {
 
 private struct SubtitlesTabContent: View {
     @ObservedObject var viewModel: PlayerViewModel
-    @State private var showStyling = false
+
+    private enum Page {
+        case tracks, appearance, syncByLine
+    }
+
+    @State private var page: Page = .tracks
+
+    /// `syncSubtitle(to:)` can set offsets far beyond a few seconds; keep the +/- buttons working there.
+    private let subtitleDelayLimit = 3600.0
 
     var body: some View {
+        switch page {
+        case .tracks:
+            tracksPage
+        case .appearance:
+            SubtitleAppearancePanel(viewModel: viewModel, onBack: { page = .tracks })
+        case .syncByLine:
+            SubtitleSyncByLinePanel(viewModel: viewModel, onBack: { page = .tracks })
+        }
+    }
+
+    private var tracksPage: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Track Selection
             ScrollView {
@@ -174,34 +193,22 @@ private struct SubtitlesTabContent: View {
             SyncOffsetControl(
                 label: "Subtitle Sync",
                 value: viewModel.subtitleDelay,
-                onDecrement: { viewModel.setSubtitleDelay(max(-2.0, viewModel.subtitleDelay - 0.05)) },
-                onIncrement: { viewModel.setSubtitleDelay(min(2.0, viewModel.subtitleDelay + 0.05)) },
+                onDecrement: { viewModel.setSubtitleDelay(max(-subtitleDelayLimit, viewModel.subtitleDelay - 0.05)) },
+                onIncrement: { viewModel.setSubtitleDelay(min(subtitleDelayLimit, viewModel.subtitleDelay + 0.05)) },
                 onReset: { viewModel.setSubtitleDelay(0) }
             )
             .padding(.horizontal, 12)
             .padding(.top, 12)
 
-            // Styling Toggle
-            Button(action: { withAnimation(.easeInOut(duration: 0.2)) { showStyling.toggle() } }) {
-                HStack {
-                    Text("Subtitle Styling")
-                        .font(.system(size: 13))
-                        .foregroundStyle(.white.opacity(0.8))
-                    Spacer()
-                    Image(systemName: showStyling ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.5))
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
+            SubtitlePanelNavRow(title: "Sync by Line", systemImage: "text.line.first.and.arrowtriangle.forward") {
+                page = .syncByLine
             }
-            .buttonStyle(.plain)
+            .padding(.top, DS.Space.s4)
 
-            if showStyling {
-                SubtitleStylingControls(viewModel: viewModel)
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 12)
+            SubtitlePanelNavRow(title: "Appearance", systemImage: "textformat") {
+                page = .appearance
             }
+            .padding(.bottom, DS.Space.s4)
         }
     }
 }
@@ -335,42 +342,7 @@ private struct SyncOffsetControl: View {
     }
 }
 
-private struct SubtitleStylingControls: View {
-    @ObservedObject var viewModel: PlayerViewModel
-
-    var body: some View {
-        VStack(spacing: 12) {
-            // Font Size
-            CompactSliderRow(
-                label: "Size",
-                value: "\(viewModel.subtitleFontSize)",
-                sliderValue: Double(viewModel.subtitleFontSize),
-                range: 30...80,
-                step: 5
-            ) { viewModel.setSubtitleFontSize(Int($0)) }
-
-            // Border
-            CompactSliderRow(
-                label: "Border",
-                value: String(format: "%.1f", viewModel.subtitleBorderSize),
-                sliderValue: viewModel.subtitleBorderSize,
-                range: 0...5,
-                step: 0.5
-            ) { viewModel.setSubtitleBorderSize($0) }
-
-            // Background
-            CompactSliderRow(
-                label: "Background",
-                value: "\(Int(viewModel.subtitleBackgroundOpacity * 100))%",
-                sliderValue: viewModel.subtitleBackgroundOpacity,
-                range: 0...1,
-                step: 0.1
-            ) { viewModel.setSubtitleBackgroundOpacity($0) }
-        }
-    }
-}
-
-private struct CompactSliderRow: View {
+struct CompactSliderRow: View {
     let label: String
     let value: String
     let sliderValue: Double
@@ -407,7 +379,7 @@ struct PlaybackSpeedModal: View {
     let onSelectSpeed: (Float) -> Void
     let onClose: () -> Void
 
-    private let speeds: [Float] = [0.5, 0.75, 1.0, 1.25, 1.5]
+    private var speeds: [Float] { PlayerViewModel.playbackSpeedPresets }
     @State private var isDragging = false
     @State private var dragSpeed: Float?
 
@@ -415,8 +387,9 @@ struct PlaybackSpeedModal: View {
         isDragging ? (dragSpeed ?? currentSpeed) : currentSpeed
     }
 
+    /// Nearest preset, so a speed set elsewhere still lands on the track.
     private var currentIndex: Int {
-        speeds.firstIndex(of: currentSpeed) ?? 2
+        speeds.indices.min { abs(speeds[$0] - currentSpeed) < abs(speeds[$1] - currentSpeed) } ?? 0
     }
 
     private var activeIndex: Int {
@@ -469,14 +442,16 @@ struct PlaybackSpeedModal: View {
     private var speedSlider: some View {
         VStack(spacing: 16) {
             // Current speed display
-            Text(String(format: "%.2fx", displaySpeed))
-                .font(.system(size: 28, weight: .bold))
-                .foregroundStyle(.white)
+            HStack(alignment: .firstTextBaseline, spacing: DS.Space.s8) {
+                Text(String(format: "%.2fx", displaySpeed))
+                    .font(.system(size: 28, weight: .bold))
+                    .foregroundStyle(.white)
 
-            if abs(displaySpeed - 1.0) < 0.01 {
-                Text("Normal")
-                    .font(.system(size: 14))
-                    .foregroundStyle(.white.opacity(0.6))
+                if abs(displaySpeed - 1.0) < 0.01 {
+                    Text("Normal")
+                        .font(.system(size: 14))
+                        .foregroundStyle(.white.opacity(0.6))
+                }
             }
 
             // Draggable slider track
@@ -565,13 +540,18 @@ struct PlaybackSpeedModal: View {
     }
 
     private var speedLabels: some View {
-        HStack {
-            ForEach(speeds, id: \.self) { speed in
-                Text(String(format: "%.2gx", speed))
-                    .font(.system(size: 11))
-                    .foregroundStyle(.white.opacity(0.5))
-                    .frame(maxWidth: .infinity)
+        GeometryReader { geometry in
+            ZStack(alignment: .leading) {
+                ForEach(Array(speeds.enumerated()), id: \.offset) { index, speed in
+                    let xPosition = geometry.size.width * CGFloat(index) / CGFloat(speeds.count - 1)
+                    Text(String(format: "%gx", speed))
+                        .font(.system(size: 11))
+                        .foregroundStyle(.white.opacity(0.5))
+                        .frame(width: 44)
+                        .offset(x: xPosition - 22)
+                }
             }
         }
+        .frame(height: 14)
     }
 }

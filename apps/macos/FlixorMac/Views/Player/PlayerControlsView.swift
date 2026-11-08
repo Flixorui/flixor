@@ -17,6 +17,11 @@ struct PlayerControlsView: View {
     let onClose: () -> Void
     let onToggleFullScreen: () -> Void
     let onToggleMPVPiP: () -> Void
+    /// Reports whether a panel (episodes, speed, tracks, chapters, aspect) is open.
+    let onPanelOpenChanged: (Bool) -> Void
+
+    @Environment(\.flixorTheme) private var theme
+    @Environment(\.windowMetrics) private var metrics
 
     @State private var isDraggingTimeline = false
     @State private var draggedTime: TimeInterval = 0
@@ -25,6 +30,7 @@ struct PlayerControlsView: View {
     @State private var showVolumeSlider = false
     @State private var showAudioSubtitles = false
     @State private var showChaptersPanel = false
+    @State private var showAspectPanel = false
 
     // Thumbnail preview states
     @State private var showThumbnailPreview = false
@@ -48,6 +54,7 @@ struct PlayerControlsView: View {
     @State private var isFullscreenHovered = false
     @State private var isStatsHovered = false
     @State private var isChaptersHovered = false
+    @State private var isAspectHovered = false
 
     // Computed property for formatted player title
     // For episodes: "Show Name - S#E# - Episode Title"
@@ -86,6 +93,8 @@ struct PlayerControlsView: View {
                 Text(formattedPlayerTitle)
                     .font(.headline)
                     .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
 
                 Spacer()
 
@@ -195,6 +204,10 @@ struct PlayerControlsView: View {
                                 .fill(Color.accentColor)
                                 .frame(width: geometry.size.width * CGFloat(currentProgress), height: 4)
 
+                            // Chapter ticks and intro/recap/credits ranges
+                            SeekBarMarksView(model: seekBarMarks, segmentColor: theme.warning.opacity(DS.Opacity.strong))
+                                .equatable()
+
                             // Scrubber
                             Circle()
                                 .fill(Color.accentColor)
@@ -259,7 +272,7 @@ struct PlayerControlsView: View {
                 .padding(.horizontal, 20)
 
                 // Play/Pause & Volume
-                HStack(spacing: 20) {
+                HStack(spacing: metrics.sizeClass == .compact ? DS.Space.s12 : DS.Space.s20) {
                     // Play/Pause (first)
                     Button(action: { viewModel.togglePlayPause() }) {
                         if viewModel.isPlaying {
@@ -441,6 +454,27 @@ struct PlayerControlsView: View {
                         .help("Chapters")
                     }
 
+                    // Aspect mode button (MPV only)
+                    if viewModel.mpvController != nil {
+                        Button(action: {
+                            showAspectPanel.toggle()
+                        }) {
+                            Image(systemName: viewModel.aspectMode.systemImage)
+                                .font(.flixorIcon(DS.Icon.lg))
+                                .frame(width: 32, height: 32)
+                                .foregroundStyle(showAspectPanel ? theme.accent : .white)
+                        }
+                        .buttonStyle(.plain)
+                        .scaleEffect(isAspectHovered ? 1.1 : 1.0)
+                        .onHover { hovering in
+                            withAnimation(DS.Motion.standard) {
+                                isAspectHovered = hovering
+                            }
+                        }
+                        .help("Aspect Ratio (A)")
+                        .accessibilityLabel("Aspect ratio, \(viewModel.aspectMode.displayName)")
+                    }
+
                     // Picture-in-Picture button (custom MPV PiP window)
                     if mpvPiPViewController != nil {
                         Button(action: {
@@ -549,6 +583,15 @@ struct PlayerControlsView: View {
                 .transition(.opacity)
             }
         }
+        .overlay {
+            if showAspectPanel {
+                PlayerAspectPanel(
+                    viewModel: viewModel,
+                    onClose: { showAspectPanel = false }
+                )
+                .transition(.opacity)
+            }
+        }
         .overlay(alignment: .bottomTrailing) {
             // Next Episode Hover Card - positioned independently
             if showNextEpisodeHover, let nextEp = viewModel.nextEpisode {
@@ -563,6 +606,7 @@ struct PlayerControlsView: View {
             if showThumbnailPreview {
                 ThumbnailPreviewView(
                     time: thumbnailHoverTime,
+                    label: seekBarLabel(at: thumbnailHoverTime),
                     image: thumbnailImage,
                     isLoading: isThumbnailLoading
                 )
@@ -572,6 +616,29 @@ struct PlayerControlsView: View {
                 .transition(.opacity.combined(with: .scale(scale: 0.95)))
             }
         }
+        .onChange(of: isAnyPanelOpen) { onPanelOpenChanged($0) }
+        .onDisappear {
+            // Panels live in this view: they go with it (loading, errors, closing).
+            if isAnyPanelOpen { onPanelOpenChanged(false) }
+        }
+    }
+
+    private var isAnyPanelOpen: Bool {
+        showEpisodesList || showPlaybackSpeed || showAudioSubtitles || showChaptersPanel || showAspectPanel
+    }
+
+    private var seekBarMarks: SeekBarMarksModel {
+        SeekBarMarksModel(markers: viewModel.markers, chapters: viewModel.chapters, duration: viewModel.duration)
+    }
+
+    /// Name shown in the seek preview: the marker and/or chapter at `time`.
+    private func seekBarLabel(at time: TimeInterval) -> String? {
+        let timeMs = Int(time * 1000)
+        let marker = viewModel.markers.first { timeMs >= $0.startTimeOffset && timeMs <= $0.endTimeOffset }
+        let markerName = marker.map { $0.segmentType?.displayName ?? $0.type.capitalized }
+        let chapterName = viewModel.chapters.last { $0.time <= time }?.displayName
+        let names = [markerName, chapterName].compactMap { $0 }
+        return names.isEmpty ? nil : names.joined(separator: " · ")
     }
 
     private var currentProgress: Double {
@@ -681,6 +748,7 @@ private struct VolumeSliderPopover: View {
 
 private struct ThumbnailPreviewView: View {
     let time: TimeInterval
+    let label: String?
     let image: NSImage?
     let isLoading: Bool
 
@@ -717,10 +785,20 @@ private struct ThumbnailPreviewView: View {
                 }
             }
 
-            // Timestamp label
-            Text(formatTime(time))
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(.white)
+            // Timestamp, with the marker/chapter name when there is one
+            VStack(spacing: DS.Space.s2) {
+                if let label {
+                    Text(label)
+                        .font(.flixor(.footnote, weight: .medium))
+                        .foregroundStyle(.white.opacity(DS.Opacity.strong))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+                Text(formatTime(time))
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.white)
+            }
+                .frame(maxWidth: 200)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
                 .background(Color.black.opacity(0.9))
