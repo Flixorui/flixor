@@ -295,3 +295,43 @@ private struct MetadataBadge: View {
 }
 
 private struct Badge: View { let text: String; var body: some View { Text(text).font(.caption).padding(.horizontal, 8).padding(.vertical, 4).background(Color.white.opacity(0.12)).cornerRadius(6) } }
+
+// MARK: - Availability Badge
+
+/// Hero metadata-row availability indicator. Only ever positive ("In your Plex
+/// library"); when the title isn't in Plex and addon playback isn't possible it
+/// shows a quiet neutral note instead of a warning.
+struct DetailsAvailabilityBadge: View {
+    let isInPlexLibrary: Bool
+    let showsNotInLibraryNote: Bool
+
+    @Environment(\.flixorTheme) private var theme
+
+    var body: some View {
+        if isInPlexLibrary {
+            HStack(spacing: DS.Space.s4) {
+                Image(systemName: "checkmark.seal.fill")
+                    .font(.flixorIcon(DS.Icon.xs - 2))
+                Text("In your Plex library")
+            }
+            .font(.flixor(.caption, weight: .medium))
+            .foregroundStyle(theme.success)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("In your Plex library")
+        } else if showsNotInLibraryNote {
+            Text("Not in your Plex library")
+                .font(.flixor(.caption, weight: .medium))
+                .foregroundStyle(theme.textTertiary)
+        }
+    }
+}
+
+extension DetailsHeroSection {
+    /// Availability for the metadata row (see `DetailsAvailabilityBadge`).
+    var availabilityBadge: some View {
+        let stremioOnly = isStremioOnlyMode
+        let inPlex = !stremioOnly && vm.badges.contains { $0.lowercased() == "plex" }
+        let showNote = !stremioOnly && !inPlex && !showsStremioButton && !vm.isLoading && vm.tmdbId != nil
+        return DetailsAvailabilityBadge(isInPlexLibrary: inPlex, showsNotInLibraryNote: showNote)
+    }
+}
