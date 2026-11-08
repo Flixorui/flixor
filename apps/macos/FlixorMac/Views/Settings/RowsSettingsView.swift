@@ -76,6 +76,9 @@ struct RowsSettingsView: View {
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 4)
 
+            // Reorder, rename and hide individual rows
+            HomeRowsEditor()
+
             // Recently Added Options - the row itself is Plex-library-backed
             if !appMode.isStremioOnly {
                 SettingsSectionHeader(title: "Recently Added")

@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		9430B3E034E969EF7E6A9A15 /* HomeRowsEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B94677B1773E8C91A60B29F /* HomeRowsEditor.swift */; };
+		81FC6D368B7EF673365B133A /* HeroSourceSettingsRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAC658AE599872336622D04D /* HeroSourceSettingsRow.swift */; };
+		027DA052775C2752BEE1C9FE /* HomeStateCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 240F16B0AE63006C4D0A6B7F /* HomeStateCards.swift */; };
+		548E7AD683DA99582D7429E3 /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = CED20B1544CBC76A1366256C /* NetworkMonitor.swift */; };
 		9C45010E84140C64CFE93781 /* ContinueWatchingStylePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 668CEE21484E9F375ED6A876 /* ContinueWatchingStylePicker.swift */; };
 		F4836D14B767D9007A4879C4 /* ContinueWatchingWideRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3BA1FC16201B361D3FC73BF /* ContinueWatchingWideRow.swift */; };
 		DDBCE42163A37CCF6A4337CA /* ContinueWatchingMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = A24B779566C7890ABF2AD856 /* ContinueWatchingMenu.swift */; };
@@ -213,6 +217,10 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		3B94677B1773E8C91A60B29F /* HomeRowsEditor.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HomeRowsEditor.swift; sourceTree = "<group>"; };
+		CAC658AE599872336622D04D /* HeroSourceSettingsRow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HeroSourceSettingsRow.swift; sourceTree = "<group>"; };
+		240F16B0AE63006C4D0A6B7F /* HomeStateCards.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HomeStateCards.swift; sourceTree = "<group>"; };
+		CED20B1544CBC76A1366256C /* NetworkMonitor.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
 		668CEE21484E9F375ED6A876 /* ContinueWatchingStylePicker.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ContinueWatchingStylePicker.swift; sourceTree = "<group>"; };
 		A3BA1FC16201B361D3FC73BF /* ContinueWatchingWideRow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ContinueWatchingWideRow.swift; sourceTree = "<group>"; };
 		A24B779566C7890ABF2AD856 /* ContinueWatchingMenu.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ContinueWatchingMenu.swift; sourceTree = "<group>"; };
@@ -577,6 +585,7 @@
 		D007 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				CED20B1544CBC76A1366256C /* NetworkMonitor.swift */,
 				C2CB6AC1EB662418C5DAB02A /* HomeRowsStore.swift */,
 				46D031E0858D60EF3A8C739E /* WatchStateService.swift */,
 				EC85992E13EE4C4C1C8C2704 /* TraktListsService.swift */,
@@ -662,6 +671,7 @@
 		D012 /* Home */ = {
 			isa = PBXGroup;
 			children = (
+				240F16B0AE63006C4D0A6B7F /* HomeStateCards.swift */,
 				9410392525257D5E20B5FFD4 /* HomeHeroMetrics.swift */,
 				B030 /* HomeView.swift */,
 			);
@@ -688,6 +698,8 @@
 		D015 /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				3B94677B1773E8C91A60B29F /* HomeRowsEditor.swift */,
+				CAC658AE599872336622D04D /* HeroSourceSettingsRow.swift */,
 				668CEE21484E9F375ED6A876 /* ContinueWatchingStylePicker.swift */,
 				9F4FB3B84467ABEBB9DC1956 /* AppearanceSettingsView.swift */,
 				B015 /* SettingsView.swift */,
@@ -972,6 +984,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9430B3E034E969EF7E6A9A15 /* HomeRowsEditor.swift in Sources */,
+				81FC6D368B7EF673365B133A /* HeroSourceSettingsRow.swift in Sources */,
+				027DA052775C2752BEE1C9FE /* HomeStateCards.swift in Sources */,
+				548E7AD683DA99582D7429E3 /* NetworkMonitor.swift in Sources */,
 				9C45010E84140C64CFE93781 /* ContinueWatchingStylePicker.swift in Sources */,
 				F4836D14B767D9007A4879C4 /* ContinueWatchingWideRow.swift in Sources */,
 				DDBCE42163A37CCF6A4337CA /* ContinueWatchingMenu.swift in Sources */,

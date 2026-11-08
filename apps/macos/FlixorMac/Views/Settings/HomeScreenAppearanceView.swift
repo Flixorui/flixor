@@ -54,9 +54,10 @@ struct HomeScreenAppearanceView: View {
                 }
 
                 SettingsGroupCard {
-                    SettingsRow(icon: "arrow.triangle.2.circlepath", iconColor: .orange, title: "Auto-Rotate Hero", showDivider: false) {
+                    SettingsRow(icon: "arrow.triangle.2.circlepath", iconColor: .orange, title: "Auto-Rotate Hero") {
                         Toggle("", isOn: $profileSettings.heroAutoRotate).labelsHidden()
                     }
+                    HeroSourceSettingsRow()
                 }
 
                 // Hero Layout Preview

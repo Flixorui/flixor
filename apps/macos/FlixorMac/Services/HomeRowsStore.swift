@@ -161,7 +161,7 @@ final class HomeRowsStore: ObservableObject {
         let insertAt = destination - source.filter { $0 < destination }.count
         for index in source.sorted(by: >) { ids.remove(at: index) }
         ids.insert(contentsOf: moving, at: max(0, min(insertAt, ids.count)))
-        setOrder(ids)
+        setOrder(keepingUnlistedRows(ids))
     }
 
     /// Moves one row up (-1) or down (+1).
@@ -171,11 +171,18 @@ final class HomeRowsStore: ObservableObject {
         let target = index + delta
         guard ids.indices.contains(target) else { return }
         ids.swapAt(index, target)
-        setOrder(ids)
+        setOrder(keepingUnlistedRows(ids))
     }
 
     func resetOrder() {
         setOrder([])
+    }
+
+    /// Keeps the saved position of rows not listed right now (e.g. Plex rows
+    /// while in Stremio-only mode) so a reorder doesn't forget them.
+    private func keepingUnlistedRows(_ ids: [String]) -> [String] {
+        let listed = Set(ids)
+        return ids + order.filter { !listed.contains($0) }
     }
 
     private func setOrder(_ ids: [String]) {

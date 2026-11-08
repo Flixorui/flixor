@@ -57,6 +57,7 @@ extension HomeViewModel {
     private func removeFromContinueWatchingRow(_ item: MediaItem, action: ContinueWatchingAction) async {
         guard beginContinueWatchingAction(item) else { return }
         let originalIndex = continueWatchingItems.firstIndex { $0.id == item.id }
+        continueWatchingPendingRemovalIds.insert(item.id)
 
         withAnimation(DS.Motion.standard) {
             continueWatchingItems.removeAll { $0.id == item.id }
@@ -69,6 +70,7 @@ extension HomeViewModel {
         } else {
             result = await WatchStateService.shared.removeFromContinueWatching(item)
         }
+        continueWatchingPendingRemovalIds.remove(item.id)
         endContinueWatchingAction(item)
 
         if !result.isSuccess && !result.isPartialSuccess,

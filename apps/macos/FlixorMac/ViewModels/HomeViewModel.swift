@@ -68,11 +68,17 @@ class HomeViewModel: ObservableObject {
     @Published var continueWatchingVersions: Set<String> = []  // ratingKeys with multiple versions across libraries
     /// Continue Watching item ids with a watch-state action in flight.
     @Published var continueWatchingBusyIds: Set<String> = []
+    /// Items leaving the row whose action is still running; a refresh that
+    /// lands meanwhile must not bring them back.
+    var continueWatchingPendingRemovalIds: Set<String> = []
     @Published var onDeckItems: [MediaItem] = []
     @Published var recentlyAddedItems: [MediaItem] = [] // Global recently added (legacy, kept for billboard fallback)
     @Published var recentlyAddedSections: [LibrarySection] = [] // Per-library recently added rows
     @Published var librarySections: [LibrarySection] = []
-    @Published var extraSections: [LibrarySection] = [] // TMDB/Trakt/Watchlist/Genres
+    /// TMDB/Trakt/Watchlist/Genres/Stremio catalogs, with failed rows in place.
+    @Published var extraSlots: [HomeRowSlot] = []
+    /// Loaded discovery / catalog rows (failures left out).
+    var extraSections: [LibrarySection] { extraSlots.compactMap(\.section) }
     @Published var collectionSections: [LibrarySection] = [] // Plex Collections
 
     /// Addon name per Stremio catalog row id, for the duplicate-title caption.
@@ -80,6 +86,20 @@ class HomeViewModel: ObservableObject {
 
     @Published var currentBillboardIndex = 0
     @Published var pendingAction: HomeAction?
+
+    // MARK: - Load Progress / Hero Source
+
+    /// True once every row group of the current load has finished.
+    @Published private(set) var isInitialLoadComplete = false
+    /// Row ids being retried from their error card.
+    @Published private(set) var retryingRowIds: Set<String> = []
+    /// Row groups of the current load still running.
+    private var pendingGroupCount = 0
+    /// The hero source chosen in settings has been tried (found or given up).
+    private var preferredHeroSettled = false
+    /// Watchlist fetched only for the "My List" hero source (row hidden or off).
+    private var onDemandWatchlistItems: [MediaItem]?
+    private var onDemandWatchlistRequested = false
 
     // MARK: - UltraBlur Colors
     @Published var heroColors: PlexUltraBlurColors?
@@ -104,7 +124,7 @@ class HomeViewModel: ObservableObject {
 
     func loadHomeScreen() async {
         // Guard against duplicate loads
-        if isLoading || loadTask != nil {
+        if isLoading || loadTask != nil || pendingGroupCount > 0 {
             print("⚠️ [Home] Already loading, skipping duplicate request")
             return
         }
@@ -113,6 +133,10 @@ class HomeViewModel: ObservableObject {
         print("🏠 [Home] Starting home screen load...")
         isLoading = true
         error = nil
+        isInitialLoadComplete = false
+        preferredHeroSettled = HomeRowsStore.shared.heroSource == .automatic
+        onDemandWatchlistItems = nil
+        onDemandWatchlistRequested = false
 
         // Set all sections to loading state
         continueWatchingState = .loading
@@ -128,24 +152,16 @@ class HomeViewModel: ObservableObject {
             return
         }
 
+        // Continue Watching, On Deck, Recently Added, per-library rows,
+        // libraries, extra rows, collections.
+        pendingGroupCount = 7
+
         // Fire-and-forget each section; update UI as each finishes
         Task { @MainActor in
-            do {
-                let data = try await self.fetchContinueWatching()
-                self.continueWatchingItems = data
-                self.continueWatchingState = data.isEmpty ? .empty : .loaded
-                if self.billboardItems.isEmpty, !data.isEmpty {
-                    self.billboardItems = self.normalizeForHero(Array(data.prefix(5)))
-                    self.heroState = .loaded
-                    self.startBillboardRotation()
-                }
-                print("✅ [Home] Continue Watching loaded: \(data.count) items")
-            } catch {
-                print("⚠️ [Home] Continue Watching failed: \(error)")
-                self.continueWatchingState = .error(error.localizedDescription)
-            }
+            await self.loadPlexContinueWatching()
             // Mark initial loading complete after first section
             self.isLoading = false
+            self.finishGroup()
         }
 
         Task { @MainActor in
@@ -153,16 +169,13 @@ class HomeViewModel: ObservableObject {
                 let data = try await self.fetchOnDeck()
                 self.onDeckItems = data
                 self.onDeckState = data.isEmpty ? .empty : .loaded
-                if self.billboardItems.isEmpty, !data.isEmpty {
-                    self.billboardItems = self.normalizeForHero(Array(data.prefix(5)))
-                    self.heroState = .loaded
-                    self.startBillboardRotation()
-                }
+                self.offerDefaultHero(data)
                 print("✅ [Home] On Deck loaded: \(data.count) items")
             } catch {
                 print("⚠️ [Home] On Deck failed: \(error)")
                 self.onDeckState = .error(error.localizedDescription)
             }
+            self.finishGroup()
         }
 
         Task { @MainActor in
@@ -170,16 +183,13 @@ class HomeViewModel: ObservableObject {
                 let data = try await self.fetchRecentlyAdded()
                 self.recentlyAddedItems = data
                 self.recentlyAddedState = data.isEmpty ? .empty : .loaded
-                if self.billboardItems.isEmpty, !data.isEmpty {
-                    self.billboardItems = self.normalizeForHero(Array(data.prefix(5)))
-                    self.heroState = .loaded
-                    self.startBillboardRotation()
-                }
+                self.offerDefaultHero(data)
                 print("✅ [Home] Recently Added loaded: \(data.count) items")
             } catch {
                 print("⚠️ [Home] Recently Added failed: \(error)")
                 self.recentlyAddedState = .error(error.localizedDescription)
             }
+            self.finishGroup()
         }
 
         // Per-library Recently Added rows
@@ -188,11 +198,13 @@ class HomeViewModel: ObservableObject {
                 let sections = try await self.fetchRecentlyAddedPerLibrary()
                 self.recentlyAddedSections = sections
                 self.recentlyAddedPerLibraryState = sections.isEmpty ? .empty : .loaded
+                self.registerRecentlyAddedRows()
                 print("✅ [Home] Recently Added per library loaded: \(sections.count) sections")
             } catch {
                 print("⚠️ [Home] Recently Added per library failed: \(error)")
                 self.recentlyAddedPerLibraryState = .error(error.localizedDescription)
             }
+            self.finishGroup()
         }
 
         Task { @MainActor in
@@ -205,6 +217,7 @@ class HomeViewModel: ObservableObject {
                 print("⚠️ [Home] Libraries failed: \(error)")
                 self.librariesState = .error(error.localizedDescription)
             }
+            self.finishGroup()
         }
 
         // Load additional content sections (TMDB/Trakt/Genres/Watchlist) without blocking
@@ -213,11 +226,13 @@ class HomeViewModel: ObservableObject {
             // Last resort for the hero when the Plex rows came back empty, so it
             // resolves instead of shimmering forever.
             self.seedBillboardFromExtraSections()
+            self.finishGroup()
         }
 
         // Load collection sections (Plex Collections) without blocking
         Task { @MainActor in
             await self.loadCollectionRows()
+            self.finishGroup()
         }
 
         // Start polling for dynamic rows (Continue Watching, Recently Added)
@@ -243,6 +258,11 @@ class HomeViewModel: ObservableObject {
         onDeckItems = []
         recentlyAddedItems = []
 
+        registerRows([], group: .recentlyAdded)
+        registerRows([], group: .collections)
+        // Extra rows; local Continue Watching is awaited below.
+        pendingGroupCount = 1
+
         await loadLocalContinueWatching()
         isLoading = false
 
@@ -250,6 +270,7 @@ class HomeViewModel: ObservableObject {
             await self.loadAdditionalRows()
             // Local history seeds the hero first; otherwise fall back to discovery rows.
             self.seedBillboardFromExtraSections()
+            self.finishGroup()
         }
 
         loadTask = nil
@@ -259,16 +280,15 @@ class HomeViewModel: ObservableObject {
     func loadLocalContinueWatching() async {
         let entries = await LocalLibraryStore.shared.watchHistory()
         let items = entries.compactMap(makeMediaItem(from:))
+            .filter { !continueWatchingPendingRemovalIds.contains($0.id) }
 
         continueWatchingItems = items
         continueWatchingState = items.isEmpty ? .empty : .loaded
         continueWatchingVersions = []
+        registerContinueWatchingRow()
 
-        if billboardItems.isEmpty, !items.isEmpty {
-            billboardItems = normalizeForHero(Array(items.prefix(5)))
-            heroState = .loaded
-            startBillboardRotation()
-        }
+        offerDefaultHero(items)
+        resolvePreferredHero()
 
         print("✅ [Home] Local Continue Watching loaded: \(items.count) items")
     }
@@ -311,6 +331,8 @@ class HomeViewModel: ObservableObject {
             heroState = .loaded
             return
         }
+        // A hero source picked in settings is still loading; don't fill in yet.
+        guard preferredHeroSettled else { return }
 
         // Prefer a row with backdrop art so the billboard isn't a flat poster crop.
         let candidate = extraSections.first { section in
@@ -331,6 +353,266 @@ class HomeViewModel: ObservableObject {
         print("✅ [Home] Hero seeded from '\(candidate?.title ?? "?")': \(billboardItems.count) items")
     }
 
+    // MARK: - Group Bookkeeping
+
+    private func loadPlexContinueWatching() async {
+        do {
+            let data = try await fetchContinueWatching()
+            continueWatchingItems = data
+            continueWatchingState = data.isEmpty ? .empty : .loaded
+            registerContinueWatchingRow()
+            offerDefaultHero(data)
+            resolvePreferredHero()
+            print("✅ [Home] Continue Watching loaded: \(data.count) items")
+        } catch {
+            print("⚠️ [Home] Continue Watching failed: \(error)")
+            continueWatchingState = .error(error.localizedDescription)
+        }
+    }
+
+    /// One row group of the current load finished.
+    private func finishGroup() {
+        pendingGroupCount = max(0, pendingGroupCount - 1)
+        resolvePreferredHero()
+        guard pendingGroupCount == 0 else { return }
+
+        isInitialLoadComplete = true
+        let watchlistInFlight = onDemandWatchlistRequested && onDemandWatchlistItems == nil
+        if !preferredHeroSettled && !watchlistInFlight {
+            settleHeroWithFallback()
+        }
+        if billboardItems.isEmpty && preferredHeroSettled {
+            heroState = .empty
+        }
+        evaluateTotalFailure()
+    }
+
+    private func registerRows(_ descriptors: [HomeRowDescriptor], group: HomeRowGroup) {
+        HomeRowsStore.shared.register(descriptors, group: group)
+    }
+
+    private func registerContinueWatchingRow() {
+        registerRows([
+            HomeRowDescriptor(
+                id: homeContinueWatchingRowId,
+                defaultTitle: "Continue Watching",
+                kind: .continueWatching,
+                group: .continueWatching
+            )
+        ], group: .continueWatching)
+    }
+
+    private func registerRecentlyAddedRows() {
+        registerRows(recentlyAddedSections.map {
+            HomeRowDescriptor(id: $0.id, defaultTitle: $0.title, kind: .recentlyAdded, group: .recentlyAdded)
+        }, group: .recentlyAdded)
+        resolvePreferredHero()
+    }
+
+    // MARK: - Hero Source
+
+    /// Fills the hero from a default source, unless a source picked in settings
+    /// is still loading.
+    private func offerDefaultHero(_ items: [MediaItem]) {
+        guard billboardItems.isEmpty, !items.isEmpty, preferredHeroSettled else { return }
+        setHero(items)
+    }
+
+    private func setHero(_ items: [MediaItem]) {
+        stopBillboardRotation()
+        currentBillboardIndex = 0
+        billboardItems = normalizeForHero(Array(items.prefix(5)))
+        heroState = .loaded
+        startBillboardRotation()
+    }
+
+    /// Prefers items with backdrop art so the billboard isn't a flat poster crop.
+    private func preferringArt(_ items: [MediaItem]) -> [MediaItem] {
+        let withArt = items.filter { $0.art?.isEmpty == false || $0.grandparentArt?.isEmpty == false }
+        return withArt.isEmpty ? items : withArt
+    }
+
+    /// Items for a hero source; nil when its row isn't available.
+    private func itemsForHeroSource(_ source: HomeHeroSource) -> [MediaItem]? {
+        switch source {
+        case .automatic:
+            return nil
+        case .continueWatching:
+            return continueWatchingItems
+        case .myList:
+            return extraSections.first { $0.id == homeWatchlistRowId }?.items ?? onDemandWatchlistItems
+        case .row(let id):
+            if id == homeContinueWatchingRowId { return continueWatchingItems }
+            return (recentlyAddedSections + collectionSections + extraSections).first { $0.id == id }?.items
+        }
+    }
+
+    /// Whether the loader that feeds a hero source has finished.
+    private func isHeroSourceSettled(_ source: HomeHeroSource) -> Bool {
+        func settled(_ state: SectionLoadState) -> Bool { state != .idle && !state.isLoading }
+        switch source {
+        case .automatic:
+            return true
+        case .continueWatching:
+            return settled(continueWatchingState)
+        case .myList:
+            return settled(extraSectionsState)
+        case .row(let id):
+            if id == homeContinueWatchingRowId { return settled(continueWatchingState) }
+            if id.hasPrefix("recently-added-") { return settled(recentlyAddedPerLibraryState) }
+            if id.hasPrefix("collection-") { return settled(collectionSectionsState) }
+            return settled(extraSectionsState)
+        }
+    }
+
+    /// What the hero shows with the default source.
+    private func defaultHeroCandidates() -> [MediaItem]? {
+        for candidate in [continueWatchingItems, onDeckItems, recentlyAddedItems] where !candidate.isEmpty {
+            return candidate
+        }
+        let section = extraSections.first { $0.items.contains { $0.art?.isEmpty == false } }
+        let items = section?.items.filter { $0.art?.isEmpty == false } ?? []
+        return items.isEmpty ? nil : items
+    }
+
+    /// Tries the hero source picked in settings; called as row groups finish.
+    private func resolvePreferredHero() {
+        guard !preferredHeroSettled else { return }
+        let source = HomeRowsStore.shared.heroSource
+        if source == .automatic {
+            preferredHeroSettled = true
+            return
+        }
+        if let items = itemsForHeroSource(source), !items.isEmpty {
+            preferredHeroSettled = true
+            setHero(preferringArt(items))
+            return
+        }
+        guard isHeroSourceSettled(source) else { return }
+        if source == .myList, onDemandWatchlistItems == nil {
+            requestWatchlistForHero()
+            return
+        }
+        settleHeroWithFallback()
+    }
+
+    /// The chosen source is empty: fall back to the default.
+    private func settleHeroWithFallback() {
+        preferredHeroSettled = true
+        guard billboardItems.isEmpty else { return }
+        if let items = defaultHeroCandidates() {
+            setHero(items)
+        } else if pendingGroupCount == 0 {
+            heroState = .empty
+        }
+    }
+
+    /// The watchlist row can be off or hidden while My List feeds the hero.
+    private func requestWatchlistForHero() {
+        guard !onDemandWatchlistRequested else { return }
+        onDemandWatchlistRequested = true
+        Task { @MainActor in
+            let section = await self.fetchPlexTvWatchlistSection()
+            self.onDemandWatchlistItems = section?.items ?? []
+            self.resolvePreferredHero()
+        }
+    }
+
+    /// The hero source was changed in settings while Home is alive.
+    func applyHeroSourceChange() {
+        let source = HomeRowsStore.shared.heroSource
+        preferredHeroSettled = false
+
+        if let items = itemsForHeroSource(source), !items.isEmpty {
+            preferredHeroSettled = true
+            setHero(preferringArt(items))
+            return
+        }
+        let watchlistPending = source == .myList && onDemandWatchlistItems == nil
+        if isHeroSourceSettled(source) && !watchlistPending {
+            preferredHeroSettled = true
+            if let items = defaultHeroCandidates() { setHero(items) }
+            return
+        }
+        resolvePreferredHero()
+    }
+
+    // MARK: - Failures and Retry
+
+    /// Something failed to load (a group or a single row).
+    var hasRowFailures: Bool {
+        !rowFailureMessages.isEmpty
+    }
+
+    private var rowFailureMessages: [String] {
+        var messages: [String] = []
+        for state in [continueWatchingState, recentlyAddedPerLibraryState, collectionSectionsState] {
+            if case .error(let message) = state { messages.append(message) }
+        }
+        messages.append(contentsOf: extraSlots.compactMap { $0.failure?.message })
+        return messages
+    }
+
+    /// Nothing at all to show on the page.
+    var hasNoContent: Bool {
+        continueWatchingItems.isEmpty
+            && recentlyAddedSections.isEmpty
+            && collectionSections.isEmpty
+            && extraSections.isEmpty
+            && billboardItems.isEmpty
+    }
+
+    /// The full-page error is only for total failure: every source failed and
+    /// nothing loaded while the network is up. Offline has its own card.
+    private func evaluateTotalFailure() {
+        guard hasNoContent, NetworkMonitor.shared.isOnline, let first = rowFailureMessages.first else { return }
+        error = first
+    }
+
+    /// Re-fetches the discovery / catalog rows after their settings or addons changed.
+    func reloadExtraRows() {
+        guard extraSectionsState != .idle, !extraSectionsState.isLoading else { return }
+        Task { @MainActor in
+            await self.loadAdditionalRows()
+            self.seedBillboardFromExtraSections()
+        }
+    }
+
+    /// Retries a failed row from its error card. The rest of the page stays put.
+    func retry(_ failure: HomeRowFailure) {
+        guard !retryingRowIds.contains(failure.id) else { return }
+        retryingRowIds.insert(failure.id)
+        Task { @MainActor in
+            defer { self.retryingRowIds.remove(failure.id) }
+            switch failure.retry {
+            case .continueWatching:
+                if self.isStremioOnly {
+                    await self.loadLocalContinueWatching()
+                } else {
+                    await self.loadPlexContinueWatching()
+                }
+            case .recentlyAdded:
+                await self.refreshRecentlyAddedSections()
+            case .collections:
+                await self.loadCollectionRows()
+            case .extras:
+                await self.loadAdditionalRows()
+                self.seedBillboardFromExtraSections()
+            case .stremioCatalog(let ref):
+                let slot = await Self.fetchStremioCatalogSlot(ref)
+                var slots = self.extraSlots
+                if let index = slots.firstIndex(where: { $0.id == failure.id }) {
+                    if let slot {
+                        slots[index] = slot
+                    } else {
+                        slots.remove(at: index)
+                    }
+                    self.setExtraSlots(slots)
+                }
+            }
+        }
+    }
+
     // MARK: - Refresh
 
     func refresh() async {
@@ -346,6 +628,7 @@ class HomeViewModel: ObservableObject {
             let sections = try await fetchRecentlyAddedPerLibrary(bypassCache: true)
             recentlyAddedSections = sections
             recentlyAddedPerLibraryState = sections.isEmpty ? .empty : .loaded
+            registerRecentlyAddedRows()
             print("✅ [Home] Recently Added sections refreshed: \(sections.count) sections")
         } catch {
             print("⚠️ [Home] Recently Added refresh failed: \(error)")
@@ -361,32 +644,44 @@ class HomeViewModel: ObservableObject {
             return
         }
 
-        // Gather
-        var all: [String: LibrarySection] = [:]
+        // Gather. The Rows Settings group toggles apply in Plex mode too.
+        let settings = UserDefaults.standard
+        var all: [String: HomeRowSlot] = [:]
         var genres: [LibrarySection] = []
-        var trakt: [String: LibrarySection] = [:]
+        var trakt: [String: HomeRowSlot] = [:]
 
         // TMDB: Popular on Plex / Trending Now
-        do {
-            let (popular, trending) = try await fetchTMDBTrendingTVSections()
-            if let p = popular.first { all["Popular on Plex"] = p }
-            if let t = trending.first { all["Trending Now"] = t }
-        } catch { print("⚠️ [Home] TMDB trending failed: \(error)") }
+        if settings.showPlexPopular || settings.showTrendingRows {
+            do {
+                let (popular, trending) = try await fetchTMDBTrendingTVSections()
+                if settings.showPlexPopular, let p = popular.first { all["Popular on Plex"] = .section(p) }
+                if settings.showTrendingRows, let t = trending.first { all["Trending Now"] = .section(t) }
+            } catch {
+                print("⚠️ [Home] TMDB trending failed: \(error)")
+                let failure = HomeRowFailure(
+                    id: settings.showPlexPopular ? "tmdb-popular" : "tmdb-trending",
+                    title: settings.showPlexPopular ? "Popular on Plex" : "Trending Now",
+                    source: "TMDB",
+                    message: error.localizedDescription,
+                    retry: .extras
+                )
+                all[failure.title] = .failure(failure)
+            }
+        }
 
         // Plex.tv Watchlist
-        if let wl = await fetchPlexTvWatchlistSection() { all["Watchlist"] = wl }
+        if settings.showWatchlist, let wl = await fetchPlexTvWatchlistSection() { all["Watchlist"] = .section(wl) }
 
         // Genres
         do { genres = try await fetchGenreSections() } catch { print("⚠️ [Home] Genre sections failed: \(error)") }
 
         // Trakt
-        do {
-            let t = try await fetchTraktSections()
-            for s in t { trakt[s.title] = s }
-        } catch { print("⚠️ [Home] Trakt sections failed: \(error)") }
+        if settings.showTraktRows {
+            for slot in await fetchTraktSections() { trakt[slot.title] = slot }
+        }
 
         // Order exactly as requested
-        var ordered: [LibrarySection] = []
+        var ordered: [HomeRowSlot] = []
         func push(_ title: String) { if let s = all[title] { ordered.append(s) } }
         push("Popular on Plex")
         // Continue Watching is rendered separately with its own card style
@@ -405,7 +700,7 @@ class HomeViewModel: ObservableObject {
             "Movies - Animation",
         ]
         for label in desiredGenres {
-            if let g = genres.first(where: { $0.title == label }) { ordered.append(g) }
+            if let g = genres.first(where: { $0.title == label }) { ordered.append(.section(g)) }
         }
 
         // Trakt: Trending Movies, Trending TV Shows, Your Watchlist, Recently Watched, Recommended, Popular TV Shows
@@ -419,11 +714,20 @@ class HomeViewModel: ObservableObject {
         ]
         for label in desiredTrakt { if let s = trakt[label] { ordered.append(s) } }
 
-        await MainActor.run {
-            print("✅ [Home] Extra sections prepared: \(ordered.map { $0.title }.joined(separator: ", "))")
-            self.extraSections = ordered
-            self.extraSectionsState = ordered.isEmpty ? .empty : .loaded
+        print("✅ [Home] Extra sections prepared: \(ordered.map { $0.title }.joined(separator: ", "))")
+        setExtraSlots(ordered)
+    }
+
+    /// Publishes the extra rows and records them for Rows Settings.
+    private func setExtraSlots(_ slots: [HomeRowSlot]) {
+        extraSlots = slots
+        extraSectionsState = slots.isEmpty ? .empty : .loaded
+        // Only replace the known rows when something loaded, so a fully
+        // failed (e.g. offline) load doesn't wipe them from Rows Settings.
+        if slots.contains(where: { $0.section != nil }) {
+            registerRows(slots.map(descriptor(for:)), group: .extras)
         }
+        resolvePreferredHero()
     }
 
     // MARK: - Collection Rows
@@ -434,6 +738,8 @@ class HomeViewModel: ObservableObject {
             await MainActor.run {
                 self.collectionSections = []
                 self.collectionSectionsState = .empty
+                self.registerRows([], group: .collections)
+                self.resolvePreferredHero()
             }
             return
         }
@@ -442,6 +748,8 @@ class HomeViewModel: ObservableObject {
             await MainActor.run {
                 self.collectionSections = []
                 self.collectionSectionsState = .empty
+                self.registerRows([], group: .collections)
+                self.resolvePreferredHero()
             }
             return
         }
@@ -485,6 +793,10 @@ class HomeViewModel: ObservableObject {
             await MainActor.run {
                 self.collectionSections = sections
                 self.collectionSectionsState = sections.isEmpty ? .empty : .loaded
+                self.registerRows(sections.map {
+                    HomeRowDescriptor(id: $0.id, defaultTitle: $0.title, kind: .collection, group: .collections)
+                }, group: .collections)
+                self.resolvePreferredHero()
             }
         } catch {
             await MainActor.run {
@@ -566,7 +878,7 @@ class HomeViewModel: ObservableObject {
     ]
 
     private func loadStremioAdditionalRows() async {
-        var ordered: [LibrarySection] = []
+        var ordered: [HomeRowSlot] = []
         let settings = UserDefaults.standard
 
         // Addon catalogs first when present - they're the user's own configured
@@ -590,7 +902,7 @@ class HomeViewModel: ObservableObject {
         // Watchlist: the Plex.tv half is skipped automatically when plexTv is nil,
         // so this is the Trakt watchlist (plus local entries once Phase 3 lands).
         if settings.showWatchlist, let wl = await fetchPlexTvWatchlistSection() {
-            ordered.append(wl)
+            ordered.append(.section(wl))
         }
 
         if settings.showPlexPopular {
@@ -626,30 +938,27 @@ class HomeViewModel: ObservableObject {
 
         // Trakt rows require a linked account; they no-op otherwise.
         if settings.showTraktRows {
-            do {
-                let traktSections = try await fetchTraktSections()
-                let desiredTrakt = [
-                    "Trending Movies on Trakt",
-                    "Trending TV Shows on Trakt",
-                    "Your Trakt Watchlist",
-                    "Recently Watched",
-                    "Recommended for You",
-                    "Popular TV Shows on Trakt",
-                ]
-                for label in desiredTrakt {
-                    if let s = traktSections.first(where: { $0.title == label }) { ordered.append(s) }
-                }
-            } catch { print("⚠️ [Home] Trakt sections failed: \(error)") }
+            let traktSections = await fetchTraktSections()
+            let desiredTrakt = [
+                "Trending Movies on Trakt",
+                "Trending TV Shows on Trakt",
+                "Your Trakt Watchlist",
+                "Recently Watched",
+                "Recommended for You",
+                "Popular TV Shows on Trakt",
+            ]
+            for label in desiredTrakt {
+                if let s = traktSections.first(where: { $0.title == label }) { ordered.append(s) }
+            }
         }
 
         print("✅ [Home] Stremio sections prepared: \(ordered.map { $0.title }.joined(separator: ", "))")
-        self.extraSections = ordered
-        self.extraSectionsState = ordered.isEmpty ? .empty : .loaded
+        setExtraSlots(ordered)
     }
 
     /// One row per browsable catalog advertised by the installed Stremio addons.
     /// Rows are fetched concurrently but keep the addon priority order.
-    private func fetchStremioCatalogSections(maxRows: Int = 8) async -> [LibrarySection] {
+    private func fetchStremioCatalogSections(maxRows: Int = 8) async -> [HomeRowSlot] {
         let catalogs = await StremioService.shared.getBrowsableCatalogs()
         guard !catalogs.isEmpty else { return [] }
 
@@ -658,37 +967,23 @@ class HomeViewModel: ObservableObject {
             print("ℹ️ [Home] \(catalogs.count) catalogs available, showing first \(maxRows)")
         }
 
-        var byIndex: [Int: LibrarySection] = [:]
-        await withTaskGroup(of: (Int, LibrarySection?).self) { group in
+        var byIndex: [Int: HomeRowSlot] = [:]
+        await withTaskGroup(of: (Int, HomeRowSlot?).self) { group in
             for (index, entry) in selected.enumerated() {
+                let ref = StremioCatalogRef(
+                    entryId: entry.id,
+                    installationId: entry.installationId,
+                    type: entry.catalog.type,
+                    catalogId: entry.catalog.catalogId,
+                    displayName: entry.catalog.displayName,
+                    addonName: entry.addonName
+                )
                 group.addTask {
-                    let previews = await StremioService.shared.getCatalog(
-                        installationId: entry.installationId,
-                        type: entry.catalog.type,
-                        catalogId: entry.catalog.catalogId,
-                        limit: 20
-                    )
-                    guard !previews.isEmpty else { return (index, nil) }
-
-                    let items = await StremioCatalogMapper.shared.mediaItems(from: previews)
-                    guard !items.isEmpty else { return (index, nil) }
-
-                    return (index, LibrarySection(
-                        id: "stremio-catalog-\(entry.id)",
-                        // Addon name is not part of the title; it is shown as a
-                        // caption only when two rows would share a title.
-                        title: entry.catalog.displayName,
-                        items: items,
-                        totalCount: items.count,
-                        libraryKey: nil,
-                        // No browse context: paging a catalog needs the `skip` extra,
-                        // which the browse modal doesn't model yet.
-                        browseContext: nil
-                    ))
+                    (index, await Self.fetchStremioCatalogSlot(ref))
                 }
             }
-            for await (index, section) in group {
-                if let section { byIndex[index] = section }
+            for await (index, slot) in group {
+                if let slot { byIndex[index] = slot }
             }
         }
 
@@ -700,6 +995,46 @@ class HomeViewModel: ObservableObject {
         return sections
     }
 
+    /// One catalog row: the loaded row, a failure card when the addon request
+    /// failed, or nil when the catalog is simply empty.
+    nonisolated private static func fetchStremioCatalogSlot(_ ref: StremioCatalogRef) async -> HomeRowSlot? {
+        let rowId = "stremio-catalog-\(ref.entryId)"
+        let previews: [StremioMetaPreview]
+        do {
+            previews = try await StremioService.shared.fetchCatalog(
+                installationId: ref.installationId,
+                type: ref.type,
+                catalogId: ref.catalogId,
+                limit: 20
+            )
+        } catch {
+            return .failure(HomeRowFailure(
+                id: rowId,
+                title: ref.displayName,
+                source: ref.addonName,
+                message: error.localizedDescription,
+                retry: .stremioCatalog(ref)
+            ))
+        }
+        guard !previews.isEmpty else { return nil }
+
+        let items = await StremioCatalogMapper.shared.mediaItems(from: previews)
+        guard !items.isEmpty else { return nil }
+
+        return .section(LibrarySection(
+            id: rowId,
+            // Addon name is not part of the title; it is shown as a
+            // caption only when two rows would share a title.
+            title: ref.displayName,
+            items: items,
+            totalCount: items.count,
+            libraryKey: nil,
+            // No browse context: paging a catalog needs the `skip` extra,
+            // which the browse modal doesn't model yet.
+            browseContext: nil
+        ))
+    }
+
     /// Fetches one TMDB list and wraps it in a LibrarySection whose browse context
     /// matches, so "Browse all" paginates the same list.
     private func fetchTMDBListSection(
@@ -708,7 +1043,7 @@ class HomeViewModel: ObservableObject {
         media: TMDBMediaType,
         kind: TMDBBrowseKind,
         genreId: String? = nil
-    ) async -> LibrarySection? {
+    ) async -> HomeRowSlot? {
         do {
             let tmdb = FlixorCore.shared.tmdb
             let response: TMDBResultsResponse
@@ -739,17 +1074,17 @@ class HomeViewModel: ObservableObject {
             let items = response.results.prefix(20).map { makeTMDBMediaItem($0, media: media) }
             guard !items.isEmpty else { return nil }
 
-            return LibrarySection(
+            return .section(LibrarySection(
                 id: id,
                 title: title,
                 items: Array(items),
                 totalCount: response.totalResults ?? items.count,
                 libraryKey: nil,
                 browseContext: .tmdb(kind: kind, media: media, id: genreId, displayTitle: title)
-            )
+            ))
         } catch {
             print("⚠️ [Home] TMDB row '\(title)' failed: \(error)")
-            return nil
+            return .failure(HomeRowFailure(id: id, title: title, source: "TMDB", message: error.localizedDescription, retry: .extras))
         }
     }
 
@@ -1081,41 +1416,47 @@ class HomeViewModel: ObservableObject {
 
     // MARK: - Trakt Sections
 
-    private func fetchTraktSections() async throws -> [LibrarySection] {
-        var sections: [LibrarySection] = []
+    /// Trakt rows; a row that fails becomes a failure slot under its own id and title.
+    private func fetchTraktSections() async -> [HomeRowSlot] {
+        var sections: [HomeRowSlot] = []
         let trakt = FlixorCore.shared.trakt
+
+        func fail(_ id: String, _ title: String, _ error: Error) {
+            print("⚠️ [Home] Trakt row '\(title)' failed: \(error)")
+            sections.append(.failure(HomeRowFailure(id: id, title: title, source: "Trakt", message: error.localizedDescription, retry: .extras)))
+        }
 
         // Trending Movies (public)
         do {
             let trendingMovies = try await trakt.getTrendingMovies(limit: 12)
             let items = await mapTraktMoviesToMediaItems(trendingMovies.map { $0.movie })
             if !items.isEmpty {
-                sections.append(LibrarySection(
+                sections.append(.section(LibrarySection(
                     id: "trakt-trending-movies",
                     title: "Trending Movies on Trakt",
                     items: items,
                     totalCount: items.count,
                     libraryKey: nil,
                     browseContext: .trakt(kind: .trendingMovies)
-                ))
+                )))
             }
-        } catch { print("⚠️ [Home] Trakt trending movies failed: \(error)") }
+        } catch { fail("trakt-trending-movies", "Trending Movies on Trakt", error) }
 
         // Trending TV Shows (public)
         do {
             let trendingShows = try await trakt.getTrendingShows(limit: 12)
             let items = await mapTraktShowsToMediaItems(trendingShows.map { $0.show })
             if !items.isEmpty {
-                sections.append(LibrarySection(
+                sections.append(.section(LibrarySection(
                     id: "trakt-trending-shows",
                     title: "Trending TV Shows on Trakt",
                     items: items,
                     totalCount: items.count,
                     libraryKey: nil,
                     browseContext: .trakt(kind: .trendingShows)
-                ))
+                )))
             }
-        } catch { print("⚠️ [Home] Trakt trending shows failed: \(error)") }
+        } catch { fail("trakt-trending-shows", "Trending TV Shows on Trakt", error) }
 
         // Your Trakt Watchlist (auth)
         if trakt.isAuthenticated {
@@ -1134,16 +1475,16 @@ class HomeViewModel: ObservableObject {
                     }
                 }
                 if !items.isEmpty {
-                    sections.append(LibrarySection(
+                    sections.append(.section(LibrarySection(
                         id: "trakt-watchlist",
                         title: "Your Trakt Watchlist",
                         items: items,
                         totalCount: items.count,
                         libraryKey: nil,
                         browseContext: .trakt(kind: .watchlist)
-                    ))
+                    )))
                 }
-            } catch { print("⚠️ [Home] Trakt watchlist failed: \(error)") }
+            } catch { fail("trakt-watchlist", "Your Trakt Watchlist", error) }
 
             // Recently Watched (auth) - fetch movies and shows separately like mobile
             do {
@@ -1185,32 +1526,32 @@ class HomeViewModel: ObservableObject {
                 let limitedItems = Array(items.prefix(12))
 
                 if !limitedItems.isEmpty {
-                    sections.append(LibrarySection(
+                    sections.append(.section(LibrarySection(
                         id: "trakt-history",
                         title: "Recently Watched",
                         items: limitedItems,
                         totalCount: limitedItems.count,
                         libraryKey: nil,
                         browseContext: .trakt(kind: .history)
-                    ))
+                    )))
                 }
-            } catch { print("⚠️ [Home] Trakt history failed: \(error)") }
+            } catch { fail("trakt-history", "Recently Watched", error) }
 
             // Recommended for You (auth)
             do {
                 let recommended = try await trakt.getRecommendedMovies(limit: 12)
                 let items = await mapTraktMoviesToMediaItems(recommended)
                 if !items.isEmpty {
-                    sections.append(LibrarySection(
+                    sections.append(.section(LibrarySection(
                         id: "trakt-recs",
                         title: "Recommended for You",
                         items: items,
                         totalCount: items.count,
                         libraryKey: nil,
                         browseContext: .trakt(kind: .recommendations)
-                    ))
+                    )))
                 }
-            } catch { print("⚠️ [Home] Trakt recommendations failed: \(error)") }
+            } catch { fail("trakt-recs", "Recommended for You", error) }
         }
 
         // Popular TV Shows on Trakt (public)
@@ -1218,16 +1559,16 @@ class HomeViewModel: ObservableObject {
             let popularShows = try await trakt.getPopularShows(limit: 12)
             let items = await mapTraktShowsToMediaItems(popularShows)
             if !items.isEmpty {
-                sections.append(LibrarySection(
+                sections.append(.section(LibrarySection(
                     id: "trakt-popular-shows",
                     title: "Popular TV Shows on Trakt",
                     items: items,
                     totalCount: items.count,
                     libraryKey: nil,
                     browseContext: .trakt(kind: .popularShows)
-                ))
+                )))
             }
-        } catch { print("⚠️ [Home] Trakt popular shows failed: \(error)") }
+        } catch { fail("trakt-popular-shows", "Popular TV Shows on Trakt", error) }
 
         return sections
     }
@@ -1356,7 +1697,8 @@ class HomeViewModel: ObservableObject {
 
         // Enrich with TMDB backdrop URLs before returning
         let baseItems = result.items.map { toMediaItem($0) }
-        return await enrichWithTMDBBackdrops(baseItems)
+        let enriched = await enrichWithTMDBBackdrops(baseItems)
+        return enriched.filter { !continueWatchingPendingRemovalIds.contains($0.id) }
     }
 
     private func enrichWithTMDBBackdrops(_ items: [MediaItem]) async -> [MediaItem] {
@@ -1690,6 +2032,7 @@ class HomeViewModel: ObservableObject {
                 if existingIds != newIds || sections.count != self.recentlyAddedSections.count {
                     self.recentlyAddedSections = sections
                     self.recentlyAddedPerLibraryState = sections.isEmpty ? .empty : .loaded
+                    self.registerRecentlyAddedRows()
                     print("✅ [Home] Recently Added per library updated: \(sections.count) sections")
                 } else {
                     print("ℹ️ [Home] Recently Added per library unchanged")
@@ -1901,7 +2244,9 @@ class HomeViewModel: ObservableObject {
     func playItem(_ item: MediaItem) {
         // Stremio playback needs a resolved IMDb/TMDB id, which only the details
         // screen has. Send the user there; its play button starts Stremio playback.
-        if isStremioOnly || !item.id.hasPrefix("plex:") {
+        // Shows and seasons have nothing to play directly either; the hero can
+        // now be fed from any row, including grouped Recently Added cards.
+        if isStremioOnly || !item.id.hasPrefix("plex:") || item.type == "show" || item.type == "season" {
             pendingAction = .details(item)
             return
         }

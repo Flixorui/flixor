@@ -18,172 +18,20 @@ struct HomeView: View {
     // Profile-scoped Home Screen Settings
     @ObservedObject private var profileSettings = ProfileSettings.shared
     @ObservedObject private var rowsStore = HomeRowsStore.shared
+    @ObservedObject private var network = NetworkMonitor.shared
+    @State private var showAddonManager = false
 
     var body: some View {
         ZStack {
             Group {
-                if let error = viewModel.error {
+                if let error = viewModel.error, network.isOnline {
                     ErrorView(message: error) {
                         Task {
                             await viewModel.refresh()
                         }
                     }
                 } else {
-                    ScrollView {
-                        VStack(spacing: 0) {
-
-                            // Hero Section (Billboard or Carousel based on settings)
-                            if profileSettings.showHeroSection && viewModel.heroState != .empty {
-                                Group {
-                                    if !viewModel.billboardItems.isEmpty {
-                                        switch profileSettings.heroLayout {
-                                        case "carousel":
-                                            HeroCarousel(
-                                                items: viewModel.billboardItems,
-                                                currentIndex: $viewModel.currentBillboardIndex,
-                                                onPlay: { item in viewModel.playItem(item) },
-                                                onInfo: { item in viewModel.showItemDetails(item) },
-                                                onMyList: { item in viewModel.toggleMyList(item) }
-                                            )
-                                        default: // "billboard"
-                                            BillboardSection(viewModel: viewModel)
-                                        }
-                                    } else {
-                                        HeroSkeleton()
-                                    }
-                                }
-                                .padding(.horizontal, 20)
-                                .padding(.vertical, 16)
-                            }
-
-                            // Spacing below hero
-                            Color.clear.frame(height: 24)
-
-                            // Content sections with modular skeleton loading
-                            VStack(spacing: 40) {
-                                // Continue Watching - shows skeleton until loaded (if enabled)
-                                if profileSettings.showContinueWatching {
-                                    SectionContainer(
-                                        state: viewModel.continueWatchingState,
-                                        content: { continueWatchingRow(title: "Continue Watching") },
-                                        skeleton: { continueWatchingSkeleton }
-                                    )
-                                }
-
-                                // Recently Added per library sections
-                                if viewModel.recentlyAddedPerLibraryState.isLoading {
-                                    // Show skeleton rows while loading (one per expected library)
-                                    ForEach(0..<2, id: \.self) { _ in
-                                        SkeletonCarouselRow(
-                                            itemWidth: profileSettings.rowLayout == "poster" ? 160 : 420,
-                                            itemCount: profileSettings.rowLayout == "poster" ? 6 : 4,
-                                            cardType: profileSettings.rowLayout == "poster" ? .poster : .landscape
-                                        )
-                                    }
-                                } else {
-                                    ForEach(viewModel.recentlyAddedSections) { section in
-                                        Group {
-                                            if profileSettings.rowLayout == "poster" {
-                                                PosterSectionRow(
-                                                    section: section,
-                                                    onTap: { item in
-                                                        viewModel.showItemDetails(item)
-                                                    },
-                                                    onBrowse: { context in
-                                                        presentBrowse(context)
-                                                    }
-                                                )
-                                            } else {
-                                                LandscapeSectionView(
-                                                    section: section,
-                                                    onTap: { item in
-                                                        viewModel.showItemDetails(item)
-                                                    },
-                                                    onBrowse: { context in
-                                                        presentBrowse(context)
-                                                    }
-                                                )
-                                            }
-                                        }
-                                        .environment(\.rowTitleCaption, rowCaptions[section.id])
-                                        .transition(.opacity)
-                                    }
-                                }
-
-                                // Collection sections (Plex Collections)
-                                if profileSettings.showCollectionRows {
-                                    if viewModel.collectionSectionsState.isLoading {
-                                        // Show skeleton rows while loading
-                                        ForEach(0..<3, id: \.self) { _ in
-                                            SkeletonCarouselRow(
-                                                itemWidth: profileSettings.rowLayout == "poster" ? 160 : 420,
-                                                itemCount: profileSettings.rowLayout == "poster" ? 6 : 4,
-                                                cardType: profileSettings.rowLayout == "poster" ? .poster : .landscape
-                                            )
-                                        }
-                                    } else {
-                                        ForEach(viewModel.collectionSections) { section in
-                                            CollectionSectionRow(
-                                                section: section,
-                                                rowLayout: profileSettings.rowLayout,
-                                                onTap: { item in
-                                                    viewModel.showItemDetails(item)
-                                                },
-                                                onBrowse: { context in
-                                                    presentBrowse(context)
-                                                }
-                                            )
-                                            .transition(.opacity)
-                                        }
-                                    }
-                                }
-
-                                // Extra sections (Popular on Plex, Trending Now, Watchlist, Genres, Trakt)
-                                // Show skeleton placeholders while loading, then fade in actual content
-                                if viewModel.extraSectionsState.isLoading {
-                                    // Show expected number of skeleton rows
-                                    ForEach(0..<viewModel.expectedExtraSectionCountForMode, id: \.self) { _ in
-                                        SkeletonCarouselRow(
-                                            itemWidth: profileSettings.rowLayout == "poster" ? 160 : 420,
-                                            itemCount: profileSettings.rowLayout == "poster" ? 6 : 4,
-                                            cardType: profileSettings.rowLayout == "poster" ? .poster : .landscape
-                                        )
-                                    }
-                                } else {
-                                    ForEach(viewModel.extraSections) { section in
-                                        Group {
-                                            if profileSettings.rowLayout == "poster" {
-                                                PosterSectionRow(
-                                                    section: section,
-                                                    onTap: { item in
-                                                        viewModel.showItemDetails(item)
-                                                    },
-                                                    onBrowse: { context in
-                                                        presentBrowse(context)
-                                                    }
-                                                )
-                                            } else {
-                                                LandscapeSectionView(
-                                                    section: section,
-                                                    onTap: { item in
-                                                        viewModel.showItemDetails(item)
-                                                    },
-                                                    onBrowse: { context in
-                                                        presentBrowse(context)
-                                                    }
-                                                )
-                                            }
-                                        }
-                                        .environment(\.rowTitleCaption, rowCaptions[section.id])
-                                        .transition(.opacity)
-                                    }
-                                }
-                            }
-                            .padding(.vertical, 40)
-                            .animation(.easeInOut(duration: 0.3), value: viewModel.extraSectionsState)
-                            .animation(.easeInOut(duration: 0.3), value: viewModel.recentlyAddedPerLibraryState)
-                        }
-                    }
+                    homeScrollContent
                 }
             }
 
@@ -241,6 +89,22 @@ struct HomeView: View {
                 await viewModel.refreshRecentlyAddedSections()
             }
         }
+        .sheet(isPresented: $showAddonManager) {
+            StremioAddonsView()
+        }
+        .onChange(of: showAddonManager) { isShowing in
+            if !isShowing { viewModel.reloadExtraRows() }
+        }
+        .onChange(of: extraRowTogglesKey) { _ in
+            viewModel.reloadExtraRows()
+        }
+        .onChange(of: rowsStore.heroSource) { _ in
+            viewModel.applyHeroSourceChange()
+        }
+        .onChange(of: network.isOnline) { isOnline in
+            guard isOnline, viewModel.hasRowFailures || viewModel.hasNoContent else { return }
+            Task { await viewModel.refresh() }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .watchStateDidChange)) { _ in
             // Watched / removed / reset anywhere in the app: refresh the row.
             Task { await viewModel.refreshContinueWatching() }
@@ -252,10 +116,151 @@ struct HomeView: View {
         }
     }
 
-    /// Addon-name captions for rows that would otherwise share a title.
-    private var rowCaptions: [String: String] {
-        let sections = viewModel.recentlyAddedSections + viewModel.collectionSections + viewModel.extraSections
-        return viewModel.duplicateTitleCaptions(for: sections.map { ($0.id, $0.title) })
+    // MARK: - Page
+
+    /// One lazy stack as the scroll content, so rows below the fold are only
+    /// built when they come near the viewport.
+    private var homeScrollContent: some View {
+        let rows = viewModel.displayRows(store: rowsStore, settings: profileSettings, isOnline: network.isOnline)
+        return ScrollView {
+            LazyVStack(spacing: 0) {
+                heroSection
+
+                if !network.isOnline {
+                    HomeOfflineCard { Task { await viewModel.refresh() } }
+                        .padding(.top, DS.Space.s8)
+                }
+
+                // Spacing below the hero
+                Color.clear.frame(height: 64)
+
+                ForEach(rows) { row in
+                    rowView(row)
+                        .padding(.bottom, DS.Space.s40)
+                        .transition(.opacity)
+                }
+
+                if viewModel.isInitialLoadComplete && network.isOnline && rows.isEmpty {
+                    emptyStateCard
+                        .padding(.bottom, DS.Space.s40)
+                }
+            }
+            .animation(DS.Motion.emphasized, value: viewModel.extraSectionsState)
+            .animation(DS.Motion.emphasized, value: viewModel.recentlyAddedPerLibraryState)
+        }
+    }
+
+    /// Hero Section (Billboard or Carousel based on settings)
+    @ViewBuilder
+    private var heroSection: some View {
+        if profileSettings.showHeroSection && viewModel.heroState != .empty {
+            Group {
+                if !viewModel.billboardItems.isEmpty {
+                    switch profileSettings.heroLayout {
+                    case "carousel":
+                        HeroCarousel(
+                            items: viewModel.billboardItems,
+                            currentIndex: $viewModel.currentBillboardIndex,
+                            onPlay: { item in viewModel.playItem(item) },
+                            onInfo: { item in viewModel.showItemDetails(item) },
+                            onMyList: { item in viewModel.toggleMyList(item) }
+                        )
+                    default: // "billboard"
+                        BillboardSection(viewModel: viewModel)
+                    }
+                } else {
+                    HeroSkeleton()
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 16)
+        }
+    }
+
+    @ViewBuilder
+    private func rowView(_ row: HomeDisplayRow) -> some View {
+        switch row.content {
+        case .continueWatching:
+            SectionContainer(
+                state: viewModel.continueWatchingState,
+                content: { continueWatchingRow(title: row.title) },
+                skeleton: { continueWatchingSkeleton }
+            )
+        case .section(let section):
+            sectionRow(section)
+                .environment(\.rowTitleCaption, row.caption)
+        case .skeleton(let cardType):
+            SkeletonCarouselRow(
+                itemWidth: cardType == .poster ? 160 : 420,
+                itemCount: cardType == .poster ? 6 : 4,
+                cardType: cardType
+            )
+        case .failure(let failure):
+            HomeRowErrorCard(
+                failure: failure,
+                isRetrying: viewModel.retryingRowIds.contains(failure.id),
+                onRetry: { viewModel.retry(failure) }
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func sectionRow(_ section: LibrarySection) -> some View {
+        if section.isCollection {
+            CollectionSectionRow(
+                section: section,
+                rowLayout: profileSettings.rowLayout,
+                onTap: { item in viewModel.showItemDetails(item) },
+                onBrowse: { context in presentBrowse(context) }
+            )
+        } else if profileSettings.rowLayout == "poster" {
+            PosterSectionRow(
+                section: section,
+                onTap: { item in viewModel.showItemDetails(item) },
+                onBrowse: { context in presentBrowse(context) }
+            )
+        } else {
+            LandscapeSectionView(
+                section: section,
+                onTap: { item in viewModel.showItemDetails(item) },
+                onBrowse: { context in presentBrowse(context) }
+            )
+        }
+    }
+
+    /// Nothing to show: says why and offers the most useful next step.
+    private var emptyStateCard: some View {
+        let hasHiddenRows = !rowsStore.hidden.isEmpty
+        let showHidden = HomeStateCard.Action(title: "Show Hidden Rows") { rowsStore.showAllRows() }
+        let refresh = HomeStateCard.Action(title: "Refresh") { Task { await viewModel.refresh() } }
+        if AppModeStore.shared.isStremioOnly {
+            return HomeStateCard(
+                icon: "puzzlepiece.extension",
+                title: "Nothing to show yet",
+                message: "Add Stremio addons to fill your home screen with catalogs.",
+                primary: .init(title: "Add Addons") { showAddonManager = true },
+                secondary: hasHiddenRows ? showHidden : nil
+            )
+        }
+        return HomeStateCard(
+            icon: "rectangle.stack",
+            title: "Nothing to show yet",
+            message: hasHiddenRows
+                ? "All of your home rows are hidden."
+                : "Your libraries and rows came back empty. Check your Plex server in Settings.",
+            primary: hasHiddenRows ? showHidden : refresh
+        )
+    }
+
+    /// Rows Settings toggles that decide which extra rows get fetched.
+    private var extraRowTogglesKey: [Bool] {
+        [
+            profileSettings.showTrendingRows,
+            profileSettings.showTraktRows,
+            profileSettings.showPlexPopular,
+            profileSettings.showWatchlist,
+            profileSettings.showStremioCatalogRows,
+        ]
     }
 
     // MARK: - Continue Watching
@@ -670,6 +675,7 @@ struct CollectionSectionRow: View {
     var onBrowse: ((BrowseContext) -> Void)?
 
     @State private var isHeaderHovered = false
+    @Environment(\.rowTitleCaption) private var titleCaption
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -682,6 +688,10 @@ struct CollectionSectionRow: View {
                 Text(section.title)
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(.white)
+
+                if let titleCaption {
+                    RowTitleCaptionText(caption: titleCaption)
+                }
 
                 if let browseContext = section.browseContext {
                     Button(action: { onBrowse?(browseContext) }) {
