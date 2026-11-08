@@ -19,9 +19,17 @@ struct PosterCard: View {
     var onTap: (() -> Void)?
 
     @State private var isHovered = false
+    @ObservedObject private var cardStyle = CardStyleStore.shared
 
     private var height: CGFloat {
         width * 1.5 // 2:3 aspect ratio
+    }
+
+    private var cornerRadius: CGFloat { cardStyle.cornerStyle.posterRadius }
+
+    private var ratingBadgeValue: Double? {
+        guard cardStyle.showRatingBadges, let rating = item.rating, rating > 0 else { return nil }
+        return rating
     }
 
     private var progressPercentage: Double {
@@ -57,18 +65,23 @@ struct PosterCard: View {
                     .frame(width: width, height: height)
                     .clipped()
                     .background(Color.gray.opacity(0.2))
-                    .cornerRadius(12)
+                    .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                    .accessibilityHidden(true)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 12)
+                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                             .stroke(Color.white.opacity(isSelected ? 1.0 : (isHovered ? 0.9 : 0.15)),
                                    lineWidth: isSelected ? 2 : (isHovered ? 2 : 1))
                     )
                     .shadow(color: .black.opacity(0.3), radius: 6, y: 3)
                     .overlay(alignment: .topLeading) {
-                        // Badge overlay (e.g., source badges)
-                        if let badge = badge {
-                            badge.padding(8)
+                        // Badge overlay (e.g., source badges) and optional rating
+                        VStack(alignment: .leading, spacing: DS.Space.s4) {
+                            badge
+                            if let rating = ratingBadgeValue {
+                                CardRatingBadge(rating: rating)
+                            }
                         }
+                        .padding(badge == nil && ratingBadgeValue == nil ? 0 : DS.Space.s8)
                     }
                     .overlay(alignment: .topTrailing) {
                         // Top trailing overlay (e.g., watchlist button)
@@ -98,14 +111,10 @@ struct PosterCard: View {
                 }
             }
             .buttonStyle(.plain)
-            .onHover { hovering in
-                withAnimation(.easeOut(duration: 0.15)) {
-                    isHovered = hovering
-                }
-            }
+            .cardInteractions(item: item, cornerRadius: cornerRadius, isHovered: $isHovered, onOpen: onTap)
 
-            // Title
-            if showTitle {
+            // Title ("Never" hides it; "Always" and "On Hover" keep the caption here)
+            if showTitle && cardStyle.titleMode != .never {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(item.title)
                         .font(.system(size: 13, weight: .medium))
@@ -119,6 +128,7 @@ struct PosterCard: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+                .accessibilityHidden(true) // Part of the card's label
             }
         }
         .frame(width: width)

@@ -7,6 +7,17 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		C90B365A3E7BC4CD5CF43B9B /* CardStyleSettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E55ED726CF1F57C5AEF4113 /* CardStyleSettingsSection.swift */; };
+		C9B155DDC4B4EED46176F416 /* HoverPreviewTrailer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9343B19919F6069F96C66AEF /* HoverPreviewTrailer.swift */; };
+		4E579FD5350A566FE36F1D8F /* HoverPreviewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 714929DBE096A8D7F219A30C /* HoverPreviewModel.swift */; };
+		9150BD792B44C5E3B9466D64 /* HoverPreviewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FE4AF04D00F079B0708B8DA /* HoverPreviewController.swift */; };
+		9323B516F8C7C606B19FD4B2 /* HoverPreviewCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 292BA0AC617798289BE2C577 /* HoverPreviewCard.swift */; };
+		205DDF21C96090061D6E32CD /* CardStyleStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BB3479057854CCDBD8C14A2 /* CardStyleStore.swift */; };
+		3F5B1AE2575023BEA333AC04 /* CardKeyboardFocus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9059637D82CE5484F5CBE2E5 /* CardKeyboardFocus.swift */; };
+		3C772B596FBC2DD31C966AFB /* CardInteractions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13A70737A6DD95CCA90E5E9F /* CardInteractions.swift */; };
+		46034E5525EA17CA19F21791 /* CardActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A6A82719EB8D84779DC75D0 /* CardActions.swift */; };
+		DD484C04EFE85478F5E8D7BC /* CardContextMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D97B222F80226CB7BF8B95D /* CardContextMenu.swift */; };
+		50DA749BF58F398292E7CC18 /* UserDefaults+Cards.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFCF3BDFFC6998DC7644DBE2 /* UserDefaults+Cards.swift */; };
 		81589FE15E5F3A60DF37596B /* WatchStateService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46D031E0858D60EF3A8C739E /* WatchStateService.swift */; };
 		63AA8F5C8099B3513A6C3852 /* TraktListsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC85992E13EE4C4C1C8C2704 /* TraktListsService.swift */; };
 		3FC7D91559AFA7117387D2C8 /* TraktCommentsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 863179F8A6086C93AB02C84E /* TraktCommentsService.swift */; };
@@ -202,6 +213,17 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		5E55ED726CF1F57C5AEF4113 /* CardStyleSettingsSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CardStyleSettingsSection.swift; sourceTree = "<group>"; };
+		9343B19919F6069F96C66AEF /* HoverPreviewTrailer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoverPreview/HoverPreviewTrailer.swift; sourceTree = "<group>"; };
+		714929DBE096A8D7F219A30C /* HoverPreviewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoverPreview/HoverPreviewModel.swift; sourceTree = "<group>"; };
+		9FE4AF04D00F079B0708B8DA /* HoverPreviewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoverPreview/HoverPreviewController.swift; sourceTree = "<group>"; };
+		292BA0AC617798289BE2C577 /* HoverPreviewCard.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoverPreview/HoverPreviewCard.swift; sourceTree = "<group>"; };
+		3BB3479057854CCDBD8C14A2 /* CardStyleStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Cards/CardStyleStore.swift; sourceTree = "<group>"; };
+		9059637D82CE5484F5CBE2E5 /* CardKeyboardFocus.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Cards/CardKeyboardFocus.swift; sourceTree = "<group>"; };
+		13A70737A6DD95CCA90E5E9F /* CardInteractions.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Cards/CardInteractions.swift; sourceTree = "<group>"; };
+		8A6A82719EB8D84779DC75D0 /* CardActions.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Cards/CardActions.swift; sourceTree = "<group>"; };
+		1D97B222F80226CB7BF8B95D /* CardContextMenu.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CardContextMenu.swift; sourceTree = "<group>"; };
+		BFCF3BDFFC6998DC7644DBE2 /* UserDefaults+Cards.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "UserDefaults+Cards.swift"; sourceTree = "<group>"; };
 		46D031E0858D60EF3A8C739E /* WatchStateService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchStateService.swift; sourceTree = "<group>"; };
 		EC85992E13EE4C4C1C8C2704 /* TraktListsService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TraktListsService.swift; sourceTree = "<group>"; };
 		863179F8A6086C93AB02C84E /* TraktCommentsService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TraktCommentsService.swift; sourceTree = "<group>"; };
@@ -577,6 +599,7 @@
 		D008 /* Extensions */ = {
 			isa = PBXGroup;
 			children = (
+				BFCF3BDFFC6998DC7644DBE2 /* UserDefaults+Cards.swift */,
 				497B08D5668C4AE5E283945A /* UserDefaults+WatchState.swift */,
 				4F750BC1AEFFF3F132E53194 /* WindowMetrics.swift */,
 				2DC553DC45B4C35E1EA8888A /* UserDefaults+Appearance.swift */,
@@ -600,6 +623,15 @@
 		D011 /* Components */ = {
 			isa = PBXGroup;
 			children = (
+				9343B19919F6069F96C66AEF /* HoverPreviewTrailer.swift */,
+				714929DBE096A8D7F219A30C /* HoverPreviewModel.swift */,
+				9FE4AF04D00F079B0708B8DA /* HoverPreviewController.swift */,
+				292BA0AC617798289BE2C577 /* HoverPreviewCard.swift */,
+				3BB3479057854CCDBD8C14A2 /* CardStyleStore.swift */,
+				9059637D82CE5484F5CBE2E5 /* CardKeyboardFocus.swift */,
+				13A70737A6DD95CCA90E5E9F /* CardInteractions.swift */,
+				8A6A82719EB8D84779DC75D0 /* CardActions.swift */,
+				1D97B222F80226CB7BF8B95D /* CardContextMenu.swift */,
 				D300 /* Icons */,
 				B014 /* NewPopularView.swift */,
 				B017 /* CachedAsyncImage.swift */,
@@ -656,6 +688,7 @@
 		D015 /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				5E55ED726CF1F57C5AEF4113 /* CardStyleSettingsSection.swift */,
 				9F4FB3B84467ABEBB9DC1956 /* AppearanceSettingsView.swift */,
 				B015 /* SettingsView.swift */,
 				B163 /* PlexServersView.swift */,
@@ -939,6 +972,17 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C90B365A3E7BC4CD5CF43B9B /* CardStyleSettingsSection.swift in Sources */,
+				C9B155DDC4B4EED46176F416 /* HoverPreviewTrailer.swift in Sources */,
+				4E579FD5350A566FE36F1D8F /* HoverPreviewModel.swift in Sources */,
+				9150BD792B44C5E3B9466D64 /* HoverPreviewController.swift in Sources */,
+				9323B516F8C7C606B19FD4B2 /* HoverPreviewCard.swift in Sources */,
+				205DDF21C96090061D6E32CD /* CardStyleStore.swift in Sources */,
+				3F5B1AE2575023BEA333AC04 /* CardKeyboardFocus.swift in Sources */,
+				3C772B596FBC2DD31C966AFB /* CardInteractions.swift in Sources */,
+				46034E5525EA17CA19F21791 /* CardActions.swift in Sources */,
+				DD484C04EFE85478F5E8D7BC /* CardContextMenu.swift in Sources */,
+				50DA749BF58F398292E7CC18 /* UserDefaults+Cards.swift in Sources */,
 				81589FE15E5F3A60DF37596B /* WatchStateService.swift in Sources */,
 				63AA8F5C8099B3513A6C3852 /* TraktListsService.swift in Sources */,
 				3FC7D91559AFA7117387D2C8 /* TraktCommentsService.swift in Sources */,

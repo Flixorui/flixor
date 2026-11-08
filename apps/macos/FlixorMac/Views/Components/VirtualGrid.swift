@@ -34,6 +34,7 @@ struct VirtualGrid<Item: Identifiable, Content: View>: View {
             LazyVGrid(columns: gridItems, spacing: spacing) {
                 ForEach(items) { item in
                     content(item)
+                        .modifier(RaiseOnHoverModifier())
                 }
             }
             .padding(20)

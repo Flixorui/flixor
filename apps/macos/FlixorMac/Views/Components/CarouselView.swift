@@ -5,6 +5,7 @@
 //  Horizontal scrolling carousel component
 //
 
+import Combine
 import SwiftUI
 
 struct CarouselView<Item: Identifiable, Content: View>: View {
@@ -19,6 +20,12 @@ struct CarouselView<Item: Identifiable, Content: View>: View {
     @State private var showLeftArrow = false
     @State private var showRightArrow = true
     @State private var scrollProxy: ScrollViewProxy?
+    @State private var hoveredIndex: Int?
+    @FocusState private var focusedIndex: Int?
+    @StateObject private var focusHandle = CardRowFocusHandle()
+    @ObservedObject private var keyboardMode = CardKeyboardModeTracker.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @EnvironmentObject private var mainViewState: MainViewState
 
     init(
         items: [Item],
@@ -41,30 +48,19 @@ struct CarouselView<Item: Identifiable, Content: View>: View {
                     ScrollView(.horizontal, showsIndicators: false) {
                         LazyHStack(spacing: spacing) {
                             ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                                content(item)
-                                    .frame(width: itemWidth)
-                                    .id(index)
-                                    .background(
-                                        GeometryReader { itemGeometry in
-                                            Color.clear
-                                                .preference(
-                                                    key: FirstVisiblePreferenceKey.self,
-                                                    value: FirstVisibleItem(
-                                                        index: index,
-                                                        minX: itemGeometry.frame(in: .named("scrollView")).minX
-                                                    )
-                                                )
-                                        }
-                                    )
+                                cell(for: item, at: index)
                             }
                         }
                         .padding(.horizontal, 20)
+                        .padding(.vertical, CardMetrics.rowOverflowInset)
                     }
                     .coordinateSpace(name: "scrollView")
                     .onPreferenceChange(FirstVisiblePreferenceKey.self) { firstVisible in
                         // Update current index based on the leftmost visible item
                         // This ensures manual scrolling updates the index
                         currentIndex = firstVisible.index
+                        focusHandle.firstVisibleIndex = firstVisible.index
+                        focusHandle.firstVisibleMinX = firstVisible.minX
                         updateArrows(viewWidth: geometry.size.width)
                     }
                     .onAppear {
@@ -97,9 +93,113 @@ struct CarouselView<Item: Identifiable, Content: View>: View {
                     .allowsHitTesting(true)
                 }
             }
+            // Taller than the row by the overflow inset on both sides, so a
+            // scaled card is not clipped; layout and card positions are unchanged.
+            .frame(width: geometry.size.width, height: geometry.size.height + CardMetrics.rowOverflowInset * 2)
+            .offset(y: -CardMetrics.rowOverflowInset)
+            .background(CardAnchorView(box: focusHandle.anchorBox))
             .onHover { hovering in
                 isHovered = hovering
             }
+        }
+        .onAppear {
+            syncFocusHandle()
+            CardRowFocusRegistry.shared.register(focusHandle)
+        }
+        .onDisappear {
+            CardRowFocusRegistry.shared.unregister(focusHandle)
+        }
+        // Hidden tabs stay alive; a card left focused there must not take keys.
+        .onChange(of: mainViewState.selectedTab) { _ in focusedIndex = nil }
+        .onChange(of: items.count) { _ in syncFocusHandle() }
+        .onChange(of: itemWidth) { _ in syncFocusHandle() }
+        .onChange(of: focusedIndex) { index in
+            // Bring the row on screen when the keyboard moved focus into it.
+            guard index != nil, keyboardMode.isKeyboardActive else { return }
+            focusHandle.anchorView?.flixorScrollIntoViewVertically(margin: DS.Space.s48)
+        }
+        .onReceive(focusHandle.$requestedFocus.compactMap { $0 }) { index in
+            focusHandle.requestedFocus = nil
+            focus(index)
+        }
+    }
+
+    // MARK: - Cell
+
+    private func cell(for item: Item, at index: Int) -> some View {
+        let isFocused = focusedIndex == index
+        let handle = focusHandle
+        let itemId = AnyHashable(item.id)
+        return content(item)
+            .frame(width: itemWidth)
+            .environment(\.cardFocusContext, CardFocusContext(
+                isFocusRingVisible: isFocused && keyboardMode.isKeyboardActive,
+                registerOpenAction: { action in handle.registerOpenAction(action, for: itemId) }
+            ))
+            .focusable()
+            .focused($focusedIndex, equals: index)
+            .flixorSystemFocusEffectDisabled()
+            .onMoveCommand { moveFocus($0, from: index) }
+            .onCommand(#selector(NSResponder.insertNewline(_:))) { handle.open(id: itemId) }
+            .onHover { hovering in
+                if hovering {
+                    hoveredIndex = index
+                } else if hoveredIndex == index {
+                    hoveredIndex = nil
+                }
+            }
+            .id(index)
+            .background(
+                GeometryReader { itemGeometry in
+                    Color.clear
+                        .preference(
+                            key: FirstVisiblePreferenceKey.self,
+                            value: FirstVisibleItem(
+                                index: index,
+                                minX: itemGeometry.frame(in: .named("scrollView")).minX
+                            )
+                        )
+                }
+            )
+            .zIndex(hoveredIndex == index || isFocused ? 1 : 0)
+    }
+
+    // MARK: - Keyboard
+
+    private func syncFocusHandle() {
+        focusHandle.itemCount = items.count
+        focusHandle.itemWidth = itemWidth
+        focusHandle.spacing = spacing
+    }
+
+    private func moveFocus(_ direction: MoveCommandDirection, from index: Int) {
+        switch direction {
+        case .left:
+            focus(index - 1)
+        case .right:
+            focus(index + 1)
+        case .up:
+            CardRowFocusRegistry.shared.moveVertically(from: focusHandle, index: index, up: true)
+        case .down:
+            CardRowFocusRegistry.shared.moveVertically(from: focusHandle, index: index, up: false)
+        @unknown default:
+            break
+        }
+    }
+
+    /// Scrolls the card into view, then focuses it on the next turn: a lazy
+    /// stack can only focus a card it has already created.
+    private func focus(_ index: Int) {
+        guard items.indices.contains(index) else { return }
+        if reduceMotion {
+            scrollProxy?.scrollTo(index)
+        } else {
+            withAnimation(DS.Motion.standard) {
+                scrollProxy?.scrollTo(index)
+            }
+        }
+        DispatchQueue.main.async {
+            focusedIndex = index
         }
     }
 
@@ -124,6 +224,7 @@ struct CarouselView<Item: Identifiable, Content: View>: View {
         }
         .buttonStyle(.plain)
         .transition(.opacity)
+        .accessibilityLabel(direction == .left ? "Scroll left" : "Scroll right")
     }
 
     private func scroll(direction: ScrollDirection, geometry: GeometryProxy) {
