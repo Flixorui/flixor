@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		F09703DED3AE8449DEE64D3A /* DetailsHeroSettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40D872E8BB756E0D32F55E28 /* DetailsHeroSettingsSection.swift */; };
+		FE61FFE2C5204A43F62CBAD6 /* DetailsHeroTrailer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121EB2E29F971C7EEC943190 /* DetailsHeroTrailer.swift */; };
+		7651A775CFE8B36BEAB7444D /* UserDefaults+DetailsHero.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7084D6AC2BE8BAA6B784E00F /* UserDefaults+DetailsHero.swift */; };
 		844019BFAC6E6DB22B65079B /* DetailsHeroScrollState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B4D27F448520E17FA9F4E93 /* DetailsHeroScrollState.swift */; };
 		60C8D219EB6BF2553973589B /* DetailsFloatingHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37D256AAC72D5E1974E507E3 /* DetailsFloatingHeader.swift */; };
 		9C12D50F78FF1C785A9C52D6 /* DetailsWatchActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = C43221B7F2AD41E2D4A566F2 /* DetailsWatchActions.swift */; };
@@ -208,6 +211,9 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		40D872E8BB756E0D32F55E28 /* DetailsHeroSettingsSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DetailsHeroSettingsSection.swift; sourceTree = "<group>"; };
+		121EB2E29F971C7EEC943190 /* DetailsHeroTrailer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DetailsHeroTrailer.swift; sourceTree = "<group>"; };
+		7084D6AC2BE8BAA6B784E00F /* UserDefaults+DetailsHero.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "UserDefaults+DetailsHero.swift"; sourceTree = "<group>"; };
 		5B4D27F448520E17FA9F4E93 /* DetailsHeroScrollState.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DetailsHeroScrollState.swift; sourceTree = "<group>"; };
 		37D256AAC72D5E1974E507E3 /* DetailsFloatingHeader.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DetailsFloatingHeader.swift; sourceTree = "<group>"; };
 		C43221B7F2AD41E2D4A566F2 /* DetailsWatchActions.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DetailsWatchActions.swift; sourceTree = "<group>"; };
@@ -590,6 +596,7 @@
 		D008 /* Extensions */ = {
 			isa = PBXGroup;
 			children = (
+				7084D6AC2BE8BAA6B784E00F /* UserDefaults+DetailsHero.swift */,
 				497B08D5668C4AE5E283945A /* UserDefaults+WatchState.swift */,
 				4F750BC1AEFFF3F132E53194 /* WindowMetrics.swift */,
 				2DC553DC45B4C35E1EA8888A /* UserDefaults+Appearance.swift */,
@@ -669,6 +676,7 @@
 		D015 /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				40D872E8BB756E0D32F55E28 /* DetailsHeroSettingsSection.swift */,
 				9F4FB3B84467ABEBB9DC1956 /* AppearanceSettingsView.swift */,
 				B015 /* SettingsView.swift */,
 				B163 /* PlexServersView.swift */,
@@ -713,6 +721,7 @@
 		D018 /* Details */ = {
 			isa = PBXGroup;
 			children = (
+				121EB2E29F971C7EEC943190 /* DetailsHeroTrailer.swift */,
 				5B4D27F448520E17FA9F4E93 /* DetailsHeroScrollState.swift */,
 				37D256AAC72D5E1974E507E3 /* DetailsFloatingHeader.swift */,
 				C43221B7F2AD41E2D4A566F2 /* DetailsWatchActions.swift */,
@@ -957,6 +966,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F09703DED3AE8449DEE64D3A /* DetailsHeroSettingsSection.swift in Sources */,
+				FE61FFE2C5204A43F62CBAD6 /* DetailsHeroTrailer.swift in Sources */,
+				7651A775CFE8B36BEAB7444D /* UserDefaults+DetailsHero.swift in Sources */,
 				844019BFAC6E6DB22B65079B /* DetailsHeroScrollState.swift in Sources */,
 				60C8D219EB6BF2553973589B /* DetailsFloatingHeader.swift in Sources */,
 				9C12D50F78FF1C785A9C52D6 /* DetailsWatchActions.swift in Sources */,

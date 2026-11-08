@@ -152,6 +152,8 @@ struct DetailsScreenSettingsView: View {
                 }
             }
 
+            DetailsHeroSettingsSection()
+
             // Ratings Display
             SettingsSectionHeader(title: "Ratings Display")
             SettingsGroupCard {

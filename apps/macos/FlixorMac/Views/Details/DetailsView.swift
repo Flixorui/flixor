@@ -40,6 +40,11 @@ struct DetailsView: View {
     @StateObject private var heroScroll = DetailsHeroScrollState()
     @Environment(\.windowMetrics) private var windowMetrics
 
+    // Inline hero trailer
+    @StateObject private var heroTrailer = DetailsHeroTrailerController()
+    @Environment(\.controlActiveState) private var controlActiveState
+    @State private var ownTab: NavItem?
+
     // Loading skeleton
     @State private var initialLoadFinished = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -163,6 +168,35 @@ struct DetailsView: View {
         }
         .animation(reduceMotion ? DS.Motion.quick : DS.Motion.standard, value: showsFloatingHeader)
         .environment(\.detailsTitleActions, titleActions)
+        .environment(\.detailsHeroTrailer, heroTrailer)
+        .onReceive(heroScroll.scrollActivity) { _ in
+            heroTrailer.noteActivity()
+        }
+        .onReceive(heroScroll.$isHeroMostlyVisible.removeDuplicates()) { visible in
+            heroTrailer.update { $0.isHeroVisible = visible }
+        }
+        .onChange(of: controlActiveState) { state in
+            heroTrailer.update { $0.isWindowFocused = state == .key }
+        }
+        .onChange(of: mainView.selectedTab) { tab in
+            heroTrailer.update { $0.isTabActive = ownTab == nil || tab == ownTab }
+        }
+        .onChange(of: reduceMotion) { value in
+            heroTrailer.update { $0.isReduceMotion = value }
+        }
+        .onAppear {
+            if ownTab == nil { ownTab = mainView.selectedTab }
+            heroTrailer.update {
+                $0.isPageVisible = true
+                $0.isWindowFocused = controlActiveState == .key
+                $0.isTabActive = mainView.selectedTab == ownTab
+                $0.isReduceMotion = reduceMotion
+            }
+        }
+        .onDisappear {
+            // Leaving the page (including starting playback) stops the trailer.
+            heroTrailer.update { $0.isPageVisible = false }
+        }
         .background(HomeBackground(heroColors: vm.heroColors))
         .navigationTitle("")
         .task {
@@ -176,8 +210,11 @@ struct DetailsView: View {
             }
         }
         .onChange(of: vm.isLoading) { loading in
-            if !loading {
+            if loading {
+                heroTrailer.configure(tmdbId: nil, mediaKind: nil)
+            } else {
                 titleActions.configure(with: vm)
+                heroTrailer.configure(tmdbId: vm.tmdbId, mediaKind: vm.mediaKind)
             }
         }
         .toast()

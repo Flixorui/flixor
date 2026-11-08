@@ -31,6 +31,7 @@ struct DetailsHeroSection: View {
     @ObservedObject private var profileSettings = ProfileSettings.shared
     @Environment(\.flixorTheme) var theme
     @Environment(\.detailsTitleActions) var titleActions
+    @Environment(\.detailsHeroTrailer) var heroTrailer
 
     private var hasTrailers: Bool { !trailers.isEmpty }
 
@@ -118,6 +119,11 @@ struct DetailsHeroSection: View {
                         )
                     }
                     .frame(width: geo.size.width, height: geo.size.height)
+
+                    // Inline trailer crossfades over the backdrop, under the fades.
+                    if let heroTrailer {
+                        DetailsHeroTrailerLayer(controller: heroTrailer, size: geo.size)
+                    }
 
                     // Top fade for navigation clarity
                     LinearGradient(
@@ -211,6 +217,13 @@ struct DetailsHeroSection: View {
             .padding(.bottom, layout.heroBottomPadding)
         }
         .frame(maxWidth: .infinity, minHeight: layout.heroHeight, maxHeight: layout.heroHeight)
+        .overlay(alignment: .topTrailing) {
+            if let heroTrailer {
+                DetailsHeroTrailerControls(controller: heroTrailer)
+                    .padding(.top, DS.Space.s80)
+                    .padding(.trailing, layout.heroHorizontalPadding)
+            }
+        }
         .reportsDetailsHeroFrame()
         .sheet(item: $selectedTrailer) { trailer in
             TrailerModal(
