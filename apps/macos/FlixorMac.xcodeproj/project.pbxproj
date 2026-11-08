@@ -7,6 +7,14 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		4B0B4503EC515D7BA6599470 /* DetailsSectionOrderList.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7404D0E4FB2D6A6845DD7DF7 /* DetailsSectionOrderList.swift */; };
+		F38A1523C4D4C73E5F04D3A2 /* DetailsSectionsContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A27E2E074B63717F4C054AE0 /* DetailsSectionsContainer.swift */; };
+		2E97531ADB5A666525DF34ED /* DetailsEpisodeExtras.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A4E839819B0CD7C80D5B8A9 /* DetailsEpisodeExtras.swift */; };
+		7AE0F7CB55AF41D6973489D7 /* DetailsCommentsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 658EE84651C4D18A035EF199 /* DetailsCommentsSection.swift */; };
+		FB6F3EC145A47A8253494A09 /* DetailsCollectionSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = B11DFBEF3B15D356DEC92F27 /* DetailsCollectionSection.swift */; };
+		A281155AB45FAD5EE0903A32 /* DetailsEpisodeStateModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52BEF60FB9677EF6CFDA3567 /* DetailsEpisodeStateModel.swift */; };
+		78938AA38D7460FEAF20FA56 /* DetailsSectionsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DC8F144D075DF493C53FED0 /* DetailsSectionsStore.swift */; };
+		420B2FD7B9D57E7C11E94148 /* UserDefaults+DetailsSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFC9C771249A58B6D741F2E2 /* UserDefaults+DetailsSections.swift */; };
 		C095393B1EFCE4BC52BEA360 /* SearchRecentSearchesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0068328812A404568F6E5E28 /* SearchRecentSearchesView.swift */; };
 		263C0081976BD169E82DBBA2 /* SearchPeopleRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7AA029D3FF8FC03EAB2DB1B /* SearchPeopleRow.swift */; };
 		D4336010A9BDA98DE60518E7 /* SearchDiscoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3330CB52CAFCA47FD1E4F75 /* SearchDiscoverView.swift */; };
@@ -218,6 +226,14 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		7404D0E4FB2D6A6845DD7DF7 /* DetailsSectionOrderList.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DetailsSectionOrderList.swift; sourceTree = "<group>"; };
+		A27E2E074B63717F4C054AE0 /* DetailsSectionsContainer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DetailsSectionsContainer.swift; sourceTree = "<group>"; };
+		4A4E839819B0CD7C80D5B8A9 /* DetailsEpisodeExtras.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DetailsEpisodeExtras.swift; sourceTree = "<group>"; };
+		658EE84651C4D18A035EF199 /* DetailsCommentsSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DetailsCommentsSection.swift; sourceTree = "<group>"; };
+		B11DFBEF3B15D356DEC92F27 /* DetailsCollectionSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DetailsCollectionSection.swift; sourceTree = "<group>"; };
+		52BEF60FB9677EF6CFDA3567 /* DetailsEpisodeStateModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DetailsEpisodeStateModel.swift; sourceTree = "<group>"; };
+		0DC8F144D075DF493C53FED0 /* DetailsSectionsStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DetailsSectionsStore.swift; sourceTree = "<group>"; };
+		CFC9C771249A58B6D741F2E2 /* UserDefaults+DetailsSections.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "UserDefaults+DetailsSections.swift"; sourceTree = "<group>"; };
 		0068328812A404568F6E5E28 /* SearchRecentSearchesView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SearchRecentSearchesView.swift; sourceTree = "<group>"; };
 		A7AA029D3FF8FC03EAB2DB1B /* SearchPeopleRow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SearchPeopleRow.swift; sourceTree = "<group>"; };
 		C3330CB52CAFCA47FD1E4F75 /* SearchDiscoverView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SearchDiscoverView.swift; sourceTree = "<group>"; };
@@ -562,6 +578,7 @@
 		D006 /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
+				52BEF60FB9677EF6CFDA3567 /* DetailsEpisodeStateModel.swift */,
 				0F40B551C4544D19E8BF94B9 /* DiscoverViewModel.swift */,
 				3F35EE05EDE594BEB06742FB /* PlayerViewModel+Types.swift */,
 				558CFF48660AB401150521B5 /* PlayerViewModel+Tracks.swift */,
@@ -596,6 +613,7 @@
 		D007 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				0DC8F144D075DF493C53FED0 /* DetailsSectionsStore.swift */,
 				46D031E0858D60EF3A8C739E /* WatchStateService.swift */,
 				EC85992E13EE4C4C1C8C2704 /* TraktListsService.swift */,
 				863179F8A6086C93AB02C84E /* TraktCommentsService.swift */,
@@ -621,6 +639,7 @@
 		D008 /* Extensions */ = {
 			isa = PBXGroup;
 			children = (
+				CFC9C771249A58B6D741F2E2 /* UserDefaults+DetailsSections.swift */,
 				3B7D69B23B82620C481D470E /* UserDefaults+Search.swift */,
 				3308D10673CBBA575CE9E761 /* UserDefaults+Navigation.swift */,
 				497B08D5668C4AE5E283945A /* UserDefaults+WatchState.swift */,
@@ -704,6 +723,7 @@
 		D015 /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				7404D0E4FB2D6A6845DD7DF7 /* DetailsSectionOrderList.swift */,
 				9F4FB3B84467ABEBB9DC1956 /* AppearanceSettingsView.swift */,
 				B015 /* SettingsView.swift */,
 				B163 /* PlexServersView.swift */,
@@ -748,6 +768,10 @@
 		D018 /* Details */ = {
 			isa = PBXGroup;
 			children = (
+				A27E2E074B63717F4C054AE0 /* DetailsSectionsContainer.swift */,
+				4A4E839819B0CD7C80D5B8A9 /* DetailsEpisodeExtras.swift */,
+				658EE84651C4D18A035EF199 /* DetailsCommentsSection.swift */,
+				B11DFBEF3B15D356DEC92F27 /* DetailsCollectionSection.swift */,
 				B104519B98773D3F7BFA0752 /* DetailsView+Layout.swift */,
 				A4E2631E53C0AC98A4785AB2 /* DetailsVersionPicker.swift */,
 				2E243590D9C56F2049DDEC1F /* DetailsSuggestedSection.swift */,
@@ -987,6 +1011,14 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4B0B4503EC515D7BA6599470 /* DetailsSectionOrderList.swift in Sources */,
+				F38A1523C4D4C73E5F04D3A2 /* DetailsSectionsContainer.swift in Sources */,
+				2E97531ADB5A666525DF34ED /* DetailsEpisodeExtras.swift in Sources */,
+				7AE0F7CB55AF41D6973489D7 /* DetailsCommentsSection.swift in Sources */,
+				FB6F3EC145A47A8253494A09 /* DetailsCollectionSection.swift in Sources */,
+				A281155AB45FAD5EE0903A32 /* DetailsEpisodeStateModel.swift in Sources */,
+				78938AA38D7460FEAF20FA56 /* DetailsSectionsStore.swift in Sources */,
+				420B2FD7B9D57E7C11E94148 /* UserDefaults+DetailsSections.swift in Sources */,
 				C095393B1EFCE4BC52BEA360 /* SearchRecentSearchesView.swift in Sources */,
 				263C0081976BD169E82DBBA2 /* SearchPeopleRow.swift in Sources */,
 				D4336010A9BDA98DE60518E7 /* SearchDiscoverView.swift in Sources */,

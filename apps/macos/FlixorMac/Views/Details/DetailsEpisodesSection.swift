@@ -11,10 +11,13 @@ import FlixorKit
 struct EpisodesTabContent: View {
     @ObservedObject var vm: DetailsViewModel
     let layout: DetailsLayoutMetrics
+    @ObservedObject var episodeState: DetailsEpisodeStateModel
     let onPlayEpisode: (DetailsViewModel.Episode) -> Void
     let onStremioEpisode: (DetailsViewModel.Episode) -> Void
 
     @ObservedObject private var profileSettings = ProfileSettings.shared
+    @ObservedObject private var sectionsStore = DetailsSectionsStore.shared
+    @ObservedObject private var watchState = WatchStateService.shared
     @State private var preferStremioEpisodeTap = false
 
     private let cardWidth: CGFloat = 340
@@ -90,6 +93,69 @@ struct EpisodesTabContent: View {
         }
     }
 
+    // MARK: - Episode extras (ratings, watched state, spoilers)
+
+    private func rating(for episode: DetailsViewModel.Episode) -> Double? {
+        sectionsStore.showEpisodeRatings ? episodeState.rating(for: episode) : nil
+    }
+
+    private func hidesSpoilers(for episode: DetailsViewModel.Episode) -> Bool {
+        sectionsStore.hideEpisodeSpoilers && !episodeState.isWatched(episode) && !episodeState.isRevealed(episode)
+    }
+
+    private func toggleWatched(_ episode: DetailsViewModel.Episode) {
+        let watched = episodeState.isWatched(episode)
+        Task { await episodeState.setWatched(episode, watched: !watched, vm: vm) }
+    }
+
+    @ViewBuilder
+    private func episodeMenu(for episode: DetailsViewModel.Episode) -> some View {
+        let watched = episodeState.isWatched(episode)
+        let busy = watchState.inFlight.contains(vm.watchTarget(for: episode).actionKey)
+        Button {
+            Task { await episodeState.setWatched(episode, watched: !watched, vm: vm) }
+        } label: {
+            Label(watched ? "Mark as Unwatched" : "Mark as Watched", systemImage: watched ? "eye.slash" : "checkmark.circle")
+        }
+        .disabled(busy)
+
+        if episodeState.seasonTarget(vm: vm) != nil {
+            Divider()
+            Button {
+                Task { await episodeState.setSeasonWatched(true, vm: vm) }
+            } label: {
+                Label("Mark Season as Watched", systemImage: "checkmark.circle.fill")
+            }
+            .disabled(episodeState.seasonActionInFlight)
+            Button {
+                Task { await episodeState.setSeasonWatched(false, vm: vm) }
+            } label: {
+                Label("Mark Season as Unwatched", systemImage: "circle")
+            }
+            .disabled(episodeState.seasonActionInFlight)
+        }
+
+        if sectionsStore.hideEpisodeSpoilers && !watched {
+            Divider()
+            Button {
+                episodeState.toggleRevealed(episode)
+            } label: {
+                Label(episodeState.isRevealed(episode) ? "Hide Spoilers" : "Reveal Spoilers",
+                      systemImage: episodeState.isRevealed(episode) ? "eye.slash" : "eye")
+            }
+        }
+    }
+
+    private var contextTaskKey: String {
+        [vm.tmdbId ?? "-", vm.plexRatingKey ?? "-", vm.selectedSeasonKey ?? "-",
+         vm.currentSeasonNumber.map(String.init) ?? "-", vm.isSeason ? "season" : "show",
+         "\(vm.episodes.count)"].joined(separator: "|")
+    }
+
+    private var seasonArtTaskKey: String {
+        sectionsStore.seasonPickerStyle == .posters ? vm.seasons.map(\.id).joined(separator: ",") : ""
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             HStack(alignment: .center, spacing: 12) {
@@ -150,13 +216,25 @@ struct EpisodesTabContent: View {
 
             // Season selector (hide in season-only mode)
             if !vm.isSeason && vm.seasons.count > 1 {
-                SeasonSelector(
-                    seasons: vm.seasons,
-                    selectedKey: vm.selectedSeasonKey ?? "",
-                    onSelect: { key in
-                        Task { await vm.selectSeason(key) }
-                    }
-                )
+                if sectionsStore.seasonPickerStyle == .posters {
+                    SeasonPosterPicker(
+                        seasons: vm.seasons,
+                        selectedKey: vm.selectedSeasonKey ?? "",
+                        art: episodeState.seasonArt,
+                        fallbackPoster: vm.posterURL,
+                        onSelect: { key in
+                            Task { await vm.selectSeason(key) }
+                        }
+                    )
+                } else {
+                    SeasonSelector(
+                        seasons: vm.seasons,
+                        selectedKey: vm.selectedSeasonKey ?? "",
+                        onSelect: { key in
+                            Task { await vm.selectSeason(key) }
+                        }
+                    )
+                }
             } else if let season = vm.seasons.first(where: { $0.id == vm.selectedSeasonKey }) {
                 Text(season.title)
                     .font(.system(size: 20, weight: .bold))
@@ -188,9 +266,15 @@ struct EpisodesTabContent: View {
                                 showTitle: showTitle,
                                 showRatingKey: showRatingKey,
                                 serverId: episodeRowHasPlexSource(episode) ? serverId : nil,
+                                isWatched: episodeState.isWatched(episode),
+                                rating: rating(for: episode),
+                                hidesSpoilers: hidesSpoilers(for: episode),
+                                isWatchActionDisabled: watchState.inFlight.contains(vm.watchTarget(for: episode).actionKey),
                                 onPlay: { handleEpisodeSelection(episode) },
-                                onStremio: { onStremioEpisode(episode) }
+                                onStremio: { onStremioEpisode(episode) },
+                                onToggleWatched: { toggleWatched(episode) }
                             )
+                            .contextMenu { episodeMenu(for: episode) }
                         }
                     }
                     .padding(.leading, 24)
@@ -198,7 +282,7 @@ struct EpisodesTabContent: View {
                 }
             } else {
                 // Vertical list layout (original)
-                VStack(spacing: 12) {
+                LazyVStack(spacing: 12) {
                     ForEach(Array(vm.episodes.enumerated()), id: \.element.id) { index, episode in
                         VerticalEpisodeRow(
                             episode: episode,
@@ -210,12 +294,28 @@ struct EpisodesTabContent: View {
                             showTitle: showTitle,
                             showRatingKey: showRatingKey,
                             serverId: episodeRowHasPlexSource(episode) ? serverId : nil,
+                            isWatched: episodeState.isWatched(episode),
+                            rating: rating(for: episode),
+                            hidesSpoilers: hidesSpoilers(for: episode),
+                            isWatchActionDisabled: watchState.inFlight.contains(vm.watchTarget(for: episode).actionKey),
                             onPlay: { handleEpisodeSelection(episode) },
-                            onStremio: { onStremioEpisode(episode) }
+                            onStremio: { onStremioEpisode(episode) },
+                            onToggleWatched: { toggleWatched(episode) }
                         )
+                        .contextMenu { episodeMenu(for: episode) }
                     }
                 }
             }
+        }
+        .task(id: contextTaskKey) {
+            await episodeState.refreshContext(vm: vm)
+        }
+        .task(id: seasonArtTaskKey) {
+            guard !seasonArtTaskKey.isEmpty else { return }
+            await episodeState.loadSeasonArt(vm: vm)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .watchStateDidChange)) { notification in
+            episodeState.handleWatchStateChange(WatchStateChange(notification: notification), vm: vm)
         }
     }
 }
@@ -229,7 +329,7 @@ private struct SeasonSelector: View {
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
+            LazyHStack(spacing: 10) {
                 ForEach(seasons) { season in
                     Button(action: { onSelect(season.id) }) {
                         Text(season.title)
@@ -260,8 +360,13 @@ private struct HorizontalEpisodeCard: View {
     var showTitle: String = ""
     var showRatingKey: String?
     var serverId: String?
+    var isWatched: Bool = false
+    var rating: Double?
+    var hidesSpoilers: Bool = false
+    var isWatchActionDisabled: Bool = false
     let onPlay: () -> Void
     let onStremio: () -> Void
+    var onToggleWatched: () -> Void = {}
 
     @State private var isHovered = false
     @StateObject private var downloadManager = DownloadManager.shared
@@ -275,7 +380,12 @@ private struct HorizontalEpisodeCard: View {
     }
 
     private var isCompleted: Bool {
-        progressPct >= 85
+        isWatched
+    }
+
+    /// Spoiler protection is on for this (unwatched) episode and it isn't hovered.
+    private var spoilerHidden: Bool {
+        hidesSpoilers && !isHovered
     }
 
     var body: some View {
@@ -287,6 +397,7 @@ private struct HorizontalEpisodeCard: View {
                         .aspectRatio(contentMode: .fill)
                         .frame(width: width, height: height)
                         .clipped()
+                        .blur(radius: spoilerHidden ? 24 : 0, opaque: true)
                 } else {
                     Rectangle()
                         .fill(Color(white: 0.15))
@@ -318,15 +429,21 @@ private struct HorizontalEpisodeCard: View {
 
                 // Content
                 VStack(alignment: .leading, spacing: 6) {
-                    // Episode badge
-                    Text("EPISODE \(episodeNumber)")
-                        .font(.system(size: 10, weight: .bold))
-                        .tracking(0.8)
-                        .foregroundStyle(Color(white: 0.9))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color.black.opacity(0.5))
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                    // Episode badge (+ rating chip)
+                    HStack(spacing: DS.Space.s6) {
+                        Text("EPISODE \(episodeNumber)")
+                            .font(.system(size: 10, weight: .bold))
+                            .tracking(0.8)
+                            .foregroundStyle(Color(white: 0.9))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.black.opacity(0.5))
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+
+                        if let rating {
+                            EpisodeRatingChip(rating: rating)
+                        }
+                    }
 
                     // Title
                     Text(episode.title)
@@ -334,12 +451,16 @@ private struct HorizontalEpisodeCard: View {
                         .foregroundStyle(.white)
                         .lineLimit(2)
 
-                    // Overview
+                    // Overview (hidden while spoiler protection applies)
                     if let overview = episode.overview, !overview.isEmpty {
-                        Text(overview)
-                            .font(.system(size: 12))
-                            .foregroundStyle(.white.opacity(0.82))
-                            .lineLimit(3)
+                        if spoilerHidden {
+                            EpisodeSpoilerNotice()
+                        } else {
+                            Text(overview)
+                                .font(.system(size: 12))
+                                .foregroundStyle(.white.opacity(0.82))
+                                .lineLimit(3)
+                        }
                     }
 
                     // Meta info
@@ -408,17 +529,14 @@ private struct HorizontalEpisodeCard: View {
                                 EpisodeSourceBadge(compact: true)
                             }
 
-                            // Completed checkmark
-                            if isCompleted {
-                                ZStack {
-                                    Circle()
-                                        .fill(Color.white)
-                                        .frame(width: 22, height: 22)
-
-                                    Image(systemName: "checkmark")
-                                        .font(.system(size: 12, weight: .bold))
-                                        .foregroundStyle(.black)
-                                }
+                            // Watched indicator; doubles as the watched toggle
+                            if isCompleted || isHovered {
+                                EpisodeWatchedButton(
+                                    isWatched: isCompleted,
+                                    style: .compact,
+                                    isDisabled: isWatchActionDisabled,
+                                    action: onToggleWatched
+                                )
                             }
                         }
                         .padding(10)
@@ -458,8 +576,13 @@ private struct VerticalEpisodeRow: View {
     var showTitle: String = ""
     var showRatingKey: String?
     var serverId: String?
+    var isWatched: Bool = false
+    var rating: Double?
+    var hidesSpoilers: Bool = false
+    var isWatchActionDisabled: Bool = false
     let onPlay: () -> Void
     let onStremio: () -> Void
+    var onToggleWatched: () -> Void = {}
 
     @State private var isHovered = false
     @StateObject private var downloadManager = DownloadManager.shared
@@ -473,7 +596,12 @@ private struct VerticalEpisodeRow: View {
     }
 
     private var isCompleted: Bool {
-        progressPct >= 85
+        isWatched
+    }
+
+    /// Spoiler protection is on for this (unwatched) episode and it isn't hovered.
+    private var spoilerHidden: Bool {
+        hidesSpoilers && !isHovered
     }
 
     var body: some View {
@@ -486,6 +614,7 @@ private struct VerticalEpisodeRow: View {
                             .aspectRatio(16/9, contentMode: .fill)
                             .frame(width: layout.episodeThumbnailWidth)
                             .clipped()
+                            .blur(radius: spoilerHidden ? 18 : 0, opaque: true)
                     } else {
                         Rectangle()
                             .fill(Color(white: 0.15))
@@ -568,25 +697,39 @@ private struct VerticalEpisodeRow: View {
                                 EpisodeSourceBadge()
                             }
 
-                            if isCompleted {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .font(.system(size: 18))
-                                    .foregroundStyle(.green)
+                            if isCompleted || isHovered {
+                                EpisodeWatchedButton(
+                                    isWatched: isCompleted,
+                                    style: .regular,
+                                    isDisabled: isWatchActionDisabled,
+                                    action: onToggleWatched
+                                )
                             }
                         }
                     }
 
                     if let overview = episode.overview, !overview.isEmpty {
-                        Text(overview)
-                            .font(.system(size: 13))
-                            .foregroundStyle(.white.opacity(0.7))
-                            .lineLimit(3)
+                        if spoilerHidden {
+                            EpisodeSpoilerNotice()
+                        } else {
+                            Text(overview)
+                                .font(.system(size: 13))
+                                .foregroundStyle(.white.opacity(0.7))
+                                .lineLimit(3)
+                        }
                     }
 
-                    if let duration = episode.durationMin {
-                        Text("\(duration) min")
-                            .font(.system(size: 12))
-                            .foregroundStyle(.white.opacity(0.5))
+                    if episode.durationMin != nil || rating != nil {
+                        HStack(spacing: DS.Space.controlGap) {
+                            if let duration = episode.durationMin {
+                                Text("\(duration) min")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(.white.opacity(0.5))
+                            }
+                            if let rating {
+                                EpisodeRatingChip(rating: rating)
+                            }
+                        }
                     }
                 }
             }

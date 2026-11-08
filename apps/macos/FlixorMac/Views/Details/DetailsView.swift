@@ -86,6 +86,7 @@ struct DetailsView: View {
         .ignoresSafeArea(edges: .top)
         .background(HomeBackground(heroColors: vm.heroColors))
         .navigationTitle("")
+        .toast() // watched-state toasts from the Episodes section
         .task {
             await vm.load(for: item)
             // Set initial tab - DETAILS for episodes, EPISODES for TV shows/seasons
