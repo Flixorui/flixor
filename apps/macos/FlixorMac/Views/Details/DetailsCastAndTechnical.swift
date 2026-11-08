@@ -95,17 +95,15 @@ struct DetailsCastSection: View {
     @Environment(\.flixorTheme) private var theme
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Space.s16) {
+        VStack(alignment: .leading, spacing: DetailsSectionStyle.headingGap) {
             HStack(spacing: DS.Space.controlGap) {
-                Text(vm.isEpisode && !vm.guestStars.isEmpty ? "Guest Stars" : "Cast & Crew")
-                    .font(.flixor(.title1, weight: .semibold))
-                    .foregroundStyle(theme.textPrimary)
+                DetailsSectionHeading(vm.isEpisode && !vm.guestStars.isEmpty ? "Guest Stars" : "Cast & Crew")
                 Image(systemName: "chevron.right")
                     .font(.flixorIcon(DS.Icon.sm, weight: .semibold))
                     .foregroundStyle(theme.textTertiary)
             }
 
-            ScrollView(.horizontal, showsIndicators: false) {
+            DetailsHorizontalRow {
                 LazyHStack(alignment: .top, spacing: DS.Space.s20) {
                     // Offsets as ids: a person can be both cast and crew.
                     ForEach(Array(people.enumerated()), id: \.offset) { _, person in
@@ -378,7 +376,7 @@ private struct DetailsSectionHeader: View {
 
     var body: some View {
         Text(title)
-            .font(.flixor(.title3, weight: .bold))
+            .font(.flixor(.title3, weight: .semibold))
             .foregroundStyle(.white.opacity(0.95))
     }
 }

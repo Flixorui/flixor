@@ -2,7 +2,7 @@
 //  DetailsViewModel+Load.swift
 //  FlixorMac
 //
-//  Entry point load(for:), UltraBlur colors, Overseerr status, mood tags
+//  Entry point load(for:), Overseerr status, mood tags
 //
 
 import Foundation
@@ -61,8 +61,6 @@ extension DetailsViewModel {
         extras = []
         trailers = []
         overseerrStatus = nil
-        heroColors = nil
-        plexArtPath = nil
         tagline = nil
         status = nil
         releaseDate = nil
@@ -164,7 +162,6 @@ extension DetailsViewModel {
                     if let art = meta.art,
                        let u = ImageService.shared.plexImageURL(path: art, width: 1920, height: 1080) {
                         backdropURL = u
-                        plexArtPath = art
                     }
                     if let thumb = meta.thumb,
                        let u = ImageService.shared.plexImageURL(path: thumb, width: 600, height: 900) {
@@ -262,7 +259,6 @@ extension DetailsViewModel {
                     if let art = meta.art,
                        let u = ImageService.shared.plexImageURL(path: art, width: 1920, height: 1080) {
                         backdropURL = u
-                        plexArtPath = art
                     }
                     if let thumb = meta.thumb,
                        let u = ImageService.shared.plexImageURL(path: thumb, width: 600, height: 900) {
@@ -317,49 +313,9 @@ extension DetailsViewModel {
             self.error = error.localizedDescription
         }
 
-        // Fetch UltraBlur colors for dynamic background
-        await fetchUltraBlurColors()
 
         // Always fetch Overseerr status at the end (ensures it's updated for new items)
         await loadOverseerrStatus()
-    }
-
-    /// Fetch UltraBlur colors for dynamic background gradients
-    /// Prefers TMDB backdrop (matches hero section display) over Plex art
-    func fetchUltraBlurColors() async {
-        guard let plexServer = FlixorCore.shared.plexServer else {
-            print("⚠️ [Details] No Plex server for UltraBlur colors")
-            return
-        }
-
-        // Determine the image URL to use:
-        // 1. Prefer TMDB backdrop URL (matches what hero section displays)
-        // 2. Fall back to Plex art path
-        var imageUrl: String?
-
-        if let backdrop = backdropURL?.absoluteString, !backdrop.isEmpty {
-            imageUrl = backdrop
-            print("🎨 [Details] Using TMDB backdrop for UltraBlur: \(backdrop)")
-        } else if let artPath = plexArtPath, !artPath.isEmpty {
-            imageUrl = ImageService.shared.plexImageURL(path: artPath, width: 1920, height: 1080)?.absoluteString
-            print("🎨 [Details] Using Plex art path for UltraBlur: \(artPath)")
-        }
-
-        guard let finalImageUrl = imageUrl else {
-            print("⚠️ [Details] No image URL available for UltraBlur")
-            return
-        }
-
-        do {
-            if let colors = try await plexServer.getUltraBlurColors(imageUrl: finalImageUrl) {
-                withAnimation(.easeInOut(duration: 0.8)) {
-                    self.heroColors = colors
-                }
-                print("✅ [Details] UltraBlur colors fetched for: \(title)")
-            }
-        } catch {
-            print("❌ [Details] Failed to fetch UltraBlur colors: \(error)")
-        }
     }
 
     // MARK: - Overseerr Status

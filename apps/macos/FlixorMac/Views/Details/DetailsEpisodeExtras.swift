@@ -112,7 +112,7 @@ struct SeasonPosterPicker: View {
     @Environment(\.windowMetrics) private var metrics
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
+        DetailsHorizontalRow {
             LazyHStack(alignment: .top, spacing: DS.Space.s14) {
                 ForEach(seasons) { season in
                     SeasonPosterTile(
@@ -126,7 +126,6 @@ struct SeasonPosterPicker: View {
                 }
             }
             .padding(.vertical, DS.Space.s6)
-            .padding(.trailing, DS.Space.s60)
         }
     }
 }

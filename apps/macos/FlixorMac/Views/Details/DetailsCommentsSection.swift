@@ -38,7 +38,8 @@ final class DetailsCommentsModel: ObservableObject {
     @Published private(set) var loadMoreError: String?
     @Published private(set) var sort: Sort = .likes
     @Published var revealedSpoilers: Set<Int> = []
-    @Published var expanded: Set<Int> = []
+    /// The comment open in the popup, as an index into `comments`.
+    @Published var selectedIndex: Int?
 
     private var target: WatchStateTarget?
     private var resolvedTarget: WatchStateTarget?
@@ -93,6 +94,31 @@ final class DetailsCommentsModel: ObservableObject {
         isLoadingMore = false
     }
 
+    var selectedComment: TraktComment? {
+        guard let selectedIndex, comments.indices.contains(selectedIndex) else { return nil }
+        return comments[selectedIndex]
+    }
+
+    var canSelectPrevious: Bool { (selectedIndex ?? 0) > 0 }
+
+    var canSelectNext: Bool {
+        guard let selectedIndex else { return false }
+        return selectedIndex + 1 < comments.count || hasMore
+    }
+
+    func selectPrevious() {
+        guard let selectedIndex, selectedIndex > 0 else { return }
+        self.selectedIndex = selectedIndex - 1
+    }
+
+    func selectNext() async {
+        guard let index = selectedIndex else { return }
+        if index + 1 >= comments.count { await loadMore() }
+        // The popup may have been closed during the load.
+        guard selectedIndex == index, index + 1 < comments.count else { return }
+        selectedIndex = index + 1
+    }
+
     private var isFailed: Bool {
         if case .failed = phase { return true }
         return false
@@ -109,7 +135,7 @@ final class DetailsCommentsModel: ObservableObject {
         isLoadingMore = false
         loadMoreError = nil
         revealedSpoilers = []
-        expanded = []
+        selectedIndex = nil
         phase = .idle
     }
 
@@ -166,21 +192,19 @@ struct DetailsCommentsSection: View {
 
     @Environment(\.flixorTheme) private var theme
 
-    private let columns = [GridItem(.adaptive(minimum: 380), spacing: DS.Space.s16, alignment: .top)]
-
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Space.s16) {
+        VStack(alignment: .leading, spacing: DetailsSectionStyle.headingGap) {
             header
 
             switch model.phase {
             case .idle, .loading:
-                HStack(spacing: DS.Space.controlGap) {
-                    ProgressView().controlSize(.small)
-                    Text("Loading comments…")
-                        .flixorFont(.callout)
-                        .foregroundStyle(theme.textSecondary)
+                DetailsHorizontalRow {
+                    HStack(spacing: DS.Space.s12) {
+                        ForEach(0..<3, id: \.self) { _ in CommentPlaceholderCard() }
+                    }
                 }
-                .padding(.vertical, DS.Space.s24)
+                .disabled(true)
+                .accessibilityLabel(Text("Loading comments…"))
             case .failed(let message):
                 stateMessage(icon: "exclamationmark.bubble", title: message, actionTitle: String(localized: "Try Again")) {
                     Task { await model.retry() }
@@ -189,24 +213,7 @@ struct DetailsCommentsSection: View {
                 if model.comments.isEmpty {
                     stateMessage(icon: "text.bubble", title: String(localized: "No comments on Trakt yet."), actionTitle: nil, action: nil)
                 } else {
-                    LazyVGrid(columns: columns, alignment: .leading, spacing: DS.Space.s16) {
-                        ForEach(model.comments) { comment in
-                            TraktCommentCard(
-                                comment: comment,
-                                isSpoilerRevealed: model.revealedSpoilers.contains(comment.id),
-                                isExpanded: model.expanded.contains(comment.id),
-                                onRevealSpoiler: { model.revealedSpoilers.insert(comment.id) },
-                                onToggleExpanded: {
-                                    if model.expanded.contains(comment.id) {
-                                        model.expanded.remove(comment.id)
-                                    } else {
-                                        model.expanded.insert(comment.id)
-                                    }
-                                }
-                            )
-                        }
-                    }
-                    footer
+                    commentsRow
                 }
             }
         }
@@ -217,9 +224,7 @@ struct DetailsCommentsSection: View {
 
     private var header: some View {
         HStack(alignment: .firstTextBaseline, spacing: DS.Space.controlGap) {
-            Text("Comments")
-                .flixorFont(.title2)
-                .foregroundStyle(theme.textPrimary)
+            DetailsSectionHeading("Comments")
             if model.totalCount > 0 {
                 Text("\(model.totalCount)")
                     .flixorFont(.callout)
@@ -247,36 +252,28 @@ struct DetailsCommentsSection: View {
         }
     }
 
-    @ViewBuilder private var footer: some View {
-        if model.hasMore || model.loadMoreError != nil {
-            HStack(spacing: DS.Space.itemGap) {
-                Button {
-                    Task { await model.loadMore() }
-                } label: {
-                    HStack(spacing: DS.Space.controlGap) {
-                        if model.isLoadingMore {
-                            ProgressView().controlSize(.small)
-                        }
-                        Text(model.loadMoreError == nil ? "Show More" : "Retry")
-                            .flixorFont(.callout, weight: .semibold)
+    private var commentsRow: some View {
+        DetailsHorizontalRow {
+            LazyHStack(alignment: .top, spacing: DS.Space.s12) {
+                ForEach(Array(model.comments.enumerated()), id: \.element.id) { index, comment in
+                    TraktCommentCard(comment: comment) {
+                        model.selectedIndex = index
                     }
-                    .foregroundStyle(theme.textPrimary)
-                    .padding(.horizontal, DS.Space.s16)
-                    .padding(.vertical, DS.Space.s8)
-                    .background(Capsule(style: .continuous).fill(theme.hoverFill))
-                    .overlay(Capsule(style: .continuous).strokeBorder(theme.separatorStrong, lineWidth: DS.Border.thin))
+                    .onAppear {
+                        if index >= model.comments.count - 3 {
+                            Task { await model.loadMore() }
+                        }
+                    }
                 }
-                .buttonStyle(.plain)
-                .disabled(model.isLoadingMore)
-                .accessibilityLabel(Text("Show more comments"))
 
-                if let error = model.loadMoreError {
-                    Text(error)
-                        .flixorFont(.footnote)
-                        .foregroundStyle(theme.danger)
+                if model.isLoadingMore {
+                    CommentPlaceholderCard()
+                } else if let error = model.loadMoreError {
+                    CommentRetryCard(message: error) {
+                        Task { await model.loadMore() }
+                    }
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .center)
         }
     }
 
@@ -303,212 +300,371 @@ struct DetailsCommentsSection: View {
     }
 }
 
-// MARK: - Comment Card
+// MARK: - Comment Text
 
-private struct TraktCommentCard: View {
-    let comment: TraktComment
-    let isSpoilerRevealed: Bool
-    let isExpanded: Bool
-    let onRevealSpoiler: () -> Void
-    let onToggleExpanded: () -> Void
-
-    @Environment(\.flixorTheme) private var theme
-
-    private var authorName: String {
-        if let name = comment.user?.name, !name.isEmpty { return name }
-        return comment.user?.username ?? String(localized: "Trakt user")
+private extension TraktComment {
+    var authorName: String {
+        if let name = user?.name, !name.isEmpty { return name }
+        return user?.username ?? String(localized: "Trakt user")
     }
 
     /// Whole comment flagged as spoiler, or inline [spoiler] tags in the text.
-    private var hasSpoiler: Bool {
-        comment.spoiler || comment.comment.range(of: "[spoiler]", options: .caseInsensitive) != nil
+    var hasSpoilerContent: Bool {
+        spoiler || comment.range(of: "[spoiler]", options: .caseInsensitive) != nil
     }
 
-    private var isHidden: Bool { hasSpoiler && !isSpoilerRevealed }
-
-    private var displayText: String {
-        comment.comment
+    var displayText: String {
+        comment
             .replacingOccurrences(of: "[spoiler]", with: "", options: .caseInsensitive)
             .replacingOccurrences(of: "[/spoiler]", with: "", options: .caseInsensitive)
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private var isLong: Bool { displayText.count > 360 }
+    var likesLabel: String {
+        likes == 1 ? String(localized: "1 like") : String(localized: "\(likes) likes")
+    }
+
+    /// yyyy-MM-dd.
+    var shortDate: String? {
+        createdAt.map { String($0.prefix(10)) }
+    }
+}
+
+// MARK: - Comment Cards
+
+private enum CommentCardMetrics {
+    static let size = CGSize(width: 340, height: 210)
+}
+
+private struct TraktCommentCard: View {
+    let comment: TraktComment
+    let onOpen: () -> Void
+
+    @Environment(\.flixorTheme) private var theme
+    @State private var isHovered = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Space.itemGap) {
-            header
-            badges
-            commentBody
-            footer
+        Button(action: onOpen) {
+            VStack(alignment: .leading, spacing: DS.Space.s8) {
+                Text(verbatim: comment.authorName)
+                    .flixorFont(.callout, weight: .semibold)
+                    .foregroundStyle(theme.textPrimary)
+                    .lineLimit(1)
+
+                if comment.review {
+                    CommentChip(text: String(localized: "Review"))
+                }
+
+                Group {
+                    if comment.hasSpoilerContent {
+                        Text("This comment contains spoilers.")
+                            .foregroundStyle(theme.warning)
+                    } else {
+                        Text(verbatim: comment.displayText)
+                            .foregroundStyle(theme.textSecondary)
+                    }
+                }
+                .flixorParagraph(.body)
+                .lineLimit(5)
+                .multilineTextAlignment(.leading)
+
+                Spacer(minLength: 0)
+
+                CommentMeta(comment: comment)
+            }
+            .padding(DS.Space.s16)
+            .frame(width: CommentCardMetrics.size.width, height: CommentCardMetrics.size.height, alignment: .topLeading)
+            .background(
+                RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous)
+                    .fill(isHovered ? theme.hoverFill : theme.surfaceOverlay)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous)
+                    .strokeBorder(isHovered ? theme.separatorStrong : theme.separator, lineWidth: DS.Border.thin)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous))
         }
-        .padding(DS.Space.cardPadding)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+        .animation(DS.Motion.quick, value: isHovered)
+        .accessibilityLabel(Text("Open comment by \(comment.authorName)"))
+    }
+}
+
+private struct CommentChip: View {
+    let text: String
+
+    @Environment(\.flixorTheme) private var theme
+
+    var body: some View {
+        Text(verbatim: text)
+            .flixorFont(.caption, weight: .medium)
+            .foregroundStyle(theme.textSecondary)
+            .padding(.horizontal, DS.Space.s10)
+            .padding(.vertical, DS.Space.s4)
+            .background(Capsule(style: .continuous).fill(theme.hoverFill))
+    }
+}
+
+private struct CommentMeta: View {
+    let comment: TraktComment
+
+    @Environment(\.flixorTheme) private var theme
+
+    var body: some View {
+        HStack(spacing: DS.Space.s8) {
+            if let rating = comment.userRating {
+                Text("\(rating)/10")
+            }
+            Text(verbatim: comment.likesLabel)
+        }
+        .flixorFont(.caption, weight: .medium)
+        .foregroundStyle(theme.textTertiary)
+        .lineLimit(1)
+    }
+}
+
+private struct CommentPlaceholderCard: View {
+    @Environment(\.flixorTheme) private var theme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DS.Space.s10) {
+            line(width: 96, height: 14)
+            line(width: nil, height: 12).padding(.top, DS.Space.s6)
+            line(width: nil, height: 12)
+            line(width: 210, height: 12)
+            Spacer(minLength: 0)
+            line(width: 64, height: 10)
+        }
+        .padding(DS.Space.s16)
+        .frame(width: CommentCardMetrics.size.width, height: CommentCardMetrics.size.height, alignment: .topLeading)
         .background(
             RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous)
                 .fill(theme.surfaceOverlay)
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous)
-                .strokeBorder(theme.separator, lineWidth: DS.Border.thin)
-        )
-    }
-
-    private var header: some View {
-        HStack(spacing: DS.Space.s10) {
-            avatar
-            VStack(alignment: .leading, spacing: DS.Space.s2) {
-                Text(authorName)
-                    .flixorFont(.callout, weight: .semibold)
-                    .foregroundStyle(theme.textPrimary)
-                    .lineLimit(1)
-                if let username = comment.user?.username, !username.isEmpty, username != authorName {
-                    Text("@\(username)")
-                        .flixorFont(.caption)
-                        .foregroundStyle(theme.textTertiary)
-                        .lineLimit(1)
-                }
-            }
-            Spacer(minLength: DS.Space.controlGap)
-            if let date = TraktCommentDate.parse(comment.createdAt) {
-                Text(TraktCommentDate.relative(date))
-                    .flixorFont(.caption)
-                    .foregroundStyle(theme.textTertiary)
-                    .help(TraktCommentDate.full(date))
-            }
-        }
-    }
-
-    private var avatar: some View {
-        Group {
-            if let avatar = comment.user?.avatarURL, let url = URL(string: avatar) {
-                CachedAsyncImage(url: url, aspectRatio: 1, contentMode: .fill)
-            } else {
-                ZStack {
-                    theme.surfaceElevated
-                    Text(String(authorName.prefix(1)).uppercased())
-                        .flixorFont(.callout, weight: .semibold)
-                        .foregroundStyle(theme.textSecondary)
-                }
-            }
-        }
-        .frame(width: 32, height: 32)
-        .clipShape(Circle())
         .accessibilityHidden(true)
     }
 
-    @ViewBuilder private var badges: some View {
-        if comment.review || hasSpoiler || comment.userRating != nil {
-            HStack(spacing: DS.Space.s6) {
-                if let rating = comment.userRating {
-                    badge(text: "\(rating)/10", icon: "star.fill", tint: theme.warning)
-                        .accessibilityLabel(Text("Rated \(rating) out of 10"))
-                }
-                if comment.review {
-                    badge(text: String(localized: "REVIEW"), icon: "doc.text.fill", tint: theme.accent)
-                }
-                if hasSpoiler {
-                    badge(text: String(localized: "SPOILER"), icon: "exclamationmark.triangle.fill", tint: theme.danger)
-                }
-            }
-        }
-    }
-
-    private func badge(text: String, icon: String, tint: Color) -> some View {
-        HStack(spacing: DS.Space.s4) {
-            Image(systemName: icon)
-                .font(.flixorIcon(DS.Icon.xs - 2, weight: .semibold))
-            Text(text)
-                .flixorFont(.micro)
-        }
-        .foregroundStyle(tint)
-        .padding(.horizontal, DS.Space.s8)
-        .padding(.vertical, DS.Space.s4)
-        .background(Capsule(style: .continuous).fill(tint.opacity(DS.Opacity.selected)))
-    }
-
-    private var commentBody: some View {
-        VStack(alignment: .leading, spacing: DS.Space.s6) {
-            Text(displayText)
-                .flixorParagraph(.body)
-                .foregroundStyle(theme.textPrimary.opacity(DS.Opacity.strong))
-                .lineLimit(isExpanded ? nil : 6)
-                .fixedSize(horizontal: false, vertical: true)
-                .textSelection(.enabled)
-                .blur(radius: isHidden ? 7 : 0)
-                .accessibilityHidden(isHidden)
-                .overlay {
-                    if isHidden {
-                        Button(action: { withAnimation(DS.Motion.standard) { onRevealSpoiler() } }) {
-                            Label("Contains spoilers. Click to reveal", systemImage: "eye.slash.fill")
-                                .flixorFont(.footnote, weight: .semibold)
-                                .foregroundStyle(theme.textPrimary)
-                                .padding(.horizontal, DS.Space.s12)
-                                .padding(.vertical, DS.Space.s8)
-                                .background(Capsule(style: .continuous).fill(theme.scrim(DS.Opacity.scrimMedium)))
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(Text("Reveal spoiler comment"))
-                    }
-                }
-
-            if isLong && !isHidden {
-                Button(isExpanded ? "Show Less" : "Read More", action: onToggleExpanded)
-                    .buttonStyle(.plain)
-                    .flixorFont(.footnote, weight: .semibold)
-                    .foregroundStyle(theme.accentBright)
-                    .accessibilityLabel(Text(isExpanded ? "Show less of this comment" : "Read the full comment"))
-            }
-        }
-    }
-
-    private var footer: some View {
-        HStack(spacing: DS.Space.s16) {
-            Label("\(comment.likes)", systemImage: "hand.thumbsup.fill")
-                .accessibilityLabel(Text("\(comment.likes) likes"))
-            if comment.replies > 0 {
-                Label("\(comment.replies)", systemImage: "bubble.left.fill")
-                    .accessibilityLabel(Text("\(comment.replies) replies"))
-            }
-        }
-        .flixorFont(.caption, weight: .medium)
-        .foregroundStyle(theme.textTertiary)
+    private func line(width: CGFloat?, height: CGFloat) -> some View {
+        RoundedRectangle(cornerRadius: DS.Radius.r4, style: .continuous)
+            .fill(theme.hoverFill)
+            .frame(width: width, height: height)
+            .frame(maxWidth: width == nil ? .infinity : nil, alignment: .leading)
     }
 }
 
-// MARK: - Dates
+private struct CommentRetryCard: View {
+    let message: String
+    let onRetry: () -> Void
 
-private enum TraktCommentDate {
-    private static let fractional: ISO8601DateFormatter = {
-        let f = ISO8601DateFormatter()
-        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return f
-    }()
-    private static let plain = ISO8601DateFormatter()
-    private static let relativeFormatter: RelativeDateTimeFormatter = {
-        let f = RelativeDateTimeFormatter()
-        f.unitsStyle = .full
-        return f
-    }()
-    private static let fullFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateStyle = .long
-        f.timeStyle = .short
-        return f
-    }()
+    @Environment(\.flixorTheme) private var theme
 
-    static func parse(_ string: String?) -> Date? {
-        guard let string else { return nil }
-        return fractional.date(from: string) ?? plain.date(from: string)
+    var body: some View {
+        VStack(spacing: DS.Space.s12) {
+            Text(verbatim: message)
+                .flixorFont(.footnote)
+                .foregroundStyle(theme.danger)
+                .multilineTextAlignment(.center)
+            Button("Retry", action: onRetry)
+                .controlSize(.small)
+                .accessibilityLabel(Text("Show more comments"))
+        }
+        .padding(DS.Space.s16)
+        .frame(width: CommentCardMetrics.size.width, height: CommentCardMetrics.size.height)
+        .background(
+            RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous)
+                .fill(theme.surfaceOverlay)
+        )
+    }
+}
+
+// MARK: - Comment Popup
+
+/// One full comment over the page, with previous/next through the whole list.
+struct DetailsCommentPopup: View {
+    @ObservedObject var model: DetailsCommentsModel
+
+    @Environment(\.flixorTheme) private var theme
+    @Environment(\.windowMetrics) private var metrics
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private func close() {
+        model.selectedIndex = nil
     }
 
-    static func relative(_ date: Date) -> String {
-        relativeFormatter.localizedString(for: date, relativeTo: Date())
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            if let comment = model.selectedComment, let index = model.selectedIndex {
+                theme.scrim(DS.Opacity.scrimMedium)
+                    .ignoresSafeArea()
+                    .onTapGesture { close() }
+                    .transition(.opacity)
+                    .accessibilityHidden(true)
+
+                panel(comment: comment, index: index)
+                    .inPageModal(onDismiss: close)
+                    .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        .animation(reduceMotion ? DS.Motion.quick : DS.Motion.standard, value: model.selectedIndex != nil)
     }
 
-    static func full(_ date: Date) -> String {
-        fullFormatter.string(from: date)
+    private func panel(comment: TraktComment, index: Int) -> some View {
+        VStack(alignment: .leading, spacing: DS.Space.s16) {
+            Capsule(style: .continuous)
+                .fill(theme.separatorStrong)
+                .frame(width: 40, height: 4)
+                .frame(maxWidth: .infinity)
+                .accessibilityHidden(true)
+
+            header(comment: comment, index: index)
+
+            if comment.review {
+                CommentChip(text: String(localized: "Review"))
+            }
+
+            ViewThatFits(in: .vertical) {
+                commentText(comment)
+                ScrollView { commentText(comment) }
+            }
+            .id(comment.id)
+
+            HStack {
+                CommentMeta(comment: comment)
+                Spacer()
+                if let date = comment.shortDate {
+                    Text(verbatim: date)
+                        .flixorFont(.caption, weight: .medium)
+                        .foregroundStyle(theme.textTertiary)
+                }
+            }
+        }
+        .padding(.horizontal, DS.Space.s24)
+        .padding(.top, DS.Space.s12)
+        .padding(.bottom, DS.Space.s24)
+        .frame(width: min(720, metrics.width - DS.Space.s40))
+        .frame(maxHeight: metrics.height * 0.7)
+        .fixedSize(horizontal: false, vertical: true)
+        .background(
+            UnevenTopRoundedRectangle(radius: DS.Radius.r24)
+                .fill(theme.surfaceElevated)
+        )
+        .overlay(
+            UnevenTopRoundedRectangle(radius: DS.Radius.r24)
+                .stroke(theme.separator, lineWidth: DS.Border.thin)
+        )
+        .contentShape(Rectangle())
+        .onTapGesture {} // A click on the panel must not reach the scrim.
+        .accessibilityAddTraits(.isModal)
+    }
+
+    private func header(comment: TraktComment, index: Int) -> some View {
+        HStack(spacing: DS.Space.s8) {
+            VStack(alignment: .leading, spacing: DS.Space.s2) {
+                Text(verbatim: comment.authorName)
+                    .flixorFont(.bodyLarge, weight: .semibold)
+                    .foregroundStyle(theme.textPrimary)
+                    .lineLimit(1)
+                if let username = comment.user?.username, !username.isEmpty {
+                    Text(verbatim: "@\(username)")
+                        .flixorFont(.footnote)
+                        .foregroundStyle(theme.textSecondary)
+                        .lineLimit(1)
+                }
+            }
+
+            Spacer(minLength: DS.Space.s12)
+
+            pagerButton(
+                icon: "chevron.left",
+                label: "Previous comment",
+                isEnabled: model.canSelectPrevious,
+                shortcut: .leftArrow,
+                action: { model.selectPrevious() }
+            )
+
+            Text(verbatim: "\(index + 1) / \(max(model.totalCount, model.comments.count))")
+                .flixorFont(.footnote, weight: .medium)
+                .foregroundStyle(theme.textSecondary)
+                .monospacedDigit()
+
+            pagerButton(
+                icon: "chevron.right",
+                label: "Next comment",
+                isEnabled: model.canSelectNext,
+                shortcut: .rightArrow,
+                action: { Task { await model.selectNext() } }
+            )
+        }
+    }
+
+    private func pagerButton(
+        icon: String,
+        label: LocalizedStringKey,
+        isEnabled: Bool,
+        shortcut: KeyEquivalent,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.flixorIcon(DS.Icon.sm, weight: .semibold))
+                .foregroundStyle(isEnabled ? theme.textPrimary : theme.textTertiary)
+                .frame(width: 36, height: 36)
+                .background(Circle().fill(theme.hoverFill.opacity(isEnabled ? 1 : 0.4)))
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled)
+        .keyboardShortcut(shortcut, modifiers: [])
+        .accessibilityLabel(Text(label))
+    }
+
+    @ViewBuilder
+    private func commentText(_ comment: TraktComment) -> some View {
+        if comment.hasSpoilerContent && !model.revealedSpoilers.contains(comment.id) {
+            Button {
+                model.revealedSpoilers.insert(comment.id)
+            } label: {
+                Text("This comment contains spoilers. Click to reveal.")
+                    .flixorParagraph(.bodyLarge)
+                    .foregroundStyle(theme.warning)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text("Reveal spoiler comment"))
+        } else {
+            Text(verbatim: comment.displayText)
+                .flixorParagraph(.bodyLarge)
+                .foregroundStyle(theme.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .textSelection(.enabled)
+        }
+    }
+}
+
+/// Rounded on top, square at the bottom, where the panel meets the window edge.
+private struct UnevenTopRoundedRectangle: Shape {
+    let radius: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.minY + radius))
+        path.addArc(
+            tangent1End: CGPoint(x: rect.minX, y: rect.minY),
+            tangent2End: CGPoint(x: rect.minX + radius, y: rect.minY),
+            radius: radius
+        )
+        path.addLine(to: CGPoint(x: rect.maxX - radius, y: rect.minY))
+        path.addArc(
+            tangent1End: CGPoint(x: rect.maxX, y: rect.minY),
+            tangent2End: CGPoint(x: rect.maxX, y: rect.minY + radius),
+            radius: radius
+        )
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        return path
     }
 }

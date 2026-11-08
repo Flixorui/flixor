@@ -157,11 +157,9 @@ struct EpisodesTabContent: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Space.s20) {
+        VStack(alignment: .leading, spacing: DetailsSectionStyle.headingGap) {
             HStack(alignment: .center, spacing: DS.Space.s12) {
-                Text("Episodes")
-                    .font(.flixor(.title2, weight: .bold))
-                    .foregroundStyle(.white)
+                DetailsSectionHeading("Episodes")
 
                 Spacer(minLength: 12)
 
@@ -237,7 +235,7 @@ struct EpisodesTabContent: View {
                 }
             } else if let season = vm.seasons.first(where: { $0.id == vm.selectedSeasonKey }) {
                 Text(season.title)
-                    .font(.flixor(.title2, weight: .bold))
+                    .font(.flixor(.title3, weight: .semibold))
                     .foregroundStyle(.white)
             }
 
@@ -252,7 +250,7 @@ struct EpisodesTabContent: View {
                 Text("No episodes found").foregroundStyle(.secondary)
             } else if profileSettings.episodeLayout == "horizontal" {
                 // Horizontal scroll of episode cards (like mobile)
-                ScrollView(.horizontal, showsIndicators: false) {
+                DetailsHorizontalRow {
                     LazyHStack(spacing: DS.Space.s14) {
                         ForEach(Array(vm.episodes.enumerated()), id: \.element.id) { index, episode in
                             HorizontalEpisodeCard(
@@ -277,8 +275,6 @@ struct EpisodesTabContent: View {
                             .contextMenu { episodeMenu(for: episode) }
                         }
                     }
-                    .padding(.leading, DS.Space.s24)
-                    .padding(.trailing, DS.Space.s60)
                 }
             } else {
                 // Vertical list layout (original)
@@ -328,7 +324,7 @@ private struct SeasonSelector: View {
     let onSelect: (String) -> Void
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
+        DetailsHorizontalRow {
             LazyHStack(spacing: DS.Space.s10) {
                 ForEach(seasons) { season in
                     Button(action: { onSelect(season.id) }) {

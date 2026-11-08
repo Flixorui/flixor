@@ -212,7 +212,6 @@ extension DetailsViewModel {
         let art = match.art ?? match.thumb ?? match.parentThumb ?? match.grandparentThumb ?? ""
         if let u = ImageService.shared.plexImageURL(path: art, width: 1920, height: 1080) {
             self.backdropURL = u
-            self.plexArtPath = art
         }
         if posterURL == nil {
             let poster = match.thumb ?? match.parentThumb ?? match.grandparentThumb

@@ -18,6 +18,7 @@ struct DetailsSectionsContainer: View {
     let onStremioEpisode: (DetailsViewModel.Episode) -> Void
     let onPersonTap: (CastCrewCard.Person) -> Void
     let onBrowse: (BrowseContext) -> Void
+    let commentsModel: DetailsCommentsModel
 
     @EnvironmentObject private var router: NavigationRouter
     @EnvironmentObject private var mainView: MainViewState
@@ -25,7 +26,6 @@ struct DetailsSectionsContainer: View {
     @ObservedObject private var profileSettings = ProfileSettings.shared
 
     @StateObject private var collectionModel = DetailsCollectionModel()
-    @StateObject private var commentsModel = DetailsCommentsModel()
     @StateObject private var episodeState = DetailsEpisodeStateModel()
     @State private var selectedTrailer: Trailer?
 
@@ -169,19 +169,16 @@ struct DetailsTrailersSection: View {
     private let cardWidth: CGFloat = 300
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Space.itemGap) {
-            Text("Trailers & Videos")
-                .flixorFont(.title2)
-                .foregroundStyle(theme.textPrimary)
+        VStack(alignment: .leading, spacing: DetailsSectionStyle.headingGap) {
+            DetailsSectionHeading("Trailers & Videos")
 
-            ScrollView(.horizontal, showsIndicators: false) {
+            DetailsHorizontalRow {
                 LazyHStack(alignment: .top, spacing: DS.Space.s16) {
                     ForEach(trailers) { trailer in
                         TrailerCard(trailer: trailer, width: cardWidth, onPlay: { onPlay(trailer) })
                             .accessibilityLabel(Text("Play \(trailer.name)"))
                     }
                 }
-                .padding(.trailing, DS.Space.s60)
             }
         }
     }

@@ -38,7 +38,6 @@ extension DetailsViewModel {
         if let art = meta.art,
            let u = ImageService.shared.plexImageURL(path: art, width: 1920, height: 1080) {
             backdropURL = u
-            plexArtPath = art
         }
 
         addBadge("Plex")
@@ -63,8 +62,6 @@ extension DetailsViewModel {
         selectedSeasonKey = nil  // Null = season-only mode
         await loadPlexEpisodes(seasonKey: ratingKey)
 
-        // Fetch UltraBlur colors for dynamic background (must be called here since we return early)
-        await fetchUltraBlurColors()
 
         print("✅ [loadSeasonDirect] Season-only view loaded successfully")
     }
@@ -108,11 +105,9 @@ extension DetailsViewModel {
         if let art = meta.art,
            let u = ImageService.shared.plexImageURL(path: art, width: 1920, height: 1080) {
             backdropURL = u
-            plexArtPath = art
         } else if let grandparentArt = meta.grandparentArt,
                   let u = ImageService.shared.plexImageURL(path: grandparentArt, width: 1920, height: 1080) {
             backdropURL = u
-            plexArtPath = grandparentArt
         }
 
         // Technical details from media
@@ -187,8 +182,6 @@ extension DetailsViewModel {
             await fetchTMDBSeriesBackdrop(showTmdbId: tid)
         }
 
-        // Fetch UltraBlur colors for dynamic background (must be called here since we return early)
-        await fetchUltraBlurColors()
 
         print("✅ [loadEpisodeDirect] Episode view loaded successfully")
     }

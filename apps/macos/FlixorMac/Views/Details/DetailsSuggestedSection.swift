@@ -18,7 +18,7 @@ struct SuggestedSections: View {
     @ObservedObject private var profileSettings = ProfileSettings.shared
 
     var body: some View {
-        VStack(alignment: .leading, spacing: layout.width < 1100 ? 24 : 28) {
+        VStack(alignment: .leading, spacing: DS.Space.s48) {
             if profileSettings.showRelatedContent && !vm.related.isEmpty {
                 suggestedRow(
                     section: LibrarySection(
@@ -58,7 +58,7 @@ struct SuggestedSections: View {
                     onBrowse?(context)
                 }
             )
-            .padding(.trailing, DS.Space.s60)
+            .modifier(DetailsSuggestedRowLayout())
         } else {
             LandscapeSectionView(
                 section: section,
@@ -69,7 +69,17 @@ struct SuggestedSections: View {
                     onBrowse?(context)
                 }
             )
-            .padding(.trailing, DS.Space.s60)
+            .modifier(DetailsSuggestedRowLayout())
         }
+    }
+}
+
+/// The shared rows carry the page inset themselves, so they replace the section's
+/// and scroll out to the window's edges.
+private struct DetailsSuggestedRowLayout: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .padding(.horizontal, -DetailsSectionStyle.inset)
+            .environment(\.rowTitleFont, DetailsSectionStyle.headingFont)
     }
 }

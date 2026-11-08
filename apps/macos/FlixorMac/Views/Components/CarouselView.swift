@@ -318,6 +318,7 @@ struct CarouselRow<Item: Identifiable, Content: View>: View {
     @State private var isHeaderHovered = false
     @FocusState private var browseFocused: Bool
     @Environment(\.rowTitleCaption) private var titleCaption
+    @Environment(\.rowTitleFont) private var titleFont
 
     init(
         title: String,
@@ -344,7 +345,7 @@ struct CarouselRow<Item: Identifiable, Content: View>: View {
             // Header
             HStack(spacing: DS.Space.s12) {
                 Text(title)
-                    .font(.title2.bold())
+                    .font(titleFont ?? .title2.bold())
                     .foregroundStyle(.primary)
                     .padding(.vertical, DS.Space.s4)
 

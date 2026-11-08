@@ -107,63 +107,7 @@ struct DetailsHeroSection: View {
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
-            // Backdrop with enhanced gradients - sized to show full image (16:9 aspect ratio)
-            GeometryReader { geo in
-                ZStack {
-                    CachedAsyncImage(url: vm.backdropURL, contentMode: .fill) {
-                        // Themed wash instead of a grey box while the backdrop loads
-                        // (or when the title has none).
-                        LinearGradient(
-                            colors: [theme.surfaceElevated, theme.surface, theme.background],
-                            startPoint: .topTrailing,
-                            endPoint: .bottomLeading
-                        )
-                    }
-                    .frame(width: geo.size.width, height: geo.size.height)
-
-                    // Inline trailer crossfades over the backdrop, under the fades.
-                    if let heroTrailer {
-                        DetailsHeroTrailerLayer(controller: heroTrailer, size: geo.size)
-                    }
-
-                    // Top fade for navigation clarity
-                    LinearGradient(
-                        colors: [Color.black.opacity(0.6), Color.black.opacity(0.1), .clear],
-                        startPoint: .top,
-                        endPoint: .center
-                    )
-
-                    // Left fade for text readability (stronger)
-                    LinearGradient(
-                        colors: [
-                            Color.black.opacity(0.85),
-                            Color.black.opacity(0.65),
-                            Color.black.opacity(0.35),
-                            Color.black.opacity(0.1),
-                            .clear
-                        ],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-
-                    // Bottom fade for depth
-                    LinearGradient(
-                        colors: [.clear, Color.black.opacity(0.3), Color.black.opacity(0.7)],
-                        startPoint: .center,
-                        endPoint: .bottom
-                    )
-
-                    // Subtle vignette for focus
-                    RadialGradient(
-                        gradient: Gradient(colors: [.clear, Color.black.opacity(0.4)]),
-                        center: .center,
-                        startRadius: geo.size.width * 0.3,
-                        endRadius: geo.size.width * 0.8
-                    )
-                }
-            }
-            .clipped()
-
+            // The artwork sits behind the page: see DetailsPersistentBackdrop.
             // Two-column layout: content left, credits right
             HStack(alignment: .bottom, spacing: DS.Space.s40) {
                 // LEFT COLUMN - Primary Content

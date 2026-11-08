@@ -42,13 +42,7 @@ struct DetailsLayoutMetrics {
         min(width * 0.52, 640)
     }
 
-    var contentPadding: CGFloat {
-        switch width {
-        case ..<900: return 20
-        case ..<1200: return 20
-        default: return 20
-        }
-    }
+    var contentPadding: CGFloat { DetailsSectionStyle.inset }
 
     var tabsPadding: CGFloat {
         switch width {

@@ -16,10 +16,8 @@ struct DetailsTabContent: View {
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Space.s40) {
             // About Section (Apple TV+ style cards) - moved above Cast & Crew
-            VStack(alignment: .leading, spacing: DS.Space.s16) {
-                Text("About")
-                    .font(.system(size: 22, weight: .semibold))
-                    .foregroundStyle(.white)
+            VStack(alignment: .leading, spacing: DetailsSectionStyle.headingGap) {
+                DetailsSectionHeading("About")
 
                 // Tagline (if available)
                 if let tagline = vm.tagline, !tagline.isEmpty {

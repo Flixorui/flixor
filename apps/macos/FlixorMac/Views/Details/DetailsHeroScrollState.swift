@@ -49,6 +49,10 @@ final class DetailsHeroScrollState: ObservableObject {
     /// Fires on every scroll movement (not published, so it doesn't re-render).
     let scrollActivity = PassthroughSubject<Void, Never>()
 
+    /// Drives the page tint. Its own object, so its changes don't reach whoever
+    /// observes this one.
+    let backdrop = DetailsBackdropScroll()
+
     /// Bottom edge of the hero (scroll-view coordinates) below which the header
     /// appears / above which it hides again. The gap is hysteresis against flicker.
     private let headerShowBelow: CGFloat = 132
@@ -63,6 +67,7 @@ final class DetailsHeroScrollState: ObservableObject {
             scrollActivity.send()
         }
         lastMinY = frame.minY
+        backdrop.update(scrollOffset: -frame.minY, heroHeight: frame.height)
 
         let bottom = frame.maxY
         if isHeroScrolledAway {
@@ -80,6 +85,7 @@ final class DetailsHeroScrollState: ObservableObject {
 
     func reset() {
         lastMinY = nil
+        backdrop.reset()
         if isHeroScrolledAway { isHeroScrolledAway = false }
         if !isHeroMostlyVisible { isHeroMostlyVisible = true }
     }

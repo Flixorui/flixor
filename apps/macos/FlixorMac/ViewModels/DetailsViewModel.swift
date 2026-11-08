@@ -110,9 +110,6 @@ class DetailsViewModel: ObservableObject {
     // Overseerr request status
     @Published var overseerrStatus: OverseerrMediaStatus?
 
-    // UltraBlur colors for dynamic background
-    @Published var heroColors: PlexUltraBlurColors?
-    var plexArtPath: String?  // Store Plex art path for UltraBlur lookup
 
     // Season-specific state
     @Published var isSeason: Bool = false           // Flag for season-only mode

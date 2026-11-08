@@ -33,7 +33,8 @@ extension DetailsView {
                 onPlayEpisode: playEpisode,
                 onStremioEpisode: openEpisodeStremioSources,
                 onPersonTap: { person in presentPerson(person) },
-                onBrowse: { context in presentBrowse(context) }
+                onBrowse: { context in presentBrowse(context) },
+                commentsModel: commentsModel
             )
         }
     }

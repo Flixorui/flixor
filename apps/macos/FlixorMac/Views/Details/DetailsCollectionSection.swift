@@ -50,17 +50,15 @@ struct DetailsCollectionSection: View {
     @Environment(\.windowMetrics) private var metrics
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Space.s16) {
+        VStack(alignment: .leading, spacing: DetailsSectionStyle.headingGap) {
             VStack(alignment: .leading, spacing: DS.Space.s4) {
-                Text("Part of \(collection.name ?? "a Collection")")
-                    .flixorFont(.title2)
-                    .foregroundStyle(theme.textPrimary)
+                DetailsSectionHeading("Part of \(collection.name ?? "a Collection")")
                 Text("\(collection.parts.count) movies, in release order")
                     .flixorFont(.footnote)
                     .foregroundStyle(theme.textTertiary)
             }
 
-            ScrollView(.horizontal, showsIndicators: false) {
+            DetailsHorizontalRow {
                 LazyHStack(alignment: .top, spacing: DS.Space.s16) {
                     ForEach(Array(collection.parts.enumerated()), id: \.element.id) { index, part in
                         CollectionPartCard(
@@ -76,7 +74,6 @@ struct DetailsCollectionSection: View {
                     }
                 }
                 .padding(.vertical, DS.Space.s6)
-                .padding(.trailing, DS.Space.s60)
             }
         }
     }

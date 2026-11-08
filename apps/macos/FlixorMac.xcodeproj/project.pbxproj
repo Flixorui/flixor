@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		14D5A866911E352AEA62D9B4 /* DetailsSectionHeading.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4526BCB382AC498351E1FC70 /* DetailsSectionHeading.swift */; };
+		D22E51DBD0CDAD2BF22BCB30 /* DetailsPersistentBackdrop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 947F561C1B356DA5E8EE644E /* DetailsPersistentBackdrop.swift */; };
+		8051D7FD99AAFE322E316701 /* BackdropColorExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 087518E1FE0710817A9C2AA5 /* BackdropColorExtractor.swift */; };
 		228196C21A28E1AA01C2686D /* PlayerSourcesPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A9EF8DBBD80DDDB65B84F66 /* PlayerSourcesPanel.swift */; };
 		F0CBCFDD4A4AA6C465380AFA /* PlayerViewModel+EpisodeBrowser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44A6A6FF8BC5A02B9E7B5769 /* PlayerViewModel+EpisodeBrowser.swift */; };
 		9E29D83C905DD2605FD09902 /* TraktContinueWatchingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CF8A4C3FD1B30C4E66C61C9 /* TraktContinueWatchingService.swift */; };
@@ -318,6 +321,9 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		4526BCB382AC498351E1FC70 /* DetailsSectionHeading.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DetailsSectionHeading.swift; sourceTree = "<group>"; };
+		947F561C1B356DA5E8EE644E /* DetailsPersistentBackdrop.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DetailsPersistentBackdrop.swift; sourceTree = "<group>"; };
+		087518E1FE0710817A9C2AA5 /* BackdropColorExtractor.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BackdropColorExtractor.swift; sourceTree = "<group>"; };
 		7A9EF8DBBD80DDDB65B84F66 /* PlayerSourcesPanel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlayerSourcesPanel.swift; sourceTree = "<group>"; };
 		44A6A6FF8BC5A02B9E7B5769 /* PlayerViewModel+EpisodeBrowser.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "PlayerViewModel+EpisodeBrowser.swift"; sourceTree = "<group>"; };
 		3CF8A4C3FD1B30C4E66C61C9 /* TraktContinueWatchingService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TraktContinueWatchingService.swift; sourceTree = "<group>"; };
@@ -818,6 +824,7 @@
 		D007 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				087518E1FE0710817A9C2AA5 /* BackdropColorExtractor.swift */,
 				3CF8A4C3FD1B30C4E66C61C9 /* TraktContinueWatchingService.swift */,
 				80C4FA0B8998589F64D25892 /* UserCollectionsStore.swift */,
 				A7B9E2C10D08997BD1AE18CB /* UserCollectionSourceResolver.swift */,
@@ -1025,6 +1032,8 @@
 		D018 /* Details */ = {
 			isa = PBXGroup;
 			children = (
+				4526BCB382AC498351E1FC70 /* DetailsSectionHeading.swift */,
+				947F561C1B356DA5E8EE644E /* DetailsPersistentBackdrop.swift */,
 				F146FF91B904FC2BABCFE868 /* DetailsWatchActions.swift */,
 				0E1343D63BDABE83CF3BB65F /* DetailsRatingSheet.swift */,
 				F08FAD4213E1A8A2BB17FE03 /* DetailsHeroTrailer.swift */,
@@ -1288,6 +1297,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				14D5A866911E352AEA62D9B4 /* DetailsSectionHeading.swift in Sources */,
+				D22E51DBD0CDAD2BF22BCB30 /* DetailsPersistentBackdrop.swift in Sources */,
+				8051D7FD99AAFE322E316701 /* BackdropColorExtractor.swift in Sources */,
 				228196C21A28E1AA01C2686D /* PlayerSourcesPanel.swift in Sources */,
 				F0CBCFDD4A4AA6C465380AFA /* PlayerViewModel+EpisodeBrowser.swift in Sources */,
 				9E29D83C905DD2605FD09902 /* TraktContinueWatchingService.swift in Sources */,

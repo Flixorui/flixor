@@ -18,7 +18,17 @@ private struct RowTitleCaptionKey: EnvironmentKey {
     static let defaultValue: String? = nil
 }
 
+private struct RowTitleFontKey: EnvironmentKey {
+    static let defaultValue: Font? = nil
+}
+
 extension EnvironmentValues {
+    /// Overrides a carousel row's title font. nil = the standard row title.
+    var rowTitleFont: Font? {
+        get { self[RowTitleFontKey.self] }
+        set { self[RowTitleFontKey.self] = newValue }
+    }
+
     /// Subtle caption drawn next to a home row title. nil = no caption.
     var rowTitleCaption: String? {
         get { self[RowTitleCaptionKey.self] }

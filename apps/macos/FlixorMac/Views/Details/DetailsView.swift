@@ -40,6 +40,10 @@ struct DetailsView: View {
 
     // Inline hero trailer
     @StateObject private var heroTrailer = DetailsHeroTrailerController()
+
+    // Owned here because the comment popup covers the whole page.
+    @StateObject var commentsModel = DetailsCommentsModel()
+
     @Environment(\.controlActiveState) private var controlActiveState
     @State private var ownTab: NavItem?
 
@@ -50,6 +54,10 @@ struct DetailsView: View {
     /// Hero skeleton until the title's core metadata is in (or the load ends).
     private var showsLoadingSkeleton: Bool {
         vm.title.isEmpty && (vm.isLoading || !initialLoadFinished)
+    }
+
+    private var isPageObscured: Bool {
+        showBrowseModal || commentsModel.selectedIndex != nil
     }
 
     private var showsFloatingHeader: Bool {
@@ -144,6 +152,7 @@ struct DetailsView: View {
                 .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
             }
         }
+        .overlay { DetailsCommentPopup(model: commentsModel) }
         .overlay { StreamAutoPlayOverlay(controller: streamAutoPlay) }
         .animation(reduceMotion ? DS.Motion.quick : DS.Motion.standard, value: showsFloatingHeader)
         .environment(\.detailsTitleActions, titleActions)
@@ -165,7 +174,7 @@ struct DetailsView: View {
         .onChange(of: reduceMotion) { value in
             heroTrailer.update { $0.isReduceMotion = value }
         }
-        .onChange(of: showBrowseModal) { obscured in
+        .onChange(of: isPageObscured) { obscured in
             heroTrailer.update { $0.isObscured = obscured }
         }
         .onAppear {
@@ -181,7 +190,13 @@ struct DetailsView: View {
             // Leaving the page (including starting playback) stops the trailer.
             heroTrailer.update { $0.isPageVisible = false }
         }
-        .background(HomeBackground(heroColors: vm.heroColors))
+        .background(
+            DetailsPersistentBackdrop(
+                imageURL: vm.backdropURL,
+                scroll: heroScroll.backdrop,
+                heroTrailer: heroTrailer
+            )
+        )
         .navigationTitle("")
         .task {
             await vm.load(for: item)
