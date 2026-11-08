@@ -382,7 +382,7 @@ struct PlayerControlsView: View {
                         }
                         // Episodes list button
                         Button(action: {
-                            showEpisodesList.toggle()
+                            togglePanel(showEpisodesList) { showEpisodesList = true }
                         }) {
                             EpisodeListIcon()
                                 .frame(width: 32, height: 32)
@@ -401,7 +401,7 @@ struct PlayerControlsView: View {
                     // Audio & Subtitles button (MPV only)
                     if viewModel.mpvController != nil {
                         Button(action: {
-                            showAudioSubtitles.toggle()
+                            togglePanel(showAudioSubtitles) { showAudioSubtitles = true }
                         }) {
                             SubtitlesIcon()
                                 .frame(width: 32, height: 32)
@@ -419,7 +419,7 @@ struct PlayerControlsView: View {
 
                     // Playback speed button
                     Button(action: {
-                        showPlaybackSpeed.toggle()
+                        togglePanel(showPlaybackSpeed) { showPlaybackSpeed = true }
                     }) {
                         PlaybackSpeedIcon()
                             .frame(width: 32, height: 32)
@@ -437,7 +437,7 @@ struct PlayerControlsView: View {
                     // Chapters button (MPV only, when chapters exist)
                     if viewModel.mpvController != nil && !viewModel.chapters.isEmpty {
                         Button(action: {
-                            showChaptersPanel.toggle()
+                            togglePanel(showChaptersPanel) { showChaptersPanel = true }
                         }) {
                             Image("chaptericon")
                                 .resizable()
@@ -459,7 +459,7 @@ struct PlayerControlsView: View {
                     // Aspect mode button (MPV only)
                     if viewModel.mpvController != nil {
                         Button(action: {
-                            showAspectPanel.toggle()
+                            togglePanel(showAspectPanel) { showAspectPanel = true }
                         }) {
                             Image(systemName: viewModel.aspectMode.systemImage)
                                 .font(.flixorIcon(DS.Icon.lg))
@@ -619,17 +619,25 @@ struct PlayerControlsView: View {
             }
         }
         .onChange(of: isAnyPanelOpen) { onPanelOpenChanged($0) }
-        .onChange(of: closePanelsRequest) { _ in
-            showEpisodesList = false
-            showPlaybackSpeed = false
-            showAudioSubtitles = false
-            showChaptersPanel = false
-            showAspectPanel = false
-        }
+        .onChange(of: closePanelsRequest) { _ in closeAllPanels() }
         .onDisappear {
             // Panels live in this view: they go with it (loading, errors, closing).
             if isAnyPanelOpen { onPanelOpenChanged(false) }
         }
+    }
+
+    private func closeAllPanels() {
+        showEpisodesList = false
+        showPlaybackSpeed = false
+        showAudioSubtitles = false
+        showChaptersPanel = false
+        showAspectPanel = false
+    }
+
+    /// Panels share the same corner, so opening one closes any other.
+    private func togglePanel(_ isOpen: Bool, open: () -> Void) {
+        closeAllPanels()
+        if !isOpen { open() }
     }
 
     private var isAnyPanelOpen: Bool {

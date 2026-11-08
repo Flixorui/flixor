@@ -588,7 +588,7 @@ struct ToolbarNavButton: View {
                 .foregroundStyle(textColor)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(item.rawValue)
+        .accessibilityLabel(item.localizedRawValue)
         .accessibilityAddTraits(isActive ? .isSelected : [])
         .onHover { hovering in
             isHovered = hovering
