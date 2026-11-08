@@ -116,6 +116,9 @@ struct HomeView: View {
             guard isOnline, viewModel.hasRowFailures || viewModel.hasNoContent else { return }
             Task { await viewModel.refresh() }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .continueWatchingSourceDidChange)) { _ in
+            Task { await viewModel.reloadContinueWatchingSources() }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .watchStateDidChange)) { _ in
             // Watched / removed / reset anywhere in the app: refresh the row.
             Task { await viewModel.refreshContinueWatching() }

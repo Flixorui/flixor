@@ -59,6 +59,8 @@ class HomeViewModel: ObservableObject {
 
     // MARK: - Polling Configuration
     private var pollTimer: Timer?
+    /// Bumped per Continue Watching publish so a slow Trakt fetch can't overwrite newer data.
+    private var continueWatchingPublishGeneration = 0
     private let pollInterval: TimeInterval = 30 // Poll every 30 seconds
     private var isPolling = false
 
@@ -263,7 +265,7 @@ class HomeViewModel: ObservableObject {
         // Extra rows; local Continue Watching is awaited below.
         pendingGroupCount = 1
 
-        await loadLocalContinueWatching()
+        await loadLocalContinueWatching(showLocalFirst: true)
         isLoading = false
 
         Task { @MainActor in
@@ -277,18 +279,18 @@ class HomeViewModel: ObservableObject {
     }
 
     /// Continue Watching from the local watch history written during stream playback.
-    func loadLocalContinueWatching() async {
+    func loadLocalContinueWatching(showLocalFirst: Bool = false) async {
         let entries = await LocalLibraryStore.shared.watchHistory()
         let items = entries.compactMap(makeMediaItem(from:))
             .filter { !continueWatchingPendingRemovalIds.contains($0.id) }
+        var activity: [String: Date] = [:]
+        for entry in entries {
+            guard let id = entry.mediaItemId else { continue }
+            activity[id] = max(activity[id] ?? entry.updatedAt, entry.updatedAt)
+        }
 
-        continueWatchingItems = items
-        continueWatchingState = items.isEmpty ? .empty : .loaded
         continueWatchingVersions = []
-        registerContinueWatchingRow()
-
-        offerDefaultHero(items)
-        resolvePreferredHero()
+        publishContinueWatching(primary: items, activity: activity, showPrimaryFirst: showLocalFirst)
 
         print("✅ [Home] Local Continue Watching loaded: \(items.count) items")
     }
@@ -353,16 +355,71 @@ class HomeViewModel: ObservableObject {
         print("✅ [Home] Hero seeded from '\(candidate?.title ?? "?")': \(billboardItems.count) items")
     }
 
+    // MARK: - Continue Watching Publishing
+
+    /// Shows the Plex or local items and folds in Trakt per the Source setting.
+    /// - Parameter showPrimaryFirst: Show the local items while Trakt loads (first
+    ///   load). Refreshes leave the row alone until the merged list is ready.
+    private func publishContinueWatching(
+        primary: [MediaItem],
+        activity: [String: Date] = [:],
+        showPrimaryFirst: Bool
+    ) {
+        let source = UserDefaults.standard.continueWatchingSource
+        let usesTrakt = source != .library && FlixorCore.shared.isTraktAuthenticated
+        continueWatchingPublishGeneration += 1
+        let generation = continueWatchingPublishGeneration
+
+        guard usesTrakt else {
+            applyContinueWatching(primary)
+            return
+        }
+        if showPrimaryFirst && source == .automatic {
+            applyContinueWatching(primary)
+        }
+
+        Task { @MainActor [weak self] in
+            do {
+                let entries = try await TraktContinueWatchingService.shared.entries()
+                guard let self, generation == self.continueWatchingPublishGeneration else { return }
+                let merged = ContinueWatchingMerger.merge(
+                    primary: source == .trakt ? [] : primary,
+                    activity: activity,
+                    trakt: entries,
+                    dismissals: UserDefaults.standard.continueWatchingTraktDismissals
+                )
+                self.applyContinueWatching(merged)
+            } catch {
+                print("⚠️ [Home] Trakt Continue Watching failed: \(error)")
+                guard let self, generation == self.continueWatchingPublishGeneration else { return }
+                self.applyContinueWatching(primary)
+            }
+        }
+    }
+
+    private func applyContinueWatching(_ items: [MediaItem]) {
+        let visible = items.filter { !continueWatchingPendingRemovalIds.contains($0.id) }
+        let isUnchanged = visible.map { [TraktContinueWatchingService.rowKey(for: $0), String($0.viewOffset ?? -1)] }
+            == continueWatchingItems.map { [TraktContinueWatchingService.rowKey(for: $0), String($0.viewOffset ?? -1)] }
+        if !isUnchanged { continueWatchingItems = visible }
+        continueWatchingState = visible.isEmpty ? .empty : .loaded
+        registerContinueWatchingRow()
+        offerDefaultHero(visible)
+        resolvePreferredHero()
+    }
+
+    /// Reloads the row after the Source setting or Trakt progress changed.
+    func reloadContinueWatchingSources() async {
+        await TraktContinueWatchingService.shared.invalidate()
+        await refreshContinueWatching()
+    }
+
     // MARK: - Group Bookkeeping
 
     private func loadPlexContinueWatching() async {
         do {
             let data = try await fetchContinueWatching()
-            continueWatchingItems = data
-            continueWatchingState = data.isEmpty ? .empty : .loaded
-            registerContinueWatchingRow()
-            offerDefaultHero(data)
-            resolvePreferredHero()
+            publishContinueWatching(primary: data, showPrimaryFirst: true)
             print("✅ [Home] Continue Watching loaded: \(data.count) items")
         } catch {
             print("⚠️ [Home] Continue Watching failed: \(error)")
@@ -2006,18 +2063,15 @@ class HomeViewModel: ObservableObject {
 
         // Poll Continue Watching (bypass cache to get fresh data)
         Task { @MainActor in
+            // Stremio-only has no Plex row to poll; an empty result would blank the row.
+            if self.isStremioOnly {
+                await self.loadLocalContinueWatching()
+                return
+            }
             do {
                 let data = try await self.fetchContinueWatching(bypassCache: true)
-                // Only update if data changed (compare rating keys)
-                let existingKeys = Set(self.continueWatchingItems.map { $0.id })
-                let newKeys = Set(data.map { $0.id })
-                if existingKeys != newKeys || data.count != self.continueWatchingItems.count {
-                    self.continueWatchingItems = data
-                    self.continueWatchingState = data.isEmpty ? .empty : .loaded
-                    print("✅ [Home] Continue Watching updated: \(data.count) items")
-                } else {
-                    print("ℹ️ [Home] Continue Watching unchanged")
-                }
+                // Merges Trakt too; the row only changes if the result differs.
+                self.publishContinueWatching(primary: data, showPrimaryFirst: false)
             } catch {
                 print("⚠️ [Home] Poll Continue Watching failed: \(error)")
             }
@@ -2255,12 +2309,32 @@ class HomeViewModel: ObservableObject {
     }
 
     func showItemDetails(_ item: MediaItem) {
-        pendingAction = .details(item)
+        guard item.id.hasPrefix("tmdb:"), (item.viewOffset ?? 0) > 0 else {
+            pendingAction = .details(item)
+            return
+        }
+        // Possibly a Trakt item: details' Play button resumes from the local store.
+        Task { @MainActor in
+            await TraktContinueWatchingService.shared.seedResumePoint(for: item)
+            self.pendingAction = .details(item)
+        }
     }
 
     /// Plays a Continue Watching item. Plex rows carry bare ratingKeys, which
     /// `playItem` would send to details, so they get the "plex:" prefix first.
     func playFromContinueWatching(_ item: MediaItem) {
+        guard item.id.hasPrefix("tmdb:"), (item.viewOffset ?? 0) > 0 else {
+            startContinueWatchingPlayback(item)
+            return
+        }
+        // Possibly a Trakt item: make its position available to playback first.
+        Task { @MainActor in
+            await TraktContinueWatchingService.shared.seedResumePoint(for: item)
+            self.startContinueWatchingPlayback(item)
+        }
+    }
+
+    private func startContinueWatchingPlayback(_ item: MediaItem) {
         if isStremioOnly {
             playItem(item)
         } else {
@@ -2270,14 +2344,15 @@ class HomeViewModel: ObservableObject {
 
     /// Re-fetches Continue Watching (after a watch-state change).
     func refreshContinueWatching() async {
+        // A watch-state change can alter Trakt progress and the next episode.
+        await TraktContinueWatchingService.shared.invalidate()
         if isStremioOnly {
             await loadLocalContinueWatching()
             return
         }
         do {
             let data = try await fetchContinueWatching(bypassCache: true)
-            continueWatchingItems = data
-            continueWatchingState = data.isEmpty ? .empty : .loaded
+            publishContinueWatching(primary: data, showPrimaryFirst: false)
         } catch {
             print("⚠️ [Home] Continue Watching refresh failed: \(error)")
         }

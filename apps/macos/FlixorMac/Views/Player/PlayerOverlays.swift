@@ -18,6 +18,16 @@ struct PlayerLoadingOverlay: View {
                 .scaleEffect(1.5)
                 .tint(.white)
 
+            if viewModel.isResolvingNextEpisode {
+                Button("Cancel") { viewModel.cancelNextEpisodeLookup() }
+                    .buttonStyle(.plain)
+                    .font(.flixor(.callout, weight: .medium))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, DS.Space.s16)
+                    .padding(.vertical, DS.Space.s8)
+                    .background(Color.black.opacity(0.55), in: Capsule())
+            }
+
             // Show quality change message if applicable
             if viewModel.isChangingQuality {
                 VStack(spacing: DS.Space.s4) {
@@ -247,7 +257,7 @@ struct NextEpisodeHoverCard: View {
                 ZStack {
                     // Thumbnail
                     if let thumbPath = episode.thumb,
-                       let imageURL = ImageService.shared.plexImageURL(path: thumbPath, width: 320, height: 180) {
+                       let imageURL = ImageService.shared.episodeThumbnailURL(thumbPath, width: 320, height: 180) {
                         CachedAsyncImage(url: imageURL)
                             .frame(width: 180, height: 100)
                             .background(Color.black.opacity(0.4))
@@ -295,7 +305,7 @@ struct NextEpisodeHoverCard: View {
                 VStack(alignment: .leading, spacing: DS.Space.s4) {
                     // Season and Episode number (compact)
                     if let parentIndex = episode.parentIndex, let index = episode.index {
-                        Text("\(parentIndex) Episode \(index)")
+                        Text("Season \(String(parentIndex)) · Episode \(String(index))")
                             .font(.flixor(.body, weight: .semibold))
                             .foregroundStyle(.white.opacity(0.9))
                     }

@@ -9,10 +9,22 @@ import SwiftUI
 
 // MARK: - Episodes List Panel
 
+extension ImageService {
+    /// Episode artwork: addon streams carry full URLs, Plex carries server paths.
+    func episodeThumbnailURL(_ thumb: String, width: Int, height: Int) -> URL? {
+        if thumb.hasPrefix("http://") || thumb.hasPrefix("https://") { return URL(string: thumb) }
+        return plexImageURL(path: thumb, width: width, height: height)
+    }
+}
+
 struct EpisodesListPanel: View {
     @Environment(\.flixorTheme) private var theme
     let episodes: [EpisodeMetadata]
     let currentEpisodeKey: String
+    var seasons: [Int] = []
+    var selectedSeason: Int? = nil
+    var isLoading: Bool = false
+    var onSelectSeason: (Int) -> Void = { _ in }
     let onSelectEpisode: (EpisodeMetadata) -> Void
     let onClose: () -> Void
 
@@ -54,11 +66,22 @@ struct EpisodesListPanel: View {
 
             Divider().background(Color.white.opacity(0.1))
 
+            if seasons.count > 1 {
+                seasonChips
+                Divider().background(Color.white.opacity(0.1))
+            }
+
             // Episodes List
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(spacing: DS.Space.s2) {
-                        ForEach(episodes) { episode in
+                        if isLoading {
+                            ProgressView()
+                                .controlSize(.small)
+                                .frame(maxWidth: .infinity)
+                                .padding(DS.Space.s24)
+                        }
+                        ForEach(isLoading ? [] : episodes) { episode in
                             EpisodeListRow(
                                 episode: episode,
                                 isCurrentEpisode: episode.ratingKey == currentEpisodeKey,
@@ -82,6 +105,33 @@ struct EpisodesListPanel: View {
         .shadow(color: .black.opacity(0.5), radius: 30, y: 10)
         .padding(.trailing, DS.Space.s32)
         .padding(.bottom, 140)
+    }
+}
+
+private extension EpisodesListPanel {
+    var seasonChips: some View {
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: DS.Space.s6) {
+                    ForEach(seasons, id: \.self) { season in
+                        Button(action: { onSelectSeason(season) }) {
+                            Text(season == 0 ? String(localized: "Specials") : String(localized: "Season \(String(season))"))
+                                .font(.flixor(.footnote, weight: season == selectedSeason ? .semibold : .regular))
+                                .foregroundStyle(season == selectedSeason ? theme.onAccent : .white.opacity(0.8))
+                                .padding(.horizontal, DS.Space.s10)
+                                .padding(.vertical, DS.Space.s6)
+                                .background(season == selectedSeason ? theme.accent : Color.white.opacity(0.08), in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .id(season)
+                        .accessibilityAddTraits(season == selectedSeason ? .isSelected : [])
+                    }
+                }
+                .padding(.horizontal, DS.Space.s12)
+                .padding(.vertical, DS.Space.s8)
+            }
+            .onAppear { proxy.scrollTo(selectedSeason, anchor: .center) }
+        }
     }
 }
 
@@ -119,7 +169,7 @@ private struct EpisodeListRow: View {
                 // Thumbnail
                 ZStack {
                     if let thumbPath = episode.thumb,
-                       let imageURL = ImageService.shared.plexImageURL(path: thumbPath, width: 200, height: 112) {
+                       let imageURL = ImageService.shared.episodeThumbnailURL(thumbPath, width: 200, height: 112) {
                         CachedAsyncImage(url: imageURL)
                             .frame(width: 100, height: 56)
                     } else {

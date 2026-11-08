@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import FlixorKit
 
 struct ContinueWatchingSettingsView: View {
     @Environment(\.flixorTheme) private var theme
@@ -13,6 +14,7 @@ struct ContinueWatchingSettingsView: View {
     @ObservedObject private var profileSettings = ProfileSettings.shared
     @ObservedObject private var rowsStore = HomeRowsStore.shared
     @State private var showPreview: Bool = false
+    @State private var source = UserDefaults.standard.continueWatchingSource
 
     private var cardStyle: ContinueWatchingCardStyle {
         ContinueWatchingCardStyle(storageValue: profileSettings.continueWatchingLayout)
@@ -63,6 +65,33 @@ struct ContinueWatchingSettingsView: View {
                         case .landscape: landscapePreview
                         case .poster: posterPreview
                         case .wide: ContinueWatchingWidePreview(blurUpNext: rowsStore.continueWatchingBlurNextUp)
+                        }
+                    }
+
+                    // Source
+                    SettingsSectionHeader(title: "Source")
+                    SettingsGroupCard {
+                        SettingsRow(
+                            icon: "arrow.triangle.merge",
+                            iconColor: .red,
+                            title: "Continue Watching From",
+                            subtitle: FlixorCore.shared.isTraktAuthenticated
+                                ? "Automatic combines your library with Trakt progress and next episodes"
+                                : "Connect Trakt in Settings to include your Trakt progress",
+                            showDivider: false
+                        ) {
+                            Picker("", selection: $source) {
+                                ForEach(ContinueWatchingSource.allCases) { option in
+                                    Text(option.title).tag(option)
+                                }
+                            }
+                            .labelsHidden()
+                            .frame(width: 170)
+                            .accessibilityLabel(Text("Continue Watching source"))
+                            .onChange(of: source) { newValue in
+                                UserDefaults.standard.continueWatchingSource = newValue
+                                NotificationCenter.default.post(name: .continueWatchingSourceDidChange, object: nil)
+                            }
                         }
                     }
 

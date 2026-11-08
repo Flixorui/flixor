@@ -53,7 +53,7 @@ extension PlayerViewModel {
     private func loadNowPlayingArtwork() {
         // Use the item's thumb for artwork
         guard let thumbPath = item.thumb ?? item.grandparentThumb,
-              let imageURL = ImageService.shared.plexImageURL(path: thumbPath, width: 600, height: 600) else {
+              let imageURL = ImageService.shared.episodeThumbnailURL(thumbPath, width: 600, height: 600) else {
             return
         }
 

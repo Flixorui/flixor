@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		228196C21A28E1AA01C2686D /* PlayerSourcesPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A9EF8DBBD80DDDB65B84F66 /* PlayerSourcesPanel.swift */; };
+		F0CBCFDD4A4AA6C465380AFA /* PlayerViewModel+EpisodeBrowser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44A6A6FF8BC5A02B9E7B5769 /* PlayerViewModel+EpisodeBrowser.swift */; };
+		9E29D83C905DD2605FD09902 /* TraktContinueWatchingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CF8A4C3FD1B30C4E66C61C9 /* TraktContinueWatchingService.swift */; };
+		65D5E09476637D0E2681888E /* UserDefaults+ContinueWatchingSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47704A8CD9CBFDD5CF49C1B0 /* UserDefaults+ContinueWatchingSource.swift */; };
 		4416EE19BFFA2B7C8E644BA4 /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7AC3E638329E840D20E14A9 /* Localization.swift */; };
 		95671D3129C1273708426CA8 /* FlixorTheme+Chrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E22A20F1934B91D1D73BF30 /* FlixorTheme+Chrome.swift */; };
 		F1C6D52C1DC6356BDD3CDB89 /* UserCollectionsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 181D5C4431FB9906054EF79E /* UserCollectionsSection.swift */; };
@@ -314,6 +318,10 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		7A9EF8DBBD80DDDB65B84F66 /* PlayerSourcesPanel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlayerSourcesPanel.swift; sourceTree = "<group>"; };
+		44A6A6FF8BC5A02B9E7B5769 /* PlayerViewModel+EpisodeBrowser.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "PlayerViewModel+EpisodeBrowser.swift"; sourceTree = "<group>"; };
+		3CF8A4C3FD1B30C4E66C61C9 /* TraktContinueWatchingService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TraktContinueWatchingService.swift; sourceTree = "<group>"; };
+		47704A8CD9CBFDD5CF49C1B0 /* UserDefaults+ContinueWatchingSource.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "UserDefaults+ContinueWatchingSource.swift"; sourceTree = "<group>"; };
 		F7AC3E638329E840D20E14A9 /* Localization.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
 		8E22A20F1934B91D1D73BF30 /* FlixorTheme+Chrome.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "FlixorTheme+Chrome.swift"; sourceTree = "<group>"; };
 		181D5C4431FB9906054EF79E /* UserCollectionsSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Collections/UserCollectionsSection.swift; sourceTree = "<group>"; };
@@ -762,6 +770,7 @@
 		D006 /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
+				44A6A6FF8BC5A02B9E7B5769 /* PlayerViewModel+EpisodeBrowser.swift */,
 				8F20ECB80D748FC964770E3F /* UserCollectionDetailViewModel.swift */,
 				97ECE06D2B254D95A0F0E5DD /* CollectionSourceEditorModel.swift */,
 				F0097D0584C5362FDA0095EE /* TraktListsViewModel.swift */,
@@ -809,6 +818,7 @@
 		D007 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				3CF8A4C3FD1B30C4E66C61C9 /* TraktContinueWatchingService.swift */,
 				80C4FA0B8998589F64D25892 /* UserCollectionsStore.swift */,
 				A7B9E2C10D08997BD1AE18CB /* UserCollectionSourceResolver.swift */,
 				6E039757B1CD1E5EDFD7D8BE /* TraktListsService+Editing.swift */,
@@ -854,6 +864,7 @@
 		D008 /* Extensions */ = {
 			isa = PBXGroup;
 			children = (
+				47704A8CD9CBFDD5CF49C1B0 /* UserDefaults+ContinueWatchingSource.swift */,
 				F7AC3E638329E840D20E14A9 /* Localization.swift */,
 				8E22A20F1934B91D1D73BF30 /* FlixorTheme+Chrome.swift */,
 				BC8736AC77502CD19658B62C /* UserDefaults+Collections.swift */,
@@ -1044,6 +1055,7 @@
 		D019 /* Player */ = {
 			isa = PBXGroup;
 			children = (
+				7A9EF8DBBD80DDDB65B84F66 /* PlayerSourcesPanel.swift */,
 				E3E8817E2ABCD1268A0AF187 /* PlayerSubtitlePanels.swift */,
 				1E2DD2674789F6B9A180A899 /* PlayerSeekBarMarks.swift */,
 				7135B24B93A059488D1C8DB2 /* PlayerExtraOverlays.swift */,
@@ -1276,6 +1288,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				228196C21A28E1AA01C2686D /* PlayerSourcesPanel.swift in Sources */,
+				F0CBCFDD4A4AA6C465380AFA /* PlayerViewModel+EpisodeBrowser.swift in Sources */,
+				9E29D83C905DD2605FD09902 /* TraktContinueWatchingService.swift in Sources */,
+				65D5E09476637D0E2681888E /* UserDefaults+ContinueWatchingSource.swift in Sources */,
 				4416EE19BFFA2B7C8E644BA4 /* Localization.swift in Sources */,
 				95671D3129C1273708426CA8 /* FlixorTheme+Chrome.swift in Sources */,
 				F1C6D52C1DC6356BDD3CDB89 /* UserCollectionsSection.swift in Sources */,

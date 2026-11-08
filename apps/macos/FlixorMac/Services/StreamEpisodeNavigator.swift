@@ -86,6 +86,26 @@ enum StreamEpisodeNavigator {
         return Result(seasonEpisodes: [], next: nil)
     }
 
+    /// Season numbers of the series, regular seasons first, specials last.
+    static func seasonNumbers(for ref: StreamSeriesRef) async -> [Int] {
+        guard let tmdbId = await resolveTmdbId(ref),
+              let details = try? await FlixorCore.shared.tmdb.getTVDetails(id: tmdbId) else { return [] }
+        let numbers = details.seasons.compactMap { summary -> Int? in
+            guard let number = summary.seasonNumber, (summary.episodeCount ?? 0) > 0 else { return nil }
+            return number
+        }
+        return numbers.filter { $0 > 0 }.sorted() + numbers.filter { $0 == 0 }
+    }
+
+    /// All episodes of one season.
+    static func episodes(for ref: StreamSeriesRef, season: Int) async -> [StreamEpisodeInfo] {
+        guard let tmdbId = await resolveTmdbId(ref),
+              let details = try? await FlixorCore.shared.tmdb.getSeasonDetails(tvId: tmdbId, seasonNumber: season) else { return [] }
+        return details.episodes
+            .compactMap { info(from: $0, season: season) }
+            .sorted { $0.episode < $1.episode }
+    }
+
     // MARK: - TMDB
 
     private static func resolveTmdbId(_ ref: StreamSeriesRef) async -> Int? {

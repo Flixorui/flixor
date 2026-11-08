@@ -479,6 +479,24 @@ struct DetailsView: View {
             return
         }
 
+        // Continue Watching card: the show page, opened for one specific episode.
+        if item.type == "episode", let season = item.parentIndex, let number = item.index {
+            let episode = vm.episodes.first { $0.seasonNumber == season && $0.episodeNumber == number }
+                ?? DetailsViewModel.Episode(
+                    id: "\(item.id):\(season):\(number)",
+                    title: item.title,
+                    overview: nil,
+                    image: nil,
+                    durationMin: item.duration.map { $0 / 60_000 },
+                    progressPct: nil,
+                    viewOffset: item.viewOffset,
+                    seasonNumber: season,
+                    episodeNumber: number
+                )
+            Task { await openStremioSources(for: episode, forcePicker: forcePicker) }
+            return
+        }
+
         if let onDeck = vm.onDeck {
             Task { await openStremioSources(for: onDeck, forcePicker: forcePicker) }
             return

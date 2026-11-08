@@ -70,6 +70,12 @@ extension HomeViewModel {
         } else {
             result = await WatchStateService.shared.removeFromContinueWatching(item)
         }
+        if result.isSuccess || result.isPartialSuccess {
+            // A Trakt next-up card has nothing to delete on Trakt, so remember it was removed.
+            var dismissals = UserDefaults.standard.continueWatchingTraktDismissals
+            dismissals[TraktContinueWatchingService.rowKey(for: item)] = Date().timeIntervalSince1970
+            UserDefaults.standard.continueWatchingTraktDismissals = dismissals
+        }
         continueWatchingPendingRemovalIds.remove(item.id)
         endContinueWatchingAction(item)
 

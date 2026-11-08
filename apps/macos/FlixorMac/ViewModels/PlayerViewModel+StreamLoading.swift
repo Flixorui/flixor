@@ -28,6 +28,8 @@ extension PlayerViewModel {
             resetCommunitySkipSegments()
             resetStreamNextEpisode()
             sourcesPickerDestination = nil
+            episodeBrowserSeasons = []
+            episodeBrowserEpisodes = []
             markers = []
             currentMarker = nil
             nextEpisode = nil
@@ -151,7 +153,7 @@ extension PlayerViewModel {
             streamLabel: stream.title ?? stream.name ?? current.streamLabel,
             addonId: stream.addonId,
             addonName: stream.addonName,
-            availableStreams: current.availableStreams,
+            availableStreams: availableStremioSources,
             externalSubtitles: current.externalSubtitles,
             resumePositionMs: resumePositionMs
         )

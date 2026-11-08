@@ -11,6 +11,9 @@
 import Foundation
 
 extension PlayerViewModel {
+    private static let nextEpisodeLookupLimit: TimeInterval = 15
+    private static let nextEpisodeSubtitleWait: TimeInterval = 2
+
     // MARK: - Episode data
 
     /// Loads the season's episodes and the next episode for a series stream.
@@ -71,9 +74,9 @@ extension PlayerViewModel {
         isLoading = true
         let task = episodeSourceTask(season: season, episode: episode, episodeTitle: episodeTitle)
 
-        Task { [weak self] in
+        nextEpisodeWaitTask = Task { [weak self] in
             let outcome = await task.value
-            guard let self else { return }
+            guard let self, !Task.isCancelled else { return }
             self.isResolvingNextEpisode = false
             if case .findingNextEpisodeSource = self.streamEngineStatus { self.streamEngineStatus = nil }
             // The user closed the player during the lookup: don't navigate anywhere.
@@ -98,6 +101,19 @@ extension PlayerViewModel {
                 self.isLoading = false
             }
         }
+    }
+
+    /// Gives up waiting for the next episode's source and carries on watching
+    /// this one. The lookup keeps running, so pressing Next again can reuse it.
+    func cancelNextEpisodeLookup() {
+        guard isResolvingNextEpisode else { return }
+        nextEpisodeWaitTask?.cancel()
+        nextEpisodeWaitTask = nil
+        isResolvingNextEpisode = false
+        if case .findingNextEpisodeSource = streamEngineStatus { streamEngineStatus = nil }
+        isLoading = false
+        mpvController?.play()
+        isPlaying = true
     }
 
     /// Opens the Stremio sources picker for `sourcesPickerDestination` (or the
@@ -164,12 +180,24 @@ extension PlayerViewModel {
             episodeTitle: episodeTitle
         )
 
-        guard let results = await StreamRecoveryService.fetchStreams(identity: identity) else {
-            AppLogger.shared.warn("[StreamNext] Source lookup timed out", data: ["requestId": identity.requestId])
-            return .needsPicker(destination)
+        // Stop as soon as the addon in use returns the same release line; a slow
+        // addon elsewhere shouldn't hold up the next episode.
+        let reference = currentStremioStream
+        let fetched = await StremioService.shared.getStreams(
+            identity: identity,
+            timeLimit: Self.nextEpisodeLookupLimit
+        ) { results, _ in
+            StremioSourceRanking.bestMatch(for: reference, in: results, tiers: .nextEpisode)?.tier == .bingeGroup
+        }
+        let results = fetched.results
+        if fetched.timedOut {
+            AppLogger.shared.warn("[StreamNext] Source lookup hit its time limit", data: [
+                "requestId": identity.requestId,
+                "addonsAnswered": results.count,
+            ])
         }
         guard let match = StremioSourceRanking.bestMatch(
-            for: currentStremioStream,
+            for: reference,
             in: results,
             tiers: .nextEpisode
         ) else {
@@ -179,8 +207,14 @@ extension PlayerViewModel {
         // Reuse the picker's selection logic (headers, subtitles, resume position).
         let sources = StremioSourcesViewModel(destination: destination)
         sources.groupedResults = results
-        guard let selected = await sources.select(stream: match.stream, saveToCache: false, includeAlertOnFailure: false),
-              case .stream(let playbackItem) = selected else {
+        // The new player asks subtitle addons again once playback starts, so a slow
+        // subtitle addon must not delay switching episodes.
+        guard let selected = await sources.select(
+            stream: match.stream,
+            saveToCache: false,
+            includeAlertOnFailure: false,
+            subtitleDeadline: Date().addingTimeInterval(Self.nextEpisodeSubtitleWait)
+        ), case .stream(let playbackItem) = selected else {
             return .needsPicker(destination)
         }
         AppLogger.shared.info("[StreamNext] Picked next-episode source", data: [

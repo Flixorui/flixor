@@ -14,7 +14,7 @@ struct AudioSubtitlesModal: View {
     @ObservedObject var viewModel: PlayerViewModel
     let onClose: () -> Void
 
-    @State private var selectedTab: Int = 0 // 0 = Audio, 1 = Subtitles, 2 = Sources
+    @State private var selectedTab: Int = 0 // 0 = Audio, 1 = Subtitles
 
     var body: some View {
         ZStack {
@@ -38,9 +38,6 @@ struct AudioSubtitlesModal: View {
             HStack(spacing: 0) {
                 TabButton(title: "Audio", isSelected: selectedTab == 0) { selectedTab = 0 }
                 TabButton(title: "Subtitles", isSelected: selectedTab == 1) { selectedTab = 1 }
-                if viewModel.canSwitchStreamSources {
-                    TabButton(title: "Sources", isSelected: selectedTab == 2) { selectedTab = 2 }
-                }
             }
             .padding(.horizontal, DS.Space.s4)
             .padding(.top, DS.Space.s4)
@@ -50,10 +47,8 @@ struct AudioSubtitlesModal: View {
             // Tab Content
             if selectedTab == 0 {
                 AudioTabContent(viewModel: viewModel)
-            } else if selectedTab == 1 {
-                SubtitlesTabContent(viewModel: viewModel)
             } else {
-                SourcesTabContent(viewModel: viewModel)
+                SubtitlesTabContent(viewModel: viewModel)
             }
         }
         .frame(width: 340)
@@ -211,55 +206,6 @@ private struct SubtitlesTabContent: View {
             }
             .padding(.bottom, DS.Space.s4)
         }
-    }
-}
-
-private struct SourcesTabContent: View {
-    @ObservedObject var viewModel: PlayerViewModel
-
-    var body: some View {
-        ScrollView {
-            VStack(spacing: DS.Space.s8) {
-                ForEach(viewModel.availableStremioSources) { source in
-                    Button(action: { viewModel.switchStreamSource(source) }) {
-                        HStack(spacing: DS.Space.s10) {
-                            Image(systemName: source.id == viewModel.currentStremioSourceId ? "checkmark.circle.fill" : "circle")
-                                .font(.flixorIcon(DS.Icon.md))
-                                .foregroundStyle(source.id == viewModel.currentStremioSourceId ? Color.accentColor : .white.opacity(0.3))
-
-                            VStack(alignment: .leading, spacing: DS.Space.s4) {
-                                Text(source.title ?? source.name ?? String(localized: "Source"))
-                                    .font(.flixor(.callout))
-                                    .foregroundStyle(.white)
-                                    .lineLimit(1)
-                                Text(source.addonName ?? "Stremio")
-                                    .font(.flixor(.caption))
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            Spacer()
-
-                            if let quality = source.quality {
-                                Text(quality.uppercased())
-                                    .font(.flixor(.micro, weight: .semibold))
-                                    .foregroundStyle(.orange)
-                                    .padding(.horizontal, DS.Space.s8)
-                                    .padding(.vertical, DS.Space.s4)
-                                    .background(Color.orange.opacity(0.16), in: Capsule())
-                            }
-                        }
-                        .padding(.vertical, DS.Space.s8)
-                        .padding(.horizontal, DS.Space.s10)
-                        .background(source.id == viewModel.currentStremioSourceId ? Color.white.opacity(0.08) : Color.clear)
-                        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r6))
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.horizontal, DS.Space.s12)
-            .padding(.vertical, DS.Space.s8)
-        }
-        .frame(maxHeight: 180)
     }
 }
 

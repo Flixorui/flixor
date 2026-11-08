@@ -33,6 +33,7 @@ struct PlayerControlsView: View {
     @State private var showAudioSubtitles = false
     @State private var showChaptersPanel = false
     @State private var showAspectPanel = false
+    @State private var showSourcesPanel = false
 
     // Thumbnail preview states
     @State private var showThumbnailPreview = false
@@ -382,7 +383,10 @@ struct PlayerControlsView: View {
                         }
                         // Episodes list button
                         Button(action: {
-                            togglePanel(showEpisodesList) { showEpisodesList = true }
+                            togglePanel(showEpisodesList) {
+                                showEpisodesList = true
+                                viewModel.prepareEpisodeBrowser()
+                            }
                         }) {
                             EpisodeListIcon()
                                 .frame(width: 32, height: 32)
@@ -415,6 +419,21 @@ struct PlayerControlsView: View {
                             }
                         }
                         .help("Audio & Subtitles")
+                    }
+
+                    // Addon sources (Stremio playback)
+                    if viewModel.isStreamPlayback {
+                        Button(action: {
+                            togglePanel(showSourcesPanel) { showSourcesPanel = true }
+                        }) {
+                            Image(systemName: "square.stack.3d.up.fill")
+                                .font(.flixorIcon(DS.Icon.lg))
+                                .frame(width: 32, height: 32)
+                                .foregroundStyle(showSourcesPanel ? theme.accent : .white)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Sources")
+                        .accessibilityLabel(Text("Sources"))
                     }
 
                     // Playback speed button
@@ -541,8 +560,12 @@ struct PlayerControlsView: View {
         .overlay {
             if showEpisodesList && !viewModel.seasonEpisodes.isEmpty {
                 EpisodesListPanel(
-                    episodes: viewModel.seasonEpisodes,
-                    currentEpisodeKey: viewModel.item.id.replacingOccurrences(of: "plex:", with: ""),
+                    episodes: viewModel.episodesForBrowser,
+                    currentEpisodeKey: viewModel.currentEpisodeListKey,
+                    seasons: viewModel.episodeBrowserSeasons,
+                    selectedSeason: viewModel.episodeBrowserSeason,
+                    isLoading: viewModel.isLoadingEpisodeBrowser,
+                    onSelectSeason: { viewModel.selectEpisodeBrowserSeason($0) },
                     onSelectEpisode: { episode in
                         showEpisodesList = false
                         viewModel.playEpisode(episode)
@@ -586,6 +609,11 @@ struct PlayerControlsView: View {
             }
         }
         .overlay {
+            if showSourcesPanel {
+                PlayerSourcesPanel(viewModel: viewModel, onClose: { showSourcesPanel = false })
+                    .transition(.opacity)
+            }
+
             if showAspectPanel {
                 PlayerAspectPanel(
                     viewModel: viewModel,
@@ -632,6 +660,7 @@ struct PlayerControlsView: View {
         showAudioSubtitles = false
         showChaptersPanel = false
         showAspectPanel = false
+        showSourcesPanel = false
     }
 
     /// Panels share the same corner, so opening one closes any other.
@@ -641,7 +670,7 @@ struct PlayerControlsView: View {
     }
 
     private var isAnyPanelOpen: Bool {
-        showEpisodesList || showPlaybackSpeed || showAudioSubtitles || showChaptersPanel || showAspectPanel
+        showEpisodesList || showPlaybackSpeed || showAudioSubtitles || showChaptersPanel || showAspectPanel || showSourcesPanel
     }
 
     private var seekBarMarks: SeekBarMarksModel {

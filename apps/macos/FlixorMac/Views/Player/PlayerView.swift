@@ -95,7 +95,7 @@ struct PlayerView: View {
                 duration: nil,
                 viewOffset: streamItem.resumePositionMs,
                 summary: nil,
-                grandparentTitle: streamItem.mediaType == .episode ? streamItem.title : nil,
+                grandparentTitle: streamItem.mediaType == .episode ? (streamItem.showTitle ?? streamItem.title) : nil,
                 grandparentThumb: streamItem.posterURL,
                 grandparentArt: streamItem.backdropURL,
                 grandparentRatingKey: nil,

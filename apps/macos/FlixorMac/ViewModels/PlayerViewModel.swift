@@ -102,6 +102,17 @@ class PlayerViewModel: ObservableObject {
     // MARK: - Stream engine state (skip segments, stream next-episode, source recovery)
     // New stored properties for that work go directly below this line.
 
+    // Episode panel (season browsing) and the in-player sources list.
+    @Published var episodeBrowserSeasons: [Int] = []
+    @Published var episodeBrowserSeason: Int? = nil
+    @Published var episodeBrowserEpisodes: [EpisodeMetadata] = []
+    @Published var isLoadingEpisodeBrowser = false
+    @Published var isLoadingStreamSources = false
+    var episodeBrowserPlexSeasonKeys: [Int: String] = [:]
+    var episodeBrowserTask: Task<Void, Never>?
+    var streamSourcesRefreshedKey: String?
+    var nextEpisodeWaitTask: Task<Void, Never>?
+
     /// Community skip segments (IntroDB / AniSkip / Anime-Skip) for the current item;
     /// merged into `markers` for types Plex didn't provide.
     @Published var communitySkipSegments: [SkipSegment] = []
@@ -269,7 +280,7 @@ class PlayerViewModel: ObservableObject {
             duration: nil,
             viewOffset: streamItem.resumePositionMs,
             summary: nil,
-            grandparentTitle: streamItem.mediaType == .episode ? streamItem.title : nil,
+            grandparentTitle: streamItem.mediaType == .episode ? (streamItem.showTitle ?? streamItem.title) : nil,
             grandparentThumb: streamItem.posterURL,
             grandparentArt: streamItem.backdropURL,
             grandparentRatingKey: nil,
