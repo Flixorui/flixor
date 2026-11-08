@@ -7,6 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		C095393B1EFCE4BC52BEA360 /* SearchRecentSearchesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0068328812A404568F6E5E28 /* SearchRecentSearchesView.swift */; };
+		263C0081976BD169E82DBBA2 /* SearchPeopleRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7AA029D3FF8FC03EAB2DB1B /* SearchPeopleRow.swift */; };
+		D4336010A9BDA98DE60518E7 /* SearchDiscoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3330CB52CAFCA47FD1E4F75 /* SearchDiscoverView.swift */; };
+		39CF02FA6AD673C1941775AA /* DiscoverViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F40B551C4544D19E8BF94B9 /* DiscoverViewModel.swift */; };
+		9FA4426A42B904035D6F03AB /* UserDefaults+Search.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B7D69B23B82620C481D470E /* UserDefaults+Search.swift */; };
 		588E59694FBE945BBB66830A /* PersonIdentityViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E05ADB72B8811118261746F /* PersonIdentityViews.swift */; };
 		17AFFF8EC23210200B7D04FE /* PersonDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA15B834584960B4261DA181 /* PersonDetailViewModel.swift */; };
 		62C2F417F9D509CF9A0A667B /* PersonDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDBA249F7AD9DEB96CA22A5E /* PersonDetailView.swift */; };
@@ -213,6 +218,11 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		0068328812A404568F6E5E28 /* SearchRecentSearchesView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SearchRecentSearchesView.swift; sourceTree = "<group>"; };
+		A7AA029D3FF8FC03EAB2DB1B /* SearchPeopleRow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SearchPeopleRow.swift; sourceTree = "<group>"; };
+		C3330CB52CAFCA47FD1E4F75 /* SearchDiscoverView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SearchDiscoverView.swift; sourceTree = "<group>"; };
+		0F40B551C4544D19E8BF94B9 /* DiscoverViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DiscoverViewModel.swift; sourceTree = "<group>"; };
+		3B7D69B23B82620C481D470E /* UserDefaults+Search.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "UserDefaults+Search.swift"; sourceTree = "<group>"; };
 		6E05ADB72B8811118261746F /* PersonIdentityViews.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Person/PersonIdentityViews.swift; sourceTree = "<group>"; };
 		BA15B834584960B4261DA181 /* PersonDetailViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Person/PersonDetailViewModel.swift; sourceTree = "<group>"; };
 		EDBA249F7AD9DEB96CA22A5E /* PersonDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Person/PersonDetailView.swift; sourceTree = "<group>"; };
@@ -552,6 +562,7 @@
 		D006 /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
+				0F40B551C4544D19E8BF94B9 /* DiscoverViewModel.swift */,
 				3F35EE05EDE594BEB06742FB /* PlayerViewModel+Types.swift */,
 				558CFF48660AB401150521B5 /* PlayerViewModel+Tracks.swift */,
 				9870F7FE912EA6C150C6BFD5 /* PlayerViewModel+StreamLoading.swift */,
@@ -610,6 +621,7 @@
 		D008 /* Extensions */ = {
 			isa = PBXGroup;
 			children = (
+				3B7D69B23B82620C481D470E /* UserDefaults+Search.swift */,
 				3308D10673CBBA575CE9E761 /* UserDefaults+Navigation.swift */,
 				497B08D5668C4AE5E283945A /* UserDefaults+WatchState.swift */,
 				4F750BC1AEFFF3F132E53194 /* WindowMetrics.swift */,
@@ -681,6 +693,9 @@
 		D014 /* Search */ = {
 			isa = PBXGroup;
 			children = (
+				0068328812A404568F6E5E28 /* SearchRecentSearchesView.swift */,
+				A7AA029D3FF8FC03EAB2DB1B /* SearchPeopleRow.swift */,
+				C3330CB52CAFCA47FD1E4F75 /* SearchDiscoverView.swift */,
 				B011 /* SearchView.swift */,
 			);
 			path = Search;
@@ -972,6 +987,11 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C095393B1EFCE4BC52BEA360 /* SearchRecentSearchesView.swift in Sources */,
+				263C0081976BD169E82DBBA2 /* SearchPeopleRow.swift in Sources */,
+				D4336010A9BDA98DE60518E7 /* SearchDiscoverView.swift in Sources */,
+				39CF02FA6AD673C1941775AA /* DiscoverViewModel.swift in Sources */,
+				9FA4426A42B904035D6F03AB /* UserDefaults+Search.swift in Sources */,
 				588E59694FBE945BBB66830A /* PersonIdentityViews.swift in Sources */,
 				17AFFF8EC23210200B7D04FE /* PersonDetailViewModel.swift in Sources */,
 				62C2F417F9D509CF9A0A667B /* PersonDetailView.swift in Sources */,
