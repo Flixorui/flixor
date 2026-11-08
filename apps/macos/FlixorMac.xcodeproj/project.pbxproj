@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		2FFAA33D172CBF2DC2D72FF8 /* DetailsCommentsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6316B55294A0D3BA17932042 /* DetailsCommentsSection.swift */; };
 		E30FDA0B7717278642F9E840 /* DetailsCollectionSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 114479B8C4DA3F57B189D0ED /* DetailsCollectionSection.swift */; };
 		D5F54E5E73EA695879FE574F /* DetailsSectionOrderList.swift in Sources */ = {isa = PBXBuildFile; fileRef = F399F9767F9F2FF037F5BC1D /* DetailsSectionOrderList.swift */; };
 		3F02D57071249E9B04834C78 /* DetailsSectionsContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B53C11B6DBFAAFE2160A6D61 /* DetailsSectionsContainer.swift */; };
@@ -207,6 +208,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		6316B55294A0D3BA17932042 /* DetailsCommentsSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DetailsCommentsSection.swift; sourceTree = "<group>"; };
 		114479B8C4DA3F57B189D0ED /* DetailsCollectionSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DetailsCollectionSection.swift; sourceTree = "<group>"; };
 		F399F9767F9F2FF037F5BC1D /* DetailsSectionOrderList.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DetailsSectionOrderList.swift; sourceTree = "<group>"; };
 		B53C11B6DBFAAFE2160A6D61 /* DetailsSectionsContainer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DetailsSectionsContainer.swift; sourceTree = "<group>"; };
@@ -713,6 +715,7 @@
 		D018 /* Details */ = {
 			isa = PBXGroup;
 			children = (
+				6316B55294A0D3BA17932042 /* DetailsCommentsSection.swift */,
 				114479B8C4DA3F57B189D0ED /* DetailsCollectionSection.swift */,
 				B53C11B6DBFAAFE2160A6D61 /* DetailsSectionsContainer.swift */,
 				B104519B98773D3F7BFA0752 /* DetailsView+Layout.swift */,
@@ -954,6 +957,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2FFAA33D172CBF2DC2D72FF8 /* DetailsCommentsSection.swift in Sources */,
 				E30FDA0B7717278642F9E840 /* DetailsCollectionSection.swift in Sources */,
 				D5F54E5E73EA695879FE574F /* DetailsSectionOrderList.swift in Sources */,
 				3F02D57071249E9B04834C78 /* DetailsSectionsContainer.swift in Sources */,

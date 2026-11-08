@@ -25,6 +25,7 @@ struct DetailsSectionsContainer: View {
     @ObservedObject private var profileSettings = ProfileSettings.shared
 
     @StateObject private var collectionModel = DetailsCollectionModel()
+    @StateObject private var commentsModel = DetailsCommentsModel()
     @State private var selectedTrailer: Trailer?
 
     private var isTabbed: Bool { profileSettings.detailsScreenLayout == "tabbed" }
@@ -89,7 +90,7 @@ struct DetailsSectionsContainer: View {
         case .trailers:
             return !vm.trailers.isEmpty
         case .comments:
-            return false
+            return vm.titleWatchTarget != nil
         case .about:
             return true
         }
@@ -120,7 +121,7 @@ struct DetailsSectionsContainer: View {
         case .trailers:
             DetailsTrailersSection(trailers: vm.trailers, onPlay: { selectedTrailer = $0 })
         case .comments:
-            EmptyView()
+            DetailsCommentsSection(model: commentsModel, target: vm.titleWatchTarget)
         case .about:
             DetailsTabContent(vm: vm, layout: layout, onEntityTap: openEntity)
         }
