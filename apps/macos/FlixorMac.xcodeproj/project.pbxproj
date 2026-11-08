@@ -7,6 +7,14 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		7988E7FE2F7F841A4A95937C /* PlaybackEngineSettingsModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2D701721AA528B414299AF0 /* PlaybackEngineSettingsModel.swift */; };
+		92AF4A4593E9A673F007D047 /* PlayerViewModel+SubtitleEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C05C37495D022289602E649 /* PlayerViewModel+SubtitleEngine.swift */; };
+		54F8FA04A864F8BEFA8E1906 /* PlayerViewModel+Engine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE6BE25187EC9929E89CC580 /* PlayerViewModel+Engine.swift */; };
+		76221CAE8A0799CFAB3AC3A2 /* SubtitleCueParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 586D2CEF3EA6C7ED54098DE3 /* SubtitleCueParser.swift */; };
+		2E0808421FEF39A852F6D1C6 /* OpenSubtitlesHasher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F9025C99C53A0436396B119 /* OpenSubtitlesHasher.swift */; };
+		452E44B94948B0C10E08E7B2 /* OriginalLanguageResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34A99D35F7035FA624FF4432 /* OriginalLanguageResolver.swift */; };
+		38FC05C2B6577EE2C29B4530 /* LanguageMatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CA337E75CF25AE50F1E1AC3 /* LanguageMatcher.swift */; };
+		AF79FC68112BF0939A66B489 /* UserDefaults+PlaybackEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3464E9C06ED9B84B08B8725 /* UserDefaults+PlaybackEngine.swift */; };
 		4B0B4503EC515D7BA6599470 /* DetailsSectionOrderList.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7404D0E4FB2D6A6845DD7DF7 /* DetailsSectionOrderList.swift */; };
 		F38A1523C4D4C73E5F04D3A2 /* DetailsSectionsContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A27E2E074B63717F4C054AE0 /* DetailsSectionsContainer.swift */; };
 		2E97531ADB5A666525DF34ED /* DetailsEpisodeExtras.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A4E839819B0CD7C80D5B8A9 /* DetailsEpisodeExtras.swift */; };
@@ -226,6 +234,14 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		A2D701721AA528B414299AF0 /* PlaybackEngineSettingsModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlaybackEngineSettingsModel.swift; sourceTree = "<group>"; };
+		4C05C37495D022289602E649 /* PlayerViewModel+SubtitleEngine.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "PlayerViewModel+SubtitleEngine.swift"; sourceTree = "<group>"; };
+		AE6BE25187EC9929E89CC580 /* PlayerViewModel+Engine.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "PlayerViewModel+Engine.swift"; sourceTree = "<group>"; };
+		586D2CEF3EA6C7ED54098DE3 /* SubtitleCueParser.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Subtitles/SubtitleCueParser.swift; sourceTree = "<group>"; };
+		7F9025C99C53A0436396B119 /* OpenSubtitlesHasher.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Subtitles/OpenSubtitlesHasher.swift; sourceTree = "<group>"; };
+		34A99D35F7035FA624FF4432 /* OriginalLanguageResolver.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Playback/OriginalLanguageResolver.swift; sourceTree = "<group>"; };
+		7CA337E75CF25AE50F1E1AC3 /* LanguageMatcher.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Playback/LanguageMatcher.swift; sourceTree = "<group>"; };
+		B3464E9C06ED9B84B08B8725 /* UserDefaults+PlaybackEngine.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "UserDefaults+PlaybackEngine.swift"; sourceTree = "<group>"; };
 		7404D0E4FB2D6A6845DD7DF7 /* DetailsSectionOrderList.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DetailsSectionOrderList.swift; sourceTree = "<group>"; };
 		A27E2E074B63717F4C054AE0 /* DetailsSectionsContainer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DetailsSectionsContainer.swift; sourceTree = "<group>"; };
 		4A4E839819B0CD7C80D5B8A9 /* DetailsEpisodeExtras.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DetailsEpisodeExtras.swift; sourceTree = "<group>"; };
@@ -578,6 +594,8 @@
 		D006 /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
+				4C05C37495D022289602E649 /* PlayerViewModel+SubtitleEngine.swift */,
+				AE6BE25187EC9929E89CC580 /* PlayerViewModel+Engine.swift */,
 				52BEF60FB9677EF6CFDA3567 /* DetailsEpisodeStateModel.swift */,
 				0F40B551C4544D19E8BF94B9 /* DiscoverViewModel.swift */,
 				3F35EE05EDE594BEB06742FB /* PlayerViewModel+Types.swift */,
@@ -613,6 +631,10 @@
 		D007 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				586D2CEF3EA6C7ED54098DE3 /* SubtitleCueParser.swift */,
+				7F9025C99C53A0436396B119 /* OpenSubtitlesHasher.swift */,
+				34A99D35F7035FA624FF4432 /* OriginalLanguageResolver.swift */,
+				7CA337E75CF25AE50F1E1AC3 /* LanguageMatcher.swift */,
 				0DC8F144D075DF493C53FED0 /* DetailsSectionsStore.swift */,
 				46D031E0858D60EF3A8C739E /* WatchStateService.swift */,
 				EC85992E13EE4C4C1C8C2704 /* TraktListsService.swift */,
@@ -639,6 +661,7 @@
 		D008 /* Extensions */ = {
 			isa = PBXGroup;
 			children = (
+				B3464E9C06ED9B84B08B8725 /* UserDefaults+PlaybackEngine.swift */,
 				CFC9C771249A58B6D741F2E2 /* UserDefaults+DetailsSections.swift */,
 				3B7D69B23B82620C481D470E /* UserDefaults+Search.swift */,
 				3308D10673CBBA575CE9E761 /* UserDefaults+Navigation.swift */,
@@ -723,6 +746,7 @@
 		D015 /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				A2D701721AA528B414299AF0 /* PlaybackEngineSettingsModel.swift */,
 				7404D0E4FB2D6A6845DD7DF7 /* DetailsSectionOrderList.swift */,
 				9F4FB3B84467ABEBB9DC1956 /* AppearanceSettingsView.swift */,
 				B015 /* SettingsView.swift */,
@@ -1011,6 +1035,14 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				7988E7FE2F7F841A4A95937C /* PlaybackEngineSettingsModel.swift in Sources */,
+				92AF4A4593E9A673F007D047 /* PlayerViewModel+SubtitleEngine.swift in Sources */,
+				54F8FA04A864F8BEFA8E1906 /* PlayerViewModel+Engine.swift in Sources */,
+				76221CAE8A0799CFAB3AC3A2 /* SubtitleCueParser.swift in Sources */,
+				2E0808421FEF39A852F6D1C6 /* OpenSubtitlesHasher.swift in Sources */,
+				452E44B94948B0C10E08E7B2 /* OriginalLanguageResolver.swift in Sources */,
+				38FC05C2B6577EE2C29B4530 /* LanguageMatcher.swift in Sources */,
+				AF79FC68112BF0939A66B489 /* UserDefaults+PlaybackEngine.swift in Sources */,
 				4B0B4503EC515D7BA6599470 /* DetailsSectionOrderList.swift in Sources */,
 				F38A1523C4D4C73E5F04D3A2 /* DetailsSectionsContainer.swift in Sources */,
 				2E97531ADB5A666525DF34ED /* DetailsEpisodeExtras.swift in Sources */,

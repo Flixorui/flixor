@@ -389,7 +389,32 @@ actor StremioService {
         }
     }
 
-    func getSubtitles(identity: StremioContentIdentity) async -> [StremioSubtitleCandidate] {
+    /// Extra arguments for subtitle requests (Stremio addon protocol "extra" path segment).
+    struct SubtitleRequestExtra: Hashable {
+        /// OpenSubtitles moviehash (16 hex digits) of the playing file.
+        var videoHash: String?
+        /// File size in bytes (sent with videoHash).
+        var videoSize: Int64?
+        /// Release file name, used by some addons for matching.
+        var filename: String?
+
+        /// "videoHash=…&videoSize=…&filename=…" (values percent-encoded), nil when empty.
+        var pathSegment: String? {
+            var pairs: [(String, String)] = []
+            if let videoHash, !videoHash.isEmpty { pairs.append(("videoHash", videoHash)) }
+            if let videoSize, videoSize > 0 { pairs.append(("videoSize", String(videoSize))) }
+            if let filename, !filename.isEmpty { pairs.append(("filename", filename)) }
+            guard !pairs.isEmpty else { return nil }
+            var allowed = CharacterSet.alphanumerics
+            allowed.insert(charactersIn: "-._~")
+            return pairs.map { "\($0.0)=\($0.1.addingPercentEncoding(withAllowedCharacters: allowed) ?? $0.1)" }
+                .joined(separator: "&")
+        }
+    }
+
+    /// - Parameter extra: Optional video hash/size/filename sent to subtitle addons
+    ///   (`/subtitles/{type}/{id}/{extra}.json`) for release-matched results.
+    func getSubtitles(identity: StremioContentIdentity, extra: SubtitleRequestExtra? = nil) async -> [StremioSubtitleCandidate] {
         await ensureInitialized()
         let requestType = StremioRequestType(rawValue: identity.requestType) ?? .movie
         let installed = await getInstalledAddons()
@@ -411,7 +436,7 @@ actor StremioService {
         await withTaskGroup(of: [StremioSubtitleCandidate].self) { group in
             for addon in subtitleAddons {
                 group.addTask {
-                    await self.fetchSubtitles(for: addon, requestType: requestType, requestId: requestId)
+                    await self.fetchSubtitles(for: addon, requestType: requestType, requestId: requestId, extra: extra?.pathSegment)
                 }
             }
 
@@ -534,11 +559,13 @@ actor StremioService {
         }
     }
 
-    private func fetchSubtitles(for addon: StremioAddonManifest, requestType: StremioRequestType, requestId: String) async -> [StremioSubtitleCandidate] {
+    private func fetchSubtitles(for addon: StremioAddonManifest, requestType: StremioRequestType, requestId: String, extra: String? = nil) async -> [StremioSubtitleCandidate] {
         guard let baseURL = addon.url else { return [] }
 
         do {
-            let resourcePath = "/subtitles/\(requestType.rawValue)/\(requestId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? requestId).json"
+            let encodedId = requestId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? requestId
+            let resourcePath = extra.map { "/subtitles/\(requestType.rawValue)/\(encodedId)/\($0).json" }
+                ?? "/subtitles/\(requestType.rawValue)/\(encodedId).json"
             guard let requestURL = URL(string: buildResourceURL(baseURL: baseURL, resourcePath: resourcePath)) else {
                 return []
             }
