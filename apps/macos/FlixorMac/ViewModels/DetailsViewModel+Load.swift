@@ -18,6 +18,15 @@ extension DetailsViewModel {
         isLoading = true
         defer { isLoading = false }
         error = nil
+        // Clear the hero text too, so the loading skeleton covers an in-place reload
+        // instead of showing the previous title's metadata.
+        title = ""
+        overview = ""
+        year = nil
+        editionTitle = nil
+        runtime = nil
+        rating = nil
+        genres = []
         badges = []
         externalRatings = nil
         plexImdbRating = nil

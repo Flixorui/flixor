@@ -33,6 +33,15 @@ struct DetailsView: View {
     // Profile-scoped layout preference
     @ObservedObject var profileSettings = ProfileSettings.shared
 
+    // Loading skeleton
+    @State private var initialLoadFinished = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// Hero skeleton until the title's core metadata is in (or the load ends).
+    private var showsLoadingSkeleton: Bool {
+        vm.title.isEmpty && (vm.isLoading || !initialLoadFinished)
+    }
+
     private var resolvedPlexPlayableId: String? {
         if let playableId = vm.playableId, playableId.hasPrefix("plex:") {
             return playableId
@@ -61,9 +70,19 @@ struct DetailsView: View {
                 let width = max(proxy.size.width, 640)
                 let layout = DetailsLayoutMetrics(width: width)
 
-                ScrollView {
-                    pageContent(layout: layout)
+                ZStack(alignment: .top) {
+                    ScrollView {
+                        pageContent(layout: layout)
+                    }
+                    .opacity(showsLoadingSkeleton ? 0 : 1)
+
+                    if showsLoadingSkeleton {
+                        DetailsHeroSkeleton(layout: layout)
+                            .transition(.opacity)
+                            .allowsHitTesting(false)
+                    }
                 }
+                .animation(reduceMotion ? nil : DS.Motion.slow, value: showsLoadingSkeleton)
             }
             .frame(maxWidth: .infinity, alignment: .top)
 
@@ -111,6 +130,7 @@ struct DetailsView: View {
         .navigationTitle("")
         .task {
             await vm.load(for: item)
+            initialLoadFinished = true
             // Set initial tab - DETAILS for episodes, EPISODES for TV shows/seasons
             if vm.isEpisode {
                 activeTab = "DETAILS"

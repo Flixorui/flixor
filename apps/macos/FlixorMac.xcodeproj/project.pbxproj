@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A00264E0CDD54FA34E8EA924 /* DetailsHeroSkeleton.swift in Sources */ = {isa = PBXBuildFile; fileRef = C564227F845E45E4DCEA6174 /* DetailsHeroSkeleton.swift */; };
 		81589FE15E5F3A60DF37596B /* WatchStateService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46D031E0858D60EF3A8C739E /* WatchStateService.swift */; };
 		63AA8F5C8099B3513A6C3852 /* TraktListsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC85992E13EE4C4C1C8C2704 /* TraktListsService.swift */; };
 		3FC7D91559AFA7117387D2C8 /* TraktCommentsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 863179F8A6086C93AB02C84E /* TraktCommentsService.swift */; };
@@ -202,6 +203,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		C564227F845E45E4DCEA6174 /* DetailsHeroSkeleton.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DetailsHeroSkeleton.swift; sourceTree = "<group>"; };
 		46D031E0858D60EF3A8C739E /* WatchStateService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchStateService.swift; sourceTree = "<group>"; };
 		EC85992E13EE4C4C1C8C2704 /* TraktListsService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TraktListsService.swift; sourceTree = "<group>"; };
 		863179F8A6086C93AB02C84E /* TraktCommentsService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TraktCommentsService.swift; sourceTree = "<group>"; };
@@ -700,6 +702,7 @@
 		D018 /* Details */ = {
 			isa = PBXGroup;
 			children = (
+				C564227F845E45E4DCEA6174 /* DetailsHeroSkeleton.swift */,
 				B104519B98773D3F7BFA0752 /* DetailsView+Layout.swift */,
 				A4E2631E53C0AC98A4785AB2 /* DetailsVersionPicker.swift */,
 				2E243590D9C56F2049DDEC1F /* DetailsSuggestedSection.swift */,
@@ -939,6 +942,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A00264E0CDD54FA34E8EA924 /* DetailsHeroSkeleton.swift in Sources */,
 				81589FE15E5F3A60DF37596B /* WatchStateService.swift in Sources */,
 				63AA8F5C8099B3513A6C3852 /* TraktListsService.swift in Sources */,
 				3FC7D91559AFA7117387D2C8 /* TraktCommentsService.swift in Sources */,
