@@ -26,6 +26,7 @@ struct DetailsSectionsContainer: View {
 
     @StateObject private var collectionModel = DetailsCollectionModel()
     @StateObject private var commentsModel = DetailsCommentsModel()
+    @StateObject private var episodeState = DetailsEpisodeStateModel()
     @State private var selectedTrailer: Trailer?
 
     private var isTabbed: Bool { profileSettings.detailsScreenLayout == "tabbed" }
@@ -103,6 +104,7 @@ struct DetailsSectionsContainer: View {
             EpisodesTabContent(
                 vm: vm,
                 layout: layout,
+                episodeState: episodeState,
                 onPlayEpisode: onPlayEpisode,
                 onStremioEpisode: onStremioEpisode
             )
