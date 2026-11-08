@@ -4,10 +4,16 @@
 //
 //  ViewModel for Search screen with Popular/Trending/Live results
 //
+//  Live search runs every source (Plex, addon catalogs, TMDB titles, TMDB
+//  people) in parallel. Each source publishes on its own, with its own status,
+//  so one failing source never blanks the others. A new query cancels the
+//  in-flight search immediately; the next search starts after a short debounce.
+//
 
 import Foundation
 import SwiftUI
 import Combine
+import FlixorKit
 
 @MainActor
 class SearchViewModel: ObservableObject {
@@ -19,16 +25,56 @@ class SearchViewModel: ObservableObject {
     @Published var stremioResults: [SearchResult] = []
     @Published var tmdbMovies: [SearchResult] = []
     @Published var tmdbShows: [SearchResult] = []
+    /// TMDB people matching the query.
+    @Published var people: [TMDBPersonSummary] = []
     @Published var genreRows: [GenreRow] = []
     @Published var popularItems: [SearchResult] = []
     @Published var trendingItems: [SearchResult] = []
     @Published var isLoading = false
     @Published var searchMode: SearchMode = .idle
+    /// Status of every source for the current query.
+    @Published private(set) var sectionStatus: [SearchSection: SectionStatus] = [:]
+    /// Recent queries for the active profile, most recent first.
+    @Published private(set) var recentSearches: [String] = []
 
     enum SearchMode {
         case idle          // Show Popular/Trending
         case searching     // Actively searching
         case results       // Showing results
+    }
+
+    /// A source of live search results.
+    enum SearchSection: String, CaseIterable, Identifiable {
+        case plex, addons, tmdb, people
+
+        var id: String { rawValue }
+
+        /// Shown in the inline error row when the source fails.
+        var failureMessage: String {
+            switch self {
+            case .plex: return "Couldn't search your Plex server."
+            case .addons: return "Couldn't search your addons."
+            case .tmdb: return "Couldn't load movie and TV results."
+            case .people: return "Couldn't load people."
+            }
+        }
+
+        /// Shown while the source is still loading after others returned.
+        var loadingMessage: String {
+            switch self {
+            case .plex: return "Searching your Plex server"
+            case .addons: return "Searching your addons"
+            case .tmdb: return "Searching movies and TV"
+            case .people: return "Searching people"
+            }
+        }
+    }
+
+    enum SectionStatus: Equatable {
+        case idle
+        case loading
+        case loaded
+        case failed(String)
     }
 
     struct SearchResult: Identifiable, Hashable {
@@ -65,7 +111,19 @@ class SearchViewModel: ObservableObject {
 
     private let api = APIClient.shared
     private var searchTask: Task<Void, Never>?
+    private var saveRecentTask: Task<Void, Never>?
     private var cancellables = Set<AnyCancellable>()
+
+    /// Normalised query of the search that is running or produced the current results.
+    private var activeQuery: String?
+    /// Incremented for every search; stale callbacks compare against it.
+    private var searchGeneration = 0
+    /// Genres seen in the TMDB results of the current search.
+    private var pendingGenreIds = Set<Int>()
+    private var profileScopeToken: String?
+
+    /// Delay after results appear before a typed query counts as "searched".
+    private static let recentSaveDelay: Duration = .milliseconds(2500)
 
     /// Whether to include TMDB results in search (from settings)
     private var includeTmdbInSearch: Bool {
@@ -74,31 +132,124 @@ class SearchViewModel: ObservableObject {
 
     init() {
         setupSearchDebouncing()
+        refreshProfileScopedState()
     }
 
     // MARK: - Setup
 
     private func setupSearchDebouncing() {
-        // Debounce search input (300ms)
+        // Every edit: cancel a search that no longer matches the text right away.
         $query
-            .debounce(for: .milliseconds(300), scheduler: DispatchQueue.main)
             .removeDuplicates()
+            .dropFirst()
             .sink { [weak self] newQuery in
-                guard let self = self else { return }
-                Task { @MainActor in
-                    if newQuery.isEmpty {
-                        self.searchMode = .idle
-                        self.plexResults = []
-                        self.tmdbMovies = []
-                        self.tmdbShows = []
-                        self.genreRows = []
-                    } else {
-                        self.searchMode = .searching
-                        await self.performSearch(query: newQuery)
-                    }
-                }
+                Task { @MainActor in self?.handleQueryEdited(newQuery) }
             }
             .store(in: &cancellables)
+
+        // Debounced (300ms): start the search for the settled text.
+        $query
+            .debounce(for: .milliseconds(300), scheduler: DispatchQueue.main)
+            .sink { [weak self] newQuery in
+                Task { @MainActor in self?.handleDebouncedQuery(newQuery) }
+            }
+            .store(in: &cancellables)
+    }
+
+    static func normalize(_ query: String) -> String {
+        query.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func handleQueryEdited(_ newQuery: String) {
+        let normalized = Self.normalize(newQuery)
+        saveRecentTask?.cancel()
+        if normalized.isEmpty {
+            cancelSearch()
+            resetResults()
+            searchMode = .idle
+            return
+        }
+        if normalized != activeQuery {
+            cancelSearch()
+        }
+    }
+
+    private func handleDebouncedQuery(_ newQuery: String) {
+        let normalized = Self.normalize(newQuery)
+        guard !normalized.isEmpty, normalized != activeQuery else { return }
+        startSearch(normalized)
+    }
+
+    // MARK: - Profile-scoped state
+
+    /// Reloads recent searches when the active profile changed since the last call.
+    /// The Search tab survives profile switches, so the view calls this when shown.
+    func refreshProfileScopedState() {
+        let token = UserDefaults.standard.searchProfileScopeToken
+        guard token != profileScopeToken else { return }
+        profileScopeToken = token
+        recentSearches = UserDefaults.standard.recentSearches
+    }
+
+    // MARK: - Recent Searches
+
+    /// The user pressed Return in the search field.
+    func submitSearch() {
+        let normalized = Self.normalize(query)
+        guard !normalized.isEmpty else { return }
+        if normalized != activeQuery {
+            startSearch(normalized)
+        }
+        recordRecentSearch(normalized)
+    }
+
+    /// Runs a recent search (also moves it to the top of the list).
+    func runRecentSearch(_ text: String) {
+        let normalized = Self.normalize(text)
+        guard !normalized.isEmpty else { return }
+        query = normalized
+        startSearch(normalized)
+        recordRecentSearch(normalized)
+    }
+
+    /// The user opened a result for the current query, so it counts as searched.
+    func commitCurrentQuery() {
+        let normalized = Self.normalize(query)
+        guard !normalized.isEmpty else { return }
+        saveRecentTask?.cancel()
+        recordRecentSearch(normalized)
+    }
+
+    func removeRecentSearch(_ text: String) {
+        recentSearches.removeAll { $0.caseInsensitiveCompare(text) == .orderedSame }
+        UserDefaults.standard.recentSearches = recentSearches
+    }
+
+    func clearRecentSearches() {
+        recentSearches = []
+        UserDefaults.standard.recentSearches = []
+    }
+
+    private func recordRecentSearch(_ text: String) {
+        var list = recentSearches.filter { $0.caseInsensitiveCompare(text) != .orderedSame }
+        list.insert(text, at: 0)
+        list = Array(list.prefix(UserDefaults.recentSearchesLimit))
+        guard list != recentSearches else { return }
+        recentSearches = list
+        UserDefaults.standard.recentSearches = list
+    }
+
+    /// Saves a typed query once the user paused on its results.
+    private func scheduleRecentSave(for text: String) {
+        saveRecentTask?.cancel()
+        guard text.count >= 2, hasResults else { return }
+        saveRecentTask = Task { [weak self] in
+            try? await Task.sleep(for: Self.recentSaveDelay)
+            guard let self, !Task.isCancelled,
+                  self.activeQuery == text,
+                  Self.normalize(self.query) == text else { return }
+            self.recordRecentSearch(text)
+        }
     }
 
     // MARK: - Load Initial Content
@@ -308,74 +459,216 @@ class SearchViewModel: ObservableObject {
 
     // MARK: - Search
 
-    private func performSearch(query: String) async {
-        guard !query.trimmingCharacters(in: .whitespaces).isEmpty else {
-            plexResults = []
-            stremioResults = []
-            tmdbMovies = []
-            tmdbShows = []
-            genreRows = []
-            searchMode = .idle
+    /// True when any source returned something for the current query.
+    var hasResults: Bool {
+        !plexResults.isEmpty || !stremioResults.isEmpty ||
+        !tmdbMovies.isEmpty || !tmdbShows.isEmpty || !people.isEmpty
+    }
+
+    /// Sources that failed for the current query.
+    var failedSections: [SearchSection] {
+        SearchSection.allCases.filter {
+            if case .failed = sectionStatus[$0] { return true }
+            return false
+        }
+    }
+
+    /// Sources still loading for the current query.
+    var loadingSections: [SearchSection] {
+        SearchSection.allCases.filter { sectionStatus[$0] == .loading }
+    }
+
+    /// The top TMDB person matches the query by name, so People goes first.
+    var peopleMatchQuery: Bool {
+        guard let first = people.first, let active = activeQuery else { return false }
+        return first.name.compare(active, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
+    }
+
+    private func enabledSections() -> [SearchSection] {
+        var sections: [SearchSection] = []
+        if !AppModeStore.shared.isStremioOnly { sections.append(.plex) }
+        if UserDefaults.standard.stremioCatalogSearchEnabled { sections.append(.addons) }
+        if includeTmdbInSearch {
+            sections.append(.tmdb)
+            sections.append(.people)
+        }
+        return sections
+    }
+
+    private func cancelSearch() {
+        searchTask?.cancel()
+        searchTask = nil
+        activeQuery = nil
+        isLoading = false
+    }
+
+    private func resetResults() {
+        plexResults = []
+        stremioResults = []
+        tmdbMovies = []
+        tmdbShows = []
+        people = []
+        genreRows = []
+        pendingGenreIds = []
+        sectionStatus = [:]
+    }
+
+    private func startSearch(_ query: String) {
+        searchTask?.cancel()
+        saveRecentTask?.cancel()
+        activeQuery = query
+        searchGeneration += 1
+        let generation = searchGeneration
+
+        resetResults()
+        let sections = enabledSections()
+        for section in sections { sectionStatus[section] = .loading }
+        guard !sections.isEmpty else {
+            searchMode = .results
             return
         }
+        searchMode = .searching
+        isLoading = true
 
-        // Cancel previous search task
-        searchTask?.cancel()
+        print("🔍 [Search] Searching for: \(query)")
 
-        searchTask = Task {
-            isLoading = true
-            defer { isLoading = false }
-
-            print("🔍 [Search] Searching for: \(query)")
-
-            var plexRes: [SearchResult] = []
-            var tmdbMovieRes: [SearchResult] = []
-            var tmdbShowRes: [SearchResult] = []
-            var allGenreIds = Set<Int>()
-
-            // Search Plex - skipped entirely without a server
-            if !AppModeStore.shared.isStremioOnly {
-                await withTaskGroup(of: [SearchResult].self) { group in
-                    // Search Plex movies
-                    group.addTask { await self.searchPlex(query: query, type: 1) }
-                    // Search Plex TV shows
-                    group.addTask { await self.searchPlex(query: query, type: 2) }
-
-                    for await results in group {
-                        plexRes.append(contentsOf: results)
+        searchTask = Task { [weak self] in
+            guard let self else { return }
+            await withTaskGroup(of: SectionOutcome.self) { group in
+                for section in sections {
+                    group.addTask { await self.fetch(section, query: query) }
+                }
+                for await outcome in group {
+                    guard !Task.isCancelled, generation == self.searchGeneration else {
+                        group.cancelAll()
+                        break
                     }
+                    self.apply(outcome)
                 }
             }
 
-            // Search installed Stremio catalogs
-            var stremioRes: [SearchResult] = []
-            if UserDefaults.standard.stremioCatalogSearchEnabled {
-                stremioRes = await self.searchStremioCatalogs(query: query)
-            }
-
-            // Search TMDB (only if enabled in settings)
-            if self.includeTmdbInSearch {
-                let (movies, shows, genres) = await searchTMDBSeparate(query: query)
-                tmdbMovieRes = movies
-                tmdbShowRes = shows
-                allGenreIds = genres
-            }
-
-            guard !Task.isCancelled else { return }
-
-            self.plexResults = plexRes
-            self.stremioResults = stremioRes
-            self.tmdbMovies = tmdbMovieRes
-            self.tmdbShows = tmdbShowRes
+            guard !Task.isCancelled, generation == self.searchGeneration else { return }
+            self.isLoading = false
             self.searchMode = .results
+            self.scheduleRecentSave(for: query)
 
-            print("✅ [Search] Found \(plexRes.count) Plex, \(stremioRes.count) Stremio, \(tmdbMovieRes.count) TMDB movies, \(tmdbShowRes.count) TMDB shows")
+            print("✅ [Search] Found \(self.plexResults.count) Plex, \(self.stremioResults.count) Stremio, \(self.tmdbMovies.count) TMDB movies, \(self.tmdbShows.count) TMDB shows, \(self.people.count) people")
 
-            // Fetch genre-based recommendations (top 3 genres) - only if TMDB is enabled
-            if self.includeTmdbInSearch && !allGenreIds.isEmpty {
-                await loadGenreRecommendations(genreIds: Array(allGenreIds).prefix(3))
+            // Genre-based recommendations (top 3 genres) - only if TMDB is enabled
+            if self.includeTmdbInSearch && !self.pendingGenreIds.isEmpty {
+                let rows = await self.loadGenreRecommendations(genreIds: Array(self.pendingGenreIds).prefix(3))
+                guard !Task.isCancelled, generation == self.searchGeneration else { return }
+                self.genreRows = rows
             }
         }
+    }
+
+    /// Retries one failed source for the current query.
+    func retry(_ section: SearchSection) {
+        guard let query = activeQuery else { return }
+        let generation = searchGeneration
+        sectionStatus[section] = .loading
+        Task { [weak self] in
+            guard let self else { return }
+            let outcome = await self.fetch(section, query: query)
+            guard generation == self.searchGeneration else { return }
+            self.apply(outcome)
+        }
+    }
+
+    private enum SectionOutcome {
+        case plex(Result<[SearchResult], Error>)
+        case addons([SearchResult])
+        case tmdb(Result<TMDBTitleResults, Error>)
+        case people(Result<[TMDBPersonSummary], Error>)
+    }
+
+    private struct TMDBTitleResults {
+        let movies: [SearchResult]
+        let shows: [SearchResult]
+        let genreIds: Set<Int>
+    }
+
+    private func fetch(_ section: SearchSection, query: String) async -> SectionOutcome {
+        switch section {
+        case .plex:
+            return .plex(await capture { try await self.searchPlexSection(query: query) })
+        case .addons:
+            return .addons(await searchStremioCatalogs(query: query))
+        case .tmdb:
+            return .tmdb(await capture { try await self.searchTMDBSeparate(query: query) })
+        case .people:
+            return .people(await capture { try await self.searchPeople(query: query) })
+        }
+    }
+
+    private func apply(_ outcome: SectionOutcome) {
+        switch outcome {
+        case .plex(let result):
+            switch result {
+            case .success(let items):
+                plexResults = items
+                sectionStatus[.plex] = .loaded
+            case .failure(let error):
+                print("❌ [Search] Plex search failed: \(error)")
+                sectionStatus[.plex] = .failed(SearchSection.plex.failureMessage)
+            }
+        case .addons(let items):
+            stremioResults = items
+            sectionStatus[.addons] = .loaded
+        case .tmdb(let result):
+            switch result {
+            case .success(let titles):
+                tmdbMovies = titles.movies
+                tmdbShows = titles.shows
+                pendingGenreIds = titles.genreIds
+                sectionStatus[.tmdb] = .loaded
+            case .failure(let error):
+                print("❌ [Search] TMDB search failed: \(error)")
+                sectionStatus[.tmdb] = .failed(SearchSection.tmdb.failureMessage)
+            }
+        case .people(let result):
+            switch result {
+            case .success(let found):
+                people = found
+                sectionStatus[.people] = .loaded
+            case .failure(let error):
+                print("❌ [Search] People search failed: \(error)")
+                sectionStatus[.people] = .failed(SearchSection.people.failureMessage)
+            }
+        }
+        // Show results as soon as one source has something.
+        if searchMode == .searching && hasResults {
+            searchMode = .results
+        }
+    }
+
+    private func capture<T>(_ operation: () async throws -> T) async -> Result<T, Error> {
+        do {
+            return .success(try await operation())
+        } catch {
+            return .failure(error)
+        }
+    }
+
+    /// Movies and shows from Plex. Fails only when both lookups fail.
+    private func searchPlexSection(query: String) async throws -> [SearchResult] {
+        async let movies = capture { try await self.searchPlex(query: query, type: 1) }
+        async let shows = capture { try await self.searchPlex(query: query, type: 2) }
+        let (movieResult, showResult) = await (movies, shows)
+        if case .failure(let error) = movieResult, case .failure = showResult {
+            throw error
+        }
+        return ((try? movieResult.get()) ?? []) + ((try? showResult.get()) ?? [])
+    }
+
+    /// TMDB people for the query: the ones with a photo or known titles, best first.
+    private func searchPeople(query: String) async throws -> [TMDBPersonSummary] {
+        let response = try await FlixorCore.shared.tmdb.searchPeople(query: query)
+        return response.results
+            .filter { $0.profilePath != nil || !($0.knownFor ?? []).isEmpty }
+            .prefix(20)
+            .map { $0 }
     }
 
     /// Searches every search-capable addon catalog and maps hits into SearchResults.
@@ -401,7 +694,7 @@ class SearchViewModel: ObservableObject {
         }
     }
 
-    private func searchPlex(query: String, type: Int) async -> [SearchResult] {
+    private func searchPlex(query: String, type: Int) async throws -> [SearchResult] {
         do {
             // type: 1 = movies, 2 = tv shows
             let response: [PlexSearchItem] = try await api.get(
@@ -474,11 +767,11 @@ class SearchViewModel: ObservableObject {
             }
         } catch {
             print("❌ [Search] Plex search failed (type=\(type)): \(error)")
-            return []
+            throw error
         }
     }
 
-    private func searchTMDBSeparate(query: String) async -> ([SearchResult], [SearchResult], Set<Int>) {
+    private func searchTMDBSeparate(query: String) async throws -> TMDBTitleResults {
         do {
             struct TMDBSearchResponse: Codable {
                 let results: [TMDBSearchItem]
@@ -534,14 +827,11 @@ class SearchViewModel: ObservableObject {
                 }
             }
 
-            return (movies, shows, allGenreIds)
-        } catch {
-            print("❌ [Search] TMDB search failed: \(error)")
-            return ([], [], Set())
+            return TMDBTitleResults(movies: movies, shows: shows, genreIds: allGenreIds)
         }
     }
 
-    private func loadGenreRecommendations(genreIds: ArraySlice<Int>) async {
+    private func loadGenreRecommendations(genreIds: ArraySlice<Int>) async -> [GenreRow] {
         var genreRowsData: [GenreRow] = []
 
         for genreId in genreIds {
@@ -632,8 +922,7 @@ class SearchViewModel: ObservableObject {
             }
         }
 
-        guard !Task.isCancelled else { return }
-        self.genreRows = genreRowsData
+        return genreRowsData
     }
 
     // MARK: - Helper Structs

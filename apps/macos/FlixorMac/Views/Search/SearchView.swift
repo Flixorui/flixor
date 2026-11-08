@@ -6,12 +6,14 @@
 //
 
 import SwiftUI
+import FlixorKit
 
 struct SearchView: View {
     @StateObject private var viewModel = SearchViewModel()
     @EnvironmentObject private var router: NavigationRouter
     @EnvironmentObject private var mainViewState: MainViewState
     @ObservedObject private var profileSettings = ProfileSettings.shared
+    @FocusState private var isSearchFieldFocused: Bool
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -21,37 +23,34 @@ struct SearchView: View {
             ScrollView {
                 VStack(spacing: 0) {
                     // Search Input Field
-                    SearchInputField(query: $viewModel.query)
-                        .padding(.horizontal, 20)
-                        .padding(.top, 16)
+                    SearchInputField(
+                        query: $viewModel.query,
+                        isFocused: $isSearchFieldFocused,
+                        onSubmit: { viewModel.submitSearch() }
+                    )
+                    .padding(.horizontal, SearchLayout.gutter)
+                    .padding(.top, DS.Space.s16)
 
                     // Content based on search mode
                     Group {
                         switch viewModel.searchMode {
                         case .idle:
-                            if profileSettings.includeTmdbInSearch {
-                                IdleStateView(viewModel: viewModel, onTap: { item in
-                                    navigateToDetails(item: item)
-                                })
-                            } else {
-                                SearchPlaceholderView()
-                            }
+                            idleContent
                         case .searching:
                             LoadingView(message: "Searching...")
                         case .results:
-                            let hasResults = !viewModel.plexResults.isEmpty ||
-                                           !viewModel.tmdbMovies.isEmpty ||
-                                           !viewModel.tmdbShows.isEmpty
-                            if hasResults {
-                                SearchResultsView(viewModel: viewModel, onTap: { item in
-                                    navigateToDetails(item: item)
-                                })
+                            if viewModel.hasResults || !viewModel.failedSections.isEmpty {
+                                SearchResultsView(
+                                    viewModel: viewModel,
+                                    onTap: { item in navigateToDetails(item: item) },
+                                    onPersonTap: { person in navigateToPerson(person) }
+                                )
                             } else {
                                 EmptyStateView(query: viewModel.query)
                             }
                         }
                     }
-                    .padding(.top, 24)
+                    .padding(.top, DS.Space.s24)
                 }
             }
         }
@@ -59,6 +58,15 @@ struct SearchView: View {
         .task {
             if profileSettings.includeTmdbInSearch && viewModel.popularItems.isEmpty && viewModel.trendingItems.isEmpty {
                 await viewModel.loadInitialContent()
+            }
+        }
+        .onAppear {
+            viewModel.refreshProfileScopedState()
+        }
+        .onChange(of: mainViewState.selectedTab) { tab in
+            // The Search tab survives profile switches; pick up the new profile's state.
+            if tab == .search {
+                viewModel.refreshProfileScopedState()
             }
         }
         .onChange(of: profileSettings.includeTmdbInSearch) { newValue in
@@ -70,7 +78,42 @@ struct SearchView: View {
         .toast()
     }
 
+    // MARK: Idle (empty query)
+
+    @ViewBuilder
+    private var idleContent: some View {
+        VStack(alignment: .leading, spacing: DS.Space.sectionGap) {
+            if !viewModel.recentSearches.isEmpty {
+                SearchRecentSearchesView(
+                    searches: viewModel.recentSearches,
+                    onSelect: { viewModel.runRecentSearch($0) },
+                    onRemove: { viewModel.removeRecentSearch($0) },
+                    onClear: { viewModel.clearRecentSearches() }
+                )
+            }
+
+            if profileSettings.includeTmdbInSearch {
+                IdleStateView(viewModel: viewModel, onTap: { item in
+                    navigateToDetails(item: item)
+                })
+            } else {
+                SearchPlaceholderView()
+            }
+        }
+    }
+
+    // MARK: Navigation
+
+    private func navigateToPerson(_ person: TMDBPersonSummary) {
+        viewModel.commitCurrentQuery()
+        router.push(
+            PersonRoute(tmdbId: String(person.id), name: person.name, profilePath: person.profilePath),
+            on: mainViewState.selectedTab
+        )
+    }
+
     private func navigateToDetails(item: SearchViewModel.SearchResult) {
+        viewModel.commitCurrentQuery()
         let mediaItem = MediaItem(
             id: item.id,
             title: item.title,
@@ -102,38 +145,45 @@ struct SearchView: View {
 
 struct SearchInputField: View {
     @Binding var query: String
-    @FocusState private var isFocused: Bool
+    var isFocused: FocusState<Bool>.Binding
+    var onSubmit: () -> Void = {}
+
+    @Environment(\.flixorTheme) private var theme
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: DS.Space.itemGap) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 18, weight: .medium))
-                .foregroundStyle(.secondary)
+                .font(.flixorIcon(DS.Icon.lg, weight: .medium))
+                .foregroundStyle(theme.textSecondary)
 
-            TextField("Search for movies, TV shows...", text: $query)
+            TextField("Search for movies, TV shows, people...", text: $query)
                 .textFieldStyle(.plain)
-                .font(.system(size: 16))
-                .focused($isFocused)
+                .font(.flixor(.headline))
+                .focused(isFocused)
+                .onSubmit(onSubmit)
+                .accessibilityLabel(Text("Search"))
 
             if !query.isEmpty {
                 Button(action: {
                     query = ""
-                    isFocused = true
+                    isFocused.wrappedValue = true
                 }) {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 16))
-                        .foregroundStyle(.secondary)
+                        .font(.flixorIcon(DS.Icon.md))
+                        .foregroundStyle(theme.textSecondary)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(Text("Clear search"))
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(Color.white.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(.horizontal, DS.Space.s16)
+        .padding(.vertical, DS.Space.s12)
+        .background(theme.hoverFill)
+        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.poster, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color.white.opacity(isFocused ? 0.20 : 0.12), lineWidth: 1)
+            RoundedRectangle(cornerRadius: DS.Radius.poster, style: .continuous)
+                .stroke(isFocused.wrappedValue ? theme.focusRing.opacity(DS.Opacity.tertiary) : theme.separatorStrong,
+                        lineWidth: DS.Border.thin)
         )
     }
 }
@@ -173,12 +223,17 @@ struct PlexResultsRow: View {
 struct SearchResultsView: View {
     @ObservedObject var viewModel: SearchViewModel
     let onTap: (SearchViewModel.SearchResult) -> Void
+    var onPersonTap: (TMDBPersonSummary) -> Void = { _ in }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            if viewModel.peopleMatchQuery {
+                peopleRow
+            }
+
             if !viewModel.plexResults.isEmpty {
                 PlexResultsRow(items: viewModel.plexResults, onTap: onTap)
-                    .padding(.bottom, 32)
+                    .padding(.bottom, DS.Space.sectionGap)
             }
 
             if !viewModel.stremioResults.isEmpty {
@@ -187,7 +242,7 @@ struct SearchResultsView: View {
                     items: viewModel.stremioResults,
                     onTap: onTap
                 )
-                .padding(.bottom, 32)
+                .padding(.bottom, DS.Space.sectionGap)
             }
 
             if !viewModel.tmdbMovies.isEmpty {
@@ -197,7 +252,7 @@ struct SearchResultsView: View {
                     items: viewModel.tmdbMovies,
                     onTap: onTap
                 )
-                .padding(.bottom, 32)
+                .padding(.bottom, DS.Space.sectionGap)
             }
 
             if !viewModel.tmdbShows.isEmpty {
@@ -206,7 +261,28 @@ struct SearchResultsView: View {
                     items: viewModel.tmdbShows,
                     onTap: onTap
                 )
-                .padding(.bottom, 32)
+                .padding(.bottom, DS.Space.sectionGap)
+            }
+
+            if !viewModel.peopleMatchQuery {
+                peopleRow
+            }
+
+            // Sources that failed or are still loading, each on its own line.
+            let failed = viewModel.failedSections
+            let loading = viewModel.loadingSections
+            if !failed.isEmpty || !loading.isEmpty {
+                VStack(alignment: .leading, spacing: DS.Space.itemGap) {
+                    ForEach(failed) { section in
+                        SearchSectionErrorRow(message: section.failureMessage) {
+                            viewModel.retry(section)
+                        }
+                    }
+                    ForEach(loading) { section in
+                        SearchSectionLoadingRow(message: section.loadingMessage + "...")
+                    }
+                }
+                .padding(.bottom, DS.Space.sectionGap)
             }
 
             ForEach(viewModel.genreRows) { genreRow in
@@ -215,8 +291,16 @@ struct SearchResultsView: View {
                     items: genreRow.items,
                     onTap: onTap
                 )
-                .padding(.bottom, 32)
+                .padding(.bottom, DS.Space.sectionGap)
             }
+        }
+    }
+
+    @ViewBuilder
+    private var peopleRow: some View {
+        if !viewModel.people.isEmpty {
+            SearchPeopleRow(people: viewModel.people, onTap: onPersonTap)
+                .padding(.bottom, DS.Space.sectionGap)
         }
     }
 }

@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		101F16A0E5CF4DE07C7064C0 /* SearchRecentSearchesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0191A8E658EA14C5F17E2C38 /* SearchRecentSearchesView.swift */; };
+		0E6B8F01E35CD0F4E2128E54 /* SearchPeopleRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDBC7C3EB14BA34A94195050 /* SearchPeopleRow.swift */; };
+		2F5C9644B137882EECF761AC /* UserDefaults+Search.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E370007941DBA8292228E5A /* UserDefaults+Search.swift */; };
 		81589FE15E5F3A60DF37596B /* WatchStateService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46D031E0858D60EF3A8C739E /* WatchStateService.swift */; };
 		63AA8F5C8099B3513A6C3852 /* TraktListsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC85992E13EE4C4C1C8C2704 /* TraktListsService.swift */; };
 		3FC7D91559AFA7117387D2C8 /* TraktCommentsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 863179F8A6086C93AB02C84E /* TraktCommentsService.swift */; };
@@ -202,6 +205,9 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		0191A8E658EA14C5F17E2C38 /* SearchRecentSearchesView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SearchRecentSearchesView.swift; sourceTree = "<group>"; };
+		DDBC7C3EB14BA34A94195050 /* SearchPeopleRow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SearchPeopleRow.swift; sourceTree = "<group>"; };
+		6E370007941DBA8292228E5A /* UserDefaults+Search.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "UserDefaults+Search.swift"; sourceTree = "<group>"; };
 		46D031E0858D60EF3A8C739E /* WatchStateService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchStateService.swift; sourceTree = "<group>"; };
 		EC85992E13EE4C4C1C8C2704 /* TraktListsService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TraktListsService.swift; sourceTree = "<group>"; };
 		863179F8A6086C93AB02C84E /* TraktCommentsService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TraktCommentsService.swift; sourceTree = "<group>"; };
@@ -577,6 +583,7 @@
 		D008 /* Extensions */ = {
 			isa = PBXGroup;
 			children = (
+				6E370007941DBA8292228E5A /* UserDefaults+Search.swift */,
 				497B08D5668C4AE5E283945A /* UserDefaults+WatchState.swift */,
 				4F750BC1AEFFF3F132E53194 /* WindowMetrics.swift */,
 				2DC553DC45B4C35E1EA8888A /* UserDefaults+Appearance.swift */,
@@ -648,6 +655,8 @@
 		D014 /* Search */ = {
 			isa = PBXGroup;
 			children = (
+				0191A8E658EA14C5F17E2C38 /* SearchRecentSearchesView.swift */,
+				DDBC7C3EB14BA34A94195050 /* SearchPeopleRow.swift */,
 				B011 /* SearchView.swift */,
 			);
 			path = Search;
@@ -939,6 +948,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				101F16A0E5CF4DE07C7064C0 /* SearchRecentSearchesView.swift in Sources */,
+				0E6B8F01E35CD0F4E2128E54 /* SearchPeopleRow.swift in Sources */,
+				2F5C9644B137882EECF761AC /* UserDefaults+Search.swift in Sources */,
 				81589FE15E5F3A60DF37596B /* WatchStateService.swift in Sources */,
 				63AA8F5C8099B3513A6C3852 /* TraktListsService.swift in Sources */,
 				3FC7D91559AFA7117387D2C8 /* TraktCommentsService.swift in Sources */,
