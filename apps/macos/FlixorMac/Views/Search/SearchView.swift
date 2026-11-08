@@ -55,6 +55,7 @@ struct SearchView: View {
                 }
             }
         }
+        .background(findShortcut)
         .navigationTitle("")
         .task {
             if profileSettings.includeTmdbInSearch && viewModel.popularItems.isEmpty && viewModel.trendingItems.isEmpty {
@@ -78,6 +79,24 @@ struct SearchView: View {
             }
         }
         .toast()
+    }
+
+    // MARK: Keyboard
+
+    /// The Search root is on screen (every tab stays alive in RootView's ZStack,
+    /// so shortcuts here must be disabled while another tab or page is shown).
+    private var isSearchRootVisible: Bool {
+        mainViewState.selectedTab == .search && router.searchPath.isEmpty
+    }
+
+    /// Hidden button carrying the Command-F shortcut that focuses the field.
+    private var findShortcut: some View {
+        Button("Find") { isSearchFieldFocused = true }
+            .keyboardShortcut("f", modifiers: .command)
+            .disabled(!isSearchRootVisible)
+            .frame(width: 0, height: 0)
+            .opacity(0)
+            .accessibilityHidden(true)
     }
 
     // MARK: Idle (empty query)
@@ -183,7 +202,17 @@ struct SearchInputField: View {
                 .font(.flixor(.headline))
                 .focused(isFocused)
                 .onSubmit(onSubmit)
+                // Esc inside the field only clears it (or, when already empty,
+                // leaves the field); it never navigates back.
+                .onExitCommand {
+                    if query.isEmpty {
+                        isFocused.wrappedValue = false
+                    } else {
+                        query = ""
+                    }
+                }
                 .accessibilityLabel(Text("Search"))
+                .help("Search (Command-F)")
 
             if !query.isEmpty {
                 Button(action: {
