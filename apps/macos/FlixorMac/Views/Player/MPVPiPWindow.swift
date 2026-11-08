@@ -473,12 +473,112 @@ class MPVPiPWindowManager {
     }
 
     // Custom PiP control overlay view
+    /// A fixed square view with a centered symbol, so the circle can't be stretched
+    /// the way a layer-backed NSButton's is.
+    private final class PiPCircleButton: NSView {
+        var onPress: (() -> Void)?
+
+        private let imageView = NSImageView()
+        private let diameter: CGFloat
+        private let pointSize: CGFloat
+        private let fillIsDark: Bool
+        private var symbolDescription: String
+
+        init(symbolName: String, description: String, diameter: CGFloat, pointSize: CGFloat, fillAlpha: CGFloat, fillIsDark: Bool = false) {
+            self.diameter = diameter
+            self.pointSize = pointSize
+            self.fillIsDark = fillIsDark
+            self.symbolDescription = description
+            super.init(frame: NSRect(x: 0, y: 0, width: diameter, height: diameter))
+
+            wantsLayer = true
+            layer?.cornerRadius = diameter / 2
+            layer?.masksToBounds = true
+            layer?.borderWidth = 1
+            layer?.borderColor = NSColor.white.withAlphaComponent(0.16).cgColor
+            translatesAutoresizingMaskIntoConstraints = false
+            setFillAlpha(fillAlpha)
+
+            imageView.contentTintColor = .white
+            imageView.imageScaling = .scaleNone
+            imageView.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(imageView)
+
+            NSLayoutConstraint.activate([
+                widthAnchor.constraint(equalToConstant: diameter),
+                heightAnchor.constraint(equalToConstant: diameter),
+                imageView.centerXAnchor.constraint(equalTo: centerXAnchor),
+                imageView.centerYAnchor.constraint(equalTo: centerYAnchor),
+            ])
+            setContentHuggingPriority(.required, for: .horizontal)
+            setContentCompressionResistancePriority(.required, for: .horizontal)
+            setSymbol(symbolName, description: description)
+        }
+
+        @available(*, unavailable)
+        required init?(coder: NSCoder) {
+            fatalError("init(coder:) has not been implemented")
+        }
+
+        override var intrinsicContentSize: NSSize { NSSize(width: diameter, height: diameter) }
+        override var mouseDownCanMoveWindow: Bool { false }
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+        func setSymbol(_ name: String, description: String) {
+            symbolDescription = description
+            imageView.image = NSImage(systemSymbolName: name, accessibilityDescription: description)?
+                .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: pointSize, weight: .semibold))
+        }
+
+        func setFillAlpha(_ alpha: CGFloat) {
+            layer?.backgroundColor = (fillIsDark ? NSColor.black : NSColor.white).withAlphaComponent(alpha).cgColor
+        }
+
+        override func mouseDown(with event: NSEvent) {
+            alphaValue = 0.6
+        }
+
+        override func mouseUp(with event: NSEvent) {
+            alphaValue = 1
+            if bounds.contains(convert(event.locationInWindow, from: nil)) { onPress?() }
+        }
+
+        override func isAccessibilityElement() -> Bool { true }
+        override func accessibilityRole() -> NSAccessibility.Role? { .button }
+        override func accessibilityLabel() -> String? { symbolDescription }
+        override func accessibilityPerformPress() -> Bool {
+            onPress?()
+            return true
+        }
+    }
+
     private class PiPControlOverlay: NSView {
-        private let closeButton = NSButton()
-        private let returnButton = NSButton()
-        private let skipBackButton = NSButton()
-        private let playPauseButton = NSButton()
-        private let skipForwardButton = NSButton()
+        private static let topBarHeight: CGFloat = 52
+        private static let bottomBarHeight: CGFloat = 64
+        private static let smallDiameter: CGFloat = 32
+        private static let skipDiameter: CGFloat = 38
+        private static let playDiameter: CGFloat = 48
+
+        private let closeButton = PiPCircleButton(
+            symbolName: "xmark", description: String(localized: "Close player"),
+            diameter: smallDiameter, pointSize: 13, fillAlpha: 0.18, fillIsDark: true
+        )
+        private let returnButton = PiPCircleButton(
+            symbolName: "arrow.down.forward.and.arrow.up.backward", description: String(localized: "Return to player"),
+            diameter: smallDiameter, pointSize: 13, fillAlpha: 0.18, fillIsDark: true
+        )
+        private let skipBackButton = PiPCircleButton(
+            symbolName: "gobackward.10", description: String(localized: "Skip back 10 seconds"),
+            diameter: skipDiameter, pointSize: 16, fillAlpha: 0.10
+        )
+        private let playPauseButton = PiPCircleButton(
+            symbolName: "pause.fill", description: String(localized: "Pause"),
+            diameter: playDiameter, pointSize: 18, fillAlpha: 0.18
+        )
+        private let skipForwardButton = PiPCircleButton(
+            symbolName: "goforward.10", description: String(localized: "Skip forward 10 seconds"),
+            diameter: skipDiameter, pointSize: 16, fillAlpha: 0.10
+        )
         private let controlsContainer = NSView()
         private let topBar = NSVisualEffectView()
         private let bottomBar = NSVisualEffectView()
@@ -519,31 +619,30 @@ class MPVPiPWindowManager {
             controlsContainer.addSubview(topBar)
             controlsContainer.addSubview(bottomBar)
 
-            configureSmallButton(returnButton, symbolName: "arrow.down.forward.and.arrow.up.backward", description: String(localized: "Return to player"))
-            configureSmallButton(closeButton, symbolName: "xmark", description: String(localized: "Close player"))
-            configureTransportButton(skipBackButton, symbolName: "gobackward.10", description: String(localized: "Skip back 10 seconds"), diameter: 34)
-            configureTransportButton(playPauseButton, symbolName: "pause.fill", description: String(localized: "Pause"), diameter: 52)
-            configureTransportButton(skipForwardButton, symbolName: "goforward.10", description: String(localized: "Skip forward 10 seconds"), diameter: 34)
-
             titleLabel.font = .systemFont(ofSize: 13, weight: .semibold)
             titleLabel.textColor = .white
             titleLabel.lineBreakMode = .byTruncatingTail
             titleLabel.maximumNumberOfLines = 1
+            titleLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
             subtitleLabel.font = .systemFont(ofSize: 11, weight: .regular)
             subtitleLabel.textColor = NSColor.white.withAlphaComponent(0.72)
             subtitleLabel.lineBreakMode = .byTruncatingTail
             subtitleLabel.maximumNumberOfLines = 1
+            subtitleLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
             let titleStack = NSStackView(views: [titleLabel, subtitleLabel])
             titleStack.orientation = .vertical
             titleStack.alignment = .leading
             titleStack.spacing = 1
             titleStack.translatesAutoresizingMaskIntoConstraints = false
+            titleStack.setContentHuggingPriority(.defaultLow, for: .horizontal)
+            titleStack.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
             let topStack = NSStackView(views: [returnButton, titleStack, closeButton])
             topStack.orientation = .horizontal
             topStack.alignment = .centerY
+            topStack.distribution = .fill
             topStack.spacing = 10
             topStack.translatesAutoresizingMaskIntoConstraints = false
             topBar.addSubview(topStack)
@@ -551,7 +650,7 @@ class MPVPiPWindowManager {
             let transportStack = NSStackView(views: [skipBackButton, playPauseButton, skipForwardButton])
             transportStack.orientation = .horizontal
             transportStack.alignment = .centerY
-            transportStack.spacing = 14
+            transportStack.spacing = 12
             transportStack.translatesAutoresizingMaskIntoConstraints = false
             bottomBar.addSubview(transportStack)
 
@@ -564,20 +663,17 @@ class MPVPiPWindowManager {
                 topBar.topAnchor.constraint(equalTo: controlsContainer.topAnchor, constant: 10),
                 topBar.leadingAnchor.constraint(equalTo: controlsContainer.leadingAnchor, constant: 10),
                 topBar.trailingAnchor.constraint(equalTo: controlsContainer.trailingAnchor, constant: -10),
-                topBar.heightAnchor.constraint(equalToConstant: 44),
+                topBar.heightAnchor.constraint(equalToConstant: Self.topBarHeight),
 
                 bottomBar.centerXAnchor.constraint(equalTo: controlsContainer.centerXAnchor),
                 bottomBar.bottomAnchor.constraint(equalTo: controlsContainer.bottomAnchor, constant: -14),
-                bottomBar.heightAnchor.constraint(equalToConstant: 58),
+                bottomBar.heightAnchor.constraint(equalToConstant: Self.bottomBarHeight),
 
-                topStack.topAnchor.constraint(equalTo: topBar.topAnchor, constant: 8),
-                topStack.bottomAnchor.constraint(equalTo: topBar.bottomAnchor, constant: -8),
+                topStack.centerYAnchor.constraint(equalTo: topBar.centerYAnchor),
                 topStack.leadingAnchor.constraint(equalTo: topBar.leadingAnchor, constant: 10),
                 topStack.trailingAnchor.constraint(equalTo: topBar.trailingAnchor, constant: -10),
-                titleStack.widthAnchor.constraint(greaterThanOrEqualToConstant: 80),
 
-                transportStack.topAnchor.constraint(equalTo: bottomBar.topAnchor, constant: 10),
-                transportStack.bottomAnchor.constraint(equalTo: bottomBar.bottomAnchor, constant: -10),
+                transportStack.centerYAnchor.constraint(equalTo: bottomBar.centerYAnchor),
                 transportStack.leadingAnchor.constraint(equalTo: bottomBar.leadingAnchor, constant: 14),
                 transportStack.trailingAnchor.constraint(equalTo: bottomBar.trailingAnchor, constant: -14)
             ])
@@ -625,31 +721,9 @@ class MPVPiPWindowManager {
             view.blendingMode = .withinWindow
             view.state = .active
             view.wantsLayer = true
-            view.layer?.cornerRadius = 14
+            view.layer?.cornerRadius = view === bottomBar ? Self.bottomBarHeight / 2 : 14
             view.layer?.masksToBounds = true
             view.translatesAutoresizingMaskIntoConstraints = false
-        }
-
-        private func configureSmallButton(_ button: NSButton, symbolName: String, description: String) {
-            configureTransportButton(button, symbolName: symbolName, description: description, diameter: 28)
-            button.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.18).cgColor
-        }
-
-        private func configureTransportButton(_ button: NSButton, symbolName: String, description: String, diameter: CGFloat) {
-            button.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: description)
-            button.isBordered = false
-            button.bezelStyle = .shadowlessSquare
-            button.imagePosition = .imageOnly
-            button.contentTintColor = .white
-            button.imageScaling = .scaleProportionallyDown
-            button.translatesAutoresizingMaskIntoConstraints = false
-            button.wantsLayer = true
-            button.layer?.cornerRadius = diameter / 2
-            button.layer?.backgroundColor = NSColor.white.withAlphaComponent(symbolName == "pause.fill" ? 0.18 : 0.10).cgColor
-            button.layer?.borderColor = NSColor.white.withAlphaComponent(0.16).cgColor
-            button.layer?.borderWidth = 1
-            button.widthAnchor.constraint(equalToConstant: diameter).isActive = true
-            button.heightAnchor.constraint(equalToConstant: diameter).isActive = true
         }
 
         private func showControls(resetAutoHide: Bool) {
@@ -691,40 +765,35 @@ class MPVPiPWindowManager {
         }
 
         func setCloseAction(_ action: @escaping () -> Void) {
-            closeButton.target = self
-            closeButton.action = #selector(handleClose)
+            closeButton.onPress = { [weak self] in self?.handleClose() }
             self.closeAction = action
         }
 
         func setReturnAction(_ action: @escaping () -> Void) {
-            returnButton.target = self
-            returnButton.action = #selector(handleReturn)
+            returnButton.onPress = { [weak self] in self?.handleReturn() }
             self.returnAction = action
         }
 
         func setPlayPauseAction(_ action: @escaping () -> Void) {
-            playPauseButton.target = self
-            playPauseButton.action = #selector(handlePlayPause)
+            playPauseButton.onPress = { [weak self] in self?.handlePlayPause() }
             self.playPauseAction = action
         }
 
         func setSkipBackAction(_ action: @escaping () -> Void) {
-            skipBackButton.target = self
-            skipBackButton.action = #selector(handleSkipBack)
+            skipBackButton.onPress = { [weak self] in self?.handleSkipBack() }
             self.skipBackAction = action
         }
 
         func setSkipForwardAction(_ action: @escaping () -> Void) {
-            skipForwardButton.target = self
-            skipForwardButton.action = #selector(handleSkipForward)
+            skipForwardButton.onPress = { [weak self] in self?.handleSkipForward() }
             self.skipForwardAction = action
         }
 
         func updatePlayPauseState(isPlaying: Bool) {
             self.isPlaying = isPlaying
             let imageName = isPlaying ? "pause.fill" : "play.fill"
-            playPauseButton.image = NSImage(systemSymbolName: imageName, accessibilityDescription: isPlaying ? String(localized: "Pause") : String(localized: "Play"))
-            playPauseButton.layer?.backgroundColor = NSColor.white.withAlphaComponent(isPlaying ? 0.18 : 0.24).cgColor
+            playPauseButton.setSymbol(imageName, description: isPlaying ? String(localized: "Pause") : String(localized: "Play"))
+            playPauseButton.setFillAlpha(isPlaying ? 0.18 : 0.24)
         }
 
         @objc private func handleClose() {
