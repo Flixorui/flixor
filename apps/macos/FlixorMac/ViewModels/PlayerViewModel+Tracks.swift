@@ -9,35 +9,107 @@ import Foundation
 
 extension PlayerViewModel {
     // MARK: - Subtitle Styling
+    // Persisted per profile (UserDefaults subtitle* keys, shared with Settings) and
+    // applied live. Affects text subtitles; styled ASS keeps its own styles and
+    // bitmap subtitles (PGS/VobSub) can't be restyled.
 
     func setSubtitleFontSize(_ size: Int) {
         subtitleFontSize = size
-        UserDefaults.standard.set(size, forKey: "subtitleFontSize")
+        subtitleAppearance.fontSize = size
+        ProfileSettings.shared.subtitleFontSize = size
         mpvController?.setSubtitleFontSize(size)
     }
 
     func setSubtitleBorderSize(_ size: Double) {
         subtitleBorderSize = size
-        UserDefaults.standard.set(size, forKey: "subtitleBorderSize")
+        subtitleAppearance.borderSize = size
+        ProfileSettings.shared.subtitleBorderSize = size
         mpvController?.setSubtitleBorderSize(size)
     }
 
+    /// Background box opacity 0...1 (0 = no box).
     func setSubtitleBackgroundOpacity(_ opacity: Double) {
-        subtitleBackgroundOpacity = opacity
-        UserDefaults.standard.set(opacity, forKey: "subtitleBackgroundOpacity")
-        // Convert opacity (0-1) to hex alpha (00-FF) with black background
-        let alpha = Int(opacity * 255)
-        let hexColor = String(format: "000000%02X", alpha)
-        mpvController?.setSubtitleBackgroundColor(hexColor)
+        let clamped = min(1, max(0, opacity))
+        subtitleBackgroundOpacity = clamped
+        subtitleAppearance.backgroundOpacity = clamped
+        ProfileSettings.shared.subtitleBackgroundOpacity = clamped
+        mpvController?.setSubtitleBackground(color: subtitleAppearance.backgroundColor, opacity: clamped)
     }
 
+    /// Font family name ("" = default sans-serif).
+    func setSubtitleFont(_ family: String) {
+        subtitleAppearance.fontName = family
+        UserDefaults.standard.subtitleFontName = family
+        mpvController?.setSubtitleFont(family)
+    }
+
+    func setSubtitleBold(_ bold: Bool) {
+        subtitleAppearance.bold = bold
+        UserDefaults.standard.subtitleBold = bold
+        mpvController?.setSubtitleBold(bold)
+    }
+
+    /// Vertical position, mpv `sub-pos` (0 = top ... 100 = bottom).
+    func setSubtitlePosition(_ position: Int) {
+        let clamped = min(150, max(0, position))
+        subtitleAppearance.position = clamped
+        UserDefaults.standard.subtitlePosition = clamped
+        mpvController?.setSubtitlePosition(clamped)
+    }
+
+    /// Text colour as "#RRGGBB".
+    func setSubtitleTextColor(_ hex: String) {
+        subtitleAppearance.textColor = hex
+        UserDefaults.standard.subtitleTextColor = hex
+        mpvController?.setSubtitleColor(hex)
+    }
+
+    /// Outline colour as "#RRGGBB".
+    func setSubtitleBorderColor(_ hex: String) {
+        subtitleAppearance.borderColor = hex
+        UserDefaults.standard.subtitleBorderColor = hex
+        mpvController?.setSubtitleBorderColor(hex)
+    }
+
+    /// Background box colour as "#RRGGBB" (visible when the opacity is above 0).
+    func setSubtitleBackgroundColor(_ hex: String) {
+        subtitleAppearance.backgroundColor = hex
+        UserDefaults.standard.subtitleBackgroundColor = hex
+        mpvController?.setSubtitleBackground(color: hex, opacity: subtitleAppearance.backgroundOpacity)
+    }
+
+    /// Replaces the whole appearance (e.g. a preset or "reset"), saves and applies it.
+    func setSubtitleAppearance(_ appearance: SubtitleAppearance) {
+        let defaults = UserDefaults.standard
+        defaults.subtitleFontName = appearance.fontName
+        defaults.subtitleBold = appearance.bold
+        defaults.subtitlePosition = appearance.position
+        defaults.subtitleTextColor = appearance.textColor
+        defaults.subtitleBorderColor = appearance.borderColor
+        defaults.subtitleBackgroundColor = appearance.backgroundColor
+        ProfileSettings.shared.subtitleFontSize = appearance.fontSize
+        ProfileSettings.shared.subtitleBorderSize = appearance.borderSize
+        ProfileSettings.shared.subtitleBackgroundOpacity = appearance.backgroundOpacity
+        applySubtitleAppearanceFromDefaults()
+    }
+
+    /// Loads the profile's saved appearance into the published state and applies it to mpv.
+    func applySubtitleAppearanceFromDefaults() {
+        let appearance = SubtitleAppearance.fromDefaults()
+        subtitleAppearance = appearance
+        subtitleFontSize = appearance.fontSize
+        subtitleBorderSize = appearance.borderSize
+        subtitleBackgroundOpacity = appearance.backgroundOpacity
+        mpvController?.applySubtitleAppearance(appearance)
+    }
+
+    /// Called on every file-loaded: subtitle appearance + SDH filter, then the
+    /// rest of the per-file engine state (aspect, speed sync, subtitle cues/hash).
     func applySubtitleStyling() {
-        guard let mpv = mpvController else { return }
-        mpv.setSubtitleFontSize(subtitleFontSize)
-        mpv.setSubtitleBorderSize(subtitleBorderSize)
-        let alpha = Int(subtitleBackgroundOpacity * 255)
-        let hexColor = String(format: "000000%02X", alpha)
-        mpv.setSubtitleBackgroundColor(hexColor)
+        applySubtitleAppearanceFromDefaults()
+        // Off is mpv's default: leave it alone so a custom MPV config entry still applies
+        if subtitleFilterSDH { mpvController?.setSubtitleFilterSDH(true) }
+        applyEngineStateForLoadedFile()
     }
 
     // MARK: - Audio/Subtitle Sync
@@ -75,6 +147,8 @@ extension PlayerViewModel {
 
         print("🎵 [Player] Loaded \(availableAudioTracks.count) audio tracks")
         print("💬 [Player] Loaded \(subtitleTracks.count) subtitle tracks")
+
+        defer { refreshSubtitleCues() }
 
         if sourceKind == .stream {
             print("💬 [Player] Stream subtitle options: internal=\(availableSubtitleTracks.count), external=\(availableExternalSubtitleOptions.count)")
@@ -123,6 +197,7 @@ extension PlayerViewModel {
             saveSubtitleLanguagePreference(lang)
         }
         subtitlesEnabled = true  // Remember that user wants subtitles
+        refreshSubtitleCues()
         print("💬 [Player] Subtitle track set to \(trackId), preference saved: enabled")
     }
 
@@ -137,6 +212,7 @@ extension PlayerViewModel {
         selectedExternalSubtitleId = nil
         subtitlesEnabled = false  // Remember that user wants subtitles off
         saveSubtitleLanguagePreference("none")
+        refreshSubtitleCues()
         print("💬 [Player] Subtitles disabled, preference saved: disabled")
     }
 
@@ -182,7 +258,61 @@ extension PlayerViewModel {
         if applied.audio || applied.subtitle {
             print("🎵 [Player] Applied remembered tracks (audio: \(applied.audio), subtitles: \(applied.subtitle))")
         }
+
+        // Plex: preferred languages fill in what wasn't remembered.
+        // (Addon streams do this in applyStreamTrackAutoSelectionIfNeeded.)
+        if sourceKind == .plex {
+            applyPlexTrackPreferences(skipAudio: applied.audio, skipSubtitles: applied.subtitle)
+        }
+        refreshSubtitleCues()
         return applied
+    }
+
+    // MARK: - Preferred languages
+
+    /// The preferred audio language with "Original language" resolved to the
+    /// title's original language (TMDB). Nil when unset or unresolvable.
+    func resolvedPreferredAudioLanguage() async -> String? {
+        let preference = UserDefaults.standard.preferredAudioLanguage.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !preference.isEmpty else { return nil }
+        if preference.lowercased() == PlaybackLanguagePreference.original {
+            // Bounded: switching audio long after playback started would be jarring
+            let item = self.item
+            let stream = streamPlaybackItem
+            let lookup = Task { await OriginalLanguageResolver.shared.originalLanguage(for: item, stream: stream) }
+            let timeout = Task {
+                try? await Task.sleep(nanoseconds: 4_000_000_000)
+                if !Task.isCancelled { lookup.cancel() }
+            }
+            defer { timeout.cancel() }
+            return await lookup.value
+        }
+        return preference
+    }
+
+    /// Preferred audio/subtitle languages for Plex playback, applied after
+    /// remembered per-title choices (which win). Subtitles follow the existing
+    /// on/off preference: they are only switched when subtitles are on.
+    private func applyPlexTrackPreferences(skipAudio: Bool, skipSubtitles: Bool) {
+        if !skipSubtitles, subtitlesEnabled, UserDefaults.standard.enableSubtitleAutoSelect,
+           !UserDefaults.standard.preferredSubtitleLanguage.trimmingCharacters(in: .whitespaces).isEmpty,
+           let match = preferredInternalSubtitleTrack(), match.id != currentSubtitleTrackId {
+            setSubtitleTrack(match.id, remember: false)
+            print("💬 [Player] Preferred subtitle language -> track \(match.id) (\(match.lang ?? "?"))")
+        }
+
+        guard !skipAudio, !UserDefaults.standard.preferredAudioLanguage.isEmpty else { return }
+        let audioAtStart = currentAudioTrackId
+        languageSelectionTask?.cancel()
+        languageSelectionTask = Task { [weak self] in
+            guard let self, let language = await self.resolvedPreferredAudioLanguage(), !Task.isCancelled else { return }
+            // Don't override a choice the user made while the language was resolving
+            guard self.currentAudioTrackId == audioAtStart,
+                  let match = self.preferredAudioTrack(language: language),
+                  match.id != self.currentAudioTrackId else { return }
+            self.setAudioTrack(match.id, remember: false)
+            print("🎵 [Player] Preferred audio language \(language) -> track \(match.id)")
+        }
     }
 
     func loadExternalSubtitle(_ subtitle: StremioSubtitleCandidate) {
@@ -203,10 +333,14 @@ extension PlayerViewModel {
     func applyStreamTrackAutoSelectionIfNeeded(skipAudio: Bool = false, skipSubtitles: Bool = false) async {
         guard sourceKind == .stream else { return }
 
-        if !skipAudio,
-           !UserDefaults.standard.preferredAudioLanguage.isEmpty,
-           let audioMatch = preferredAudioTrack() {
-            setAudioTrack(audioMatch.id, remember: false)
+        if !skipAudio {
+            let audioAtStart = currentAudioTrackId
+            if let language = await resolvedPreferredAudioLanguage(),
+               currentAudioTrackId == audioAtStart,
+               let audioMatch = preferredAudioTrack(language: language),
+               audioMatch.id != currentAudioTrackId {
+                setAudioTrack(audioMatch.id, remember: false)
+            }
         }
 
         guard !skipSubtitles, UserDefaults.standard.enableSubtitleAutoSelect else { return }
@@ -237,32 +371,47 @@ extension PlayerViewModel {
         }
     }
 
-    private func preferredAudioTrack() -> MPVTrack? {
-        let preferredLanguage = UserDefaults.standard.preferredAudioLanguage.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !preferredLanguage.isEmpty else { return nil }
-        return availableAudioTracks.first { track in
-            (track.lang ?? "").lowercased().hasPrefix(preferredLanguage)
-        }
+    /// Best audio track for a language code (region variants and ISO 639-1/-2 aware).
+    func preferredAudioTrack(language: String) -> MPVTrack? {
+        LanguageMatcher.bestMatch(
+            in: availableAudioTracks,
+            preference: language,
+            lang: { $0.lang },
+            title: { $0.title },
+            isDefault: { $0.isDefault }
+        ).map { availableAudioTracks[$0] }
     }
 
-    private func preferredInternalSubtitleTrack() -> MPVTrack? {
-        let preferredLanguage = UserDefaults.standard.preferredSubtitleLanguage.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    /// Best embedded subtitle track for the preferred subtitle language; forced
+    /// (signs-only) tracks only when nothing else matches. With no preference
+    /// set, the first track (previous behaviour).
+    func preferredInternalSubtitleTrack() -> MPVTrack? {
+        let preferredLanguage = UserDefaults.standard.preferredSubtitleLanguage.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !preferredLanguage.isEmpty else { return availableSubtitleTracks.first }
-        return availableSubtitleTracks.first { track in
-            (track.lang ?? "").lowercased().hasPrefix(preferredLanguage) ||
-            track.displayName.lowercased().contains(preferredLanguage)
-        }
+        return LanguageMatcher.bestMatch(
+            in: availableSubtitleTracks,
+            preference: preferredLanguage,
+            lang: { $0.lang },
+            title: { $0.title },
+            isForced: { $0.forced || ($0.title?.lowercased().contains("forced") ?? false) },
+            isDefault: { $0.isDefault }
+        ).map { availableSubtitleTracks[$0] }
     }
 
-    private func preferredExternalSubtitleCandidate() -> StremioSubtitleCandidate? {
-        let preferredLanguage = UserDefaults.standard.preferredSubtitleLanguage.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !preferredLanguage.isEmpty else { return availableExternalSubtitleOptions.first }
-        return availableExternalSubtitleOptions.first { subtitle in
-            subtitle.lang.lowercased().hasPrefix(preferredLanguage)
-        }
+    /// Best addon subtitle for the preferred subtitle language (first one when unset).
+    func preferredExternalSubtitleCandidate(in candidates: [StremioSubtitleCandidate]? = nil) -> StremioSubtitleCandidate? {
+        let options = candidates ?? availableExternalSubtitleOptions
+        let preferredLanguage = UserDefaults.standard.preferredSubtitleLanguage.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !preferredLanguage.isEmpty else { return options.first }
+        return LanguageMatcher.bestMatch(
+            in: options,
+            preference: preferredLanguage,
+            lang: { $0.lang },
+            title: { _ in nil }
+        ).map { options[$0] }
     }
 
-    private func attachExternalSubtitle(_ subtitle: StremioSubtitleCandidate) async throws {
+    func attachExternalSubtitle(_ subtitle: StremioSubtitleCandidate) async throws {
         guard let mpv = mpvController else { throw NSError(domain: "PlayerError", code: -1, userInfo: [NSLocalizedDescriptionKey: "MPV controller unavailable"]) }
         guard let remoteURL = URL(string: subtitle.url) else {
             throw NSError(domain: "PlayerError", code: -2, userInfo: [NSLocalizedDescriptionKey: "Invalid subtitle URL"])

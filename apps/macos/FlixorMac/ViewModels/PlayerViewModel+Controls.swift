@@ -59,10 +59,53 @@ extension PlayerViewModel {
         mpvController?.setMute(isMuted)
     }
 
+    // MARK: - Playback Speed
+
+    /// Speeds the player UI offers (0.25x to 2x).
+    static let playbackSpeedRange: ClosedRange<Float> = 0.25...2.0
+    /// Preset speeds for menus.
+    static let playbackSpeedPresets: [Float] = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
+    /// Speed used while hold-to-speed-up is active.
+    static let speedBoostRate: Float = 2.0
+
+    /// Sets the playback speed, clamped to `playbackSpeedRange`. Ends an active
+    /// speed boost without restoring (the new speed wins).
     func setPlaybackSpeed(_ speed: Float) {
+        let clamped = min(Self.playbackSpeedRange.upperBound, max(Self.playbackSpeedRange.lowerBound, speed))
+        speedBeforeBoost = nil
+        isSpeedBoostActive = false
+        applySpeed(clamped)
+        print("⚡ [Player] Playback speed set to \(clamped)x")
+    }
+
+    /// Steps the speed by `delta` (e.g. +0.25 / -0.25), clamped to the range.
+    func stepPlaybackSpeed(by delta: Float) {
+        let base = isSpeedBoostActive ? (speedBeforeBoost ?? playbackSpeed) : playbackSpeed
+        setPlaybackSpeed(((base + delta) * 100).rounded() / 100)
+    }
+
+    /// Hold-to-speed-up: temporarily plays at 2x until `endSpeedBoost()`.
+    /// Repeated calls while active are ignored.
+    func beginSpeedBoost() {
+        guard !isSpeedBoostActive, mpvController != nil else { return }
+        speedBeforeBoost = playbackSpeed
+        isSpeedBoostActive = true
+        applySpeed(Self.speedBoostRate)
+    }
+
+    /// Ends hold-to-speed-up and restores the speed from before the boost.
+    func endSpeedBoost() {
+        guard isSpeedBoostActive else { return }
+        let restore = speedBeforeBoost ?? 1.0
+        speedBeforeBoost = nil
+        isSpeedBoostActive = false
+        applySpeed(restore)
+    }
+
+    private func applySpeed(_ speed: Float) {
         playbackSpeed = speed
         mpvController?.setSpeed(Double(speed))
-        print("⚡ [Player] Playback speed set to \(speed)x")
+        updateNowPlayingInfo()
     }
 
     // MARK: - Performance Overlay

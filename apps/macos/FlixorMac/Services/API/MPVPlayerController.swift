@@ -40,6 +40,10 @@ class MPVPlayerController {
     private var lastGamma: String?
     private var lastPrimaries: String?
     private var isHDRModeActive = false
+    private var lastAppliedTargetPeak: Int?
+    private var lastTargetPeakWasSet = false
+    private var displayObservers: [NSObjectProtocol] = []
+    private var edrPollTimer: Timer?
 
     /// Callback for property changes
     var onPropertyChange: ((String, Any?) -> Void)?
@@ -49,6 +53,10 @@ class MPVPlayerController {
 
     /// Callback for HDR detection (sig-peak based)
     var onHDRDetected: ((Bool, Double) -> Void)?
+
+    /// Called (main thread) when mpv starts showing a subtitle cue. Set by the
+    /// view model to collect recent cues of embedded tracks for cue-based sync.
+    var onSubtitleCueShown: ((MPVShownSubtitleCue) -> Void)?
 
     /// Callback for thumbnail info updates
     var onThumbnailInfo: ((ThumbnailInfo) -> Void)?
@@ -135,10 +143,28 @@ class MPVPlayerController {
         // Configure additional options after initialization
         configureAdditionalOptions()
 
+        // Re-evaluate HDR/EDR when the display changes
+        startDisplayObservers()
+
         isInitialized = true
         print("✅ [MPV] Initialized with gpu-next and Metal rendering")
         return true
     }
+
+    /// FFmpeg HTTP reconnect options (MPVKit ships FFmpeg 8.0, which supports all of them).
+    /// - reconnect / reconnect_streamed: reconnect dropped connections, also for non-seekable streams.
+    /// - reconnect_on_network_error: also reconnect when the TCP/TLS connection fails (not only on EOF).
+    /// - reconnect_on_http_error: retry on 408 (timeout), 429 (rate limited) and any 5xx. Auth and
+    ///   not-found errors (401/403/404) still fail at once, so Plex direct-play -> HLS fallback and
+    ///   expired-token retries are unaffected. The list is wrapped in [...] because mpv's key=value
+    ///   list is itself comma separated.
+    /// - reconnect_delay_max=15: exponential backoff 0, 1, 3, 7, 15 s before giving up.
+    /// reconnect_at_eof is deliberately NOT set: it would loop at the real end of a file
+    /// (and on finite HLS playlists).
+    static let reconnectOptions = "reconnect=1,reconnect_streamed=1,reconnect_on_network_error=1,"
+        + "reconnect_on_http_error=[408,429,5xx],reconnect_delay_max=15"
+    /// Previous options, used only if mpv rejects `reconnectOptions`.
+    static let basicReconnectOptions = "reconnect=1,reconnect_streamed=1,reconnect_delay_max=5"
 
     private func configureAdditionalOptions() {
         // Additional properties set AFTER mpv_initialize
@@ -155,7 +181,11 @@ class MPVPlayerController {
         // (off for Plex, which can use custom certs; on for addon streams).
         mpv_set_property_string(mpv, "tls-verify", "no")
         mpv_set_property_string(mpv, "network-timeout", "30")
-        mpv_set_property_string(mpv, "stream-lavf-o", "reconnect=1,reconnect_streamed=1,reconnect_delay_max=5")
+        if mpv_set_property_string(mpv, "stream-lavf-o", Self.reconnectOptions) < 0 {
+            // Never end up without reconnects if this mpv rejects the extended list.
+            mpv_set_property_string(mpv, "stream-lavf-o", Self.basicReconnectOptions)
+            print("⚠️ [MPV] Extended reconnect options rejected, using basic reconnect")
+        }
         print("[MPV] Network options configured")
 
         // Apply user settings from UserDefaults
@@ -242,6 +272,9 @@ class MPVPlayerController {
         mpv_observe_property(mpv, 0, "video-params/gamma", MPV_FORMAT_STRING)
         mpv_observe_property(mpv, 0, "video-params/primaries", MPV_FORMAT_STRING)
 
+        // Current subtitle text, used to collect recently shown cues (cue-based sync)
+        mpv_observe_property(mpv, 0, "sub-text", MPV_FORMAT_STRING)
+
         // Observe thumbfast-info property for thumbnail metadata
         mpv_observe_property(mpv, 0, "user-data/thumbfast-info", MPV_FORMAT_STRING)
     }
@@ -252,36 +285,129 @@ class MPVPlayerController {
     /// This follows IINA's approach: detect HDR via transfer function (PQ/HLG),
     /// then configure MPV and the layer colorspace accordingly
     private func configureHDRMode() {
-        guard let layer = metalLayer else { return }
+        guard metalLayer != nil else { return }
         guard let gamma = lastGamma, let primaries = lastPrimaries else {
             // Video properties not yet available
             return
         }
 
-        // Check if screen supports EDR
-        var edrHeadroom: CGFloat = 1.0
-        if let screen = window?.screen ?? NSScreen.main {
-            edrHeadroom = screen.maximumExtendedDynamicRangeColorComponentValue
-        }
-        let screenSupportsEDR = edrHeadroom > 1.0
+        // Check if the screen supports EDR. The *current* headroom is 1.0 until
+        // some EDR content is on screen, so support is decided by the *potential*
+        // headroom; the current value drives target-peak (see updateTargetPeak).
+        let screen = currentScreen
+        let currentHeadroom = screen?.maximumExtendedDynamicRangeColorComponentValue ?? 1.0
+        let potentialHeadroom = screen?.maximumPotentialExtendedDynamicRangeColorComponentValue ?? 1.0
+        let screenSupportsEDR = max(currentHeadroom, potentialHeadroom) > 1.0
 
         // HDR videos use Hybrid Log Gamma (HLG) or Perceptual Quantization (PQ) transfer function
         let isHDRContent = gamma == "pq" || gamma == "hlg"
         let shouldEnableHDR = hdrEnabled && isHDRContent && screenSupportsEDR
 
-        // Avoid redundant configuration
-        if shouldEnableHDR == isHDRModeActive {
-            return
+        if shouldEnableHDR != isHDRModeActive {
+            isHDRModeActive = shouldEnableHDR
+            // configureForHDR/SDR reset target-peak to "auto"
+            lastAppliedTargetPeak = nil
+            lastTargetPeakWasSet = false
+            if shouldEnableHDR {
+                configureForHDR(primaries: primaries, gamma: gamma)
+            } else {
+                configureForSDR()
+            }
+            print("🎨 [MPV] HDR Mode: \(shouldEnableHDR) (gamma: \(gamma), primaries: \(primaries), sigPeak: \(lastSigPeak), headroom: \(currentHeadroom)/\(potentialHeadroom))")
         }
-        isHDRModeActive = shouldEnableHDR
 
         if shouldEnableHDR {
-            configureForHDR(primaries: primaries, gamma: gamma)
+            updateTargetPeak(headroom: currentHeadroom)
+            startEDRMonitoring()
         } else {
-            configureForSDR()
+            stopEDRMonitoring()
         }
+    }
 
-        print("🎨 [MPV] HDR Mode: \(shouldEnableHDR) (gamma: \(gamma), primaries: \(primaries), sigPeak: \(lastSigPeak), headroom: \(edrHeadroom))")
+    // MARK: - Display / EDR headroom monitoring
+
+    /// macOS maps 100 nits (SDR reference white) to EDR value 1.0 for PQ layers,
+    /// so the display can currently show up to `headroom * 100` nits.
+    private static let edrReferenceWhiteNits: Double = 100
+
+    /// Seconds between headroom re-checks while HDR content plays.
+    private static let edrPollInterval: TimeInterval = 2.0
+
+    /// The screen the video is on. The video view can move to another window
+    /// (PiP), so prefer the layer's hosting view's window over the initial one.
+    private var currentScreen: NSScreen? {
+        let hostWindow = (metalLayer?.delegate as? NSView)?.window ?? window
+        return hostWindow?.screen ?? NSScreen.main
+    }
+
+    /// Sets mpv's target-peak from the display's current EDR headroom so bright
+    /// highlights are tone-mapped to what the display can show instead of clipped.
+    /// Falls back to "auto" while the headroom is not (yet) above SDR.
+    private func updateTargetPeak(headroom: CGFloat) {
+        guard mpv != nil, isHDRModeActive else { return }
+        let peak: Int? = headroom > 1.0
+            ? min(10_000, max(Int(Self.edrReferenceWhiteNits), Int((Double(headroom) * Self.edrReferenceWhiteNits).rounded())))
+            : nil
+        // Throttle: ignore changes below 5% to avoid re-tone-mapping on tiny drifts.
+        if let peak, let last = lastAppliedTargetPeak, abs(Double(peak - last)) < Double(last) * 0.05 { return }
+        if peak == nil && lastAppliedTargetPeak == nil && lastTargetPeakWasSet { return }
+        lastAppliedTargetPeak = peak
+        lastTargetPeakWasSet = true
+        mpv_set_property_string(mpv, "target-peak", peak.map(String.init) ?? "auto")
+        print("🌈 [MPV] target-peak = \(peak.map { "\($0) nits" } ?? "auto") (EDR headroom \(headroom))")
+    }
+
+    /// Re-evaluates HDR/EDR when the window changes display or display parameters change.
+    private func startDisplayObservers() {
+        guard displayObservers.isEmpty else { return }
+        let center = NotificationCenter.default
+        displayObservers.append(center.addObserver(forName: NSWindow.didChangeScreenNotification, object: nil, queue: .main) { [weak self] note in
+            guard let self, let changed = note.object as? NSWindow else { return }
+            let hostWindow = (self.metalLayer?.delegate as? NSView)?.window ?? self.window
+            guard changed === hostWindow else { return }
+            self.displayConfigurationChanged(reason: "window moved to another display")
+        })
+        displayObservers.append(center.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
+            self?.displayConfigurationChanged(reason: "screen parameters changed")
+        })
+    }
+
+    private func stopDisplayObservers() {
+        displayObservers.forEach { NotificationCenter.default.removeObserver($0) }
+        displayObservers.removeAll()
+    }
+
+    private func displayConfigurationChanged(reason: String) {
+        guard mpv != nil, lastGamma != nil else { return }
+        print("🖥️ [MPV] Display change (\(reason)), re-evaluating HDR")
+        lastAppliedTargetPeak = nil
+        lastTargetPeakWasSet = false
+        configureHDRMode()
+    }
+
+    /// While HDR plays, re-check the current headroom periodically: it changes with
+    /// display brightness (and ramps up after EDR is first requested), and macOS
+    /// posts no notification for it. Never runs for SDR content.
+    private func startEDRMonitoring() {
+        guard edrPollTimer == nil else { return }
+        let timer = Timer(timeInterval: Self.edrPollInterval, repeats: true) { [weak self] _ in
+            guard let self, self.isHDRModeActive, self.mpv != nil else { return }
+            let headroom = self.currentScreen?.maximumExtendedDynamicRangeColorComponentValue ?? 1.0
+            self.updateTargetPeak(headroom: headroom)
+        }
+        timer.tolerance = 0.5
+        RunLoop.main.add(timer, forMode: .common)
+        edrPollTimer = timer
+    }
+
+    private func stopEDRMonitoring() {
+        guard let timer = edrPollTimer else { return }
+        edrPollTimer = nil
+        if Thread.isMainThread {
+            timer.invalidate()
+        } else {
+            DispatchQueue.main.async { timer.invalidate() }
+        }
     }
 
     /// Configure MPV and layer for HDR playback
@@ -374,20 +500,24 @@ class MPVPlayerController {
         hdrEnabled = enabled
         print("[MPV] HDR user preference: \(enabled)")
 
-        // Reconfigure based on current video properties
+        // Reconfigure based on current video properties (switches HDR <-> SDR
+        // if the effective mode changes)
         DispatchQueue.main.async {
-            // Reset HDR mode state to force reconfiguration
-            self.isHDRModeActive = false
             self.configureHDRMode()
         }
     }
 
-    /// Reset HDR state (call when loading new file)
+    /// Reset HDR state (call when loading new file).
+    /// `isHDRModeActive` is kept on purpose: it describes how the layer is
+    /// configured right now, so an SDR file after an HDR one switches back to SDR
+    /// once its video params arrive.
     func resetHDRState() {
         lastGamma = nil
         lastPrimaries = nil
         lastSigPeak = 0.0
-        isHDRModeActive = false
+        lastAppliedTargetPeak = nil
+        lastTargetPeakWasSet = false
+        stopEDRMonitoring()
     }
 
     // MARK: - Playback Control
@@ -406,10 +536,11 @@ class MPVPlayerController {
         let shouldVerify = verifyTLS && !Self.isLocalNetworkURL(url)
         mpv_set_property_string(mpv, "tls-verify", shouldVerify ? "yes" : "no")
 
-        // Set HTTP headers if provided (required for some Plex servers)
-        if let headers = headers, !headers.isEmpty {
-            let headerString = headers.map { "\($0.key): \($0.value)" }.joined(separator: ",")
-            mpv_set_property_string(mpv, "http-header-fields", headerString)
+        // HTTP headers (required for some Plex servers and addon streams).
+        // Always (re)set the list: mpv keeps `http-header-fields` across files,
+        // so loading without headers must clear the previous file's headers.
+        mpv_set_property_string(mpv, "http-header-fields", Self.httpHeaderFieldsValue(headers))
+        if let headers, !headers.isEmpty {
             print("📺 [MPV] HTTP headers set: \(headers.count) headers")
         }
 
@@ -419,6 +550,16 @@ class MPVPlayerController {
         if status < 0 {
             print("❌ [MPV] Failed to load file: \(String(cString: mpv_error_string(status)))")
         }
+    }
+
+    /// mpv string-list value for `http-header-fields`. Items are separated by
+    /// commas, so a comma inside a header value is escaped as `\,` (mpv's list escape).
+    /// Returns "" (empty list) when there are no headers.
+    static func httpHeaderFieldsValue(_ headers: [String: String]?) -> String {
+        guard let headers, !headers.isEmpty else { return "" }
+        return headers.keys.sorted().map { key in
+            "\(key): \(headers[key] ?? "")".replacingOccurrences(of: ",", with: "\\,")
+        }.joined(separator: ",")
     }
 
     /// True for localhost, *.local and private IPv4 ranges (self-hosted addons, LAN servers).
@@ -542,6 +683,22 @@ class MPVPlayerController {
                     if value.format == MPV_FORMAT_FLAG {
                         track.external = value.u.flag != 0
                     }
+                case "default":
+                    if value.format == MPV_FORMAT_FLAG {
+                        track.isDefault = value.u.flag != 0
+                    }
+                case "forced":
+                    if value.format == MPV_FORMAT_FLAG {
+                        track.forced = value.u.flag != 0
+                    }
+                case "hearing-impaired":
+                    if value.format == MPV_FORMAT_FLAG {
+                        track.hearingImpaired = value.u.flag != 0
+                    }
+                case "external-filename":
+                    if value.format == MPV_FORMAT_STRING, let str = value.u.string {
+                        track.externalFilename = String(cString: str)
+                    }
                 default:
                     break
                 }
@@ -655,6 +812,26 @@ class MPVPlayerController {
         } else if let stringValue = value as? String {
             mpv_set_property_string(mpv, name, stringValue)
         }
+    }
+
+    /// Double property, or nil when mpv has no value (e.g. `sub-start` without a current cue).
+    /// Unlike `getProperty(_:type: .double)`, failures are not reported as 0.
+    func getPropertyIfAvailable(_ name: String) -> Double? {
+        guard mpv != nil else { return nil }
+        var value: Double = 0
+        return mpv_get_property(mpv, name, MPV_FORMAT_DOUBLE, &value) >= 0 ? value : nil
+    }
+
+    /// Sets a property, trying each name in order until mpv accepts one
+    /// (for options renamed between mpv versions). Returns false if none was accepted.
+    @discardableResult
+    private func setPropertyString(firstAccepted names: [String], _ value: String) -> Bool {
+        guard mpv != nil else { return false }
+        for name in names where mpv_set_property_string(mpv, name, value) >= 0 {
+            return true
+        }
+        print("⚠️ [MPV] None of \(names) accepted value \(value)")
+        return false
     }
 
     private func setOption(_ name: String, value: String) {
@@ -785,6 +962,22 @@ class MPVPlayerController {
                 }
             }
 
+            // Subtitle cue shown: read its timing on this (event) queue while it is current
+            if propertyName == "sub-text", let text = value as? String,
+               !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+               onSubtitleCueShown != nil {
+                let start: Double? = getPropertyIfAvailable("sub-start")
+                let end: Double? = getPropertyIfAvailable("sub-end")
+                let playback: Double? = getPropertyIfAvailable("time-pos")
+                let delay: Double = getPropertyIfAvailable("sub-delay") ?? 0
+                if let start, let playback {
+                    let shown = MPVShownSubtitleCue(text: text, start: start, end: end, playbackTime: playback, subDelay: delay)
+                    DispatchQueue.main.async { [weak self] in
+                        self?.onSubtitleCueShown?(shown)
+                    }
+                }
+            }
+
             // Check for thumbfast-info updates
             if propertyName == "user-data/thumbfast-info", let jsonString = value as? String {
                 self.parseThumbnailInfo(jsonString)
@@ -888,10 +1081,14 @@ class MPVPlayerController {
         isShuttingDown = true
         print("🛑 [MPV] Shutting down")
 
+        stopDisplayObservers()
+        stopEDRMonitoring()
+
         // Clear callbacks
         onPropertyChange = nil
         onEvent = nil
         onHDRDetected = nil
+        onSubtitleCueShown = nil
 
         // Clear wakeup callback before draining events
         if let mpv = mpv {
@@ -1076,28 +1273,105 @@ class MPVPlayerController {
 
     /// Set subtitle font size
     func setSubtitleFontSize(_ size: Int) {
+        guard mpv != nil else { return }
         mpv_set_property_string(mpv, "sub-font-size", "\(size)")
     }
 
-    /// Set subtitle text color (hex string like "FFFFFF")
+    /// Set subtitle text color (hex string like "FFFFFF" or "#FFFFFF")
     func setSubtitleColor(_ color: String) {
-        mpv_set_property_string(mpv, "sub-color", "#\(color)")
+        guard mpv != nil else { return }
+        mpv_set_property_string(mpv, "sub-color", Self.mpvColor(color))
     }
 
-    /// Set subtitle border size
+    /// Set subtitle border (outline) size. mpv 0.38 renamed sub-border-* to sub-outline-*.
     func setSubtitleBorderSize(_ size: Double) {
-        var value = size
-        mpv_set_property(mpv, "sub-border-size", MPV_FORMAT_DOUBLE, &value)
+        setPropertyString(firstAccepted: ["sub-outline-size", "sub-border-size"], String(format: "%.2f", size))
     }
 
-    /// Set subtitle border color (hex string)
+    /// Set subtitle border (outline) color (hex string "RRGGBB", "#RRGGBB" or "#AARRGGBB")
     func setSubtitleBorderColor(_ color: String) {
-        mpv_set_property_string(mpv, "sub-border-color", "#\(color)")
+        setPropertyString(firstAccepted: ["sub-outline-color", "sub-border-color"], Self.mpvColor(color))
     }
 
-    /// Set subtitle background color with alpha (hex string with alpha like "00000080")
-    func setSubtitleBackgroundColor(_ color: String) {
-        mpv_set_property_string(mpv, "sub-back-color", "#\(color)")
+    /// Set subtitle background color. `color` is "RRGGBB"/"#RRGGBB"; `opacity` 0...1.
+    /// A visible background switches mpv to `sub-border-style=background-box`.
+    func setSubtitleBackground(color: String, opacity: Double) {
+        guard mpv != nil else { return }
+        let clamped = min(1, max(0, opacity))
+        mpv_set_property_string(mpv, "sub-back-color", Self.mpvColor(color, alpha: clamped))
+        mpv_set_property_string(mpv, "sub-border-style", clamped > 0 ? "background-box" : "outline-and-shadow")
+    }
+
+    /// Subtitle font family; empty string restores mpv's default (sans-serif).
+    func setSubtitleFont(_ family: String) {
+        guard mpv != nil else { return }
+        let trimmed = family.trimmingCharacters(in: .whitespacesAndNewlines)
+        mpv_set_property_string(mpv, "sub-font", trimmed.isEmpty ? "sans-serif" : trimmed)
+    }
+
+    /// Bold subtitle text.
+    func setSubtitleBold(_ bold: Bool) {
+        setProperty("sub-bold", value: bold)
+    }
+
+    /// Vertical subtitle position (`sub-pos`: 0 = top, 100 = bottom, up to 150).
+    func setSubtitlePosition(_ position: Int) {
+        // As a string: sub-pos is an integer or a float depending on the mpv version
+        guard mpv != nil else { return }
+        mpv_set_property_string(mpv, "sub-pos", "\(min(150, max(0, position)))")
+    }
+
+    /// Strip SDH/hearing-impaired annotations (`sub-filter-sdh`). Text subtitles only;
+    /// mpv applies it to cues decoded after the change.
+    func setSubtitleFilterSDH(_ enabled: Bool) {
+        setProperty("sub-filter-sdh", value: enabled)
+    }
+
+    /// Applies a complete subtitle appearance (size, font, bold, colours, outline, background, position).
+    /// Text-based subtitles only: styled ASS/SSA tracks keep their own styles
+    /// (mpv's default `sub-ass-override=scale`), bitmap (PGS/VobSub) tracks are images.
+    func applySubtitleAppearance(_ appearance: SubtitleAppearance) {
+        guard mpv != nil else { return }
+        setSubtitleFontSize(appearance.fontSize)
+        setSubtitleFont(appearance.fontName)
+        setSubtitleBold(appearance.bold)
+        setSubtitleColor(appearance.textColor)
+        setSubtitleBorderSize(appearance.borderSize)
+        setSubtitleBorderColor(appearance.borderColor)
+        setSubtitleBackground(color: appearance.backgroundColor, opacity: appearance.backgroundOpacity)
+        setSubtitlePosition(appearance.position)
+
+        // Explicit sub-* entries in the user's custom MPV config keep priority
+        for entry in UserDefaults.standard.getEnabledMpvConfigEntries() where entry.key.hasPrefix("sub-") {
+            mpv_set_property_string(mpv, entry.key, entry.value)
+        }
+    }
+
+    /// mpv colour string: "#RRGGBB", or "#AARRGGBB" when `alpha` is given (mpv puts alpha FIRST).
+    /// Accepts "RRGGBB", "#RRGGBB" or "#AARRGGBB" input; anything else falls back to white.
+    static func mpvColor(_ hex: String, alpha: Double? = nil) -> String {
+        var digits = hex.trimmingCharacters(in: .whitespacesAndNewlines)
+        if digits.hasPrefix("#") { digits.removeFirst() }
+        digits = digits.uppercased()
+        guard digits.allSatisfy(\.isHexDigit), digits.count == 6 || digits.count == 8 else {
+            return alpha.map { String(format: "#%02XFFFFFF", Int(($0 * 255).rounded())) } ?? "#FFFFFF"
+        }
+        let rgb = String(digits.suffix(6))
+        guard let alpha else { return "#\(digits)" }
+        return String(format: "#%02X", Int((min(1, max(0, alpha)) * 255).rounded())) + rgb
+    }
+
+    // MARK: - Aspect / Zoom
+
+    /// Applies an aspect mode via mpv: `panscan` (crop to fill), `video-zoom`
+    /// (log2 scale), `keepaspect` (off = stretch to the view) and resets
+    /// `video-aspect-override` to the file's own aspect ratio.
+    func applyAspect(panscan: Double, zoomFactor: Double, keepAspect: Bool) {
+        guard mpv != nil else { return }
+        setProperty("panscan", value: min(1, max(0, panscan)))
+        setProperty("video-zoom", value: log2(max(0.1, zoomFactor)))
+        mpv_set_property_string(mpv, "keepaspect", keepAspect ? "yes" : "no")
+        mpv_set_property_string(mpv, "video-aspect-override", "-1")
     }
 
     // MARK: - Audio/Subtitle Sync
@@ -1253,6 +1527,14 @@ struct MPVTrack {
     var lang: String?
     var selected: Bool = false
     var external: Bool = false
+    /// Container "default" flag.
+    var isDefault: Bool = false
+    /// Container "forced" flag (signs/foreign-dialogue-only subtitles).
+    var forced: Bool = false
+    /// Hearing-impaired (SDH) flag, when the container sets it.
+    var hearingImpaired: Bool = false
+    /// Path or URL of an external track (sub-add / sidecar files), nil for embedded tracks.
+    var externalFilename: String?
 
     /// Display name for the track
     var displayName: String {
@@ -1293,5 +1575,46 @@ struct MPVChapter: Identifiable {
         } else {
             return String(format: "%d:%02d", minutes, secs)
         }
+    }
+}
+
+/// A subtitle cue mpv started showing (from `sub-text` / `sub-start` / `sub-end`).
+/// `start`/`end` are as mpv reports them; `playbackTime` and `subDelay` are
+/// sampled at the same moment so callers can tell which timeline they are in.
+struct MPVShownSubtitleCue {
+    let text: String
+    let start: Double
+    let end: Double?
+    let playbackTime: Double
+    let subDelay: Double
+}
+
+/// Subtitle styling applied to mpv. Colours are "#RRGGBB" hex strings.
+struct SubtitleAppearance: Equatable {
+    var fontSize: Int
+    var fontName: String
+    var bold: Bool
+    var textColor: String
+    var borderSize: Double
+    var borderColor: String
+    var backgroundColor: String
+    /// 0...1; 0 = no background box.
+    var backgroundOpacity: Double
+    /// mpv `sub-pos` (0 = top, 100 = bottom).
+    var position: Int
+
+    /// Current profile's saved appearance.
+    static func fromDefaults(_ defaults: UserDefaults = .standard) -> SubtitleAppearance {
+        SubtitleAppearance(
+            fontSize: defaults.subtitleFontSize,
+            fontName: defaults.subtitleFontName,
+            bold: defaults.subtitleBold,
+            textColor: defaults.subtitleTextColor,
+            borderSize: defaults.subtitleBorderSize,
+            borderColor: defaults.subtitleBorderColor,
+            backgroundColor: defaults.subtitleBackgroundColor,
+            backgroundOpacity: defaults.subtitleBackgroundOpacity,
+            position: defaults.subtitlePosition
+        )
     }
 }
