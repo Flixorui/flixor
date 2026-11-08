@@ -54,6 +54,8 @@ extension DetailsHeroSection {
                     }
                     .buttonStyle(.plain)
                 }
+
+                titleWatchActions
             } else {
                 // With no local Plex copy, Stremio is the only way to play this, so it
                 // becomes the primary button instead of sitting next to a dead one.
@@ -130,6 +132,9 @@ extension DetailsHeroSection {
                     )
                 }
 
+                // Watched toggle / menu and Trakt rating
+                titleWatchActions
+
                 // Overseerr request button - circular (Apple TV+ style)
                 if let tmdbIdStr = vm.tmdbId, let tmdbIdInt = Int(tmdbIdStr) {
                     let overseerrMediaType = vm.mediaKind == "tv" ? "tv" : "movie"
@@ -162,6 +167,13 @@ extension DetailsHeroSection {
                     )
                 }
             }
+        }
+    }
+
+    @ViewBuilder private var titleWatchActions: some View {
+        if let titleActions {
+            DetailsWatchedControl(model: titleActions)
+            DetailsRateControl(model: titleActions, title: vm.title)
         }
     }
 

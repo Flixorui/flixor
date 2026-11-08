@@ -33,6 +33,9 @@ struct DetailsView: View {
     // Profile-scoped layout preference
     @ObservedObject var profileSettings = ProfileSettings.shared
 
+    // Title watch state / Trakt rating (hero action row)
+    @StateObject private var titleActions = DetailsTitleActionsModel()
+
     // Loading skeleton
     @State private var initialLoadFinished = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -126,6 +129,7 @@ struct DetailsView: View {
             }
         }
         .ignoresSafeArea(edges: .top)
+        .environment(\.detailsTitleActions, titleActions)
         .background(HomeBackground(heroColors: vm.heroColors))
         .navigationTitle("")
         .task {
@@ -138,6 +142,12 @@ struct DetailsView: View {
                 activeTab = "EPISODES"
             }
         }
+        .onChange(of: vm.isLoading) { loading in
+            if !loading {
+                titleActions.configure(with: vm)
+            }
+        }
+        .toast()
         .onChange(of: showBrowseModal) { value in
             if !value {
                 activeBrowseContext = nil

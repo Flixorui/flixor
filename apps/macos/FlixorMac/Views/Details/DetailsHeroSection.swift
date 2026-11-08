@@ -30,6 +30,7 @@ struct DetailsHeroSection: View {
     // Profile-scoped rating visibility settings
     @ObservedObject private var profileSettings = ProfileSettings.shared
     @Environment(\.flixorTheme) var theme
+    @Environment(\.detailsTitleActions) var titleActions
 
     private var hasTrailers: Bool { !trailers.isEmpty }
 
@@ -107,9 +108,16 @@ struct DetailsHeroSection: View {
             // Backdrop with enhanced gradients - sized to show full image (16:9 aspect ratio)
             GeometryReader { geo in
                 ZStack {
-                    CachedAsyncImage(url: vm.backdropURL)
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: geo.size.width, height: geo.size.height)
+                    CachedAsyncImage(url: vm.backdropURL, contentMode: .fill) {
+                        // Themed wash instead of a grey box while the backdrop loads
+                        // (or when the title has none).
+                        LinearGradient(
+                            colors: [theme.surfaceElevated, theme.surface, theme.background],
+                            startPoint: .topTrailing,
+                            endPoint: .bottomLeading
+                        )
+                    }
+                    .frame(width: geo.size.width, height: geo.size.height)
 
                     // Top fade for navigation clarity
                     LinearGradient(
