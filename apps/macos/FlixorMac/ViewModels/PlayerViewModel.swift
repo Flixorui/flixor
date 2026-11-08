@@ -94,6 +94,10 @@ class PlayerViewModel: ObservableObject {
     @Published var nextEpisodeCountdown: Int? = nil
     var nextEpisodeCountdownTimer: Timer?
 
+    // MARK: - Stream engine state (skip segments, stream next-episode, source recovery)
+    // New stored properties for that work go directly below this line.
+
+
     // Playback metadata
     private(set) var item: MediaItem
     @Published var mpvController: MPVPlayerController?
@@ -142,6 +146,10 @@ class PlayerViewModel: ObservableObject {
     // Display sleep prevention
     var displaySleepAssertion: NSObjectProtocol?
     var remoteCommandTargets: [(MPRemoteCommand, Any)] = []
+
+    // MARK: - Playback engine state (tracks, subtitles, aspect, speed, HDR, network)
+    // New stored properties for that work go directly below this line.
+
 
     init(item: MediaItem) {
         self.item = item
