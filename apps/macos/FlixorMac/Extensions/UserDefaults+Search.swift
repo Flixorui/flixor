@@ -33,6 +33,22 @@ extension UserDefaults {
         set { set(newValue, forKey: profileKey(SearchScreenKeys.idleTab)) }
     }
 
+    /// Discover filters for the active profile (nil until the user changes one).
+    var searchDiscoverFilters: DiscoverFilters? {
+        get {
+            guard let data = data(forKey: profileKey(SearchScreenKeys.discoverFilters)) else { return nil }
+            return try? JSONDecoder().decode(DiscoverFilters.self, from: data)
+        }
+        set {
+            let key = profileKey(SearchScreenKeys.discoverFilters)
+            guard let newValue, let data = try? JSONEncoder().encode(newValue) else {
+                removeObject(forKey: key)
+                return
+            }
+            set(data, forKey: key)
+        }
+    }
+
     /// Token that changes when the active profile changes. Used by the Search
     /// screen (which survives profile switches) to reload profile-scoped state.
     var searchProfileScopeToken: String {

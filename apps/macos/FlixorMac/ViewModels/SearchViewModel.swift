@@ -36,6 +36,27 @@ class SearchViewModel: ObservableObject {
     @Published private(set) var sectionStatus: [SearchSection: SectionStatus] = [:]
     /// Recent queries for the active profile, most recent first.
     @Published private(set) var recentSearches: [String] = []
+    /// What the screen shows while the query is empty (persisted per profile).
+    @Published var idleTab: IdleTab = .explore {
+        didSet {
+            guard idleTab != oldValue else { return }
+            UserDefaults.standard.searchIdleTab = idleTab.rawValue
+        }
+    }
+
+    enum IdleTab: String, CaseIterable, Identifiable {
+        case explore
+        case discover
+
+        var id: String { rawValue }
+
+        var label: String {
+            switch self {
+            case .explore: return "Explore"
+            case .discover: return "Discover"
+            }
+        }
+    }
 
     enum SearchMode {
         case idle          // Show Popular/Trending
@@ -189,6 +210,7 @@ class SearchViewModel: ObservableObject {
         guard token != profileScopeToken else { return }
         profileScopeToken = token
         recentSearches = UserDefaults.standard.recentSearches
+        idleTab = UserDefaults.standard.searchIdleTab.flatMap(IdleTab.init(rawValue:)) ?? .explore
     }
 
     // MARK: - Recent Searches

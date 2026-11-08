@@ -173,6 +173,8 @@ public struct TMDBDiscoverQuery: Hashable, Sendable {
     public var minimumVoteCount: Int?
     /// Minimum average rating (0-10).
     public var minimumRating: Double?
+    /// Raw TMDB `sort_by` value that replaces `sort` (e.g. "title.asc" / "name.asc").
+    public var sortByOverride: String? = nil
 
     public init(
         mediaType: TMDBDiscoverMediaType,
@@ -203,7 +205,7 @@ public struct TMDBDiscoverQuery: Hashable, Sendable {
     /// TMDB query parameters for this query.
     public func parameters() -> [String: String] {
         var params: [String: String] = [
-            "sort_by": sort.parameter(for: mediaType),
+            "sort_by": sortByOverride ?? sort.parameter(for: mediaType),
             "page": String(max(1, min(page, 500))), // TMDB caps discover at page 500
             "include_adult": "false",
         ]

@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		454B40EA5D9C18CB0B7DE9AB /* SearchDiscoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2519ED575768539503EF8C88 /* SearchDiscoverView.swift */; };
+		09DB91DBFE018F05F444ADA8 /* DiscoverViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6A2E801F898E4426BBED1DD /* DiscoverViewModel.swift */; };
 		101F16A0E5CF4DE07C7064C0 /* SearchRecentSearchesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0191A8E658EA14C5F17E2C38 /* SearchRecentSearchesView.swift */; };
 		0E6B8F01E35CD0F4E2128E54 /* SearchPeopleRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDBC7C3EB14BA34A94195050 /* SearchPeopleRow.swift */; };
 		2F5C9644B137882EECF761AC /* UserDefaults+Search.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E370007941DBA8292228E5A /* UserDefaults+Search.swift */; };
@@ -205,6 +207,8 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		2519ED575768539503EF8C88 /* SearchDiscoverView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SearchDiscoverView.swift; sourceTree = "<group>"; };
+		A6A2E801F898E4426BBED1DD /* DiscoverViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DiscoverViewModel.swift; sourceTree = "<group>"; };
 		0191A8E658EA14C5F17E2C38 /* SearchRecentSearchesView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SearchRecentSearchesView.swift; sourceTree = "<group>"; };
 		DDBC7C3EB14BA34A94195050 /* SearchPeopleRow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SearchPeopleRow.swift; sourceTree = "<group>"; };
 		6E370007941DBA8292228E5A /* UserDefaults+Search.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "UserDefaults+Search.swift"; sourceTree = "<group>"; };
@@ -524,6 +528,7 @@
 		D006 /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
+				A6A2E801F898E4426BBED1DD /* DiscoverViewModel.swift */,
 				3F35EE05EDE594BEB06742FB /* PlayerViewModel+Types.swift */,
 				558CFF48660AB401150521B5 /* PlayerViewModel+Tracks.swift */,
 				9870F7FE912EA6C150C6BFD5 /* PlayerViewModel+StreamLoading.swift */,
@@ -655,6 +660,7 @@
 		D014 /* Search */ = {
 			isa = PBXGroup;
 			children = (
+				2519ED575768539503EF8C88 /* SearchDiscoverView.swift */,
 				0191A8E658EA14C5F17E2C38 /* SearchRecentSearchesView.swift */,
 				DDBC7C3EB14BA34A94195050 /* SearchPeopleRow.swift */,
 				B011 /* SearchView.swift */,
@@ -948,6 +954,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				454B40EA5D9C18CB0B7DE9AB /* SearchDiscoverView.swift in Sources */,
+				09DB91DBFE018F05F444ADA8 /* DiscoverViewModel.swift in Sources */,
 				101F16A0E5CF4DE07C7064C0 /* SearchRecentSearchesView.swift in Sources */,
 				0E6B8F01E35CD0F4E2128E54 /* SearchPeopleRow.swift in Sources */,
 				2F5C9644B137882EECF761AC /* UserDefaults+Search.swift in Sources */,

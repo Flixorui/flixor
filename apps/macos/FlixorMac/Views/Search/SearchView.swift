@@ -10,6 +10,7 @@ import FlixorKit
 
 struct SearchView: View {
     @StateObject private var viewModel = SearchViewModel()
+    @StateObject private var discoverViewModel = DiscoverViewModel()
     @EnvironmentObject private var router: NavigationRouter
     @EnvironmentObject private var mainViewState: MainViewState
     @ObservedObject private var profileSettings = ProfileSettings.shared
@@ -67,6 +68,7 @@ struct SearchView: View {
             // The Search tab survives profile switches; pick up the new profile's state.
             if tab == .search {
                 viewModel.refreshProfileScopedState()
+                discoverViewModel.refreshProfileScopedState()
             }
         }
         .onChange(of: profileSettings.includeTmdbInSearch) { newValue in
@@ -82,22 +84,42 @@ struct SearchView: View {
 
     @ViewBuilder
     private var idleContent: some View {
-        VStack(alignment: .leading, spacing: DS.Space.sectionGap) {
-            if !viewModel.recentSearches.isEmpty {
-                SearchRecentSearchesView(
-                    searches: viewModel.recentSearches,
-                    onSelect: { viewModel.runRecentSearch($0) },
-                    onRemove: { viewModel.removeRecentSearch($0) },
-                    onClear: { viewModel.clearRecentSearches() }
+        // Discover is TMDB-only, so it follows the "include TMDB" setting
+        // (also off in Library Only mode).
+        let showDiscover = profileSettings.includeTmdbInSearch && viewModel.idleTab == .discover
+        VStack(alignment: .leading, spacing: DS.Space.s24) {
+            if profileSettings.includeTmdbInSearch {
+                SearchSegmentedControl(
+                    options: SearchViewModel.IdleTab.allCases.map { SearchSegmentOption(value: $0, label: $0.label) },
+                    selection: $viewModel.idleTab,
+                    accessibilityTitle: "Search view"
                 )
+                .padding(.horizontal, SearchLayout.gutter)
             }
 
-            if profileSettings.includeTmdbInSearch {
-                IdleStateView(viewModel: viewModel, onTap: { item in
+            if showDiscover {
+                SearchDiscoverView(viewModel: discoverViewModel, onTap: { item in
                     navigateToDetails(item: item)
                 })
             } else {
-                SearchPlaceholderView()
+                VStack(alignment: .leading, spacing: DS.Space.sectionGap) {
+                    if !viewModel.recentSearches.isEmpty {
+                        SearchRecentSearchesView(
+                            searches: viewModel.recentSearches,
+                            onSelect: { viewModel.runRecentSearch($0) },
+                            onRemove: { viewModel.removeRecentSearch($0) },
+                            onClear: { viewModel.clearRecentSearches() }
+                        )
+                    }
+
+                    if profileSettings.includeTmdbInSearch {
+                        IdleStateView(viewModel: viewModel, onTap: { item in
+                            navigateToDetails(item: item)
+                        })
+                    } else {
+                        SearchPlaceholderView()
+                    }
+                }
             }
         }
     }
