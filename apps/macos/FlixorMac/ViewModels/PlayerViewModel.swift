@@ -135,6 +135,9 @@ class PlayerViewModel: ObservableObject {
     var failedStreamURLs: Set<String> = []
     /// Sources re-fetched during recovery (fetched once per playback).
     var streamRecoveryResults: [StremioAddonStreamResult]?
+    /// Set while a new stream replaces a file that is still open: mpv reports the
+    /// old file's end, which must not count as "finished" or "failed".
+    var streamFileReplacementStartedAt: Date?
 
     // Playback metadata
     private(set) var item: MediaItem

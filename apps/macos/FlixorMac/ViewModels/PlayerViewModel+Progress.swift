@@ -187,6 +187,12 @@ extension PlayerViewModel {
     }
 
     func handlePlaybackEnd() {
+        if consumeReplacedStreamFileEnd() { return }
+        if isTruncatedStreamEnd {
+            print("⚠️ [Player] Stream ended at \(Int(currentTime))s of \(Int(duration))s; treating as a failure")
+            handlePlaybackFailure(early: false)
+            return
+        }
         isPlaying = false
         stopProgressTracking()
         disableDisplaySleep()

@@ -16,7 +16,7 @@ extension PlayerViewModel {
     /// attempt is possible (attempts used up, or the title can't be looked up),
     /// in which case the caller shows the error.
     func attemptStreamRecovery(early: Bool) -> Bool {
-        guard sourceKind == .stream, let failed = streamPlaybackItem else { return false }
+        guard sourceKind == .stream, let failed = streamPlaybackItem, mpvController?.isShutDown == false else { return false }
         // A second failure event for the same file while we are already recovering.
         if isPerformingStreamRecovery { return true }
         guard streamRecoveryAttempts < maxStreamRecoveryAttempts,
@@ -74,7 +74,7 @@ extension PlayerViewModel {
         }
 
         // The user may have closed the player or switched source meanwhile.
-        guard streamPlaybackItem?.id == failed.id, mpvController != nil else {
+        guard streamPlaybackItem?.id == failed.id, mpvController?.isShutDown == false else {
             isPerformingStreamRecovery = false
             streamEngineStatus = nil
             return
@@ -172,6 +172,34 @@ extension PlayerViewModel {
         if case .recoveringSource = streamEngineStatus, !isPerformingStreamRecovery {
             streamEngineStatus = nil
         }
+        // The new file has started, so the replaced file's end event is behind us.
+        if let replacedAt = streamFileReplacementStartedAt, let started = fileStartTime, started > replacedAt {
+            streamFileReplacementStartedAt = nil
+        }
+    }
+
+    // MARK: - File replacement
+
+    /// Call right before loading a stream. `loadfile replace` on an open file makes
+    /// mpv report that file's end, which is not a real end or failure.
+    func noteStreamFileReplacement(on controller: MPVPlayerController) {
+        let openPath: String? = controller.getProperty("path", type: .string)
+        streamFileReplacementStartedAt = openPath == nil ? nil : Date()
+    }
+
+    /// True (once) when the end event being handled belongs to a replaced file.
+    func consumeReplacedStreamFileEnd() -> Bool {
+        guard sourceKind == .stream, streamFileReplacementStartedAt != nil else { return false }
+        streamFileReplacementStartedAt = nil
+        print("ℹ️ [Player] Ignoring end of replaced stream file")
+        return true
+    }
+
+    /// mpv reports a dropped HTTP connection as a plain end of file in some cases.
+    /// An "end" well before the known duration is a failure, not the end of the title.
+    var isTruncatedStreamEnd: Bool {
+        guard sourceKind == .stream, duration > 0 else { return false }
+        return duration - currentTime > max(120, duration * 0.15)
     }
 
     /// Called by non-recovery loads (first load, Retry, manual source switch):

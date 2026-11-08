@@ -57,7 +57,7 @@ extension PlayerViewModel {
 
     /// Play a given episode of the current series stream (next episode or episode list).
     func playStreamEpisode(season: Int, episode: Int, episodeTitle: String?) {
-        guard sourceKind == .stream, !isResolvingNextEpisode else { return }
+        guard sourceKind == .stream, !isResolvingNextEpisode, mpvController?.isShutDown == false else { return }
         cancelCountdown()
         cancelAutoSkip()
 
@@ -76,6 +76,8 @@ extension PlayerViewModel {
             guard let self else { return }
             self.isResolvingNextEpisode = false
             if case .findingNextEpisodeSource = self.streamEngineStatus { self.streamEngineStatus = nil }
+            // The user closed the player during the lookup: don't navigate anywhere.
+            guard self.mpvController?.isShutDown == false else { return }
 
             switch outcome {
             case .playable(let playbackItem):

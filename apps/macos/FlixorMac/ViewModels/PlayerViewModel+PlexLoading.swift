@@ -28,6 +28,7 @@ extension PlayerViewModel {
     /// Handles a failed load or a mid-playback error without treating it as
     /// "finished watching". Plex retry/HLS fallback only applies to Plex sources.
     func handlePlaybackFailure(early: Bool) {
+        if consumeReplacedStreamFileEnd() { return }
         switch sourceKind {
         case .plex where early:
             print("❌ [Player] Plex playback failed to load - likely connection error")

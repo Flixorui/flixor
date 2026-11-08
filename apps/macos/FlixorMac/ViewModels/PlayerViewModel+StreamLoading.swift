@@ -20,7 +20,6 @@ extension PlayerViewModel {
         // keep them across source switches and recovery, reload for a new title.
         let isNewTitle = streamEngineContentKey != streamItem.contentKey
         if isNewTitle {
-            streamEngineContentKey = streamItem.contentKey
             plexMarkersSnapshot = []
             resetCommunitySkipSegments()
             resetStreamNextEpisode()
@@ -54,10 +53,13 @@ extension PlayerViewModel {
             }
 
             streamURL = URL(string: streamItem.uri)
+            noteStreamFileReplacement(on: mpvController)
             mpvController.loadFile(streamItem.uri, headers: Dictionary(uniqueKeysWithValues: streamItem.headers.map { ($0.name, $0.value) }))
             startProgressTracking()
 
             if isNewTitle {
+                // Set only once the lookups start, so a failed first load retries them.
+                streamEngineContentKey = streamItem.contentKey
                 loadCommunitySkipSegments(for: streamItem)
                 loadStreamNextEpisode(for: streamItem)
             }
