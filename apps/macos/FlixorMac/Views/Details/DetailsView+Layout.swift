@@ -22,7 +22,8 @@ extension DetailsView {
                 onStremio: openHeroStremioSources,
                 showsStremioButton: canShowStremioAction,
                 onViewShow: viewParentShow,
-                layout: layout
+                layout: layout,
+                onChooseStremioSource: chooseHeroStremioSource
             )
 
             DetailsSectionsContainer(

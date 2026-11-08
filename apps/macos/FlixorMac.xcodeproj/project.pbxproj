@@ -7,6 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		CA2B93F4577BB2CFD368822B /* StreamAutoPlayOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B4B24CF11F49C5DAE17B8AE /* StreamAutoPlayOverlay.swift */; };
+		6246EC924A061E1E147A5199 /* StreamAutoPlayController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F489085FAFBE4CA265152FF2 /* StreamAutoPlayController.swift */; };
+		39DAD11324680E9F0D59F832 /* StreamSelectionSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EE8A36078E23D17DFE0DA12 /* StreamSelectionSettings.swift */; };
+		34A5EC31C48525563D5EBA59 /* StreamAutoSelector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66174D546FEE34E17E4AC05C /* StreamAutoSelector.swift */; };
+		DE13AB6A181B693103CC54E4 /* UserDefaults+StreamSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8B1D59E039522BFAFCFC1A4 /* UserDefaults+StreamSelection.swift */; };
 		FE77C7265DCF4098839665E8 /* HomeRowsEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C5AB65547BBF55331DF0A55 /* HomeRowsEditor.swift */; };
 		2B6AD1FA107A8B4055A62C18 /* HeroSourceSettingsRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 946A0638B68C23F7D67219BC /* HeroSourceSettingsRow.swift */; };
 		58DE7384A191D143A107F046 /* ContinueWatchingStylePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5CBBC0B1A9F1EBB944FBE01 /* ContinueWatchingStylePicker.swift */; };
@@ -284,6 +289,11 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		9B4B24CF11F49C5DAE17B8AE /* StreamAutoPlayOverlay.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StreamAutoPlayOverlay.swift; sourceTree = "<group>"; };
+		F489085FAFBE4CA265152FF2 /* StreamAutoPlayController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StreamAutoPlayController.swift; sourceTree = "<group>"; };
+		8EE8A36078E23D17DFE0DA12 /* StreamSelectionSettings.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StreamSelectionSettings.swift; sourceTree = "<group>"; };
+		66174D546FEE34E17E4AC05C /* StreamAutoSelector.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StreamAutoSelector.swift; sourceTree = "<group>"; };
+		E8B1D59E039522BFAFCFC1A4 /* UserDefaults+StreamSelection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "UserDefaults+StreamSelection.swift"; sourceTree = "<group>"; };
 		1C5AB65547BBF55331DF0A55 /* HomeRowsEditor.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HomeRowsEditor.swift; sourceTree = "<group>"; };
 		946A0638B68C23F7D67219BC /* HeroSourceSettingsRow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HeroSourceSettingsRow.swift; sourceTree = "<group>"; };
 		A5CBBC0B1A9F1EBB944FBE01 /* ContinueWatchingStylePicker.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ContinueWatchingStylePicker.swift; sourceTree = "<group>"; };
@@ -780,6 +790,7 @@
 		D008 /* Extensions */ = {
 			isa = PBXGroup;
 			children = (
+				E8B1D59E039522BFAFCFC1A4 /* UserDefaults+StreamSelection.swift */,
 				D9C937A927B8FBD09A6143DB /* UserDefaults+HomeRows.swift */,
 				52C2BDF2027BE69EEB804C07 /* UserDefaults+Cards.swift */,
 				C6797534B5967731053F353A /* UserDefaults+DetailsHero.swift */,
@@ -1019,6 +1030,8 @@
 		STG001 /* Stremio */ = {
 			isa = PBXGroup;
 			children = (
+				9B4B24CF11F49C5DAE17B8AE /* StreamAutoPlayOverlay.swift */,
+				8EE8A36078E23D17DFE0DA12 /* StreamSelectionSettings.swift */,
 				STF011 /* StremioSourcesView.swift */,
 				STF012 /* StremioStreamRow.swift */,
 				STF013 /* StremioProviderFilterBar.swift */,
@@ -1029,6 +1042,8 @@
 		STG002 /* Stremio */ = {
 			isa = PBXGroup;
 			children = (
+				F489085FAFBE4CA265152FF2 /* StreamAutoPlayController.swift */,
+				66174D546FEE34E17E4AC05C /* StreamAutoSelector.swift */,
 				76546EF8FCD6AE96E4C8D40C /* StremioSourceRanking.swift */,
 				STF003 /* StremioStorage.swift */,
 				STF004 /* StremioStreamCache.swift */,
@@ -1185,6 +1200,11 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CA2B93F4577BB2CFD368822B /* StreamAutoPlayOverlay.swift in Sources */,
+				6246EC924A061E1E147A5199 /* StreamAutoPlayController.swift in Sources */,
+				39DAD11324680E9F0D59F832 /* StreamSelectionSettings.swift in Sources */,
+				34A5EC31C48525563D5EBA59 /* StreamAutoSelector.swift in Sources */,
+				DE13AB6A181B693103CC54E4 /* UserDefaults+StreamSelection.swift in Sources */,
 				FE77C7265DCF4098839665E8 /* HomeRowsEditor.swift in Sources */,
 				2B6AD1FA107A8B4055A62C18 /* HeroSourceSettingsRow.swift in Sources */,
 				58DE7384A191D143A107F046 /* ContinueWatchingStylePicker.swift in Sources */,

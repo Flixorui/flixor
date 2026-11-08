@@ -9,6 +9,7 @@ import SwiftUI
 
 struct StremioSettingsView: View {
     @ObservedObject private var profileSettings = ProfileSettings.shared
+    @StateObject private var streamSelection = StreamSelectionSettingsStore()
     @State private var addonSummaries: [StremioAddonSummary] = []
     @State private var isLoadingAddons = false
     @State private var showAddonManager = false
@@ -43,15 +44,7 @@ struct StremioSettingsView: View {
                     showAddonManager = true
                 }
 
-                SettingsRow(
-                    icon: "bolt.fill",
-                    iconColor: .yellow,
-                    title: "Auto-Play Best Source",
-                    subtitle: "Automatically launch the best playable HTTP source after loading"
-                ) {
-                    Toggle("", isOn: $profileSettings.stremioAutoPlayBestSource)
-                        .labelsHidden()
-                }
+                StreamPlayActionRows(store: streamSelection)
 
                 SettingsRow(
                     icon: "film.stack",
@@ -118,6 +111,11 @@ struct StremioSettingsView: View {
                     .labelsHidden()
                     .frame(width: 180)
                 }
+            }
+
+            if streamSelection.action == .matchRules {
+                SettingsSectionHeader(title: "Source Rules")
+                StreamRulesEditor(store: streamSelection, addons: addonSummaries)
             }
 
             SettingsSectionHeader(title: "Status")
