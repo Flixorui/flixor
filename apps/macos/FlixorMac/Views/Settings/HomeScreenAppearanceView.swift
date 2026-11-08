@@ -69,6 +69,37 @@ struct HomeScreenAppearanceView: View {
                 }
             }
 
+            // Shared layout for every catalog row
+            SettingsSectionHeader(title: "Catalog Rows")
+            SettingsGroupCard {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Display Style · Plex, Stremio, and discovery catalogs")
+                        .font(.system(size: 13, weight: .medium))
+                        .padding(.horizontal, 12)
+                        .padding(.top, 12)
+
+                    HStack(spacing: 12) {
+                        LayoutOptionButton(
+                            title: "Landscape",
+                            icon: "rectangle.fill",
+                            isSelected: profileSettings.rowLayout == "landscape"
+                        ) {
+                            profileSettings.rowLayout = "landscape"
+                        }
+
+                        LayoutOptionButton(
+                            title: "Poster",
+                            icon: "rectangle.portrait.fill",
+                            isSelected: profileSettings.rowLayout == "poster"
+                        ) {
+                            profileSettings.rowLayout = "poster"
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 12)
+                }
+            }
+
             // Continue Watching Layout
             SettingsSectionHeader(title: "Continue Watching")
             SettingsGroupCard {
