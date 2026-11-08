@@ -7,6 +7,15 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		55DBE6F29C3386F5425BD3C4 /* WatchStateService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B600FD75C1741BBBBED632B2 /* WatchStateService.swift */; };
+		949B9F5CCC416214022D936C /* TraktListsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A205244153FE77961F2F98AA /* TraktListsService.swift */; };
+		C03BAB8222DB9E817228C7BC /* TraktCommentsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F36A0D1234176E28FAB218B /* TraktCommentsService.swift */; };
+		BA8EB673C18DF352A89C05E4 /* TrailerService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E12A4EE0B2FDDDF3172BC379 /* TrailerService.swift */; };
+		36E33C3A521ACA0660B2DAA9 /* MediaIdentityResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B551FF3734489AC1E3FE047 /* MediaIdentityResolver.swift */; };
+		88A2FA5D0A043F77A2051355 /* EpisodeRatingsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 034FDD48B4DEA8D21F98446F /* EpisodeRatingsService.swift */; };
+		76AAD747B7DC3D4FE930903F /* WatchStateTarget.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA042BF9395EEEF0C5B2E0CA /* WatchStateTarget.swift */; };
+		E10651A8CB161903A9F38C26 /* LocalWatchedEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67C7ACE9D237872CE9420A33 /* LocalWatchedEntry.swift */; };
+		A24F13275F9DC4A9C5CA6A88 /* UserDefaults+WatchState.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBB78914EA472E88A7E0A72F /* UserDefaults+WatchState.swift */; };
 		0509E7C9F208A6B61049105C /* PerformanceStats.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CB1C29CA6CFB52E468383D8 /* PerformanceStats.swift */; };
 		1D92310802A81DB458745014 /* ProfileAvatarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46B9A47EEF39400D55626597 /* ProfileAvatarView.swift */; };
 		273B64120BC7ED3EECB25980 /* DownloadStorageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6C5B29F24719D51B9C29264 /* DownloadStorageService.swift */; };
@@ -153,6 +162,15 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		B600FD75C1741BBBBED632B2 /* WatchStateService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchStateService.swift; sourceTree = "<group>"; };
+		A205244153FE77961F2F98AA /* TraktListsService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TraktListsService.swift; sourceTree = "<group>"; };
+		8F36A0D1234176E28FAB218B /* TraktCommentsService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TraktCommentsService.swift; sourceTree = "<group>"; };
+		E12A4EE0B2FDDDF3172BC379 /* TrailerService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TrailerService.swift; sourceTree = "<group>"; };
+		2B551FF3734489AC1E3FE047 /* MediaIdentityResolver.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MediaIdentityResolver.swift; sourceTree = "<group>"; };
+		034FDD48B4DEA8D21F98446F /* EpisodeRatingsService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EpisodeRatingsService.swift; sourceTree = "<group>"; };
+		AA042BF9395EEEF0C5B2E0CA /* WatchStateTarget.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchStateTarget.swift; sourceTree = "<group>"; };
+		67C7ACE9D237872CE9420A33 /* LocalWatchedEntry.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LocalWatchedEntry.swift; sourceTree = "<group>"; };
+		DBB78914EA472E88A7E0A72F /* UserDefaults+WatchState.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "UserDefaults+WatchState.swift"; sourceTree = "<group>"; };
 		F1A0C0DE0000000000000001 /* Flixor.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config/Flixor.xcconfig; sourceTree = "<group>"; };
 		F1A0C0DE0000000000000002 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		234624854A3AE7BEDC53EB9A /* MpvConfigModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = MpvConfigModels.swift; path = MpvConfigModels.swift; sourceTree = "<group>"; };
@@ -375,6 +393,8 @@
 		D004 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				AA042BF9395EEEF0C5B2E0CA /* WatchStateTarget.swift */,
+				67C7ACE9D237872CE9420A33 /* LocalWatchedEntry.swift */,
 				B004 /* User.swift */,
 				B005 /* APIError.swift */,
 				B028 /* HomeScreenData.swift */,
@@ -436,6 +456,12 @@
 		D007 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				B600FD75C1741BBBBED632B2 /* WatchStateService.swift */,
+				A205244153FE77961F2F98AA /* TraktListsService.swift */,
+				8F36A0D1234176E28FAB218B /* TraktCommentsService.swift */,
+				E12A4EE0B2FDDDF3172BC379 /* TrailerService.swift */,
+				2B551FF3734489AC1E3FE047 /* MediaIdentityResolver.swift */,
+				034FDD48B4DEA8D21F98446F /* EpisodeRatingsService.swift */,
 				C8D602AA2E990749002C9348 /* Thumbnail */,
 				D016 /* API */,
 				D017 /* Auth */,
@@ -454,6 +480,7 @@
 		D008 /* Extensions */ = {
 			isa = PBXGroup;
 			children = (
+				DBB78914EA472E88A7E0A72F /* UserDefaults+WatchState.swift */,
 				B016 /* UserDefaults+Extensions.swift */,
 				B034 /* Color+Theme.swift */,
 				B038 /* MediaItem+Hashable.swift */,
@@ -792,6 +819,15 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				55DBE6F29C3386F5425BD3C4 /* WatchStateService.swift in Sources */,
+				949B9F5CCC416214022D936C /* TraktListsService.swift in Sources */,
+				C03BAB8222DB9E817228C7BC /* TraktCommentsService.swift in Sources */,
+				BA8EB673C18DF352A89C05E4 /* TrailerService.swift in Sources */,
+				36E33C3A521ACA0660B2DAA9 /* MediaIdentityResolver.swift in Sources */,
+				88A2FA5D0A043F77A2051355 /* EpisodeRatingsService.swift in Sources */,
+				76AAD747B7DC3D4FE930903F /* WatchStateTarget.swift in Sources */,
+				E10651A8CB161903A9F38C26 /* LocalWatchedEntry.swift in Sources */,
+				A24F13275F9DC4A9C5CA6A88 /* UserDefaults+WatchState.swift in Sources */,
 				A001 /* FlixorMacApp.swift in Sources */,
 				A002 /* RootView.swift in Sources */,
 				A004 /* User.swift in Sources */,

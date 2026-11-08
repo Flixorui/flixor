@@ -623,6 +623,75 @@ public class TraktService {
         }
     }
 
+    /// Raw request used by the sync/social/list endpoints (TraktService+Sync.swift).
+    /// Returns the body and response so callers can read pagination headers.
+    /// - Refreshes tokens once on 401 when `auth` is set and a refresh token exists.
+    /// - Retries once on 429 (Trakt allows ~1 write per second), honouring
+    ///   `Retry-After` up to 5 seconds.
+    /// - Throws `TraktError.httpError` for any other non-2xx status.
+    func send(
+        method: String,
+        path: String,
+        params: [String: String]? = nil,
+        body: Encodable? = nil,
+        auth: Bool = false,
+        retryingAfterRefresh: Bool = false,
+        retryingAfterRateLimit: Bool = false
+    ) async throws -> (Data, HTTPURLResponse) {
+        var components = URLComponents(string: "\(traktApiUrl)\(path)")
+        if let params, !params.isEmpty {
+            components?.queryItems = params
+                .sorted { $0.key < $1.key }
+                .map { URLQueryItem(name: $0.key, value: $0.value) }
+        }
+        guard let url = components?.url else {
+            throw TraktError.invalidURL
+        }
+        if auth, tokens == nil {
+            throw TraktError.authenticationRequired
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        if let body {
+            request.httpBody = try JSONEncoder().encode(body)
+        }
+        for (key, value) in getHeaders(includeAuth: auth) {
+            request.setValue(value, forHTTPHeaderField: key)
+        }
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw TraktError.invalidResponse
+        }
+
+        if http.statusCode == 401 {
+            if auth, !retryingAfterRefresh, tokens?.refreshToken != nil {
+                try await refreshTokens()
+                return try await send(
+                    method: method, path: path, params: params, body: body, auth: auth,
+                    retryingAfterRefresh: true, retryingAfterRateLimit: retryingAfterRateLimit
+                )
+            }
+            throw TraktError.authenticationRequired
+        }
+
+        if http.statusCode == 429, !retryingAfterRateLimit {
+            let retryAfter = (http.value(forHTTPHeaderField: "Retry-After")).flatMap(Double.init) ?? 1
+            let delay = min(max(retryAfter, 1), 5)
+            try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            return try await send(
+                method: method, path: path, params: params, body: body, auth: auth,
+                retryingAfterRefresh: retryingAfterRefresh, retryingAfterRateLimit: true
+            )
+        }
+
+        guard (200...299).contains(http.statusCode) else {
+            throw TraktError.httpError(statusCode: http.statusCode)
+        }
+        return (data, http)
+    }
+
     // MARK: - Authentication
 
     /// Set tokens from external source (e.g., SecureStorage)

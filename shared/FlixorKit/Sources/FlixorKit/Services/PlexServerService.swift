@@ -720,6 +720,87 @@ public class PlexServerService {
         }
     }
 
+    // MARK: - Watch State Actions
+
+    /// Mark item as unwatched (unscrobble). Works for movies, episodes, and for
+    /// seasons/shows (applies to every episode below them). Also clears the resume point.
+    public func markUnwatched(ratingKey: String) async throws {
+        try await performAction(
+            method: "GET",
+            path: "/:/unscrobble",
+            query: ["identifier": "com.plexapp.plugins.library", "key": ratingKey]
+        )
+    }
+
+    /// Hide an item from the server's Continue Watching hub without changing its
+    /// watched state (Plex Web's "Remove from Continue Watching").
+    public func removeFromContinueWatching(ratingKey: String) async throws {
+        try await performAction(
+            method: "PUT",
+            path: "/actions/removeFromContinueWatching",
+            query: ["ratingKey": ratingKey]
+        )
+    }
+
+    /// Reset the saved resume position to the start (used for "Start over").
+    /// Does not change watched state.
+    public func resetProgress(ratingKey: String) async throws {
+        try await performAction(
+            method: "GET",
+            path: "/:/progress",
+            query: [
+                "identifier": "com.plexapp.plugins.library",
+                "key": ratingKey,
+                "time": "0",
+                "state": "stopped",
+            ]
+        )
+    }
+
+    /// Drop cached metadata, children and hubs so the next read after a watch-state
+    /// change reflects the server (viewCount, viewOffset, Continue Watching).
+    /// Pattern invalidation only reaches the in-memory cache, so the entries for the
+    /// given rating keys (and the Continue Watching / On Deck hubs) are also removed
+    /// by exact key, which clears them on disk too.
+    public func invalidateWatchStateCache(ratingKeys: [String] = []) async {
+        var exactKeys = [
+            "plex:\(baseUrl)/hubs/continueWatching/items?includeGuids=1",
+            "plex:\(baseUrl)/library/onDeck",
+        ]
+        for ratingKey in Set(ratingKeys) where !ratingKey.isEmpty {
+            exactKeys.append("plex:\(baseUrl)/library/metadata/\(ratingKey)")
+            exactKeys.append("plex:\(baseUrl)/library/metadata/\(ratingKey)/children")
+        }
+        for key in exactKeys {
+            await cache.remove(key)
+        }
+        for pattern in ["library/metadata/*", "hubs/*", "library/onDeck*"] {
+            await cache.invalidatePattern("plex:\(baseUrl)/\(pattern)")
+        }
+    }
+
+    private func performAction(method: String, path: String, query: [String: String]) async throws {
+        var components = URLComponents(string: "\(baseUrl)\(path)")
+        components?.queryItems = query.sorted { $0.key < $1.key }.map { URLQueryItem(name: $0.key, value: $0.value) }
+        guard let url = components?.url else {
+            throw PlexServerError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        for (key, value) in getHeaders() {
+            request.setValue(value, forHTTPHeaderField: key)
+        }
+
+        let (_, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw PlexServerError.invalidResponse
+        }
+        guard (200...299).contains(httpResponse.statusCode) else {
+            throw PlexServerError.httpError(statusCode: httpResponse.statusCode)
+        }
+    }
+
     // MARK: - Cache Management
 
     /// Invalidate cache for this server
