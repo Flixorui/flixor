@@ -10,6 +10,7 @@ import SwiftUI
 struct PlayerSettingsView: View {
     // MARK: - Profile Settings (profile-scoped)
     @ObservedObject private var profileSettings = ProfileSettings.shared
+    @StateObject private var engineSettings = PlaybackEngineSettingsModel()
 
     // MARK: - Global Hardware Settings (device-specific, not profile-scoped)
     private let defaults = UserDefaults.standard
@@ -55,7 +56,25 @@ struct PlayerSettingsView: View {
     @State private var showMpvConfigView = false
 
     private let bufferOptions = [64, 128, 256, 512, 1024]
-    private let playbackSpeedOptions = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0]
+    private let subtitleFontOptions = [
+        "Helvetica Neue", "Arial", "Avenir Next", "Futura", "Gill Sans",
+        "Verdana", "Trebuchet MS", "Georgia", "Times New Roman", "Menlo",
+    ]
+
+    /// 0.25x-2x, plus a faster default saved by an earlier version so it stays selected.
+    private var playbackSpeedOptions: [Double] {
+        var options = PlayerViewModel.playbackSpeedPresets.map(Double.init)
+        if !options.contains(profileSettings.defaultPlaybackSpeed) {
+            options.append(profileSettings.defaultPlaybackSpeed)
+        }
+        return options.sorted()
+    }
+
+    /// Font choices, keeping a saved font that isn't in the list selectable.
+    private var subtitleFontChoices: [String] {
+        let saved = engineSettings.fontName
+        return saved.isEmpty || subtitleFontOptions.contains(saved) ? subtitleFontOptions : [saved] + subtitleFontOptions
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -169,7 +188,7 @@ struct PlayerSettingsView: View {
                 ) {
                     Picker("", selection: $profileSettings.defaultPlaybackSpeed) {
                         ForEach(playbackSpeedOptions, id: \.self) { speed in
-                            Text("\(speed, specifier: "%.2g")x").tag(speed)
+                            Text("\(speed, specifier: "%g")x").tag(speed)
                         }
                     }
                     .labelsHidden()
@@ -201,22 +220,32 @@ struct PlayerSettingsView: View {
                     icon: "captions.bubble.fill",
                     iconColor: .orange,
                     title: "Preferred Subtitle Language",
-                    subtitle: "ISO language code for subtitle auto-select"
+                    subtitle: "Used for auto-select, after languages remembered for a title"
                 ) {
-                    TextField("en", text: $profileSettings.preferredSubtitleLanguage)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 80)
+                    Picker("", selection: $profileSettings.preferredSubtitleLanguage) {
+                        ForEach(PlaybackLanguageOption.subtitleOptions(including: profileSettings.preferredSubtitleLanguage)) { option in
+                            Text(option.name).tag(option.code)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(width: 190)
+                    .accessibilityLabel("Preferred subtitle language")
                 }
 
                 SettingsRow(
                     icon: "music.note",
                     iconColor: .pink,
                     title: "Preferred Audio Language",
-                    subtitle: "ISO language code for audio auto-select"
+                    subtitle: "Used for auto-select, after languages remembered for a title"
                 ) {
-                    TextField("en", text: $profileSettings.preferredAudioLanguage)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 80)
+                    Picker("", selection: $profileSettings.preferredAudioLanguage) {
+                        ForEach(PlaybackLanguageOption.audioOptions(including: profileSettings.preferredAudioLanguage)) { option in
+                            Text(option.name).tag(option.code)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(width: 190)
+                    .accessibilityLabel("Preferred audio language")
                 }
 
                 SettingsRow(
@@ -238,11 +267,38 @@ struct PlayerSettingsView: View {
                     icon: "wand.and.stars",
                     iconColor: .teal,
                     title: "Auto-Select Subtitles",
-                    subtitle: "Automatically choose matching subtitles after playback starts",
-                    showDivider: false
+                    subtitle: "Automatically choose matching subtitles after playback starts"
                 ) {
                     Toggle("", isOn: $profileSettings.enableSubtitleAutoSelect)
                         .labelsHidden()
+                }
+
+                SettingsRow(
+                    icon: "ear.trianglebadge.exclamationmark",
+                    iconColor: .orange,
+                    title: "Remove Hearing-Impaired Text",
+                    subtitle: "Strip captions such as [MUSIC] and speaker names from text subtitles"
+                ) {
+                    Toggle("", isOn: $engineSettings.filterSDH)
+                        .labelsHidden()
+                        .accessibilityLabel("Remove hearing-impaired text from subtitles")
+                }
+
+                SettingsRow(
+                    icon: "aspectratio",
+                    iconColor: .blue,
+                    title: "Video Aspect",
+                    subtitle: "How video fills the player",
+                    showDivider: false
+                ) {
+                    Picker("", selection: $engineSettings.aspectMode) {
+                        ForEach(PlayerAspectMode.allCases) { mode in
+                            Text(mode.displayName).tag(mode)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(width: 110)
+                    .accessibilityLabel("Video aspect mode")
                 }
             }
 
@@ -293,6 +349,23 @@ struct PlayerSettingsView: View {
             // Subtitle Styling - PROFILE-SCOPED
             SettingsCard(title: "Subtitle Styling") {
                 SettingsRow(
+                    icon: "textformat",
+                    iconColor: .blue,
+                    title: "Font",
+                    subtitle: "Applies to plain text subtitles"
+                ) {
+                    Picker("", selection: $engineSettings.fontName) {
+                        Text("Default").tag("")
+                        ForEach(subtitleFontChoices, id: \.self) { font in
+                            Text(font).tag(font)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(width: 170)
+                    .accessibilityLabel("Subtitle font")
+                }
+
+                SettingsRow(
                     icon: "textformat.size",
                     iconColor: .blue,
                     title: "Font Size",
@@ -300,6 +373,40 @@ struct PlayerSettingsView: View {
                 ) {
                     Stepper("\(profileSettings.subtitleFontSize)", value: $profileSettings.subtitleFontSize, in: 12...80, step: 5)
                         .frame(width: 80)
+                }
+
+                SettingsRow(
+                    icon: "bold",
+                    iconColor: .blue,
+                    title: "Bold"
+                ) {
+                    Toggle("", isOn: $engineSettings.bold)
+                        .labelsHidden()
+                        .accessibilityLabel("Bold subtitles")
+                }
+
+                SettingsRow(
+                    icon: "arrow.up.and.down",
+                    iconColor: .blue,
+                    title: "Vertical Position",
+                    subtitle: "100 is the bottom of the picture; lower values move subtitles up"
+                ) {
+                    HStack(spacing: 8) {
+                        Slider(
+                            value: Binding(
+                                get: { Double(engineSettings.position) },
+                                set: { engineSettings.position = Int($0) }
+                            ),
+                            in: 50...100,
+                            step: 1
+                        )
+                        .frame(width: 100)
+                        .accessibilityLabel("Subtitle vertical position")
+                        Text("\(engineSettings.position)")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 35, alignment: .trailing)
+                    }
                 }
 
                 SettingsRow(
@@ -390,39 +497,48 @@ struct PlayerSettingsView: View {
         .sheet(isPresented: $showMpvConfigView) {
             MpvConfigView()
         }
-        .onAppear(perform: loadColors)
+        .onAppear {
+            engineSettings.reload()
+            loadColors()
+        }
         .onChange(of: subtitleTextColor) { newColor in
-            saveColor(newColor, forKey: "subtitleTextColor")
+            let hex = newColor.toHex()
+            guard hex != defaults.subtitleTextColor else { return }
+            defaults.subtitleTextColor = hex
+            PlaybackEngineSettingsModel.notifyPlayer()
         }
         .onChange(of: subtitleBorderColor) { newColor in
-            saveColor(newColor, forKey: "subtitleBorderColor")
+            let hex = newColor.toHex()
+            guard hex != defaults.subtitleBorderColor else { return }
+            defaults.subtitleBorderColor = hex
+            PlaybackEngineSettingsModel.notifyPlayer()
         }
         .onChange(of: subtitleBackgroundColor) { newColor in
-            saveColor(newColor, forKey: "subtitleBackgroundColor")
+            let hex = newColor.toHex()
+            guard hex != defaults.subtitleBackgroundColor else { return }
+            defaults.subtitleBackgroundColor = hex
+            PlaybackEngineSettingsModel.notifyPlayer()
         }
+        .onChange(of: profileSettings.subtitleFontSize) { _ in PlaybackEngineSettingsModel.notifyPlayer() }
+        .onChange(of: profileSettings.subtitleBorderSize) { _ in PlaybackEngineSettingsModel.notifyPlayer() }
+        .onChange(of: profileSettings.subtitleBackgroundOpacity) { _ in PlaybackEngineSettingsModel.notifyPlayer() }
     }
 
     // MARK: - Color Helpers
 
     private func loadColors() {
-        subtitleTextColor = loadColor(forKey: "subtitleTextColor", default: .white)
-        subtitleBorderColor = loadColor(forKey: "subtitleBorderColor", default: .black)
-        subtitleBackgroundColor = loadColor(forKey: "subtitleBackgroundColor", default: .black)
-    }
-
-    private func loadColor(forKey key: String, default defaultColor: Color) -> Color {
-        guard let hex = UserDefaults.standard.string(forKey: key) else { return defaultColor }
-        return Color(hex: hex)
-    }
-
-    private func saveColor(_ color: Color, forKey key: String) {
-        UserDefaults.standard.set(color.toHex(), forKey: key)
+        subtitleTextColor = Color(hex: defaults.subtitleTextColor)
+        subtitleBorderColor = Color(hex: defaults.subtitleBorderColor)
+        subtitleBackgroundColor = Color(hex: defaults.subtitleBackgroundColor)
     }
 
     private func resetToDefaults() {
-        UserDefaults.standard.resetPlayerSettings()
+        defaults.resetPlayerSettings()
+        defaults.resetPlaybackEngineSettings()
+        engineSettings.reload()
         // Reload colors after reset
         loadColors()
+        PlaybackEngineSettingsModel.notifyPlayer()
     }
 }
 
