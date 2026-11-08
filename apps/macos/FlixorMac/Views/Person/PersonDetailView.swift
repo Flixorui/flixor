@@ -10,6 +10,7 @@
 import SwiftUI
 
 struct PersonDetailView: View {
+    @ObservedObject private var profileSettings = ProfileSettings.shared
     @StateObject private var viewModel: PersonDetailViewModel
     @EnvironmentObject private var router: NavigationRouter
     @EnvironmentObject private var mainViewState: MainViewState
@@ -131,7 +132,7 @@ struct PersonDetailView: View {
     private func creditsColumn(width: CGFloat) -> some View {
         let grid = PosterGridLayout(
             availableWidth: width,
-            minItemWidth: metrics.posterWidth(base: 150),
+            minItemWidth: metrics.posterWidth(designWidth: 150, storedSize: profileSettings.posterSize),
             spacing: DS.Space.s16
         )
         VStack(alignment: .leading, spacing: DS.Space.sectionGap) {
@@ -156,7 +157,7 @@ struct PersonDetailView: View {
     }
 
     private var knownForSection: some View {
-        let cardWidth = metrics.posterWidth(base: 140)
+        let cardWidth = metrics.posterWidth(designWidth: 140, storedSize: profileSettings.posterSize)
         return VStack(alignment: .leading, spacing: DS.Space.s14) {
             Text("Known for")
                 .flixorFont(.title2)

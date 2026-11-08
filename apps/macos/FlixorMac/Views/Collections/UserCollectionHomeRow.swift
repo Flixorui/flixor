@@ -45,7 +45,7 @@ struct UserCollectionHomeRow: View {
         switch state {
         case .loading:
             SkeletonCarouselRow(
-                itemWidth: isPosterLayout ? 160 : 420,
+                itemWidth: isPosterLayout ? metrics.posterWidth(designWidth: 160, storedSize: profileSettings.posterSize) : 420,
                 itemCount: isPosterLayout ? 6 : 4,
                 cardType: isPosterLayout ? .poster : .landscape
             )

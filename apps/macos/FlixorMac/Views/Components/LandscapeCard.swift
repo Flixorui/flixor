@@ -17,6 +17,7 @@ struct LandscapeCard: View {
     @State private var isHovered = false
     @State private var altURL: URL? = nil
     @ObservedObject private var cardStyle = CardStyleStore.shared
+    @Environment(\.flixorTheme) private var theme
 
     private var height: CGFloat {
         width * 0.5 // 2:1 aspect to match web rows
@@ -112,7 +113,7 @@ struct LandscapeCard: View {
                                     .frame(height: 6)
 
                                 Rectangle()
-                                    .fill(Color(red: 229/255, green: 9/255, blue: 20/255))
+                                    .fill(theme.accent)
                                     .frame(width: geometry.size.width * CGFloat(min(100, max(0, progressPercentage))) / 100.0, height: 6)
                             }
                         }

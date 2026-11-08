@@ -9,6 +9,8 @@ import SwiftUI
 import FlixorKit
 
 struct MyListView: View {
+    @ObservedObject private var profileSettings = ProfileSettings.shared
+    @Environment(\.windowMetrics) private var metrics
     @EnvironmentObject private var watchlistController: WatchlistController
     @EnvironmentObject private var router: NavigationRouter
     @EnvironmentObject private var mainViewState: MainViewState
@@ -20,7 +22,9 @@ struct MyListView: View {
 
     private let horizontalPadding: CGFloat = 64
     private let gridSpacing: CGFloat = 18
-    private let minGridItemWidth: CGFloat = 180
+    private var minGridItemWidth: CGFloat {
+        metrics.posterWidth(designWidth: 180, storedSize: profileSettings.posterSize)
+    }
 
     var body: some View {
         VStack(spacing: 0) {

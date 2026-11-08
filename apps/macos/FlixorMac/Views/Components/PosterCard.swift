@@ -21,6 +21,7 @@ struct PosterCard: View {
 
     @State private var isHovered = false
     @ObservedObject private var cardStyle = CardStyleStore.shared
+    @Environment(\.flixorTheme) private var theme
 
     private var height: CGFloat {
         width * 1.5 // 2:3 aspect ratio
@@ -103,7 +104,7 @@ struct PosterCard: View {
                                         .frame(height: 4)
 
                                     Rectangle()
-                                        .fill(Color.red)
+                                        .fill(theme.accent)
                                         .frame(width: geometry.size.width * progressPercentage, height: 4)
                                 }
                             }

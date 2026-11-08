@@ -384,17 +384,24 @@ struct SearchHorizontalRow: View {
     let items: [SearchViewModel.SearchResult]
     let onTap: (SearchViewModel.SearchResult) -> Void
 
+    @ObservedObject private var profileSettings = ProfileSettings.shared
+    @Environment(\.windowMetrics) private var metrics
+
+    private var posterWidth: CGFloat {
+        metrics.posterWidth(designWidth: 150, storedSize: profileSettings.posterSize)
+    }
+
     var body: some View {
         CarouselRow(
             title: title,
             items: items,
-            itemWidth: 150,
+            itemWidth: posterWidth,
             spacing: 14,
-            rowHeight: (150 * 1.5) + 68
+            rowHeight: (posterWidth * 1.5) + 68
         ) { item in
             PosterCard(
                 item: item.asMediaItem(),
-                width: 150,
+                width: posterWidth,
                 topTrailingOverlay: item.available ? AnyView(AvailableBadge().padding(DS.Space.s6)) : nil
             ) {
                 onTap(item)
@@ -512,7 +519,20 @@ struct SearchPlaceholderView: View {
 // MARK: - Search Background
 
 struct SearchBackground: View {
+    @Environment(\.flixorTheme) private var theme
+
     var body: some View {
+        ZStack {
+            if theme.pureBlack {
+                Color.black
+            } else {
+                tintedBackground
+            }
+        }
+        .ignoresSafeArea()
+    }
+
+    private var tintedBackground: some View {
         ZStack {
             // Base gradient
             LinearGradient(
@@ -547,7 +567,6 @@ struct SearchBackground: View {
                 endRadius: 600
             )
         }
-        .ignoresSafeArea()
     }
 }
 
