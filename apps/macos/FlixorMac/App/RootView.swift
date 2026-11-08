@@ -222,6 +222,7 @@ struct MainView: View {
                 HomeView()
                     .navigationDestinations()
             }
+            .pushAppearance(depth: router.homePath.count)
             .id(contentRefreshId) // Only changes on profile switch, not tab switch
             .opacity(mainViewState.selectedTab == .home ? 1 : 0)
             .zIndex(mainViewState.selectedTab == .home ? 1 : 0)
@@ -231,6 +232,7 @@ struct MainView: View {
                 SearchView()
                     .navigationDestinations()
             }
+            .pushAppearance(depth: router.searchPath.count)
             .opacity(mainViewState.selectedTab == .search ? 1 : 0)
             .zIndex(mainViewState.selectedTab == .search ? 1 : 0)
 
@@ -241,6 +243,7 @@ struct MainView: View {
                     LibraryView()
                         .navigationDestinations()
                 }
+                .pushAppearance(depth: router.libraryPath.count)
                 .opacity(mainViewState.selectedTab == .library ? 1 : 0)
                 .zIndex(mainViewState.selectedTab == .library ? 1 : 0)
             }
@@ -250,6 +253,7 @@ struct MainView: View {
                 MyListView()
                     .navigationDestinations()
             }
+            .pushAppearance(depth: router.myListPath.count)
             .opacity(mainViewState.selectedTab == .myList ? 1 : 0)
             .zIndex(mainViewState.selectedTab == .myList ? 1 : 0)
 
@@ -259,6 +263,7 @@ struct MainView: View {
                     NewPopularView()
                         .navigationDestinations()
                 }
+                .pushAppearance(depth: router.newPopularPath.count)
                 .opacity(mainViewState.selectedTab == .newPopular ? 1 : 0)
                 .zIndex(mainViewState.selectedTab == .newPopular ? 1 : 0)
             }
@@ -269,6 +274,7 @@ struct MainView: View {
                     DownloadsView()
                         .navigationDestinations()
                 }
+                .pushAppearance(depth: router.downloadsPath.count)
                 .opacity(mainViewState.selectedTab == .downloads ? 1 : 0)
                 .zIndex(mainViewState.selectedTab == .downloads ? 1 : 0)
             }

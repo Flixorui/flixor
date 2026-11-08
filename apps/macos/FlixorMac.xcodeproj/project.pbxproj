@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		2EDE88F523E6185683249403 /* PushAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B8CD4810021E96EF6541D9A /* PushAppearance.swift */; };
 		8128F2E8FEA678E2F1F9F1D3 /* BackNavigationController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F506BDDF8EAE3FF0B60840DC /* BackNavigationController.swift */; };
 		81589FE15E5F3A60DF37596B /* WatchStateService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46D031E0858D60EF3A8C739E /* WatchStateService.swift */; };
 		63AA8F5C8099B3513A6C3852 /* TraktListsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC85992E13EE4C4C1C8C2704 /* TraktListsService.swift */; };
@@ -203,6 +204,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		9B8CD4810021E96EF6541D9A /* PushAppearance.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Navigation/PushAppearance.swift; sourceTree = "<group>"; };
 		F506BDDF8EAE3FF0B60840DC /* BackNavigationController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Navigation/BackNavigationController.swift; sourceTree = "<group>"; };
 		46D031E0858D60EF3A8C739E /* WatchStateService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchStateService.swift; sourceTree = "<group>"; };
 		EC85992E13EE4C4C1C8C2704 /* TraktListsService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TraktListsService.swift; sourceTree = "<group>"; };
@@ -500,6 +502,7 @@
 		D005 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				9B8CD4810021E96EF6541D9A /* PushAppearance.swift */,
 				F506BDDF8EAE3FF0B60840DC /* BackNavigationController.swift */,
 				D010 /* Auth */,
 				D011 /* Components */,
@@ -942,6 +945,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2EDE88F523E6185683249403 /* PushAppearance.swift in Sources */,
 				8128F2E8FEA678E2F1F9F1D3 /* BackNavigationController.swift in Sources */,
 				81589FE15E5F3A60DF37596B /* WatchStateService.swift in Sources */,
 				63AA8F5C8099B3513A6C3852 /* TraktListsService.swift in Sources */,
