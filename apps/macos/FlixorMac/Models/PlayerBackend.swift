@@ -2,34 +2,16 @@
 //  PlayerBackend.swift
 //  FlixorMac
 //
-//  Player backend selection
+//  Legacy player backend preference. Playback always uses MPV on macOS;
+//  the AVPlayer backend was removed. This minimal definition remains only
+//  so RootView can migrate an old stored "AVPlayer" value to MPV.
 //
 
 import Foundation
 
-enum PlayerBackend: String, CaseIterable, Identifiable {
+enum PlayerBackend: String {
     case avplayer = "AVPlayer"
     case mpv = "MPV"
-
-    var id: String { rawValue }
-
-    var displayName: String {
-        switch self {
-        case .avplayer:
-            return "AVPlayer (Native)"
-        case .mpv:
-            return "MPV (Advanced)"
-        }
-    }
-
-    var description: String {
-        switch self {
-        case .avplayer:
-            return "Apple's native player. Best for standard formats."
-        case .mpv:
-            return "Advanced player with broader codec support."
-        }
-    }
 }
 
 // UserDefaults extension for player backend preference

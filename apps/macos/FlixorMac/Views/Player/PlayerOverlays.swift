@@ -1,0 +1,311 @@
+//
+//  PlayerOverlays.swift
+//  FlixorMac
+//
+//  Player overlays: loading/error states, skip-marker button, next-episode countdown and hover card
+//
+
+import SwiftUI
+
+// MARK: - Loading Overlay
+
+struct PlayerLoadingOverlay: View {
+    @ObservedObject var viewModel: PlayerViewModel
+
+    var body: some View {
+        VStack(spacing: 12) {
+            ProgressView()
+                .scaleEffect(1.5)
+                .tint(.white)
+
+            // Show quality change message if applicable
+            if viewModel.isChangingQuality {
+                VStack(spacing: 4) {
+                    Text("Switching to \(viewModel.selectedQuality.rawValue)")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(.white)
+
+                    if viewModel.isTranscoding {
+                        Text("Starting transcode...")
+                            .font(.system(size: 13))
+                            .foregroundStyle(.white.opacity(0.7))
+                    } else {
+                        Text("Loading direct play...")
+                            .font(.system(size: 13))
+                            .foregroundStyle(.white.opacity(0.7))
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Error Overlay
+
+struct PlayerErrorOverlay: View {
+    let message: String
+    let onClose: () -> Void
+    let onRetry: () -> Void
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 48))
+                .foregroundStyle(.orange)
+
+            Text("Playback Error")
+                .font(.title2.bold())
+                .foregroundStyle(.white)
+
+            Text(message)
+                .font(.body)
+                .foregroundStyle(.white.opacity(0.8))
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 40)
+
+            HStack(spacing: 12) {
+                Button("Close") {
+                    onClose()
+                }
+                .buttonStyle(.bordered)
+
+                Button("Retry") {
+                    onRetry()
+                }
+                .buttonStyle(.borderedProminent)
+            }
+        }
+    }
+}
+
+// MARK: - Skip Intro Button (Plezy Style)
+
+struct SkipIntroButton: View {
+    @ObservedObject var viewModel: PlayerViewModel
+    let marker: PlayerMarker
+
+    var body: some View {
+        VStack {
+            Spacer()
+            HStack {
+                Spacer()
+                Button(action: {
+                    viewModel.skipMarker()
+                }) {
+                    HStack(spacing: 8) {
+                        if let countdown = viewModel.autoSkipCountdown, countdown > 0 {
+                            Text("Skip Intro (\(countdown))")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(.black)
+                        } else {
+                            Text("Skip Intro")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(.black)
+                        }
+                        Image(systemName: "forward.fill")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(.black)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(Color.white.opacity(0.9))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .shadow(color: .black.opacity(0.3), radius: 8, y: 2)
+                }
+                .buttonStyle(.plain)
+                .padding(.trailing, 24)
+                .padding(.bottom, 115)
+            }
+        }
+    }
+}
+
+// MARK: - Next Episode Overlay (Plezy Style)
+
+struct NextEpisodeOverlay: View {
+    let episode: EpisodeMetadata
+    let countdown: Int
+    let onCancel: () -> Void
+    let onPlayNow: () -> Void
+
+    var body: some View {
+        VStack {
+            Spacer()
+            HStack {
+                Spacer()
+                VStack(alignment: .leading, spacing: 12) {
+                    // Header
+                    Text("Next Episode")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.7))
+
+                    // Episode info
+                    if let parentIndex = episode.parentIndex, let index = episode.index {
+                        Text("S\(parentIndex) E\(index) · \(episode.title)")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .lineLimit(2)
+                    } else {
+                        Text(episode.title)
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .lineLimit(2)
+                    }
+
+                    // Action buttons
+                    HStack(spacing: 8) {
+                        // Cancel button (outlined)
+                        Button(action: onCancel) {
+                            Text("Cancel")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundStyle(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                                .background(Color.clear)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .stroke(Color.white.opacity(0.5), lineWidth: 1)
+                                )
+                        }
+                        .buttonStyle(.plain)
+
+                        // Play button (filled white with countdown)
+                        Button(action: onPlayNow) {
+                            HStack(spacing: 4) {
+                                if countdown > 0 {
+                                    Text("\(countdown)")
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundStyle(.black)
+                                    Image(systemName: "play.fill")
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundStyle(.black)
+                                } else {
+                                    Text("Play Now")
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundStyle(.black)
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(Color.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(16)
+                .frame(width: 320)
+                .background(Color.black.opacity(0.9))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .padding(.trailing, 24)
+                .padding(.bottom, 100)
+            }
+        }
+    }
+}
+
+// MARK: - Next Episode Hover Card
+
+struct NextEpisodeHoverCard: View {
+    let episode: EpisodeMetadata
+    @ObservedObject var viewModel: PlayerViewModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Header
+            Text("Next Episode")
+                .font(.system(size: 16, weight: .bold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.white.opacity(0.05))
+
+            // Content grid
+            HStack(spacing: 12) {
+                // Episode thumbnail with play icon overlay
+                ZStack {
+                    // Thumbnail
+                    if let thumbPath = episode.thumb,
+                       let imageURL = ImageService.shared.plexImageURL(path: thumbPath, width: 320, height: 180) {
+                        CachedAsyncImage(url: imageURL)
+                            .frame(width: 180, height: 100)
+                            .background(Color.black.opacity(0.4))
+                    } else {
+                        Rectangle()
+                            .fill(Color.black.opacity(0.4))
+                            .frame(width: 180, height: 100)
+                    }
+
+                    // Play icon overlay
+                    ZStack {
+                        Circle()
+                            .fill(Color.black.opacity(0.5))
+                            .frame(width: 40, height: 40)
+                            .overlay(
+                                Circle()
+                                    .strokeBorder(Color.white.opacity(0.2), lineWidth: 1)
+                            )
+
+                        // Play icon
+                        Path { path in
+                            let scale: CGFloat = 1.6
+                            path.move(to: CGPoint(x: 5 * scale, y: 2.69127 * scale))
+                            path.addCurve(
+                                to: CGPoint(x: 5 * scale, y: 21.3087 * scale),
+                                control1: CGPoint(x: 5 * scale, y: 1.93067 * scale),
+                                control2: CGPoint(x: 5 * scale, y: 22.0693 * scale)
+                            )
+                            path.addCurve(
+                                to: CGPoint(x: 23.4069 * scale, y: 12.8762 * scale),
+                                control1: CGPoint(x: 5.81546 * scale, y: 22.5515 * scale),
+                                control2: CGPoint(x: 24.0977 * scale, y: 12.4963 * scale)
+                            )
+                            path.addLine(to: CGPoint(x: 6.48192 * scale, y: 1.81506 * scale))
+                            path.closeSubpath()
+                        }
+                        .fill(Color.white)
+                        .frame(width: 24, height: 24)
+                    }
+                }
+                .frame(width: 180, height: 100)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+
+                // Episode info
+                VStack(alignment: .leading, spacing: 4) {
+                    // Season and Episode number (compact)
+                    if let parentIndex = episode.parentIndex, let index = episode.index {
+                        Text("\(parentIndex) Episode \(index)")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.9))
+                    }
+
+                    // Episode title
+                    Text(episode.title)
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+
+                    // Episode summary
+                    if let summary = episode.summary {
+                        Text(summary)
+                            .font(.system(size: 12))
+                            .foregroundStyle(.white.opacity(0.8))
+                            .lineSpacing(2)
+                            .lineLimit(3)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(12)
+        }
+        .frame(width: 440)
+        .background(Color.black.opacity(0.9))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(Color.white.opacity(0.1), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.3), radius: 20, y: 8)
+    }
+}

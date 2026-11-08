@@ -1,0 +1,360 @@
+//
+//  PlayerEpisodesAndChaptersPanels.swift
+//  FlixorMac
+//
+//  Episode list and chapter list panels shown over the player
+//
+
+import SwiftUI
+
+// MARK: - Episodes List Panel
+
+struct EpisodesListPanel: View {
+    let episodes: [EpisodeMetadata]
+    let currentEpisodeKey: String
+    let onSelectEpisode: (EpisodeMetadata) -> Void
+    let onClose: () -> Void
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.5)
+                .ignoresSafeArea()
+                .onTapGesture { onClose() }
+
+            VStack {
+                Spacer()
+                HStack {
+                    Spacer()
+                    panelContent
+                }
+            }
+        }
+    }
+
+    private var panelContent: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Header
+            HStack {
+                Text("Episodes")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.white)
+
+                Spacer()
+
+                Button(action: onClose) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.6))
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+
+            Divider().background(Color.white.opacity(0.1))
+
+            // Episodes List
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(spacing: 2) {
+                        ForEach(episodes) { episode in
+                            EpisodeListRow(
+                                episode: episode,
+                                isCurrentEpisode: episode.ratingKey == currentEpisodeKey,
+                                onSelect: { onSelectEpisode(episode) }
+                            )
+                            .id(episode.ratingKey)
+                        }
+                    }
+                    .padding(8)
+                }
+                .onAppear {
+                    proxy.scrollTo(currentEpisodeKey, anchor: .center)
+                }
+            }
+            .frame(maxHeight: 350)
+        }
+        .frame(width: 360)
+        .background(Color.black.opacity(0.95))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
+        .shadow(color: .black.opacity(0.5), radius: 30, y: 10)
+        .padding(.trailing, 32)
+        .padding(.bottom, 140)
+    }
+}
+
+private struct EpisodeListRow: View {
+    let episode: EpisodeMetadata
+    let isCurrentEpisode: Bool
+    let onSelect: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: onSelect) {
+            HStack(spacing: 12) {
+                // Episode number with progress indicator
+                ZStack {
+                    Circle()
+                        .fill(progressColor)
+                        .frame(width: 32, height: 32)
+
+                    if let progress = episode.progressPercent, progress > 0, progress < 95 {
+                        Circle()
+                            .trim(from: 0, to: CGFloat(progress) / 100.0)
+                            .stroke(Color.accentColor, lineWidth: 2)
+                            .frame(width: 32, height: 32)
+                            .rotationEffect(.degrees(-90))
+                    }
+
+                    if let index = episode.index {
+                        Text("\(index)")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(isCurrentEpisode ? .white : .white.opacity(0.8))
+                    }
+                }
+
+                // Thumbnail
+                ZStack {
+                    if let thumbPath = episode.thumb,
+                       let imageURL = ImageService.shared.plexImageURL(path: thumbPath, width: 200, height: 112) {
+                        CachedAsyncImage(url: imageURL)
+                            .frame(width: 100, height: 56)
+                    } else {
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color.white.opacity(0.1))
+                            .frame(width: 100, height: 56)
+                    }
+
+                    // Hover play overlay
+                    if isHovered {
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color.black.opacity(0.4))
+                            .frame(width: 100, height: 56)
+
+                        Image(systemName: "play.fill")
+                            .font(.system(size: 20))
+                            .foregroundStyle(.white)
+                    }
+                }
+                .frame(width: 100, height: 56)
+                .clipShape(RoundedRectangle(cornerRadius: 4))
+
+                // Episode info
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(episode.title)
+                        .font(.system(size: 13, weight: isCurrentEpisode ? .semibold : .regular))
+                        .foregroundStyle(isCurrentEpisode ? .white : .white.opacity(0.85))
+                        .lineLimit(1)
+
+                    HStack(spacing: 6) {
+                        if let duration = episode.duration {
+                            Text("\(duration / 60000) min")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.white.opacity(0.5))
+                        }
+
+                        if let progress = episode.progressPercent, progress >= 95 {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.green.opacity(0.8))
+                        }
+                    }
+                }
+
+                Spacer()
+
+                if isCurrentEpisode {
+                    Image(systemName: "play.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(Color.accentColor)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(isCurrentEpisode ? Color.white.opacity(0.1) : (isHovered ? Color.white.opacity(0.05) : Color.clear))
+            )
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+    }
+
+    private var progressColor: Color {
+        if let progress = episode.progressPercent {
+            if progress >= 95 {
+                return Color.accentColor.opacity(0.3)
+            } else if progress > 0 {
+                return Color.white.opacity(0.15)
+            }
+        }
+        return Color.white.opacity(0.1)
+    }
+}
+
+// MARK: - Chapters Panel
+
+struct ChaptersPanel: View {
+    @ObservedObject var viewModel: PlayerViewModel
+    let onClose: () -> Void
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.5)
+                .ignoresSafeArea()
+                .onTapGesture { onClose() }
+
+            VStack {
+                Spacer()
+                HStack {
+                    Spacer()
+                    panelContent
+                }
+            }
+        }
+    }
+
+    private var panelContent: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Header
+            HStack {
+                Text("Chapters")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.white)
+                Spacer()
+                Button(action: onClose) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.6))
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+
+            Divider().background(Color.white.opacity(0.1))
+
+            // Chapters List
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(spacing: 2) {
+                        ForEach(viewModel.chapters) { chapter in
+                            ChapterListRow(
+                                chapter: chapter,
+                                isCurrent: chapter.index == viewModel.currentChapterIndex,
+                                progress: calculateProgress(for: chapter)
+                            ) {
+                                viewModel.seekToChapter(chapter.index)
+                            }
+                            .id(chapter.index)
+                        }
+                    }
+                    .padding(8)
+                }
+                .onAppear {
+                    if let currentIndex = viewModel.currentChapterIndex {
+                        proxy.scrollTo(currentIndex, anchor: .center)
+                    }
+                }
+            }
+            .frame(maxHeight: 350)
+        }
+        .frame(width: 320)
+        .background(Color.black.opacity(0.95))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
+        .shadow(color: .black.opacity(0.5), radius: 30, y: 10)
+        .padding(.trailing, 32)
+        .padding(.bottom, 140)
+    }
+
+    private func calculateProgress(for chapter: MPVChapter) -> Double? {
+        guard let currentIndex = viewModel.currentChapterIndex else { return nil }
+        if chapter.index < currentIndex {
+            return 1.0 // Completed
+        } else if chapter.index == currentIndex {
+            let chapterStart = chapter.time
+            let nextChapterStart = viewModel.chapters.count > chapter.index + 1
+                ? viewModel.chapters[chapter.index + 1].time
+                : viewModel.duration
+            let chapterDuration = nextChapterStart - chapterStart
+            guard chapterDuration > 0 else { return 0 }
+            return min(1.0, max(0, (viewModel.currentTime - chapterStart) / chapterDuration))
+        }
+        return nil
+    }
+}
+
+private struct ChapterListRow: View {
+    let chapter: MPVChapter
+    let isCurrent: Bool
+    let progress: Double?
+    let action: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                // Chapter number with progress indicator
+                ZStack {
+                    Circle()
+                        .fill(progressColor)
+                        .frame(width: 28, height: 28)
+
+                    if let progress = progress, progress < 1.0 && progress > 0 {
+                        Circle()
+                            .trim(from: 0, to: progress)
+                            .stroke(Color.accentColor, lineWidth: 2)
+                            .frame(width: 28, height: 28)
+                            .rotationEffect(.degrees(-90))
+                    }
+
+                    Text("\(chapter.index + 1)")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(isCurrent ? .white : .white.opacity(0.8))
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(chapter.displayName)
+                        .font(.system(size: 13, weight: isCurrent ? .semibold : .regular))
+                        .foregroundStyle(isCurrent ? .white : .white.opacity(0.85))
+                        .lineLimit(1)
+
+                    Text(chapter.formattedTime)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.5))
+                }
+
+                Spacer()
+
+                if isCurrent {
+                    Image(systemName: "play.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(Color.accentColor)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(isCurrent ? Color.white.opacity(0.1) : (isHovered ? Color.white.opacity(0.05) : Color.clear))
+            )
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+    }
+
+    private var progressColor: Color {
+        if let progress = progress {
+            if progress >= 1.0 {
+                return Color.accentColor.opacity(0.3)
+            } else if progress > 0 {
+                return Color.white.opacity(0.15)
+            }
+        }
+        return Color.white.opacity(0.1)
+    }
+}
