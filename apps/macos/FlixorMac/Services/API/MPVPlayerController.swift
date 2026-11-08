@@ -54,6 +54,10 @@ class MPVPlayerController {
     /// Callback for HDR detection (sig-peak based)
     var onHDRDetected: ((Bool, Double) -> Void)?
 
+    /// Called (main thread) when mpv starts showing a subtitle cue. Set by the
+    /// view model to collect recent cues of embedded tracks for cue-based sync.
+    var onSubtitleCueShown: ((MPVShownSubtitleCue) -> Void)?
+
     /// Callback for thumbnail info updates
     var onThumbnailInfo: ((ThumbnailInfo) -> Void)?
 
@@ -267,6 +271,9 @@ class MPVPlayerController {
         mpv_observe_property(mpv, 0, "video-params/sig-peak", MPV_FORMAT_DOUBLE)
         mpv_observe_property(mpv, 0, "video-params/gamma", MPV_FORMAT_STRING)
         mpv_observe_property(mpv, 0, "video-params/primaries", MPV_FORMAT_STRING)
+
+        // Current subtitle text, used to collect recently shown cues (cue-based sync)
+        mpv_observe_property(mpv, 0, "sub-text", MPV_FORMAT_STRING)
 
         // Observe thumbfast-info property for thumbnail metadata
         mpv_observe_property(mpv, 0, "user-data/thumbfast-info", MPV_FORMAT_STRING)
@@ -676,6 +683,22 @@ class MPVPlayerController {
                     if value.format == MPV_FORMAT_FLAG {
                         track.external = value.u.flag != 0
                     }
+                case "default":
+                    if value.format == MPV_FORMAT_FLAG {
+                        track.isDefault = value.u.flag != 0
+                    }
+                case "forced":
+                    if value.format == MPV_FORMAT_FLAG {
+                        track.forced = value.u.flag != 0
+                    }
+                case "hearing-impaired":
+                    if value.format == MPV_FORMAT_FLAG {
+                        track.hearingImpaired = value.u.flag != 0
+                    }
+                case "external-filename":
+                    if value.format == MPV_FORMAT_STRING, let str = value.u.string {
+                        track.externalFilename = String(cString: str)
+                    }
                 default:
                     break
                 }
@@ -789,6 +812,26 @@ class MPVPlayerController {
         } else if let stringValue = value as? String {
             mpv_set_property_string(mpv, name, stringValue)
         }
+    }
+
+    /// Double property, or nil when mpv has no value (e.g. `sub-start` without a current cue).
+    /// Unlike `getProperty(_:type: .double)`, failures are not reported as 0.
+    func getPropertyIfAvailable(_ name: String) -> Double? {
+        guard mpv != nil else { return nil }
+        var value: Double = 0
+        return mpv_get_property(mpv, name, MPV_FORMAT_DOUBLE, &value) >= 0 ? value : nil
+    }
+
+    /// Sets a property, trying each name in order until mpv accepts one
+    /// (for options renamed between mpv versions). Returns false if none was accepted.
+    @discardableResult
+    private func setPropertyString(firstAccepted names: [String], _ value: String) -> Bool {
+        guard mpv != nil else { return false }
+        for name in names where mpv_set_property_string(mpv, name, value) >= 0 {
+            return true
+        }
+        print("⚠️ [MPV] None of \(names) accepted value \(value)")
+        return false
     }
 
     private func setOption(_ name: String, value: String) {
@@ -919,6 +962,22 @@ class MPVPlayerController {
                 }
             }
 
+            // Subtitle cue shown: read its timing on this (event) queue while it is current
+            if propertyName == "sub-text", let text = value as? String,
+               !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+               onSubtitleCueShown != nil {
+                let start: Double? = getPropertyIfAvailable("sub-start")
+                let end: Double? = getPropertyIfAvailable("sub-end")
+                let playback: Double? = getPropertyIfAvailable("time-pos")
+                let delay: Double = getPropertyIfAvailable("sub-delay") ?? 0
+                if let start, let playback {
+                    let shown = MPVShownSubtitleCue(text: text, start: start, end: end, playbackTime: playback, subDelay: delay)
+                    DispatchQueue.main.async { [weak self] in
+                        self?.onSubtitleCueShown?(shown)
+                    }
+                }
+            }
+
             // Check for thumbfast-info updates
             if propertyName == "user-data/thumbfast-info", let jsonString = value as? String {
                 self.parseThumbnailInfo(jsonString)
@@ -1019,6 +1078,7 @@ class MPVPlayerController {
         onPropertyChange = nil
         onEvent = nil
         onHDRDetected = nil
+        onSubtitleCueShown = nil
 
         // Clear wakeup callback before draining events
         if let mpv = mpv {
@@ -1203,28 +1263,105 @@ class MPVPlayerController {
 
     /// Set subtitle font size
     func setSubtitleFontSize(_ size: Int) {
+        guard mpv != nil else { return }
         mpv_set_property_string(mpv, "sub-font-size", "\(size)")
     }
 
-    /// Set subtitle text color (hex string like "FFFFFF")
+    /// Set subtitle text color (hex string like "FFFFFF" or "#FFFFFF")
     func setSubtitleColor(_ color: String) {
-        mpv_set_property_string(mpv, "sub-color", "#\(color)")
+        guard mpv != nil else { return }
+        mpv_set_property_string(mpv, "sub-color", Self.mpvColor(color))
     }
 
-    /// Set subtitle border size
+    /// Set subtitle border (outline) size. mpv 0.38 renamed sub-border-* to sub-outline-*.
     func setSubtitleBorderSize(_ size: Double) {
-        var value = size
-        mpv_set_property(mpv, "sub-border-size", MPV_FORMAT_DOUBLE, &value)
+        setPropertyString(firstAccepted: ["sub-outline-size", "sub-border-size"], String(format: "%.2f", size))
     }
 
-    /// Set subtitle border color (hex string)
+    /// Set subtitle border (outline) color (hex string "RRGGBB", "#RRGGBB" or "#AARRGGBB")
     func setSubtitleBorderColor(_ color: String) {
-        mpv_set_property_string(mpv, "sub-border-color", "#\(color)")
+        setPropertyString(firstAccepted: ["sub-outline-color", "sub-border-color"], Self.mpvColor(color))
     }
 
-    /// Set subtitle background color with alpha (hex string with alpha like "00000080")
-    func setSubtitleBackgroundColor(_ color: String) {
-        mpv_set_property_string(mpv, "sub-back-color", "#\(color)")
+    /// Set subtitle background color. `color` is "RRGGBB"/"#RRGGBB"; `opacity` 0...1.
+    /// A visible background switches mpv to `sub-border-style=background-box`.
+    func setSubtitleBackground(color: String, opacity: Double) {
+        guard mpv != nil else { return }
+        let clamped = min(1, max(0, opacity))
+        mpv_set_property_string(mpv, "sub-back-color", Self.mpvColor(color, alpha: clamped))
+        mpv_set_property_string(mpv, "sub-border-style", clamped > 0 ? "background-box" : "outline-and-shadow")
+    }
+
+    /// Subtitle font family; empty string restores mpv's default (sans-serif).
+    func setSubtitleFont(_ family: String) {
+        guard mpv != nil else { return }
+        let trimmed = family.trimmingCharacters(in: .whitespacesAndNewlines)
+        mpv_set_property_string(mpv, "sub-font", trimmed.isEmpty ? "sans-serif" : trimmed)
+    }
+
+    /// Bold subtitle text.
+    func setSubtitleBold(_ bold: Bool) {
+        setProperty("sub-bold", value: bold)
+    }
+
+    /// Vertical subtitle position (`sub-pos`: 0 = top, 100 = bottom, up to 150).
+    func setSubtitlePosition(_ position: Int) {
+        // As a string: sub-pos is an integer or a float depending on the mpv version
+        guard mpv != nil else { return }
+        mpv_set_property_string(mpv, "sub-pos", "\(min(150, max(0, position)))")
+    }
+
+    /// Strip SDH/hearing-impaired annotations (`sub-filter-sdh`). Text subtitles only;
+    /// mpv applies it to cues decoded after the change.
+    func setSubtitleFilterSDH(_ enabled: Bool) {
+        setProperty("sub-filter-sdh", value: enabled)
+    }
+
+    /// Applies a complete subtitle appearance (size, font, bold, colours, outline, background, position).
+    /// Text-based subtitles only: styled ASS/SSA tracks keep their own styles
+    /// (mpv's default `sub-ass-override=scale`), bitmap (PGS/VobSub) tracks are images.
+    func applySubtitleAppearance(_ appearance: SubtitleAppearance) {
+        guard mpv != nil else { return }
+        setSubtitleFontSize(appearance.fontSize)
+        setSubtitleFont(appearance.fontName)
+        setSubtitleBold(appearance.bold)
+        setSubtitleColor(appearance.textColor)
+        setSubtitleBorderSize(appearance.borderSize)
+        setSubtitleBorderColor(appearance.borderColor)
+        setSubtitleBackground(color: appearance.backgroundColor, opacity: appearance.backgroundOpacity)
+        setSubtitlePosition(appearance.position)
+
+        // Explicit sub-* entries in the user's custom MPV config keep priority
+        for entry in UserDefaults.standard.getEnabledMpvConfigEntries() where entry.key.hasPrefix("sub-") {
+            mpv_set_property_string(mpv, entry.key, entry.value)
+        }
+    }
+
+    /// mpv colour string: "#RRGGBB", or "#AARRGGBB" when `alpha` is given (mpv puts alpha FIRST).
+    /// Accepts "RRGGBB", "#RRGGBB" or "#AARRGGBB" input; anything else falls back to white.
+    static func mpvColor(_ hex: String, alpha: Double? = nil) -> String {
+        var digits = hex.trimmingCharacters(in: .whitespacesAndNewlines)
+        if digits.hasPrefix("#") { digits.removeFirst() }
+        digits = digits.uppercased()
+        guard digits.allSatisfy(\.isHexDigit), digits.count == 6 || digits.count == 8 else {
+            return alpha.map { String(format: "#%02XFFFFFF", Int(($0 * 255).rounded())) } ?? "#FFFFFF"
+        }
+        let rgb = String(digits.suffix(6))
+        guard let alpha else { return "#\(digits)" }
+        return String(format: "#%02X", Int((min(1, max(0, alpha)) * 255).rounded())) + rgb
+    }
+
+    // MARK: - Aspect / Zoom
+
+    /// Applies an aspect mode via mpv: `panscan` (crop to fill), `video-zoom`
+    /// (log2 scale), `keepaspect` (off = stretch to the view) and resets
+    /// `video-aspect-override` to the file's own aspect ratio.
+    func applyAspect(panscan: Double, zoomFactor: Double, keepAspect: Bool) {
+        guard mpv != nil else { return }
+        setProperty("panscan", value: min(1, max(0, panscan)))
+        setProperty("video-zoom", value: log2(max(0.1, zoomFactor)))
+        mpv_set_property_string(mpv, "keepaspect", keepAspect ? "yes" : "no")
+        mpv_set_property_string(mpv, "video-aspect-override", "-1")
     }
 
     // MARK: - Audio/Subtitle Sync
@@ -1380,6 +1517,14 @@ struct MPVTrack {
     var lang: String?
     var selected: Bool = false
     var external: Bool = false
+    /// Container "default" flag.
+    var isDefault: Bool = false
+    /// Container "forced" flag (signs/foreign-dialogue-only subtitles).
+    var forced: Bool = false
+    /// Hearing-impaired (SDH) flag, when the container sets it.
+    var hearingImpaired: Bool = false
+    /// Path or URL of an external track (sub-add / sidecar files), nil for embedded tracks.
+    var externalFilename: String?
 
     /// Display name for the track
     var displayName: String {
@@ -1420,5 +1565,46 @@ struct MPVChapter: Identifiable {
         } else {
             return String(format: "%d:%02d", minutes, secs)
         }
+    }
+}
+
+/// A subtitle cue mpv started showing (from `sub-text` / `sub-start` / `sub-end`).
+/// `start`/`end` are as mpv reports them; `playbackTime` and `subDelay` are
+/// sampled at the same moment so callers can tell which timeline they are in.
+struct MPVShownSubtitleCue {
+    let text: String
+    let start: Double
+    let end: Double?
+    let playbackTime: Double
+    let subDelay: Double
+}
+
+/// Subtitle styling applied to mpv. Colours are "#RRGGBB" hex strings.
+struct SubtitleAppearance: Equatable {
+    var fontSize: Int
+    var fontName: String
+    var bold: Bool
+    var textColor: String
+    var borderSize: Double
+    var borderColor: String
+    var backgroundColor: String
+    /// 0...1; 0 = no background box.
+    var backgroundOpacity: Double
+    /// mpv `sub-pos` (0 = top, 100 = bottom).
+    var position: Int
+
+    /// Current profile's saved appearance.
+    static func fromDefaults(_ defaults: UserDefaults = .standard) -> SubtitleAppearance {
+        SubtitleAppearance(
+            fontSize: defaults.subtitleFontSize,
+            fontName: defaults.subtitleFontName,
+            bold: defaults.subtitleBold,
+            textColor: defaults.subtitleTextColor,
+            borderSize: defaults.subtitleBorderSize,
+            borderColor: defaults.subtitleBorderColor,
+            backgroundColor: defaults.subtitleBackgroundColor,
+            backgroundOpacity: defaults.subtitleBackgroundOpacity,
+            position: defaults.subtitlePosition
+        )
     }
 }

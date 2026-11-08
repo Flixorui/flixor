@@ -7,6 +7,14 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		1AEA01E449D15E80EE9C0BD7 /* PlaybackEngineSettingsModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 110DEFE2001F7C352C749436 /* PlaybackEngineSettingsModel.swift */; };
+		FB22AAB362793F333723EB1C /* PlayerViewModel+SubtitleEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8E46D4C776203C51AEDDE71 /* PlayerViewModel+SubtitleEngine.swift */; };
+		156069451DD05262000CAB5D /* PlayerViewModel+Engine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EB96C64B8CE0AB1E7D16596 /* PlayerViewModel+Engine.swift */; };
+		6AD483D392A0AEC4E9BC6145 /* SubtitleCueParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = C21A5CB723FB8EC0FE052064 /* SubtitleCueParser.swift */; };
+		7C288976D99B0171BC2CBA0D /* OpenSubtitlesHasher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 387FCEF942CC7F520203A8E7 /* OpenSubtitlesHasher.swift */; };
+		03F83D604D1FC73D09938927 /* OriginalLanguageResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF48672FD7856C1269F53A71 /* OriginalLanguageResolver.swift */; };
+		D21ACB7C0BF18F6A625F1493 /* LanguageMatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 433838BADD827C9EA7AB749B /* LanguageMatcher.swift */; };
+		EF2D15DAAB2C2702F60F0373 /* UserDefaults+PlaybackEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 979E314ED0FA83BCBFC6893D /* UserDefaults+PlaybackEngine.swift */; };
 		81589FE15E5F3A60DF37596B /* WatchStateService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46D031E0858D60EF3A8C739E /* WatchStateService.swift */; };
 		63AA8F5C8099B3513A6C3852 /* TraktListsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC85992E13EE4C4C1C8C2704 /* TraktListsService.swift */; };
 		3FC7D91559AFA7117387D2C8 /* TraktCommentsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 863179F8A6086C93AB02C84E /* TraktCommentsService.swift */; };
@@ -202,6 +210,14 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		110DEFE2001F7C352C749436 /* PlaybackEngineSettingsModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlaybackEngineSettingsModel.swift; sourceTree = "<group>"; };
+		F8E46D4C776203C51AEDDE71 /* PlayerViewModel+SubtitleEngine.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "PlayerViewModel+SubtitleEngine.swift"; sourceTree = "<group>"; };
+		3EB96C64B8CE0AB1E7D16596 /* PlayerViewModel+Engine.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "PlayerViewModel+Engine.swift"; sourceTree = "<group>"; };
+		C21A5CB723FB8EC0FE052064 /* SubtitleCueParser.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Subtitles/SubtitleCueParser.swift; sourceTree = "<group>"; };
+		387FCEF942CC7F520203A8E7 /* OpenSubtitlesHasher.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Subtitles/OpenSubtitlesHasher.swift; sourceTree = "<group>"; };
+		EF48672FD7856C1269F53A71 /* OriginalLanguageResolver.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Playback/OriginalLanguageResolver.swift; sourceTree = "<group>"; };
+		433838BADD827C9EA7AB749B /* LanguageMatcher.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Playback/LanguageMatcher.swift; sourceTree = "<group>"; };
+		979E314ED0FA83BCBFC6893D /* UserDefaults+PlaybackEngine.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "UserDefaults+PlaybackEngine.swift"; sourceTree = "<group>"; };
 		46D031E0858D60EF3A8C739E /* WatchStateService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchStateService.swift; sourceTree = "<group>"; };
 		EC85992E13EE4C4C1C8C2704 /* TraktListsService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TraktListsService.swift; sourceTree = "<group>"; };
 		863179F8A6086C93AB02C84E /* TraktCommentsService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TraktCommentsService.swift; sourceTree = "<group>"; };
@@ -518,6 +534,8 @@
 		D006 /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
+				F8E46D4C776203C51AEDDE71 /* PlayerViewModel+SubtitleEngine.swift */,
+				3EB96C64B8CE0AB1E7D16596 /* PlayerViewModel+Engine.swift */,
 				3F35EE05EDE594BEB06742FB /* PlayerViewModel+Types.swift */,
 				558CFF48660AB401150521B5 /* PlayerViewModel+Tracks.swift */,
 				9870F7FE912EA6C150C6BFD5 /* PlayerViewModel+StreamLoading.swift */,
@@ -552,6 +570,10 @@
 		D007 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				C21A5CB723FB8EC0FE052064 /* SubtitleCueParser.swift */,
+				387FCEF942CC7F520203A8E7 /* OpenSubtitlesHasher.swift */,
+				EF48672FD7856C1269F53A71 /* OriginalLanguageResolver.swift */,
+				433838BADD827C9EA7AB749B /* LanguageMatcher.swift */,
 				46D031E0858D60EF3A8C739E /* WatchStateService.swift */,
 				EC85992E13EE4C4C1C8C2704 /* TraktListsService.swift */,
 				863179F8A6086C93AB02C84E /* TraktCommentsService.swift */,
@@ -577,6 +599,7 @@
 		D008 /* Extensions */ = {
 			isa = PBXGroup;
 			children = (
+				979E314ED0FA83BCBFC6893D /* UserDefaults+PlaybackEngine.swift */,
 				497B08D5668C4AE5E283945A /* UserDefaults+WatchState.swift */,
 				4F750BC1AEFFF3F132E53194 /* WindowMetrics.swift */,
 				2DC553DC45B4C35E1EA8888A /* UserDefaults+Appearance.swift */,
@@ -656,6 +679,7 @@
 		D015 /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				110DEFE2001F7C352C749436 /* PlaybackEngineSettingsModel.swift */,
 				9F4FB3B84467ABEBB9DC1956 /* AppearanceSettingsView.swift */,
 				B015 /* SettingsView.swift */,
 				B163 /* PlexServersView.swift */,
@@ -939,6 +963,14 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1AEA01E449D15E80EE9C0BD7 /* PlaybackEngineSettingsModel.swift in Sources */,
+				FB22AAB362793F333723EB1C /* PlayerViewModel+SubtitleEngine.swift in Sources */,
+				156069451DD05262000CAB5D /* PlayerViewModel+Engine.swift in Sources */,
+				6AD483D392A0AEC4E9BC6145 /* SubtitleCueParser.swift in Sources */,
+				7C288976D99B0171BC2CBA0D /* OpenSubtitlesHasher.swift in Sources */,
+				03F83D604D1FC73D09938927 /* OriginalLanguageResolver.swift in Sources */,
+				D21ACB7C0BF18F6A625F1493 /* LanguageMatcher.swift in Sources */,
+				EF2D15DAAB2C2702F60F0373 /* UserDefaults+PlaybackEngine.swift in Sources */,
 				81589FE15E5F3A60DF37596B /* WatchStateService.swift in Sources */,
 				63AA8F5C8099B3513A6C3852 /* TraktListsService.swift in Sources */,
 				3FC7D91559AFA7117387D2C8 /* TraktCommentsService.swift in Sources */,

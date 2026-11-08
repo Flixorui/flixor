@@ -149,6 +149,25 @@ class PlayerViewModel: ObservableObject {
 
     // MARK: - Playback engine state (tracks, subtitles, aspect, speed, HDR, network)
     // New stored properties for that work go directly below this line.
+    // Aspect mode (see PlayerViewModel+Aspect.swift)
+    @Published var aspectMode: PlayerAspectMode = UserDefaults.standard.playerAspectMode
+    @Published var zoomStep: Int = UserDefaults.standard.playerZoomStep
+    // Hold-to-speed-up (see PlayerViewModel+Controls.swift)
+    @Published var isSpeedBoostActive = false
+    var speedBeforeBoost: Float?
+    // Subtitle cues for cue-based sync (see PlayerViewModel+SubtitleEngine.swift)
+    @Published var subtitleCues: [SubtitleCue] = []
+    @Published var recentSubtitleCues: [SubtitleCue] = []
+    @Published var subtitleCueSource: SubtitleCueSource = .none
+    @Published var subtitleFilterSDH: Bool = UserDefaults.standard.subtitleFilterSDH
+    @Published var subtitleAppearance: SubtitleAppearance = SubtitleAppearance.fromDefaults()
+    var subtitleCueLoadTask: Task<Void, Never>?
+    var subtitleCueFilePath: String?
+    var subtitleCueTrackId: Int?
+    var subtitleHashTask: Task<Void, Never>?
+    var subtitleHashLookupURL: String?
+    var languageSelectionTask: Task<Void, Never>?
+    let engineObservers = PlaybackEngineObserverBag()
 
 
     init(item: MediaItem) {
