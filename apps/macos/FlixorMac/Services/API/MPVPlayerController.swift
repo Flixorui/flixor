@@ -807,20 +807,30 @@ class MPVPlayerController {
             }
 
         case MPV_EVENT_END_FILE:
-            // Distinguish a real failure (network drop, 4xx/5xx, demuxer error)
-            // from a normal end of file, so errors are never treated as
-            // "finished watching" (which would scrobble and auto-play next).
-            var isError = false
+            // Report why the file ended so only a real end of file counts as
+            // "finished watching" (which scrobbles to Plex and auto-plays next):
+            //   EOF   -> "file-ended"
+            //   ERROR -> "file-error"   (network drop, 4xx/5xx, demuxer error)
+            //   STOP / QUIT / REDIRECT -> "file-stopped" (a new file replaced this
+            //   one, e.g. quality change or source switch, or the player closed)
+            var eventName = "file-ended"
             if let data = event.pointee.data {
                 let endFile = data.assumingMemoryBound(to: mpv_event_end_file.self).pointee
-                isError = endFile.reason == MPV_END_FILE_REASON_ERROR
-                if isError, let message = mpv_error_string(endFile.error) {
-                    print("❌ [MPV] File ended with error: \(String(cString: message))")
+                switch endFile.reason {
+                case MPV_END_FILE_REASON_EOF:
+                    eventName = "file-ended"
+                case MPV_END_FILE_REASON_ERROR:
+                    eventName = "file-error"
+                    if let message = mpv_error_string(endFile.error) {
+                        print("❌ [MPV] File ended with error: \(String(cString: message))")
+                    }
+                default:
+                    eventName = "file-stopped"
                 }
             }
-            if !isError { print("🏁 [MPV] File ended") }
+            print("🏁 [MPV] File ended (\(eventName))")
             DispatchQueue.main.async { [weak self] in
-                self?.onEvent?(isError ? "file-error" : "file-ended")
+                self?.onEvent?(eventName)
             }
 
         case MPV_EVENT_PLAYBACK_RESTART:

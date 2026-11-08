@@ -404,9 +404,20 @@ class PlayerViewModel: ObservableObject {
                         self.handlePlaybackFailure(early: failedEarly)
                         return
                     }
+                    // An EOF well before the known duration means the stream was cut
+                    // off (e.g. a dropped connection), not that the user finished it.
+                    if self.duration > 60, self.currentTime < self.duration * 0.9 {
+                        print("⚠️ [Player] File ended at \(Int(self.currentTime))s of \(Int(self.duration))s; treating as interrupted")
+                        self.handlePlaybackFailure(early: false)
+                        return
+                    }
                     print("✅ [Player] MPV playback finished")
                     self.directPlayRetryCount = 0  // Reset counter on successful playback
                     self.handlePlaybackEnd()
+                case "file-stopped":
+                    // Replaced by another file (quality/source change) or player closed:
+                    // never a completion, never a failure.
+                    break
                 default:
                     print("ℹ️ [Player] MPV event (unhandled): \(event)")
                     break
