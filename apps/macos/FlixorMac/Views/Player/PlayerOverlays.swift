@@ -46,6 +46,8 @@ struct PlayerErrorOverlay: View {
     let message: String
     let onClose: () -> Void
     let onRetry: () -> Void
+    /// Offered when another source can be tried (addon streams).
+    var onChooseSource: (() -> Void)? = nil
 
     var body: some View {
         VStack(spacing: 16) {
@@ -69,20 +71,41 @@ struct PlayerErrorOverlay: View {
                 }
                 .buttonStyle(.bordered)
 
-                Button("Retry") {
-                    onRetry()
+                if let onChooseSource {
+                    Button("Retry") {
+                        onRetry()
+                    }
+                    .buttonStyle(.bordered)
+
+                    Button("Choose another source") {
+                        onChooseSource()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .accessibilityLabel("Choose another source for this title")
+                } else {
+                    Button("Retry") {
+                        onRetry()
+                    }
+                    .buttonStyle(.borderedProminent)
                 }
-                .buttonStyle(.borderedProminent)
             }
         }
     }
 }
 
-// MARK: - Skip Intro Button (Plezy Style)
+// MARK: - Skip Marker Button (Plezy Style)
 
-struct SkipIntroButton: View {
+/// Skip button for the current marker, titled for its type ("Skip Recap", ...).
+struct SkipMarkerButton: View {
     @ObservedObject var viewModel: PlayerViewModel
     let marker: PlayerMarker
+
+    private var title: String {
+        if let countdown = viewModel.autoSkipCountdown, countdown > 0 {
+            return "\(marker.skipButtonTitle) (\(countdown))"
+        }
+        return marker.skipButtonTitle
+    }
 
     var body: some View {
         VStack {
@@ -93,15 +116,9 @@ struct SkipIntroButton: View {
                     viewModel.skipMarker()
                 }) {
                     HStack(spacing: 8) {
-                        if let countdown = viewModel.autoSkipCountdown, countdown > 0 {
-                            Text("Skip Intro (\(countdown))")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(.black)
-                        } else {
-                            Text("Skip Intro")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(.black)
-                        }
+                        Text(title)
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(.black)
                         Image(systemName: "forward.fill")
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(.black)
@@ -113,6 +130,7 @@ struct SkipIntroButton: View {
                     .shadow(color: .black.opacity(0.3), radius: 8, y: 2)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(marker.skipButtonTitle)
                 .padding(.trailing, 24)
                 .padding(.bottom, 115)
             }

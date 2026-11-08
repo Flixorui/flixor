@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		146B43480F0382528BE202D3 /* SkipSegmentSettingsModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D152E25D899CE52C15C46A8 /* SkipSegmentSettingsModel.swift */; };
+		F74B8107E96015BD59A6AA36 /* PlayerSubtitlePanels.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3E8817E2ABCD1268A0AF187 /* PlayerSubtitlePanels.swift */; };
+		0EB95A33E5032C8B272E70AE /* PlayerSeekBarMarks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E2DD2674789F6B9A180A899 /* PlayerSeekBarMarks.swift */; };
+		09102F538910065839C0F20E /* PlayerExtraOverlays.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7135B24B93A059488D1C8DB2 /* PlayerExtraOverlays.swift */; };
 		FE77C7265DCF4098839665E8 /* HomeRowsEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C5AB65547BBF55331DF0A55 /* HomeRowsEditor.swift */; };
 		2B6AD1FA107A8B4055A62C18 /* HeroSourceSettingsRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 946A0638B68C23F7D67219BC /* HeroSourceSettingsRow.swift */; };
 		58DE7384A191D143A107F046 /* ContinueWatchingStylePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5CBBC0B1A9F1EBB944FBE01 /* ContinueWatchingStylePicker.swift */; };
@@ -284,6 +288,10 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		8D152E25D899CE52C15C46A8 /* SkipSegmentSettingsModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SkipSegmentSettingsModel.swift; sourceTree = "<group>"; };
+		E3E8817E2ABCD1268A0AF187 /* PlayerSubtitlePanels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlayerSubtitlePanels.swift; sourceTree = "<group>"; };
+		1E2DD2674789F6B9A180A899 /* PlayerSeekBarMarks.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlayerSeekBarMarks.swift; sourceTree = "<group>"; };
+		7135B24B93A059488D1C8DB2 /* PlayerExtraOverlays.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlayerExtraOverlays.swift; sourceTree = "<group>"; };
 		1C5AB65547BBF55331DF0A55 /* HomeRowsEditor.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HomeRowsEditor.swift; sourceTree = "<group>"; };
 		946A0638B68C23F7D67219BC /* HeroSourceSettingsRow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HeroSourceSettingsRow.swift; sourceTree = "<group>"; };
 		A5CBBC0B1A9F1EBB944FBE01 /* ContinueWatchingStylePicker.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ContinueWatchingStylePicker.swift; sourceTree = "<group>"; };
@@ -884,6 +892,7 @@
 		D015 /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				8D152E25D899CE52C15C46A8 /* SkipSegmentSettingsModel.swift */,
 				1C5AB65547BBF55331DF0A55 /* HomeRowsEditor.swift */,
 				946A0638B68C23F7D67219BC /* HeroSourceSettingsRow.swift */,
 				A5CBBC0B1A9F1EBB944FBE01 /* ContinueWatchingStylePicker.swift */,
@@ -965,6 +974,9 @@
 		D019 /* Player */ = {
 			isa = PBXGroup;
 			children = (
+				E3E8817E2ABCD1268A0AF187 /* PlayerSubtitlePanels.swift */,
+				1E2DD2674789F6B9A180A899 /* PlayerSeekBarMarks.swift */,
+				7135B24B93A059488D1C8DB2 /* PlayerExtraOverlays.swift */,
 				4FE314CCC603353EE4007DF3 /* PlayerView+Keyboard.swift */,
 				5E2D92951DF3D9A5AB65E37D /* PlayerTrackMenus.swift */,
 				29A73873254FC5C4746BA9E8 /* PlayerOverlays.swift */,
@@ -1185,6 +1197,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				146B43480F0382528BE202D3 /* SkipSegmentSettingsModel.swift in Sources */,
+				F74B8107E96015BD59A6AA36 /* PlayerSubtitlePanels.swift in Sources */,
+				0EB95A33E5032C8B272E70AE /* PlayerSeekBarMarks.swift in Sources */,
+				09102F538910065839C0F20E /* PlayerExtraOverlays.swift in Sources */,
 				FE77C7265DCF4098839665E8 /* HomeRowsEditor.swift in Sources */,
 				2B6AD1FA107A8B4055A62C18 /* HeroSourceSettingsRow.swift in Sources */,
 				58DE7384A191D143A107F046 /* ContinueWatchingStylePicker.swift in Sources */,

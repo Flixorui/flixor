@@ -22,6 +22,18 @@ struct PlayerView: View {
     @State private var isCursorHidden = false
     @State private var mpvPiPViewController: NSViewController?
     @State var keyboardMonitor: Any?
+    /// A panel in the controls is open: keep the controls up (the panel lives inside them).
+    @State private var isControlsPanelOpen = false
+
+    // Hold-Space speed boost (see PlayerView+Keyboard.swift)
+    @State var spaceHoldTask: Task<Void, Never>?
+    @State var isSpaceHeld = false
+    @State var spaceBoostEngaged = false
+
+    // Keyboard feedback and the shortcuts overlay (see PlayerView+Keyboard.swift)
+    @State var keyboardFeedback: String?
+    @State var keyboardFeedbackTask: Task<Void, Never>?
+    @State var showShortcutsOverlay = false
 
     private init(resolvedItem: MediaItem, viewModel: PlayerViewModel) {
         self.item = resolvedItem
@@ -162,7 +174,8 @@ struct PlayerView: View {
                     },
                     onRetry: {
                         viewModel.retry()
-                    }
+                    },
+                    onChooseSource: canChooseAnotherSource ? { viewModel.openSourcesPicker() } : nil
                 )
             }
 
@@ -179,7 +192,11 @@ struct PlayerView: View {
                         dismiss()
                     },
                     onToggleFullScreen: toggleFullScreen,
-                    onToggleMPVPiP: toggleMPVPiP
+                    onToggleMPVPiP: toggleMPVPiP,
+                    onPanelOpenChanged: { isOpen in
+                        isControlsPanelOpen = isOpen
+                        if !isOpen { scheduleHideControls() }
+                    }
                 )
                 .transition(.opacity)
             }
@@ -199,9 +216,10 @@ struct PlayerView: View {
                 .allowsHitTesting(false)
             }
 
-            // Skip Intro Button - Plezy style
-            if let marker = viewModel.currentMarker, marker.type.lowercased() == "intro" {
-                SkipIntroButton(viewModel: viewModel, marker: marker)
+            // Skip button for the current marker (intro, recap, credits, preview).
+            // The next-episode card takes the same spot and wins when both apply.
+            if let marker = viewModel.currentMarker, marker.isSkippable, !isNextEpisodeOverlayVisible {
+                SkipMarkerButton(viewModel: viewModel, marker: marker)
                     .transition(.opacity.combined(with: .scale(scale: 0.95)))
             }
 
@@ -214,6 +232,23 @@ struct PlayerView: View {
                     onPlayNow: { viewModel.playNext() }
                 )
                 .transition(.opacity.combined(with: .move(edge: .trailing)))
+            }
+
+            // Stream engine status, 2x badge and keyboard feedback (top centre)
+            PlayerStatusStack(
+                status: viewModel.streamEngineStatus?.message,
+                isSpeedBoostActive: viewModel.isSpeedBoostActive,
+                feedback: keyboardFeedback
+            )
+
+            // Keyboard shortcuts overlay (?)
+            if showShortcutsOverlay {
+                PlayerShortcutsOverlay(
+                    smallSeek: Int(seekSeconds(large: false)),
+                    largeSeek: Int(seekSeconds(large: true)),
+                    onClose: { showShortcutsOverlay = false }
+                )
+                .transition(.opacity)
             }
         }
         .onDisappear {
@@ -239,23 +274,12 @@ struct PlayerView: View {
             startKeyboardMonitoring()
             PlaybackCommandState.shared.isPlayerActive = true
 
-            // Setup navigation callback for next episode
-            viewModel.onPlayNext = { [weak router, weak mainViewState] nextItem in
-                guard let router = router, let mainViewState = mainViewState else { return }
-                // Dismiss current player
-                dismiss()
-                // Small delay to ensure dismiss completes
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                    // Navigate to next episode using correct tab path
-                    switch mainViewState.selectedTab {
-                    case .home: router.homePath.append(nextItem)
-                    case .search: router.searchPath.append(nextItem)
-                    case .library: router.libraryPath.append(nextItem)
-                    case .myList: router.myListPath.append(nextItem)
-                    case .newPopular: router.newPopularPath.append(nextItem)
-                    case .downloads: router.downloadsPath.append(nextItem)
-                    }
-                }
+            // Setup navigation callbacks (next episode, sources picker)
+            viewModel.onPlayNext = { nextItem in
+                leavePlayerAndNavigate(to: nextItem)
+            }
+            viewModel.onOpenStremioSources = { destination in
+                leavePlayerAndNavigate(to: destination)
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .mpvPiPDidClose)) { _ in
@@ -277,8 +301,40 @@ struct PlayerView: View {
             viewModel.stopPlayback()
             dismiss()
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in
+            // The Space key-up goes to another app, so a held boost would stay on.
+            releaseSpaceHold()
+        }
         .onChange(of: viewModel.isPlaying) { isPlaying in
             MPVPiPWindowManager.shared.updatePlaybackState(isPlaying: isPlaying)
+        }
+    }
+
+    private var isNextEpisodeOverlayVisible: Bool {
+        viewModel.nextEpisodeCountdown != nil && viewModel.nextEpisode != nil
+    }
+
+    /// Addon streams can always go back to the sources page for the same title.
+    private var canChooseAnotherSource: Bool {
+        viewModel.sourceKind == .stream
+            && (viewModel.sourcesPickerDestination ?? viewModel.currentTitleSourcesDestination()) != nil
+    }
+
+    /// Dismisses the player, then pushes `destination` on the current tab's path.
+    private func leavePlayerAndNavigate<Destination: Hashable>(to destination: Destination) {
+        dismiss()
+        // Small delay to ensure dismiss completes
+        let router = router
+        let selectedTab = mainViewState.selectedTab
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            switch selectedTab {
+            case .home: router.homePath.append(destination)
+            case .search: router.searchPath.append(destination)
+            case .library: router.libraryPath.append(destination)
+            case .myList: router.myListPath.append(destination)
+            case .newPopular: router.newPopularPath.append(destination)
+            case .downloads: router.downloadsPath.append(destination)
+            }
         }
     }
 
@@ -382,8 +438,8 @@ struct PlayerView: View {
         hideControlsTask?.cancel()
         hideControlsTask = Task { @MainActor in
             try? await Task.sleep(nanoseconds: 3_000_000_000) // 3 seconds of inactivity
-            // Double-check task wasn't cancelled and we're still playing
-            guard !Task.isCancelled && viewModel.isPlaying else { return }
+            // Double-check task wasn't cancelled, we're still playing and no panel is open
+            guard !Task.isCancelled && viewModel.isPlaying && !isControlsPanelOpen else { return }
 
             withAnimation(.easeInOut(duration: 0.2)) {
                 showControls = false
