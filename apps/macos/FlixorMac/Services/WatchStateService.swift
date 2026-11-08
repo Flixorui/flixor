@@ -6,8 +6,9 @@
 //  "start over" and Trakt ratings. Each action is applied to every backend that
 //  owns state for the item:
 //
-//    Plex   - items with a Plex ratingKey (scrobble/unscrobble, CW hub, progress).
-//             Skipped in Stremio-only mode or with no connected server.
+//    Plex   - items with a Plex ratingKey, or a show key plus season/episode
+//             numbers (the season/episode key is looked up). If the server can't be
+//             reached (none connected, Stremio-only mode) a Plex failure is reported.
 //    Trakt  - when Trakt is connected and "Auto-sync watched" is on (history and
 //             playback progress). Ratings only need Trakt to be connected.
 //    Local  - items without a Plex copy (Stremio-only mode, TMDB/Stremio items):
@@ -116,21 +117,54 @@ struct WatchStateResult {
     let target: WatchStateTarget
     let succeeded: [WatchStateBackend]
     let failures: [Failure]
+    /// Nothing needed changing (e.g. no saved progress to reset, or already in the
+    /// requested state everywhere). Not an error: for `.startOver` the caller can
+    /// still play from 0.
+    let noChanges: Bool
 
-    /// Everything that was attempted worked.
+    init(action: WatchStateAction, target: WatchStateTarget, succeeded: [WatchStateBackend], failures: [Failure], noChanges: Bool = false) {
+        self.action = action
+        self.target = target
+        self.succeeded = succeeded
+        self.failures = failures
+        self.noChanges = noChanges
+    }
+
+    /// Everything that was attempted worked (at least one backend changed).
     var isSuccess: Bool { !succeeded.isEmpty && failures.isEmpty }
     /// Some backends worked, some failed.
     var isPartialSuccess: Bool { !succeeded.isEmpty && !failures.isEmpty }
 
     /// Short text for a toast.
     var message: String {
+        if noChanges { return action.noChangeText }
         if isSuccess { return action.successText }
         if isPartialSuccess {
             let failed = failures.map { f in f.backend.map { "\($0.displayName): \(f.message)" } ?? f.message }
             return "\(action.successText), but \(failed.joined(separator: "; "))"
         }
-        let reason = failures.first?.message ?? "Nothing to update"
+        let reason = failures.first.map { f in f.backend.map { "\($0.displayName): \(f.message)" } ?? f.message } ?? "Nothing to update"
         return "\(action.failureText): \(reason)"
+    }
+}
+
+private extension WatchStateAction {
+    var noChangeText: String {
+        switch self {
+        case .markWatched: return "Already watched"
+        case .markUnwatched: return "Already unwatched"
+        case .removeFromContinueWatching: return "Not in Continue Watching"
+        case .startOver: return "No saved progress"
+        case .rate, .removeRating: return "Nothing to update"
+        }
+    }
+
+    /// Actions that write whole-show watch state when the target is a show.
+    var isWatchStateWrite: Bool {
+        switch self {
+        case .markWatched, .markUnwatched, .removeFromContinueWatching, .startOver: return true
+        case .rate, .removeRating: return false
+        }
     }
 }
 
@@ -140,8 +174,9 @@ struct WatchStateResult {
 final class WatchStateService: ObservableObject {
     static let shared = WatchStateService()
 
-    /// `WatchStateTarget.actionKey`s with an action running. A second action on the
-    /// same target is rejected while one is in flight; UI can disable buttons.
+    /// `WatchStateTarget.actionKey`s with an action running. Any second action on the
+    /// same target (including the opposite action, e.g. unwatch while watch is
+    /// running) is rejected until the first finishes; UI can disable buttons.
     @Published private(set) var inFlight: Set<String> = []
 
     private let resolver = MediaIdentityResolver.shared
@@ -152,6 +187,9 @@ final class WatchStateService: ObservableObject {
     private var ratingsCache: [String: (fetchedAt: Date, items: [TraktRatingItem])] = [:]
     private var ratingsInFlight: [String: Task<[TraktRatingItem], Error>] = [:]
     private let ratingsTTL: TimeInterval = 5 * 60
+
+    /// Trakt allows about one write (POST/PUT/DELETE) per second per user.
+    private let traktWriteSpacingNs: UInt64 = 1_100_000_000
 
     private init() {}
 
@@ -172,49 +210,39 @@ final class WatchStateService: ObservableObject {
 
     // MARK: - Watched
 
+    /// Marks a MediaItem watched.
+    ///
+    /// - Important: Do not pass the grouped "Recently added" series cards built by
+    ///   `HomeViewModel.groupEpisodesBySeries` (a `"show"` item keyed by the series
+    ///   ratingKey, summary "N new episode(s)"). They stand for new episodes, not the
+    ///   whole show. Such cards are detected by their summary and refused with a
+    ///   failure result; open the show and act on specific episodes instead.
     func markWatched(_ item: MediaItem) async -> WatchStateResult {
         guard let target = WatchStateTarget(item: item) else { return unsupported(.markWatched, item: item) }
         return await markWatched(target)
     }
 
+    /// Marks a MediaItem unwatched. Same restriction as `markWatched(_ item:)` for
+    /// "Recently added" new-episode cards.
     func markUnwatched(_ item: MediaItem) async -> WatchStateResult {
         guard let target = WatchStateTarget(item: item) else { return unsupported(.markUnwatched, item: item) }
         return await markUnwatched(target)
     }
 
     /// Marks a movie, episode, season or whole show watched on Plex, Trakt and/or
-    /// locally, and clears resume points.
+    /// locally, and clears resume points. On Trakt only aired episodes that aren't
+    /// already watched are added, so repeated taps don't add duplicate plays.
     func markWatched(_ target: WatchStateTarget) async -> WatchStateResult {
         await perform(.markWatched, target) { t, outcome in
-            if let key = t.plexRatingKey, let plex = self.plexServer {
-                do {
-                    try await plex.markWatched(ratingKey: key)
-                    outcome.succeed(.plex)
-                } catch {
-                    outcome.fail(.plex, error)
-                }
-                await plex.invalidateWatchStateCache(ratingKeys: [key, t.showPlexRatingKey].compactMap { $0 })
+            await self.applyPlex(t, outcome) { plex, key in
+                try await plex.markWatched(ratingKey: key)
             }
 
             if self.isTraktWatchSyncEnabled {
-                if let items = self.traktItems(for: t) {
-                    do {
-                        let result = try await FlixorCore.shared.trakt.addToHistory(items)
-                        if result.addedCount == 0, result.notFoundCount > 0 {
-                            outcome.fail(.trakt, message: "not found on Trakt")
-                        } else {
-                            outcome.succeed(.trakt)
-                            await self.removeTraktPlayback(for: t)
-                        }
-                    } catch {
-                        outcome.fail(.trakt, error)
-                    }
-                } else if t.plexRatingKey == nil {
-                    outcome.fail(.trakt, message: "no Trakt-compatible id")
-                }
+                await self.addTraktHistory(t, outcome)
             }
 
-            if t.plexRatingKey == nil {
+            if !self.isPlexItem(t) {
                 do {
                     try await self.markLocallyWatched(t)
                     outcome.succeed(.local)
@@ -230,14 +258,8 @@ final class WatchStateService: ObservableObject {
     /// Reverses `markWatched` on every backend.
     func markUnwatched(_ target: WatchStateTarget) async -> WatchStateResult {
         await perform(.markUnwatched, target) { t, outcome in
-            if let key = t.plexRatingKey, let plex = self.plexServer {
-                do {
-                    try await plex.markUnwatched(ratingKey: key)
-                    outcome.succeed(.plex)
-                } catch {
-                    outcome.fail(.plex, error)
-                }
-                await plex.invalidateWatchStateCache(ratingKeys: [key, t.showPlexRatingKey].compactMap { $0 })
+            await self.applyPlex(t, outcome) { plex, key in
+                try await plex.markUnwatched(ratingKey: key)
             }
 
             if self.isTraktWatchSyncEnabled {
@@ -248,14 +270,17 @@ final class WatchStateService: ObservableObject {
                     } catch {
                         outcome.fail(.trakt, error)
                     }
-                } else if t.plexRatingKey == nil {
-                    outcome.fail(.trakt, message: "no Trakt-compatible id")
+                } else {
+                    outcome.fail(.trakt, message: "couldn't match on Trakt")
                 }
             }
 
-            if t.plexRatingKey == nil {
-                await self.removeLocallyWatched(t)
-                outcome.succeed(.local)
+            if !self.isPlexItem(t) {
+                if await self.removeLocallyWatched(t) > 0 {
+                    outcome.succeed(.local)
+                } else {
+                    outcome.unchanged()
+                }
             }
         }
     }
@@ -294,23 +319,16 @@ final class WatchStateService: ObservableObject {
 
     func removeFromContinueWatching(_ target: WatchStateTarget) async -> WatchStateResult {
         await perform(.removeFromContinueWatching, target) { t, outcome in
-            if let key = t.plexRatingKey, let plex = self.plexServer {
-                do {
-                    try await plex.removeFromContinueWatching(ratingKey: key)
-                    outcome.succeed(.plex)
-                } catch {
-                    outcome.fail(.plex, error)
-                }
-                await plex.invalidateWatchStateCache(ratingKeys: [key, t.showPlexRatingKey].compactMap { $0 })
+            await self.applyPlex(t, outcome) { plex, key in
+                try await plex.removeFromContinueWatching(ratingKey: key)
             }
 
-            if self.isTraktWatchSyncEnabled, self.traktIds(for: t) != nil {
-                let removed = await self.removeTraktPlayback(for: t)
-                if removed > 0 { outcome.succeed(.trakt) }
+            if self.isTraktWatchSyncEnabled {
+                let removal = await self.removeTraktPlayback(for: t, afterWrite: false)
+                self.record(removal, in: outcome)
             }
 
-            let cleared = await self.clearLocalProgress(for: t)
-            if t.plexRatingKey == nil || cleared > 0 {
+            if await self.clearLocalProgress(for: t) > 0 {
                 outcome.succeed(.local)
             }
         }
@@ -319,7 +337,8 @@ final class WatchStateService: ObservableObject {
     // MARK: - Start Over
 
     /// Resets saved progress on Plex, Trakt and locally so the caller can play
-    /// from 0. Watched state is unchanged.
+    /// from 0. Watched state is unchanged. A result with `noChanges` means there
+    /// was no saved progress anywhere; playing from 0 is still correct.
     func startOver(_ item: MediaItem) async -> WatchStateResult {
         guard let target = WatchStateTarget(item: item) else { return unsupported(.startOver, item: item) }
         return await startOver(target)
@@ -327,28 +346,23 @@ final class WatchStateService: ObservableObject {
 
     func startOver(_ target: WatchStateTarget) async -> WatchStateResult {
         await perform(.startOver, target) { t, outcome in
-            if let key = t.plexRatingKey, let plex = self.plexServer {
-                switch t.kind {
-                case .movie, .episode:
-                    do {
-                        try await plex.resetProgress(ratingKey: key)
-                        outcome.succeed(.plex)
-                    } catch {
-                        outcome.fail(.plex, error)
-                    }
-                    await plex.invalidateWatchStateCache(ratingKeys: [key, t.showPlexRatingKey].compactMap { $0 })
-                default:
-                    break
+            switch t.kind {
+            case .movie, .episode:
+                await self.applyPlex(t, outcome) { plex, key in
+                    try await plex.resetProgress(ratingKey: key)
                 }
+            default:
+                break
             }
 
-            if self.isTraktWatchSyncEnabled, self.traktIds(for: t) != nil {
-                _ = await self.removeTraktPlayback(for: t)
-                outcome.succeed(.trakt)
+            if self.isTraktWatchSyncEnabled {
+                let removal = await self.removeTraktPlayback(for: t, afterWrite: false)
+                self.record(removal, in: outcome)
             }
 
-            await self.clearLocalProgress(for: t)
-            outcome.succeed(.local)
+            if await self.clearLocalProgress(for: t) > 0 {
+                outcome.succeed(.local)
+            }
         }
     }
 
@@ -367,13 +381,13 @@ final class WatchStateService: ObservableObject {
         guard canRate else { return traktRequired(.rate, target) }
         return await perform(.rate, target, rating: rating) { t, outcome in
             guard let items = self.traktItems(for: t, rating: rating) else {
-                outcome.fail(.trakt, message: "no Trakt-compatible id")
+                outcome.fail(.trakt, message: "couldn't match on Trakt")
                 return
             }
             do {
                 let result = try await FlixorCore.shared.trakt.addRatings(items)
                 if result.addedCount == 0, result.notFoundCount > 0 {
-                    outcome.fail(.trakt, message: "not found on Trakt")
+                    outcome.fail(.trakt, message: "couldn't match on Trakt")
                 } else {
                     outcome.succeed(.trakt)
                 }
@@ -393,7 +407,7 @@ final class WatchStateService: ObservableObject {
         guard canRate else { return traktRequired(.removeRating, target) }
         return await perform(.removeRating, target) { t, outcome in
             guard let items = self.traktItems(for: t) else {
-                outcome.fail(.trakt, message: "no Trakt-compatible id")
+                outcome.fail(.trakt, message: "couldn't match on Trakt")
                 return
             }
             do {
@@ -427,10 +441,10 @@ final class WatchStateService: ObservableObject {
             case .show:
                 return item.show.map { idsMatch($0.ids, t) } ?? false
             case .season(let n):
-                guard let show = item.show, idsMatch(show.ids, t) else { return false }
+                guard let n, let show = item.show, idsMatch(show.ids, t) else { return false }
                 return item.season?.number == n
             case .episode(let s, let e):
-                guard let show = item.show, idsMatch(show.ids, t), let ep = item.episode else { return false }
+                guard let s, let e, let show = item.show, idsMatch(show.ids, t), let ep = item.episode else { return false }
                 return ep.season == s && ep.number == e
             }
         }?.rating
@@ -466,11 +480,12 @@ final class WatchStateService: ObservableObject {
         }
     }
 
-    /// Fills in show keys, season/episode numbers (from Plex) and title-level
-    /// external ids (from Plex GUIDs, or TMDB<->IMDb) as needed.
+    /// Fills in show keys, season/episode numbers and the item's own ratingKey
+    /// (from Plex), and title-level external ids (from Plex GUIDs, or TMDB<->IMDb).
     func resolve(_ target: WatchStateTarget, needTitleIds: Bool) async -> WatchStateTarget {
         var t = target
 
+        // Season/episode numbers and the show key from the item's own Plex key.
         if let key = t.plexRatingKey {
             let needsStructure: Bool
             switch t.kind {
@@ -490,12 +505,28 @@ final class WatchStateService: ObservableObject {
                     break
                 }
             }
+        }
 
-            if needTitleIds, t.tmdbId == nil, t.imdbId == nil, let ids = await resolver.titleIds(plexRatingKey: key) {
-                t.tmdbId = ids.tmdbId
-                t.imdbId = ids.imdbId
-                t.tvdbId = t.tvdbId ?? ids.tvdbId
+        // Only the show's key is known: find the season (and episode) under it.
+        if t.plexRatingKey == nil, let showKey = t.showPlexRatingKey {
+            switch t.kind {
+            case .season(let n?):
+                t.plexRatingKey = await resolver.plexChildRatingKey(parentRatingKey: showKey, index: n)
+            case .episode(let s?, let e?):
+                if let seasonKey = await resolver.plexChildRatingKey(parentRatingKey: showKey, index: s) {
+                    t.plexRatingKey = await resolver.plexChildRatingKey(parentRatingKey: seasonKey, index: e)
+                }
+            default:
+                break
             }
+        }
+
+        if needTitleIds, t.tmdbId == nil, t.imdbId == nil,
+           let key = t.showPlexRatingKey ?? t.plexRatingKey,
+           let ids = await resolver.titleIds(plexRatingKey: key) {
+            t.tmdbId = ids.tmdbId
+            t.imdbId = ids.imdbId
+            t.tvdbId = t.tvdbId ?? ids.tvdbId
         }
 
         if needTitleIds {
@@ -515,9 +546,15 @@ final class WatchStateService: ObservableObject {
     private final class Outcome {
         var succeeded: [WatchStateBackend] = []
         var failures: [WatchStateResult.Failure] = []
+        /// Something was checked and found already in the requested state.
+        var sawUnchanged = false
 
         func succeed(_ backend: WatchStateBackend) {
             if !succeeded.contains(backend) { succeeded.append(backend) }
+        }
+
+        func unchanged() {
+            sawUnchanged = true
         }
 
         func fail(_ backend: WatchStateBackend, _ error: Error) {
@@ -531,14 +568,15 @@ final class WatchStateService: ObservableObject {
         private static func describe(_ error: Error) -> String {
             if let trakt = error as? TraktError {
                 switch trakt {
-                case .authenticationRequired: return "Trakt sign-in expired"
-                case .httpError(429): return "Trakt rate limit, try again shortly"
-                case .httpError(let code): return "Trakt error \(code)"
+                case .authenticationRequired: return "sign-in expired"
+                case .httpError(429): return "rate limited, try again shortly"
+                case .httpError(404): return "couldn't match on Trakt"
+                case .httpError(let code): return "error \(code)"
                 default: return trakt.localizedDescription
                 }
             }
             if let plex = error as? PlexServerError, case .httpError(let code) = plex {
-                return code == 404 ? "not supported by this Plex server" : "Plex error \(code)"
+                return code == 404 ? "not supported by this server" : "error \(code)"
             }
             return error.localizedDescription
         }
@@ -550,23 +588,39 @@ final class WatchStateService: ObservableObject {
         rating: Int? = nil,
         body: (WatchStateTarget, Outcome) async -> Void
     ) async -> WatchStateResult {
-        let key = "\(action.rawValue):\(target.actionKey)"
+        if action.isWatchStateWrite, target.kind == .show, target.isNewEpisodesCard {
+            return WatchStateResult(action: action, target: target, succeeded: [], failures: [
+                .init(backend: nil, message: "this card is for new episodes; open the show to pick episodes"),
+            ])
+        }
+
+        // Keyed by target only, so opposite actions on one item can't interleave.
+        let key = target.actionKey
         guard !inFlight.contains(key) else {
-            return WatchStateResult(action: action, target: target, succeeded: [], failures: [.init(backend: nil, message: "already in progress")])
+            return WatchStateResult(action: action, target: target, succeeded: [], failures: [
+                .init(backend: nil, message: "another change to this item is in progress"),
+            ])
         }
         inFlight.insert(key)
         defer { inFlight.remove(key) }
 
-        let needsIds = isTraktConnected || target.plexRatingKey == nil
+        let needsIds = isTraktConnected || !isPlexItem(target)
         let resolved = await resolve(target, needTitleIds: needsIds)
         let outcome = Outcome()
         await body(resolved, outcome)
 
-        if outcome.succeeded.isEmpty, outcome.failures.isEmpty {
-            outcome.failures.append(.init(backend: nil, message: "Nothing to update for this item"))
+        let noChanges = outcome.succeeded.isEmpty && outcome.failures.isEmpty
+        if noChanges, !outcome.sawUnchanged, action != .startOver, action != .removeFromContinueWatching {
+            outcome.failures.append(.init(backend: nil, message: "nothing to update for this item"))
         }
 
-        let result = WatchStateResult(action: action, target: resolved, succeeded: outcome.succeeded, failures: outcome.failures)
+        let result = WatchStateResult(
+            action: action,
+            target: resolved,
+            succeeded: outcome.succeeded,
+            failures: outcome.failures,
+            noChanges: outcome.succeeded.isEmpty && outcome.failures.isEmpty
+        )
         if !result.succeeded.isEmpty {
             let change = WatchStateChange(action: action, target: resolved, rating: rating, backends: result.succeeded)
             NotificationCenter.default.post(name: .watchStateDidChange, object: nil, userInfo: change.userInfo)
@@ -574,6 +628,7 @@ final class WatchStateService: ObservableObject {
         AppLogger.shared.info("[WatchState] \(action.rawValue) \(resolved.actionKey)", data: [
             "succeeded": result.succeeded.map(\.rawValue).joined(separator: ","),
             "failures": result.failures.map(\.message).joined(separator: "; "),
+            "noChanges": result.noChanges,
         ])
         return result
     }
@@ -587,15 +642,173 @@ final class WatchStateService: ObservableObject {
         WatchStateResult(action: action, target: target, succeeded: [], failures: [.init(backend: .trakt, message: "connect Trakt in Settings")])
     }
 
+    // MARK: - Private: Plex
+
+    /// The item lives on Plex (it has its own or its show's ratingKey). Such items
+    /// are never written to the local store.
+    private func isPlexItem(_ t: WatchStateTarget) -> Bool {
+        t.plexRatingKey != nil || t.showPlexRatingKey != nil
+    }
+
+    /// Runs a Plex action for Plex items, recording a failure (never a silent skip)
+    /// when the server isn't available or the season/episode key can't be found.
+    private func applyPlex(
+        _ t: WatchStateTarget,
+        _ outcome: Outcome,
+        _ action: (PlexServerService, String) async throws -> Void
+    ) async {
+        guard isPlexItem(t) else { return }
+        guard let plex = plexServer else {
+            outcome.fail(.plex, message: isStremioOnlyMode ? "not used in Stremio-only mode" : "no server connected")
+            return
+        }
+        guard let key = t.plexRatingKey else {
+            outcome.fail(.plex, message: "couldn't find this \(t.kind.label) on the server")
+            return
+        }
+        do {
+            try await action(plex, key)
+            outcome.succeed(.plex)
+        } catch {
+            outcome.fail(.plex, error)
+        }
+        await plex.invalidateWatchStateCache(ratingKeys: [key, t.showPlexRatingKey].compactMap { $0 })
+    }
+
     // MARK: - Private: Trakt
 
-    /// Deletes Trakt playback (paused) entries for the target. Best effort;
-    /// returns how many were removed.
-    @discardableResult
-    private func removeTraktPlayback(for t: WatchStateTarget) async -> Int {
-        guard isTraktWatchSyncEnabled else { return 0 }
+    /// Adds only what isn't already watched on Trakt: for shows/seasons the aired,
+    /// unwatched episodes (from Trakt watched progress); for an episode or movie,
+    /// nothing when it's already watched. Records a failure when Trakt should have
+    /// been updated but couldn't be.
+    private func addTraktHistory(_ t: WatchStateTarget, _ outcome: Outcome) async {
+        guard let ids = traktIds(for: t) else {
+            outcome.fail(.trakt, message: "couldn't match on Trakt")
+            return
+        }
+        let trakt = FlixorCore.shared.trakt
+        let items: TraktSyncItems
+
+        do {
+            switch t.kind {
+            case .movie:
+                guard let traktId = await resolver.traktId(tmdbId: t.tmdbId, imdbId: t.imdbId, isShow: false) else {
+                    outcome.fail(.trakt, message: "couldn't match on Trakt")
+                    return
+                }
+                let history = try await trakt.getItemHistory(type: "movies", traktId: traktId, limit: 1)
+                if !history.isEmpty {
+                    outcome.unchanged()
+                    return
+                }
+                items = .movie(ids)
+
+            case .show, .season, .episode:
+                guard let showId = await traktShowId(for: t) else {
+                    outcome.fail(.trakt, message: "couldn't match on Trakt")
+                    return
+                }
+                let progress = try await trakt.getShowWatchedProgress(showId: showId)
+                guard let missing = Self.unwatchedEpisodes(in: progress, for: t.kind) else {
+                    outcome.fail(.trakt, message: "season/episode not known yet")
+                    return
+                }
+                if missing.isEmpty {
+                    if progress.aired == 0, t.kind == .show {
+                        outcome.fail(.trakt, message: "no aired episodes on Trakt")
+                    } else {
+                        outcome.unchanged()
+                    }
+                    return
+                }
+                let seasons = Dictionary(grouping: missing, by: \.season)
+                    .sorted { $0.key < $1.key }
+                    .map { season, episodes in
+                        TraktSyncSeason(number: season, episodes: episodes.map { TraktSyncEpisode(number: $0.episode) })
+                    }
+                items = TraktSyncItems(shows: [TraktSyncShow(ids: ids, seasons: seasons)])
+            }
+        } catch {
+            outcome.fail(.trakt, error)
+            return
+        }
+
+        do {
+            let result = try await trakt.addToHistory(items)
+            if result.addedCount == 0, result.notFoundCount > 0 {
+                outcome.fail(.trakt, message: "couldn't match on Trakt")
+                return
+            }
+            outcome.succeed(.trakt)
+        } catch {
+            outcome.fail(.trakt, error)
+            return
+        }
+
+        let removal = await removeTraktPlayback(for: t, afterWrite: true)
+        if removal.failed > 0 || removal.fetchFailed {
+            outcome.fail(.trakt, message: "couldn't clear saved progress")
+        }
+    }
+
+    /// Id accepted by Trakt's show endpoints: IMDb id when known, else Trakt id.
+    private func traktShowId(for t: WatchStateTarget) async -> String? {
+        if let imdb = t.imdbId, imdb.lowercased().hasPrefix("tt") { return imdb }
+        return await resolver.traktId(tmdbId: t.tmdbId, imdbId: nil, isShow: true).map(String.init)
+    }
+
+    /// Aired episodes not yet watched that the target covers. Nil when the target's
+    /// season/episode numbers are unknown. An episode Trakt doesn't list as aired is
+    /// returned as-is (the user is asserting they watched it).
+    private static func unwatchedEpisodes(in progress: TraktShowWatchedProgress, for kind: WatchStateTarget.Kind) -> [EpisodeNumber]? {
+        func incomplete(_ season: TraktShowWatchedProgress.Season) -> [EpisodeNumber] {
+            season.episodes.filter { !$0.completed }.map { EpisodeNumber(season: season.number, episode: $0.number) }
+        }
+        switch kind {
+        case .movie:
+            return []
+        case .show:
+            return progress.seasons.filter { $0.number > 0 }.flatMap(incomplete)
+        case .season(let n):
+            guard let n else { return nil }
+            return progress.seasons.first { $0.number == n }.map(incomplete) ?? []
+        case .episode(let s, let e):
+            guard let s, let e else { return nil }
+            let listed = progress.seasons.first { $0.number == s }?.episodes.first { $0.number == e }
+            if let listed, listed.completed { return [] }
+            return [EpisodeNumber(season: s, episode: e)]
+        }
+    }
+
+    private struct PlaybackRemoval {
+        var removed = 0
+        var failed = 0
+        var fetchFailed = false
+    }
+
+    private func record(_ removal: PlaybackRemoval, in outcome: Outcome) {
+        if removal.fetchFailed {
+            outcome.fail(.trakt, message: "couldn't read saved progress")
+        } else if removal.failed > 0 {
+            outcome.fail(.trakt, message: "couldn't remove \(removal.failed) saved progress entr\(removal.failed == 1 ? "y" : "ies")")
+        }
+        if removal.removed > 0 { outcome.succeed(.trakt) }
+    }
+
+    /// Deletes Trakt playback (paused) entries that exactly match the target
+    /// (a show matches all its episodes; a season with unknown number matches
+    /// nothing). Deletes are spaced ~1 s apart for Trakt's write limit.
+    private func removeTraktPlayback(for t: WatchStateTarget, afterWrite: Bool) async -> PlaybackRemoval {
+        var removal = PlaybackRemoval()
+        guard isTraktWatchSyncEnabled, traktIds(for: t) != nil else { return removal }
         let type = t.isMovie ? "movies" : "episodes"
-        guard let entries = try? await FlixorCore.shared.trakt.getPlaybackProgress(type: type) else { return 0 }
+        let entries: [TraktPlaybackItem]
+        do {
+            entries = try await FlixorCore.shared.trakt.getPlaybackProgress(type: type)
+        } catch {
+            removal.fetchFailed = true
+            return removal
+        }
 
         let matching = entries.filter { entry in
             switch t.kind {
@@ -604,26 +817,31 @@ final class WatchStateService: ObservableObject {
             case .show:
                 return entry.show.map { idsMatch($0.ids, t) } ?? false
             case .season(let n):
-                guard let show = entry.show, idsMatch(show.ids, t) else { return false }
-                return n == nil || entry.episode?.season == n
+                guard let n, let show = entry.show, idsMatch(show.ids, t) else { return false }
+                return entry.episode?.season == n
             case .episode(let s, let e):
-                guard let show = entry.show, idsMatch(show.ids, t), let ep = entry.episode else { return false }
+                guard let s, let e, let show = entry.show, idsMatch(show.ids, t), let ep = entry.episode else { return false }
                 return ep.season == s && ep.number == e
             }
         }
 
-        var removed = 0
+        var needsSpacing = afterWrite
         for entry in matching {
+            if needsSpacing {
+                try? await Task.sleep(nanoseconds: traktWriteSpacingNs)
+            }
+            needsSpacing = true
             do {
                 try await FlixorCore.shared.trakt.removePlaybackProgress(id: entry.id)
-                removed += 1
+                removal.removed += 1
             } catch {
+                removal.failed += 1
                 AppLogger.shared.warn("[WatchState] Trakt playback delete failed", data: [
                     "id": entry.id, "error": error.localizedDescription,
                 ])
             }
         }
-        return removed
+        return removal
     }
 
     private func ratings(type: String) async throws -> [TraktRatingItem] {
@@ -662,6 +880,7 @@ final class WatchStateService: ObservableObject {
         let season = t.seasonNumber
         let episode = t.episodeNumber
         if case .episode = t.kind, season == nil || episode == nil { return 0 }
+        if case .season = t.kind, season == nil { return 0 }
 
         let resume = await resumeStore.removeAll(isMovie: isMovie, tmdbId: t.tmdbId, imdbId: t.imdbId, season: season, episode: episode)
         let history = await localStore.removeHistory(
@@ -714,18 +933,19 @@ final class WatchStateService: ObservableObject {
         await localStore.markWatched(entries)
     }
 
-    private func removeLocallyWatched(_ t: WatchStateTarget) async {
+    /// Returns how many local watched entries were removed.
+    private func removeLocallyWatched(_ t: WatchStateTarget) async -> Int {
         switch t.kind {
         case .movie:
-            await localStore.removeWatched(mediaType: .movie, tmdbId: t.tmdbId, imdbId: t.imdbId)
+            return await localStore.removeWatched(mediaType: .movie, tmdbId: t.tmdbId, imdbId: t.imdbId)
         case .show:
-            await localStore.removeWatched(mediaType: .episode, tmdbId: t.tmdbId, imdbId: t.imdbId)
+            return await localStore.removeWatched(mediaType: .episode, tmdbId: t.tmdbId, imdbId: t.imdbId)
         case .season(let n):
-            guard let n else { return }
-            await localStore.removeWatched(mediaType: .episode, tmdbId: t.tmdbId, imdbId: t.imdbId, season: n)
+            guard let n else { return 0 }
+            return await localStore.removeWatched(mediaType: .episode, tmdbId: t.tmdbId, imdbId: t.imdbId, season: n)
         case .episode(let s, let e):
-            guard let s, let e else { return }
-            await localStore.removeWatched(mediaType: .episode, tmdbId: t.tmdbId, imdbId: t.imdbId, season: s, episode: e)
+            guard let s, let e else { return 0 }
+            return await localStore.removeWatched(mediaType: .episode, tmdbId: t.tmdbId, imdbId: t.imdbId, season: s, episode: e)
         }
     }
 

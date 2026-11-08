@@ -715,6 +715,8 @@ private struct SidebarSettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
+            NavigationStyleSettingsSection()
+
             SettingsGroupCard {
                 SettingsRow(
                     icon: "play.circle.fill",

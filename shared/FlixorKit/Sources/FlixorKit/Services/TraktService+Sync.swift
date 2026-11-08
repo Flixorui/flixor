@@ -269,6 +269,52 @@ public struct TraktPlaybackItem: Decodable, Identifiable {
     }
 }
 
+// MARK: - Watched Progress
+
+/// `/shows/{id}/progress/watched`: aired episodes and which ones the user has watched.
+public struct TraktShowWatchedProgress: Decodable {
+    public let aired: Int
+    public let completed: Int
+    public let seasons: [Season]
+
+    public struct Season: Decodable {
+        public let number: Int
+        public let aired: Int
+        public let completed: Int
+        public let episodes: [Episode]
+
+        private enum CodingKeys: String, CodingKey { case number, aired, completed, episodes }
+
+        public init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            number = try c.decode(Int.self, forKey: .number)
+            aired = try c.decodeIfPresent(Int.self, forKey: .aired) ?? 0
+            completed = try c.decodeIfPresent(Int.self, forKey: .completed) ?? 0
+            episodes = try c.decodeIfPresent([Episode].self, forKey: .episodes) ?? []
+        }
+    }
+
+    public struct Episode: Decodable {
+        public let number: Int
+        public let completed: Bool
+        public let lastWatchedAt: String?
+
+        private enum CodingKeys: String, CodingKey {
+            case number, completed
+            case lastWatchedAt = "last_watched_at"
+        }
+    }
+
+    private enum CodingKeys: String, CodingKey { case aired, completed, seasons }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        aired = try c.decodeIfPresent(Int.self, forKey: .aired) ?? 0
+        completed = try c.decodeIfPresent(Int.self, forKey: .completed) ?? 0
+        seasons = try c.decodeIfPresent([Season].self, forKey: .seasons) ?? []
+    }
+}
+
 // MARK: - Comments
 
 public enum TraktCommentSort: String, CaseIterable, Sendable {
@@ -482,6 +528,35 @@ extension TraktService {
     @discardableResult
     public func removeFromHistory(_ items: TraktSyncItems) async throws -> TraktSyncResult {
         try await sync(path: "/sync/history/remove", items: items)
+    }
+
+    /// Watched progress for a show: every aired episode with a `completed` flag.
+    /// `showId` may be a Trakt id, slug or IMDb id. Specials excluded by default.
+    /// Requires auth.
+    public func getShowWatchedProgress(showId: String, includeSpecials: Bool = false) async throws -> TraktShowWatchedProgress {
+        let (data, _) = try await send(
+            method: "GET",
+            path: "/shows/\(showId)/progress/watched",
+            params: [
+                "hidden": "false",
+                "specials": includeSpecials ? "true" : "false",
+                "count_specials": includeSpecials ? "true" : "false",
+            ],
+            auth: true
+        )
+        return try JSONDecoder().decode(TraktShowWatchedProgress.self, from: data)
+    }
+
+    /// The user's plays of one item (`type`: "movies", "shows", "seasons", "episodes";
+    /// `traktId`: numeric Trakt id). Use `limit: 1` to test "already watched". Requires auth.
+    public func getItemHistory(type: String, traktId: Int, limit: Int = 1) async throws -> [TraktHistoryItem] {
+        let (data, _) = try await send(
+            method: "GET",
+            path: "/sync/history/\(type)/\(traktId)",
+            params: ["limit": String(limit)],
+            auth: true
+        )
+        return try JSONDecoder().decode([TraktHistoryItem].self, from: data)
     }
 
     // MARK: Ratings

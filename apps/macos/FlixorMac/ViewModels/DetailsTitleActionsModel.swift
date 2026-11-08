@@ -118,7 +118,7 @@ final class DetailsTitleActionsModel: ObservableObject {
             isWorking = false
             Self.showToast(for: result)
 
-            if !result.isSuccess && !result.isPartialSuccess {
+            if Self.didFail(result) {
                 if affectsTitle {
                     (isWatched, isInProgress, progressText) = previous
                 }
@@ -226,7 +226,7 @@ final class DetailsTitleActionsModel: ObservableObject {
             let result = await service.rate(target, rating: value)
             isRatingWorking = false
             Self.showToast(for: result)
-            if !result.isSuccess && !result.isPartialSuccess { userRating = previous }
+            if Self.didFail(result) { userRating = previous }
         }
     }
 
@@ -240,7 +240,7 @@ final class DetailsTitleActionsModel: ObservableObject {
             let result = await service.removeRating(target)
             isRatingWorking = false
             Self.showToast(for: result)
-            if !result.isSuccess && !result.isPartialSuccess { userRating = previous }
+            if Self.didFail(result) { userRating = previous }
         }
     }
 
@@ -281,65 +281,44 @@ final class DetailsTitleActionsModel: ObservableObject {
 
     // MARK: - Toast
 
+    /// Nothing was applied and something went wrong. `noChanges` is not a failure:
+    /// the item was already in the requested state.
+    private static func didFail(_ result: WatchStateResult) -> Bool {
+        !result.isSuccess && !result.isPartialSuccess && !result.noChanges
+    }
+
     static func showToast(for result: WatchStateResult) {
-        let type: ToastView.ToastType = result.isSuccess ? .success : (result.isPartialSuccess ? .info : .error)
+        let type: ToastView.ToastType = result.isSuccess
+            ? .success
+            : (result.isPartialSuccess || result.noChanges ? .info : .error)
         ToastManager.shared.show(result.message, type: type)
     }
 
     // MARK: - Target building
 
     private static func makeTarget(vm: DetailsViewModel) -> (target: WatchStateTarget, kind: TitleKind)? {
-        let plexKey: String? = {
-            guard !isStremioOnlyMode else { return nil }
-            if let key = vm.plexRatingKey, !key.isEmpty { return key }
-            if let playable = vm.playableId, playable.hasPrefix("plex:") { return String(playable.dropFirst(5)) }
-            return nil
-        }()
-        let tmdb = vm.tmdbId.flatMap { Int($0) }
-        let sourceId = plexKey.map { "plex:\($0)" }
+        guard var target = vm.titleWatchTarget else { return nil }
 
-        if vm.isEpisode {
-            // vm.tmdbId is the SHOW's id on episode pages; the episode's own IMDb id
-            // is not the show's, so leave IMDb for the service to resolve.
-            guard plexKey != nil || tmdb != nil else { return nil }
-            let target = WatchStateTarget(
-                kind: .episode(season: vm.seasonNumber, episode: vm.episodeNumber),
-                plexRatingKey: plexKey,
-                showPlexRatingKey: vm.showRatingKey,
-                tmdbId: tmdb,
-                title: vm.showTitle ?? vm.title,
-                sourceItemId: sourceId
-            )
-            return (target, .episode)
+        // titleWatchTarget reads plexRatingKey only; plain-id Plex loads set just
+        // playableId. Without Plex (Stremio-only) the key must be absent so the
+        // service writes to the local store.
+        if isStremioOnlyMode {
+            target.plexRatingKey = nil
+            target.showPlexRatingKey = nil
+            guard target.tmdbId != nil || target.imdbId != nil else { return nil }
+        } else if target.plexRatingKey == nil {
+            target.plexRatingKey = vm.heroPlexRatingKey
         }
+        target.sourceItemId = target.plexRatingKey.map { "plex:\($0)" }
 
-        if vm.isSeason {
-            // Season GUIDs can carry a season-specific TMDB id; let the service
-            // resolve the show's ids from the Plex key instead.
-            guard let plexKey else { return nil }
-            let target = WatchStateTarget(
-                kind: .season(vm.currentSeasonNumber),
-                plexRatingKey: plexKey,
-                showPlexRatingKey: vm.parentShowKey,
-                title: vm.title,
-                sourceItemId: sourceId
-            )
-            return (target, .season)
+        let kind: TitleKind
+        switch target.kind {
+        case .movie: kind = .movie
+        case .show: kind = .show
+        case .season: kind = .season
+        case .episode: kind = .episode
         }
-
-        guard plexKey != nil || tmdb != nil || vm.imdbId != nil else { return nil }
-        if vm.mediaKind == "tv" {
-            let target = WatchStateTarget(
-                kind: .show, plexRatingKey: plexKey, tmdbId: tmdb, imdbId: vm.imdbId,
-                title: vm.title, sourceItemId: sourceId
-            )
-            return (target, .show)
-        }
-        let target = WatchStateTarget(
-            kind: .movie, plexRatingKey: plexKey, tmdbId: tmdb, imdbId: vm.imdbId,
-            title: vm.title, sourceItemId: sourceId
-        )
-        return (target, .movie)
+        return (target, kind)
     }
 
     private static func makeSeasonOptions(vm: DetailsViewModel, showTarget: WatchStateTarget?) -> [SeasonOption] {

@@ -15,9 +15,6 @@ struct DetailsView: View {
     @StateObject private var browseViewModel = BrowseModalViewModel()
     @State private var showBrowseModal = false
     @State private var activeBrowseContext: BrowseContext?
-    @StateObject private var personViewModel = PersonModalViewModel()
-    @State private var showPersonModal = false
-    @State private var activePerson: PersonReference?
     @EnvironmentObject private var router: NavigationRouter
     @EnvironmentObject private var mainView: MainViewState
 
@@ -55,7 +52,7 @@ struct DetailsView: View {
     }
 
     private var showsFloatingHeader: Bool {
-        heroScroll.isHeroScrolledAway && !showsLoadingSkeleton && !showBrowseModal && !showPersonModal
+        heroScroll.isHeroScrolledAway && !showsLoadingSkeleton && !showBrowseModal
     }
 
     /// Same primary action as the hero: Plex when there is a copy, else addons.
@@ -132,26 +129,6 @@ struct DetailsView: View {
                 .transition(.opacity)
                 .zIndex(2)
             }
-
-            if showPersonModal {
-                PersonModalView(
-                    isPresented: $showPersonModal,
-                    person: activePerson,
-                    viewModel: personViewModel,
-                    onSelect: { media in
-                        showPersonModal = false
-                        Task {
-                            await vm.load(for: media)
-                            await MainActor.run {
-                                activeTab = (vm.mediaKind == "tv") ? "EPISODES" : "SUGGESTED"
-                            }
-                        }
-                    }
-                )
-                .padding(.top, 80)
-                .transition(.opacity)
-                .zIndex(3)
-            }
         }
         .ignoresSafeArea(edges: .top)
         .overlay(alignment: .top) {
@@ -184,7 +161,7 @@ struct DetailsView: View {
         .onChange(of: reduceMotion) { value in
             heroTrailer.update { $0.isReduceMotion = value }
         }
-        .onChange(of: showBrowseModal || showPersonModal) { obscured in
+        .onChange(of: showBrowseModal) { obscured in
             heroTrailer.update { $0.isObscured = obscured }
         }
         .onAppear {
@@ -202,6 +179,7 @@ struct DetailsView: View {
         }
         .background(HomeBackground(heroColors: vm.heroColors))
         .navigationTitle("")
+        .toast() // watched-state toasts from the Episodes section
         .task {
             await vm.load(for: item)
             initialLoadFinished = true
@@ -220,17 +198,10 @@ struct DetailsView: View {
                 heroTrailer.configure(tmdbId: vm.tmdbId, mediaKind: vm.mediaKind)
             }
         }
-        .toast()
         .onChange(of: showBrowseModal) { value in
             if !value {
                 activeBrowseContext = nil
                 browseViewModel.reset()
-            }
-        }
-        .onChange(of: showPersonModal) { value in
-            if !value {
-                activePerson = nil
-                personViewModel.reset()
             }
         }
         .sheet(isPresented: $showVersionPicker) {
@@ -428,13 +399,12 @@ struct DetailsView: View {
     }
 
     func presentPerson(_ person: CastCrewCard.Person) {
-        guard !person.id.isEmpty, Int(person.id) != nil else { return }
-        let reference = PersonReference(id: person.id, name: person.name, role: person.role, image: person.image)
-        activePerson = reference
-        showPersonModal = true
-        Task {
-            await personViewModel.load(personId: reference.id, name: reference.name, profilePath: reference.image)
-        }
+        // TMDB cast carries numeric ids; Plex cast only names, which the person
+        // page resolves with a TMDB name search.
+        let tmdbId = Int(person.id).map { $0 > 0 ? String($0) : "" } ?? ""
+        guard !tmdbId.isEmpty || !person.name.isEmpty else { return }
+        let route = PersonRoute(tmdbId: tmdbId, name: person.name, profilePath: person.image?.absoluteString)
+        router.push(route, on: mainView.selectedTab)
     }
 
     func playEpisode(_ episode: DetailsViewModel.Episode) {

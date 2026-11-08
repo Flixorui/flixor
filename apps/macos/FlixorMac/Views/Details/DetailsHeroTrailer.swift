@@ -37,7 +37,7 @@ final class DetailsHeroTrailerController: ObservableObject {
         var isWindowFocused = true
         var isTabActive = true
         var isReduceMotion = false
-        /// An in-page overlay (browse / person modal) covers the hero.
+        /// The in-page browse overlay covers the hero.
         var isObscured = false
     }
 

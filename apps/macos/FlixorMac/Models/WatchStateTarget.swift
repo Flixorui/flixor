@@ -55,6 +55,11 @@ struct WatchStateTarget: Hashable {
     /// The `MediaItem.id` this target was built from, echoed in notifications so
     /// rows can find the card to update.
     var sourceItemId: String?
+    /// True when the MediaItem was a "Recently added" series card that stands for
+    /// one or more NEW EPISODES (HomeViewModel.groupEpisodesBySeries builds these as a
+    /// `"show"` item with the summary "N new episode(s)"). WatchStateService refuses
+    /// whole-show watch-state writes for such targets.
+    var isNewEpisodesCard = false
 
     init(
         kind: Kind,
@@ -195,6 +200,16 @@ struct WatchStateTarget: Hashable {
             title: type == "episode" ? (item.grandparentTitle ?? item.title) : item.title,
             sourceItemId: item.id
         )
+        if kind == .show, Self.isNewEpisodesSummary(item.summary) {
+            isNewEpisodesCard = true
+        }
+    }
+
+    /// Matches the summary HomeViewModel writes on grouped "Recently added" cards
+    /// ("1 new episode", "3 new episodes"). There is no other marker on MediaItem.
+    static func isNewEpisodesSummary(_ summary: String?) -> Bool {
+        guard let summary else { return false }
+        return summary.range(of: #"^\d+ new episodes?$"#, options: .regularExpression) != nil
     }
 
     // MARK: - Helpers

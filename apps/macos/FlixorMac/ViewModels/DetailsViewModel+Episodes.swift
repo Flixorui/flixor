@@ -269,3 +269,65 @@ extension DetailsViewModel {
         } catch {}
     }
 }
+
+// MARK: - Watch-state / Trakt targets
+
+extension DetailsViewModel {
+    /// The parent show's Plex ratingKey for the episodes on screen: the show
+    /// itself on show pages, the parent show on season and episode pages.
+    var showPlexKeyForEpisodes: String? {
+        if isEpisode { return showRatingKey }
+        if isSeason { return parentShowKey }
+        return showRatingKey ?? plexRatingKey
+    }
+
+    /// The show's TMDB id when it's known for sure. Season-only pages carry the
+    /// season's Plex GUID, so their ids are left for WatchStateService to resolve.
+    var showTmdbIdForEpisodes: String? {
+        isSeason ? nil : tmdbId
+    }
+
+    /// Target for an episode row (watched actions).
+    func watchTarget(for episode: Episode) -> WatchStateTarget {
+        .episode(
+            episode,
+            showTmdbId: showTmdbIdForEpisodes,
+            showImdbId: isSeason || isEpisode ? nil : imdbId,
+            showPlexRatingKey: showPlexKeyForEpisodes
+        )
+    }
+
+    /// Target for the title on screen (movie, show, season or episode), e.g. for
+    /// Trakt comments. Nil until the page has an id to work with.
+    var titleWatchTarget: WatchStateTarget? {
+        let tmdb = tmdbId.flatMap { Int($0) }
+        let plexKey = plexRatingKey
+        if isEpisode {
+            guard plexKey != nil || tmdb != nil else { return nil }
+            return WatchStateTarget(
+                kind: .episode(season: seasonNumber, episode: episodeNumber),
+                plexRatingKey: plexKey,
+                showPlexRatingKey: showRatingKey,
+                tmdbId: tmdb,
+                title: showTitle
+            )
+        }
+        if isSeason {
+            guard plexKey != nil else { return nil }
+            return WatchStateTarget(
+                kind: .season(currentSeasonNumber),
+                plexRatingKey: plexKey,
+                showPlexRatingKey: parentShowKey,
+                title: title
+            )
+        }
+        guard plexKey != nil || tmdb != nil || imdbId != nil else { return nil }
+        if mediaKind == "movie" {
+            return .movie(tmdbId: tmdb, imdbId: imdbId, plexRatingKey: plexKey, title: title)
+        }
+        if mediaKind == "tv" {
+            return .show(tmdbId: tmdb, imdbId: imdbId, plexRatingKey: plexKey, title: title)
+        }
+        return nil
+    }
+}

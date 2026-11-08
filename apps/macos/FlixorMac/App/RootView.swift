@@ -164,6 +164,36 @@ struct MainView: View {
     @StateObject private var profileManager = ProfileManager.shared
     @ObservedObject private var profileSettings = ProfileSettings.shared
     @ObservedObject private var appMode = AppModeStore.shared
+    @ObservedObject private var navigationStyle = NavigationStyleStore.shared
+    @ObservedObject private var playback = PlaybackCommandState.shared
+
+    /// Sidebar layout chosen and no player covering the window (the
+    /// fullscreen player hides the toolbar and the rail).
+    private var showsSidebar: Bool {
+        navigationStyle.usesSidebar && !playback.isPlayerActive
+    }
+
+    /// Room the content leaves for the sidebar. A hover-expanded rail floats
+    /// over the content; a pinned one pushes it aside.
+    private var contentLeadingInset: CGFloat {
+        guard showsSidebar else { return 0 }
+        return navigationStyle.sidebarPinned ? SidebarMetrics.expandedWidth : SidebarMetrics.collapsedWidth
+    }
+
+    /// Profile identity and actions for the sidebar (mirrors the toolbar menu).
+    private var sidebarProfileMenu: SidebarProfileMenu {
+        SidebarProfileMenu(
+            name: sessionManager.activeProfile?.title ?? sessionManager.currentUser?.username ?? "Profile",
+            initials: profileInitials,
+            avatarColor: profileAvatarColor,
+            canSwitchProfile: sessionManager.hasMultipleProfiles,
+            isStremioOnly: appMode.isStremioOnly,
+            onSwitchProfile: { showingProfileSelect = true },
+            onOpenSettings: { showingSettings = true },
+            onConnectPlex: { showingSettings = true },
+            onSignOut: { showingSignOutConfirmation = true }
+        )
+    }
 
     /// Visible navigation items based on settings and the active mode.
     private var visibleNavItems: [NavItem] {
@@ -216,61 +246,82 @@ struct MainView: View {
     var body: some View {
         // Use ZStack with separate NavigationStacks per tab for smooth tab switching
         // Each tab maintains its own navigation state and is shown/hidden via opacity
-        ZStack {
-            // Home Tab
-            NavigationStack(path: $router.homePath) {
-                HomeView()
-                    .navigationDestinations()
-            }
-            .id(contentRefreshId) // Only changes on profile switch, not tab switch
-            .opacity(mainViewState.selectedTab == .home ? 1 : 0)
-            .zIndex(mainViewState.selectedTab == .home ? 1 : 0)
-
-            // Search Tab
-            NavigationStack(path: $router.searchPath) {
-                SearchView()
-                    .navigationDestinations()
-            }
-            .opacity(mainViewState.selectedTab == .search ? 1 : 0)
-            .zIndex(mainViewState.selectedTab == .search ? 1 : 0)
-
-            // Library Tab - not instantiated without Plex, otherwise its .task would
-            // still fire /api/plex/libraries while hidden.
-            if visibleNavItems.contains(.library) {
-                NavigationStack(path: $router.libraryPath) {
-                    LibraryView()
+        // Same outer structure in both layouts so switching never rebuilds
+        // the tabs. In top-bar mode the inset is 0 and there is no rail.
+        ZStack(alignment: .topLeading) {
+            ZStack {
+                // Home Tab
+                NavigationStack(path: $router.homePath) {
+                    HomeView()
                         .navigationDestinations()
                 }
-                .opacity(mainViewState.selectedTab == .library ? 1 : 0)
-                .zIndex(mainViewState.selectedTab == .library ? 1 : 0)
-            }
+                .pushAppearance(depth: router.homePath.count)
+                .id(contentRefreshId) // Only changes on profile switch, not tab switch
+                .opacity(mainViewState.selectedTab == .home ? 1 : 0)
+                .zIndex(mainViewState.selectedTab == .home ? 1 : 0)
 
-            // My List Tab
-            NavigationStack(path: $router.myListPath) {
-                MyListView()
-                    .navigationDestinations()
-            }
-            .opacity(mainViewState.selectedTab == .myList ? 1 : 0)
-            .zIndex(mainViewState.selectedTab == .myList ? 1 : 0)
-
-            // New & Popular Tab
-            if profileSettings.showNewPopularTab {
-                NavigationStack(path: $router.newPopularPath) {
-                    NewPopularView()
+                // Search Tab
+                NavigationStack(path: $router.searchPath) {
+                    SearchView()
                         .navigationDestinations()
                 }
-                .opacity(mainViewState.selectedTab == .newPopular ? 1 : 0)
-                .zIndex(mainViewState.selectedTab == .newPopular ? 1 : 0)
-            }
+                .pushAppearance(depth: router.searchPath.count)
+                .opacity(mainViewState.selectedTab == .search ? 1 : 0)
+                .zIndex(mainViewState.selectedTab == .search ? 1 : 0)
 
-            // Downloads Tab
-            if visibleNavItems.contains(.downloads) {
-                NavigationStack(path: $router.downloadsPath) {
-                    DownloadsView()
+                // Library Tab - not instantiated without Plex, otherwise its .task would
+                // still fire /api/plex/libraries while hidden.
+                if visibleNavItems.contains(.library) {
+                    NavigationStack(path: $router.libraryPath) {
+                        LibraryView()
+                            .navigationDestinations()
+                    }
+                    .pushAppearance(depth: router.libraryPath.count)
+                    .opacity(mainViewState.selectedTab == .library ? 1 : 0)
+                    .zIndex(mainViewState.selectedTab == .library ? 1 : 0)
+                }
+
+                // My List Tab
+                NavigationStack(path: $router.myListPath) {
+                    MyListView()
                         .navigationDestinations()
                 }
-                .opacity(mainViewState.selectedTab == .downloads ? 1 : 0)
-                .zIndex(mainViewState.selectedTab == .downloads ? 1 : 0)
+                .pushAppearance(depth: router.myListPath.count)
+                .opacity(mainViewState.selectedTab == .myList ? 1 : 0)
+                .zIndex(mainViewState.selectedTab == .myList ? 1 : 0)
+
+                // New & Popular Tab
+                if profileSettings.showNewPopularTab {
+                    NavigationStack(path: $router.newPopularPath) {
+                        NewPopularView()
+                            .navigationDestinations()
+                    }
+                    .pushAppearance(depth: router.newPopularPath.count)
+                    .opacity(mainViewState.selectedTab == .newPopular ? 1 : 0)
+                    .zIndex(mainViewState.selectedTab == .newPopular ? 1 : 0)
+                }
+
+                // Downloads Tab
+                if visibleNavItems.contains(.downloads) {
+                    NavigationStack(path: $router.downloadsPath) {
+                        DownloadsView()
+                            .navigationDestinations()
+                    }
+                    .pushAppearance(depth: router.downloadsPath.count)
+                    .opacity(mainViewState.selectedTab == .downloads ? 1 : 0)
+                    .zIndex(mainViewState.selectedTab == .downloads ? 1 : 0)
+                }
+            }
+            .padding(.leading, contentLeadingInset)
+
+            if showsSidebar {
+                SidebarNavigationRail(
+                    items: visibleNavItems,
+                    selectedTab: mainViewState.selectedTab,
+                    onSelect: { selectTab($0) },
+                    profile: sidebarProfileMenu
+                )
+                .zIndex(2)
             }
         }
         .environmentObject(router)
@@ -289,88 +340,83 @@ struct MainView: View {
                 }.padding(.horizontal, 10)
             }
 
-            // Navigation links in center
-            ToolbarItemGroup(placement: .principal) {
-                HStack(spacing: 32) {
-                    ForEach(visibleNavItems) { item in
-                        ToolbarNavButton(
-                            item: item,
-                            isActive: mainViewState.selectedTab == item,
-                            onTap: {
-                                // If clicking the current tab, pop to root
-                                if mainViewState.selectedTab == item {
-                                    popToRoot(for: item)
-                                } else {
-                                    // Instant tab switch - no animation needed
-                                    mainViewState.selectedTab = item
-                                }
-                            }
-                        )
-                    }
-                }.padding(.horizontal, 15)
-            }
+            // In sidebar mode the tabs and the profile menu live in the rail.
+            if !navigationStyle.usesSidebar {
+                // Navigation links in center
+                ToolbarItemGroup(placement: .principal) {
+                    HStack(spacing: 32) {
+                        ForEach(visibleNavItems) { item in
+                            ToolbarNavButton(
+                                item: item,
+                                isActive: mainViewState.selectedTab == item,
+                                onTap: { selectTab(item) }
+                            )
+                        }
+                    }.padding(.horizontal, 15)
+                }
 
-            // User profile menu on right
-            ToolbarItem(placement: .primaryAction) {
-                Menu {
-                    // Current profile/user info
-                    if let profile = sessionManager.activeProfile {
-                        Label(profile.title, systemImage: "person.circle.fill")
-                            .font(.headline)
-                    } else if let user = sessionManager.currentUser {
-                        Label(user.username, systemImage: "person.circle")
-                            .font(.headline)
-                    }
-
-                    Divider()
-
-                    // Switch Profile (only if multiple profiles available)
-                    if sessionManager.hasMultipleProfiles {
-                        Button(action: {
-                            showingProfileSelect = true
-                        }) {
-                            Label("Switch Profile", systemImage: "person.2")
+                // User profile menu on right
+                ToolbarItem(placement: .primaryAction) {
+                    Menu {
+                        // Current profile/user info
+                        if let profile = sessionManager.activeProfile {
+                            Label(profile.title, systemImage: "person.circle.fill")
+                                .font(.headline)
+                        } else if let user = sessionManager.currentUser {
+                            Label(user.username, systemImage: "person.circle")
+                                .font(.headline)
                         }
 
                         Divider()
-                    }
 
-                    Button(action: {
-                        showingSettings = true
-                    }) {
-                        Label("Settings", systemImage: "gear")
-                    }
+                        // Switch Profile (only if multiple profiles available)
+                        if sessionManager.hasMultipleProfiles {
+                            Button(action: {
+                                showingProfileSelect = true
+                            }) {
+                                Label("Switch Profile", systemImage: "person.2")
+                            }
 
-                    Divider()
+                            Divider()
+                        }
 
-                    if appMode.isStremioOnly {
-                        // No Plex session to sign out of - offer to connect one instead.
                         Button(action: {
                             showingSettings = true
                         }) {
-                            Label("Connect Plex", systemImage: "link")
+                            Label("Settings", systemImage: "gear")
                         }
-                    } else {
-                        Button(role: .destructive, action: {
-                            showingSignOutConfirmation = true
-                        }) {
-                            Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
+
+                        Divider()
+
+                        if appMode.isStremioOnly {
+                            // No Plex session to sign out of - offer to connect one instead.
+                            Button(action: {
+                                showingSettings = true
+                            }) {
+                                Label("Connect Plex", systemImage: "link")
+                            }
+                        } else {
+                            Button(role: .destructive, action: {
+                                showingSignOutConfirmation = true
+                            }) {
+                                Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
+                            }
                         }
+                    } label: {
+                        Circle()
+                            .fill(profileAvatarColor)
+                            .frame(width: 28, height: 28)
+                            .overlay(
+                                Text(profileInitials)
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundColor(.white)
+                            )
+                            .padding(.horizontal, 20)
                     }
-                } label: {
-                    Circle()
-                        .fill(profileAvatarColor)
-                        .frame(width: 28, height: 28)
-                        .overlay(
-                            Text(profileInitials)
-                                .font(.system(size: 11, weight: .bold))
-                                .foregroundColor(.white)
-                        )
-                        .padding(.horizontal, 20)
+                    .menuStyle(.borderlessButton)
+                    .menuIndicator(.hidden)
+                    .padding(.horizontal, 15)
                 }
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
-                .padding(.horizontal, 15)
             }
         }
         .toolbarBackground(.visible, for: .windowToolbar)
@@ -414,6 +460,22 @@ struct MainView: View {
             if !visibleNavItems.contains(mainViewState.selectedTab) {
                 mainViewState.selectedTab = .home
             }
+        }
+        // Mouse back/forward buttons, Esc and Go > Back pop the current tab.
+        .background(HostingWindowReader { BackNavigationController.shared.registerWindow($0) })
+        .onAppear {
+            BackNavigationController.shared.register(router: router, mainViewState: mainViewState)
+        }
+    }
+
+    /// Tab bar / sidebar tap: switch tabs, or pop to root when the tab is
+    /// already selected.
+    private func selectTab(_ item: NavItem) {
+        if mainViewState.selectedTab == item {
+            popToRoot(for: item)
+        } else {
+            // Instant tab switch - no animation needed
+            mainViewState.selectedTab = item
         }
     }
 
@@ -464,6 +526,12 @@ extension View {
             }
             .navigationDestination(for: StremioSourcesDestination.self) { destination in
                 StremioSourcesView(destination: destination)
+            }
+            .navigationDestination(for: PersonRoute.self) { route in
+                PersonDetailView(route: route)
+            }
+            .navigationDestination(for: EntityBrowseRoute.self) { route in
+                EntityBrowseView(route: route)
             }
     }
 }
