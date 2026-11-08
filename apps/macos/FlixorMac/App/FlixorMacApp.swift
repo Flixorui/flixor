@@ -115,10 +115,28 @@ final class PlaybackCommandState: ObservableObject {
 // MARK: - App Commands
 struct AppCommands: Commands {
     @ObservedObject private var playback = PlaybackCommandState.shared
+    @ObservedObject private var navigation = BackNavigationController.shared
 
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
             // Remove "New" menu items
+        }
+
+        // Esc and the mouse back/forward buttons do the same through the
+        // BackNavigationController event monitor (with text-field and
+        // sheet guards). Esc is deliberately not a menu key equivalent.
+        CommandMenu("Go") {
+            Button("Back") {
+                BackNavigationController.shared.goBack()
+            }
+            .keyboardShortcut("[", modifiers: .command)
+            .disabled(!navigation.canGoBack)
+
+            Button("Forward") {
+                BackNavigationController.shared.goForward()
+            }
+            .keyboardShortcut("]", modifiers: .command)
+            .disabled(!navigation.canGoForward)
         }
 
         // Space and the arrow keys are handled by the player's own key monitor
