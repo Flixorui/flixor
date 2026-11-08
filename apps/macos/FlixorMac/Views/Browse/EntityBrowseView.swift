@@ -16,6 +16,8 @@ struct EntityBrowseView: View {
     @EnvironmentObject private var mainViewState: MainViewState
     @Environment(\.flixorTheme) private var theme
     @Environment(\.windowMetrics) private var metrics
+    /// Measured width of the page (the content area, excluding the nav rail).
+    @State private var contentWidth: CGFloat = 0
 
     /// Room for a legacy (always visible) scroll bar so the grid never clips.
     private static let scrollBarAllowance: CGFloat = DS.Space.s16
@@ -28,7 +30,7 @@ struct EntityBrowseView: View {
 
     private var grid: PosterGridLayout {
         PosterGridLayout(
-            availableWidth: metrics.width - gutter * 2 - Self.scrollBarAllowance,
+            availableWidth: (contentWidth > 0 ? contentWidth : metrics.width) - gutter * 2 - Self.scrollBarAllowance,
             minItemWidth: metrics.posterWidth(base: 160),
             spacing: DS.Space.s16
         )
@@ -45,6 +47,8 @@ struct EntityBrowseView: View {
             .padding(.vertical, DS.Space.s32)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .readContentWidth(into: $contentWidth)
         .background(BrowsePageBackdrop(url: viewModel.backdropURL))
         .navigationTitle("")
         .task { viewModel.start() }

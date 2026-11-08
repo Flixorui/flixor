@@ -306,3 +306,20 @@ struct BrowsePageBackdrop: View {
         .accessibilityHidden(true)
     }
 }
+
+// MARK: - Content width
+
+extension View {
+    /// Writes this view's width (whole points) into `width`. Apply at a page
+    /// root to size grids from the real content area, which is narrower than
+    /// the window when the navigation rail is shown.
+    func readContentWidth(into width: Binding<CGFloat>) -> some View {
+        background(
+            GeometryReader { proxy in
+                Color.clear
+                    .onAppear { width.wrappedValue = proxy.size.width.rounded(.down) }
+                    .onChange(of: proxy.size.width) { width.wrappedValue = $0.rounded(.down) }
+            }
+        )
+    }
+}

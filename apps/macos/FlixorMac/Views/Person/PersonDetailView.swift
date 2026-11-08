@@ -15,9 +15,11 @@ struct PersonDetailView: View {
     @EnvironmentObject private var mainViewState: MainViewState
     @Environment(\.flixorTheme) private var theme
     @Environment(\.windowMetrics) private var metrics
+    /// Measured width of the page (the content area, excluding the nav rail).
+    @State private var contentWidth: CGFloat = 0
 
-    /// Window width from which the identity moves into a sidebar.
-    private static let sidebarMinWindowWidth: CGFloat = 1180
+    /// Content width from which the identity moves into a sidebar.
+    private static let sidebarMinContentWidth: CGFloat = 1180
     /// Room for a legacy (always visible) scroll bar so grids never clip.
     private static let scrollBarAllowance: CGFloat = DS.Space.s16
 
@@ -42,6 +44,8 @@ struct PersonDetailView: View {
                 stackedLayout
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .readContentWidth(into: $contentWidth)
         .background(BrowsePageBackdrop(url: viewModel.backdropURL))
         .animation(DS.Motion.standard, value: viewModel.phase)
         .navigationTitle("")
@@ -50,19 +54,21 @@ struct PersonDetailView: View {
 
     // MARK: - Layout metrics
 
-    private var usesSidebar: Bool { metrics.width >= Self.sidebarMinWindowWidth }
+    /// Content area width; window width only until the first measurement.
+    private var availableWidth: CGFloat { contentWidth > 0 ? contentWidth : metrics.width }
+    private var usesSidebar: Bool { availableWidth >= Self.sidebarMinContentWidth }
     private var gutter: CGFloat { metrics.pageGutter }
     private var sidebarContentWidth: CGFloat { (340 * metrics.itemScale).rounded() }
     private var sidebarTrailingPadding: CGFloat { DS.Space.s32 }
     private var creditsLeadingPadding: CGFloat { DS.Space.s40 }
 
     private var wideCreditsWidth: CGFloat {
-        metrics.width - gutter - sidebarContentWidth - sidebarTrailingPadding - DS.Border.thin
+        availableWidth - gutter - sidebarContentWidth - sidebarTrailingPadding - DS.Border.thin
             - creditsLeadingPadding - gutter - Self.scrollBarAllowance
     }
 
     private var stackedCreditsWidth: CGFloat {
-        metrics.width - gutter * 2 - Self.scrollBarAllowance
+        availableWidth - gutter * 2 - Self.scrollBarAllowance
     }
 
     private var isLoading: Bool { viewModel.phase == .loading }
