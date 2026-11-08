@@ -24,6 +24,7 @@ struct DetailsSectionsContainer: View {
     @ObservedObject private var store = DetailsSectionsStore.shared
     @ObservedObject private var profileSettings = ProfileSettings.shared
 
+    @StateObject private var collectionModel = DetailsCollectionModel()
     @State private var selectedTrailer: Trailer?
 
     private var isTabbed: Bool { profileSettings.detailsScreenLayout == "tabbed" }
@@ -57,6 +58,15 @@ struct DetailsSectionsContainer: View {
         .sheet(item: $selectedTrailer) { trailer in
             TrailerModal(trailer: trailer, onClose: { selectedTrailer = nil })
         }
+        .task(id: collectionMovieId) {
+            await collectionModel.load(movieId: collectionMovieId)
+        }
+    }
+
+    /// TMDB id of the movie being viewed (nil for shows), drives the collection row.
+    private var collectionMovieId: Int? {
+        guard vm.mediaKind == "movie", !vm.isEpisode else { return nil }
+        return vm.tmdbId.flatMap { Int($0) }
     }
 
     // MARK: - Sections
@@ -73,7 +83,7 @@ struct DetailsSectionsContainer: View {
         case .suggested:
             return !vm.isSeason && !vm.isEpisode && profileSettings.showRelatedContent
         case .collection:
-            return false
+            return collectionMovieId != nil && collectionModel.collection != nil
         case .cast:
             return profileSettings.showCastCrew && (!vm.cast.isEmpty || !vm.crew.isEmpty || !vm.guestStars.isEmpty)
         case .trailers:
@@ -98,7 +108,13 @@ struct DetailsSectionsContainer: View {
         case .suggested:
             SuggestedSections(vm: vm, layout: layout, onBrowse: onBrowse)
         case .collection:
-            EmptyView()
+            if let collection = collectionModel.collection {
+                DetailsCollectionSection(
+                    collection: collection,
+                    currentMovieId: collectionMovieId,
+                    onSelect: { media in Task { await vm.load(for: media) } }
+                )
+            }
         case .cast:
             DetailsCastSection(vm: vm, onPersonTap: onPersonTap)
         case .trailers:
