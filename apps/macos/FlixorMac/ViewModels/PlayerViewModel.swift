@@ -97,6 +97,40 @@ class PlayerViewModel: ObservableObject {
     // MARK: - Stream engine state (skip segments, stream next-episode, source recovery)
     // New stored properties for that work go directly below this line.
 
+    /// Community skip segments (IntroDB / AniSkip / Anime-Skip) for the current item;
+    /// merged into `markers` for types Plex didn't provide.
+    @Published var communitySkipSegments: [SkipSegment] = []
+    /// Plex markers as fetched, so community data only fills missing types.
+    var plexMarkersSnapshot: [PlayerMarker] = []
+    /// Open-ended community segments that become markers once the duration is known.
+    var communityMarkersAwaitDuration = false
+    var skipSegmentsTask: Task<Void, Never>?
+    /// Content key the stream skip segments / next-episode data were loaded for.
+    var streamEngineContentKey: String?
+
+    // Next episode for addon streams
+    var streamNextEpisodeTask: Task<Void, Never>?
+    var streamNextEpisodeInfo: StreamEpisodeInfo?
+    var streamSeasonEpisodeInfos: [StreamEpisodeInfo] = []
+    /// Prefetched source lookup for the next episode, keyed by "season:episode".
+    var nextEpisodeSourceTask: Task<StreamEpisodeSourceOutcome, Never>?
+    var nextEpisodeSourceKey: String?
+    @Published var isResolvingNextEpisode = false
+    /// Opens the Stremio sources picker for an episode/title. Wired by the player
+    /// view; used when no source can be picked automatically.
+    var onOpenStremioSources: ((StremioSourcesDestination) -> Void)?
+
+    // Dead-link recovery for addon streams
+    /// Background work status (recovering a source, finding the next episode's source).
+    @Published var streamEngineStatus: StreamEngineStatus?
+    /// True after recovery gave up; the error overlay should offer "Choose another source".
+    @Published var streamRecoveryFailed = false
+    var streamRecoveryAttempts = 0
+    let maxStreamRecoveryAttempts = 2
+    var isPerformingStreamRecovery = false
+    var failedStreamURLs: Set<String> = []
+    /// Sources re-fetched during recovery (fetched once per playback).
+    var streamRecoveryResults: [StremioAddonStreamResult]?
 
     // Playback metadata
     private(set) var item: MediaItem

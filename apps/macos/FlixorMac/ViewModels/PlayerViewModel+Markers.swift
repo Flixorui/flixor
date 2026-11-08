@@ -30,7 +30,9 @@ extension PlayerViewModel {
                 let id = m.id.map { String($0) } ?? "\(type)-\(s)-\(e)"
                 return PlayerMarker(id: id, type: type, startTimeOffset: s, endTimeOffset: e)
             }
-            self.markers = mapped
+            self.plexMarkersSnapshot = mapped
+            // Same as `markers = mapped` unless community segments were already loaded.
+            rebuildMarkersFromSources()
             let creditsMarker = mapped.first { $0.type == "credits" }
             let introMarker = mapped.first { $0.type == "intro" }
             print("🎬 [Player] Markers loaded: \(mapped.count) total")
@@ -46,8 +48,11 @@ extension PlayerViewModel {
         } catch {
             print("❌ [Player] Failed to fetch markers: \(error)")
             print("❌ [Player] Error details: \(String(describing: error))")
-            self.markers = []
+            self.plexMarkersSnapshot = []
+            rebuildMarkersFromSources()
         }
+        // Plex items lacking intro or credits markers: look up community segments in the background.
+        loadCommunitySkipSegmentsForPlexIfNeeded(ratingKey: ratingKey)
     }
 
     func fetchNextEpisode(parentRatingKey: String, currentRatingKey: String) async {
@@ -76,6 +81,7 @@ extension PlayerViewModel {
     }
 
     func updateCurrentMarker() {
+        refreshCommunityMarkersIfNeeded()
         guard !markers.isEmpty else {
             if currentMarker != nil {
                 print("⚠️ [Player] Clearing marker - no markers available")
@@ -87,8 +93,9 @@ extension PlayerViewModel {
 
         let currentMs = Int(currentTime * 1000)
 
+        // Skippable types: intro, credits (Plex + community), recap, preview (community).
         let newMarker = markers.first { marker in
-            (marker.type == "intro" || marker.type == "credits") &&
+            marker.isSkippable &&
             currentMs >= marker.startTimeOffset && currentMs <= marker.endTimeOffset
         }
 
@@ -117,8 +124,10 @@ extension PlayerViewModel {
         let defaults = UserDefaults.standard
         let skipIntro = defaults.skipIntroAutomatically
         let skipCredits = defaults.skipCreditsAutomatically
+        let skipRecap = defaults.skipRecapAutomatically
         let shouldAutoSkip = (marker.type == "intro" && skipIntro) ||
-                             (marker.type == "credits" && skipCredits)
+                             (marker.type == "credits" && skipCredits) ||
+                             (marker.type == SkipSegmentType.recap.markerType && skipRecap)
 
         print("⏭️ [Player] Auto-skip check: type=\(marker.type), skipIntro=\(skipIntro), skipCredits=\(skipCredits), shouldAutoSkip=\(shouldAutoSkip)")
 
@@ -220,8 +229,14 @@ extension PlayerViewModel {
         var triggerStart: TimeInterval
         let triggerSource: String
 
-        if let marker = creditsMarker {
-            // Priority 1: Use Plex credits marker (convert ms to seconds, minus buffer)
+        if let marker = creditsMarker, let scene = markers.first(where: {
+            $0.segmentType == .postCredits && $0.startTimeOffset >= marker.startTimeOffset
+        }) {
+            // Community data knows a post-credits scene: don't cut it off, trigger after it.
+            triggerStart = max(0, TimeInterval(scene.endTimeOffset) / 1000.0 - bufferSeconds)
+            triggerSource = "POST-CREDITS scene end (3s early) at \(triggerStart)s"
+        } else if let marker = creditsMarker {
+            // Priority 1: Use credits marker (convert ms to seconds, minus buffer)
             triggerStart = max(0, TimeInterval(marker.startTimeOffset) / 1000.0 - bufferSeconds)
             triggerSource = "CREDITS marker (3s early) at \(triggerStart)s"
         } else if let chapter = creditsChapter {

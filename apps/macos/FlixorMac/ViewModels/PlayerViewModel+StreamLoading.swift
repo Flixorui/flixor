@@ -15,10 +15,18 @@ extension PlayerViewModel {
         forcedResumeSeconds = TimeInterval(streamItem.resumePositionMs ?? 0) / 1000.0
         currentURLIsHLS = false
         isTranscoding = false
-        markers = []
-        currentMarker = nil
-        nextEpisode = nil
-        seasonEpisodes = []
+        // Skip segments and next-episode data belong to the title, not the source:
+        // keep them across source switches and recovery, reload for a new title.
+        let isNewTitle = streamEngineContentKey != streamItem.contentKey
+        if isNewTitle {
+            streamEngineContentKey = streamItem.contentKey
+            plexMarkersSnapshot = []
+            resetCommunitySkipSegments()
+            markers = []
+            currentMarker = nil
+            nextEpisode = nil
+            seasonEpisodes = []
+        }
         nextEpisodeCountdown = nil
         availableExternalSubtitleOptions = streamItem.externalSubtitles
         availableStremioSources = streamItem.availableStreams
@@ -45,6 +53,10 @@ extension PlayerViewModel {
             streamURL = URL(string: streamItem.uri)
             mpvController.loadFile(streamItem.uri, headers: Dictionary(uniqueKeysWithValues: streamItem.headers.map { ($0.name, $0.value) }))
             startProgressTracking()
+
+            if isNewTitle {
+                loadCommunitySkipSegments(for: streamItem)
+            }
 
             if UserDefaults.standard.useCachedStreams {
                 let now = Date()
