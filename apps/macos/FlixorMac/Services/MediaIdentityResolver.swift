@@ -65,19 +65,28 @@ struct PlexItemContext: Hashable {
 actor MediaIdentityResolver {
     static let shared = MediaIdentityResolver()
 
+    /// Keyed by "<server machine id>:<ratingKey>". Rating keys repeat across Plex
+    /// servers, so the server is part of the key and a context is only returned for
+    /// the server that is connected now.
     private var plexContexts: [String: PlexItemContext] = [:]
     private var imdbToTmdb: [String: Int] = [:]
     private var tmdbToImdb: [String: String] = [:]
+    private var traktIds: [String: Int] = [:]
 
     // MARK: - Plex
 
-    /// Metadata context for a Plex ratingKey, or nil when no server is connected
-    /// (or in Stremio-only mode) or the lookup fails.
+    /// Metadata context for a Plex ratingKey on the currently connected server, or
+    /// nil when no server is connected (or in Stremio-only mode) or the lookup fails.
     func plexContext(ratingKey: String) async -> PlexItemContext? {
-        if let cached = plexContexts[ratingKey] { return cached }
-        guard !isStremioOnlyMode, let plex = await FlixorCore.shared.plexServer else { return nil }
+        guard !isStremioOnlyMode,
+              let serverId = await FlixorCore.shared.currentServer?.id,
+              let plex = await FlixorCore.shared.plexServer else { return nil }
+        let cacheKey = "\(serverId):\(ratingKey)"
+        if let cached = plexContexts[cacheKey] { return cached }
         do {
             let meta = try await plex.getMetadata(ratingKey: ratingKey)
+            // The server may have changed while the request was in flight.
+            guard await FlixorCore.shared.currentServer?.id == serverId else { return nil }
             let context = PlexItemContext(
                 ratingKey: ratingKey,
                 type: meta.type ?? "",
@@ -86,9 +95,9 @@ actor MediaIdentityResolver {
                 index: meta.index,
                 parentRatingKey: meta.parentRatingKey,
                 grandparentRatingKey: meta.grandparentRatingKey,
-                ids: ExternalMediaIds(plexGuids: meta.guids)
+                ids: ExternalMediaIds(plexGuids: meta.externalGuids)
             )
-            plexContexts[ratingKey] = context
+            plexContexts[cacheKey] = context
             return context
         } catch {
             AppLogger.shared.warn("[Identity] Plex metadata lookup failed", data: [
@@ -96,6 +105,24 @@ actor MediaIdentityResolver {
             ])
             return nil
         }
+    }
+
+    /// RatingKey of the child of `parentRatingKey` whose Plex `index` is `index`
+    /// (a season of a show, or an episode of a season) on the connected server.
+    /// Not cached: children change as episodes are added.
+    func plexChildRatingKey(parentRatingKey: String, index: Int) async -> String? {
+        guard !isStremioOnlyMode,
+              let serverId = await FlixorCore.shared.currentServer?.id,
+              let plex = await FlixorCore.shared.plexServer,
+              let children = try? await plex.getChildren(ratingKey: parentRatingKey),
+              await FlixorCore.shared.currentServer?.id == serverId else { return nil }
+        return children.first { $0.index == index && $0.ratingKey != nil }?.ratingKey
+    }
+
+    /// Drops cached Plex contexts (e.g. after a profile switch). Server switches
+    /// don't need this: entries are keyed by server.
+    func clearPlexCache() {
+        plexContexts.removeAll()
     }
 
     /// External ids of the movie/show a Plex item belongs to. For seasons and
@@ -122,9 +149,8 @@ actor MediaIdentityResolver {
         if let cached = imdbToTmdb[key] { return cached }
         do {
             let response = try await FlixorCore.shared.tmdb.findByExternalId(imdbId)
-            let match = isShow
-                ? (response.tvResults.first ?? response.movieResults.first)
-                : (response.movieResults.first ?? response.tvResults.first)
+            // No cross-type fallback: TMDB movie and TV ids are separate number spaces.
+            let match = isShow ? response.tvResults.first : response.movieResults.first
             if let id = match?.id { imdbToTmdb[key] = id }
             return match?.id
         } catch {
@@ -146,6 +172,26 @@ actor MediaIdentityResolver {
         } catch {
             return nil
         }
+    }
+
+    /// Numeric Trakt id for a movie/show, looked up from IMDb (preferred) or TMDB.
+    func traktId(tmdbId: Int?, imdbId: String?, isShow: Bool) async -> Int? {
+        let type = isShow ? "show" : "movie"
+        let key = imdbId.map { "\(type):imdb:\($0.lowercased())" } ?? tmdbId.map { "\(type):tmdb:\($0)" }
+        guard let key else { return nil }
+        if let cached = traktIds[key] { return cached }
+
+        let trakt = await FlixorCore.shared.trakt
+        var result: TraktLookupResult?
+        if let imdbId, imdbId.lowercased().hasPrefix("tt") {
+            result = try? await trakt.lookupByImdb(imdbId: imdbId, type: type)
+        }
+        if result == nil, let tmdbId {
+            result = try? await trakt.lookupByTmdb(tmdbId: tmdbId, type: type)
+        }
+        guard let id = (isShow ? result?.show?.ids : result?.movie?.ids)?.trakt else { return nil }
+        traktIds[key] = id
+        return id
     }
 
     /// The TMDB movie/show behind any MediaItem. Episodes and seasons resolve to

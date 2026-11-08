@@ -843,6 +843,10 @@ class APIClient: ObservableObject {
         // PlayerViewModel has always posted /api/plex/scrobble at the end of playback;
         // without a route the "mark as watched" call threw invalidURL every time.
         if path == "/api/plex/scrobble" || path == "/api/plex/unscrobble" {
+            // Plex is never written in Stremio-only mode (matches WatchStateService).
+            guard !isStremioOnlyMode else {
+                throw APIError.serverError("Plex is not used in Stremio-only mode")
+            }
             guard let plexServer = FlixorCore.shared.plexServer else {
                 throw APIError.serverError("No Plex server connected")
             }

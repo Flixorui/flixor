@@ -1006,11 +1006,25 @@ public struct PlexMediaItem: Codable, Identifiable {
     public let Marker: [PlexMarker]?
     public let Collection: [PlexTag]?
     public let studio: String?
+    /// Top-level GUID. For legacy agents this carries the external id
+    /// (`com.plexapp.agents.imdb://tt…`, `com.plexapp.agents.themoviedb://…`,
+    /// `com.plexapp.agents.thetvdb://…`); for the new agents it is `plex://…`.
+    public let guid: String?
 
     public var id: String { ratingKey ?? key ?? UUID().uuidString }
 
     public var guids: [String] {
         (Guid ?? []).compactMap { $0.id }
+    }
+
+    /// `guids` plus the top-level legacy-agent `guid`, for external-id matching.
+    /// (`guids` itself is unchanged so Continue Watching de-duplication keeps its keys.)
+    public var externalGuids: [String] {
+        var all = guids
+        if let guid, !guid.isEmpty, !guid.hasPrefix("plex://"), !all.contains(guid) {
+            all.append(guid)
+        }
+        return all
     }
 
     public var genres: [PlexTag] {
