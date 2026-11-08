@@ -31,11 +31,27 @@ final class NavigationStyleStore: ObservableObject {
         }
     }
 
+    @Published var barStyle: NavigationBarStyle {
+        didSet {
+            guard !isLoading, barStyle != oldValue else { return }
+            defaults.navigationBarStyle = barStyle
+        }
+    }
+
+    @Published var barGlowEnabled: Bool {
+        didSet {
+            guard !isLoading, barGlowEnabled != oldValue else { return }
+            defaults.navigationBarGlowEnabled = barGlowEnabled
+        }
+    }
+
     var usesSidebar: Bool { style == .sidebar }
 
     private init() {
         style = defaults.navigationStyle
         sidebarPinned = defaults.navigationSidebarPinned
+        barStyle = defaults.navigationBarStyle
+        barGlowEnabled = defaults.navigationBarGlowEnabled
 
         // Profile switches call ProfileSettings.reloadFromStorage(), which
         // republishes every setting. Follow it so the layout follows the profile.
@@ -52,9 +68,13 @@ final class NavigationStyleStore: ObservableObject {
     func reload() {
         let newStyle = defaults.navigationStyle
         let newPinned = defaults.navigationSidebarPinned
+        let newBarStyle = defaults.navigationBarStyle
+        let newBarGlow = defaults.navigationBarGlowEnabled
         isLoading = true
         if newStyle != style { style = newStyle }
         if newPinned != sidebarPinned { sidebarPinned = newPinned }
+        if newBarStyle != barStyle { barStyle = newBarStyle }
+        if newBarGlow != barGlowEnabled { barGlowEnabled = newBarGlow }
         isLoading = false
     }
 }

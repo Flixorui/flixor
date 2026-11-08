@@ -53,6 +53,7 @@ struct SearchView: View {
                     }
                     .padding(.top, DS.Space.s24)
                 }
+                .background(TabScrollObserver(tab: .search))
             }
         }
         .background(findShortcut)

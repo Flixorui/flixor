@@ -62,6 +62,7 @@ class HomeViewModel: ObservableObject {
     /// Bumped per Continue Watching publish so a slow Trakt fetch can't overwrite newer data.
     private var continueWatchingPublishGeneration = 0
     private let pollInterval: TimeInterval = 30 // Poll every 30 seconds
+    private var lastContinueWatchingRefresh: Date?
     private var isPolling = false
 
     // MARK: - Data
@@ -151,6 +152,7 @@ class HomeViewModel: ObservableObject {
 
         if isStremioOnly {
             await loadStremioHomeScreen()
+            startPolling()
             return
         }
 
@@ -2065,6 +2067,8 @@ class HomeViewModel: ObservableObject {
     /// Poll only dynamic rows (Continue Watching, Recently Added per library)
     /// This is a light refresh - doesn't reload the entire home screen
     private func pollDynamicRows() async {
+        // Progress is saved while playing; the row refreshes when the player closes.
+        guard !PlaybackCommandState.shared.isPlayerActive else { return }
         print("🔄 [Home] Polling dynamic rows (bypassing cache)...")
 
         // Poll Continue Watching (bypass cache to get fresh data)
@@ -2082,6 +2086,8 @@ class HomeViewModel: ObservableObject {
                 print("⚠️ [Home] Poll Continue Watching failed: \(error)")
             }
         }
+
+        guard !isStremioOnly else { return }
 
         // Poll Recently Added per library (bypass cache to get fresh data)
         Task { @MainActor in
@@ -2349,6 +2355,14 @@ class HomeViewModel: ObservableObject {
     }
 
     /// Re-fetches Continue Watching (after a watch-state change).
+    /// Refreshes after returning to the app or to Home, at most every 20 seconds.
+    func refreshContinueWatchingIfStale() async {
+        guard !PlaybackCommandState.shared.isPlayerActive else { return }
+        if let last = lastContinueWatchingRefresh, Date().timeIntervalSince(last) < 20 { return }
+        lastContinueWatchingRefresh = Date()
+        await refreshContinueWatching()
+    }
+
     func refreshContinueWatching() async {
         // A watch-state change can alter Trakt progress and the next episode.
         await TraktContinueWatchingService.shared.invalidate()

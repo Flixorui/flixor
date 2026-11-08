@@ -168,45 +168,6 @@ struct DetailsWatchedControl: View {
     }
 }
 
-private final class MenuActionItem: NSMenuItem {
-    private let handler: () -> Void
-
-    init(title: String, systemImage: String? = nil, isEnabled: Bool = true, handler: @escaping () -> Void) {
-        self.handler = handler
-        super.init(title: title, action: #selector(run), keyEquivalent: "")
-        target = self
-        self.isEnabled = isEnabled
-        image = systemImage.flatMap { NSImage(systemSymbolName: $0, accessibilityDescription: nil) }
-    }
-
-    required init(coder: NSCoder) {
-        fatalError("init(coder:) is not supported")
-    }
-
-    @objc private func run() {
-        handler()
-    }
-}
-
-/// Holds the view a menu opens from.
-private final class MenuAnchor {
-    weak var view: NSView?
-}
-
-private struct MenuAnchorReader: NSViewRepresentable {
-    let anchor: MenuAnchor
-
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView()
-        anchor.view = view
-        return view
-    }
-
-    func updateNSView(_ nsView: NSView, context: Context) {
-        anchor.view = nsView
-    }
-}
-
 // MARK: - Rate
 
 struct DetailsRateControl: View {

@@ -36,6 +36,7 @@ struct DownloadsView: View {
                     // Completed downloads
                     completedDownloadsSection
                 }
+                .background(TabScrollObserver(tab: .downloads))
                 .padding(.horizontal, DS.Space.s24)
                 .padding(.bottom, DS.Space.s24)
             }

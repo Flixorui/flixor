@@ -236,6 +236,7 @@ struct MyListView: View {
                             .frame(height: minGridItemWidth * 1.5)
                     }
                 }
+                .background(TabScrollObserver(tab: .myList))
                 .padding(.horizontal, horizontalPadding)
                 .padding(.vertical, DS.Space.s32)
             }
@@ -319,6 +320,7 @@ struct MyListView: View {
                         }
                     }
                 }
+                .background(TabScrollObserver(tab: .myList))
                 .padding(.horizontal, horizontalPadding)
                 .padding(.vertical, DS.Space.s32)
             }

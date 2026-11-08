@@ -63,6 +63,8 @@ struct DetailsFloatingHeader: View {
             }
         }
         .padding(.horizontal, horizontalPadding)
+        // Clears the floating back button.
+        .padding(.leading, FloatingBackButton.size + DS.Space.s12)
         .frame(height: Self.height)
         .frame(maxWidth: .infinity)
         .background(.ultraThinMaterial)

@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		DFF3B68818F83A0445C6BFFC /* FloatingNavigationBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40B6D0B8D78A7F7E4EF4D69B /* FloatingNavigationBar.swift */; };
+		A4292701928946C388703A25 /* AppKitMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 516E6A7205B325E6F17AFD78 /* AppKitMenu.swift */; };
 		14D5A866911E352AEA62D9B4 /* DetailsSectionHeading.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4526BCB382AC498351E1FC70 /* DetailsSectionHeading.swift */; };
 		D22E51DBD0CDAD2BF22BCB30 /* DetailsPersistentBackdrop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 947F561C1B356DA5E8EE644E /* DetailsPersistentBackdrop.swift */; };
 		8051D7FD99AAFE322E316701 /* BackdropColorExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 087518E1FE0710817A9C2AA5 /* BackdropColorExtractor.swift */; };
@@ -321,6 +323,8 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		40B6D0B8D78A7F7E4EF4D69B /* FloatingNavigationBar.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Navigation/FloatingNavigationBar.swift; sourceTree = "<group>"; };
+		516E6A7205B325E6F17AFD78 /* AppKitMenu.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppKitMenu.swift; sourceTree = "<group>"; };
 		4526BCB382AC498351E1FC70 /* DetailsSectionHeading.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DetailsSectionHeading.swift; sourceTree = "<group>"; };
 		947F561C1B356DA5E8EE644E /* DetailsPersistentBackdrop.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DetailsPersistentBackdrop.swift; sourceTree = "<group>"; };
 		087518E1FE0710817A9C2AA5 /* BackdropColorExtractor.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BackdropColorExtractor.swift; sourceTree = "<group>"; };
@@ -738,6 +742,7 @@
 		D005 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				40B6D0B8D78A7F7E4EF4D69B /* FloatingNavigationBar.swift */,
 				181D5C4431FB9906054EF79E /* UserCollectionsSection.swift */,
 				6FCC258C9787B682EFFD9092 /* UserCollectionHomeRow.swift */,
 				FC805455B88123CD578DCAD9 /* UserCollectionEditorView.swift */,
@@ -907,6 +912,7 @@
 		D011 /* Components */ = {
 			isa = PBXGroup;
 			children = (
+				516E6A7205B325E6F17AFD78 /* AppKitMenu.swift */,
 				581F20A50B09BE2DB48CC41C /* RowTitleCaption.swift */,
 				8DAB2B6F60978625A3762441 /* HeroPageIndicator.swift */,
 				787122D89A616E8D24292535 /* ContinueWatchingWideRow.swift */,
@@ -1297,6 +1303,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				DFF3B68818F83A0445C6BFFC /* FloatingNavigationBar.swift in Sources */,
+				A4292701928946C388703A25 /* AppKitMenu.swift in Sources */,
 				14D5A866911E352AEA62D9B4 /* DetailsSectionHeading.swift in Sources */,
 				D22E51DBD0CDAD2BF22BCB30 /* DetailsPersistentBackdrop.swift in Sources */,
 				8051D7FD99AAFE322E316701 /* BackdropColorExtractor.swift in Sources */,

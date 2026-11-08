@@ -174,6 +174,13 @@ struct MainView: View {
         navigationStyle.usesSidebar && !playback.isPlayerActive
     }
 
+    /// Top-bar layout on a tab's first page. Pushed pages and the player use the
+    /// whole window, and go back with the floating back button.
+    private var showsFloatingBar: Bool {
+        guard !navigationStyle.usesSidebar, !playback.isPlayerActive else { return false }
+        return router.pathBinding(for: mainViewState.selectedTab).wrappedValue.isEmpty
+    }
+
     /// Room the content leaves for the sidebar. A hover-expanded rail floats
     /// over the content; a pinned one pushes it aside.
     private var contentLeadingInset: CGFloat {
@@ -263,6 +270,7 @@ struct MainView: View {
                 // Search Tab
                 NavigationStack(path: $router.searchPath) {
                     SearchView()
+                        .floatingNavContentInset(!navigationStyle.usesSidebar)
                         .navigationDestinations()
                 }
                 .pushAppearance(depth: router.searchPath.count)
@@ -274,6 +282,7 @@ struct MainView: View {
                 if visibleNavItems.contains(.library) {
                     NavigationStack(path: $router.libraryPath) {
                         LibraryView()
+                            .floatingNavContentInset(!navigationStyle.usesSidebar)
                             .navigationDestinations()
                     }
                     .pushAppearance(depth: router.libraryPath.count)
@@ -284,6 +293,7 @@ struct MainView: View {
                 // My List Tab
                 NavigationStack(path: $router.myListPath) {
                     MyListView()
+                        .floatingNavContentInset(!navigationStyle.usesSidebar)
                         .navigationDestinations()
                 }
                 .pushAppearance(depth: router.myListPath.count)
@@ -294,6 +304,7 @@ struct MainView: View {
                 if profileSettings.showNewPopularTab {
                     NavigationStack(path: $router.newPopularPath) {
                         NewPopularView()
+                            .floatingNavContentInset(!navigationStyle.usesSidebar)
                             .navigationDestinations()
                     }
                     .pushAppearance(depth: router.newPopularPath.count)
@@ -305,6 +316,7 @@ struct MainView: View {
                 if visibleNavItems.contains(.downloads) {
                     NavigationStack(path: $router.downloadsPath) {
                         DownloadsView()
+                            .floatingNavContentInset(!navigationStyle.usesSidebar)
                             .navigationDestinations()
                     }
                     .pushAppearance(depth: router.downloadsPath.count)
@@ -323,106 +335,30 @@ struct MainView: View {
                 )
                 .zIndex(2)
             }
+
+            if showsFloatingBar {
+                FloatingNavigationBar(
+                    items: visibleNavItems,
+                    selectedTab: mainViewState.selectedTab,
+                    onSelect: { selectTab($0) },
+                    profile: sidebarProfileMenu
+                )
+                .ignoresSafeArea(edges: .top)
+                .zIndex(3)
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+
+            if !playback.isPlayerActive {
+                FloatingBackButton()
+                    .padding(.leading, contentLeadingInset + DetailsSectionStyle.inset)
+                    .padding(.top, FloatingBackButton.topPadding)
+                    .ignoresSafeArea(edges: .top)
+                    .zIndex(4)
+            }
         }
+        .animation(DS.Motion.standard, value: showsFloatingBar)
         .environmentObject(router)
         .environmentObject(mainViewState)
-        .toolbar {
-            // Logo on left
-            ToolbarItem(placement: .navigation) {
-                HStack(spacing: DS.Space.s8) {
-                    ToolbarBackButton()
-
-                    Image(systemName: "play.rectangle.fill")
-                        .font(.title2)
-                        .foregroundStyle(Color.accent)
-
-                    Text("FLIXOR")
-                        .font(.title3.bold())
-                        .foregroundStyle(.white)
-                }.padding(.horizontal, DS.Space.s10)
-            }
-
-            // In sidebar mode the tabs and the profile menu live in the rail.
-            if !navigationStyle.usesSidebar {
-                // Navigation links in center
-                ToolbarItemGroup(placement: .principal) {
-                    HStack(spacing: DS.Space.s32) {
-                        ForEach(visibleNavItems) { item in
-                            ToolbarNavButton(
-                                item: item,
-                                isActive: mainViewState.selectedTab == item,
-                                onTap: { selectTab(item) }
-                            )
-                        }
-                    }.padding(.horizontal, 15)
-                }
-
-                // User profile menu on right
-                ToolbarItem(placement: .primaryAction) {
-                    Menu {
-                        // Current profile/user info
-                        if let profile = sessionManager.activeProfile {
-                            Label(profile.title, systemImage: "person.circle.fill")
-                                .font(.headline)
-                        } else if let user = sessionManager.currentUser {
-                            Label(user.username, systemImage: "person.circle")
-                                .font(.headline)
-                        }
-
-                        Divider()
-
-                        // Switch Profile (only if multiple profiles available)
-                        if sessionManager.hasMultipleProfiles {
-                            Button(action: {
-                                showingProfileSelect = true
-                            }) {
-                                Label("Switch Profile", systemImage: "person.2")
-                            }
-
-                            Divider()
-                        }
-
-                        Button(action: {
-                            showingSettings = true
-                        }) {
-                            Label("Settings", systemImage: "gear")
-                        }
-
-                        Divider()
-
-                        if appMode.isStremioOnly {
-                            // No Plex session to sign out of - offer to connect one instead.
-                            Button(action: {
-                                showingSettings = true
-                            }) {
-                                Label("Connect Plex", systemImage: "link")
-                            }
-                        } else {
-                            Button(role: .destructive, action: {
-                                showingSignOutConfirmation = true
-                            }) {
-                                Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
-                            }
-                        }
-                    } label: {
-                        Circle()
-                            .fill(profileAvatarColor)
-                            .frame(width: 28, height: 28)
-                            .overlay(
-                                Text(profileInitials)
-                                    .font(.flixor(.caption, weight: .bold))
-                                    .foregroundColor(.white)
-                            )
-                            .padding(.horizontal, DS.Space.s20)
-                    }
-                    .menuStyle(.borderlessButton)
-                    .menuIndicator(.hidden)
-                    .padding(.horizontal, 15)
-                }
-            }
-        }
-        .toolbarBackground(.visible, for: .windowToolbar)
-        .toolbarBackground(.ultraThinMaterial, for: .windowToolbar)
         .sheet(isPresented: $showingSettings) {
             SettingsView()
         }
@@ -518,7 +454,7 @@ extension View {
     ///
     /// All tabs stay alive at opacity 0 and share the window toolbar, so a hidden
     /// tab's stack would still put its system back button there. Every pushed page
-    /// hides it; `ToolbarBackButton` is the one arrow, for the visible tab.
+    /// hides it; `FloatingBackButton` is the one arrow, for the visible tab.
     func navigationDestinations() -> some View {
         self
             .navigationDestination(for: PlayerDestination.self) { destination in
@@ -534,18 +470,22 @@ extension View {
             }
             .navigationDestination(for: StremioSourcesDestination.self) { destination in
                 StremioSourcesView(destination: destination)
+                    .backButtonContentInset()
                     .navigationBarBackButtonHidden(true)
             }
             .navigationDestination(for: PersonRoute.self) { route in
                 PersonDetailView(route: route)
+                    .backButtonContentInset()
                     .navigationBarBackButtonHidden(true)
             }
             .navigationDestination(for: EntityBrowseRoute.self) { route in
                 EntityBrowseView(route: route)
+                    .backButtonContentInset()
                     .navigationBarBackButtonHidden(true)
             }
             .navigationDestination(for: UserCollectionRoute.self) { route in
                 UserCollectionDetailView(route: route)
+                    .backButtonContentInset()
             }
     }
 }
@@ -553,7 +493,25 @@ extension View {
 // MARK: - Toolbar Back Button
 
 /// Back arrow for the visible tab; shown only when that tab has a page to pop.
-struct ToolbarBackButton: View {
+
+// MARK: - Back Button
+
+extension View {
+    /// Keeps a pushed page's content clear of the floating back button.
+    func backButtonContentInset() -> some View {
+        safeAreaInset(edge: .top, spacing: 0) {
+            Color.clear.frame(height: FloatingBackButton.contentInset)
+        }
+    }
+}
+
+/// Below the window controls, on every page that has somewhere to go back to.
+struct FloatingBackButton: View {
+    static let topPadding: CGFloat = 36
+    static let size: CGFloat = 40
+    /// Space a pushed page leaves below the window's title bar safe area.
+    static let contentInset: CGFloat = 56
+
     @ObservedObject private var navigation = BackNavigationController.shared
 
     var body: some View {
@@ -561,11 +519,13 @@ struct ToolbarBackButton: View {
             Button {
                 navigation.goBack()
             } label: {
-                Image(systemName: "chevron.left")
-                    .font(.flixorIcon(DS.Icon.sm, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.8))
-                    .frame(width: 28, height: 28)
-                    .contentShape(Rectangle())
+                Image(systemName: "arrow.left")
+                    .font(.flixorIcon(DS.Icon.md, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: Self.size, height: Self.size)
+                    .background(.ultraThinMaterial, in: Circle())
+                    .background(Color.black.opacity(0.25), in: Circle())
+                    .contentShape(Circle())
             }
             .buttonStyle(.plain)
             .help("Back")
@@ -574,37 +534,6 @@ struct ToolbarBackButton: View {
     }
 }
 
-// MARK: - Toolbar Navigation Button
-struct ToolbarNavButton: View {
-    let item: NavItem
-    let isActive: Bool
-    let onTap: () -> Void
-    @State private var isHovered = false
-
-    var body: some View {
-        Button(action: onTap) {
-            Text(item.localizedRawValue)
-                .font(.system(size: 14, weight: isActive ? .semibold : .medium))
-                .foregroundStyle(textColor)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(item.localizedRawValue)
-        .accessibilityAddTraits(isActive ? .isSelected : [])
-        .onHover { hovering in
-            isHovered = hovering
-        }
-    }
-
-    private var textColor: Color {
-        if isActive {
-            return .white
-        } else if isHovered {
-            return .white.opacity(0.8)
-        } else {
-            return .white.opacity(0.65)
-        }
-    }
-}
 #if DEBUG && canImport(PreviewsMacros)
 #Preview {
     RootView()

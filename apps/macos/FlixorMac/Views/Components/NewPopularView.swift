@@ -67,6 +67,7 @@ struct NewPopularView: View {
                         .padding(.top, DS.Space.s32)
                 }
             }
+            .background(TabScrollObserver(tab: .newPopular))
         }
         .background(HomeBackground())
         .navigationTitle("")

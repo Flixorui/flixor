@@ -96,6 +96,7 @@ struct LibraryView: View {
                             .frame(height: minGridItemWidth * 1.5)
                     }
                 }
+                .background(TabScrollObserver(tab: .library))
                 .padding(.horizontal, horizontalPadding)
                 .padding(.vertical, DS.Space.s32)
             }
@@ -130,6 +131,7 @@ struct LibraryView: View {
                         }
                     }
                 }
+                .background(TabScrollObserver(tab: .library))
                 .padding(.horizontal, horizontalPadding)
                 .padding(.vertical, DS.Space.s32)
 
@@ -161,6 +163,7 @@ struct LibraryView: View {
                         .padding(.vertical, DS.Space.s24)
                 }
             }
+            .background(TabScrollObserver(tab: .library))
             .padding(.top, DS.Space.s24)
             .padding(.bottom, DS.Space.s48)
         }

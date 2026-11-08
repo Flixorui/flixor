@@ -19,12 +19,28 @@ struct HomeView: View {
     @ObservedObject private var profileSettings = ProfileSettings.shared
     @ObservedObject private var rowsStore = HomeRowsStore.shared
     @ObservedObject private var network = NetworkMonitor.shared
+    @ObservedObject private var navigationStyle = NavigationStyleStore.shared
+    @Environment(\.flixorTheme) private var theme
     @State private var showAddonManager = false
     @Environment(\.windowMetrics) private var metrics
 
     /// Width of poster placeholders, matching `PosterSectionRow`.
     private var skeletonPosterWidth: CGFloat {
         metrics.posterWidth(designWidth: 160, storedSize: profileSettings.posterSize)
+    }
+
+    /// The carousel fades into a flat page color, so the page can't tint.
+    @ViewBuilder private var homeBackground: some View {
+        if heroIsFullBleed {
+            theme.background.ignoresSafeArea()
+        } else {
+            HomeBackground(heroColors: viewModel.heroColors)
+        }
+    }
+
+    /// The floating bar overlaps the hero artwork instead of pushing it down.
+    private var heroSitsUnderBar: Bool {
+        !navigationStyle.usesSidebar && profileSettings.showHeroSection && viewModel.heroState != .empty
     }
 
     var body: some View {
@@ -38,6 +54,8 @@ struct HomeView: View {
                     }
                 } else {
                     homeScrollContent
+                        .ignoresSafeArea(.container, edges: heroSitsUnderBar ? .top : [])
+                        .floatingNavContentInset(!navigationStyle.usesSidebar && !heroSitsUnderBar)
                 }
             }
 
@@ -53,7 +71,13 @@ struct HomeView: View {
                 .zIndex(2)
             }
         }
-        .background(HomeBackground(heroColors: viewModel.heroColors))
+        .overlay(alignment: .topTrailing) {
+            if heroIsFullBleed && !showBrowseModal {
+                HeroCarouselFullScreenOverlay()
+                    .ignoresSafeArea(edges: .top)
+            }
+        }
+        .background(homeBackground)
         .navigationTitle("")
         .task {
             print("📱 [HomeView] .task triggered - billboardItems.isEmpty: \(viewModel.billboardItems.isEmpty), isLoading: \(viewModel.isLoading)")
@@ -71,12 +95,14 @@ struct HomeView: View {
         .onAppear {
             // Back from a pushed page. The first load starts these itself.
             guard !viewModel.billboardItems.isEmpty else { return }
-            viewModel.startPolling()
             viewModel.resumeBillboardRotation()
+            Task { await viewModel.refreshContinueWatchingIfStale() }
         }
         .onDisappear {
             viewModel.stopBillboardRotation()
-            viewModel.stopPolling()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            Task { await viewModel.refreshContinueWatchingIfStale() }
         }
         .onChange(of: viewModel.pendingAction) { action in
             guard let action = action else { return }
@@ -146,7 +172,7 @@ struct HomeView: View {
                 }
 
                 // Spacing below the hero
-                Color.clear.frame(height: 64)
+                Color.clear.frame(height: heroIsFullBleed ? DS.Space.s16 : 64)
 
                 ForEach(rows) { row in
                     rowView(row)
@@ -159,6 +185,7 @@ struct HomeView: View {
                         .padding(.bottom, DS.Space.s40)
                 }
             }
+            .background(TabScrollObserver(tab: .home))
             .animation(DS.Motion.emphasized, value: viewModel.extraSectionsState)
             .animation(DS.Motion.emphasized, value: viewModel.recentlyAddedPerLibraryState)
         }
@@ -175,9 +202,8 @@ struct HomeView: View {
                         HeroCarousel(
                             items: viewModel.billboardItems,
                             currentIndex: $viewModel.currentBillboardIndex,
-                            onPlay: { item in viewModel.playItem(item) },
                             onInfo: { item in viewModel.showItemDetails(item) },
-                            onMyList: { item in viewModel.toggleMyList(item) }
+                            onUserNavigate: { viewModel.resumeBillboardRotation() }
                         )
                     default: // "billboard"
                         BillboardSection(viewModel: viewModel)
@@ -186,9 +212,14 @@ struct HomeView: View {
                     HeroSkeleton()
                 }
             }
-            .padding(.horizontal, DS.Space.s20)
-            .padding(.vertical, DS.Space.s16)
+            // The carousel runs to the window edges.
+            .padding(.horizontal, heroIsFullBleed ? 0 : DS.Space.s20)
+            .padding(.vertical, heroIsFullBleed ? 0 : DS.Space.s16)
         }
+    }
+
+    private var heroIsFullBleed: Bool {
+        profileSettings.heroLayout == "carousel" && !viewModel.billboardItems.isEmpty
     }
 
     @ViewBuilder

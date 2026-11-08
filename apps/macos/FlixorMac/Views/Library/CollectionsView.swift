@@ -36,6 +36,7 @@ struct CollectionsView: View {
                         plexCollections
                     }
                 }
+                .background(TabScrollObserver(tab: .library))
                 .padding(.horizontal, DS.Space.s64)
                 .padding(.vertical, DS.Space.s32)
             }

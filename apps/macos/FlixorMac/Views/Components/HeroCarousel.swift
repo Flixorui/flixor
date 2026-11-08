@@ -2,604 +2,536 @@
 //  HeroCarousel.swift
 //  FlixorMac
 //
-//  Elegant carousel-style hero component with auto-advancement and looping
+//  Full-bleed carousel hero: artwork to the window edges, logo, genres, summary
+//  and a View Details button, with page dots and a full screen button.
 //
 
+import AppKit
+import FlixorKit
 import SwiftUI
+
+private enum HeroCarouselMetrics {
+    static let backgroundParallax: CGFloat = 0.055
+    static let contentParallax: CGFloat = 0.18
+    static let scrollParallax: CGFloat = 0.38
+    static let scrollDownScale: CGFloat = 0.0001
+    static let scrollUpScale: CGFloat = 0.002
+    static let maxScrollScale: CGFloat = 1.3
+    static let swipeThreshold: CGFloat = 0.16
+    static let topFadeHeight: CGFloat = 160
+    static let bottomFadeHeight: CGFloat = 300
+    static let contentWidthFraction: CGFloat = 0.58
+    static let contentMaxWidth: CGFloat = 760
+    static let logoWidthFraction: CGFloat = 0.74
+    static let logoHeight: CGFloat = 120
+    static let contentBottom: CGFloat = 40
+    static let pageAnimation = Animation.easeInOut(duration: 0.5)
+}
+
+private extension VerticalAlignment {
+    /// Crops artwork from the bottom more than the top, keeping faces in frame.
+    private enum HeroBackdrop: AlignmentID {
+        static func defaultValue(in d: ViewDimensions) -> CGFloat { d.height * 0.2 }
+    }
+    static let heroBackdrop = VerticalAlignment(HeroBackdrop.self)
+}
+
+// MARK: - Scroll position
+
+/// Home's scroll offset for the artwork parallax, watched only by the artwork.
+@MainActor
+final class HomeHeroScrollOffset: ObservableObject {
+    static let shared = HomeHeroScrollOffset()
+
+    @Published private(set) var value: CGFloat = 0
+
+    func update(_ offset: CGFloat) {
+        let clamped = min(offset, 800).rounded()
+        if clamped != value { value = clamped }
+    }
+}
+
+// MARK: - Carousel
 
 struct HeroCarousel: View {
     let items: [MediaItem]
     @Binding var currentIndex: Int
-    var onPlay: ((MediaItem) -> Void)?
     var onInfo: ((MediaItem) -> Void)?
-    var onMyList: ((MediaItem) -> Void)?
-    var autoAdvanceInterval: TimeInterval = 8.0
-
-    @ObservedObject private var profileSettings = ProfileSettings.shared
-    @State private var isHovered = false
-    @State private var timer: Timer?
-    @State private var direction: TransitionDirection = .forward
+    /// A manual page change, so automatic rotation can restart its wait.
+    var onUserNavigate: (() -> Void)?
 
     @Environment(\.windowMetrics) private var metrics
+    @Environment(\.flixorTheme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var isGoingForward = true
+    @State private var dragTranslation: CGFloat = 0
 
-    /// Follows the window (see HomeHeroMetrics.swift) instead of a fixed 580 pt.
-    private var carouselHeight: CGFloat { metrics.homeCarouselHeight }
+    private var height: CGFloat { metrics.homeCarouselHeight }
 
-    private enum TransitionDirection {
-        case forward, backward
+    private var currentItem: MediaItem? {
+        items.indices.contains(currentIndex) ? items[currentIndex] : items.first
     }
 
     var body: some View {
-        GeometryReader { geometry in
-            ZStack {
-                // Background with blur for smooth transitions
-                Color.black
+        GeometryReader { geo in
+            let size = CGSize(width: geo.size.width, height: height)
 
-                // Current Card
-                if !items.isEmpty && currentIndex < items.count {
-                    let item = items[currentIndex]
-                    HeroCarouselCard(
-                        item: item,
-                        width: geometry.size.width,
-                        height: carouselHeight,
-                        onPlay: { onPlay?(item) },
-                        onInfo: { onInfo?(item) },
-                        onMyList: { onMyList?(item) }
-                    )
-                    .id(item.id)
-                    .transition(
-                        .asymmetric(
-                            insertion: .opacity.combined(with: .scale(scale: 1.02)),
-                            removal: .opacity.combined(with: .scale(scale: 0.98))
+            ZStack(alignment: .bottomLeading) {
+                theme.background
+
+                if let item = currentItem {
+                    HeroCarouselBackdrop(item: item, size: size)
+                        .id(item.id)
+                        .transition(pageTransition(parallax: size.width * HeroCarouselMetrics.backgroundParallax))
+                }
+
+                fades
+
+                if let item = currentItem {
+                    HeroCarouselContent(item: item, onInfo: { onInfo?(item) })
+                        .id(item.id)
+                        .transition(pageTransition(parallax: size.width * HeroCarouselMetrics.contentParallax))
+                        .padding(.leading, DetailsSectionStyle.inset)
+                        .padding(.trailing, DS.Space.s32)
+                        .padding(.bottom, HeroCarouselMetrics.contentBottom)
+                        .frame(
+                            width: min(size.width * HeroCarouselMetrics.contentWidthFraction, HeroCarouselMetrics.contentMaxWidth),
+                            alignment: .bottomLeading
                         )
+                }
+
+                if items.count > 1 {
+                    HeroCarouselPageDots(
+                        count: items.count,
+                        currentIndex: currentIndex,
+                        onSelect: { go(to: $0) }
                     )
-                }
-
-                // Navigation Overlays
-                VStack {
-                    Spacer()
-
-                    // Bottom controls
-                    HStack(alignment: .bottom) {
-                        // Left arrow (shown on hover)
-                        Button(action: previousItem) {
-                            Image(systemName: "chevron.left")
-                                .font(.flixorIcon(DS.Icon.xl, weight: .semibold))
-                                .foregroundStyle(.white)
-                                .frame(width: 48, height: 48)
-                                .background(.ultraThinMaterial.opacity(0.6))
-                                .clipShape(Circle())
-                        }
-                        .buttonStyle(.plain)
-                        .opacity(isHovered && items.count > 1 ? 1 : 0)
-                        .accessibilityLabel(Text("Previous featured item"))
-
-                        Spacer()
-
-                        // Page indicators
-                        if items.count > 1 {
-                            HeroPageIndicator(
-                                count: items.count,
-                                currentIndex: currentIndex,
-                                style: .bars,
-                                onSelect: { goToIndex($0) }
-                            )
-                        }
-
-                        Spacer()
-
-                        // Right arrow (shown on hover)
-                        Button(action: nextItem) {
-                            Image(systemName: "chevron.right")
-                                .font(.flixorIcon(DS.Icon.xl, weight: .semibold))
-                                .foregroundStyle(.white)
-                                .frame(width: 48, height: 48)
-                                .background(.ultraThinMaterial.opacity(0.6))
-                                .clipShape(Circle())
-                        }
-                        .buttonStyle(.plain)
-                        .opacity(isHovered && items.count > 1 ? 1 : 0)
-                        .accessibilityLabel(Text("Next featured item"))
-                    }
-                    .padding(.horizontal, DS.Space.s40)
-                    .padding(.bottom, DS.Space.s28)
+                    .padding(.trailing, DetailsSectionStyle.inset)
+                    .padding(.bottom, DS.Space.s40)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                 }
             }
-            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r20, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: DS.Radius.r20, style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
-            )
-            .shadow(color: .black.opacity(0.5), radius: 30, y: 15)
-        }
-        .frame(height: carouselHeight)
-        .onHover { hovering in
-            withAnimation(DS.Motion.standard) {
-                isHovered = hovering
-            }
-            // Pause/resume auto-advance on hover (only if auto-rotate is enabled)
-            if profileSettings.heroAutoRotate {
-                if hovering {
-                    stopTimer()
-                } else {
-                    startTimer()
-                }
-            }
-        }
-        .animation(DS.Motion.slow, value: currentIndex)
-        .onAppear {
-            if profileSettings.heroAutoRotate {
-                startTimer()
-            }
-        }
-        .onDisappear {
-            stopTimer()
-        }
-        .onChange(of: profileSettings.heroAutoRotate) { newValue in
-            if newValue {
-                startTimer()
-            } else {
-                stopTimer()
-            }
-        }
-    }
-
-    // MARK: - Navigation
-
-    private func previousItem() {
-        direction = .backward
-        withAnimation(DS.Motion.slow) {
-            if currentIndex > 0 {
-                currentIndex -= 1
-            } else {
-                // Loop to end
-                currentIndex = items.count - 1
-            }
-        }
-        restartTimer()
-    }
-
-    private func nextItem() {
-        direction = .forward
-        withAnimation(DS.Motion.slow) {
-            if currentIndex < items.count - 1 {
-                currentIndex += 1
-            } else {
-                // Loop to start
-                currentIndex = 0
-            }
-        }
-        restartTimer()
-    }
-
-    private func goToIndex(_ index: Int) {
-        direction = index > currentIndex ? .forward : .backward
-        withAnimation(DS.Motion.slow) {
-            currentIndex = index
-        }
-        restartTimer()
-    }
-
-    // MARK: - Auto-Advance Timer
-
-    private func startTimer() {
-        guard items.count > 1 else { return }
-        timer = Timer.scheduledTimer(withTimeInterval: autoAdvanceInterval, repeats: true) { _ in
-            Task { @MainActor in
-                nextItem()
-            }
-        }
-    }
-
-    private func stopTimer() {
-        timer?.invalidate()
-        timer = nil
-    }
-
-    private func restartTimer() {
-        stopTimer()
-        if profileSettings.heroAutoRotate {
-            startTimer()
-        }
-    }
-}
-
-// MARK: - Individual Carousel Card
-
-struct HeroCarouselCard: View {
-    let item: MediaItem
-    let width: CGFloat
-    let height: CGFloat
-    var onPlay: (() -> Void)?
-    var onInfo: (() -> Void)?
-    var onMyList: (() -> Void)?
-
-    @Environment(\.windowMetrics) private var metrics
-    @State private var backdropURL: URL?
-    @State private var logoURL: URL?
-    @State private var seriesData: SeriesMetadata?
-
-    private var isCompact: Bool { metrics.isCompactHero(height: height) }
-
-    // Data structure for fetched series metadata
-    private struct SeriesMetadata {
-        let title: String
-        let summary: String?
-        let year: Int?
-    }
-
-    // Check if this is an episode or season that should show series data
-    private var isEpisode: Bool { item.type == "episode" }
-    private var isSeason: Bool { item.type == "season" }
-    private var isEpisodeOrSeason: Bool { isEpisode || isSeason }
-
-    // Get the series rating key - different for episodes vs seasons
-    private var seriesRatingKey: String? {
-        if isEpisode {
-            return item.grandparentRatingKey
-        } else if isSeason {
-            return item.parentRatingKey
-        }
-        return nil
-    }
-
-    // Get fallback series title - different for episodes vs seasons
-    private var fallbackSeriesTitle: String? {
-        if isEpisode {
-            return item.grandparentTitle
-        } else if isSeason {
-            return item.parentTitle ?? item.grandparentTitle
-        }
-        return nil
-    }
-
-    // Display title - use series title for episodes/seasons
-    private var displayTitle: String {
-        if isEpisodeOrSeason {
-            return seriesData?.title ?? fallbackSeriesTitle ?? item.title
-        }
-        return item.title
-    }
-
-    // Display summary - use series summary for episodes/seasons
-    private var displaySummary: String? {
-        if isEpisodeOrSeason {
-            return seriesData?.summary ?? item.summary
-        }
-        return item.summary
-    }
-
-    // Display year - use series year for episodes/seasons
-    private var displayYear: Int? {
-        if isEpisodeOrSeason {
-            return seriesData?.year ?? item.year
-        }
-        return item.year
-    }
-
-    var body: some View {
-        ZStack(alignment: .bottomLeading) {
-            // Background Image with Ken Burns effect
-            CachedAsyncImage(
-                url: backdropURL ?? ImageService.shared.artURL(
-                    for: item,
-                    width: Int(width * 2),
-                    height: Int(height * 2)
-                )
-            )
-            .aspectRatio(contentMode: .fill)
-            .frame(width: width, height: height)
+            .frame(width: size.width, height: size.height)
             .clipped()
-            .background(Color.black)
+            .contentShape(Rectangle())
+            .gesture(swipe(width: size.width))
+        }
+        .frame(height: height)
+        .animation(reduceMotion ? nil : HeroCarouselMetrics.pageAnimation, value: currentIndex)
+        .task(id: currentIndex) { await prefetchNext() }
+    }
 
-            // Gradient Overlays
+    private var fades: some View {
+        ZStack {
+            // Top, behind the navigation bar
             LinearGradient(
-                stops: [
-                    .init(color: Color.black.opacity(0.0), location: 0.0),
-                    .init(color: Color.black.opacity(0.2), location: 0.4),
-                    .init(color: Color.black.opacity(0.7), location: 0.7),
-                    .init(color: Color.black.opacity(0.95), location: 1.0)
-                ],
+                colors: [theme.background.opacity(0.82), .clear],
                 startPoint: .top,
                 endPoint: .bottom
             )
+            .frame(height: HeroCarouselMetrics.topFadeHeight)
+            .frame(maxHeight: .infinity, alignment: .top)
 
+            // Left, behind the text
             LinearGradient(
                 stops: [
-                    .init(color: Color.black.opacity(0.8), location: 0.0),
-                    .init(color: Color.black.opacity(0.4), location: 0.3),
-                    .init(color: Color.black.opacity(0.0), location: 0.6)
+                    .init(color: theme.background.opacity(0.96), location: 0),
+                    .init(color: theme.background.opacity(0.90), location: 0.08),
+                    .init(color: theme.background.opacity(0.76), location: 0.16),
+                    .init(color: theme.background.opacity(0.54), location: 0.26),
+                    .init(color: theme.background.opacity(0.30), location: 0.36),
+                    .init(color: theme.background.opacity(0.12), location: 0.46),
+                    .init(color: .clear, location: 0.54),
                 ],
                 startPoint: .leading,
                 endPoint: .trailing
             )
 
-            // Content
-            VStack(alignment: .leading, spacing: isCompact ? DS.Space.s12 : DS.Space.s18) {
-                Spacer(minLength: 0)
-
-                // Logo or Title
-                if let logo = logoURL {
-                    CachedAsyncImage(url: logo, aspectRatio: nil, contentMode: .fit)
-                        .frame(maxWidth: isCompact ? 340 : 420, maxHeight: min(140, height * 0.24))
-                        .shadow(color: .black.opacity(0.7), radius: 16)
-                } else {
-                    Text(displayTitle)
-                        .font(.flixor(isCompact ? .display : .displayLarge, weight: .bold))
-                        .foregroundStyle(.white)
-                        .shadow(color: .black.opacity(0.7), radius: 16)
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.7)
-                }
-
-                // Metadata Row
-                HStack(spacing: DS.Space.s12) {
-                    if let year = displayYear {
-                        Text(String(year))
-                            .font(.flixor(.bodyLarge, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.9))
-                    }
-
-                    if let rating = item.rating {
-                        HStack(spacing: 5) {
-                            Image(systemName: "star.fill")
-                                .font(.flixorIcon(DS.Icon.xs))
-                            Text(String(format: "%.1f", rating))
-                                .font(.flixor(.body, weight: .semibold))
-                        }
-                        .foregroundStyle(.yellow)
-                    }
-
-                    if let duration = item.duration {
-                        Text(formatDuration(duration))
-                            .font(.flixor(.bodyLarge, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.9))
-                    }
-
-                    // Type badge - always show "Series" for episodes/seasons
-                    Text(item.type == "movie" ? "Movie" : "Series")
-                        .font(.flixor(.footnote, weight: .semibold))
-                        .padding(.horizontal, DS.Space.s8)
-                        .padding(.vertical, 3)
-                        .background(Color.white.opacity(0.2))
-                        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r4))
-                }
-
-                // Summary/Overview
-                if let summary = displaySummary, !summary.isEmpty {
-                    Text(summary)
-                        .font(.flixor(.bodyLarge))
-                        .foregroundStyle(.white.opacity(0.85))
-                        .lineLimit(isCompact ? 2 : 3)
-                        .frame(maxWidth: 520, alignment: .leading)
-                        .lineSpacing(3)
-                }
-
-                // Action Buttons
-                HStack(spacing: DS.Space.s14) {
-                    // Play Button
-                    Button(action: { onPlay?() }) {
-                        HStack(spacing: DS.Space.s8) {
-                            Image(systemName: "play.fill")
-                                .font(.flixorIcon(DS.Icon.md))
-                            Text("Play")
-                                .font(.flixor(.headline, weight: .semibold))
-                        }
-                        .foregroundStyle(.black)
-                        .padding(.horizontal, DS.Space.s28)
-                        .padding(.vertical, DS.Space.s14)
-                        .background(Color.white)
-                        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r8, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
-                    .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
-
-                    // More Info Button
-                    Button(action: { onInfo?() }) {
-                        HStack(spacing: DS.Space.s8) {
-                            Image(systemName: "info.circle")
-                                .font(.flixorIcon(DS.Icon.md))
-                            Text("More Info")
-                                .font(.flixor(.headline, weight: .semibold))
-                        }
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, DS.Space.s24)
-                        .padding(.vertical, DS.Space.s14)
-                        .background(.ultraThinMaterial.opacity(0.5))
-                        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r8, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: DS.Radius.r8, style: .continuous)
-                                .strokeBorder(Color.white.opacity(0.2), lineWidth: 1)
-                        )
-                    }
-                    .buttonStyle(.plain)
-
-                    // My List Button
-                    Button(action: { onMyList?() }) {
-                        Image(systemName: "plus")
-                            .font(.flixor(.title3, weight: .medium))
-                            .foregroundStyle(.white)
-                            .frame(width: 46, height: 46)
-                            .background(.ultraThinMaterial.opacity(0.5))
-                            .clipShape(Circle())
-                            .overlay(
-                                Circle()
-                                    .strokeBorder(Color.white.opacity(0.2), lineWidth: 1)
-                            )
-                    }
-                    .buttonStyle(.plain)
-                }
-                .padding(.top, DS.Space.s6)
-            }
-            .padding(.horizontal, isCompact ? DS.Space.s40 : 56)
-            .padding(.bottom, isCompact ? DS.Space.s60 : 72)
+            // Bottom, into the page
+            LinearGradient(
+                colors: [theme.background.opacity(0), theme.background],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: HeroCarouselMetrics.bottomFadeHeight)
+            .frame(maxHeight: .infinity, alignment: .bottom)
         }
+        .allowsHitTesting(false)
+    }
+
+    private func pageTransition(parallax: CGFloat) -> AnyTransition {
+        let incoming = isGoingForward ? parallax : -parallax
+        return .asymmetric(
+            insertion: .opacity.combined(with: .offset(x: incoming)),
+            removal: .opacity.combined(with: .offset(x: -incoming))
+        )
+    }
+
+    private func swipe(width: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 24)
+            .onEnded { value in
+                guard items.count > 1,
+                      abs(value.translation.width) > abs(value.translation.height),
+                      abs(value.translation.width) > width * HeroCarouselMetrics.swipeThreshold else { return }
+                let step = value.translation.width < 0 ? 1 : -1
+                go(to: (currentIndex + step + items.count) % items.count, forward: step > 0)
+            }
+    }
+
+    private func go(to index: Int, forward: Bool? = nil) {
+        guard index != currentIndex else { return }
+        isGoingForward = forward ?? (index > currentIndex)
+        currentIndex = index
+        onUserNavigate?()
+    }
+
+    /// Loads the next page ahead of time so it doesn't flash in empty.
+    private func prefetchNext() async {
+        guard items.count > 1, items.indices.contains(currentIndex) else { return }
+        let next = items[(currentIndex + 1) % items.count]
+        let metadata = await HeroCarouselMetadataStore.shared.metadata(for: next)
+        guard let url = metadata.backdropURL, ImageCache.shared.get(url: url) == nil,
+              let (data, _) = try? await URLSession.shared.data(from: url),
+              let image = NSImage(data: data) else { return }
+        ImageCache.shared.set(image: image, url: url)
+    }
+}
+
+// MARK: - Artwork
+
+private struct HeroCarouselBackdrop: View {
+    let item: MediaItem
+    let size: CGSize
+
+    @ObservedObject private var scroll = HomeHeroScrollOffset.shared
+    @Environment(\.flixorTheme) private var theme
+    @State private var metadata: HeroCarouselMetadata?
+
+    private var imageURL: URL? {
+        metadata?.backdropURL ?? ImageService.shared.artURL(
+            for: item,
+            width: Int(size.width * 2),
+            height: Int(size.height * 2)
+        )
+    }
+
+    private var scale: CGFloat {
+        let increase = scroll.value < 0
+            ? -scroll.value * HeroCarouselMetrics.scrollUpScale
+            : scroll.value * HeroCarouselMetrics.scrollDownScale
+        return min(1 + increase, HeroCarouselMetrics.maxScrollScale)
+    }
+
+    var body: some View {
+        Group {
+            if metadata != nil {
+                CachedAsyncImage(url: imageURL, contentMode: .fill) {
+                    theme.background
+                }
+            } else {
+                theme.background
+            }
+        }
+        .frame(
+            width: size.width,
+            height: size.height,
+            alignment: Alignment(horizontal: .center, vertical: .heroBackdrop)
+        )
+        .clipped()
+        .scaleEffect(scale)
+        .offset(y: scroll.value * HeroCarouselMetrics.scrollParallax)
+        .accessibilityHidden(true)
         .task {
-            await loadImages()
+            metadata = await HeroCarouselMetadataStore.shared.metadata(for: item)
+        }
+    }
+}
+
+// MARK: - Text
+
+private struct HeroCarouselContent: View {
+    let item: MediaItem
+    let onInfo: () -> Void
+
+    @Environment(\.flixorTheme) private var theme
+    @State private var metadata: HeroCarouselMetadata?
+
+    private var displayTitle: String { metadata?.title ?? item.title }
+
+    private var metaLine: String {
+        let genres = metadata?.genres ?? []
+        if !genres.isEmpty { return genres.joined(separator: " • ") }
+        return item.type == "movie" ? String(localized: "Movie") : String(localized: "Series")
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            title
+
+            Text(verbatim: metaLine)
+                .font(.flixor(.callout, weight: .medium))
+                .foregroundStyle(theme.textSecondary)
+                .lineLimit(1)
+                .padding(.top, DS.Space.s12)
+
+            if let summary = metadata?.summary, !summary.isEmpty {
+                Text(verbatim: summary)
+                    .font(.flixor(.bodyLarge))
+                    .lineSpacing(3)
+                    .foregroundStyle(theme.textPrimary)
+                    .lineLimit(4)
+                    .padding(.top, DS.Space.s16)
+            }
+
+            Button(action: onInfo) {
+                Text("View Details")
+                    .font(.flixor(.callout, weight: .bold))
+                    .foregroundStyle(theme.background)
+                    .padding(.horizontal, DS.Space.s24)
+                    .frame(height: 48)
+                    .background(Color.white, in: RoundedRectangle(cornerRadius: DS.Space.s40, style: .continuous))
+                    .contentShape(RoundedRectangle(cornerRadius: DS.Space.s40, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .padding(.top, DS.Space.s24)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onInfo)
+        .task {
+            metadata = await HeroCarouselMetadataStore.shared.metadata(for: item)
         }
     }
 
-    private func formatDuration(_ milliseconds: Int) -> String {
-        let minutes = milliseconds / 60000
-        let hours = minutes / 60
-        let mins = minutes % 60
-
-        if hours > 0 {
-            return String(localized: "\(hours)h \(mins)m")
+    @ViewBuilder private var title: some View {
+        if let logo = metadata?.logoURL {
+            GeometryReader { geo in
+                CachedAsyncImage(url: logo, contentMode: .fit) { Color.clear }
+                    .frame(
+                        width: geo.size.width * HeroCarouselMetrics.logoWidthFraction,
+                        height: geo.size.height,
+                        alignment: .leading
+                    )
+            }
+            .frame(height: HeroCarouselMetrics.logoHeight)
+            .accessibilityLabel(Text(verbatim: displayTitle))
+        } else if metadata != nil {
+            Text(verbatim: displayTitle)
+                .font(.flixor(.displayLarge, weight: .heavy))
+                .foregroundStyle(theme.textPrimary)
+                .lineLimit(3)
+                .frame(maxWidth: .infinity, alignment: .leading)
         } else {
-            return String(localized: "\(minutes)m")
+            Color.clear.frame(height: HeroCarouselMetrics.logoHeight)
         }
     }
+}
 
-    private func loadImages() async {
-        // For episodes/seasons, fetch series data first
-        if isEpisodeOrSeason {
-            await loadSeriesData()
-        }
+// MARK: - Controls
 
-        // Use series rating key for cache if available
-        let cacheKey = isEpisodeOrSeason && seriesRatingKey != nil
-            ? "series:\(seriesRatingKey!)"
-            : item.id
+private struct HeroCarouselPageDots: View {
+    let count: Int
+    let currentIndex: Int
+    let onSelect: (Int) -> Void
 
-        // Check cache first
-        if let cached = BillboardImageCache.shared.get(itemId: cacheKey) {
-            await MainActor.run {
-                self.backdropURL = cached.0
-                self.logoURL = cached.1
-            }
-            return
-        }
+    @Environment(\.flixorTheme) private var theme
 
-        // Parse the item ID to get TMDB info
-        do {
-            if let (backdrop, logo) = try await resolveTMDBImages() {
-                await MainActor.run {
-                    self.backdropURL = backdrop
-                    self.logoURL = logo
-                    BillboardImageCache.shared.set(itemId: cacheKey, backdrop: backdrop, logo: logo)
+    var body: some View {
+        HStack(spacing: DS.Space.s8) {
+            ForEach(0..<count, id: \.self) { index in
+                let isActive = index == currentIndex
+                Button { onSelect(index) } label: {
+                    Capsule(style: .continuous)
+                        .fill(theme.textPrimary.opacity(isActive ? 0.92 : 0.35))
+                        .frame(width: isActive ? 32 : 8, height: 8)
+                        .contentShape(Rectangle())
                 }
-            }
-        } catch {
-            // Silent fallback - cache empty result
-            BillboardImageCache.shared.set(itemId: cacheKey, backdrop: nil, logo: nil)
-        }
-    }
-
-    private func loadSeriesData() async {
-        guard let seriesKey = seriesRatingKey else { return }
-
-        do {
-            struct PlexMeta: Codable {
-                let title: String?
-                let summary: String?
-                let year: Int?
-            }
-            let meta: PlexMeta = try await APIClient.shared.get("/api/plex/metadata/\(seriesKey)")
-            await MainActor.run {
-                self.seriesData = SeriesMetadata(
-                    title: meta.title ?? fallbackSeriesTitle ?? item.title,
-                    summary: meta.summary,
-                    year: meta.year
-                )
-            }
-        } catch {
-            // Silent fallback - use fallback title
-            await MainActor.run {
-                self.seriesData = SeriesMetadata(
-                    title: fallbackSeriesTitle ?? item.title,
-                    summary: nil,
-                    year: nil
-                )
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text("Show item \(index + 1) of \(count)"))
+                .accessibilityAddTraits(isActive ? .isSelected : [])
             }
         }
     }
+}
 
-    private func resolveTMDBImages() async throws -> (URL?, URL?)? {
-        // For episodes/seasons, use seriesRatingKey to get series images
-        if isEpisodeOrSeason, let seriesKey = seriesRatingKey {
-            struct PlexMeta: Codable { let type: String?; let Guid: [PlexGuid]? }
-            struct PlexGuid: Codable { let id: String? }
-            let meta: PlexMeta = try await APIClient.shared.get("/api/plex/metadata/\(seriesKey)")
-            if let guid = meta.Guid?.compactMap({ $0.id }).first(where: { $0.contains("tmdb://") || $0.contains("themoviedb://") }),
-               let tid = guid.components(separatedBy: "://").last {
-                return try await fetchTMDBImages(mediaType: "tv", id: tid)
-            }
-            return nil
+/// Level with the navigation bar. Pinned to the window rather than the hero, so
+/// scrolling can't push it into the top edge; it fades out once Home has scrolled.
+struct HeroCarouselFullScreenOverlay: View {
+    @ObservedObject private var scroll = TabScrollState.shared
+
+    private var isVisible: Bool { !scroll.scrolledTabs.contains(.home) }
+
+    var body: some View {
+        HeroCarouselFullScreenButton()
+            .padding(.top, FloatingNavMetrics.topPadding)
+            .padding(.trailing, DetailsSectionStyle.inset)
+            .opacity(isVisible ? 1 : 0)
+            .allowsHitTesting(isVisible)
+            .animation(DS.Motion.standard, value: isVisible)
+    }
+}
+
+private struct HeroCarouselFullScreenButton: View {
+    @Environment(\.flixorTheme) private var theme
+    @State private var isFullScreen = false
+
+    private var label: String {
+        isFullScreen ? String(localized: "Exit Full Screen") : String(localized: "Full Screen")
+    }
+
+    var body: some View {
+        Button {
+            (NSApp.keyWindow ?? NSApp.mainWindow)?.toggleFullScreen(nil)
+        } label: {
+            Image(systemName: isFullScreen ? "arrow.down.right.and.arrow.up.left" : "viewfinder")
+                .font(.flixorIcon(DS.Icon.xl, weight: .medium))
+                .foregroundStyle(theme.textPrimary)
+                .frame(width: 48, height: 48)
+                .background(theme.surfaceElevated.opacity(0.82), in: Circle())
+                .contentShape(Circle())
         }
+        .buttonStyle(.plain)
+        .help(label)
+        .accessibilityLabel(Text(verbatim: label))
+        .onAppear { isFullScreen = NSApp.mainWindow?.styleMask.contains(.fullScreen) == true }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEnterFullScreenNotification)) { _ in
+            isFullScreen = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didExitFullScreenNotification)) { _ in
+            isFullScreen = false
+        }
+    }
+}
 
-        // Handle tmdb:movie:123 or tmdb:tv:123 format
-        if item.id.hasPrefix("tmdb:") {
+// MARK: - Metadata
+
+struct HeroCarouselMetadata {
+    var backdropURL: URL?
+    var logoURL: URL?
+    var title: String
+    var summary: String?
+    var genres: [String]
+}
+
+/// Artwork, title and genres per item, loaded once and shared by the page layers.
+@MainActor
+final class HeroCarouselMetadataStore {
+    static let shared = HeroCarouselMetadataStore()
+
+    private var cache: [String: HeroCarouselMetadata] = [:]
+    private var inFlight: [String: Task<HeroCarouselMetadata, Never>] = [:]
+
+    func metadata(for item: MediaItem) async -> HeroCarouselMetadata {
+        if let cached = cache[item.id] { return cached }
+        if let task = inFlight[item.id] { return await task.value }
+
+        let task = Task { await Self.load(item) }
+        inFlight[item.id] = task
+        let result = await task.value
+        inFlight[item.id] = nil
+        cache[item.id] = result
+        return result
+    }
+
+    private struct PlexMeta: Codable {
+        struct PlexGuid: Codable { let id: String? }
+        let type: String?
+        let title: String?
+        let summary: String?
+        let Guid: [PlexGuid]?
+    }
+
+    private struct TMDBReference {
+        let mediaType: String
+        let id: String
+    }
+
+    private static func load(_ item: MediaItem) async -> HeroCarouselMetadata {
+        var result = HeroCarouselMetadata(
+            backdropURL: nil,
+            logoURL: nil,
+            title: item.title,
+            summary: item.summary,
+            genres: []
+        )
+
+        // Episodes and seasons present their series.
+        let seriesKey = item.type == "episode" ? item.grandparentRatingKey : (item.type == "season" ? item.parentRatingKey : nil)
+        if item.type == "episode" { result.title = item.grandparentTitle ?? item.title }
+        if item.type == "season" { result.title = item.parentTitle ?? item.grandparentTitle ?? item.title }
+
+        var reference: TMDBReference?
+        if let key = seriesKey ?? plexKey(for: item),
+           let meta: PlexMeta = try? await APIClient.shared.get("/api/plex/metadata/\(key)") {
+            if seriesKey != nil {
+                result.title = meta.title ?? result.title
+                result.summary = meta.summary ?? result.summary
+            }
+            let mediaType = seriesKey != nil ? "tv" : (meta.type == "movie" ? "movie" : "tv")
+            if let guid = meta.Guid?.compactMap(\.id).first(where: { $0.contains("tmdb://") || $0.contains("themoviedb://") }),
+               let id = guid.components(separatedBy: "://").last {
+                reference = TMDBReference(mediaType: mediaType, id: id)
+            }
+        } else if item.id.hasPrefix("tmdb:") {
             let parts = item.id.split(separator: ":")
-            if parts.count == 3 {
-                let mediaType = (parts[1] == "movie") ? "movie" : "tv"
-                let id = String(parts[2])
-                return try await fetchTMDBImages(mediaType: mediaType, id: id)
-            }
-            return nil
-        }
-
-        // Handle plex:123 format - need to get TMDB ID from Plex metadata
-        if item.id.hasPrefix("plex:") {
-            let rk = String(item.id.dropFirst(5))
-            struct PlexMeta: Codable { let type: String?; let Guid: [PlexGuid]? }
-            struct PlexGuid: Codable { let id: String? }
-            let meta: PlexMeta = try await APIClient.shared.get("/api/plex/metadata/\(rk)")
-            let mediaType = (meta.type == "movie") ? "movie" : "tv"
-            if let guid = meta.Guid?.compactMap({ $0.id }).first(where: { $0.contains("tmdb://") || $0.contains("themoviedb://") }),
-               let tid = guid.components(separatedBy: "://").last {
-                return try await fetchTMDBImages(mediaType: mediaType, id: tid)
+            if parts.count >= 3 {
+                reference = TMDBReference(mediaType: parts[1] == "movie" ? "movie" : "tv", id: String(parts[2]))
             }
         }
 
-        // Handle raw numeric Plex IDs
-        if item.id.allSatisfy({ $0.isNumber }) {
-            struct PlexMeta: Codable { let type: String?; let Guid: [PlexGuid]? }
-            struct PlexGuid: Codable { let id: String? }
-            let meta: PlexMeta = try await APIClient.shared.get("/api/plex/metadata/\(item.id)")
-            let mediaType = (meta.type == "movie") ? "movie" : "tv"
-            if let guid = meta.Guid?.compactMap({ $0.id }).first(where: { $0.contains("tmdb://") || $0.contains("themoviedb://") }),
-               let tid = guid.components(separatedBy: "://").last {
-                return try await fetchTMDBImages(mediaType: mediaType, id: tid)
-            }
+        guard let reference else { return result }
+
+        let cacheKey = seriesKey.map { "series:\($0)" } ?? item.id
+        if let cached = BillboardImageCache.shared.get(itemId: cacheKey) {
+            result.backdropURL = cached.0
+            result.logoURL = cached.1
+        } else if let images = try? await fetchImages(reference) {
+            result.backdropURL = images.backdrop
+            result.logoURL = images.logo
+            BillboardImageCache.shared.set(itemId: cacheKey, backdrop: images.backdrop, logo: images.logo)
         }
 
+        if let id = Int(reference.id) {
+            let tmdb = FlixorCore.shared.tmdb
+            if reference.mediaType == "movie", let details = try? await tmdb.getMovieDetails(id: id) {
+                result.genres = Array(details.genres.prefix(3).map(\.name))
+                if result.summary?.isEmpty ?? true { result.summary = details.overview }
+            } else if reference.mediaType == "tv", let details = try? await tmdb.getTVDetails(id: id) {
+                result.genres = Array(details.genres.prefix(3).map(\.name))
+                if result.summary?.isEmpty ?? true { result.summary = details.overview }
+            }
+        }
+        return result
+    }
+
+    private static func plexKey(for item: MediaItem) -> String? {
+        if item.id.hasPrefix("plex:") { return String(item.id.dropFirst(5)) }
+        if !item.id.isEmpty, item.id.allSatisfy(\.isNumber) { return item.id }
         return nil
     }
 
-    private func fetchTMDBImages(mediaType: String, id: String) async throws -> (URL?, URL?) {
+    private static func fetchImages(_ reference: TMDBReference) async throws -> (backdrop: URL?, logo: URL?) {
         struct TMDBImages: Codable { let backdrops: [TMDBImage]?; let logos: [TMDBImage]? }
         struct TMDBImage: Codable { let file_path: String?; let iso_639_1: String?; let vote_average: Double? }
 
-        let imgs: TMDBImages = try await APIClient.shared.get(
-            "/api/tmdb/\(mediaType)/\(id)/images",
+        let images: TMDBImages = try await APIClient.shared.get(
+            "/api/tmdb/\(reference.mediaType)/\(reference.id)/images",
             queryItems: [URLQueryItem(name: "language", value: "en,hi,null")]
         )
 
-        // Pick best backdrop - prefer textless (null language) for hero since we overlay title/logo
-        let backs = imgs.backdrops ?? []
-        func pickBest(_ arr: [TMDBImage]) -> TMDBImage? {
-            arr.sorted { ($0.vote_average ?? 0) > ($1.vote_average ?? 0) }.first
+        // Textless artwork first, since the logo goes on top.
+        let backdrops = images.backdrops ?? []
+        func best(_ list: [TMDBImage]) -> TMDBImage? {
+            list.max { ($0.vote_average ?? 0) < ($1.vote_average ?? 0) }
         }
-        // Priority: textless (null) first, then any
-        let selectedBackdrop = pickBest(backs.filter { $0.iso_639_1 == nil })
-            ?? pickBest(backs)
+        let backdrop = best(backdrops.filter { $0.iso_639_1 == nil }) ?? best(backdrops)
 
-        // Pick best logo - prefer English
-        let logos = imgs.logos ?? []
-        let englishLogos = logos.filter { $0.iso_639_1 == "en" }
-        let selectedLogo = englishLogos.first ?? logos.first
+        let logos = images.logos ?? []
+        let logo = logos.first { $0.iso_639_1 == "en" } ?? logos.first
 
-        let backdropURL: URL? = {
-            guard let path = selectedBackdrop?.file_path else { return nil }
-            return URL(string: "https://image.tmdb.org/t/p/original\(path)")
-        }()
-
-        let logoURL: URL? = {
-            guard let path = selectedLogo?.file_path else { return nil }
-            return URL(string: "https://image.tmdb.org/t/p/w500\(path)")
-        }()
-
-        return (backdropURL, logoURL)
+        return (
+            backdrop?.file_path.flatMap { URL(string: "https://image.tmdb.org/t/p/original\($0)") },
+            logo?.file_path.flatMap { URL(string: "https://image.tmdb.org/t/p/w500\($0)") }
+        )
     }
 }

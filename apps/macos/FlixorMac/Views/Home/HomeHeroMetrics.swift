@@ -25,7 +25,7 @@ extension WindowMetrics {
 
     /// Home hero carousel height.
     var homeCarouselHeight: CGFloat {
-        heroHeight(for: .fraction(0.62, minimum: 420, maximum: 720))
+        min(max(width * 0.56, 460), 640)
     }
 
     /// True when the hero is short enough that its text should tighten up
