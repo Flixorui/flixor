@@ -104,7 +104,8 @@ struct StreamRulesEditor: View {
     ]
 
     private var matcher: StreamRuleMatcher? {
-        try? StreamRuleMatcher(rules: store.rules)
+        // A short budget: the preview runs on the main actor, on six short names.
+        try? StreamRuleMatcher(rules: store.rules, matchingBudget: 0.05)
     }
 
     private var streamAddons: [StremioAddonSummary] {
@@ -158,7 +159,7 @@ struct StreamRulesEditor: View {
                 .accessibilityLabel("Include")
 
             if matcher == nil {
-                Text("This isn't a valid regular expression, so Play will show the list of sources.")
+                Text("This pattern isn't valid, or repeats inside a repeat like (a+)+ and could hang, so Play will show the list of sources.")
                     .flixorFont(.caption)
                     .foregroundStyle(.red)
             } else {
@@ -260,6 +261,7 @@ private extension StreamRuleVerdict {
     var previewLabel: String {
         switch self {
         case .match: return "Matches"
+        case .timedOut: return "Too slow to check"
         case .missingInclude: return "No include match"
         case .excluded(let word): return "Excluded: \(word)"
         case .aboveResolutionLimit: return "Above limit"

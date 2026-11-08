@@ -20,6 +20,7 @@ struct CardInteractionsModifier: ViewModifier {
     @Binding var isHovered: Bool
     let onOpen: (() -> Void)?
     var previewEnabled: Bool = true
+    var extraMenuActions: [CardMenuAction] = []
 
     // Cards always live under MainView, which injects these.
     @EnvironmentObject private var watchlistController: WatchlistController
@@ -67,7 +68,8 @@ struct CardInteractionsModifier: ViewModifier {
                 item: item,
                 onOpen: onOpen,
                 onPlay: playAction,
-                watchlistController: watchlistController
+                watchlistController: watchlistController,
+                extraActions: extraMenuActions
             )
             .accessibilityLabel(Text(CardAccessibility.label(for: item)))
             .accessibilityHint(onOpen == nil ? Text("") : Text("Opens details"))
@@ -105,14 +107,16 @@ extension View {
         cornerRadius: CGFloat,
         isHovered: Binding<Bool>,
         onOpen: (() -> Void)?,
-        previewEnabled: Bool = true
+        previewEnabled: Bool = true,
+        extraMenuActions: [CardMenuAction] = []
     ) -> some View {
         modifier(CardInteractionsModifier(
             item: item,
             cornerRadius: cornerRadius,
             isHovered: isHovered,
             onOpen: onOpen,
-            previewEnabled: previewEnabled
+            previewEnabled: previewEnabled,
+            extraMenuActions: extraMenuActions
         ))
     }
 }

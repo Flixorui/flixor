@@ -226,6 +226,12 @@ struct TraktListContentView: View {
                 topTrailingOverlay: model.bulkMode ? nil : AnyView(removeButton(for: item)),
                 isSelected: isSelected,
                 customImageURL: item.imageURL,
+                // The artwork has its own context menu, which wins over the one below.
+                extraMenuActions: [
+                    CardMenuAction(title: "Remove from \(list.name)", role: .destructive, isDisabled: model.isMutating) {
+                        Task { await model.remove(item) }
+                    }
+                ],
                 onTap: {
                     if model.bulkMode {
                         model.toggleSelection(for: item)

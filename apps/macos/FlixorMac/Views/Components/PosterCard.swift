@@ -16,6 +16,7 @@ struct PosterCard: View {
     var topTrailingOverlay: AnyView? = nil
     var isSelected: Bool = false
     var customImageURL: URL? = nil
+    var extraMenuActions: [CardMenuAction] = []
     var onTap: (() -> Void)?
 
     @State private var isHovered = false
@@ -111,7 +112,7 @@ struct PosterCard: View {
                 }
             }
             .buttonStyle(.plain)
-            .cardInteractions(item: item, cornerRadius: cornerRadius, isHovered: $isHovered, onOpen: onTap)
+            .cardInteractions(item: item, cornerRadius: cornerRadius, isHovered: $isHovered, onOpen: onTap, extraMenuActions: extraMenuActions)
 
             // Title ("Never" hides it; "Always" and "On Hover" keep the caption here)
             if showTitle && cardStyle.titleMode != .never {

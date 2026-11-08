@@ -660,6 +660,9 @@ final class TraktListsViewModel: ObservableObject {
         }
 
         visibleItems = working
+        // Bulk actions must only reach titles the user can see.
+        let visibleIDs = Set(working.map(\.id))
+        if !selectedIDs.isSubset(of: visibleIDs) { selectedIDs.formIntersection(visibleIDs) }
     }
 
     // MARK: - Errors

@@ -15,14 +15,49 @@ enum StreamRuleVerdict: Equatable {
     case missingInclude
     case excluded(String)
     case aboveResolutionLimit
+    /// The include pattern used up its matching time, so the stream can't be judged.
+    case timedOut
 
     var isMatch: Bool { self == .match }
+}
+
+/// Total time a regex include pattern may spend matching. A pattern that backtracks
+/// badly can otherwise run for hours, and NSRegularExpression has no timeout.
+final class StreamRuleTimeBudget: @unchecked Sendable {
+    private let lock = NSLock()
+    private var remainingSeconds: TimeInterval
+    private var exhausted = false
+
+    init(seconds: TimeInterval) {
+        remainingSeconds = seconds
+    }
+
+    var remaining: TimeInterval {
+        lock.lock()
+        defer { lock.unlock() }
+        return exhausted ? 0 : remainingSeconds
+    }
+
+    var isExhausted: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return exhausted
+    }
+
+    func spend(_ seconds: TimeInterval, overran: Bool) {
+        lock.lock()
+        defer { lock.unlock() }
+        remainingSeconds -= seconds
+        if overran || remainingSeconds <= 0 { exhausted = true }
+    }
 }
 
 /// `StreamSelectionRules` compiled for matching.
 struct StreamRuleMatcher {
     enum RuleError: Error {
         case invalidIncludePattern
+        /// A repeat inside a repeat, like `(a+)+`: the classic pattern that hangs.
+        case unsafeIncludePattern
         case invalidExcludeWords
     }
 
@@ -33,14 +68,19 @@ struct StreamRuleMatcher {
     /// Longest text a rule is run against, so a costly pattern stays cheap on long descriptions.
     private static let maxTextLength = 1_000
 
-    init(rules: StreamSelectionRules) throws {
+    /// Spent by regex include patterns only; word lists are escaped and always fast.
+    let timeBudget: StreamRuleTimeBudget
+
+    init(rules: StreamSelectionRules, matchingBudget: TimeInterval = 1) throws {
         self.rules = rules
+        timeBudget = StreamRuleTimeBudget(seconds: matchingBudget)
 
         if rules.includeIsRegex {
             let pattern = rules.include.trimmingCharacters(in: .whitespacesAndNewlines)
             if pattern.isEmpty {
                 include = nil
             } else {
+                guard !Self.hasNestedRepeat(pattern) else { throw RuleError.unsafeIncludePattern }
                 guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
                     throw RuleError.invalidIncludePattern
                 }
@@ -69,6 +109,61 @@ struct StreamRuleMatcher {
         return regex
     }
 
+    /// True when a group containing an open-ended repeat is itself repeated. Can flag
+    /// a few harmless patterns; the time budget covers whatever it misses.
+    static func hasNestedRepeat(_ pattern: String) -> Bool {
+        let chars = Array(pattern)
+        var groupHasRepeat: [Bool] = []
+        var closedGroupHadRepeat = false
+        var inCharacterClass = false
+        var index = 0
+
+        while index < chars.count {
+            let char = chars[index]
+            index += 1
+
+            if char == "\\" {
+                index += 1
+                closedGroupHadRepeat = false
+                continue
+            }
+            if inCharacterClass {
+                if char == "]" { inCharacterClass = false }
+                continue
+            }
+
+            var isRepeat = char == "*" || char == "+"
+            if char == "{", let close = chars[index...].firstIndex(of: "}") {
+                // {3} repeats a fixed number of times; {3,} and {3,9} vary.
+                isRepeat = chars[index..<close].contains(",")
+                index = close + 1
+                if !isRepeat { continue }
+            }
+
+            if isRepeat {
+                if closedGroupHadRepeat { return true }
+                if !groupHasRepeat.isEmpty { groupHasRepeat[groupHasRepeat.count - 1] = true }
+                closedGroupHadRepeat = false
+                continue
+            }
+
+            closedGroupHadRepeat = false
+            switch char {
+            case "[":
+                inCharacterClass = true
+            case "(":
+                groupHasRepeat.append(false)
+            case ")":
+                let hadRepeat = groupHasRepeat.popLast() ?? false
+                closedGroupHadRepeat = hadRepeat
+                if hadRepeat, !groupHasRepeat.isEmpty { groupHasRepeat[groupHasRepeat.count - 1] = true }
+            default:
+                break
+            }
+        }
+        return false
+    }
+
     func verdict(for stream: StremioPlayableStream) -> StreamRuleVerdict {
         verdict(text: Self.searchableText(for: stream), resolution: StremioSourceRanking.resolutionBucket(stream))
     }
@@ -85,10 +180,35 @@ struct StreamRuleMatcher {
         if let limit = rules.maxResolution, let resolution, resolution > limit {
             return .aboveResolutionLimit
         }
-        if let include, include.firstMatch(in: text, range: range) == nil {
-            return .missingInclude
+        if let include {
+            guard let found = includeMatches(include, in: text, range: range) else { return .timedOut }
+            if !found { return .missingInclude }
         }
         return .match
+    }
+
+    /// Nil when the time budget ran out. The progress callback is the only way to
+    /// stop a running match, and it does fire during backtracking.
+    private func includeMatches(_ regex: NSRegularExpression, in text: String, range: NSRange) -> Bool? {
+        guard rules.includeIsRegex else { return regex.firstMatch(in: text, range: range) != nil }
+
+        let allowed = timeBudget.remaining
+        guard allowed > 0 else { return nil }
+        let start = Date()
+        let deadline = start.addingTimeInterval(allowed)
+        var found = false
+        var overran = false
+        regex.enumerateMatches(in: text, options: [.reportProgress], range: range) { match, _, stop in
+            if match != nil {
+                found = true
+                stop.pointee = true
+            } else if Date() >= deadline {
+                overran = true
+                stop.pointee = true
+            }
+        }
+        timeBudget.spend(Date().timeIntervalSince(start), overran: overran)
+        return overran ? nil : found
     }
 
     /// What rules are matched against. The URL is left out on purpose: tokens in it,
@@ -106,6 +226,21 @@ struct StreamAutoSelector {
 
     init(rules: StreamSelectionRules?) throws {
         matcher = try rules.map { try StreamRuleMatcher(rules: $0) }
+    }
+
+    /// The include pattern took too long; automatic selection should give up.
+    var rulesTimedOut: Bool { matcher?.timeBudget.isExhausted ?? false }
+
+    /// `pick`, off the caller's actor so a costly pattern can't stall it.
+    func pickOffActor(in results: [StremioAddonStreamResult]) async -> StremioPlayableStream? {
+        await Task.detached(priority: .userInitiated) { self.pick(in: results) }.value
+    }
+
+    /// True once there's no reason to wait for more addons. Also runs off the caller's actor.
+    func shouldStopWaiting(in results: [StremioAddonStreamResult], pending: Set<String>) async -> Bool {
+        await Task.detached(priority: .userInitiated) {
+            self.earlyPick(in: results, pending: pending) != nil || self.rulesTimedOut
+        }.value
     }
 
     /// The stream to play given everything that has arrived.

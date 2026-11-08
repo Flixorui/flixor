@@ -19,6 +19,8 @@ struct PlayerControlsView: View {
     let onToggleMPVPiP: () -> Void
     /// Reports whether a panel (episodes, speed, tracks, chapters, aspect) is open.
     let onPanelOpenChanged: (Bool) -> Void
+    /// Each change closes whichever panel is open.
+    let closePanelsRequest: Int
 
     @Environment(\.flixorTheme) private var theme
     @Environment(\.windowMetrics) private var metrics
@@ -617,6 +619,13 @@ struct PlayerControlsView: View {
             }
         }
         .onChange(of: isAnyPanelOpen) { onPanelOpenChanged($0) }
+        .onChange(of: closePanelsRequest) { _ in
+            showEpisodesList = false
+            showPlaybackSpeed = false
+            showAudioSubtitles = false
+            showChaptersPanel = false
+            showAspectPanel = false
+        }
         .onDisappear {
             // Panels live in this view: they go with it (loading, errors, closing).
             if isAnyPanelOpen { onPanelOpenChanged(false) }

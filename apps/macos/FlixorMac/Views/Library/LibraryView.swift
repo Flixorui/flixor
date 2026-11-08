@@ -54,14 +54,17 @@ struct LibraryView: View {
 
     @ViewBuilder
     private var content: some View {
-        if let error = viewModel.errorMessage {
-            errorState(message: error)
-        } else if viewModel.contentTab == .collections {
+        // My Collections need no Plex, so a Plex error only fills the Plex section there.
+        if viewModel.contentTab == .collections {
             CollectionsView(
                 collections: viewModel.collections,
                 isLoading: viewModel.isLoadingCollections,
+                plexError: viewModel.errorMessage,
+                onRetryPlex: { Task { await viewModel.retry() } },
                 onSelect: { _ in }
             )
+        } else if let error = viewModel.errorMessage {
+            errorState(message: error)
         } else {
             libraryContent
         }

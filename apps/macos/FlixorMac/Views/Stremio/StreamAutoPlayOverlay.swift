@@ -20,7 +20,7 @@ struct StreamAutoPlayOverlay: View {
                     .transition(.opacity)
                 card(title: title)
                     .transition(.opacity)
-                    // Leaving the page (back, another tab) ends the search.
+                    // Leaving the page ends the search (DetailsView handles tab switches).
                     .onDisappear { controller.cancel() }
                     .inPageModal(onDismiss: { controller.cancel() })
             }

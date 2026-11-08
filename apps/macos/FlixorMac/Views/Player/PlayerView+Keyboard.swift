@@ -70,6 +70,8 @@ extension PlayerView {
     }
 
     private func handleKeyDown(_ event: NSEvent) -> Bool {
+        // The monitor is app-wide: leave keys typed in other windows (the colour panel, say) alone.
+        if let window = event.window, !BackNavigationController.shared.isMainWindow(window) { return false }
         guard !isTextInputFocused(for: event) else { return false }
 
         // Get the key code and characters
@@ -103,8 +105,12 @@ extension PlayerView {
             return true
 
         case 53: // Escape
+            // Holding Esc must not walk through every step and close the player.
+            if event.isARepeat { return true }
             if showShortcutsOverlay {
                 showShortcutsOverlay = false
+            } else if isControlsPanelOpen {
+                closePanelsRequest += 1
             } else if isFullScreen {
                 toggleFullScreen()
             } else {
