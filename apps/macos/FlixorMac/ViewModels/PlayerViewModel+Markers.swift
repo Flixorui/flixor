@@ -249,6 +249,11 @@ extension PlayerViewModel {
             triggerSource = "FALLBACK (\(Int(fallbackSeconds))s before end) at \(triggerStart)s"
         }
 
+        // Addon streams: look up the next episode's source a minute ahead.
+        if sourceKind == .stream && currentTime >= triggerStart - 60 {
+            prefetchNextEpisodeSourceIfNeeded()
+        }
+
         if currentTime >= triggerStart {
             // Start 5-second countdown timer if not already running
             if nextEpisodeCountdown == nil && nextEpisodeCountdownTimer == nil {
@@ -277,6 +282,10 @@ extension PlayerViewModel {
 
     func playNext() {
         guard let next = nextEpisode else { return }
+        if sourceKind == .stream {
+            playNextStreamEpisode()
+            return
+        }
 
         // Create MediaItem from next episode, preserving mediaIndex for version consistency
         let nextItem = MediaItem(
@@ -314,6 +323,11 @@ extension PlayerViewModel {
 
     /// Play a specific episode from the season (e.g., from episode selector)
     func playEpisode(_ episode: EpisodeMetadata) {
+        if sourceKind == .stream {
+            guard let season = episode.parentIndex, let number = episode.index else { return }
+            playStreamEpisode(season: season, episode: number, episodeTitle: episode.title)
+            return
+        }
         let episodeItem = MediaItem(
             id: "plex:\(episode.ratingKey)",
             title: episode.title,

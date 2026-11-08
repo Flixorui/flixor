@@ -194,6 +194,11 @@ extension PlayerViewModel {
                 await resumeStore.remove(contentKey: streamPlaybackItem.contentKey)
                 await scrobbler.stopScrobble(progress: 100)
             }
+            // Auto-play the next episode of a series stream (same rules as Plex).
+            if item.type == "episode" && nextEpisode != nil && UserDefaults.standard.autoPlayNext && !isResolvingNextEpisode {
+                print("▶️ [Player] Auto-playing next stream episode...")
+                playNextStreamEpisode()
+            }
             return
         }
 

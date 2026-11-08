@@ -22,6 +22,8 @@ extension PlayerViewModel {
             streamEngineContentKey = streamItem.contentKey
             plexMarkersSnapshot = []
             resetCommunitySkipSegments()
+            resetStreamNextEpisode()
+            sourcesPickerDestination = nil
             markers = []
             currentMarker = nil
             nextEpisode = nil
@@ -56,6 +58,7 @@ extension PlayerViewModel {
 
             if isNewTitle {
                 loadCommunitySkipSegments(for: streamItem)
+                loadStreamNextEpisode(for: streamItem)
             }
 
             if UserDefaults.standard.useCachedStreams {
@@ -87,6 +90,15 @@ extension PlayerViewModel {
             self.error = "Failed to load Stremio stream: \(error.localizedDescription)"
             self.isLoading = false
         }
+    }
+
+    /// The addon source currently playing (by id, else by URL).
+    var currentStremioStream: StremioPlayableStream? {
+        if let id = currentStremioSourceId, let stream = availableStremioSources.first(where: { $0.id == id }) {
+            return stream
+        }
+        guard let uri = streamPlaybackItem?.uri else { return nil }
+        return availableStremioSources.first { $0.url == uri }
     }
 
     var isStreamPlayback: Bool {

@@ -119,6 +119,10 @@ class PlayerViewModel: ObservableObject {
     /// Opens the Stremio sources picker for an episode/title. Wired by the player
     /// view; used when no source can be picked automatically.
     var onOpenStremioSources: ((StremioSourcesDestination) -> Void)?
+    /// Set when the user has to pick a source (next episode couldn't be resolved,
+    /// or recovery gave up). The error overlay can offer "Choose another source",
+    /// which calls `openSourcesPicker()`.
+    @Published var sourcesPickerDestination: StremioSourcesDestination?
 
     // Dead-link recovery for addon streams
     /// Background work status (recovering a source, finding the next episode's source).
