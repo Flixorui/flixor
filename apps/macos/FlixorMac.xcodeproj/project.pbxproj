@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		D5F54E5E73EA695879FE574F /* DetailsSectionOrderList.swift in Sources */ = {isa = PBXBuildFile; fileRef = F399F9767F9F2FF037F5BC1D /* DetailsSectionOrderList.swift */; };
+		3F02D57071249E9B04834C78 /* DetailsSectionsContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B53C11B6DBFAAFE2160A6D61 /* DetailsSectionsContainer.swift */; };
+		BE8F38DC351539F97DC3B633 /* DetailsSectionsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 967CFFDC962E94BBCA530B6F /* DetailsSectionsStore.swift */; };
+		7B8066739D5FA217CF8E86B2 /* UserDefaults+DetailsSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E4EE42492FA9965929C3C63 /* UserDefaults+DetailsSections.swift */; };
 		81589FE15E5F3A60DF37596B /* WatchStateService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46D031E0858D60EF3A8C739E /* WatchStateService.swift */; };
 		63AA8F5C8099B3513A6C3852 /* TraktListsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC85992E13EE4C4C1C8C2704 /* TraktListsService.swift */; };
 		3FC7D91559AFA7117387D2C8 /* TraktCommentsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 863179F8A6086C93AB02C84E /* TraktCommentsService.swift */; };
@@ -202,6 +206,10 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		F399F9767F9F2FF037F5BC1D /* DetailsSectionOrderList.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DetailsSectionOrderList.swift; sourceTree = "<group>"; };
+		B53C11B6DBFAAFE2160A6D61 /* DetailsSectionsContainer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DetailsSectionsContainer.swift; sourceTree = "<group>"; };
+		967CFFDC962E94BBCA530B6F /* DetailsSectionsStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DetailsSectionsStore.swift; sourceTree = "<group>"; };
+		9E4EE42492FA9965929C3C63 /* UserDefaults+DetailsSections.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "UserDefaults+DetailsSections.swift"; sourceTree = "<group>"; };
 		46D031E0858D60EF3A8C739E /* WatchStateService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchStateService.swift; sourceTree = "<group>"; };
 		EC85992E13EE4C4C1C8C2704 /* TraktListsService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TraktListsService.swift; sourceTree = "<group>"; };
 		863179F8A6086C93AB02C84E /* TraktCommentsService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TraktCommentsService.swift; sourceTree = "<group>"; };
@@ -552,6 +560,7 @@
 		D007 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				967CFFDC962E94BBCA530B6F /* DetailsSectionsStore.swift */,
 				46D031E0858D60EF3A8C739E /* WatchStateService.swift */,
 				EC85992E13EE4C4C1C8C2704 /* TraktListsService.swift */,
 				863179F8A6086C93AB02C84E /* TraktCommentsService.swift */,
@@ -577,6 +586,7 @@
 		D008 /* Extensions */ = {
 			isa = PBXGroup;
 			children = (
+				9E4EE42492FA9965929C3C63 /* UserDefaults+DetailsSections.swift */,
 				497B08D5668C4AE5E283945A /* UserDefaults+WatchState.swift */,
 				4F750BC1AEFFF3F132E53194 /* WindowMetrics.swift */,
 				2DC553DC45B4C35E1EA8888A /* UserDefaults+Appearance.swift */,
@@ -656,6 +666,7 @@
 		D015 /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				F399F9767F9F2FF037F5BC1D /* DetailsSectionOrderList.swift */,
 				9F4FB3B84467ABEBB9DC1956 /* AppearanceSettingsView.swift */,
 				B015 /* SettingsView.swift */,
 				B163 /* PlexServersView.swift */,
@@ -700,6 +711,7 @@
 		D018 /* Details */ = {
 			isa = PBXGroup;
 			children = (
+				B53C11B6DBFAAFE2160A6D61 /* DetailsSectionsContainer.swift */,
 				B104519B98773D3F7BFA0752 /* DetailsView+Layout.swift */,
 				A4E2631E53C0AC98A4785AB2 /* DetailsVersionPicker.swift */,
 				2E243590D9C56F2049DDEC1F /* DetailsSuggestedSection.swift */,
@@ -939,6 +951,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D5F54E5E73EA695879FE574F /* DetailsSectionOrderList.swift in Sources */,
+				3F02D57071249E9B04834C78 /* DetailsSectionsContainer.swift in Sources */,
+				BE8F38DC351539F97DC3B633 /* DetailsSectionsStore.swift in Sources */,
+				7B8066739D5FA217CF8E86B2 /* UserDefaults+DetailsSections.swift in Sources */,
 				81589FE15E5F3A60DF37596B /* WatchStateService.swift in Sources */,
 				63AA8F5C8099B3513A6C3852 /* TraktListsService.swift in Sources */,
 				3FC7D91559AFA7117387D2C8 /* TraktCommentsService.swift in Sources */,

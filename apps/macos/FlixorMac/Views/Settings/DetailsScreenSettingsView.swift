@@ -9,6 +9,7 @@ import SwiftUI
 
 struct DetailsScreenSettingsView: View {
     @ObservedObject private var profileSettings = ProfileSettings.shared
+    @ObservedObject private var sectionsStore = DetailsSectionsStore.shared
 
     @State private var showEpisodePreview: Bool = false
     @State private var showSuggestedPreview: Bool = false
@@ -24,7 +25,7 @@ struct DetailsScreenSettingsView: View {
                         .padding(.horizontal, 12)
                         .padding(.top, 12)
 
-                    Text("Choose between tabbed navigation or a unified scrollable page")
+                    Text("Choose between tabbed navigation or a unified scrollable page. Tabs follow the section order below.")
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, 12)
@@ -50,6 +51,10 @@ struct DetailsScreenSettingsView: View {
                     .padding(.bottom, 12)
                 }
             }
+
+            // Page Sections (order + visibility)
+            SettingsSectionHeader(title: "Page Sections")
+            DetailsSectionOrderList()
 
             // Episode Layout
             SettingsSectionHeader(title: "Episode Display")
@@ -84,6 +89,45 @@ struct DetailsScreenSettingsView: View {
                     }
                     .padding(.horizontal, 12)
                     .padding(.bottom, 12)
+                }
+            }
+
+            SettingsGroupCard {
+                SettingsRow(
+                    icon: "square.grid.2x2.fill",
+                    iconColor: .indigo,
+                    title: "Season Picker",
+                    subtitle: "Text chips, or season posters with episode counts"
+                ) {
+                    Picker("", selection: $sectionsStore.seasonPickerStyle) {
+                        Text("Chips").tag(DetailsSeasonPickerStyle.chips)
+                        Text("Posters").tag(DetailsSeasonPickerStyle.posters)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .frame(width: 160)
+                    .accessibilityLabel(Text("Season picker style"))
+                }
+                SettingsRow(
+                    icon: "eye.slash.fill",
+                    iconColor: .gray,
+                    title: "Hide Spoilers for Unwatched Episodes",
+                    subtitle: "Blur thumbnails and hide descriptions until you hover"
+                ) {
+                    Toggle("", isOn: $sectionsStore.hideEpisodeSpoilers)
+                        .labelsHidden()
+                        .accessibilityLabel(Text("Hide spoilers for unwatched episodes"))
+                }
+                SettingsRow(
+                    icon: "star.leadinghalf.filled",
+                    iconColor: .yellow,
+                    title: "Episode Ratings",
+                    subtitle: "Show the TMDB rating on each episode",
+                    showDivider: false
+                ) {
+                    Toggle("", isOn: $sectionsStore.showEpisodeRatings)
+                        .labelsHidden()
+                        .accessibilityLabel(Text("Show episode ratings"))
                 }
             }
 
@@ -138,17 +182,6 @@ struct DetailsScreenSettingsView: View {
                     suggestedLandscapePreview
                 } else {
                     suggestedPosterPreview
-                }
-            }
-
-            // Content Display
-            SettingsSectionHeader(title: "Content Display")
-            SettingsGroupCard {
-                SettingsRow(icon: "rectangle.stack.fill", iconColor: .blue, title: "Show Related Content") {
-                    Toggle("", isOn: $profileSettings.showRelatedContent).labelsHidden()
-                }
-                SettingsRow(icon: "person.2.fill", iconColor: .purple, title: "Show Cast & Crew", showDivider: false) {
-                    Toggle("", isOn: $profileSettings.showCastCrew).labelsHidden()
                 }
             }
 

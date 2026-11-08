@@ -2,7 +2,7 @@
 //  DetailsInfoSections.swift
 //  FlixorMac
 //
-//  Details tab: cast & crew, about, info, technical details, collections
+//  Details section: about, production/networks, info, technical details, collections
 //
 
 import SwiftUI
@@ -11,9 +11,7 @@ import FlixorKit
 struct DetailsTabContent: View {
     @ObservedObject var vm: DetailsViewModel
     let layout: DetailsLayoutMetrics
-    var onPersonTap: (CastCrewCard.Person) -> Void
-
-    @ObservedObject private var profileSettings = ProfileSettings.shared
+    var onEntityTap: (EntityBrowseRoute) -> Void = { _ in }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 40) {
@@ -89,98 +87,24 @@ struct DetailsTabContent: View {
                 .fixedSize(horizontal: false, vertical: true)
             }
 
-            // Cast & Crew Section (Apple TV+ style) - also show for episodes with guest stars
-            if profileSettings.showCastCrew && (!vm.cast.isEmpty || !vm.crew.isEmpty || !vm.guestStars.isEmpty) {
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack {
-                        Text(vm.isEpisode && !vm.guestStars.isEmpty ? "Guest Stars" : "Cast & Crew")
-                            .font(.system(size: 22, weight: .semibold))
-                            .foregroundStyle(.white)
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.5))
-                    }
-
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 20) {
-                            ForEach(allCastCrew) { person in
-                                CastCrewCircleCard(person: person, onTap: { onPersonTap(person) })
-                            }
-                        }
-                    }
-                }
-            }
-            
-            // Production Section (Movies) - with logos
+            // Production Section (Movies) - with logos; tapping browses the company
             if vm.mediaKind == "movie" && !vm.productionCompanies.isEmpty {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Production")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(.white)
-
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 12) {
-                            ForEach(vm.productionCompanies.prefix(6)) { company in
-                                if let logoURL = company.logoURL {
-                                    CachedAsyncImage(url: logoURL, aspectRatio: nil, contentMode: .fit)
-                                        .frame(width: 80, height: 32)
-                                        .padding(.horizontal, 16)
-                                        .padding(.vertical, 12)
-                                        .background(
-                                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                                .fill(Color.white)
-                                        )
-                                } else {
-                                    Text(company.name)
-                                        .font(.system(size: 13, weight: .semibold))
-                                        .foregroundStyle(.black)
-                                        .padding(.horizontal, 16)
-                                        .padding(.vertical, 12)
-                                        .background(
-                                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                                .fill(Color.white)
-                                        )
-                                }
-                            }
-                        }
-                    }
-                }
+                DetailsEntityLogoRow(
+                    title: "Production",
+                    kind: .company,
+                    entities: Array(vm.productionCompanies.prefix(6)),
+                    onTap: onEntityTap
+                )
             }
 
-            // Networks Section (TV) - with logos
+            // Networks Section (TV) - with logos; tapping browses the network
             if vm.mediaKind == "tv" && !vm.networks.isEmpty {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Networks")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(.white)
-
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 12) {
-                            ForEach(vm.networks.prefix(6)) { network in
-                                if let logoURL = network.logoURL {
-                                    CachedAsyncImage(url: logoURL, aspectRatio: nil, contentMode: .fit)
-                                        .frame(width: 80, height: 32)
-                                        .padding(.horizontal, 16)
-                                        .padding(.vertical, 12)
-                                        .background(
-                                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                                .fill(Color.white)
-                                        )
-                                } else {
-                                    Text(network.name)
-                                        .font(.system(size: 13, weight: .semibold))
-                                        .foregroundStyle(.black)
-                                        .padding(.horizontal, 16)
-                                        .padding(.vertical, 12)
-                                        .background(
-                                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                                .fill(Color.white)
-                                        )
-                                }
-                            }
-                        }
-                    }
-                }
+                DetailsEntityLogoRow(
+                    title: "Networks",
+                    kind: .network,
+                    entities: Array(vm.networks.prefix(6)),
+                    onTap: onEntityTap
+                )
             }
 
             // Three-column info section (Apple TV+ style)
@@ -435,29 +359,6 @@ struct DetailsTabContent: View {
         }
     }
 
-    // Combine cast and crew for display
-    private var allCastCrew: [CastCrewCard.Person] {
-        var people: [CastCrewCard.Person] = []
-
-        // For episodes, use guest stars
-        if vm.isEpisode && !vm.guestStars.isEmpty {
-            for g in vm.guestStars.prefix(12) {
-                people.append(CastCrewCard.Person(id: g.id, name: g.name, role: g.role, image: g.profile))
-            }
-        } else {
-            // Add cast (actors) with their character names
-            for c in vm.cast.prefix(12) {
-                people.append(CastCrewCard.Person(id: c.id, name: c.name, role: c.role, image: c.profile))
-            }
-        }
-
-        // Add key crew (directors, writers)
-        for c in vm.crew.prefix(4) {
-            people.append(CastCrewCard.Person(id: c.id, name: c.name, role: c.job, image: c.profile))
-        }
-        return people
-    }
-
     private func formattedRuntime(_ minutes: Int) -> String {
         if minutes >= 60 {
             let hours = minutes / 60
@@ -497,68 +398,91 @@ struct DetailsTabContent: View {
     }
 }
 
-// MARK: - Cast & Crew Circle Card (Apple TV+ style)
-private struct CastCrewCircleCard: View {
-    let person: CastCrewCard.Person
-    let onTap: () -> Void
+// MARK: - Production Company / Network Logos
 
-    @State private var isHovered = false
+/// Logos (or names) of production companies or TV networks. Each one opens
+/// the company/network browse page.
+private struct DetailsEntityLogoRow: View {
+    let title: String
+    let kind: EntityBrowseRoute.Kind
+    let entities: [DetailsViewModel.ProductionCompany]
+    let onTap: (EntityBrowseRoute) -> Void
+
+    @Environment(\.flixorTheme) private var theme
 
     var body: some View {
-        Button(action: onTap) {
-            VStack(spacing: 10) {
-                // Circular profile image
-                Group {
-                    if let imageURL = person.image {
-                        CachedAsyncImage(url: imageURL)
-                            .scaledToFill()
-                    } else {
-                        // Initials fallback
-                        ZStack {
-                            Circle()
-                                .fill(Color.gray.opacity(0.3))
-                            Text(initials(for: person.name))
-                                .font(.system(size: 28, weight: .medium))
-                                .foregroundStyle(.white.opacity(0.6))
+        VStack(alignment: .leading, spacing: DS.Space.itemGap) {
+            Text(title)
+                .font(.flixor(.title3, weight: .semibold))
+                .foregroundStyle(theme.textPrimary)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: DS.Space.itemGap) {
+                    ForEach(entities) { entity in
+                        DetailsEntityLogoButton(entity: entity) {
+                            onTap(EntityBrowseRoute(
+                                kind: kind,
+                                id: entity.id,
+                                name: entity.name,
+                                logoPath: Self.tmdbPath(from: entity.logoURL)
+                            ))
                         }
                     }
                 }
-                .frame(width: 100, height: 100)
-                .clipShape(Circle())
-                .overlay(
-                    Circle()
-                        .stroke(Color.white.opacity(isHovered ? 0.4 : 0.15), lineWidth: 2)
-                )
-                .shadow(color: .black.opacity(0.3), radius: 4, y: 2)
-
-                // Name
-                Text(person.name)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-
-                // Role/Character
-                if let role = person.role {
-                    Text(role)
-                        .font(.system(size: 12))
-                        .foregroundStyle(.white.opacity(0.5))
-                        .lineLimit(1)
-                }
+                .padding(.vertical, DS.Space.s4)
             }
-            .frame(width: 110)
-        }
-        .buttonStyle(.plain)
-        .onHover { hovering in
-            isHovered = hovering
         }
     }
 
-    private func initials(for name: String) -> String {
-        let parts = name.components(separatedBy: " ")
-        if parts.count >= 2 {
-            return String(parts[0].prefix(1) + parts[1].prefix(1)).uppercased()
+    /// TMDB image path ("/abc.png") from a full TMDB image URL
+    /// ("https://image.tmdb.org/t/p/w185/abc.png"), matching TMDB's `logo_path`.
+    static func tmdbPath(from url: URL?) -> String? {
+        guard let url, url.host?.contains("tmdb.org") == true else { return nil }
+        let parts = url.path.split(separator: "/")
+        // ["t", "p", "<size>", "<file>"...]
+        guard parts.count >= 4, parts[0] == "t", parts[1] == "p" else { return nil }
+        return "/" + parts.dropFirst(3).joined(separator: "/")
+    }
+}
+
+private struct DetailsEntityLogoButton: View {
+    let entity: DetailsViewModel.ProductionCompany
+    let action: () -> Void
+
+    @Environment(\.flixorTheme) private var theme
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            Group {
+                if let logoURL = entity.logoURL {
+                    CachedAsyncImage(url: logoURL, aspectRatio: nil, contentMode: .fit)
+                        .frame(width: 80, height: 32)
+                } else {
+                    Text(entity.name)
+                        .font(.flixor(.callout, weight: .semibold))
+                        .foregroundStyle(.black)
+                }
+            }
+            .padding(.horizontal, DS.Space.s16)
+            .padding(.vertical, DS.Space.s12)
+            .background(
+                RoundedRectangle(cornerRadius: DS.Radius.compactCard, style: .continuous)
+                    .fill(Color.white)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: DS.Radius.compactCard, style: .continuous)
+                    .strokeBorder(theme.focusRing, lineWidth: isHovered ? DS.Border.focus : 0)
+            )
+            .scaleEffect(isHovered ? 1.03 : 1)
+            .contentShape(RoundedRectangle(cornerRadius: DS.Radius.compactCard, style: .continuous))
         }
-        return String(name.prefix(2)).uppercased()
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            withAnimation(DS.Motion.quick) { isHovered = hovering }
+        }
+        .help("Browse \(entity.name)")
+        .accessibilityLabel(Text("Browse titles from \(entity.name)"))
     }
 }
 

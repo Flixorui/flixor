@@ -84,6 +84,124 @@ struct CastCrewCard: View, Identifiable {
     }
 }
 
+// MARK: - Cast & Crew Section (details page)
+
+/// Horizontal row of cast/crew (guest stars for episodes). Tapping a person
+/// calls `onPersonTap`.
+struct DetailsCastSection: View {
+    @ObservedObject var vm: DetailsViewModel
+    var onPersonTap: (CastCrewCard.Person) -> Void
+
+    @Environment(\.flixorTheme) private var theme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DS.Space.s16) {
+            HStack(spacing: DS.Space.controlGap) {
+                Text(vm.isEpisode && !vm.guestStars.isEmpty ? "Guest Stars" : "Cast & Crew")
+                    .font(.flixor(.title1, weight: .semibold))
+                    .foregroundStyle(theme.textPrimary)
+                Image(systemName: "chevron.right")
+                    .font(.flixorIcon(DS.Icon.sm, weight: .semibold))
+                    .foregroundStyle(theme.textTertiary)
+            }
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(alignment: .top, spacing: DS.Space.s20) {
+                    // Offsets as ids: a person can be both cast and crew.
+                    ForEach(Array(people.enumerated()), id: \.offset) { _, person in
+                        CastCrewCircleCard(person: person, onTap: { onPersonTap(person) })
+                    }
+                }
+            }
+        }
+    }
+
+    /// Cast (or guest stars for episodes) followed by key crew.
+    private var people: [CastCrewCard.Person] {
+        var people: [CastCrewCard.Person] = []
+        if vm.isEpisode && !vm.guestStars.isEmpty {
+            for g in vm.guestStars.prefix(12) {
+                people.append(CastCrewCard.Person(id: g.id, name: g.name, role: g.role, image: g.profile))
+            }
+        } else {
+            for c in vm.cast.prefix(12) {
+                people.append(CastCrewCard.Person(id: c.id, name: c.name, role: c.role, image: c.profile))
+            }
+        }
+        for c in vm.crew.prefix(4) {
+            people.append(CastCrewCard.Person(id: c.id, name: c.name, role: c.job, image: c.profile))
+        }
+        return people
+    }
+}
+
+// MARK: - Cast & Crew Circle Card (Apple TV+ style)
+
+private struct CastCrewCircleCard: View {
+    let person: CastCrewCard.Person
+    let onTap: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: onTap) {
+            VStack(spacing: 10) {
+                // Circular profile image
+                Group {
+                    if let imageURL = person.image {
+                        CachedAsyncImage(url: imageURL)
+                            .scaledToFill()
+                    } else {
+                        // Initials fallback
+                        ZStack {
+                            Circle()
+                                .fill(Color.gray.opacity(0.3))
+                            Text(initials(for: person.name))
+                                .font(.system(size: 28, weight: .medium))
+                                .foregroundStyle(.white.opacity(0.6))
+                        }
+                    }
+                }
+                .frame(width: 100, height: 100)
+                .clipShape(Circle())
+                .overlay(
+                    Circle()
+                        .stroke(Color.white.opacity(isHovered ? 0.4 : 0.15), lineWidth: 2)
+                )
+                .shadow(color: .black.opacity(0.3), radius: 4, y: 2)
+
+                // Name
+                Text(person.name)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+
+                // Role/Character
+                if let role = person.role {
+                    Text(role)
+                        .font(.system(size: 12))
+                        .foregroundStyle(.white.opacity(0.5))
+                        .lineLimit(1)
+                }
+            }
+            .frame(width: 110)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            isHovered = hovering
+        }
+        .accessibilityLabel(Text("\(person.name)\(person.role.map { ", \($0)" } ?? "")"))
+    }
+
+    private func initials(for name: String) -> String {
+        let parts = name.components(separatedBy: " ")
+        if parts.count >= 2 {
+            return String(parts[0].prefix(1) + parts[1].prefix(1)).uppercased()
+        }
+        return String(name.prefix(2)).uppercased()
+    }
+}
+
 private struct CastCrewSection: View {
     let cast: [DetailsViewModel.Person]
     let crew: [DetailsViewModel.CrewPerson]
