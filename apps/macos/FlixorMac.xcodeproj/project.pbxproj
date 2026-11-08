@@ -7,6 +7,13 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		588E59694FBE945BBB66830A /* PersonIdentityViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E05ADB72B8811118261746F /* PersonIdentityViews.swift */; };
+		17AFFF8EC23210200B7D04FE /* PersonDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA15B834584960B4261DA181 /* PersonDetailViewModel.swift */; };
+		62C2F417F9D509CF9A0A667B /* PersonDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDBA249F7AD9DEB96CA22A5E /* PersonDetailView.swift */; };
+		B6E43E2C21DF6A8C67C2803F /* TMDBBrowseMapping.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5668F51CFED94AABDF8DD0BB /* TMDBBrowseMapping.swift */; };
+		715DA86451A95B4DAA6F2345 /* EntityBrowseViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5070F97F9E7DCFBABDF12E44 /* EntityBrowseViewModel.swift */; };
+		95493169DF5F23A68FEA5ED4 /* EntityBrowseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0C9C282EB64FC4857031F1 /* EntityBrowseView.swift */; };
+		17F848B64BC421AC2289A4CB /* BrowseControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = E76DF7C119F2B2FDB0133FE5 /* BrowseControls.swift */; };
 		EE4AF82D5F133DE318279FD5 /* SidebarNavigationRail.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3ABDA2B6236ED55E9A8E66C7 /* SidebarNavigationRail.swift */; };
 		6AD2AD0F8439265557390F66 /* NavigationStyleStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A75DB3522AD4156261935D0 /* NavigationStyleStore.swift */; };
 		3D98940AC1D54026928FD488 /* NavigationStyleSettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AEBBB9C8D26BDC13DBB9EF6 /* NavigationStyleSettingsSection.swift */; };
@@ -147,8 +154,6 @@
 		A200 /* BrowseContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = B080 /* BrowseContext.swift */; };
 		A201 /* BrowseModalViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B081 /* BrowseModalViewModel.swift */; };
 		A202 /* BrowseModalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B082 /* BrowseModalView.swift */; };
-		A203 /* PersonModalViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B083 /* PersonModalViewModel.swift */; };
-		A204 /* PersonModalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B084 /* PersonModalView.swift */; };
 		A205 /* TMDBSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B165 /* TMDBSettingsView.swift */; };
 		A206 /* MDBListSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B166 /* MDBListSettingsView.swift */; };
 		A207 /* OverseerrSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B167 /* OverseerrSettingsView.swift */; };
@@ -208,6 +213,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		6E05ADB72B8811118261746F /* PersonIdentityViews.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Person/PersonIdentityViews.swift; sourceTree = "<group>"; };
+		BA15B834584960B4261DA181 /* PersonDetailViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Person/PersonDetailViewModel.swift; sourceTree = "<group>"; };
+		EDBA249F7AD9DEB96CA22A5E /* PersonDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Person/PersonDetailView.swift; sourceTree = "<group>"; };
+		5668F51CFED94AABDF8DD0BB /* TMDBBrowseMapping.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Browse/TMDBBrowseMapping.swift; sourceTree = "<group>"; };
+		5070F97F9E7DCFBABDF12E44 /* EntityBrowseViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Browse/EntityBrowseViewModel.swift; sourceTree = "<group>"; };
+		FA0C9C282EB64FC4857031F1 /* EntityBrowseView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Browse/EntityBrowseView.swift; sourceTree = "<group>"; };
+		E76DF7C119F2B2FDB0133FE5 /* BrowseControls.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Browse/BrowseControls.swift; sourceTree = "<group>"; };
 		3ABDA2B6236ED55E9A8E66C7 /* SidebarNavigationRail.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Navigation/SidebarNavigationRail.swift; sourceTree = "<group>"; };
 		5A75DB3522AD4156261935D0 /* NavigationStyleStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Navigation/NavigationStyleStore.swift; sourceTree = "<group>"; };
 		3AEBBB9C8D26BDC13DBB9EF6 /* NavigationStyleSettingsSection.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Navigation/NavigationStyleSettingsSection.swift; sourceTree = "<group>"; };
@@ -357,8 +369,6 @@
 		B080 /* BrowseContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowseContext.swift; sourceTree = "<group>"; };
 		B081 /* BrowseModalViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowseModalViewModel.swift; sourceTree = "<group>"; };
 		B082 /* BrowseModalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowseModalView.swift; sourceTree = "<group>"; };
-		B083 /* PersonModalViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonModalViewModel.swift; sourceTree = "<group>"; };
-		B084 /* PersonModalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonModalView.swift; sourceTree = "<group>"; };
 		B085 /* TraktScrobbler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraktScrobbler.swift; sourceTree = "<group>"; };
 		B163 /* PlexServersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlexServersView.swift; sourceTree = "<group>"; };
 		B164 /* ServerConnectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerConnectionView.swift; sourceTree = "<group>"; };
@@ -510,6 +520,13 @@
 		D005 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				6E05ADB72B8811118261746F /* PersonIdentityViews.swift */,
+				BA15B834584960B4261DA181 /* PersonDetailViewModel.swift */,
+				EDBA249F7AD9DEB96CA22A5E /* PersonDetailView.swift */,
+				5668F51CFED94AABDF8DD0BB /* TMDBBrowseMapping.swift */,
+				5070F97F9E7DCFBABDF12E44 /* EntityBrowseViewModel.swift */,
+				FA0C9C282EB64FC4857031F1 /* EntityBrowseView.swift */,
+				E76DF7C119F2B2FDB0133FE5 /* BrowseControls.swift */,
 				3ABDA2B6236ED55E9A8E66C7 /* SidebarNavigationRail.swift */,
 				5A75DB3522AD4156261935D0 /* NavigationStyleStore.swift */,
 				3AEBBB9C8D26BDC13DBB9EF6 /* NavigationStyleSettingsSection.swift */,
@@ -553,7 +570,6 @@
 				B010 /* PlexAuthViewModel.swift */,
 				B029 /* HomeViewModel.swift */,
 				B081 /* BrowseModalViewModel.swift */,
-				B083 /* PersonModalViewModel.swift */,
 				B037 /* DetailsViewModel.swift */,
 				B040 /* SearchViewModel.swift */,
 				B041 /* PlayerViewModel.swift */,
@@ -625,7 +641,6 @@
 				B020 /* LandscapeCard.swift */,
 				B022 /* CarouselView.swift */,
 				B082 /* BrowseModalView.swift */,
-				B084 /* PersonModalView.swift */,
 				B023 /* BillboardView.swift */,
 				B067 /* NewPopularHero.swift */,
 				B024 /* VirtualGrid.swift */,
@@ -957,6 +972,13 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				588E59694FBE945BBB66830A /* PersonIdentityViews.swift in Sources */,
+				17AFFF8EC23210200B7D04FE /* PersonDetailViewModel.swift in Sources */,
+				62C2F417F9D509CF9A0A667B /* PersonDetailView.swift in Sources */,
+				B6E43E2C21DF6A8C67C2803F /* TMDBBrowseMapping.swift in Sources */,
+				715DA86451A95B4DAA6F2345 /* EntityBrowseViewModel.swift in Sources */,
+				95493169DF5F23A68FEA5ED4 /* EntityBrowseView.swift in Sources */,
+				17F848B64BC421AC2289A4CB /* BrowseControls.swift in Sources */,
 				EE4AF82D5F133DE318279FD5 /* SidebarNavigationRail.swift in Sources */,
 				6AD2AD0F8439265557390F66 /* NavigationStyleStore.swift in Sources */,
 				3D98940AC1D54026928FD488 /* NavigationStyleSettingsSection.swift in Sources */,
@@ -1046,7 +1068,6 @@
 				A200 /* BrowseContext.swift in Sources */,
 				A029 /* HomeViewModel.swift in Sources */,
 				A201 /* BrowseModalViewModel.swift in Sources */,
-				A203 /* PersonModalViewModel.swift in Sources */,
 				A030 /* HomeView.swift in Sources */,
 				A034 /* Color+Theme.swift in Sources */,
 				A035 /* DetailsView.swift in Sources */,
@@ -1064,7 +1085,6 @@
 				A045 /* CollectionsView.swift in Sources */,
 				A046 /* WatchlistController.swift in Sources */,
 				A047 /* MyListViewModel.swift in Sources */,
-				A204 /* PersonModalView.swift in Sources */,
 				MPVMETAL001 /* MPVMetalLayer.swift in Sources */,
 				A048 /* MyListView.swift in Sources */,
 				A049 /* WatchlistButton.swift in Sources */,
