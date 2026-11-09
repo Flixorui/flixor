@@ -12,6 +12,51 @@
 import Foundation
 
 extension PlayerViewModel {
+    private static let streamLoadTimeoutSeconds: UInt64 = 25
+    private static let streamStallTimeoutSeconds: UInt64 = 30
+
+    /// A source that never shows a frame sends mpv no failure event for a long time, which
+    /// would leave the player stuck. Treat it as failed so another source gets tried.
+    func armStreamLoadWatchdog(uri: String) {
+        cancelStreamWatchdogs()
+        streamLoadWatchdog = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: Self.streamLoadTimeoutSeconds * 1_000_000_000)
+            guard !Task.isCancelled, let self, self.sourceKind == .stream,
+                  self.streamPlaybackItem?.uri == uri, self.mpvController?.isShutDown == false else { return }
+            print("⏱️ [Player] Source did not start within \(Self.streamLoadTimeoutSeconds)s")
+            AppLogger.shared.warn("[StreamRecovery] Source did not start in time", data: [
+                "addonName": self.streamPlaybackItem?.addonName ?? "",
+            ])
+            self.handlePlaybackFailure(early: true)
+        }
+    }
+
+    /// Moves to another source when playback has been waiting on the network too long.
+    /// Once the attempts are used up it keeps waiting, since the stream may still recover.
+    func handleStreamBuffering(_ buffering: Bool) {
+        streamStallWatchdog?.cancel()
+        streamStallWatchdog = nil
+        guard buffering, sourceKind == .stream else { return }
+        streamStallWatchdog = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: Self.streamStallTimeoutSeconds * 1_000_000_000)
+            guard !Task.isCancelled, let self, !self.isLoading,
+                  self.streamRecoveryAttempts < self.maxStreamRecoveryAttempts,
+                  self.mpvController?.isShutDown == false else { return }
+            print("⏱️ [Player] Source stalled for \(Self.streamStallTimeoutSeconds)s")
+            AppLogger.shared.warn("[StreamRecovery] Source stalled", data: [
+                "addonName": self.streamPlaybackItem?.addonName ?? "",
+            ])
+            self.handlePlaybackFailure(early: false)
+        }
+    }
+
+    func cancelStreamWatchdogs() {
+        streamLoadWatchdog?.cancel()
+        streamLoadWatchdog = nil
+        streamStallWatchdog?.cancel()
+        streamStallWatchdog = nil
+    }
+
     /// Starts a recovery attempt for a failed addon stream. Returns false when no
     /// attempt is possible (attempts used up, or the title can't be looked up),
     /// in which case the caller shows the error.

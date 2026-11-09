@@ -16,7 +16,7 @@ enum StremioSourceRanking {
         if stream.playable { score += 1_000_000 }
         if stream.behaviorHints?.cached == true { score += 100_000 }
         if stream.isDebrid == true { score += 50_000 }
-        score += qualityScore(stream.quality)
+        score += qualityScore(resolutionBucket(stream))
         score += min((stream.size ?? 0) / 1_000_000, 9_999)
 
         if let groupIndex = addonOrder.firstIndex(where: { $0 == stream.addonInstallationId }) {
@@ -27,13 +27,25 @@ enum StremioSourceRanking {
         return score
     }
 
-    static func qualityScore(_ quality: String?) -> Int {
-        guard let quality = quality?.lowercased() else { return 0 }
-        if quality.contains("2160") || quality.contains("4k") { return 20_000 }
-        if quality.contains("1080") { return 15_000 }
-        if quality.contains("720") { return 10_000 }
-        if quality.contains("480") { return 5_000 }
-        return 0
+    /// Uses the resolution bucket because many addons send no `quality` field.
+    static func qualityScore(_ bucket: Int?) -> Int {
+        switch bucket {
+        case 2160: return 20_000
+        case 1080: return 15_000
+        case 720: return 10_000
+        case 480: return 5_000
+        default: return 0
+        }
+    }
+
+    /// Playable streams in the order the addon listed them.
+    static func listedPlayable(in result: StremioAddonStreamResult) -> [StremioPlayableStream] {
+        result.streams.filter { $0.playable && $0.url != nil }
+    }
+
+    /// The results of the first addon, in the order given, with anything playable.
+    static func firstAddonWithPlayable(in results: [StremioAddonStreamResult]) -> [StremioAddonStreamResult] {
+        results.first { !listedPlayable(in: $0).isEmpty }.map { [$0] } ?? []
     }
 
     /// Playable streams, best first.
@@ -47,6 +59,63 @@ enum StremioSourceRanking {
     }
 
     // MARK: - Matching
+
+    /// The candidate most like `reference`; the earliest wins a tie. A binge group is often
+    /// as broad as "WEB-DL", so a match on it can still be a very different release.
+    private static func closest(
+        to reference: StremioPlayableStream,
+        in candidates: [StremioPlayableStream]
+    ) -> StremioPlayableStream? {
+        var best: StremioPlayableStream?
+        var bestValue = Int.min
+        for candidate in candidates {
+            let value = similarity(candidate, to: reference)
+            if value > bestValue {
+                best = candidate
+                bestValue = value
+            }
+        }
+        return best
+    }
+
+    /// Resolution counts most, then release group, then shared words in the file name
+    /// and in the description, which is where aggregators name the provider.
+    static func similarity(_ stream: StremioPlayableStream, to reference: StremioPlayableStream) -> Int {
+        var value = 0
+        if let bucket = resolutionBucket(reference), bucket == resolutionBucket(stream) { value += 1_000 }
+        if let group = releaseGroup(reference), group == releaseGroup(stream) { value += 500 }
+        value += 10 * fileWords(stream).intersection(fileWords(reference)).count
+        value += 20 * descriptionWords(stream).intersection(descriptionWords(reference)).count
+        return value
+    }
+
+    /// The `GROUP` in `Show.S01E01.1080p.WEB-DL-GROUP.mkv`.
+    static func releaseGroup(_ stream: StremioPlayableStream) -> String? {
+        guard let filename = stream.behaviorHints?.filename,
+              let range = filename.range(of: "-[A-Za-z0-9]+(\\.[a-zA-Z0-9]{2,4})?$", options: .regularExpression) else {
+            return nil
+        }
+        return filename[range].dropFirst().split(separator: ".").first?.lowercased()
+    }
+
+    private static func words(_ text: String?) -> [String] {
+        (text ?? "").lowercased()
+            .split { !($0.isASCII && ($0.isLetter || $0.isNumber)) }
+            .map(String.init)
+            .filter { $0.count > 1 }
+    }
+
+    /// File name words, without the season and episode that always differ.
+    private static func fileWords(_ stream: StremioPlayableStream) -> Set<String> {
+        Set(words(stream.behaviorHints?.filename).filter {
+            $0.range(of: "^(s[0-9]+e[0-9]+|s[0-9]+|e[0-9]+)$", options: .regularExpression) == nil
+        })
+    }
+
+    /// Letters only, because sizes and bitrates differ from episode to episode.
+    private static func descriptionWords(_ stream: StremioPlayableStream) -> Set<String> {
+        Set(words(stream.description).filter { $0.allSatisfy(\.isLetter) })
+    }
 
     /// Resolution bucket (2160/1080/720/480) from the quality field, or from the
     /// name/title text addons usually put it in. Nil when unknown.
@@ -82,14 +151,17 @@ enum StremioSourceRanking {
     /// Picks the source closest to `reference` from `results`, in this order:
     /// same addon + same binge group; same addon + same resolution; same addon;
     /// any addon with the same resolution; best ranked. `tiers` limits which steps
-    /// apply. Streams whose URL is in `excludingURLs` are never returned.
+    /// apply. Streams whose URL is in `excludingURLs` are never returned. With
+    /// `followAddonOrder`, once the addon in use has nothing, the next addon in order wins.
     static func bestMatch(
         for reference: StremioPlayableStream?,
         in results: [StremioAddonStreamResult],
         excludingURLs: Set<String> = [],
-        tiers: MatchTiers = .all
+        tiers: MatchTiers = .all,
+        followAddonOrder: Bool = UserDefaults.standard.stremioPlayAction == .addonOrder
     ) -> (stream: StremioPlayableStream, tier: MatchTier)? {
-        let ranked = rankedPlayable(in: results).filter { !excludingURLs.contains($0.url ?? "") }
+        let candidates = followAddonOrder ? results.flatMap(listedPlayable) : rankedPlayable(in: results)
+        let ranked = candidates.filter { !excludingURLs.contains($0.url ?? "") }
         guard !ranked.isEmpty else { return nil }
         guard let reference else {
             return tiers.contains(.bestRanked) ? (ranked[0], .bestRanked) : nil
@@ -103,8 +175,9 @@ enum StremioSourceRanking {
             (.quality, { bucket != nil && resolutionBucket($0) == bucket }),
             (.bestRanked, { _ in true }),
         ]
-        for (tier, matches) in checks where tiers.contains(tier.option) {
-            if let stream = ranked.first(where: matches) {
+        for (tier, matches) in checks where tiers.contains(tier.option) && !(followAddonOrder && tier == .quality) {
+            let matching = ranked.filter(matches)
+            if let stream = tier == .bestRanked ? matching.first : closest(to: reference, in: matching) {
                 return (stream, tier)
             }
         }
@@ -123,6 +196,11 @@ enum StremioSourceRanking {
             case .bestRanked: return .bestRanked
             }
         }
+
+        /// The addon in use supplied it, so no other addon can do better.
+        var isSameAddon: Bool {
+            self == .bingeGroup || self == .addonAndQuality || self == .addon
+        }
     }
 
     struct MatchTiers: OptionSet {
@@ -133,7 +211,8 @@ enum StremioSourceRanking {
         static let quality = MatchTiers(rawValue: 1 << 3)
         static let bestRanked = MatchTiers(rawValue: 1 << 4)
         static let all: MatchTiers = [.bingeGroup, .addonAndQuality, .addon, .quality, .bestRanked]
-        /// Next episode per the Stremio binge rules: same addon + binge group, else best ranked.
-        static let nextEpisode: MatchTiers = [.bingeGroup, .bestRanked]
+        /// Next episode stays on the source in use. Many addons send no binge group,
+        /// so same addon and resolution have to count too.
+        static let nextEpisode: MatchTiers = .all
     }
 }

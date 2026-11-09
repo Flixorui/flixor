@@ -82,6 +82,8 @@ private extension StremioPlayAction {
             return String(localized: "Start the best playable source. Hold Option when pressing Play to see the list.")
         case .matchRules:
             return String(localized: "Start the best source that fits your rules, or show the list if none does")
+        case .addonOrder:
+            return String(localized: "Try your first addon, then fall back to the next one in your addon order")
         }
     }
 }

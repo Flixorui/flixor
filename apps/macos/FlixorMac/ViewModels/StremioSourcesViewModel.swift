@@ -174,9 +174,10 @@ final class StremioSourcesViewModel: ObservableObject {
         }
 
         let defaults = UserDefaults.standard
+        let addonOrder = action == .addonOrder ? await service.getInstalledAddons().map(\.installationId) : nil
         let selector: StreamAutoSelector
         do {
-            selector = try StreamAutoSelector(rules: action == .matchRules ? defaults.stremioStreamRules : nil)
+            selector = try StreamAutoSelector(rules: action == .matchRules ? defaults.stremioStreamRules : nil, addonOrder: addonOrder)
         } catch {
             return .showSources(notice: String(localized: "Your source rules have an invalid pattern. Fix it in Settings, or choose a source here."))
         }

@@ -220,12 +220,16 @@ struct StreamRuleMatcher {
     }
 }
 
-/// Picks a stream from addon results. Pass `rules` for "Match my rules", nil for "Play best source".
+/// Picks a stream from addon results. Pass `rules` for "Match my rules", `addonOrder` for
+/// "Follow addon order", and neither for "Play best source".
 struct StreamAutoSelector {
     private let matcher: StreamRuleMatcher?
+    /// Installation ids, highest priority first.
+    private let addonOrder: [String]?
 
-    init(rules: StreamSelectionRules?) throws {
+    init(rules: StreamSelectionRules?, addonOrder: [String]? = nil) throws {
         matcher = try rules.map { try StreamRuleMatcher(rules: $0) }
+        self.addonOrder = addonOrder
     }
 
     /// The include pattern took too long; automatic selection should give up.
@@ -245,6 +249,9 @@ struct StreamAutoSelector {
 
     /// The stream to play given everything that has arrived.
     func pick(in results: [StremioAddonStreamResult]) -> StremioPlayableStream? {
+        if addonOrder != nil {
+            return results.lazy.compactMap { StremioSourceRanking.listedPlayable(in: $0).first }.first
+        }
         let candidates = candidates(in: results)
         return preferredCandidate(in: candidates) ?? candidates.first
     }
@@ -252,8 +259,17 @@ struct StreamAutoSelector {
     /// A stream good enough to stop waiting on the addons in `pending`, or nil to keep waiting.
     /// Agrees with `pick` on the same results. Rules: any match counts, once the preferred
     /// addon has answered. Best source: only a cached or debrid 4K stream, which the
-    /// remaining addons could not meaningfully beat.
+    /// remaining addons could not meaningfully beat. Addon order: the first addon with a
+    /// playable stream, once every addon ahead of it has answered.
     func earlyPick(in results: [StremioAddonStreamResult], pending: Set<String>) -> StremioPlayableStream? {
+        if let addonOrder {
+            for addon in addonOrder {
+                if pending.contains(addon) { return nil }
+                guard let result = results.first(where: { $0.installationId == addon }) else { continue }
+                if let first = StremioSourceRanking.listedPlayable(in: result).first { return first }
+            }
+            return nil
+        }
         let candidates = candidates(in: results)
         guard let matcher else {
             guard let best = candidates.first, Self.isTopTier(best) else { return nil }

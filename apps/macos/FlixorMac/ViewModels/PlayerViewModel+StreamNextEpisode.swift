@@ -180,14 +180,22 @@ extension PlayerViewModel {
             episodeTitle: episodeTitle
         )
 
-        // Stop as soon as the addon in use returns the same release line; a slow
-        // addon elsewhere shouldn't hold up the next episode.
+        // Stop as soon as the addon in use returns a match; a slow addon elsewhere
+        // shouldn't hold up the next episode.
+        // With "Follow addon order", the highest-priority addon with this episode wins,
+        // even when the current episode came from a lower one.
         let reference = currentStremioStream
+        let followAddonOrder = UserDefaults.standard.stremioPlayAction == .addonOrder
+        let installedOrder = followAddonOrder ? await StremioService.shared.getInstalledAddons().map(\.installationId) : nil
+        let orderSelector = installedOrder.flatMap { try? StreamAutoSelector(rules: nil, addonOrder: $0) }
         let fetched = await StremioService.shared.getStreams(
             identity: identity,
             timeLimit: Self.nextEpisodeLookupLimit
-        ) { results, _ in
-            StremioSourceRanking.bestMatch(for: reference, in: results, tiers: .nextEpisode)?.tier == .bingeGroup
+        ) { results, pending in
+            if let orderSelector {
+                return await orderSelector.shouldStopWaiting(in: results, pending: pending)
+            }
+            return StremioSourceRanking.bestMatch(for: reference, in: results, tiers: .nextEpisode)?.tier.isSameAddon == true
         }
         let results = fetched.results
         if fetched.timedOut {
@@ -198,8 +206,9 @@ extension PlayerViewModel {
         }
         guard let match = StremioSourceRanking.bestMatch(
             for: reference,
-            in: results,
-            tiers: .nextEpisode
+            in: followAddonOrder ? StremioSourceRanking.firstAddonWithPlayable(in: results) : results,
+            tiers: .nextEpisode,
+            followAddonOrder: false
         ) else {
             return .needsPicker(destination)
         }

@@ -148,6 +148,11 @@ class PlayerViewModel: ObservableObject {
     var streamRecoveryAttempts = 0
     let maxStreamRecoveryAttempts = 2
     var isPerformingStreamRecovery = false
+    var streamLoadWatchdog: Task<Void, Never>?
+    var streamStallWatchdog: Task<Void, Never>?
+    /// Audio track switched off while playback waits on the network (see `handleBufferingAudio`).
+    var audioTrackBeforeBuffering: String?
+    var bufferingAudioTask: Task<Void, Never>?
     var failedStreamURLs: Set<String> = []
     /// Sources re-fetched during recovery (fetched once per playback).
     var streamRecoveryResults: [StremioAddonStreamResult]?
@@ -416,6 +421,11 @@ class PlayerViewModel: ObservableObject {
                     if let paused = value as? Bool {
                         self.isPlaying = !paused
                     }
+                case "paused-for-cache":
+                    if let buffering = value as? Bool {
+                        self.handleBufferingAudio(buffering)
+                        self.handleStreamBuffering(buffering)
+                    }
                 case "volume":
                     if let vol = value as? Double {
                         self.volume = Float(vol / 100.0)
@@ -442,6 +452,9 @@ class PlayerViewModel: ObservableObject {
                 case "file-loaded":
                     print("✅ [Player] MPV file loaded")
                     self.isLoading = false
+                    // A new file picks its own audio track.
+                    self.bufferingAudioTask?.cancel()
+                    self.audioTrackBeforeBuffering = nil
                     self.applyInitialSeekIfNeeded()
                     // Load available tracks
                     self.loadTracks()
@@ -465,6 +478,8 @@ class PlayerViewModel: ObservableObject {
                     }
                 case "playback-restart":
                     print("▶️ [Player] MPV playback started")
+                    self.streamLoadWatchdog?.cancel()
+                    self.streamLoadWatchdog = nil
                     self.isPlaying = true
                     self.isLoading = false
                     self.enableDisplaySleep()
@@ -526,6 +541,10 @@ class PlayerViewModel: ObservableObject {
         nextEpisodeCountdownTimer?.invalidate()
         nextEpisodeCountdownTimer = nil
         nextEpisodeCountdown = nil
+        cancelStreamWatchdogs()
+        bufferingAudioTask?.cancel()
+        bufferingAudioTask = nil
+        audioTrackBeforeBuffering = nil
 
         // Disable display sleep prevention
         disableDisplaySleep()

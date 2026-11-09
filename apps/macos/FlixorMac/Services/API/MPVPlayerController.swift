@@ -126,6 +126,10 @@ class MPVPlayerController {
         // (af067b5ea, c5d391adb); revisit once MPVKit ships that fix.
         // CoreAudio stays as the fallback if AVFoundation can't start.
         setOptionStringWithLog("ao", "avfoundation,coreaudio")
+        // Wait for the cache before starting a file, instead of starting the audio output
+        // and letting it run dry. A dry AVFoundation output leaks in mpv 0.40 (see
+        // PlayerViewModel.handleBufferingAudio), and slow addon sources start dry.
+        setOptionStringWithLog("cache-pause-initial", "yes")
 
         // Store the Metal layer reference
         self.metalLayer = layer

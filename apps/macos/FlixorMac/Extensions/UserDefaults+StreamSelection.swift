@@ -5,7 +5,7 @@
 //  Profile-scoped settings for what pressing Play on addon content does.
 //
 //  Keys (all go through `profileKey`, so each profile has its own values):
-//    stremioPlayAction          "showSources" (default) | "playBest" | "matchRules"
+//    stremioPlayAction          "showSources" (default) | "playBest" | "matchRules" | "addonOrder"
 //    stremioAutoPickTimeLimit   Int seconds to wait on addons, default 5
 //    stremioRulesInclude        include words or regex, default ""
 //    stremioRulesIncludeRegex   Bool, default false
@@ -20,6 +20,7 @@ enum StremioPlayAction: String, CaseIterable, Identifiable {
     case showSources
     case playBest
     case matchRules
+    case addonOrder
 
     var id: String { rawValue }
 
@@ -28,6 +29,7 @@ enum StremioPlayAction: String, CaseIterable, Identifiable {
         case .showSources: return String(localized: "Show sources")
         case .playBest: return String(localized: "Play best source")
         case .matchRules: return String(localized: "Match my rules")
+        case .addonOrder: return String(localized: "Follow addon order")
         }
     }
 
