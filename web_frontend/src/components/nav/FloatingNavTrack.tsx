@@ -80,7 +80,7 @@ export default function FloatingNavTrack({
       {items.map((item) => {
         const selected = item.id === selectedId;
         const Icon = item.icon;
-        const className = `relative flex items-center h-10 rounded-full transition-[padding,color] duration-300 motion-reduce:transition-none ${
+        const className = `relative flex flex-shrink-0 items-center h-10 rounded-full transition-[padding,color] duration-300 motion-reduce:transition-none ${
           showsLabels ? 'pl-2.5 pr-3.5' : 'px-1.5'
         } ${selected ? 'text-white' : 'text-neutral-400 hover:text-white hover:bg-white/[0.06]'}`;
         const content = (

@@ -129,7 +129,7 @@ export default function Settings() {
   const c = '#e5e7eb';
 
   return (
-    <div className="min-h-screen bg-[#0b0b0d] pb-20">
+    <div className="min-h-screen pb-20">
       <div className="px-4 pt-6 pb-4 max-w-2xl mx-auto">
         <h1 className="text-white text-2xl font-bold">Settings</h1>
       </div>

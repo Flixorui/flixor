@@ -13,12 +13,12 @@ type SettingsScreenProps = {
 export default function SettingsScreen({ title, backTo = '/settings', children }: SettingsScreenProps) {
   const navigate = useNavigate();
   return (
-    <div className="min-h-screen bg-[#0b0b0d] pb-20">
-      <div className="px-4 pt-6 pb-4 flex items-center gap-3">
+    <div className="min-h-screen pb-20">
+      <div className="px-4 pt-6 pb-4 max-w-2xl mx-auto flex items-center gap-3">
         <button
           onClick={() => navigate(backTo)}
           aria-label="Back"
-          className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-white/10 transition-colors"
+          className="-ml-2 flex items-center justify-center w-10 h-10 rounded-full hover:bg-white/10 transition-colors"
         >
           <ChevronBackIcon size={24} color="#fff" />
         </button>

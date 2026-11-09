@@ -48,8 +48,8 @@ function IconWrap({ children }: { children: React.ReactNode }) {
 
 function Header({ title, onBack }: { title: string; onBack: () => void }) {
   return (
-    <div className="flex items-center gap-3 px-4 pb-4 pt-6">
-      <button type="button" onClick={onBack} aria-label="Back" className="flex h-10 w-10 items-center justify-center rounded-full transition-colors hover:bg-white/10">
+    <div className="mx-auto flex max-w-2xl items-center gap-3 px-4 pb-4 pt-6">
+      <button type="button" onClick={onBack} aria-label="Back" className="-ml-2 flex h-10 w-10 items-center justify-center rounded-full transition-colors hover:bg-white/10">
         <ChevronBackIcon size={24} color="#fff" />
       </button>
       <h1 className="text-xl font-bold text-white">{title}</h1>
@@ -85,7 +85,7 @@ export default function StremioSettings() {
 
   if (showAddons) {
     return (
-      <div className="min-h-screen bg-[#0b0b0d] pb-20">
+      <div className="min-h-screen pb-20">
         <Header title="Addons" onBack={() => setSearchParams({})} />
         <div className="mx-auto max-w-2xl px-4">
           <StremioAddons />
@@ -102,7 +102,7 @@ export default function StremioSettings() {
   );
 
   return (
-    <div className="min-h-screen bg-[#0b0b0d] pb-20">
+    <div className="min-h-screen pb-20">
       <Header title="Stremio" onBack={() => navigate('/settings')} />
       <div className="mx-auto max-w-2xl px-4">
         <SettingsCard title="Playback">

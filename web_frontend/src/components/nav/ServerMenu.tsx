@@ -45,9 +45,11 @@ export default function ServerMenu() {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 px-4 py-1.5 text-[13px] font-medium text-white bg-neutral-800/80 backdrop-blur-md rounded-full ring-1 ring-white/10 hover:bg-neutral-700/80 transition-all"
+        title={plexServer?.name}
+        className="flex items-center gap-2 max-w-[120px] px-4 py-1.5 text-[13px] font-medium text-white bg-neutral-800/80 backdrop-blur-md rounded-full ring-1 ring-white/10 hover:bg-neutral-700/80 transition-all"
       >
-        {plexServer?.name || 'Server'}
+        {/* Capped so a long server name cannot run into the centred tabs. */}
+        <span className="truncate">{plexServer?.name || 'Server'}</span>
       </button>
       {open && (
         <div className="absolute right-0 mt-2 w-64 rounded-xl ring-1 ring-white/10 bg-neutral-900/95 backdrop-blur-xl p-2 z-50 shadow-2xl">

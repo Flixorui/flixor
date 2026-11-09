@@ -55,7 +55,7 @@ export default function TopNav() {
               FLIXOR
             </Link>
 
-            <div className="hidden md:block absolute left-1/2 -translate-x-1/2 top-2">
+            <div className="hidden md:block absolute left-1/2 -translate-x-1/2 top-2 w-max">
               <FloatingNav />
             </div>
 
