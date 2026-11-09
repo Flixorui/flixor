@@ -13,6 +13,7 @@ export class Session implements ISession {
   @Column('text')
   json!: string;
 
-  @DeleteDateColumn({ nullable: true })
-  deletedAt?: Date;
+  // connect-typeorm looks this up as `destroyedAt`. The column keeps its existing name.
+  @DeleteDateColumn({ name: 'deletedAt', nullable: true })
+  destroyedAt?: Date;
 }

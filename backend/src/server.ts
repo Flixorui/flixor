@@ -23,8 +23,12 @@ import tmdbRoutes from './api/tmdb';
 import plexRoutes from './api/plex';
 import traktRoutes from './api/trakt';
 import plextvRoutes from './api/plextv';
+import profileRoutes from './api/profiles';
 import overseerrRoutes from './api/overseerr';
 import versionRoutes from './api/version';
+import stremioRoutes from './api/stremio';
+import skipSegmentsRoutes from './api/skip-segments';
+import { requireAuth } from './middleware/auth';
 import { errorHandler } from './middleware/errorHandler';
 import { requestLogger } from './middleware/requestLogger';
 
@@ -114,6 +118,7 @@ async function startServer() {
     });
 
     // API routes
+    app.use('/api/auth/profiles', requireAuth, profileRoutes);
     app.use('/api/auth', authRouter);
     app.use('/api/cache', cacheRoutes);
     app.use('/api/image', imageProxyRoutes);
@@ -123,6 +128,8 @@ async function startServer() {
     app.use('/api/plextv', plextvRoutes);
     app.use('/api/overseerr', overseerrRoutes);
     app.use('/api/version', versionRoutes);
+    app.use('/api/stremio', requireAuth, stremioRoutes);
+    app.use('/api/skip-segments', requireAuth, skipSegmentsRoutes);
 
     // 404 handler
     app.use((req, res) => {

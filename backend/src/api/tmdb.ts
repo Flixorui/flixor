@@ -499,6 +499,47 @@ router.get('/discover/tv',
 );
 
 /**
+ * Search collections (franchises)
+ * GET /api/tmdb/search/collection?query=...
+ */
+router.get('/search/collection',
+  tmdbCache('search'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const query = String(req.query.query || '').trim();
+      if (!query) throw new AppError('Query parameter is required', 400);
+      const client = await getTMDBClient(req);
+      res.json(await client.searchCollections(query, parseInt(req.query.page as string) || 1));
+    } catch (error: any) {
+      logger.error('Failed to search collections', error);
+      next(error instanceof AppError ? error : new AppError(error.message || 'Failed to search collections', 500));
+    }
+  }
+);
+
+/**
+ * Get a collection, company or network
+ * GET /api/tmdb/collection/:id, /company/:id, /network/:id
+ */
+const tmdbEntityRoute = (fetchEntity: (client: TMDBClient, id: string) => Promise<unknown>, failure: string) =>
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const client = await getTMDBClient(req);
+      res.json(await fetchEntity(client, req.params.id));
+    } catch (error: any) {
+      logger.error(failure, error);
+      next(new AppError(error.message || failure, error?.response?.status === 404 ? 404 : 500));
+    }
+  };
+
+router.get('/collection/:id(\\d+)', tmdbCache('details'),
+  tmdbEntityRoute((client, id) => client.getCollection(id), 'Failed to get collection'));
+router.get('/company/:id(\\d+)', tmdbCache('details'),
+  tmdbEntityRoute((client, id) => client.getCompany(id), 'Failed to get company'));
+router.get('/network/:id(\\d+)', tmdbCache('details'),
+  tmdbEntityRoute((client, id) => client.getNetwork(id), 'Failed to get network'));
+
+/**
  * Validate API key
  * POST /api/tmdb/validate-key
  */

@@ -8,6 +8,9 @@ import { createLogger } from '../utils/logger';
 import { AppError } from '../middleware/errorHandler';
 import { requireAuth, AuthenticatedRequest } from '../middleware/auth';
 import { getPlexClient } from '../services/plex/PlexClient';
+import { AppDataSource } from '../db/data-source';
+import { UserSettings } from '../db/entities';
+import { OutboundUrlError, safeFetch } from '../utils/outboundUrl';
 
 const router = Router();
 const logger = createLogger('image-proxy');
@@ -25,23 +28,88 @@ interface ImageOptions {
  */
 function parseImageOptions(query: any): ImageOptions {
   return {
-    width: query.w ? parseInt(query.w, 10) : undefined,
-    height: query.h ? parseInt(query.h, 10) : undefined,
-    quality: query.q ? parseInt(query.q, 10) : 85,
-    format: query.f || 'jpeg',
-    fit: query.fit || 'cover',
+    width: dimension(query.w),
+    height: dimension(query.h),
+    quality: Math.min(100, dimension(query.q) ?? 85),
+    // The format names the cache file, so it must never be arbitrary text.
+    format: IMAGE_FORMATS.includes(query.f) ? query.f : 'jpeg',
+    fit: IMAGE_FITS.includes(query.fit) ? query.fit : 'cover',
   };
+}
+
+const IMAGE_FORMATS = ['jpeg', 'png', 'webp'];
+const IMAGE_FITS = ['cover', 'contain', 'fill', 'inside', 'outside'];
+const MAX_IMAGE_DIMENSION = 4096;
+const MAX_IMAGE_BYTES = 30 * 1024 * 1024;
+
+function dimension(value: unknown): number | undefined {
+  const parsed = parseInt(String(value), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.min(parsed, MAX_IMAGE_DIMENSION) : undefined;
+}
+
+/** Every hostname the user's saved Plex servers are known by. */
+async function userPlexHosts(userId: string): Promise<Set<string>> {
+  const settings = await AppDataSource.getRepository(UserSettings).findOne({ where: { userId } });
+  const hosts = new Set<string>();
+  const add = (value: unknown) => {
+    if (typeof value !== 'string' || !value) return;
+    try {
+      hosts.add(new URL(value.includes('://') ? value : `http://${value}`).hostname.toLowerCase());
+    } catch {
+      // Ignore a malformed saved address.
+    }
+  };
+  for (const server of (settings?.plexServers ?? []) as any[]) {
+    add(server.host);
+    add(server.publicAddress);
+    (server.localAddresses ?? []).forEach(add);
+    for (const connection of server.connections ?? []) {
+      add(connection.uri);
+      add(connection.address);
+    }
+  }
+  return hosts;
+}
+
+/**
+ * Fetches a client-supplied image URL through the SSRF guard. LAN addresses are
+ * refused, except for the user's own Plex servers, whose artwork URLs reach this
+ * route and commonly resolve to private addresses.
+ */
+async function fetchClientImage(imageUrl: string, userId: string, accept: string): Promise<Buffer> {
+  const options = {
+    headers: { 'User-Agent': 'PlexMediaPlayer/1.0', Accept: accept },
+    timeoutMs: 10_000,
+    maxBytes: MAX_IMAGE_BYTES,
+  };
+  let response;
+  try {
+    response = await safeFetch(imageUrl, options);
+  } catch (err) {
+    const blocked = err instanceof OutboundUrlError && err.code === 'BLOCKED_ADDRESS';
+    if (!blocked || !(await userPlexHosts(userId)).has(new URL(imageUrl).hostname.toLowerCase())) {
+      throw err;
+    }
+    response = await safeFetch(imageUrl, { ...options, allowPrivateNetwork: true });
+  }
+  if (response.status !== 200) {
+    response.abort();
+    throw response.status === 404
+      ? new AppError('Image not found', 404)
+      : new AppError('Failed to fetch image', 502);
+  }
+  return response.buffer();
 }
 
 /**
  * Proxy and cache external images
  * GET /api/image/proxy?url=https://example.com/image.jpg&w=500&h=300&q=85
  */
-router.get('/proxy', async (req: Request, res: Response, next: NextFunction) => {
+router.get('/proxy', requireAuth, async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   try {
-    const imageUrl = req.query.url as string;
+    const imageUrl = req.query.url;
 
-    if (!imageUrl) {
+    if (typeof imageUrl !== 'string' || !imageUrl) {
       throw new AppError('Image URL is required', 400);
     }
 
@@ -70,26 +138,17 @@ router.get('/proxy', async (req: Request, res: Response, next: NextFunction) => 
       if (Date.now() - stats.mtimeMs < maxAge * 1000) {
         logger.debug(`Serving cached image: ${cacheKey}`);
         res.setHeader('X-Cache', 'HIT');
-        res.setHeader('Cache-Control', `public, max-age=${maxAge}`);
+        res.setHeader('Cache-Control', `private, max-age=${maxAge}`);
         res.setHeader('Content-Type', `image/${options.format}`);
         return fs.createReadStream(cachePath).pipe(res);
       }
     }
 
-    logger.debug(`Fetching image: ${imageUrl}`);
-
-    // Fetch image from remote URL
-    const response = await axios.get(imageUrl, {
-      responseType: 'arraybuffer',
-      timeout: 10000,
-      headers: {
-        'User-Agent': 'PlexMediaPlayer/1.0',
-      },
-      validateStatus: (status) => status === 200,
-    });
+    // Fetch through the SSRF guard. The URL can hold a Plex token, so it is not logged.
+    const imageData = await fetchClientImage(imageUrl, req.user!.id, 'image/*');
 
     // Process image with sharp
-    let sharpInstance = sharp(response.data);
+    let sharpInstance = sharp(imageData);
 
     // Apply resizing if specified
     if (options.width || options.height) {
@@ -113,7 +172,9 @@ router.get('/proxy', async (req: Request, res: Response, next: NextFunction) => 
     }
 
     // Process the image
-    const processedImage = await sharpInstance.toBuffer();
+    const processedImage = await sharpInstance.toBuffer().catch(() => {
+      throw new AppError('Unsupported image', 415);
+    });
 
     // Ensure cache directory exists
     if (!fs.existsSync(cacheDir)) {
@@ -126,21 +187,12 @@ router.get('/proxy', async (req: Request, res: Response, next: NextFunction) => 
 
     // Send response
     res.setHeader('X-Cache', 'MISS');
-    res.setHeader('Cache-Control', 'public, max-age=604800'); // 7 days
+    res.setHeader('Cache-Control', 'private, max-age=604800'); // 7 days
     res.setHeader('Content-Type', `image/${options.format}`);
     res.send(processedImage);
 
-  } catch (error: any) {
-    if (axios.isAxiosError(error)) {
-      if (error.response?.status === 404) {
-        next(new AppError('Image not found', 404));
-      } else {
-        logger.error('Failed to fetch image:', error.message);
-        next(new AppError('Failed to fetch image', 500));
-      }
-    } else {
-      next(error);
-    }
+  } catch (error) {
+    next(error);
   }
 });
 
@@ -171,10 +223,12 @@ router.get('/plex', requireAuth, async (req: AuthenticatedRequest, res: Response
 
     // Build full URL from path if needed
     let fullUrl: string;
+    let clientSuppliedTarget = Boolean(server && token);
     try {
       // If already absolute URL, keep as is
-      const test = new URL(resourcePath);
+      new URL(resourcePath);
       fullUrl = resourcePath;
+      clientSuppliedTarget = true;
     } catch {
       const sep = resourcePath.includes('?') ? '&' : '?';
       fullUrl = `${String(baseUrl).replace(/\/$/, '')}${resourcePath}${sep}X-Plex-Token=${accessToken}`;
@@ -201,17 +255,24 @@ router.get('/plex', requireAuth, async (req: AuthenticatedRequest, res: Response
       }
     }
 
-    // Fetch from Plex
-    const response = await axios.get(fullUrl, {
-      responseType: 'arraybuffer',
-      timeout: 10000,
-      headers: {
-        'Accept': 'image/*',
-      },
-    });
+    // Only a target that came from the client needs the SSRF guard. The session's own
+    // server is trusted configuration and may legitimately be on the same host.
+    let imageData: Buffer;
+    if (clientSuppliedTarget) {
+      imageData = await fetchClientImage(fullUrl, req.user!.id, 'image/*');
+    } else {
+      const response = await axios.get(fullUrl, {
+        responseType: 'arraybuffer',
+        timeout: 10000,
+        headers: {
+          'Accept': 'image/*',
+        },
+      });
+      imageData = response.data;
+    }
 
     // Process with sharp
-    let sharpInstance = sharp(response.data);
+    let sharpInstance = sharp(imageData);
 
     if (options.width || options.height) {
       sharpInstance = sharpInstance.resize(options.width, options.height, {
@@ -249,7 +310,9 @@ router.get('/plex', requireAuth, async (req: AuthenticatedRequest, res: Response
     res.send(processedImage);
 
   } catch (error: any) {
-    logger.error('Failed to proxy Plex image:', error);
+    if (error instanceof AppError) return next(error);
+    // Only the message: the error object carries a URL with the Plex token in it.
+    logger.error('Failed to proxy Plex image:', error?.message);
     next(new AppError('Failed to fetch Plex image', 500));
   }
 });
@@ -258,7 +321,7 @@ router.get('/plex', requireAuth, async (req: AuthenticatedRequest, res: Response
  * Clear image cache
  * DELETE /api/image/cache
  */
-router.delete('/cache', async (req: Request, res: Response, next: NextFunction) => {
+router.delete('/cache', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const maxAge = req.query.maxAge ? parseInt(req.query.maxAge as string, 10) : 7 * 24 * 60 * 60 * 1000;
     const deleted = await cacheManager.cleanupImageCache(maxAge);
@@ -276,7 +339,7 @@ router.delete('/cache', async (req: Request, res: Response, next: NextFunction) 
  * Get image cache statistics
  * GET /api/image/cache/stats
  */
-router.get('/cache/stats', async (req: Request, res: Response, next: NextFunction) => {
+router.get('/cache/stats', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const cacheDir = path.join(process.cwd(), 'cache', 'images');
 

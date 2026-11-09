@@ -434,6 +434,54 @@ export class TMDBClient {
   }
 
   /**
+   * Search collections (franchises)
+   */
+  async searchCollections(query: string, page: number = 1) {
+    return this.cachedRequest(
+      '/search/collection',
+      { query, page },
+      `search:collection:${query}:${page}`,
+      CacheConfig.tmdb.search
+    );
+  }
+
+  /**
+   * Collection (franchise) with its movies
+   */
+  async getCollection(collectionId: number | string) {
+    return this.cachedRequest(
+      `/collection/${collectionId}`,
+      {},
+      `collection:${collectionId}`,
+      CacheConfig.tmdb.details
+    );
+  }
+
+  /**
+   * Production company
+   */
+  async getCompany(companyId: number | string) {
+    return this.cachedRequest(
+      `/company/${companyId}`,
+      {},
+      `company:${companyId}`,
+      CacheConfig.tmdb.details
+    );
+  }
+
+  /**
+   * TV network
+   */
+  async getNetwork(networkId: number | string) {
+    return this.cachedRequest(
+      `/network/${networkId}`,
+      {},
+      `network:${networkId}`,
+      CacheConfig.tmdb.details
+    );
+  }
+
+  /**
    * Validate API key
    */
   async validateKey(): Promise<boolean> {

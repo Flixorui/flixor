@@ -8,10 +8,65 @@ if (!fs.existsSync(logDir)) {
   fs.mkdirSync(logDir, { recursive: true });
 }
 
+// Credentials must never reach the log files or the console. Axios errors carry the
+// whole request (headers with X-Plex-Token, sockets, TLS sessions), so they are reduced
+// to the fields worth reading, and anything that looks like a secret is masked.
+const SECRET_KEY = /token|authorization|cookie|password|secret|api[-_]?key/i;
+const DROPPED_KEYS = new Set(['agent', 'socket', '_currentRequest', 'request', 'res', '_redirectable', '_header']);
+
+export function redactString(text: string): string {
+  return text
+    .replace(/(x-plex-token["']?\s*[:=]\s*["']?)[^&\s"'\\,}]+/gi, '$1[redacted]')
+    .replace(/([?&](?:token|access_token|api_key|apikey|key)=)[^&\s"']+/gi, '$1[redacted]')
+    .replace(/(authorization["']?\s*[:=]\s*["']?(?:bearer\s+)?)[^\s"',}]+/gi, '$1[redacted]');
+}
+
+function summarizeAxiosError(err: any) {
+  return {
+    name: err.name,
+    message: redactString(String(err.message ?? '')),
+    code: err.code,
+    status: err.response?.status,
+    method: err.config?.method,
+    url: err.config?.url ? redactString(String(err.config.url)) : undefined,
+  };
+}
+
+export function redact(value: any, depth = 0, seen = new WeakSet<object>()): any {
+  if (typeof value === 'string') return redactString(value);
+  if (value === null || typeof value !== 'object') return value;
+  if (seen.has(value)) return '[Circular]';
+  seen.add(value);
+  if (value.isAxiosError || (value.config && (value.request || value.response))) return summarizeAxiosError(value);
+  if (Buffer.isBuffer(value)) return `[Buffer ${value.length} bytes]`;
+  if (depth > 6) return '[Truncated]';
+  if (Array.isArray(value)) return value.slice(0, 50).map((item) => redact(item, depth + 1, seen));
+  const out: Record<string, any> = {};
+  for (const key of Object.keys(value)) {
+    if (DROPPED_KEYS.has(key)) continue;
+    out[key] = SECRET_KEY.test(key) && typeof value[key] !== 'object' ? '[redacted]' : redact(value[key], depth + 1, seen);
+  }
+  if (value instanceof Error) {
+    out.name = value.name;
+    out.message = redactString(value.message);
+    if (value.stack) out.stack = redactString(value.stack);
+  }
+  return out;
+}
+
+const redactFormat = winston.format((info) => {
+  for (const key of Object.keys(info)) {
+    if (key === 'level' || key === 'timestamp') continue;
+    (info as any)[key] = redact((info as any)[key]);
+  }
+  return info;
+});
+
 // Define log format
 const logFormat = winston.format.combine(
   winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
   winston.format.errors({ stack: true }),
+  redactFormat(),
   winston.format.splat(),
   winston.format.json()
 );

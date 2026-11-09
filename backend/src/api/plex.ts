@@ -1,5 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { getPlexClient, clearPlexClients } from '../services/plex/PlexClient';
+import { getPlexClient, clearPlexClients, probePlexEndpoint } from '../services/plex/PlexClient';
 import { AppError } from '../middleware/errorHandler';
 import { requireAuth, AuthenticatedRequest } from '../middleware/auth';
 import { createLogger } from '../utils/logger';
@@ -319,6 +319,7 @@ router.get('/servers/:id/connections',
 /**
  * Set preferred endpoint for a server (host/port/protocol updated)
  * POST /api/plex/servers/:id/endpoint { uri: string, test?: boolean }
+ * With `test: true` it only checks connectivity and saves nothing.
  */
 router.post('/servers/:id/endpoint',
   async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
@@ -330,6 +331,7 @@ router.post('/servers/:id/endpoint',
 
       let u: URL;
       try { u = new URL(uri); } catch { throw new AppError('Invalid uri', 400); }
+      if (u.protocol !== 'http:' && u.protocol !== 'https:') throw new AppError('Invalid uri', 400);
       const protocol = (u.protocol.replace(':','') as 'http'|'https');
       const host = u.hostname;
       const port = parseInt(u.port || '32400', 10);
@@ -341,6 +343,16 @@ router.post('/servers/:id/endpoint',
       const idx = settings.plexServers.findIndex((s: any) => s.id === id);
       if (idx < 0) throw new AppError('Server not found', 404);
 
+      // A test only checks connectivity. Nothing is saved and clients stay as they are.
+      if (test) {
+        const reachable = await probePlexEndpoint(userId, settings.plexServers[idx], { protocol, host, port });
+        if (!reachable) throw new AppError('Selected endpoint is unreachable', 400);
+        return res.json({
+          message: 'Endpoint reachable',
+          server: { id, host, port, protocol, preferredUri: uri },
+        });
+      }
+
       // Update stored endpoint and remember preferred URI
       settings.plexServers[idx].host = host;
       settings.plexServers[idx].port = port;
@@ -350,16 +362,6 @@ router.post('/servers/:id/endpoint',
 
       // Clear cached client so new base is used
       clearPlexClients(userId);
-
-      if (test) {
-        try {
-          const client = await getPlexClient(userId, id);
-          const ok = await client.testConnection();
-          if (!ok) throw new Error('Connection failed');
-        } catch (e: any) {
-          throw new AppError('Selected endpoint is unreachable', 400);
-        }
-      }
 
       res.json({
         message: 'Endpoint updated',
@@ -720,6 +722,45 @@ router.post('/scrobble',
     }
   }
 );
+
+const plexWatchStateAction = (
+  action: 'unscrobble' | 'removeFromContinueWatching' | 'resetProgress',
+  failure: string,
+) => async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  try {
+    const ratingKey = String(req.body?.ratingKey ?? '');
+    if (!/^\d+$/.test(ratingKey)) {
+      throw new AppError('Rating key is required', 400);
+    }
+
+    const client = await getPlexClient(req.user!.id);
+    await client[action](ratingKey);
+
+    res.json({ ok: true, ratingKey });
+  } catch (error: any) {
+    logger.error(failure, { message: error?.message, status: error?.response?.status });
+    const upstream = error?.response?.status;
+    next(error instanceof AppError ? error : new AppError(failure, upstream === 404 ? 404 : 500));
+  }
+};
+
+/**
+ * Mark as unwatched
+ * POST /api/plex/unscrobble
+ */
+router.post('/unscrobble', plexWatchStateAction('unscrobble', 'Failed to mark as unwatched'));
+
+/**
+ * Hide from the server's Continue Watching hub
+ * POST /api/plex/continue/remove
+ */
+router.post('/continue/remove', plexWatchStateAction('removeFromContinueWatching', 'Failed to remove from Continue Watching'));
+
+/**
+ * Reset saved progress to the start
+ * POST /api/plex/progress/reset
+ */
+router.post('/progress/reset', plexWatchStateAction('resetProgress', 'Failed to reset progress'));
 
 /**
  * Rate an item

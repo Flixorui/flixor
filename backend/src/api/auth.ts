@@ -16,7 +16,7 @@ const logger = createLogger('auth');
 const PLEX_TV_URL = 'https://plex.tv';
 
 // Helper to get Plex headers
-function getPlexHeaders(clientId: string, token?: string) {
+export function getPlexHeaders(clientId: string, token?: string) {
   const headers: any = {
     'X-Plex-Product': 'Plex Web',
     'X-Plex-Version': '4.128.1',
@@ -35,7 +35,7 @@ function getPlexHeaders(clientId: string, token?: string) {
 }
 
 // Normalize Plex resources to persisted server entries (encrypted tokens)
-async function normalizeAndPersistServers(userId: string, clientId: string): Promise<Array<any>> {
+export async function normalizeAndPersistServers(userId: string, clientId: string): Promise<Array<any>> {
   const userRepository = AppDataSource.getRepository(User);
   const settingsRepository = AppDataSource.getRepository(UserSettings);
 
@@ -321,7 +321,9 @@ router.get('/plex/pin/:id', async (req: Request, res: Response, next: NextFuncti
 
       // If already authenticated in this session, avoid re-creating the session record
       if (req.session.userId === user.id) {
-        // nothing to do
+        // A direct sign-in replaces any Plex Home profile this session had switched to.
+        delete req.session.mainUserId;
+        delete req.session.profile;
       } else {
         // Create session (regenerate to avoid fixation); rely on end-of-request save
         await new Promise<void>((resolve, reject) => {
@@ -415,6 +417,7 @@ router.get('/session', async (req: Request, res: Response, next: NextFunction) =
         thumb: user.thumb,
         subscription: user.subscription,
       },
+      profile: req.session.profile ?? null,
     });
   } catch (error) {
     logger.error('Failed to get session:', error);

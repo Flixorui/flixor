@@ -4,6 +4,7 @@ import { createLogger } from '../../utils/logger';
 import { AppDataSource } from '../../db/data-source';
 import { UserSettings } from '../../db/entities';
 import { decryptForUser, isEncrypted } from '../../utils/crypto';
+import { safeFetch } from '../../utils/outboundUrl';
 import crypto from 'crypto';
 
 const logger = createLogger('plex');
@@ -139,55 +140,79 @@ export class PlexClient {
     return data;
   }
 
+  /** Shared by requests that fail at the same time, so the addresses are probed once. */
+  private discovery?: Promise<string | null>;
+
+  /**
+   * Every address plex.tv lists for this server, each with its own port (the public
+   * and relay ports are usually not 32400), current address first.
+   */
+  private candidateBases(): string[] {
+    const server: any = this.server;
+    const bases: string[] = [];
+    const add = (uri?: string) => {
+      if (!uri) return;
+      try {
+        const url = new URL(uri);
+        const base = `${url.protocol}//${url.host}`;
+        if (!bases.includes(base)) bases.push(base);
+      } catch { /* not a URL */ }
+    };
+    add(this.axiosClient.defaults.baseURL);
+    (server.connections || []).forEach((c: any) => add(c?.uri));
+    Object.values<any[]>(server.addressPorts || {}).flat().forEach((entry: any) => add(entry?.uri));
+    const port = this.server.port || 32400;
+    if (this.server.publicAddress) add(`${this.server.protocol}://${this.server.publicAddress}:${port}`);
+    (this.server.localAddresses || []).forEach((addr) => add(`${this.server.protocol}://${addr}:${port}`));
+    return bases;
+  }
+
+  /** Probes all addresses at once and switches to the first that answers. */
+  private findWorkingBase(): Promise<string | null> {
+    if (!this.discovery) {
+      const current = this.axiosClient.defaults.baseURL;
+      const others = this.candidateBases().filter((base) => base !== current);
+      logger.info(`[Plex] Probing ${others.length} other addresses for ${this.server.name}`);
+      this.discovery = Promise.any(
+        others.map(async (base) => {
+          await axios.get(`${base}/identity`, {
+            timeout: 10000,
+            headers: this.axiosClient.defaults.headers.common as any,
+          });
+          return base;
+        })
+      )
+        .then((base) => {
+          logger.info(`[Plex] Switched ${this.server.name} to a working address`, { base });
+          this.axiosClient.defaults.baseURL = base;
+          return base as string | null;
+        })
+        .catch(() => {
+          logger.error(`[Plex] No address of ${this.server.name} answered`);
+          return null;
+        })
+        .finally(() => {
+          setTimeout(() => { this.discovery = undefined; }, 30000);
+        });
+    }
+    return this.discovery;
+  }
+
   private async requestWithFallback<T>(path: string): Promise<T> {
-    const primaryUrl = `${this.axiosClient.defaults.baseURL}${path}`;
+    const base = this.axiosClient.defaults.baseURL;
     try {
-      logger.info(`[Plex] Requesting: ${primaryUrl}`);
       const res = await this.axiosClient.get<T>(path);
       return res.data as any as T;
     } catch (err: any) {
-      logger.error(`[Plex] Primary request FAILED: ${primaryUrl}`, {
-        message: err.message,
-        code: err.code,
-        status: err.response?.status,
-        isTimeout: err.code === 'ECONNABORTED'
-      });
-
-      const candidates: string[] = [];
-      const port = this.server.port || 32400;
-      const protos: Array<'https'|'http'> = this.server.protocol === 'https' ? ['https','http'] : ['http','https'];
-      const push = (proto: string, host?: string) => { if (host) candidates.push(`${proto}://${host}:${port}`); };
-      // Original
-      push(this.server.protocol, this.server.host);
-      // Public
-      if (this.server.publicAddress) { protos.forEach(p => push(p, this.server.publicAddress)); }
-      // Locals
-      (this.server.localAddresses || []).forEach(addr => protos.forEach(p => push(p, addr)));
-
-      logger.info(`[Plex] Trying ${candidates.length} fallback URLs for: ${path}`, { candidates });
-
-      for (const base of candidates) {
-        try {
-          const fallbackUrl = `${base}${path}`;
-          logger.info(`[Plex] Trying fallback: ${fallbackUrl}`);
-          const alt = axios.create({
-            baseURL: base,
-            timeout: 10000,
-            headers: this.axiosClient.defaults.headers.common,
-          });
-          const res = await alt.get<T>(path);
-          logger.info(`[Plex] ✓ Fallback SUCCEEDED: ${fallbackUrl}`);
-          // Switch to the working base for future calls
-          this.axiosClient.defaults.baseURL = base;
-          return res.data as any as T;
-        } catch (e: any) {
-          logger.info(`[Plex] ✗ Fallback failed (${base}): ${e.message}`);
-          continue;
-        }
-      }
-
-      logger.error(`[Plex] All ${candidates.length} fallback attempts failed for: ${path}`);
-      throw err;
+      // A reply from the server (401, 404...) means the address works.
+      if (err.response) throw err;
+      logger.warn(`[Plex] Request failed on current address`, { path, code: err.code });
+      const working = this.axiosClient.defaults.baseURL !== base
+        ? this.axiosClient.defaults.baseURL
+        : await this.findWorkingBase();
+      if (!working || working === base) throw err;
+      const res = await this.axiosClient.get<T>(path);
+      return res.data as any as T;
     }
   }
 
@@ -458,12 +483,57 @@ export class PlexClient {
    * Scrobble (mark as watched)
    */
   async scrobble(ratingKey: string) {
-    await this.axiosClient.get(`/:/scrobble?key=${ratingKey}`);
+    await this.axiosClient.get('/:/scrobble', {
+      params: { identifier: 'com.plexapp.plugins.library', key: ratingKey },
+    });
+    this.invalidateWatchState(ratingKey);
+  }
 
-    // Invalidate caches
+  /**
+   * Mark a movie, episode, season or show unwatched
+   */
+  async unscrobble(ratingKey: string) {
+    await this.axiosClient.get('/:/unscrobble', {
+      params: { identifier: 'com.plexapp.plugins.library', key: ratingKey },
+    });
+    this.invalidateWatchState(ratingKey);
+  }
+
+  /**
+   * Hide an item from the server's Continue Watching hub without changing its
+   * watched state (Plex Web's "Remove from Continue Watching").
+   */
+  async removeFromContinueWatching(ratingKey: string) {
+    await this.axiosClient.put('/actions/removeFromContinueWatching', null, {
+      params: { ratingKey },
+    });
+    this.invalidateWatchState(ratingKey);
+  }
+
+  /**
+   * Reset the saved resume position to the start. Watched state is unchanged.
+   */
+  async resetProgress(ratingKey: string) {
+    await this.axiosClient.get('/:/progress', {
+      params: {
+        identifier: 'com.plexapp.plugins.library',
+        key: ratingKey,
+        time: 0,
+        state: 'stopped',
+      },
+    });
+    this.invalidateWatchState(ratingKey);
+  }
+
+  /** Children listings carry viewCount, so every cached directory is dropped too. */
+  private invalidateWatchState(ratingKey: string) {
     cacheManager.del('plex', `${this.server.id}:metadata:${ratingKey}`);
     cacheManager.del('plex', `${this.server.id}:ondeck`);
     cacheManager.del('plex', `${this.server.id}:continue`);
+    const dirPrefix = `${this.server.id}:dir:`;
+    for (const key of cacheManager.keys('plex')) {
+      if (key.startsWith(dirPrefix)) cacheManager.del('plex', key);
+    }
   }
 
   /**
@@ -712,6 +782,55 @@ export async function getPlexClient(userId: string, serverId?: string): Promise<
   }
 
   return clientMap.get(cacheKey)!;
+}
+
+/**
+ * Whether a server answers at an endpoint, without saving anything. Addresses the
+ * server already has on record connect as usual, loopback included. Anything else
+ * is user input, so it goes through the SSRF guard (LAN addresses are allowed).
+ */
+export async function probePlexEndpoint(
+  userId: string,
+  server: any,
+  endpoint: { protocol: 'http' | 'https'; host: string; port: number },
+): Promise<boolean> {
+  const accessToken: string = isEncrypted(server.accessToken)
+    ? decryptForUser(userId, server.accessToken)
+    : server.accessToken;
+
+  const normalizeHost = (host: string) => host.replace(/^\[|\]$/g, '').toLowerCase();
+  const hostOfUri = (uri?: string) => {
+    try { return uri ? new URL(uri).hostname : undefined; } catch { return undefined; }
+  };
+  const known = new Set(
+    [
+      server.host,
+      server.publicAddress,
+      hostOfUri(server.preferredUri),
+      ...(server.localAddresses || []),
+      ...Object.keys(server.addressPorts || {}),
+      ...Object.values<any[]>(server.addressPorts || {}).flat().map((entry) => hostOfUri(entry?.uri)),
+      ...(server.connections || []).flatMap((c: any) => [c?.address, hostOfUri(c?.uri)]),
+    ].filter((host): host is string => typeof host === 'string' && !!host).map(normalizeHost),
+  );
+
+  if (known.has(normalizeHost(endpoint.host))) {
+    return new PlexClient({ ...server, ...endpoint, accessToken }, userId).testConnection();
+  }
+
+  try {
+    const response = await safeFetch(`${endpoint.protocol}://${endpoint.host}:${endpoint.port}/`, {
+      allowPrivateNetwork: true,
+      // A redirect must not carry the token somewhere else.
+      maxRedirects: 0,
+      timeoutMs: 10_000,
+      headers: { Accept: 'application/json', 'X-Plex-Token': accessToken },
+    });
+    response.abort();
+    return response.status >= 200 && response.status < 300;
+  } catch {
+    return false;
+  }
 }
 
 /**

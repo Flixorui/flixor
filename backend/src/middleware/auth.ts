@@ -8,7 +8,19 @@ declare module 'express-session' {
     userId?: string;
     plexId?: number;
     username?: string;
+    /** Set while a Plex Home profile is active: the account that signed in. */
+    mainUserId?: string;
+    profile?: SessionProfile;
   }
+}
+
+/** The Plex Home profile a session has switched to. Absent for the signed-in account. */
+export interface SessionProfile {
+  uuid: string;
+  title: string;
+  thumb?: string;
+  restricted: boolean;
+  protected: boolean;
 }
 
 export interface AuthenticatedRequest extends Request {
