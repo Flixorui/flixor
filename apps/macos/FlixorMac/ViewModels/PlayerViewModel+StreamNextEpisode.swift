@@ -13,6 +13,9 @@ import Foundation
 extension PlayerViewModel {
     private static let nextEpisodeLookupLimit: TimeInterval = 15
     private static let nextEpisodeSubtitleWait: TimeInterval = 2
+    /// Longest Next waits for a source before handing over to the sources list. Above
+    /// the lookup's own limits, so it only fires when something hangs past them.
+    private static let nextEpisodeWaitLimit: TimeInterval = 25
 
     // MARK: - Episode data
 
@@ -75,12 +78,31 @@ extension PlayerViewModel {
         let task = episodeSourceTask(season: season, episode: episode, episodeTitle: episodeTitle)
 
         nextEpisodeWaitTask = Task { [weak self] in
-            let outcome = await task.value
+            let result = await awaitResult(of: task, within: Self.nextEpisodeWaitLimit)
             guard let self, !Task.isCancelled else { return }
             self.isResolvingNextEpisode = false
             if case .findingNextEpisodeSource = self.streamEngineStatus { self.streamEngineStatus = nil }
             // The user closed the player during the lookup: don't navigate anywhere.
             guard self.mpvController?.isShutDown == false else { return }
+
+            // Never leave the spinner up: if the lookup is still going, let the user
+            // pick a source for that episode.
+            let outcome: StreamEpisodeSourceOutcome
+            if let result {
+                outcome = result
+            } else {
+                print("⏱️ [Player] No source for \(label) within \(Int(Self.nextEpisodeWaitLimit))s; showing sources")
+                AppLogger.shared.warn("[StreamNext] Source lookup did not finish in time", data: ["episode": label])
+                task.cancel()
+                self.nextEpisodeSourceTask = nil
+                self.nextEpisodeSourceKey = nil
+                guard let destination = self.episodeSourcesDestination(season: season, episode: episode, episodeTitle: episodeTitle) else {
+                    self.error = String(localized: "Couldn't find a source for \(label) in time. Try again or pick another source.")
+                    self.isLoading = false
+                    return
+                }
+                outcome = .needsPicker(destination)
+            }
 
             switch outcome {
             case .playable(let playbackItem):
@@ -141,6 +163,24 @@ extension PlayerViewModel {
             seasonNumber: current.seasonNumber,
             episodeNumber: current.episodeNumber,
             episodeTitle: current.episodeTitle
+        )
+    }
+
+    /// Sources-picker destination for an episode of the series playing now.
+    private func episodeSourcesDestination(season: Int, episode: Int, episodeTitle: String?) -> StremioSourcesDestination? {
+        guard let current = streamPlaybackItem, let ref = StreamSeriesRef(item: current) else { return nil }
+        let identity = ref.identity(season: season, episode: episode, source: "player-next-episode")
+        return StremioSourcesDestination(
+            identity: identity,
+            title: current.showTitle ?? item.grandparentTitle ?? current.title,
+            backdropURL: current.backdropURL,
+            posterURL: current.posterURL,
+            mediaType: .episode,
+            imdbId: identity.imdbId,
+            tmdbId: identity.tmdbId,
+            seasonNumber: season,
+            episodeNumber: episode,
+            episodeTitle: episodeTitle
         )
     }
 
@@ -232,5 +272,34 @@ extension PlayerViewModel {
             "addonName": match.stream.addonName ?? "",
         ])
         return .playable(playbackItem)
+    }
+}
+
+/// The task's result, or nil after `limit` seconds. Returns without waiting for the
+/// task to end, unlike a task group, which waits for every child after cancelling it:
+/// a request that ignores cancellation can't hold the caller past its deadline.
+func awaitResult<T>(of task: Task<T, Never>, within limit: TimeInterval) async -> T? {
+    let gate = ResultGate<T>()
+    return await withCheckedContinuation { continuation in
+        gate.continuation = continuation
+        Task { gate.finish(await task.value) }
+        Task {
+            try? await Task.sleep(nanoseconds: UInt64(max(0, limit) * 1_000_000_000))
+            gate.finish(nil)
+        }
+    }
+}
+
+/// Resumes its continuation once, with whichever result arrives first.
+private final class ResultGate<T>: @unchecked Sendable {
+    private let lock = NSLock()
+    var continuation: CheckedContinuation<T?, Never>?
+
+    func finish(_ value: T?) {
+        lock.lock()
+        let pending = continuation
+        continuation = nil
+        lock.unlock()
+        pending?.resume(returning: value)
     }
 }

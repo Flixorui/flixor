@@ -340,16 +340,13 @@ final class StremioSourcesViewModel: ObservableObject {
 
         let wait = deadline.timeIntervalSinceNow
         guard wait > 0 else { return [] }
-        return await withTaskGroup(of: [StremioSubtitleCandidate]?.self) { group in
-            group.addTask { await service.getSubtitles(identity: identity) }
-            group.addTask {
-                try? await Task.sleep(nanoseconds: UInt64(wait * 1_000_000_000))
-                return nil
-            }
-            let first = await group.next() ?? nil
-            group.cancelAll()
-            return first ?? []
+        // Returns at the deadline even if a subtitle addon is slow to give up.
+        let fetch = Task { await service.getSubtitles(identity: identity) }
+        guard let subtitles = await awaitResult(of: fetch, within: wait) else {
+            fetch.cancel()
+            return []
         }
+        return subtitles
     }
 
     private func mergedExternalSubtitles(for stream: StremioPlayableStream, deadline: Date?) async -> [StremioSubtitleCandidate] {
