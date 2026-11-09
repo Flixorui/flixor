@@ -202,6 +202,10 @@ class MPVPlayerController {
         + "reconnect_on_http_error=[408,429,5xx],reconnect_delay_max=15"
     /// Same rules with a short backoff (0, 1, 3 s) for Plex, so an unreachable
     /// endpoint fails fast and the direct-play -> HLS fallback isn't delayed.
+    /// macOS's root certificates in PEM form, kept current by system updates.
+    static let systemCAFile: String? = ["/etc/ssl/cert.pem", "/private/etc/ssl/cert.pem"]
+        .first { FileManager.default.isReadableFile(atPath: $0) }
+
     static let plexReconnectOptions = "reconnect=1,reconnect_streamed=1,reconnect_on_network_error=1,"
         + "reconnect_on_http_error=[408,429,5xx],reconnect_delay_max=3"
     /// Previous options, used only if mpv rejects `reconnectOptions`.
@@ -221,6 +225,13 @@ class MPVPlayerController {
         // TLS verification is decided per file in loadFile(_:headers:verifyTLS:)
         // (off for Plex, which can use custom certs; on for addon streams).
         mpv_set_property_string(mpv, "tls-verify", "no")
+        // mpv's bundled OpenSSL has no certificate list of its own, so without
+        // this every verified (addon) HTTPS stream fails "certificate verify failed".
+        if let caFile = Self.systemCAFile {
+            mpv_set_property_string(mpv, "tls-ca-file", caFile)
+        } else {
+            print("⚠️ [MPV] No system certificate list found; addon HTTPS streams will not be verified")
+        }
         mpv_set_property_string(mpv, "network-timeout", "30")
         if mpv_set_property_string(mpv, "stream-lavf-o", Self.reconnectOptions) < 0 {
             // Never end up without reconnects if this mpv rejects the extended list.
@@ -394,7 +405,8 @@ class MPVPlayerController {
         // Reset HDR state for new file
         resetHDRState()
 
-        let shouldVerify = verifyTLS && !Self.isLocalNetworkURL(url)
+        // Verifying without a certificate list would reject every server.
+        let shouldVerify = verifyTLS && Self.systemCAFile != nil && !Self.isLocalNetworkURL(url)
         // verifyTLS == false identifies Plex (see the parameter docs).
         let reconnect = verifyTLS ? Self.reconnectOptions : Self.plexReconnectOptions
         // HTTP headers (required for some Plex servers and addon streams).

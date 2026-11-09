@@ -705,6 +705,10 @@ class HomeViewModel: ObservableObject {
 
         // Gather. The Rows Settings group toggles apply in Plex mode too.
         let settings = UserDefaults.standard
+        // Addon catalogs load alongside the Plex and TMDB rows below.
+        async let stremioCatalogs: [HomeRowSlot] = settings.showStremioCatalogRows
+            ? fetchStremioCatalogSections()
+            : []
         var all: [String: HomeRowSlot] = [:]
         var genres: [LibrarySection] = []
         var trakt: [String: HomeRowSlot] = [:]
@@ -746,6 +750,9 @@ class HomeViewModel: ObservableObject {
         // Continue Watching is rendered separately with its own card style
         push(String(localized: "Trending Now"))
         push(String(localized: "Watchlist"))
+
+        // Addon catalog rows, in addon priority order, as in Stremio-only mode.
+        ordered.append(contentsOf: await stremioCatalogs)
 
         // Specific genre labels in desired order
         let desiredGenres = [
