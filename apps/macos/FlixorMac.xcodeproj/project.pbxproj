@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		FE4C28B472B026114474292F /* MPVVideoLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73AD394BE16F687E64B0657F /* MPVVideoLayer.swift */; };
 		DFF3B68818F83A0445C6BFFC /* FloatingNavigationBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40B6D0B8D78A7F7E4EF4D69B /* FloatingNavigationBar.swift */; };
 		A4292701928946C388703A25 /* AppKitMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 516E6A7205B325E6F17AFD78 /* AppKitMenu.swift */; };
 		14D5A866911E352AEA62D9B4 /* DetailsSectionHeading.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4526BCB382AC498351E1FC70 /* DetailsSectionHeading.swift */; };
@@ -319,10 +320,10 @@
 		EA4B55068A4AE81930069778 /* DownloadManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD4094A02547D6FD1255D54C /* DownloadManager.swift */; };
 		EC00FE5B69F216F3A15A9FCE /* DownloadsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5ACF60CF7141B291B519FA5 /* DownloadsView.swift */; };
 		FKBF0001 /* FlixorKit in Frameworks */ = {isa = PBXBuildFile; productRef = FKPD0001 /* FlixorKit */; };
-		MPVMETAL001 /* MPVMetalLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = MPVMETAL002 /* MPVMetalLayer.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		73AD394BE16F687E64B0657F /* MPVVideoLayer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MPVVideoLayer.swift; sourceTree = "<group>"; };
 		40B6D0B8D78A7F7E4EF4D69B /* FloatingNavigationBar.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Navigation/FloatingNavigationBar.swift; sourceTree = "<group>"; };
 		516E6A7205B325E6F17AFD78 /* AppKitMenu.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppKitMenu.swift; sourceTree = "<group>"; };
 		4526BCB382AC498351E1FC70 /* DetailsSectionHeading.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DetailsSectionHeading.swift; sourceTree = "<group>"; };
@@ -632,7 +633,6 @@
 		F156FB11282DDE8678B19A78 /* EndpointSelectView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EndpointSelectView.swift; sourceTree = "<group>"; };
 		F5602C0E02D02A79ABE8837A /* TrackPreferenceService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TrackPreferenceService.swift; path = TrackPreferenceService.swift; sourceTree = "<group>"; };
 		F85A04CB3691DE34BF4E4666 /* ServerEndpointFlowView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ServerEndpointFlowView.swift; sourceTree = "<group>"; };
-		MPVMETAL002 /* MPVMetalLayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MPVMetalLayer.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -1070,6 +1070,7 @@
 		D019 /* Player */ = {
 			isa = PBXGroup;
 			children = (
+				73AD394BE16F687E64B0657F /* MPVVideoLayer.swift */,
 				7A9EF8DBBD80DDDB65B84F66 /* PlayerSourcesPanel.swift */,
 				E3E8817E2ABCD1268A0AF187 /* PlayerSubtitlePanels.swift */,
 				1E2DD2674789F6B9A180A899 /* PlayerSeekBarMarks.swift */,
@@ -1082,7 +1083,6 @@
 				790415B07D1E084CB1BD080B /* PlayerControlsView.swift */,
 				BF72BB5CA30315002639159D /* MPVVideoViewWrapper.swift */,
 				5ECF262BE85C94F72229B986 /* MPVPiPWindow.swift */,
-				MPVMETAL002 /* MPVMetalLayer.swift */,
 				B036 /* PlayerView.swift */,
 				B052 /* MPVVideoView.swift */,
 				35363AC57105CBFEA1D47480 /* PerformanceOverlayView.swift */,
@@ -1303,6 +1303,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FE4C28B472B026114474292F /* MPVVideoLayer.swift in Sources */,
 				DFF3B68818F83A0445C6BFFC /* FloatingNavigationBar.swift in Sources */,
 				A4292701928946C388703A25 /* AppKitMenu.swift in Sources */,
 				14D5A866911E352AEA62D9B4 /* DetailsSectionHeading.swift in Sources */,
@@ -1525,7 +1526,6 @@
 				A045 /* CollectionsView.swift in Sources */,
 				A046 /* WatchlistController.swift in Sources */,
 				A047 /* MyListViewModel.swift in Sources */,
-				MPVMETAL001 /* MPVMetalLayer.swift in Sources */,
 				A048 /* MyListView.swift in Sources */,
 				A049 /* WatchlistButton.swift in Sources */,
 				A050 /* MPVPlayerController.swift in Sources */,
@@ -1849,10 +1849,10 @@
 /* Begin XCRemoteSwiftPackageReference section */
 		MPVK0001 /* XCRemoteSwiftPackageReference "MPVKit" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/edde746/MPVKit";
+			repositoryURL = "https://github.com/edde746/mpv-build";
 			requirement = {
 				kind = revision;
-				revision = e6afd7fa47b6a0f55c29028bbebb4a05b43e779f;
+				revision = 6dbda06021b128b7adc30161bf7870977e575135;
 			};
 		};
 		YTPK0001 /* XCRemoteSwiftPackageReference "YouTubePlayerKit" */ = {
@@ -1874,7 +1874,7 @@
 		MPVD0001 /* MPVKit-GPL */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = MPVK0001 /* XCRemoteSwiftPackageReference "MPVKit" */;
-			productName = "MPVKit-GPL";
+			productName = MPVKit;
 		};
 		YTPD0001 /* YouTubePlayerKit */ = {
 			isa = XCSwiftPackageProductDependency;

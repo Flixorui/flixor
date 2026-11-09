@@ -51,6 +51,15 @@ class ThumbnailMPVPlayer {
             return
         }
 
+        // No scripts and no user config. This mpv includes LuaJIT, whose compiled code
+        // the hardened runtime kills the app for (it maps executable memory without
+        // MAP_JIT). Each built-in script has its own switch; load-scripts only covers
+        // script folders. Names not known to this mpv are rejected harmlessly.
+        setOption("config", value: "no")
+        for option in MPVPlayerController.builtInScriptOptions {
+            setOption(option, value: "no")
+        }
+
         // Configure options for thumbnail generation
         setOption("vo", value: "libmpv")
         setOption("gpu-api", value: "opengl")

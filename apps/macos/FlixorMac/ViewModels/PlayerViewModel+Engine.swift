@@ -132,7 +132,7 @@ extension PlayerViewModel {
         // Fit is mpv's default: leave it alone so custom MPV config entries still apply
         if aspectMode != .fit { applyAspectMode() }
 
-        if !isSpeedBoostActive, let speed = mpvController?.getPropertyIfAvailable("speed"), speed > 0 {
+        if !isSpeedBoostActive, let speed = mpvController?.currentSpeed, speed > 0 {
             // mpv starts at the profile's default speed; keep the UI in sync
             playbackSpeed = Float(speed)
         }

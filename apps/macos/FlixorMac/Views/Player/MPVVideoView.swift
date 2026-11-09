@@ -2,8 +2,7 @@
 //  MPVVideoView.swift
 //  FlixorMac
 //
-//  MPV video rendering view using CAMetalLayer for gpu-next
-//  Based on plezy implementation for Dolby Vision support
+//  Hosts the layer mpv's vo_avfoundation renders into (plezy's setup)
 //
 
 import SwiftUI
@@ -30,7 +29,7 @@ struct MPVVideoView: NSViewRepresentable {
 }
 
 class MPVNSView: NSView {
-    var metalLayer: MPVMetalLayer? // Internal access for PiP controls
+    var videoLayer: MPVVideoLayer? // Internal access for PiP controls
     weak var mpvController: MPVPlayerController?
     var isPiPTransitioning = false // Flag to prevent issues during PiP
 
@@ -50,17 +49,10 @@ class MPVNSView: NSView {
         autoresizingMask = [.width, .height]
     }
 
-    private func createMetalLayer() -> MPVMetalLayer {
-        let layer = MPVMetalLayer()
+    private func createVideoLayer() -> MPVVideoLayer {
+        let layer = MPVVideoLayer()
         layer.frame = bounds
-        layer.framebufferOnly = true
         layer.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
-
-        // Set contents scale from window's screen
-        if let screen = window?.screen ?? NSScreen.main {
-            layer.contentsScale = screen.backingScaleFactor
-        }
-
         return layer
     }
 
@@ -72,26 +64,40 @@ class MPVNSView: NSView {
 
         self.mpvController = controller
 
-        // Create Metal layer and add as sublayer (plezy pattern)
-        let layer = createMetalLayer()
-        self.metalLayer = layer
-
-        // Add Metal layer as sublayer to view's layer (NOT as backing layer)
+        // The video layer is a sublayer, so mpv's subtitle layer can sit beside it
+        let layer = createVideoLayer()
+        self.videoLayer = layer
         self.layer?.addSublayer(layer)
 
-        print("✅ [MPVVideoView] Metal layer added as sublayer, frame: \(layer.frame)")
+        print("✅ [MPVVideoView] Video layer added as sublayer, frame: \(layer.frame)")
 
-        // Initialize MPV with our Metal layer
+        // Initialize MPV with our video layer
         if !controller.initialize(in: window, layer: layer) {
             print("❌ [MPVVideoView] Failed to initialize MPV")
         }
     }
 
+    /// Hides the video, then removes it only after mpv has let go of the layers and
+    /// the hidden frame is on screen: on macOS 27, pulling a visible sample-buffer layer
+    /// out while its video receiver is torn down can stop the display (plezy #2823).
     func stopRendering() {
-        mpvController?.shutdown()
+        let layers = layer?.sublayers ?? []
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        layers.forEach { $0.isHidden = true }
+        CATransaction.commit()
+        let remove = {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                layers.forEach { $0.removeFromSuperlayer() }
+            }
+        }
+        if let controller = mpvController {
+            controller.shutdown(completion: remove)
+        } else {
+            remove()
+        }
         mpvController = nil
-        metalLayer?.removeFromSuperlayer()
-        metalLayer = nil
+        videoLayer = nil
     }
 
     override func viewDidMoveToWindow() {
@@ -127,24 +133,7 @@ class MPVNSView: NSView {
 
     // Force update layer size to match view bounds
     func updateLayerSize() {
-        guard let layer = metalLayer else { return }
-
-        let newBounds = CGRect(origin: .zero, size: bounds.size)
-
-        CATransaction.begin()
-        CATransaction.setDisableActions(true) // Disable implicit animations
-        layer.frame = newBounds
-        CATransaction.commit()
-
-        // Update drawable size for Metal rendering
-        if let screen = window?.screen ?? NSScreen.main {
-            let scale = screen.backingScaleFactor
-            layer.contentsScale = scale
-            layer.drawableSize = CGSize(
-                width: bounds.width * scale,
-                height: bounds.height * scale
-            )
-        }
+        videoLayer?.forceUpdateForNewBounds(CGRect(origin: .zero, size: bounds.size))
     }
 
     override func viewDidChangeBackingProperties() {
@@ -154,22 +143,7 @@ class MPVNSView: NSView {
 
     /// Force update for new bounds (used during PiP transitions)
     func forceUpdateForNewBounds(_ newBounds: CGRect) {
-        guard let layer = metalLayer else { return }
-
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-
-        layer.frame = newBounds
-
-        if let screen = window?.screen ?? NSScreen.main {
-            let scale = screen.backingScaleFactor
-            layer.drawableSize = CGSize(
-                width: newBounds.width * scale,
-                height: newBounds.height * scale
-            )
-        }
-
-        CATransaction.commit()
+        videoLayer?.forceUpdateForNewBounds(newBounds)
     }
 
     deinit {

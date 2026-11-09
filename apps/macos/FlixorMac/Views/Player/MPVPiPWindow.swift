@@ -227,7 +227,7 @@ class MPVPiPWindowManager {
 
 
             // CRITICAL: Force layer to update for PiP bounds
-            if let layer = mpvView.layer as? MPVMetalLayer {
+            if let layer = mpvView.videoLayer {
                 layer.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
                 layer.contentsScale = window.backingScaleFactor
 
@@ -352,7 +352,7 @@ class MPVPiPWindowManager {
 
             originalParent.layoutSubtreeIfNeeded()
 
-            if let layer = mpvView.layer as? MPVMetalLayer,
+            if let layer = mpvView.videoLayer,
                let mainWindow = originalParent.window {
                 layer.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
                 layer.contentsScale = mainWindow.backingScaleFactor
@@ -455,12 +455,9 @@ class MPVPiPWindowManager {
 
         // Get current state and update UI
         // Note: We get the state after toggle, so if it was paused it's now playing
-        if let isPaused: Bool = mpvController.getProperty("pause", type: .flag) {
-            print("✅ [PiP] Current pause state: \(isPaused), updating UI to isPlaying: \(!isPaused)")
-            controlOverlay?.updatePlayPauseState(isPlaying: !isPaused)
-        } else {
-            print("⚠️ [PiP] Could not get pause state from MPV")
-        }
+        let isPaused = mpvController.isPaused
+        print("✅ [PiP] Current pause state: \(isPaused), updating UI to isPlaying: \(!isPaused)")
+        controlOverlay?.updatePlayPauseState(isPlaying: !isPaused)
     }
 
     private func showError(message: String) {

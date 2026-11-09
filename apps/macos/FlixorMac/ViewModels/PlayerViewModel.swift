@@ -150,9 +150,6 @@ class PlayerViewModel: ObservableObject {
     var isPerformingStreamRecovery = false
     var streamLoadWatchdog: Task<Void, Never>?
     var streamStallWatchdog: Task<Void, Never>?
-    /// Audio track switched off while playback waits on the network (see `handleBufferingAudio`).
-    var audioTrackBeforeBuffering: String?
-    var bufferingAudioTask: Task<Void, Never>?
     var failedStreamURLs: Set<String> = []
     /// Sources re-fetched during recovery (fetched once per playback).
     var streamRecoveryResults: [StremioAddonStreamResult]?
@@ -421,9 +418,11 @@ class PlayerViewModel: ObservableObject {
                     if let paused = value as? Bool {
                         self.isPlaying = !paused
                     }
+                case "track-list":
+                    // Tracks mpv added or reselected (external subtitles, selection)
+                    self.refreshTrackListsFromEngine()
                 case "paused-for-cache":
                     if let buffering = value as? Bool {
-                        self.handleBufferingAudio(buffering)
                         self.handleStreamBuffering(buffering)
                     }
                 case "volume":
@@ -452,9 +451,6 @@ class PlayerViewModel: ObservableObject {
                 case "file-loaded":
                     print("✅ [Player] MPV file loaded")
                     self.isLoading = false
-                    // A new file picks its own audio track.
-                    self.bufferingAudioTask?.cancel()
-                    self.audioTrackBeforeBuffering = nil
                     self.applyInitialSeekIfNeeded()
                     // Load available tracks
                     self.loadTracks()
@@ -473,7 +469,7 @@ class PlayerViewModel: ObservableObject {
                         }
                     }
                     // Notify thumbnail generator
-                    if let path: String = self.mpvController?.getProperty("path", type: .string) {
+                    if let path = self.mpvController?.currentPath {
                         self.thumbnailGenerator?.onVideoLoaded(url: path)
                     }
                 case "playback-restart":
@@ -542,10 +538,6 @@ class PlayerViewModel: ObservableObject {
         nextEpisodeCountdownTimer = nil
         nextEpisodeCountdown = nil
         cancelStreamWatchdogs()
-        bufferingAudioTask?.cancel()
-        bufferingAudioTask = nil
-        audioTrackBeforeBuffering = nil
-
         // Disable display sleep prevention
         disableDisplaySleep()
 

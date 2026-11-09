@@ -34,30 +34,6 @@ extension PlayerViewModel {
         updateNowPlayingInfo()
     }
 
-    /// mpv 0.40's AVFoundation audio output leaks a buffer every time it asks for audio
-    /// and gets none, which is constant while playback waits on the network. Over a long
-    /// stall that exhausts the allocator and crashes the app (fixed upstream in mpv 0.41).
-    /// Switching the audio track off as soon as playback waits on the network stops those
-    /// requests; the track comes back as soon as playback resumes.
-    func handleBufferingAudio(_ buffering: Bool) {
-        bufferingAudioTask?.cancel()
-        bufferingAudioTask = nil
-        guard buffering else {
-            if let track = audioTrackBeforeBuffering {
-                audioTrackBeforeBuffering = nil
-                mpvController?.setProperty("aid", value: track)
-                print("🔊 [Player] Buffering ended; audio track \(track) restored")
-            }
-            return
-        }
-        // Immediately: a dry output leaks hundreds of megabytes of address space per second.
-        guard audioTrackBeforeBuffering == nil, let mpv = mpvController, !mpv.isShutDown,
-              let track: String = mpv.getProperty("aid", type: .string), track != "no" else { return }
-        audioTrackBeforeBuffering = track
-        mpv.setProperty("aid", value: "no")
-        print("🔇 [Player] Buffering; audio track \(track) paused until playback resumes")
-    }
-
     func seek(to time: TimeInterval) {
         guard let mpv = mpvController else { return }
         mpv.seek(to: time)
@@ -163,7 +139,9 @@ extension PlayerViewModel {
 
     private func updatePerformanceStats() {
         guard let mpv = mpvController else { return }
-        performanceStats = mpv.getPerformanceStats()
+        mpv.fetchPerformanceStats { [weak self] stats in
+            self?.performanceStats = stats
+        }
     }
 
     // MARK: - Chapter Navigation

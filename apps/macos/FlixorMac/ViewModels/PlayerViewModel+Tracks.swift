@@ -165,6 +165,20 @@ extension PlayerViewModel {
         }
     }
 
+    /// Picks up track changes mpv reports after loading (external subtitles added,
+    /// selection changed) without re-applying preferences, which `loadTracks` does.
+    func refreshTrackListsFromEngine() {
+        guard let mpv = mpvController else { return }
+        let previousSubtitle = currentSubtitleTrackId
+        availableAudioTracks = mpv.getAudioTracks()
+        availableSubtitleTracks = mpv.getSubtitleTracks().filter { !$0.external }
+        currentAudioTrackId = mpv.getCurrentAudioTrack()
+        currentSubtitleTrackId = mpv.getCurrentSubtitleTrack()
+        if currentSubtitleTrackId != previousSubtitle {
+            refreshSubtitleCues()
+        }
+    }
+
     /// Set audio track (MPV only)
     /// - Parameter remember: Save the track's language for this title/show
     ///   ("Remember Track Selection"). Pass `false` for automatic selection.
