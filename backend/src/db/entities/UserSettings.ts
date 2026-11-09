@@ -54,6 +54,9 @@ export class UserSettings {
     quality?: string;
     subtitles?: boolean;
     theme?: string;
+    /** The web app's synced settings, encrypted. See api/sync.ts. */
+    webState?: string;
+    webStateVersion?: number;
   };
 
   @UpdateDateColumn()

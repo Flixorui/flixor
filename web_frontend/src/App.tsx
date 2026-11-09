@@ -6,6 +6,7 @@ import UpdateNotification from '@/components/UpdateNotification';
 import NetworkStatusBanner from '@/components/NetworkStatusBanner';
 import { checkTraktConnection } from '@/services/traktConnection';
 import { loadSettings, useSettings } from '@/state/settings';
+import { ensureAccountSynced } from '@/services/accountSync';
 
 export default function App() {
   const location = useLocation();
@@ -18,15 +19,20 @@ export default function App() {
   const isProfilesRoute = location.pathname === '/profiles';
   const { navigationStyle, navigationSidebarPinned } = useSettings();
 
-  // Check onboarding status on mount
+  // Check onboarding status on mount. A new browser first loads the account's
+  // settings, so an account that finished setup elsewhere skips it here.
   useEffect(() => {
-    const settings = loadSettings();
-    const isAuthenticated = !!(settings.plexBaseUrl && settings.plexToken) || !!settings.plexServer;
-
-    // If authenticated but hasn't completed onboarding, redirect to onboarding
-    if (isAuthenticated && !settings.hasCompletedOnboarding && !isOnboardingRoute && !isAuthRoute) {
-      navigate('/onboarding');
-    }
+    if (isOnboardingRoute || isAuthRoute) return;
+    let cancelled = false;
+    ensureAccountSynced().then(() => {
+      if (cancelled) return;
+      const settings = loadSettings();
+      const isAuthenticated = !!(settings.plexBaseUrl && settings.plexToken) || !!settings.plexServer;
+      if (isAuthenticated && !settings.hasCompletedOnboarding) navigate('/onboarding');
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [navigate, isOnboardingRoute, isAuthRoute]);
 
   useEffect(() => {

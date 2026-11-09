@@ -28,6 +28,7 @@ import overseerrRoutes from './api/overseerr';
 import versionRoutes from './api/version';
 import stremioRoutes from './api/stremio';
 import skipSegmentsRoutes from './api/skip-segments';
+import syncRoutes from './api/sync';
 import { requireAuth } from './middleware/auth';
 import { errorHandler } from './middleware/errorHandler';
 import { requestLogger } from './middleware/requestLogger';
@@ -130,6 +131,7 @@ async function startServer() {
     app.use('/api/version', versionRoutes);
     app.use('/api/stremio', requireAuth, stremioRoutes);
     app.use('/api/skip-segments', requireAuth, skipSegmentsRoutes);
+    app.use('/api/sync', requireAuth, syncRoutes);
 
     // 404 handler
     app.use((req, res) => {

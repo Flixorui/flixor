@@ -154,7 +154,9 @@ async function syncProfileServers(profileId: string, mainUserId: string, clientI
   const main = await repo.findOne({ where: { userId: mainUserId } });
   let settings = await repo.findOne({ where: { userId: profileId } });
   if (!settings) {
-    settings = repo.create({ userId: profileId, preferences: main?.preferences });
+    // The web app's synced copy belongs to the account, not each profile.
+    const { webState: _webState, webStateVersion: _webStateVersion, ...preferences } = main?.preferences || {};
+    settings = repo.create({ userId: profileId, preferences });
   }
   if (!settings.plexServers?.length && main?.plexServers?.length) {
     settings.plexServers = main.plexServers

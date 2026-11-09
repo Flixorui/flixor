@@ -1,6 +1,7 @@
 /**
- * Browser storage for the addon platform. Manifest URLs and stream URLs can embed
- * debrid keys, so they stay in this browser and are never written to the backend.
+ * Browser storage for the addon platform. The addon list, resume points and history
+ * also follow the account through services/accountSync.ts, which the backend stores
+ * encrypted because manifest URLs can embed debrid keys. The stream cache stays here.
  */
 
 const PREFIX = 'flixor.stremio.';
