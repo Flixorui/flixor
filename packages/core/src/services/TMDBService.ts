@@ -13,11 +13,54 @@ import type {
   TMDBResultsResponse,
   TMDBPerson,
   TMDBPersonCredits,
+  TMDBCollectionDetails,
+  TMDBCompanyDetails,
+  TMDBCollection,
+  TMDBGenre,
 } from '../models/tmdb';
 import { TMDBImageSize } from '../models/tmdb';
 
 const TMDB_API_URL = 'https://api.themoviedb.org/3';
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org/t/p';
+
+export interface TMDBDiscoverOptions {
+  page?: number;
+  sortBy?: string;
+  /** Comma means all of these genres, pipe means any of them. */
+  withGenres?: string;
+  /** Pipe-separated company ids (any of them). */
+  withCompanies?: string;
+  /** Earliest release or first air date, as YYYY-MM-DD. */
+  dateFrom?: string;
+  /** Latest release or first air date, as YYYY-MM-DD. */
+  dateTo?: string;
+  minVoteCount?: number;
+  minRating?: number;
+}
+
+export interface TMDBDiscoverMovieOptions extends TMDBDiscoverOptions {
+  region?: string;
+}
+
+export interface TMDBDiscoverTVOptions extends TMDBDiscoverOptions {
+  /** Pipe-separated network ids (any of them). */
+  withNetworks?: string;
+}
+
+export interface TMDBPersonSearchResult {
+  id: number;
+  name: string;
+  profile_path?: string | null;
+  known_for_department?: string | null;
+  popularity?: number;
+}
+
+export interface TMDBCompanySearchResult {
+  id: number;
+  name: string;
+  logo_path?: string | null;
+  origin_country?: string | null;
+}
 
 /**
  * Service for TMDB API (The Movie Database)
@@ -478,23 +521,53 @@ export class TMDBService {
   }
 
   // ============================================
+  // Collections, Companies & Networks
+  // ============================================
+
+  /**
+   * Get collection details, with parts ordered by release date (undated parts last)
+   */
+  async getCollectionDetails(id: number): Promise<TMDBCollectionDetails> {
+    const details = await this.get<TMDBCollectionDetails>(
+      `/collection/${id}`,
+      undefined,
+      CacheTTL.STATIC
+    );
+    const parts = (details.parts ?? [])
+      .map((part, index) => ({ part, index, date: part.release_date || null }))
+      .sort((a, b) => {
+        if (a.date && b.date && a.date !== b.date) return a.date < b.date ? -1 : 1;
+        if (a.date && !b.date) return -1;
+        if (!a.date && b.date) return 1;
+        return a.index - b.index;
+      })
+      .map(({ part }) => part);
+    return { ...details, parts };
+  }
+
+  /**
+   * Get production company details
+   */
+  async getCompanyDetails(id: number): Promise<TMDBCompanyDetails> {
+    return this.get<TMDBCompanyDetails>(`/company/${id}`, undefined, CacheTTL.STATIC);
+  }
+
+  /**
+   * Get TV network details
+   */
+  async getNetworkDetails(id: number): Promise<TMDBCompanyDetails> {
+    return this.get<TMDBCompanyDetails>(`/network/${id}`, undefined, CacheTTL.STATIC);
+  }
+
+  // ============================================
   // Discover
   // ============================================
 
   /**
    * Discover movies with filters
    */
-  async discoverMovies(options?: {
-    page?: number;
-    sortBy?: string;
-    withGenres?: string;
-    region?: string;
-  }): Promise<TMDBResultsResponse<TMDBMedia>> {
-    const params: Record<string, string> = {
-      page: String(options?.page || 1),
-      sort_by: options?.sortBy || 'popularity.desc',
-    };
-    if (options?.withGenres) params.with_genres = options.withGenres;
+  async discoverMovies(options?: TMDBDiscoverMovieOptions): Promise<TMDBResultsResponse<TMDBMedia>> {
+    const params = this.discoverParams(options, 'primary_release_date');
     if (options?.region) params.region = options.region;
 
     return this.get<TMDBResultsResponse<TMDBMedia>>(
@@ -507,20 +580,76 @@ export class TMDBService {
   /**
    * Discover TV shows with filters
    */
-  async discoverTV(options?: {
-    page?: number;
-    sortBy?: string;
-    withGenres?: string;
-  }): Promise<TMDBResultsResponse<TMDBMedia>> {
-    const params: Record<string, string> = {
-      page: String(options?.page || 1),
-      sort_by: options?.sortBy || 'popularity.desc',
-    };
-    if (options?.withGenres) params.with_genres = options.withGenres;
+  async discoverTV(options?: TMDBDiscoverTVOptions): Promise<TMDBResultsResponse<TMDBMedia>> {
+    const params = this.discoverParams(options, 'first_air_date');
+    if (options?.withNetworks) params.with_networks = options.withNetworks;
 
     return this.get<TMDBResultsResponse<TMDBMedia>>(
       '/discover/tv',
       params,
+      CacheTTL.TRENDING
+    );
+  }
+
+  private discoverParams(
+    options: TMDBDiscoverOptions | undefined,
+    dateField: 'primary_release_date' | 'first_air_date'
+  ): Record<string, string> {
+    const params: Record<string, string> = {
+      // TMDB caps discover at page 500
+      page: String(Math.max(1, Math.min(options?.page || 1, 500))),
+      sort_by: options?.sortBy || 'popularity.desc',
+    };
+    if (options?.withGenres) params.with_genres = options.withGenres;
+    if (options?.withCompanies) params.with_companies = options.withCompanies;
+    if (options?.dateFrom) params[`${dateField}.gte`] = options.dateFrom;
+    if (options?.dateTo) params[`${dateField}.lte`] = options.dateTo;
+    if (options?.minVoteCount != null) params['vote_count.gte'] = String(options.minVoteCount);
+    if (options?.minRating != null) params['vote_average.gte'] = String(options.minRating);
+    return params;
+  }
+
+  /**
+   * Get the genre list for movies or TV. Ids differ between the two.
+   */
+  async getGenres(mediaType: 'movie' | 'tv'): Promise<TMDBGenre[]> {
+    const res = await this.get<{ genres?: TMDBGenre[] }>(
+      `/genre/${mediaType}/list`,
+      undefined,
+      CacheTTL.STATIC
+    );
+    return res.genres ?? [];
+  }
+
+  /**
+   * Search for people
+   */
+  async searchPeople(query: string, page: number = 1): Promise<TMDBResultsResponse<TMDBPersonSearchResult>> {
+    return this.get<TMDBResultsResponse<TMDBPersonSearchResult>>(
+      '/search/person',
+      { query, page: String(page) },
+      CacheTTL.TRENDING
+    );
+  }
+
+  /**
+   * Search for production companies
+   */
+  async searchCompanies(query: string, page: number = 1): Promise<TMDBResultsResponse<TMDBCompanySearchResult>> {
+    return this.get<TMDBResultsResponse<TMDBCompanySearchResult>>(
+      '/search/company',
+      { query, page: String(page) },
+      CacheTTL.TRENDING
+    );
+  }
+
+  /**
+   * Search for movie collections
+   */
+  async searchCollections(query: string, page: number = 1): Promise<TMDBResultsResponse<TMDBCollection>> {
+    return this.get<TMDBResultsResponse<TMDBCollection>>(
+      '/search/collection',
+      { query, page: String(page) },
       CacheTTL.TRENDING
     );
   }

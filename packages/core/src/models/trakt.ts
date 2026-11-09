@@ -223,3 +223,162 @@ export interface TraktStats {
     comments: number;
   };
 }
+
+// Sync request body for /sync/history, /sync/ratings (and their /remove variants)
+// and /users/me/lists/{id}/items. Any one id is enough. A show with no seasons
+// means the whole show; a season with no episodes means the whole season.
+export type TraktSyncIds = TraktIds;
+
+export interface TraktSyncEpisode {
+  number: number;
+  watched_at?: string;
+  rating?: number;
+}
+
+export interface TraktSyncSeason {
+  number: number;
+  episodes?: TraktSyncEpisode[];
+  watched_at?: string;
+  rating?: number;
+}
+
+export interface TraktSyncShow {
+  ids: TraktSyncIds;
+  seasons?: TraktSyncSeason[];
+  watched_at?: string;
+  rating?: number;
+}
+
+export interface TraktSyncMovie {
+  ids: TraktSyncIds;
+  watched_at?: string;
+  rating?: number;
+}
+
+export interface TraktSyncItems {
+  movies?: TraktSyncMovie[];
+  shows?: TraktSyncShow[];
+  /** Episodes addressed by their own ids. Prefer nesting under `shows`. */
+  episodes?: Array<{ ids: TraktSyncIds; watched_at?: string; rating?: number }>;
+}
+
+// Response of the sync and list-item endpoints. Counts are keyed by
+// "movies", "shows", "seasons", "episodes".
+export interface TraktSyncResult {
+  added?: Record<string, number>;
+  deleted?: Record<string, number>;
+  updated?: Record<string, number>;
+  existing?: Record<string, number>;
+  not_found?: Record<string, unknown[]>;
+}
+
+// Watched progress for a show (/shows/{id}/progress/watched)
+export interface TraktShowProgressEpisode {
+  number: number;
+  completed: boolean;
+  last_watched_at?: string | null;
+}
+
+export interface TraktShowProgressSeason {
+  number: number;
+  title?: string | null;
+  aired: number;
+  completed: number;
+  episodes: TraktShowProgressEpisode[];
+}
+
+export interface TraktShowProgress {
+  aired: number;
+  completed: number;
+  last_watched_at?: string | null;
+  reset_at?: string | null;
+  seasons: TraktShowProgressSeason[];
+  next_episode?: TraktEpisode | null;
+  last_episode?: TraktEpisode | null;
+}
+
+// One page of a paginated endpoint, with totals from the X-Pagination-* headers
+export interface TraktPage<T> {
+  items: T[];
+  page: number;
+  limit: number;
+  pageCount: number;
+  itemCount: number;
+}
+
+// Comments
+export type TraktCommentSort =
+  | 'newest'
+  | 'oldest'
+  | 'likes'
+  | 'replies'
+  | 'highest'
+  | 'lowest'
+  | 'plays';
+
+/**
+ * What to load comments for. Ids may be a Trakt id, Trakt slug or IMDb id.
+ * TMDB ids are NOT accepted; resolve them with lookupByTmdb first.
+ */
+export type TraktCommentTarget =
+  | { type: 'movie'; id: string | number }
+  | { type: 'show'; id: string | number }
+  | { type: 'season'; showId: string | number; season: number }
+  | { type: 'episode'; showId: string | number; season: number; episode: number };
+
+export interface TraktCommentUser {
+  username?: string;
+  name?: string | null;
+  private?: boolean;
+  vip?: boolean;
+  ids?: { slug?: string | null };
+  images?: { avatar?: { full?: string } };
+}
+
+export interface TraktComment {
+  id: number;
+  parent_id?: number;
+  created_at?: string;
+  updated_at?: string;
+  comment: string;
+  spoiler: boolean;
+  review: boolean;
+  replies: number;
+  likes: number;
+  user_rating?: number | null;
+  user_stats?: { rating?: number | null; play_count?: number; completed_count?: number };
+  user?: TraktCommentUser;
+}
+
+// Personal lists
+export type TraktListPrivacy = 'private' | 'link' | 'friends' | 'public';
+
+export interface TraktUserList {
+  name: string;
+  description?: string | null;
+  privacy?: TraktListPrivacy;
+  share_link?: string;
+  display_numbers?: boolean;
+  allow_comments?: boolean;
+  sort_by?: string;
+  sort_how?: string;
+  created_at?: string;
+  updated_at?: string;
+  item_count: number;
+  comment_count?: number;
+  likes?: number;
+  ids: { trakt: number; slug?: string | null };
+}
+
+export interface TraktListEntry {
+  /** List item id (unique within the list). */
+  id: number;
+  rank?: number;
+  listed_at?: string;
+  notes?: string | null;
+  type: 'movie' | 'show' | 'season' | 'episode' | 'person';
+  movie?: TraktMovie;
+  show?: TraktShow;
+  season?: TraktSeason;
+  episode?: TraktEpisode;
+}

@@ -131,6 +131,26 @@ export interface TMDBCollection {
   backdrop_path?: string | null;
 }
 
+// Collection details (/collection/{id})
+export interface TMDBCollectionDetails extends TMDBCollection {
+  overview?: string | null;
+  /** Movies in the collection, in release order (undated parts last). */
+  parts: TMDBMedia[];
+}
+
+// Company (/company/{id}) or TV network (/network/{id}) details.
+// description and parent_company are only present for companies.
+export interface TMDBCompanyDetails {
+  id: number;
+  name: string;
+  description?: string | null;
+  headquarters?: string | null;
+  homepage?: string | null;
+  logo_path?: string | null;
+  origin_country?: string | null;
+  parent_company?: { id?: number; name?: string; logo_path?: string | null } | null;
+}
+
 export interface TMDBCreator {
   id: number;
   name: string;

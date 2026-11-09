@@ -202,11 +202,11 @@ export class PlexServerService {
    * Get continue watching items (deduplicated by GUID)
    * Returns items grouped by TMDB/IMDB GUID, keeping only the most recently watched version
    */
-  async getContinueWatching(): Promise<ContinueWatchingResult> {
+  async getContinueWatching(options?: { fresh?: boolean }): Promise<ContinueWatchingResult> {
     const data = await this.get<PlexMediaContainer<PlexMediaItem>>(
       '/hubs/continueWatching/items',
       { includeGuids: '1' }, // Include external GUIDs (TMDB, IMDB, etc.)
-      CacheTTL.SHORT
+      options?.fresh ? 0 : CacheTTL.SHORT
     );
     const items = data.MediaContainer?.Metadata || [];
     console.log('[PlexServerService] getContinueWatching raw items:', items.length);
@@ -839,6 +839,71 @@ export class PlexServerService {
     } catch {
       // Timeline updates are best-effort
     }
+  }
+
+  /**
+   * Mark an item watched. Works for movies, episodes, seasons and shows.
+   */
+  async scrobble(ratingKey: string): Promise<void> {
+    await this.watchStateAction('/:/scrobble', ratingKey);
+  }
+
+  /**
+   * Mark an item unwatched. Works for movies, episodes, seasons and shows.
+   * Also clears the resume point.
+   */
+  async unscrobble(ratingKey: string): Promise<void> {
+    await this.watchStateAction('/:/unscrobble', ratingKey);
+  }
+
+  /**
+   * Remove an item from the server's Continue Watching hub. Watched state and
+   * the resume position are left as they are.
+   */
+  async removeFromContinueWatching(ratingKey: string): Promise<void> {
+    await this.watchStateRequest('PUT', '/actions/removeFromContinueWatching', { ratingKey });
+  }
+
+  /**
+   * Reset the saved resume position to the start. Does not change watched state.
+   */
+  async resetProgress(ratingKey: string): Promise<void> {
+    await this.watchStateRequest('GET', '/:/progress', {
+      identifier: 'com.plexapp.plugins.library',
+      key: ratingKey,
+      time: '0',
+      state: 'stopped',
+    });
+  }
+
+  private async watchStateAction(path: string, ratingKey: string): Promise<void> {
+    await this.watchStateRequest('GET', path, {
+      identifier: 'com.plexapp.plugins.library',
+      key: ratingKey,
+    });
+  }
+
+  private async watchStateRequest(
+    method: 'GET' | 'PUT',
+    path: string,
+    query: Record<string, string>
+  ): Promise<void> {
+    const params = new URLSearchParams(query);
+    const response = await fetch(`${this.baseUrl}${path}?${params.toString()}`, {
+      method,
+      headers: this.getHeaders(),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Plex API error: ${response.status} ${response.statusText}`);
+    }
+
+    // Drop cached metadata, children and hubs so the next read shows the new state
+    await Promise.all(
+      ['/library/metadata/*', '/hubs/*', '/library/onDeck*'].map((pattern) =>
+        this.cache.invalidatePattern(`plex:${this.baseUrl}:${pattern}`)
+      )
+    );
   }
 
   /**
