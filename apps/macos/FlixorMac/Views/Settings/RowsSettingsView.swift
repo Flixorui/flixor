@@ -6,12 +6,14 @@
 //
 
 import SwiftUI
+import FlixorKit
 
 struct RowsSettingsView: View {
     @ObservedObject private var profileSettings = ProfileSettings.shared
     @ObservedObject private var appMode = AppModeStore.shared
 
     @State private var showContinueWatchingOptions = false
+    @State private var continueWatchingSource = UserDefaults.standard.continueWatchingSource
     @State private var showCollectionRowsSettings = false
 
     var body: some View {
@@ -116,6 +118,27 @@ struct RowsSettingsView: View {
             if profileSettings.showContinueWatching {
                 SettingsSectionHeader(title: "Continue Watching")
                 SettingsGroupCard {
+                    SettingsRow(
+                        icon: "arrow.triangle.merge",
+                        iconColor: .red,
+                        title: "Continue Watching From",
+                        subtitle: FlixorCore.shared.isTraktAuthenticated
+                            ? "Automatic combines your library with Trakt progress and next episodes"
+                            : "Connect Trakt in Settings to include your Trakt progress"
+                    ) {
+                        Picker("", selection: $continueWatchingSource) {
+                            ForEach(ContinueWatchingSource.allCases) { option in
+                                Text(option.title).tag(option)
+                            }
+                        }
+                        .labelsHidden()
+                        .frame(width: 170)
+                        .accessibilityLabel(Text("Continue Watching source"))
+                        .onChange(of: continueWatchingSource) { newValue in
+                            UserDefaults.standard.continueWatchingSource = newValue
+                            NotificationCenter.default.post(name: .continueWatchingSourceDidChange, object: nil)
+                        }
+                    }
                     SettingsNavigationRow(
                         icon: "gearshape.fill",
                         iconColor: .gray,
@@ -128,7 +151,10 @@ struct RowsSettingsView: View {
                 }
             }
         }
-        .sheet(isPresented: $showContinueWatchingOptions) {
+        .sheet(isPresented: $showContinueWatchingOptions, onDismiss: {
+            // The sheet has the same picker; show what was chosen there.
+            continueWatchingSource = UserDefaults.standard.continueWatchingSource
+        }) {
             ContinueWatchingSettingsView()
                 .frame(width: 500, height: 580)
         }
