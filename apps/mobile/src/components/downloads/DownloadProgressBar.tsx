@@ -4,6 +4,7 @@
 
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
+import { useTheme } from '../../hooks/useTheme';
 
 interface DownloadProgressBarProps {
   progress: number; // 0-100
@@ -16,8 +17,9 @@ function DownloadProgressBar({
   progress,
   height = 4,
   backgroundColor = '#333',
-  progressColor = '#e50914',
+  progressColor,
 }: DownloadProgressBarProps) {
+  const theme = useTheme();
   const clampedProgress = Math.min(100, Math.max(0, progress));
 
   return (
@@ -27,7 +29,7 @@ function DownloadProgressBar({
           styles.progress,
           {
             width: `${clampedProgress}%`,
-            backgroundColor: progressColor,
+            backgroundColor: progressColor ?? theme.accent,
           },
         ]}
       />

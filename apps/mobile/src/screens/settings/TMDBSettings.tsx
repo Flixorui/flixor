@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, ScrollView, TextInput, Pressable, StyleSheet, Switch } from 'react-native';
+import { View, Text, ScrollView, TextInput, Pressable, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import SettingsHeader from '../../components/settings/SettingsHeader';
@@ -8,6 +8,8 @@ import SettingItem from '../../components/settings/SettingItem';
 import TMDBIcon from '../../components/icons/TMDBIcon';
 import { useAppSettings } from '../../hooks/useAppSettings';
 import { reinitializeFlixorCore } from '../../core';
+import { useTheme } from '../../hooks/useTheme';
+import SettingsSwitch from '../../components/settings/SettingsSwitch';
 
 const LANGUAGE_OPTIONS = [
   { label: 'English', value: 'en' },
@@ -19,6 +21,7 @@ const LANGUAGE_OPTIONS = [
 
 export default function TMDBSettings() {
   const nav: any = useNavigation();
+  const theme = useTheme();
   const insets = useSafeAreaInsets();
   const headerHeight = insets.top + 52;
   const { settings, updateSetting } = useAppSettings();
@@ -37,7 +40,7 @@ export default function TMDBSettings() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.settingsBackground }]}>
       <SettingsHeader title="TMDB" onBack={() => nav.goBack()} />
       <ScrollView contentContainerStyle={[styles.content, { paddingTop: headerHeight + 12, paddingBottom: insets.bottom + 100 }]}>
         {/* Header with TMDB logo */}
@@ -73,7 +76,7 @@ export default function TMDBSettings() {
             description="Fetch cast, logos, and extras"
             icon="film-outline"
             renderRight={() => (
-              <Switch
+              <SettingsSwitch
                 value={settings.enrichMetadataWithTMDB}
                 onValueChange={(value) => updateSetting('enrichMetadataWithTMDB', value)}
               />
@@ -85,7 +88,7 @@ export default function TMDBSettings() {
             description="Prefer localized titles and summaries"
             icon="language-outline"
             renderRight={() => (
-              <Switch
+              <SettingsSwitch
                 value={settings.useTmdbLocalizedMetadata}
                 onValueChange={(value) => updateSetting('useTmdbLocalizedMetadata', value)}
               />

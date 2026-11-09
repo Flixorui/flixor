@@ -10,26 +10,17 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { View, ActivityIndicator, Text, Pressable, Platform } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import ConditionalBlurView from './src/components/ConditionalBlurView';
 import { useTopBarStore } from './src/components/TopBarStore';
-import { useAppSettings } from './src/hooks/useAppSettings';
+import { useAppSetting, useAppSettings } from './src/hooks/useAppSettings';
+import { useTheme } from './src/hooks/useTheme';
+import TabGlowIcon from './src/components/TabGlowIcon';
+import { NativeTab, usesNativeTabBar } from './src/core/TabBarSupport';
 import GlobalTopAppBar from './src/components/GlobalTopAppBar';
 import { useSafeAreaInsets, SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import { memoryManager } from './src/core/MemoryManager';
 import { appLogger } from './src/core/AppLogger';
 import { loadAppSettings } from './src/core/SettingsData';
-
-// Native iOS bottom tabs for liquid glass effect (React Navigation v7)
-let createNativeBottomTabNavigator: any = null;
-if (Platform.OS === 'ios') {
-  try {
-    const bottomTabs = require('@react-navigation/bottom-tabs/unstable');
-    createNativeBottomTabNavigator = bottomTabs.createNativeBottomTabNavigator;
-  } catch {
-    createNativeBottomTabNavigator = null;
-  }
-}
 
 // Silence Reanimated warning about reading shared value during render
 // This is caused by third-party libraries and is a known issue
@@ -69,23 +60,15 @@ import CollectionRowsSettings from './src/screens/settings/CollectionRowsSetting
 import LibraryMappingSettings from './src/screens/settings/LibraryMappingSettings';
 import StremioSettings from './src/screens/settings/StremioSettings';
 import StremioAddons from './src/screens/settings/StremioAddons';
+import HomeRowsSettings from './src/screens/settings/HomeRowsSettings';
+import AppearanceSettings from './src/screens/settings/AppearanceSettings';
+import EntityBrowse from './src/screens/EntityBrowse';
+import UserCollection from './src/screens/UserCollection';
+import ToastHost from './src/components/Toast';
+import { loadAppMode, useAppMode } from './src/core/AppMode';
 import * as Haptics from 'expo-haptics';
 import UpdatePopup from './src/components/UpdatePopup';
 import { useUpdateCheck } from './src/hooks/useUpdateCheck';
-
-let GlassViewComp: any = null;
-let liquidGlassAvailable = false;
-if (Platform.OS === 'ios') {
-  try {
-    const glass = require('expo-glass-effect');
-    GlassViewComp = glass.GlassView;
-    liquidGlassAvailable = typeof glass.isLiquidGlassAvailable === 'function'
-      ? glass.isLiquidGlassAvailable()
-      : false;
-  } catch {
-    liquidGlassAvailable = false;
-  }
-}
 
 // New standalone imports
 import { FlixorProvider, useFlixor } from './src/core';
@@ -172,6 +155,16 @@ const HomeStackNavigator = React.memo(() => {
           component={StremioSources}
           options={{ presentation: 'card', animation: 'slide_from_right' }}
         />
+        <HomeStack.Screen
+          name="EntityBrowse"
+          component={EntityBrowse}
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
+        />
+        <HomeStack.Screen
+          name="UserCollection"
+          component={UserCollection}
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
+        />
       </HomeStack.Navigator>
       {topBarVisible && <GlobalTopAppBar screenContext="HomeStack" />}
     </View>
@@ -200,6 +193,21 @@ const NewHotStackNavigator = React.memo(() => {
           component={StremioSources}
           options={{ presentation: 'card', animation: 'slide_from_right' }}
         />
+        <NewHotStack.Screen
+          name="EntityBrowse"
+          component={EntityBrowse}
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
+        />
+        <NewHotStack.Screen
+          name="UserCollection"
+          component={UserCollection}
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
+        />
+        <NewHotStack.Screen
+          name="Browse"
+          component={Browse}
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
+        />
       </NewHotStack.Navigator>
       {topBarVisible && <GlobalTopAppBar screenContext="NewHot" />}
     </View>
@@ -226,6 +234,21 @@ const MyListStackNavigator = React.memo(() => {
         <MyListStack.Screen
           name="StremioSources"
           component={StremioSources}
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
+        />
+        <MyListStack.Screen
+          name="EntityBrowse"
+          component={EntityBrowse}
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
+        />
+        <MyListStack.Screen
+          name="UserCollection"
+          component={UserCollection}
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
+        />
+        <MyListStack.Screen
+          name="Browse"
+          component={Browse}
           options={{ presentation: 'card', animation: 'slide_from_right' }}
         />
       </MyListStack.Navigator>
@@ -258,14 +281,15 @@ const SearchStackNavigator = React.memo(() => {
   const [nativeSearchText, setNativeSearchText] = React.useState('');
   // iOS 26+ with liquid glass: Use native search (header required for tab bar transformation)
   // iOS 18 and below / Android: Use custom search bar
-  const useNativeTabs = Platform.OS === 'ios' && createNativeBottomTabNavigator && liquidGlassAvailable;
+  const useNativeTabs = usesNativeTabBar;
+  const theme = useTheme();
 
   return (
     <View style={{ flex: 1 }}>
       <SearchStack.Navigator
         screenOptions={{
           headerShown: false,
-          contentStyle: { backgroundColor: '#0a0a0a' },
+          contentStyle: { backgroundColor: theme.background },
         }}
       >
         <SearchStack.Screen
@@ -308,6 +332,21 @@ const SearchStackNavigator = React.memo(() => {
           component={StremioSources}
           options={{ presentation: 'card', animation: 'slide_from_right' }}
         />
+        <SearchStack.Screen
+          name="EntityBrowse"
+          component={EntityBrowse}
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
+        />
+        <SearchStack.Screen
+          name="UserCollection"
+          component={UserCollection}
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
+        />
+        <SearchStack.Screen
+          name="Browse"
+          component={Browse}
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
+        />
       </SearchStack.Navigator>
     </View>
   );
@@ -338,6 +377,20 @@ const SettingsTabScreen = React.memo(() => (
     <SettingsStack.Screen name="LibraryMappingSettings" component={LibraryMappingSettings} />
     <SettingsStack.Screen name="StremioSettings" component={StremioSettings} />
     <SettingsStack.Screen name="StremioAddons" component={StremioAddons} />
+    <SettingsStack.Screen name="HomeRowsSettings" component={HomeRowsSettings} />
+    <SettingsStack.Screen name="AppearanceSettings" component={AppearanceSettings} />
+    <SettingsStack.Screen
+      name="Details"
+      component={Details}
+      options={{ presentation: 'card', animation: 'slide_from_right' }}
+    />
+    <SettingsStack.Screen
+      name="Browse"
+      component={Browse}
+      options={{ presentation: 'card', animation: 'slide_from_right' }}
+    />
+    <SettingsStack.Screen name="EntityBrowse" component={EntityBrowse} />
+    <SettingsStack.Screen name="UserCollection" component={UserCollection} />
   </SettingsStack.Navigator>
 ));
 
@@ -346,81 +399,72 @@ const Tabs = React.memo(() => {
   const tabBarVisible = useTopBarStore(s => s.tabBarVisible === true);
   const insets = useSafeAreaInsets();
   const { settings } = useAppSettings();
+  const theme = useTheme();
+  const labelMode = useAppSetting('tabLabelMode');
+  const glowEnabled = useAppSetting('navGlowEnabled');
 
   // Use native iOS tabs only on iOS 26+ with liquid glass
   // iOS 18 and below falls back to regular tabs with blur view (same as Android)
-  if (Platform.OS === 'ios' && createNativeBottomTabNavigator && liquidGlassAvailable) {
-    const IOSTab = createNativeBottomTabNavigator();
+  if (NativeTab) {
+    const nativeOptions = (title: string, symbol: string, extra?: object) =>
+      ({ navigation }: { navigation: any }) => ({
+        title,
+        // An empty label leaves only the icon. The options re-run when the tab changes.
+        tabBarLabel: labelMode === 'always' || (labelMode === 'selected' && navigation.isFocused()) ? title : '',
+        tabBarIcon: () => ({ type: 'sfSymbol', name: symbol }),
+        ...extra,
+      });
 
     return (
-      <View style={{ flex: 1, backgroundColor: '#1b0a10' }}>
-        <IOSTab.Navigator
+      <View style={{ flex: 1, backgroundColor: theme.shellBackground }}>
+        <NativeTab.Navigator
           initialRouteName="HomeTab"
           screenOptions={{
             headerShown: false,
-            tabBarActiveTintColor: '#007AFF',
+            tabBarActiveTintColor: theme.chosenAccentBright ?? '#007AFF',
             tabBarInactiveTintColor: '#8E8E93',
             translucent: true,
             lazy: false,
             freezeOnBlur: false,
           }}
         >
-          <IOSTab.Screen
+          <NativeTab.Screen
             name="HomeTab"
             component={HomeStackNavigator}
-            options={{
-              title: 'Home',
-              tabBarIcon: () => ({ type: 'sfSymbol', name: 'house' }),
-            }}
+            options={nativeOptions('Home', 'house')}
           />
-          <IOSTab.Screen
+          <NativeTab.Screen
             name="SearchTab"
             component={SearchStackNavigator}
-            options={{
-              title: 'Search',
-              tabBarIcon: () => ({ type: 'sfSymbol', name: 'magnifyingglass' }),
-              tabBarSystemItem: 'search',
-            }}
+            options={nativeOptions('Search', 'magnifyingglass', { tabBarSystemItem: 'search' })}
           />
           {settings.showNewHotTab && (
-            <IOSTab.Screen
+            <NativeTab.Screen
               name="NewHotTab"
               component={NewHotStackNavigator}
-              options={{
-                title: 'New & Hot',
-                tabBarIcon: () => ({ type: 'sfSymbol', name: 'play.circle' }),
-              }}
+              options={nativeOptions('New & Hot', 'play.circle')}
             />
           )}
           {settings.showMyListTab && (
-            <IOSTab.Screen
+            <NativeTab.Screen
               name="MyTab"
               component={MyListStackNavigator}
-              options={{
-                title: 'My List',
-                tabBarIcon: () => ({ type: 'sfSymbol', name: 'bookmark' }),
-              }}
+              options={nativeOptions('My List', 'bookmark')}
             />
           )}
           {settings.showDownloadsTab && (
-            <IOSTab.Screen
+            <NativeTab.Screen
               name="DownloadsTab"
               component={DownloadsStackNavigator}
-              options={{
-                title: 'Downloads',
-                tabBarIcon: () => ({ type: 'sfSymbol', name: 'arrow.down.circle' }),
-              }}
+              options={nativeOptions('Downloads', 'arrow.down.circle')}
             />
           )}
-          <IOSTab.Screen
+          <NativeTab.Screen
             name="SettingsTab"
             component={SettingsTabScreen}
-            options={{
-              title: 'Settings',
-              tabBarIcon: () => ({ type: 'sfSymbol', name: 'gear' }),
-            }}
+            options={nativeOptions('Settings', 'gear')}
           />
-        </IOSTab.Navigator>
+        </NativeTab.Navigator>
       </View>
     );
   }
@@ -430,9 +474,15 @@ const Tabs = React.memo(() => {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        sceneStyle: { backgroundColor: '#1b0a10' },
-        tabBarShowLabel: true,
-        tabBarActiveTintColor: '#fff',
+        sceneStyle: { backgroundColor: theme.shellBackground },
+        tabBarShowLabel: labelMode !== 'none',
+        // Hidden labels keep their space so the icons do not shift between tabs
+        tabBarLabel: labelMode === 'selected'
+          ? ({ focused, color, children }) => (
+              <Text style={{ color, fontSize: 10, textAlign: 'center', opacity: focused ? 1 : 0 }}>{children}</Text>
+            )
+          : undefined,
+        tabBarActiveTintColor: theme.chosenAccentBright ?? '#fff',
         tabBarInactiveTintColor: '#bdbdbd',
         lazy: true,
         freezeOnBlur: Platform.OS === 'android', // Freeze inactive tabs on Android for performance
@@ -459,7 +509,7 @@ const Tabs = React.memo(() => {
             : route.name === 'MyTab' ? (focused ? 'bookmark' : 'bookmark-outline')
             : route.name === 'DownloadsTab' ? (focused ? 'download' : 'download-outline')
             : (focused ? 'home' : 'home-outline');
-          return <Ionicons name={name as any} size={22} color={color} />;
+          return <TabGlowIcon name={name as any} size={22} color={color} glow={glowEnabled && focused} theme={theme} />;
         }
       })}
       screenListeners={{
@@ -486,6 +536,8 @@ const Tabs = React.memo(() => {
 
 function AppContent() {
   const { flixor, isLoading, error, isAuthenticated, isConnected, refresh, refreshProfile } = useFlixor();
+  const { isLoaded: isAppModeReady, isStremioOnly } = useAppMode();
+  const theme = useTheme();
   const {
     isUpdateAvailable,
     isDownloading,
@@ -529,7 +581,7 @@ function AppContent() {
   }, [flixor, refresh]);
 
   // Show loading screen during initialization or onboarding check
-  if (isLoading || hasCompletedOnboarding === null) {
+  if (isLoading || hasCompletedOnboarding === null || !isAppModeReady) {
     return (
       <View style={{ flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' }}>
         <ActivityIndicator color="#fff" size="large" />
@@ -542,7 +594,7 @@ function AppContent() {
   if (error) {
     return (
       <View style={{ flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-        <Text style={{ color: '#e50914', fontSize: 18, fontWeight: '600', marginBottom: 8 }}>
+        <Text style={{ color: theme.accent, fontSize: 18, fontWeight: '600', marginBottom: 8 }}>
           Initialization Error
         </Text>
         <Text style={{ color: '#999', textAlign: 'center' }}>{error.message}</Text>
@@ -561,17 +613,22 @@ function AppContent() {
             animation: 'slide_from_right', 
             fullScreenGestureEnabled: true 
           }}>
-          {!isAuthenticated ? (
+          {isStremioOnly && !hasCompletedOnboarding ? (
+            // Stremio-only runs with no Plex account or server
+            <Stack.Screen name="Onboarding">
+              {() => <OnboardingScreen onComplete={handleOnboardingComplete} />}
+            </Stack.Screen>
+          ) : !isStremioOnly && !isAuthenticated ? (
             // Not logged in - show Plex login
             <Stack.Screen name="PlexLogin">
               {() => <PlexLogin onAuthenticated={refresh} />}
             </Stack.Screen>
-          ) : !isConnected ? (
+          ) : !isStremioOnly && !isConnected ? (
             // Logged in but no server selected - show server selection
             <Stack.Screen name="ServerSelect">
               {() => <ServerSelect onConnected={refresh} />}
             </Stack.Screen>
-          ) : !hasCompletedOnboarding ? (
+          ) : !isStremioOnly && !hasCompletedOnboarding ? (
             // Fully connected but first time - show onboarding (includes config as final slide)
             <Stack.Screen name="Onboarding">
               {() => <OnboardingScreen onComplete={handleOnboardingComplete} />}
@@ -629,6 +686,7 @@ function AppContent() {
         onUpdateLater={snoozeUpdate}
         onDismiss={dismissUpdate}
       />
+      <ToastHost />
     </>
   );
 }
@@ -644,6 +702,8 @@ export default function App() {
       appLogger.setDebugEnabled(settings.enableDebugLogging);
       appLogger.info('App started');
     })();
+
+    loadAppMode();
 
     return () => memoryManager.cleanup();
   }, []);

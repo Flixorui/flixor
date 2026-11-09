@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, Switch, Dimensions, Linking, Pressable, Animated, Platform, Alert } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Dimensions, Linking, Pressable, Animated, Platform, Alert } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -24,6 +24,9 @@ import TMDBIcon from '../components/icons/TMDBIcon';
 import TraktIcon from '../components/icons/TraktIcon';
 import PlexIcon from '../components/icons/PlexIcon';
 import OverseerrIcon from '../components/icons/OverseerrIcon';
+import { useTheme } from '../hooks/useTheme';
+import { clearAppMode, useAppMode } from '../core/AppMode';
+import SettingsSwitch from '../components/settings/SettingsSwitch';
 
 const { width } = Dimensions.get('window');
 const isTablet = width >= 768;
@@ -64,11 +67,13 @@ interface SettingsProps {
 
 export default function Settings({ onBack }: SettingsProps) {
   const nav: any = useNavigation();
+  const theme = useTheme();
   const insets = useSafeAreaInsets();
   const headerHeight = insets.top + 52;
   const scrollY = useRef(new Animated.Value(0)).current;
   const { isLoading: flixorLoading, isConnected, activeProfile, hasMultipleProfiles } = useFlixor();
   const { settings, updateSetting } = useAppSettings();
+  const { isStremioOnly } = useAppMode();
   const [traktProfile, setTraktProfile] = useState<any | null>(null);
   const [plexUser, setPlexUser] = useState<any | null>(null);
   const [serverInfo, setServerInfo] = useState<{ name: string; url: string } | null>(null);
@@ -76,14 +81,15 @@ export default function Settings({ onBack }: SettingsProps) {
 
   useFocusEffect(
     useCallback(() => {
-      if (flixorLoading || !isConnected) return;
+      if (flixorLoading || (!isConnected && !isStremioOnly)) return;
 
       (async () => {
         setTraktProfile(await getTraktProfile());
+        if (isStremioOnly) return;
         setPlexUser(await getPlexUser());
         setServerInfo(getConnectedServerInfo());
       })();
-    }, [flixorLoading, isConnected])
+    }, [flixorLoading, isConnected, isStremioOnly])
   );
 
   // Only create goBack if onBack was provided (from sub-screen navigation)
@@ -106,7 +112,18 @@ export default function Settings({ onBack }: SettingsProps) {
     return 'Main Account';
   }, [activeProfile, hasMultipleProfiles]);
 
-  const renderAccount = () => (
+  const renderAccount = () => isStremioOnly ? (
+    <SettingsCard title="ACCOUNT">
+      <SettingItem
+        title="Connect Plex"
+        description="Add your Plex libraries to Flixor"
+        renderIcon={() => <PlexIcon size={18} color="#e5e7eb" />}
+        renderRight={renderRightChevron}
+        onPress={() => clearAppMode()}
+        isLast={true}
+      />
+    </SettingsCard>
+  ) : (
     <SettingsCard title="ACCOUNT">
       {hasMultipleProfiles && (
         <SettingItem
@@ -137,13 +154,13 @@ export default function Settings({ onBack }: SettingsProps) {
 
   const renderContent = () => (
     <>
-      <SettingsCard title="DISCOVERY MODE">
+      {!isStremioOnly && <SettingsCard title="DISCOVERY MODE">
         <SettingItem
           title="Library Only Mode"
           description="Turn off all discovery features. Only show content from your Plex library."
           icon="eye-off-outline"
           renderRight={() => (
-            <Switch
+            <SettingsSwitch
               value={settings.discoveryDisabled}
               onValueChange={async (value) => {
                 await setDiscoveryDisabled(value);
@@ -161,30 +178,42 @@ export default function Settings({ onBack }: SettingsProps) {
           )}
           isLast={true}
         />
-      </SettingsCard>
+      </SettingsCard>}
       <SettingsCard title="CONTENT & DISCOVERY">
-        <SettingItem
-          title="Catalogs"
-          description="Choose which libraries appear"
-          icon="albums-outline"
-          renderRight={renderRightChevron}
-          onPress={() => nav.navigate('CatalogSettings')}
-          isLast={false}
-        />
-        <SettingItem
-          title="Library Mapping"
-          description="Choose libraries for Movies & TV Shows pills"
-          icon="layers-outline"
-          renderRight={renderRightChevron}
-          onPress={() => nav.navigate('LibraryMappingSettings')}
-          isLast={false}
-        />
+        {!isStremioOnly && (
+          <>
+            <SettingItem
+              title="Catalogs"
+              description="Choose which libraries appear"
+              icon="albums-outline"
+              renderRight={renderRightChevron}
+              onPress={() => nav.navigate('CatalogSettings')}
+              isLast={false}
+            />
+            <SettingItem
+              title="Library Mapping"
+              description="Choose libraries for Movies & TV Shows pills"
+              icon="layers-outline"
+              renderRight={renderRightChevron}
+              onPress={() => nav.navigate('LibraryMappingSettings')}
+              isLast={false}
+            />
+          </>
+        )}
       <SettingItem
         title="Home Screen"
         description="Hero and row visibility"
         icon="home-outline"
         renderRight={renderRightChevron}
         onPress={() => nav.navigate('HomeScreenSettings')}
+        isLast={false}
+      />
+      <SettingItem
+        title="Home Rows"
+        description="Reorder, rename and hide rows"
+        icon="reorder-three-outline"
+        renderRight={renderRightChevron}
+        onPress={() => nav.navigate('HomeRowsSettings')}
         isLast={false}
       />
       <SettingItem
@@ -220,17 +249,43 @@ export default function Settings({ onBack }: SettingsProps) {
         isLast={true}
       />
     </SettingsCard>
+    <SettingsCard title="BROWSE & COLLECTIONS">
+      <SettingItem
+        title="Studios & Networks"
+        description="Browse titles by company or network"
+        icon="business-outline"
+        renderRight={renderRightChevron}
+        onPress={() => nav.navigate('EntityBrowse')}
+        isLast={false}
+      />
+      <SettingItem
+        title="Your Collections"
+        description="Collections you build"
+        icon="albums-outline"
+        renderRight={renderRightChevron}
+        onPress={() => nav.navigate('UserCollection')}
+        isLast={true}
+      />
+    </SettingsCard>
     </>
   );
 
   const renderAppearance = () => (
     <SettingsCard title="APPEARANCE">
       <SettingItem
+        title="Theme"
+        description="Accent color and background"
+        icon="color-palette-outline"
+        renderRight={renderRightChevron}
+        onPress={() => nav.navigate('AppearanceSettings')}
+        isLast={false}
+      />
+      <SettingItem
         title="Episode Layout"
         description={settings.episodeLayoutStyle === 'horizontal' ? 'Horizontal' : 'Vertical'}
         icon="grid-outline"
         renderRight={() => (
-          <Switch
+          <SettingsSwitch
             value={settings.episodeLayoutStyle === 'horizontal'}
             onValueChange={(value) =>
               updateSetting('episodeLayoutStyle', value ? 'horizontal' : 'vertical')
@@ -244,7 +299,7 @@ export default function Settings({ onBack }: SettingsProps) {
         description="Show dimmed backdrop behind player settings"
         icon="image-outline"
         renderRight={() => (
-          <Switch
+          <SettingsSwitch
             value={settings.enableStreamsBackdrop}
             onValueChange={(value) => updateSetting('enableStreamsBackdrop', value)}
           />
@@ -261,7 +316,7 @@ export default function Settings({ onBack }: SettingsProps) {
         description="Enable blur view effects. May impact performance on some devices."
         icon="sparkles-outline"
         renderRight={() => (
-          <Switch
+          <SettingsSwitch
             value={settings.enableAndroidBlurView}
             onValueChange={(value) => updateSetting('enableAndroidBlurView', value)}
           />
@@ -331,7 +386,7 @@ export default function Settings({ onBack }: SettingsProps) {
         description="Auto-skip detected intro segments"
         icon="play-skip-forward-outline"
         renderRight={() => (
-          <Switch
+          <SettingsSwitch
             value={settings.skipIntroAutomatically}
             onValueChange={(value) => updateSetting('skipIntroAutomatically', value)}
           />
@@ -343,7 +398,7 @@ export default function Settings({ onBack }: SettingsProps) {
         description="Auto-skip detected credits segments"
         icon="play-skip-forward-outline"
         renderRight={() => (
-          <Switch
+          <SettingsSwitch
             value={settings.skipCreditsAutomatically}
             onValueChange={(value) => updateSetting('skipCreditsAutomatically', value)}
           />
@@ -355,7 +410,7 @@ export default function Settings({ onBack }: SettingsProps) {
         description="Automatically play next episode"
         icon="play-forward-outline"
         renderRight={() => (
-          <Switch
+          <SettingsSwitch
             value={settings.autoPlayNext}
             onValueChange={(value) => updateSetting('autoPlayNext', value)}
           />
@@ -421,7 +476,7 @@ export default function Settings({ onBack }: SettingsProps) {
         description="Enable verbose logging for troubleshooting"
         icon="bug-outline"
         renderRight={() => (
-          <Switch
+          <SettingsSwitch
             value={settings.enableDebugLogging}
             onValueChange={handleDebugLoggingToggle}
           />
@@ -543,7 +598,7 @@ export default function Settings({ onBack }: SettingsProps) {
 
   if (isTablet) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: theme.settingsBackground }]}>
         <SettingsHeader title="Settings" onBack={goBack} scrollY={scrollY} />
         <View style={[styles.tabletLayout, { paddingTop: headerHeight }]}>
           <View style={styles.sidebar}>
@@ -591,7 +646,7 @@ export default function Settings({ onBack }: SettingsProps) {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.settingsBackground }]}>
       <SettingsHeader title="Settings" onBack={goBack} scrollY={scrollY} />
       <Animated.ScrollView
         contentContainerStyle={[

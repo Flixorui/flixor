@@ -2,15 +2,19 @@ import React from 'react';
 import { View, Text, Pressable } from 'react-native';
 import FastImage from '@d11/react-native-fast-image';
 import * as Haptics from 'expo-haptics';
+import { Ionicons } from '@expo/vector-icons';
 import { useAppSettings } from '../hooks/useAppSettings';
 
-const POSTER_SIZES = {
+export const POSTER_SIZES = {
   small: { width: 96, height: 144 },
   medium: { width: 110, height: 165 },
   large: { width: 128, height: 192 },
 } as const;
 
-function Poster({ uri, title, subtitle, width, height, authHeaders, onPress }: { uri?: string; title?: string; subtitle?: string; width?: number; height?: number; authHeaders?: Record<string,string>; onPress?: ()=>void }) {
+export const POSTER_GAP = 12;
+export const LANDSCAPE_CARD_SIZE = { width: 220, height: 124 } as const;
+
+function Poster({ uri, title, subtitle, rating, width, height, authHeaders, onPress }: { uri?: string; title?: string; subtitle?: string; rating?: number; width?: number; height?: number; authHeaders?: Record<string,string>; onPress?: ()=>void }) {
   const { settings } = useAppSettings();
   const size = POSTER_SIZES[settings.posterSize] || POSTER_SIZES.medium;
   const finalWidth = width ?? size.width;
@@ -25,7 +29,7 @@ function Poster({ uri, title, subtitle, width, height, authHeaders, onPress }: {
   };
 
   return (
-    <Pressable onPress={handlePress} style={{ width: finalWidth, marginRight: 12 }} disabled={!onPress}>
+    <Pressable onPress={handlePress} style={{ width: finalWidth, marginRight: POSTER_GAP }} disabled={!onPress}>
       <View style={[{ width: finalWidth, height: finalHeight, backgroundColor: '#222' }, border]}>
         {uri ? (
           <FastImage
@@ -43,6 +47,12 @@ function Poster({ uri, title, subtitle, width, height, authHeaders, onPress }: {
             <Text style={{ color: '#555', fontSize: 12 }}>No Image</Text>
           </View>
         )}
+        {settings.showRatingBadges && rating && rating > 0 ? (
+          <View style={{ position: 'absolute', top: 6, right: 6, flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.65)', borderRadius: 6, paddingHorizontal: 5, paddingVertical: 2 }}>
+            <Ionicons name="star" size={9} color="#FFC857" />
+            <Text style={{ color: '#fff', fontSize: 10, fontWeight: '600', marginLeft: 3 }}>{rating.toFixed(1)}</Text>
+          </View>
+        ) : null}
       </View>
       {settings.showPosterTitles && (title || subtitle) ? (
         <View style={{ marginTop: 6 }}>

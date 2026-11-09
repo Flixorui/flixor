@@ -6,6 +6,8 @@
 import { getFlixorCore } from './index';
 import type { BrowseContext, BrowseItem, BrowseResult } from '@flixor/core';
 import type { PlexMediaItem, TMDBMedia } from '@flixor/core';
+import { fetchCatalogPage, type InstalledCatalog } from '../stremio/StremioCatalogService';
+import { mapCatalogPreviews } from '../stremio/StremioCatalogMapper';
 
 // Helper: Parallel processing with concurrency limit
 async function withLimit<T, R>(items: T[], limit: number, fn: (t: T) => Promise<R>): Promise<R[]> {
@@ -23,6 +25,43 @@ async function withLimit<T, R>(items: T[], limit: number, fn: (t: T) => Promise<
 }
 
 const PAGE_SIZE = 20;
+const STREMIO_PAGE_SIZE = 100;
+
+/** Mobile-only browse context, kept here so `BrowseContext` in core doesn't change. */
+export type StremioCatalogBrowseContext = { type: 'stremioCatalog'; catalog: InstalledCatalog };
+export type AnyBrowseContext = BrowseContext | StremioCatalogBrowseContext;
+
+/**
+ * Pages through one addon catalog. Addons don't report totals and page sizes vary, so
+ * the next `skip` is what has been received so far, and paging stops when a page brings
+ * nothing new (which also ends the list for an addon that ignores `skip`).
+ */
+export function createStremioCatalogPager(catalog: InstalledCatalog) {
+  let skip = 0;
+  let seen = new Set<string>();
+
+  return async function loadPage(page: number): Promise<BrowseResult> {
+    if (page <= 1) {
+      skip = 0;
+      seen = new Set();
+    }
+    const previews = await fetchCatalogPage(catalog, skip, STREMIO_PAGE_SIZE);
+    const mapped = await mapCatalogPreviews(previews);
+    const fresh = mapped.filter((item) => {
+      if (seen.has(item.id)) return false;
+      seen.add(item.id);
+      return true;
+    });
+    skip += previews.length;
+    const items: BrowseItem[] = fresh.map((item) => ({
+      id: item.id,
+      title: item.title,
+      image: item.image,
+      subtitle: item.subtitle,
+    }));
+    return { items, hasMore: catalog.supportsPaging && previews.length > 0 && fresh.length > 0 };
+  };
+}
 
 /**
  * Fetch browse items for a given context and page

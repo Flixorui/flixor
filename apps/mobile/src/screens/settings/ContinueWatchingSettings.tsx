@@ -1,11 +1,18 @@
 import React from 'react';
-import { View, Text, ScrollView, Switch, Pressable, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import SettingsHeader from '../../components/settings/SettingsHeader';
 import SettingsCard from '../../components/settings/SettingsCard';
 import SettingItem from '../../components/settings/SettingItem';
+import SettingsSwitch from '../../components/settings/SettingsSwitch';
 import { useAppSettings } from '../../hooks/useAppSettings';
+import { useTheme } from '../../hooks/useTheme';
+import { useAppMode } from '../../core/AppMode';
+import { getFlixorCore } from '../../core/index';
+import { setContinueWatchingSource } from '../../core/HomeRowsStore';
+import { effectiveContinueWatchingSource } from '../../core/TraktContinueWatching';
+import type { ContinueWatchingSort, ContinueWatchingSource } from '../../core/SettingsData';
 
 const TTL_OPTIONS = [
   { label: '15 min', value: 15 * 60 * 1000 },
@@ -16,11 +23,27 @@ const TTL_OPTIONS = [
   { label: '24 hours', value: 24 * 60 * 60 * 1000 },
 ];
 
+const SORT_OPTIONS: Array<{ label: string; value: ContinueWatchingSort }> = [
+  { label: 'Recent', value: 'recent' },
+  { label: 'Next Up First', value: 'nextEpisodeFirst' },
+  { label: 'Title', value: 'title' },
+];
+
 export default function ContinueWatchingSettings() {
   const nav: any = useNavigation();
   const insets = useSafeAreaInsets();
   const headerHeight = insets.top + 52;
   const { settings, updateSetting } = useAppSettings();
+  const theme = useTheme();
+  const { isStremioOnly } = useAppMode();
+  const activeLayoutColor = theme.chosenAccent ?? '#e5a00d';
+  const traktConnected = getFlixorCore().isTraktAuthenticated;
+  const source = effectiveContinueWatchingSource({ ...settings, discoveryDisabled: false });
+  const sourceOptions: Array<{ label: string; value: ContinueWatchingSource }> = [
+    { label: 'Automatic', value: 'automatic' },
+    { label: isStremioOnly ? 'This Device' : 'Plex Only', value: 'library' },
+    { label: 'Trakt Only', value: 'trakt' },
+  ];
 
   return (
     <View style={styles.container}>
@@ -38,7 +61,10 @@ export default function ContinueWatchingSettings() {
                 return (
                   <Pressable
                     key={option.value}
-                    style={[styles.layoutChip, selected && styles.layoutChipActive]}
+                    style={[
+                      styles.layoutChip,
+                      selected && { backgroundColor: `${activeLayoutColor}33`, borderColor: activeLayoutColor },
+                    ]}
                     onPress={() => updateSetting('continueWatchingLayout', option.value as 'poster' | 'landscape')}
                   >
                     <Text style={[styles.layoutChipText, selected && styles.layoutChipTextActive]}>
@@ -54,13 +80,78 @@ export default function ContinueWatchingSettings() {
           </View>
         </SettingsCard>
 
+        <SettingsCard title="SOURCE">
+          <View style={styles.layoutGroup}>
+            <Text style={styles.layoutLabel}>Continue Watching From</Text>
+            <View style={styles.layoutSegment}>
+              {sourceOptions.map((option) => {
+                const selected = source === option.value;
+                return (
+                  <Pressable
+                    key={option.value}
+                    style={[
+                      styles.layoutChip,
+                      selected && { backgroundColor: `${activeLayoutColor}33`, borderColor: activeLayoutColor },
+                    ]}
+                    onPress={() => setContinueWatchingSource(option.value)}
+                  >
+                    <Text style={[styles.layoutChipText, selected && styles.layoutChipTextActive]}>{option.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <Text style={styles.layoutDescription}>
+              {settings.discoveryDisabled
+                ? 'Library Only Mode keeps Trakt out of this row.'
+                : traktConnected
+                  ? 'Automatic combines your library with Trakt progress and next episodes.'
+                  : 'Connect Trakt in Settings to include your Trakt progress.'}
+            </Text>
+          </View>
+        </SettingsCard>
+
+        <SettingsCard title="ORDER AND SPOILERS">
+          <View style={styles.layoutGroup}>
+            <Text style={styles.layoutLabel}>Sort Order</Text>
+            <View style={styles.layoutSegment}>
+              {SORT_OPTIONS.map((option) => {
+                const selected = settings.continueWatchingSort === option.value;
+                return (
+                  <Pressable
+                    key={option.value}
+                    style={[
+                      styles.layoutChip,
+                      selected && { backgroundColor: `${activeLayoutColor}33`, borderColor: activeLayoutColor },
+                    ]}
+                    onPress={() => updateSetting('continueWatchingSort', option.value)}
+                  >
+                    <Text style={[styles.layoutChipText, selected && styles.layoutChipTextActive]}>{option.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+          <SettingItem
+            title="Blur Next-Up Thumbnails"
+            description="Hide artwork of episodes you haven't started"
+            icon="eye-off-outline"
+            renderRight={() => (
+              <SettingsSwitch
+                value={settings.continueWatchingBlurNextUp}
+                onValueChange={(value) => updateSetting('continueWatchingBlurNextUp', value)}
+              />
+            )}
+            isLast={true}
+          />
+        </SettingsCard>
+
         <SettingsCard title="PLAYBACK">
           <SettingItem
             title="Use Cached Streams"
             description="Open the player directly using saved alternate stream info when it is still valid"
             icon="flash-outline"
             renderRight={() => (
-              <Switch
+              <SettingsSwitch
                 value={settings.useCachedStreams}
                 onValueChange={(value) => updateSetting('useCachedStreams', value)}
               />
@@ -73,7 +164,7 @@ export default function ContinueWatchingSettings() {
               description="When cache is off, open details instead of player"
               icon="information-circle-outline"
               renderRight={() => (
-                <Switch
+                <SettingsSwitch
                   value={settings.openMetadataScreenWhenCacheDisabled}
                   onValueChange={(value) => updateSetting('openMetadataScreenWhenCacheDisabled', value)}
                 />
@@ -171,10 +262,6 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.12)',
     backgroundColor: 'rgba(255,255,255,0.04)',
     alignItems: 'center',
-  },
-  layoutChipActive: {
-    backgroundColor: 'rgba(229, 160, 13, 0.2)',
-    borderColor: '#e5a00d',
   },
   layoutChipText: {
     color: '#9ca3af',

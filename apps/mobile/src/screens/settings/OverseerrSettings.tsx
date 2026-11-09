@@ -6,7 +6,6 @@ import {
   TextInput,
   Pressable,
   StyleSheet,
-  Switch,
   Linking,
   ActivityIndicator,
 } from 'react-native';
@@ -25,9 +24,12 @@ import {
   signOutOverseerr,
   clearOverseerrCache,
 } from '../../core/OverseerrService';
+import { useTheme } from '../../hooks/useTheme';
+import SettingsSwitch from '../../components/settings/SettingsSwitch';
 
 export default function OverseerrSettings() {
   const nav: any = useNavigation();
+  const theme = useTheme();
   const insets = useSafeAreaInsets();
   const headerHeight = insets.top + 52;
   const { settings, updateSetting } = useAppSettings();
@@ -271,7 +273,7 @@ export default function OverseerrSettings() {
   const statusInfo = getStatusInfo();
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.settingsBackground }]}>
       <SettingsHeader title="Overseerr" onBack={() => nav.goBack()} />
       <ScrollView
         contentContainerStyle={[
@@ -309,7 +311,7 @@ export default function OverseerrSettings() {
             description="Request movies and TV shows"
             icon="cloud-download-outline"
             renderRight={() => (
-              <Switch value={settings.overseerrEnabled} onValueChange={toggleEnabled} />
+              <SettingsSwitch value={settings.overseerrEnabled} onValueChange={toggleEnabled} />
             )}
             isLast={true}
           />

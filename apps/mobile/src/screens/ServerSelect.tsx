@@ -11,12 +11,14 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useFlixor } from '../core';
 import type { PlexServer } from '@flixor/core';
+import { useTheme } from '../hooks/useTheme';
 
 interface ServerSelectProps {
   onConnected: () => void;
 }
 
 export default function ServerSelect({ onConnected }: ServerSelectProps) {
+  const theme = useTheme();
   const { flixor } = useFlixor();
   const [servers, setServers] = useState<PlexServer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -99,7 +101,7 @@ export default function ServerSelect({ onConnected }: ServerSelectProps) {
             marginRight: 16,
           }}
         >
-          <Ionicons name="server" size={24} color="#e50914" />
+          <Ionicons name="server" size={24} color={theme.accent} />
         </View>
 
         <View style={{ flex: 1 }}>
@@ -129,7 +131,7 @@ export default function ServerSelect({ onConnected }: ServerSelectProps) {
         </View>
 
         {isConnecting ? (
-          <ActivityIndicator color="#e50914" />
+          <ActivityIndicator color={theme.accent} />
         ) : (
           <Ionicons name="chevron-forward" size={20} color="#666" />
         )}
@@ -188,7 +190,7 @@ export default function ServerSelect({ onConnected }: ServerSelectProps) {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={handleRefresh}
-              tintColor="#e50914"
+              tintColor={theme.accent}
             />
           }
           ListFooterComponent={

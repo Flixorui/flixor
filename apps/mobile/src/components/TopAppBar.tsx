@@ -12,6 +12,8 @@ import {
   TOP_BAR_EXPANDED_CONTENT_HEIGHT,
   TOP_BAR_PILLS_AREA_HEIGHT,
 } from './topBarMetrics';
+import { useTheme } from '../hooks/useTheme';
+import { useAppSetting } from '../hooks/useAppSettings';
 
 if (Platform.OS === 'android') {
   UIManager.setLayoutAnimationEnabledExperimental?.(true);
@@ -36,6 +38,8 @@ function TopAppBar({ visible, username, showFilters, selected, onChange, onOpenC
 }) {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
+  const theme = useTheme();
+  const barStyle = useAppSetting('topBarStyle');
 
   const collapsedHeight = insets.top + TOP_BAR_COLLAPSED_CONTENT_HEIGHT;
   const expandedHeight = insets.top + TOP_BAR_EXPANDED_CONTENT_HEIGHT;
@@ -45,11 +49,19 @@ function TopAppBar({ visible, username, showFilters, selected, onChange, onOpenC
   const fallbackOffset = React.useRef(new Animated.Value(0)).current;
   const fallbackOpacity = React.useRef(new Animated.Value(0)).current;
 
-  const canCollapse = !!scrollY && showFilters && !customFilters;
+  // Expanded keeps the pills on screen. Adaptive hides them on scroll down and returns
+  // them on scroll up. Compact hides them on scroll and returns them only at the top.
+  const canCollapse = !!scrollY && showFilters && !customFilters && barStyle !== 'expanded';
   const scrollMinusDeadzone = scrollY ? Animated.subtract(scrollY, 8) : fallbackOffset;
-  const pillsOffset = canCollapse
-    ? Animated.diffClamp(scrollMinusDeadzone, 0, pillsAreaHeight)
-    : 0;
+  const pillsOffset = !canCollapse
+    ? 0
+    : barStyle === 'compact'
+      ? scrollMinusDeadzone.interpolate({
+          inputRange: [0, pillsAreaHeight],
+          outputRange: [0, pillsAreaHeight],
+          extrapolate: 'clamp',
+        })
+      : Animated.diffClamp(scrollMinusDeadzone, 0, pillsAreaHeight);
   const topClamp = canCollapse
     ? scrollY.interpolate({
         inputRange: [-200, 0, 8],
@@ -132,7 +144,7 @@ function TopAppBar({ visible, username, showFilters, selected, onChange, onOpenC
         }}
       >
         <ConditionalBlurView intensity={90} tint="dark" style={StyleSheet.absoluteFillObject} />
-        <View pointerEvents="none" style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(27,10,16,0.12)' }]} />
+        <View pointerEvents="none" style={[StyleSheet.absoluteFillObject, { backgroundColor: theme.glassTint }]} />
         <Animated.View
           pointerEvents="none"
           style={{
@@ -150,7 +162,7 @@ function TopAppBar({ visible, username, showFilters, selected, onChange, onOpenC
         <View style={{ paddingHorizontal: 16, paddingTop: 0 }} pointerEvents="box-none">
           {/* Header row – always visible */}
           <View style={{ height: TOP_BAR_BASE_HEIGHT, flexDirection: 'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal: 4 }}>
-            <Text style={{ color: '#fff', fontSize: compact ? 20 : 25, fontWeight: compact ? '700' : '600'}}>
+            <Text style={{ color: '#fff', fontSize: compact || barStyle === 'compact' ? 20 : 25, fontWeight: compact ? '700' : '600'}}>
               {compact ? username : `For ${username || 'You'}`}
             </Text>
             <Pressable

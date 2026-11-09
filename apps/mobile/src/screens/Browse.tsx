@@ -14,8 +14,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
-import type { BrowseContext, BrowseItem } from '@flixor/core';
-import { fetchBrowseItems } from '../core/BrowseData';
+import type { BrowseItem } from '@flixor/core';
+import { createStremioCatalogPager, fetchBrowseItems, type AnyBrowseContext } from '../core/BrowseData';
 import { TopBarStore } from '../components/TopBarStore';
 import { useAppSettings } from '../hooks/useAppSettings';
 
@@ -23,7 +23,7 @@ import { useAppSettings } from '../hooks/useAppSettings';
 const IMAGE_PRELOAD_CAP = 12;
 
 type BrowseParams = {
-  context: BrowseContext;
+  context: AnyBrowseContext;
   title: string;
   initialItems?: BrowseItem[];
 };
@@ -46,6 +46,14 @@ export default function Browse() {
   // Static context with initial items has no more pages to load
   const [hasMore, setHasMore] = useState(!(context?.type === 'static' && initialItems.length > 0));
   const [page, setPage] = useState(1);
+  const [loadError, setLoadError] = useState(false);
+
+  const stremioPagerRef = useRef<ReturnType<typeof createStremioCatalogPager> | null>(null);
+  const fetchPage = useCallback((page: number) => {
+    if (context?.type !== 'stremioCatalog') return fetchBrowseItems(context, page);
+    stremioPagerRef.current ??= createStremioCatalogPager(context.catalog);
+    return stremioPagerRef.current(page);
+  }, [context]);
 
   // Preload images for better UX
   const preloadImages = useCallback((itemsToPreload: BrowseItem[]) => {
@@ -96,8 +104,9 @@ export default function Browse() {
   const loadInitial = async () => {
     if (!context) return;
     setLoading(true);
+    setLoadError(false);
     try {
-      const result = await fetchBrowseItems(context, 1);
+      const result = await fetchPage(1);
       if (!isMounted.current) return;
       setItems(result.items);
       setHasMore(result.hasMore);
@@ -106,6 +115,10 @@ export default function Browse() {
       preloadImages(result.items);
     } catch (e) {
       console.log('[Browse] Error loading items:', e);
+      if (isMounted.current) {
+        setHasMore(false);
+        setLoadError(true);
+      }
     } finally {
       if (isMounted.current) setLoading(false);
     }
@@ -116,7 +129,7 @@ export default function Browse() {
     setLoadingMore(true);
     try {
       const nextPage = page + 1;
-      const result = await fetchBrowseItems(context, nextPage);
+      const result = await fetchPage(nextPage);
       if (!isMounted.current) return;
       setItems(prev => [...prev, ...result.items]);
       setHasMore(result.hasMore);
@@ -125,6 +138,7 @@ export default function Browse() {
       preloadImages(result.items);
     } catch (e) {
       console.log('[Browse] Error loading more:', e);
+      if (isMounted.current) setHasMore(false);
     } finally {
       if (isMounted.current) setLoadingMore(false);
     }
@@ -224,7 +238,12 @@ export default function Browse() {
       ) : items.length === 0 ? (
         <View style={styles.emptyContainer}>
           <Ionicons name="film-outline" size={48} color="#444" />
-          <Text style={styles.emptyText}>No items found</Text>
+          <Text style={styles.emptyText}>{loadError ? "Couldn't load this list" : 'No items found'}</Text>
+          {loadError ? (
+            <Pressable onPress={loadInitial} style={styles.loadMoreButton}>
+              <Text style={styles.loadMoreText}>Try Again</Text>
+            </Pressable>
+          ) : null}
         </View>
       ) : (
         <FlatList

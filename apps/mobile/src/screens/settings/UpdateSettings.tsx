@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet, Switch, ActivityIndicator, Platform } from 'react-native';
+import { View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator, Platform } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,6 +8,8 @@ import SettingsHeader from '../../components/settings/SettingsHeader';
 import SettingsCard from '../../components/settings/SettingsCard';
 import SettingItem from '../../components/settings/SettingItem';
 import UpdateService, { type UpdateState } from '../../core/UpdateService';
+import { useTheme } from '../../hooks/useTheme';
+import SettingsSwitch from '../../components/settings/SettingsSwitch';
 
 const STORAGE_KEYS = {
   OTA_ALERTS_ENABLED: 'flixor:ota_alerts_enabled',
@@ -17,6 +19,7 @@ type UpdateStatus = 'idle' | 'checking' | 'available' | 'downloading' | 'install
 
 export default function UpdateSettings() {
   const nav: any = useNavigation();
+  const theme = useTheme();
   const insets = useSafeAreaInsets();
   const headerHeight = insets.top + 52;
 
@@ -165,7 +168,7 @@ export default function UpdateSettings() {
   const isLoading = updateStatus === 'checking' || updateStatus === 'downloading' || updateStatus === 'installing';
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.settingsBackground }]}>
       <SettingsHeader title="App Updates" onBack={() => nav.goBack()} />
       <ScrollView contentContainerStyle={[styles.content, { paddingTop: headerHeight + 12, paddingBottom: insets.bottom + 100 }]}>
         {/* Header */}
@@ -292,7 +295,7 @@ export default function UpdateSettings() {
             description="Show popup when updates are available"
             icon="notifications-outline"
             renderRight={() => (
-              <Switch
+              <SettingsSwitch
                 value={otaAlertsEnabled}
                 onValueChange={toggleOtaAlerts}
               />

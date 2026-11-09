@@ -5,6 +5,7 @@
 
 import { getFlixorCore } from './index';
 import { loadAppSettings } from './SettingsData';
+import { localLibrary } from './LocalLibrary';
 import { mapTmdbToPlex, fetchPlexSeasons, fetchPlexSeasonEpisodes } from './DetailsData';
 import type { PlexMediaItem, TMDBMedia, PlexUltraBlurColors, ContinueWatchingResult } from '@flixor/core';
 
@@ -14,16 +15,8 @@ export type RowItem = {
   image?: string;
   mediaType?: 'movie' | 'tv';
   subtitle?: string; // Optional subtitle (e.g., "3 new episodes" for grouped series)
-};
-
-// Extended type for Trakt Continue Watching with backdrop and progress
-export type TraktContinueWatchingItem = RowItem & {
-  backdrop?: string;
-  progress: number; // 0-100
-  subtitle?: string; // e.g., "S1E5" for episodes
-  seasonNumber?: number; // For episodes
-  episodeNumber?: number; // For episodes
-  plexRatingKey?: string; // Matched Plex episode ratingKey (for direct episode navigation)
+  backdrop?: string; // Landscape art for the landscape row layout
+  rating?: number; // 0-10, for rating badges
 };
 
 // ============================================
@@ -63,6 +56,8 @@ export async function fetchTmdbTrendingAllWeek(): Promise<RowItem[]> {
           : r.backdrop_path
             ? core.tmdb.getBackdropUrl(r.backdrop_path, 'w780')
             : undefined,
+        backdrop: r.backdrop_path ? core.tmdb.getBackdropUrl(r.backdrop_path, 'w780') : undefined,
+        rating: r.vote_average || undefined,
         mediaType: mediaType as 'movie' | 'tv',
       };
     });
@@ -86,6 +81,8 @@ export async function fetchTmdbTrendingTVWeek(): Promise<RowItem[]> {
         : r.backdrop_path
           ? core.tmdb.getBackdropUrl(r.backdrop_path, 'w780')
           : undefined,
+      backdrop: r.backdrop_path ? core.tmdb.getBackdropUrl(r.backdrop_path, 'w780') : undefined,
+      rating: r.vote_average || undefined,
       mediaType: 'tv' as const,
     }));
   } catch (e) {
@@ -108,6 +105,8 @@ export async function fetchTmdbTrendingMoviesWeek(): Promise<RowItem[]> {
         : r.backdrop_path
           ? core.tmdb.getBackdropUrl(r.backdrop_path, 'w780')
           : undefined,
+      backdrop: r.backdrop_path ? core.tmdb.getBackdropUrl(r.backdrop_path, 'w780') : undefined,
+      rating: r.vote_average || undefined,
       mediaType: 'movie' as const,
     }));
   } catch (e) {
@@ -134,6 +133,11 @@ export async function fetchContinueWatching(): Promise<ContinueWatchingResult> {
     console.log('[HomeData] fetchContinueWatching error:', e);
     return { items: [], itemsWithMultipleVersions: new Set() };
   }
+}
+
+/** Like fetchContinueWatching, but throws, so a failed refresh doesn't empty the row. */
+export function refreshContinueWatching(): Promise<ContinueWatchingResult> {
+  return getFlixorCore().plexServer.getContinueWatching({ fresh: true });
 }
 
 export async function fetchOnDeck(): Promise<PlexMediaItem[]> {
@@ -225,6 +229,23 @@ export async function fetchPlexWatchlist(): Promise<RowItem[]> {
   }
 }
 
+/** This device's watchlist, for profiles with no Plex account. */
+export async function fetchLocalWatchlistRow(): Promise<RowItem[]> {
+  try {
+    const entries = await localLibrary.watchlist();
+    return entries.slice(0, 20).map((entry) => ({
+      id: entry.id,
+      title: entry.title,
+      image: entry.posterUrl,
+      backdrop: entry.backdropUrl,
+      mediaType: entry.type === 'movie' ? 'movie' as const : 'tv' as const,
+    }));
+  } catch (e) {
+    console.log('[HomeData] fetchLocalWatchlistRow error:', e);
+    return [];
+  }
+}
+
 // ============================================
 // Plex Genre Rows
 // ============================================
@@ -247,6 +268,8 @@ export async function fetchPlexGenreRow(type: 'movie' | 'show', genre: string): 
       id: `plex:${m.ratingKey}`,
       title: m.title || m.grandparentTitle || 'Untitled',
       image: core.plexServer.getImageUrl(m.thumb, 300),
+      backdrop: m.art ? core.plexServer.getImageUrl(m.art, 600) : undefined,
+      rating: m.rating || undefined,
       mediaType: type === 'movie' ? 'movie' as const : 'tv' as const,
     }));
   } catch (e) {
@@ -268,6 +291,8 @@ export async function fetchTraktTrendingMovies(): Promise<RowItem[]> {
       const movie = item.movie;
       const tmdbId = movie.ids.tmdb;
       let image: string | undefined;
+      let backdrop: string | undefined;
+      let rating: number | undefined;
 
       if (tmdbId) {
         try {
@@ -275,6 +300,10 @@ export async function fetchTraktTrendingMovies(): Promise<RowItem[]> {
           image = details.poster_path
             ? core.tmdb.getPosterUrl(details.poster_path, 'w342')
             : undefined;
+          backdrop = details.backdrop_path
+            ? core.tmdb.getBackdropUrl(details.backdrop_path, 'w780')
+            : undefined;
+          rating = details.vote_average || undefined;
         } catch {}
       }
 
@@ -282,6 +311,8 @@ export async function fetchTraktTrendingMovies(): Promise<RowItem[]> {
         id: tmdbId ? `tmdb:movie:${tmdbId}` : `trakt:movie:${movie.ids.trakt}`,
         title: movie.title,
         image,
+        backdrop,
+        rating,
         mediaType: 'movie' as const,
       };
     });
@@ -300,6 +331,8 @@ export async function fetchTraktTrendingShows(): Promise<RowItem[]> {
       const show = item.show;
       const tmdbId = show.ids.tmdb;
       let image: string | undefined;
+      let backdrop: string | undefined;
+      let rating: number | undefined;
 
       if (tmdbId) {
         try {
@@ -307,6 +340,10 @@ export async function fetchTraktTrendingShows(): Promise<RowItem[]> {
           image = details.poster_path
             ? core.tmdb.getPosterUrl(details.poster_path, 'w342')
             : undefined;
+          backdrop = details.backdrop_path
+            ? core.tmdb.getBackdropUrl(details.backdrop_path, 'w780')
+            : undefined;
+          rating = details.vote_average || undefined;
         } catch {}
       }
 
@@ -314,6 +351,8 @@ export async function fetchTraktTrendingShows(): Promise<RowItem[]> {
         id: tmdbId ? `tmdb:tv:${tmdbId}` : `trakt:show:${show.ids.trakt}`,
         title: show.title,
         image,
+        backdrop,
+        rating,
         mediaType: 'tv' as const,
       };
     });
@@ -331,6 +370,8 @@ export async function fetchTraktPopularShows(): Promise<RowItem[]> {
     return withLimit(popular.slice(0, 12), 5, async (show) => {
       const tmdbId = show.ids.tmdb;
       let image: string | undefined;
+      let backdrop: string | undefined;
+      let rating: number | undefined;
 
       if (tmdbId) {
         try {
@@ -338,6 +379,10 @@ export async function fetchTraktPopularShows(): Promise<RowItem[]> {
           image = details.poster_path
             ? core.tmdb.getPosterUrl(details.poster_path, 'w342')
             : undefined;
+          backdrop = details.backdrop_path
+            ? core.tmdb.getBackdropUrl(details.backdrop_path, 'w780')
+            : undefined;
+          rating = details.vote_average || undefined;
         } catch {}
       }
 
@@ -345,6 +390,8 @@ export async function fetchTraktPopularShows(): Promise<RowItem[]> {
         id: tmdbId ? `tmdb:tv:${tmdbId}` : `trakt:show:${show.ids.trakt}`,
         title: show.title,
         image,
+        backdrop,
+        rating,
         mediaType: 'tv' as const,
       };
     });
@@ -387,6 +434,8 @@ export async function fetchTraktWatchlist(): Promise<RowItem[]> {
       const type = movie ? 'movie' : 'tv';
       const tmdbId = media?.ids?.tmdb;
       let image: string | undefined;
+      let backdrop: string | undefined;
+      let rating: number | undefined;
 
       if (tmdbId) {
         try {
@@ -397,6 +446,10 @@ export async function fetchTraktWatchlist(): Promise<RowItem[]> {
           image = details.poster_path
             ? core.tmdb.getPosterUrl(details.poster_path, 'w342')
             : undefined;
+          backdrop = details.backdrop_path
+            ? core.tmdb.getBackdropUrl(details.backdrop_path, 'w780')
+            : undefined;
+          rating = details.vote_average || undefined;
         } catch {}
       }
 
@@ -404,6 +457,8 @@ export async function fetchTraktWatchlist(): Promise<RowItem[]> {
         id: tmdbId ? `tmdb:${type}:${tmdbId}` : `trakt:${type}:${media?.ids?.trakt}`,
         title: media?.title || '',
         image,
+        backdrop,
+        rating,
         mediaType: type as 'movie' | 'tv',
       };
     });
@@ -417,7 +472,7 @@ export async function fetchTraktWatchlist(): Promise<RowItem[]> {
  * Try to match a TMDB show episode to a Plex library episode
  * Returns the Plex episode ratingKey if found, null otherwise
  */
-async function matchTraktEpisodeToPlex(
+export async function matchTraktEpisodeToPlex(
   tmdbId: number,
   showTitle: string,
   seasonNum: number,
@@ -462,100 +517,6 @@ async function matchTraktEpisodeToPlex(
   }
 }
 
-/**
- * Fetch Trakt Continue Watching (playback progress)
- * Returns items the user has started but not finished watching
- */
-export async function fetchTraktContinueWatching(): Promise<TraktContinueWatchingItem[]> {
-  try {
-    const core = getFlixorCore();
-    if (!core.isTraktAuthenticated) return [];
-
-    const playbackItems = await core.trakt.getPlaybackProgress();
-
-    // Filter out completed items (progress >= 90%) and sort by most recent
-    const inProgressItems = playbackItems
-      .filter((item) => item.progress < 90)
-      .sort((a, b) => new Date(b.paused_at).getTime() - new Date(a.paused_at).getTime());
-
-    // Deduplicate: for shows, only keep the most recent episode per show
-    const seenIds = new Set<string>();
-    const uniqueItems = inProgressItems.filter((item) => {
-      const isMovie = item.type === 'movie';
-      const media = isMovie ? item.movie : item.show;
-      const tmdbId = media?.ids?.tmdb;
-      const type = isMovie ? 'movie' : 'tv';
-      const id = tmdbId ? `tmdb:${type}:${tmdbId}` : `trakt:${type}:${media?.ids?.trakt}`;
-      if (seenIds.has(id)) return false;
-      seenIds.add(id);
-      return true;
-    });
-
-    return withLimit(uniqueItems.slice(0, 12), 5, async (item) => {
-      const isMovie = item.type === 'movie';
-      const media = isMovie ? item.movie : item.show;
-      const tmdbId = media?.ids?.tmdb;
-      const type = isMovie ? 'movie' : 'tv';
-      let image: string | undefined;
-      let backdrop: string | undefined;
-      let plexRatingKey: string | undefined;
-
-      if (tmdbId) {
-        try {
-          const details = isMovie
-            ? await core.tmdb.getMovieDetails(tmdbId)
-            : await core.tmdb.getTVDetails(tmdbId);
-          image = details.poster_path
-            ? core.tmdb.getPosterUrl(details.poster_path, 'w342')
-            : undefined;
-          // Fetch backdrop with title burned in (like Plex Continue Watching)
-          backdrop = await getTmdbBackdropWithTitle(tmdbId, type);
-          // Fallback to regular backdrop if no title version available
-          if (!backdrop && details.backdrop_path) {
-            backdrop = core.tmdb.getBackdropUrl(details.backdrop_path, 'w780');
-          }
-        } catch {}
-      }
-
-      // For episodes, use show title as main title, episode info as subtitle
-      let title = media?.title || '';
-      let subtitle: string | undefined;
-      let seasonNumber: number | undefined;
-      let episodeNumber: number | undefined;
-      if (!isMovie && item.episode) {
-        title = item.show?.title || '';
-        seasonNumber = item.episode.season;
-        episodeNumber = item.episode.number;
-        subtitle = `S${seasonNumber}E${episodeNumber}`;
-
-        // Try to match episode to Plex library for direct episode navigation
-        if (tmdbId && seasonNumber && episodeNumber) {
-          const matchedRk = await matchTraktEpisodeToPlex(tmdbId, title, seasonNumber, episodeNumber);
-          if (matchedRk) {
-            plexRatingKey = matchedRk;
-          }
-        }
-      }
-
-      return {
-        id: tmdbId ? `tmdb:${type}:${tmdbId}` : `trakt:${type}:${media?.ids?.trakt}`,
-        title,
-        subtitle,
-        image,
-        backdrop,
-        progress: item.progress,
-        mediaType: type as 'movie' | 'tv',
-        seasonNumber,
-        episodeNumber,
-        plexRatingKey,
-      };
-    });
-  } catch (e) {
-    console.log('[HomeData] fetchTraktContinueWatching error:', e);
-    return [];
-  }
-}
-
 export async function fetchTraktHistory(): Promise<RowItem[]> {
   try {
     const core = getFlixorCore();
@@ -589,6 +550,8 @@ export async function fetchTraktHistory(): Promise<RowItem[]> {
       const type = movie ? 'movie' : 'tv';
       const tmdbId = media?.ids?.tmdb;
       let image: string | undefined;
+      let backdrop: string | undefined;
+      let rating: number | undefined;
 
       if (tmdbId) {
         try {
@@ -599,6 +562,10 @@ export async function fetchTraktHistory(): Promise<RowItem[]> {
           image = details.poster_path
             ? core.tmdb.getPosterUrl(details.poster_path, 'w342')
             : undefined;
+          backdrop = details.backdrop_path
+            ? core.tmdb.getBackdropUrl(details.backdrop_path, 'w780')
+            : undefined;
+          rating = details.vote_average || undefined;
         } catch {}
       }
 
@@ -606,6 +573,8 @@ export async function fetchTraktHistory(): Promise<RowItem[]> {
         id: tmdbId ? `tmdb:${type}:${tmdbId}` : `trakt:${type}:${media?.ids?.trakt}`,
         title: media?.title || '',
         image,
+        backdrop,
+        rating,
         mediaType: type as 'movie' | 'tv',
       };
     });
@@ -651,6 +620,8 @@ export async function fetchTraktRecommendations(): Promise<RowItem[]> {
       const type = movie ? 'movie' : 'tv';
       const tmdbId = media?.ids?.tmdb;
       let image: string | undefined;
+      let backdrop: string | undefined;
+      let rating: number | undefined;
 
       if (tmdbId) {
         try {
@@ -661,6 +632,10 @@ export async function fetchTraktRecommendations(): Promise<RowItem[]> {
           image = details.poster_path
             ? core.tmdb.getPosterUrl(details.poster_path, 'w342')
             : undefined;
+          backdrop = details.backdrop_path
+            ? core.tmdb.getBackdropUrl(details.backdrop_path, 'w780')
+            : undefined;
+          rating = details.vote_average || undefined;
         } catch {}
       }
 
@@ -668,6 +643,8 @@ export async function fetchTraktRecommendations(): Promise<RowItem[]> {
         id: tmdbId ? `tmdb:${type}:${tmdbId}` : `trakt:${type}:${media?.ids?.trakt}`,
         title: media?.title || '',
         image,
+        backdrop,
+        rating,
         mediaType: type as 'movie' | 'tv',
       };
     });
@@ -1175,6 +1152,8 @@ export async function fetchCollectionRowsForHome(
               id: `plex:${item.ratingKey}`,
               title: item.title || 'Untitled',
               image: core.plexServer.getImageUrl(item.thumb, 300),
+              backdrop: item.art ? core.plexServer.getImageUrl(item.art, 600) : undefined,
+              rating: item.rating || undefined,
               mediaType: item.type === 'movie' ? 'movie' as const : 'tv' as const,
             })),
           });
@@ -1242,6 +1221,8 @@ export async function fetchRecentlyAddedPerLibrary(
               id: `plex:${item.ratingKey}`,
               title: item.title || item.grandparentTitle || 'Untitled',
               image: core.plexServer.getImageUrl(item.thumb, 300),
+              backdrop: item.art ? core.plexServer.getImageUrl(item.art, 600) : undefined,
+              rating: item.rating || undefined,
               mediaType: item.type === 'movie' ? 'movie' as const : 'tv' as const,
             }));
           }
@@ -1298,6 +1279,9 @@ function groupEpisodesBySeries(items: PlexMediaItem[], core: any): RowItem[] {
         id: `plex:${item.grandparentRatingKey}`, // Use series rating key so clicking navigates to series details
         title: item.grandparentTitle || item.title || 'Untitled',
         image: core.plexServer.getImageUrl(item.grandparentThumb || item.thumb, 300),
+        backdrop: item.grandparentArt || item.art
+          ? core.plexServer.getImageUrl((item.grandparentArt || item.art) as string, 600)
+          : undefined,
         mediaType: 'tv' as const,
         subtitle: episodeCount > 1 ? `${episodeCount} new episodes` : '1 new episode',
       });
@@ -1307,6 +1291,8 @@ function groupEpisodesBySeries(items: PlexMediaItem[], core: any): RowItem[] {
         id: `plex:${item.ratingKey}`,
         title: item.title || 'Untitled',
         image: core.plexServer.getImageUrl(item.thumb, 300),
+        backdrop: item.art ? core.plexServer.getImageUrl(item.art, 600) : undefined,
+        rating: item.rating || undefined,
         mediaType: item.type === 'movie' ? 'movie' as const : 'tv' as const,
       });
     }

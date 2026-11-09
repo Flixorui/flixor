@@ -12,6 +12,18 @@ const LANGUAGE_ALIASES: Record<string, string[]> = {
   es: ['es', 'spa', 'spanish', 'espanol', 'español'],
   fr: ['fr', 'fre', 'fra', 'french', 'francais', 'français'],
   ja: ['ja', 'jpn', 'japanese'],
+  de: ['de', 'ger', 'deu', 'german', 'deutsch'],
+  it: ['it', 'ita', 'italian', 'italiano'],
+  pt: ['pt', 'por', 'portuguese', 'portugues', 'português'],
+  ru: ['ru', 'rus', 'russian'],
+  ko: ['ko', 'kor', 'korean'],
+  zh: ['zh', 'chi', 'zho', 'chinese'],
+  ar: ['ar', 'ara', 'arabic'],
+  hi: ['hi', 'hin', 'hindi'],
+  nl: ['nl', 'dut', 'nld', 'dutch'],
+  pl: ['pl', 'pol', 'polish'],
+  sv: ['sv', 'swe', 'swedish'],
+  tr: ['tr', 'tur', 'turkish'],
 };
 
 export function normalizeLanguageCode(input?: string): string {

@@ -9,6 +9,7 @@
  */
 
 import React, { useCallback, useMemo } from 'react';
+import { useTheme } from '../../hooks/useTheme';
 import { View, Text, Pressable, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -31,6 +32,7 @@ function DownloadButton({
   size = 'medium',
   showLabel = true,
 }: DownloadButtonProps) {
+  const theme = useTheme();
   const serverId = useMemo(() => {
     try {
       const core = getFlixorCore();
@@ -146,7 +148,7 @@ function DownloadButton({
     if (isDownloading) {
       return (
         <View style={styles.progressContainer}>
-          <ActivityIndicator size="small" color="#e50914" />
+          <ActivityIndicator size="small" color={theme.accent} />
         </View>
       );
     }

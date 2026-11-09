@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, Switch, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import SettingsHeader from '../../components/settings/SettingsHeader';
+import SettingsSwitch from '../../components/settings/SettingsSwitch';
 import SettingsCard from '../../components/settings/SettingsCard';
 import SettingItem from '../../components/settings/SettingItem';
 import { fetchCollections, CollectionItem } from '../../core/CollectionsData';
@@ -83,7 +84,7 @@ export default function CollectionRowsSettings() {
                   }
                   icon="albums-outline"
                   renderRight={() => (
-                    <Switch
+                    <SettingsSwitch
                       value={isVisible}
                       onValueChange={(value) =>
                         toggleCollection(coll.ratingKey, value)

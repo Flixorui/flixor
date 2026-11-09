@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '../hooks/useTheme';
 
 interface PinEntryModalProps {
   visible: boolean;
@@ -30,6 +31,9 @@ export default function PinEntryModal({
   error,
   loading = false,
 }: PinEntryModalProps) {
+  const theme = useTheme();
+  // Plex gold until the user picks an accent
+  const accent = theme.chosenAccent ?? '#e5a00d';
   const [pin, setPin] = useState('');
   const inputRef = useRef<TextInput>(null);
 
@@ -70,7 +74,7 @@ export default function PinEntryModal({
         <View style={styles.modal}>
           <View style={styles.header}>
             <View style={styles.iconContainer}>
-              <Ionicons name="lock-closed" size={32} color="#e5a00d" />
+              <Ionicons name="lock-closed" size={32} color={accent} />
             </View>
             <Text style={styles.title}>Enter PIN</Text>
             <Text style={styles.subtitle}>
@@ -113,6 +117,7 @@ export default function PinEntryModal({
             <Pressable
               style={[
                 styles.submitButton,
+                { backgroundColor: accent },
                 pin.length < 4 && styles.submitButtonDisabled,
               ]}
               onPress={handleSubmit}

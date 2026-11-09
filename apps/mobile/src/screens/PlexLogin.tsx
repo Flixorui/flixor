@@ -10,6 +10,7 @@ import {
   AppStateStatus,
 } from 'react-native';
 import { getFlixorCore } from '../core';
+import { useTheme } from '../hooks/useTheme';
 
 /**
  * Build the Plex auth URL with clientId and PIN code pre-filled
@@ -24,6 +25,7 @@ interface PlexLoginProps {
 }
 
 export default function PlexLogin({ onAuthenticated }: PlexLoginProps) {
+  const theme = useTheme();
   const [pin, setPin] = useState<{ id: number; code: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [polling, setPolling] = useState(false);
@@ -120,7 +122,7 @@ export default function PlexLogin({ onAuthenticated }: PlexLoginProps) {
 
       {polling && (
         <View style={{ marginBottom: 24, alignItems: 'center' }}>
-          <ActivityIndicator color="#e50914" size="large" />
+          <ActivityIndicator color={theme.accent} size="large" />
           <Text style={{ color: '#999', marginTop: 12, fontSize: 14 }}>
             Waiting for authorization...
           </Text>
@@ -135,7 +137,7 @@ export default function PlexLogin({ onAuthenticated }: PlexLoginProps) {
           onPress={startAuth}
           disabled={busy}
           style={{
-            backgroundColor: busy ? '#666' : '#e50914',
+            backgroundColor: busy ? '#666' : theme.accent,
             paddingHorizontal: 24,
             paddingVertical: 14,
             borderRadius: 8,

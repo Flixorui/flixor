@@ -4,6 +4,7 @@
  */
 
 import { getFlixorCore } from './index';
+import { getAppSettings, type AppSettings } from './SettingsData';
 import type { PlexMediaItem, PlexMarker } from '@flixor/core';
 
 export type NextEpisodeInfo = {
@@ -299,6 +300,19 @@ export function isTraktAuthenticated(): boolean {
 }
 
 /**
+ * Signed in to Trakt, with neither scrobbling nor watch sync turned off. Both default
+ * to on, so a profile that turned either one off stays off.
+ */
+function isTraktScrobblingEnabled(): boolean {
+  const settings = getAppSettings() as AppSettings & { traktScrobbleEnabled?: boolean };
+  return (
+    settings.traktScrobbleEnabled !== false &&
+    settings.traktAutoSyncWatched !== false &&
+    isTraktAuthenticated()
+  );
+}
+
+/**
  * Extract TMDB/IMDB IDs from Plex metadata for Trakt
  */
 export function extractTraktIds(metadata: PlexMediaItem | null): TraktScrobbleIds {
@@ -363,7 +377,7 @@ export async function startTraktScrobble(
   metadata: PlexMediaItem | null,
   progress: number
 ): Promise<void> {
-  if (!metadata || !isTraktAuthenticated()) return;
+  if (!metadata || !isTraktScrobblingEnabled()) return;
 
   try {
     const core = getFlixorCore();
@@ -408,7 +422,7 @@ export async function pauseTraktScrobble(
   metadata: PlexMediaItem | null,
   progress: number
 ): Promise<void> {
-  if (!metadata || !isTraktAuthenticated()) return;
+  if (!metadata || !isTraktScrobblingEnabled()) return;
 
   try {
     const core = getFlixorCore();
@@ -444,7 +458,7 @@ export async function stopTraktScrobble(
   metadata: PlexMediaItem | null,
   progress: number
 ): Promise<void> {
-  if (!metadata || !isTraktAuthenticated()) return;
+  if (!metadata || !isTraktScrobblingEnabled()) return;
 
   try {
     const core = getFlixorCore();
@@ -486,7 +500,7 @@ async function withGenericTraktScrobble(
   action: 'start' | 'pause' | 'stop',
   input: GenericTraktScrobbleInput
 ): Promise<void> {
-  if (!isTraktAuthenticated()) return;
+  if (!isTraktScrobblingEnabled()) return;
   if (!input.tmdbId && !input.imdbId) return;
 
   try {

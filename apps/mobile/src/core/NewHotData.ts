@@ -73,10 +73,36 @@ export async function getUpcomingMovies(): Promise<ContentItem[]> {
   }
 }
 
-export async function getTrendingAll(): Promise<ContentItem[]> {
+export type TrendingPeriod = 'day' | 'week';
+
+/** Most anticipated unreleased movies: TMDB popularity among titles not yet out. */
+export async function getWorthTheWait(): Promise<ContentItem[]> {
   try {
     const core = getFlixorCore();
-    const res = await core.tmdb.getTrendingAll('week');
+    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const res = await core.tmdb.discoverMovies({ sortBy: 'popularity.desc', dateFrom: tomorrow });
+
+    return (res?.results || []).slice(0, 20).map((item: any) => ({
+      id: `tmdb:movie:${item.id}`,
+      title: item.title,
+      image: item.poster_path ? core.tmdb.getPosterUrl(item.poster_path, 'w500') : undefined,
+      backdropImage: item.backdrop_path ? core.tmdb.getBackdropUrl(item.backdrop_path, 'w780') : undefined,
+      description: item.overview,
+      releaseDate: item.release_date,
+      subtitle: item.release_date?.split('-')[0],
+      tmdbId: item.id,
+      mediaType: 'movie' as const,
+    }));
+  } catch (e) {
+    console.log('[NewHotData] getWorthTheWait error:', e);
+    return [];
+  }
+}
+
+export async function getTrendingAll(period: TrendingPeriod = 'week'): Promise<ContentItem[]> {
+  try {
+    const core = getFlixorCore();
+    const res = await core.tmdb.getTrendingAll(period);
 
     return (res?.results || []).slice(0, 20).map((item: any) => ({
       id: item.media_type === 'movie' ? `tmdb:movie:${item.id}` : `tmdb:tv:${item.id}`,
@@ -95,10 +121,10 @@ export async function getTrendingAll(): Promise<ContentItem[]> {
   }
 }
 
-export async function getTop10Shows(): Promise<ContentItem[]> {
+export async function getTop10Shows(period: TrendingPeriod = 'week'): Promise<ContentItem[]> {
   try {
     const core = getFlixorCore();
-    const res = await core.tmdb.getTrendingTV('week');
+    const res = await core.tmdb.getTrendingTV(period);
 
     return (res?.results || []).slice(0, 10).map((item: any, index: number) => ({
       id: `tmdb:tv:${item.id}`,
@@ -117,10 +143,10 @@ export async function getTop10Shows(): Promise<ContentItem[]> {
   }
 }
 
-export async function getTop10Movies(): Promise<ContentItem[]> {
+export async function getTop10Movies(period: TrendingPeriod = 'week'): Promise<ContentItem[]> {
   try {
     const core = getFlixorCore();
-    const res = await core.tmdb.getTrendingMovies('week');
+    const res = await core.tmdb.getTrendingMovies(period);
 
     return (res?.results || []).slice(0, 10).map((item: any, index: number) => ({
       id: `tmdb:movie:${item.id}`,

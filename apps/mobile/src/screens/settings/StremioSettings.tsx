@@ -1,10 +1,12 @@
 import React, { useCallback, useState } from 'react';
-import { ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import SettingsCard from '../../components/settings/SettingsCard';
 import SettingItem from '../../components/settings/SettingItem';
 import SettingsHeader from '../../components/settings/SettingsHeader';
+import SettingsSwitch from '../../components/settings/SettingsSwitch';
+import StreamSelectionSettings from '../../components/stremio/StreamSelectionSettings';
 import { useAppSettings } from '../../hooks/useAppSettings';
 import { stremioService } from '../../stremio/StremioService';
 
@@ -39,7 +41,7 @@ export default function StremioSettings() {
             description="Show Stremio actions on supported mobile details screens"
             icon="play-circle-outline"
             renderRight={() => (
-              <Switch
+              <SettingsSwitch
                 value={settings.stremioPlaybackEnabled}
                 onValueChange={async (value) => {
                   await updateSetting('stremioPlaybackEnabled', value);
@@ -66,23 +68,11 @@ export default function StremioSettings() {
             isLast={false}
           />
           <SettingItem
-            title="Auto-Play Best Source"
-            description="Automatically start the strongest direct source when sources finish loading"
-            icon="flash-outline"
-            renderRight={() => (
-              <Switch
-                value={settings.stremioAutoPlayBestSource}
-                onValueChange={(value) => updateSetting('stremioAutoPlayBestSource', value)}
-              />
-            )}
-            isLast={false}
-          />
-          <SettingItem
             title="Show On TMDB Details"
             description="Display Stremio actions on TMDB-backed details pages when IDs can be mapped"
             icon="film-outline"
             renderRight={() => (
-              <Switch
+              <SettingsSwitch
                 value={settings.stremioShowOnTmdbDetails}
                 onValueChange={(value) => updateSetting('stremioShowOnTmdbDetails', value)}
               />
@@ -94,7 +84,7 @@ export default function StremioSettings() {
             description="Highlight and reopen the last saved Stremio stream when available"
             icon="time-outline"
             renderRight={() => (
-              <Switch
+              <SettingsSwitch
                 value={settings.stremioPreferCachedSourceResume}
                 onValueChange={(value) => updateSetting('stremioPreferCachedSourceResume', value)}
               />
@@ -106,14 +96,28 @@ export default function StremioSettings() {
             description="Fetch external subtitles from subtitle-capable Stremio addons"
             icon="text-outline"
             renderRight={() => (
-              <Switch
+              <SettingsSwitch
                 value={settings.stremioSubtitleAddonsEnabled}
                 onValueChange={(value) => updateSetting('stremioSubtitleAddonsEnabled', value)}
+              />
+            )}
+            isLast={false}
+          />
+          <SettingItem
+            title="Show Addon Catalogs on Home"
+            description="Add rows from the catalogs your addons provide to the Home screen"
+            icon="albums-outline"
+            renderRight={() => (
+              <SettingsSwitch
+                value={settings.showStremioCatalogRows}
+                onValueChange={(value) => updateSetting('showStremioCatalogRows', value)}
               />
             )}
             isLast={true}
           />
         </SettingsCard>
+
+        <StreamSelectionSettings />
 
         <SettingsCard title="SOURCE VISIBILITY">
           <View style={styles.segmentGroup}>

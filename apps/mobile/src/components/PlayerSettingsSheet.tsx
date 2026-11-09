@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Modal, Platform }
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAppSettings } from '../hooks/useAppSettings';
+import { useTheme } from '../hooks/useTheme';
 import type { StremioSubtitleCandidate } from '../stremio/types';
 // Local track types for settings sheet (compatible with MPV track format)
 type AudioTrack = {
@@ -41,13 +42,6 @@ export type Stream = {
 export type QualityOption = {
   label: string;
   value: number | 'original';
-};
-
-export type SourceOption = {
-  id: string;
-  label: string;
-  description?: string;
-  disabled?: boolean;
 };
 
 export type PlaybackInfo = {
@@ -111,10 +105,6 @@ type PlayerSettingsSheetProps = {
   qualityOptions?: QualityOption[];
   selectedQuality?: number | 'original';
   onQualityChange?: (quality: number | 'original') => void;
-  // Generic stream source switching
-  sourceOptions?: SourceOption[];
-  selectedSourceId?: string | null;
-  onSourceChange?: (sourceId: string) => void;
   // External subtitles
   externalSubtitles?: StremioSubtitleCandidate[];
   selectedExternalSubtitleId?: string | null;
@@ -141,9 +131,6 @@ export default function PlayerSettingsSheet({
   qualityOptions = [],
   selectedQuality,
   onQualityChange,
-  sourceOptions = [],
-  selectedSourceId,
-  onSourceChange,
   externalSubtitles = [],
   selectedExternalSubtitleId,
   onExternalSubtitleSelect,
@@ -155,6 +142,7 @@ export default function PlayerSettingsSheet({
   const useKsPlayer = !hasPlexStreams && (ksAudioTracks.length > 0 || ksTextTracks.length > 0);
   const [activeTab, setActiveTab] = React.useState<'audio' | 'subtitles' | 'quality' | 'info'>('subtitles');
   const { settings } = useAppSettings();
+  const theme = useTheme();
   const showBackdrop = settings.enableStreamsBackdrop;
 
   return (
@@ -214,7 +202,7 @@ export default function PlayerSettingsSheet({
               >
                 <Ionicons name="settings" size={20} color={activeTab === 'quality' ? '#fff' : '#888'} />
                 <Text style={[styles.tabText, activeTab === 'quality' && styles.tabTextActive]}>
-                  {sourceOptions.length > 0 ? 'Sources' : 'Quality'}
+                  Quality
                 </Text>
               </TouchableOpacity>
 
@@ -253,7 +241,7 @@ export default function PlayerSettingsSheet({
                             )}
                           </View>
                           {selectedKsAudioTrack === track.id && (
-                            <Ionicons name="checkmark" size={24} color="#4a9eff" />
+                            <Ionicons name="checkmark" size={24} color={theme.accentBright} />
                           )}
                         </TouchableOpacity>
                       ))
@@ -278,7 +266,7 @@ export default function PlayerSettingsSheet({
                             )}
                           </View>
                           {selectedAudio === stream.id && (
-                            <Ionicons name="checkmark" size={24} color="#4a9eff" />
+                            <Ionicons name="checkmark" size={24} color={theme.accentBright} />
                           )}
                         </TouchableOpacity>
                       ))
@@ -304,7 +292,7 @@ export default function PlayerSettingsSheet({
                           <Text style={styles.optionTitle}>None</Text>
                         </View>
                         {selectedKsTextTrack === -1 && (
-                          <Ionicons name="checkmark" size={24} color="#4a9eff" />
+                          <Ionicons name="checkmark" size={24} color={theme.accentBright} />
                         )}
                       </TouchableOpacity>
 
@@ -329,7 +317,7 @@ export default function PlayerSettingsSheet({
                               )}
                             </View>
                             {selectedKsTextTrack === track.id && (
-                              <Ionicons name="checkmark" size={24} color="#4a9eff" />
+                              <Ionicons name="checkmark" size={24} color={theme.accentBright} />
                             )}
                           </TouchableOpacity>
                         ))
@@ -350,7 +338,7 @@ export default function PlayerSettingsSheet({
                           <Text style={styles.optionTitle}>None</Text>
                         </View>
                         {selectedSubtitle === '0' && (
-                          <Ionicons name="checkmark" size={24} color="#4a9eff" />
+                          <Ionicons name="checkmark" size={24} color={theme.accentBright} />
                         )}
                       </TouchableOpacity>
 
@@ -375,7 +363,7 @@ export default function PlayerSettingsSheet({
                               )}
                             </View>
                             {selectedSubtitle === stream.id && (
-                              <Ionicons name="checkmark" size={24} color="#4a9eff" />
+                              <Ionicons name="checkmark" size={24} color={theme.accentBright} />
                             )}
                           </TouchableOpacity>
                         ))
@@ -399,7 +387,7 @@ export default function PlayerSettingsSheet({
                             <Text style={styles.optionSubtitle}>{subtitle.url}</Text>
                           </View>
                           {selectedExternalSubtitleId === subtitle.id && (
-                            <Ionicons name="checkmark" size={24} color="#4a9eff" />
+                            <Ionicons name="checkmark" size={24} color={theme.accentBright} />
                           )}
                         </TouchableOpacity>
                       ))}
@@ -410,28 +398,7 @@ export default function PlayerSettingsSheet({
 
               {activeTab === 'quality' && (
                 <View>
-                  {sourceOptions.length > 0 ? (
-                    sourceOptions.map((option) => (
-                      <TouchableOpacity
-                        key={option.id}
-                        style={styles.option}
-                        onPress={() => !option.disabled && onSourceChange?.(option.id)}
-                        disabled={option.disabled}
-                      >
-                        <View style={styles.optionContent}>
-                          <Text style={styles.optionTitle}>{option.label}</Text>
-                          {option.description ? (
-                            <Text style={styles.optionSubtitle}>{option.description}</Text>
-                          ) : null}
-                        </View>
-                        {selectedSourceId === option.id ? (
-                          <Ionicons name="checkmark" size={24} color="#4a9eff" />
-                        ) : option.disabled ? (
-                          <Ionicons name="close-circle-outline" size={24} color="#fca5a5" />
-                        ) : null}
-                      </TouchableOpacity>
-                    ))
-                  ) : qualityOptions.length === 0 ? (
+                  {qualityOptions.length === 0 ? (
                     <Text style={styles.emptyText}>No quality options available</Text>
                   ) : (
                     qualityOptions.map((option) => (
@@ -444,7 +411,7 @@ export default function PlayerSettingsSheet({
                           <Text style={styles.optionTitle}>{option.label}</Text>
                         </View>
                         {selectedQuality === option.value && (
-                          <Ionicons name="checkmark" size={24} color="#4a9eff" />
+                          <Ionicons name="checkmark" size={24} color={theme.accentBright} />
                         )}
                       </TouchableOpacity>
                     ))
@@ -918,7 +885,7 @@ const styles = StyleSheet.create({
   infoSectionTitle: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#4a9eff',
+    color: 'rgba(255,255,255,0.6)',
     textTransform: 'uppercase',
     marginTop: 16,
     marginBottom: 8,

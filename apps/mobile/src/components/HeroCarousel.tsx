@@ -1,5 +1,6 @@
-import React, { useMemo, useRef, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, Image, useWindowDimensions } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { AppState, View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, Image, useWindowDimensions } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import Animated, {
   type SharedValue,
   useSharedValue,
@@ -10,6 +11,7 @@ import Animated, {
   Extrapolation,
   withTiming,
   runOnJS,
+  useReducedMotion,
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import ConditionalBlurView from './ConditionalBlurView';
@@ -33,6 +35,8 @@ if (Platform.OS === 'ios') {
   }
 }
 
+const AUTO_ROTATE_INTERVAL_MS = 8000;
+
 type HeroCarouselItem = {
   id: string;
   title: string;
@@ -52,6 +56,7 @@ function HeroCarousel({
   inWatchlist,
   watchlistLoading,
   onActiveIndexChange,
+  autoRotate = false,
 }: {
   items: HeroCarouselItem[];
   onSelect: (item: HeroCarouselItem) => void;
@@ -59,6 +64,7 @@ function HeroCarousel({
   inWatchlist: boolean;
   watchlistLoading: boolean;
   onActiveIndexChange?: (index: number) => void;
+  autoRotate?: boolean;
 }) {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const isTablet = Math.min(windowWidth, windowHeight) >= 600;
@@ -98,6 +104,46 @@ function HeroCarousel({
     scrollViewRef.current?.scrollTo({ x: interval, y: 0, animated: false });
     scrollX.value = interval;
   }, [loopingEnabled, interval, scrollX]);
+
+  const reducedMotion = useReducedMotion();
+  const focusedRef = useRef(true);
+  const draggingRef = useRef(false);
+  const lastInteractionRef = useRef(0);
+
+  useFocusEffect(
+    useCallback(() => {
+      focusedRef.current = true;
+      return () => {
+        focusedRef.current = false;
+      };
+    }, [])
+  );
+
+  useEffect(() => {
+    if (!autoRotate || reducedMotion || data.length < 2) return;
+    const timer = setInterval(() => {
+      if (!focusedRef.current || draggingRef.current || AppState.currentState !== 'active') return;
+      // A swipe restarts the wait, so a card doesn't change right after the user picks it.
+      if (Date.now() - lastInteractionRef.current < AUTO_ROTATE_INTERVAL_MS) return;
+      let page = Math.round(scrollX.value / interval);
+      if (page >= loopData.length - 1) {
+        // Android doesn't report the end of a programmatic scroll, so leave the clone here.
+        scrollViewRef.current?.scrollTo({ x: interval, y: 0, animated: false });
+        page = 1;
+      }
+      scrollViewRef.current?.scrollTo({ x: (page + 1) * interval, y: 0, animated: true });
+    }, AUTO_ROTATE_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [autoRotate, reducedMotion, data.length, interval, loopData.length, scrollX]);
+
+  const handleDragBegin = useCallback(() => {
+    draggingRef.current = true;
+  }, []);
+
+  const handleDragEnd = useCallback(() => {
+    draggingRef.current = false;
+    lastInteractionRef.current = Date.now();
+  }, []);
 
   const toggleFlipById = useCallback((id: string) => {
     setFlippedMap((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -167,6 +213,8 @@ function HeroCarousel({
           pagingEnabled={false}
           bounces={false}
           overScrollMode="never"
+          onScrollBeginDrag={handleDragBegin}
+          onScrollEndDrag={handleDragEnd}
           onMomentumScrollEnd={handleMomentumEnd}
           onLayout={handleScrollViewLayout}
           contentContainerStyle={contentPadding}

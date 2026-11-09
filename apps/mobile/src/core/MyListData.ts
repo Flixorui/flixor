@@ -5,6 +5,8 @@
 
 import { getFlixorCore } from './index';
 import type { TraktWatchlistItem, PlexMediaItem } from '@flixor/core';
+import { isStremioOnlyMode } from './AppMode';
+import { localLibrary } from './LocalLibrary';
 
 export type MyListItem = {
   id: string;
@@ -13,11 +15,13 @@ export type MyListItem = {
   poster?: string;
   year?: number;
   addedAt: string;
-  source: 'trakt' | 'plex' | 'both';
+  source: 'trakt' | 'plex' | 'both' | 'local';
   tmdbId?: number;
   imdbId?: string;
   plexRatingKey?: string;
   traktSlug?: string;
+  /** Id of the entry in the local watchlist. */
+  localId?: string;
 };
 
 export type SortOption = 'added' | 'title' | 'year';
@@ -77,9 +81,37 @@ export async function fetchMyList(options?: {
       }
     }
 
+    // Stremio-only: the watchlist on this device stands in for Plex
+    if (isStremioOnlyMode()) {
+      try {
+        const localItems = await localLibrary.watchlist();
+        for (const entry of localItems) {
+          if (filter === 'movies' && entry.type !== 'movie') continue;
+          if (filter === 'shows' && entry.type !== 'show') continue;
+          const key = entry.tmdbId ? `tmdb:${entry.tmdbId}` : entry.imdbId ? `imdb:${entry.imdbId}` : entry.id;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          items.push({
+            id: key,
+            title: entry.title,
+            type: entry.type,
+            poster: entry.posterUrl,
+            year: entry.year,
+            addedAt: new Date(entry.addedAt).toISOString(),
+            source: 'local',
+            tmdbId: entry.tmdbId,
+            imdbId: entry.imdbId,
+            localId: entry.id,
+          });
+        }
+      } catch (e) {
+        console.log('[MyListData] Error fetching local watchlist:', e);
+      }
+    }
+
     // Fetch from Plex
     try {
-      const plexItems = await core.plexTv.getWatchlist();
+      const plexItems = isStremioOnlyMode() ? [] : await core.plexTv.getWatchlist();
 
       for (const item of plexItems) {
         // Extract IDs from Plex GUIDs
@@ -168,6 +200,11 @@ export function getMyListPosterUrl(item: MyListItem, width: number = 300): strin
   try {
     const core = getFlixorCore();
 
+    // Local watchlist entries already hold a full URL
+    if (item.source === 'local') {
+      return item.poster ?? '';
+    }
+
     // If we have a Plex poster path, use Plex image service
     if (item.poster) {
       return core.plexServer.getImageUrl(item.poster, width);
@@ -212,6 +249,11 @@ export async function removeFromMyList(item: MyListItem): Promise<boolean> {
   try {
     const core = getFlixorCore();
     let success = false;
+
+    if (item.source === 'local' && item.localId) {
+      await localLibrary.removeFromWatchlist(item.localId);
+      return true;
+    }
 
     // Remove from Trakt if it was added there
     if ((item.source === 'trakt' || item.source === 'both') && core.isTraktAuthenticated) {

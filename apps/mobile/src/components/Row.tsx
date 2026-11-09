@@ -1,6 +1,9 @@
 import React from 'react';
 import { View, Text, FlatList, Pressable, StyleSheet } from 'react-native';
-import Poster from './Poster';
+import Poster, { LANDSCAPE_CARD_SIZE, POSTER_GAP, POSTER_SIZES } from './Poster';
+import { useAppSettings } from '../hooks/useAppSettings';
+import { useTheme } from '../hooks/useTheme';
+import type { RowLayout } from '../core/SettingsData';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -9,11 +12,14 @@ export interface RowBadge {
   color?: string;
 }
 
-function Row({ title, titleIcon, badge, items, getImageUri, getTitle, getSubtitle, authHeaders, onItemPress, onTitlePress, onBrowsePress, keyPrefix = '' }: {
+function Row({ title, caption, titleIcon, badge, items, layout = 'poster', getImageUri, getTitle, getSubtitle, authHeaders, onItemPress, onTitlePress, onBrowsePress, keyPrefix = '' }: {
   title: string;
+  /** Shown beside the title, e.g. the addon when two rows share a title. */
+  caption?: string;
   titleIcon?: keyof typeof Ionicons.glyphMap;
   badge?: RowBadge;
   items: any[];
+  layout?: RowLayout;
   getImageUri: (item: any) => string | undefined;
   getTitle: (item: any) => string | undefined;
   getSubtitle?: (item: any) => string | undefined;
@@ -23,6 +29,14 @@ function Row({ title, titleIcon, badge, items, getImageUri, getTitle, getSubtitl
   onBrowsePress?: () => void;
   keyPrefix?: string;
 }) {
+  const { settings } = useAppSettings();
+  const theme = useTheme();
+  const isLandscape = layout === 'landscape';
+  const cardWidth = isLandscape
+    ? LANDSCAPE_CARD_SIZE.width
+    : (POSTER_SIZES[settings.posterSize] || POSTER_SIZES.medium).width;
+  const itemLength = cardWidth + POSTER_GAP;
+
   const handleTitlePress = () => {
     // Prefer onBrowsePress for chevron tap, fall back to onTitlePress
     const handler = onBrowsePress || onTitlePress;
@@ -44,11 +58,12 @@ function Row({ title, titleIcon, badge, items, getImageUri, getTitle, getSubtitl
             <Ionicons name={titleIcon} size={16} color="#fff" style={styles.titleIcon} />
           )}
           {badge && (
-            <View style={[styles.badge, badge.color ? { backgroundColor: badge.color } : null]}>
+            <View style={[styles.badge, { backgroundColor: badge.color || theme.accent }]}>
               <Text style={styles.badgeText}>{badge.text}</Text>
             </View>
           )}
           <Text style={styles.title}>{title}</Text>
+          {caption ? <Text style={styles.caption} numberOfLines={1}>{caption}</Text> : null}
           {(onBrowsePress || onTitlePress) && (
             <Ionicons name="chevron-forward" size={18} color="#fff" style={styles.chevron} />
           )}
@@ -59,7 +74,16 @@ function Row({ title, titleIcon, badge, items, getImageUri, getTitle, getSubtitl
         data={items}
         keyExtractor={(item, idx) => `${keyPrefix}${item.id || item.ratingKey || `${title}-${idx}`}`}
         renderItem={({ item }) => (
-          <Poster uri={getImageUri(item)} title={getTitle(item)} subtitle={getSubtitle?.(item)} authHeaders={authHeaders} onPress={() => onItemPress && onItemPress(item)} />
+          <Poster
+            uri={getImageUri(item)}
+            title={getTitle(item)}
+            subtitle={getSubtitle?.(item)}
+            rating={item.rating}
+            width={isLandscape ? LANDSCAPE_CARD_SIZE.width : undefined}
+            height={isLandscape ? LANDSCAPE_CARD_SIZE.height : undefined}
+            authHeaders={authHeaders}
+            onPress={() => onItemPress && onItemPress(item)}
+          />
         )}
         showsHorizontalScrollIndicator={false}
         bounces={false}
@@ -70,7 +94,7 @@ function Row({ title, titleIcon, badge, items, getImageUri, getTitle, getSubtitl
         initialNumToRender={6}
         maxToRenderPerBatch={4}
         removeClippedSubviews={true}
-        getItemLayout={(_, index) => ({ length: 122, offset: 122 * index, index })}
+        getItemLayout={(_, index) => ({ length: itemLength, offset: itemLength * index, index })}
       />
     </View>
   );
@@ -108,8 +132,13 @@ const styles = StyleSheet.create({
   titleIcon: {
     marginRight: 6,
   },
+  caption: {
+    color: 'rgba(255,255,255,0.55)',
+    fontSize: 13,
+    marginLeft: 8,
+    flexShrink: 1,
+  },
   badge: {
-    backgroundColor: '#ED1C24',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,

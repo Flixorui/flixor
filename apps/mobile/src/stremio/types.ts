@@ -121,7 +121,7 @@ export interface StremioContentIdentity {
   tmdbId?: number;
   seasonNumber?: number;
   episodeNumber?: number;
-  source: 'plex-guid' | 'tmdb' | 'tmdb-external-ids';
+  source: 'plex-guid' | 'tmdb' | 'tmdb-external-ids' | 'player';
 }
 
 export interface CachedPlaybackSource {
@@ -176,6 +176,30 @@ export interface GenericStreamParams {
   externalSubtitles?: StremioSubtitleCandidate[];
   resumePositionMs?: number;
   stremioIdentity?: StremioContentIdentity;
+  /** Replacement sources already tried for this playback. */
+  recoveryAttempts?: number;
+  /** URLs that failed during this playback. */
+  failedStreamUrls?: string[];
+  /** `availableStreams` was re-fetched during recovery, so later attempts reuse it. */
+  recoverySourcesFetched?: boolean;
+  /** Subtitle addons were cut off by a deadline; the player asks again after load. */
+  subtitlesIncomplete?: boolean;
+}
+
+export interface StremioMetaVideo {
+  id?: string;
+  title?: string;
+  season?: number;
+  episode?: number;
+  released?: string;
+  overview?: string;
+  thumbnail?: string;
+}
+
+export interface StremioMetaDetail {
+  id: string;
+  name?: string;
+  videos?: StremioMetaVideo[];
 }
 
 export interface SubtitleCueSegment {

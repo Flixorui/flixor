@@ -3,6 +3,7 @@ import {
   View,
   Text,
   FlatList,
+  Image,
   Pressable,
   StyleSheet,
 } from 'react-native';
@@ -11,7 +12,13 @@ import { LinearGradient } from 'expo-linear-gradient';
 import ContextMenu from 'react-native-context-menu-view';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { getVersionString, type PlexMediaItem } from '@flixor/core';
+import type { ContinueWatchingEntry } from '../core/TraktContinueWatching';
+import {
+  continueWatchingEpisodeLabel,
+  continueWatchingMenuItems,
+  continueWatchingStatus,
+  type ContinueWatchingMenuAction,
+} from './home/continueWatchingMenu';
 import { useAppSettings } from '../hooks/useAppSettings';
 
 const POSTER_SIZES = {
@@ -23,48 +30,21 @@ const POSTER_SIZES = {
 const CARD_GAP = 12;
 
 interface ContinueWatchingPosterRowProps {
-  items: PlexMediaItem[];
-  itemsWithMultipleVersions?: Set<string>;
-  onItemPress: (item: PlexMediaItem) => void;
+  title: string;
+  entries: ContinueWatchingEntry[];
+  blurNextUp: boolean;
+  onItemPress: (entry: ContinueWatchingEntry) => void;
   onBrowsePress?: () => void;
-  onRemove?: (item: PlexMediaItem) => void;
-  onMarkWatched?: (item: PlexMediaItem) => void;
-  onInfo?: (item: PlexMediaItem) => void;
-  getImageUri: (item: PlexMediaItem) => string;
-  getTitle: (item: PlexMediaItem) => string | undefined;
-  getSubtitle?: (item: PlexMediaItem) => string | undefined;
+  onAction: (action: ContinueWatchingMenuAction, entry: ContinueWatchingEntry) => void;
 }
 
-// Calculate progress percentage
-const getProgress = (item: PlexMediaItem): number => {
-  if (!item.viewOffset || !item.duration) return 0;
-  return Math.min((item.viewOffset / item.duration) * 100, 100);
-};
-
-// Format remaining time
-const getRemainingTime = (item: PlexMediaItem): string => {
-  if (!item.duration) return '';
-  const remainingMs = item.duration - (item.viewOffset || 0);
-  const minutes = Math.floor(remainingMs / 60000);
-  if (minutes >= 60) {
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
-  }
-  return `${minutes}m`;
-};
-
 function ContinueWatchingPosterRow({
-  items,
-  itemsWithMultipleVersions,
+  title,
+  entries,
+  blurNextUp,
   onItemPress,
   onBrowsePress,
-  onRemove,
-  onMarkWatched,
-  onInfo,
-  getImageUri,
-  getTitle,
-  getSubtitle,
+  onAction,
 }: ContinueWatchingPosterRowProps) {
   const { settings } = useAppSettings();
   const size = POSTER_SIZES[settings.posterSize] || POSTER_SIZES.medium;
@@ -77,20 +57,17 @@ function ContinueWatchingPosterRow({
     }
   }, [onBrowsePress]);
 
-  const handleItemPress = useCallback((item: PlexMediaItem) => {
+  const handleItemPress = useCallback((entry: ContinueWatchingEntry) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    onItemPress(item);
+    onItemPress(entry);
   }, [onItemPress]);
 
-  const renderCard = useCallback(({ item }: { item: PlexMediaItem }) => {
-    const progress = getProgress(item);
-    const remainingTime = getRemainingTime(item);
-    const imageUri = getImageUri(item);
-    const title = getTitle(item);
-    const subtitle = getSubtitle?.(item);
-    // Only show version if this item had multiple versions across libraries (was deduplicated)
-    const showVersion = itemsWithMultipleVersions?.has(item.ratingKey) ?? false;
-    const versionString = showVersion ? getVersionString(item.Media) : null;
+  const renderCard = useCallback(({ item }: { item: ContinueWatchingEntry }) => {
+    const imageUri = item.image || item.backdrop;
+    const episodeLabel = continueWatchingEpisodeLabel(item);
+    const status = continueWatchingStatus(item);
+    const menuItems = continueWatchingMenuItems(item);
+    const subtitle = episodeLabel ?? (item.year ? String(item.year) : undefined);
 
     return (
       <Pressable
@@ -100,51 +77,45 @@ function ContinueWatchingPosterRow({
           { width: size.width, opacity: pressed ? 0.95 : 1 },
         ]}
       >
-        {/* Poster Image */}
         <View style={[styles.posterContainer, { width: size.width, height: size.height, borderRadius }]}>
-          <FastImage
-            source={{
-              uri: imageUri,
-              priority: FastImage.priority.high,
-              cache: FastImage.cacheControl.immutable,
-            }}
-            style={styles.cardImage}
-            resizeMode={FastImage.resizeMode.cover}
-          />
+          {imageUri && item.isUpNext && blurNextUp ? (
+            <Image source={{ uri: imageUri }} blurRadius={24} style={styles.cardImage} resizeMode="cover" />
+          ) : imageUri ? (
+            <FastImage
+              source={{
+                uri: imageUri,
+                priority: FastImage.priority.high,
+                cache: FastImage.cacheControl.immutable,
+              }}
+              style={styles.cardImage}
+              resizeMode={FastImage.resizeMode.cover}
+            />
+          ) : (
+            <View style={styles.cardImage} />
+          )}
 
-          {/* Bottom gradient with controls */}
           <LinearGradient
             colors={['transparent', 'rgba(0,0,0,0.8)']}
             style={[styles.bottomGradient, { borderBottomLeftRadius: borderRadius, borderBottomRightRadius: borderRadius }]}
           >
-            {/* Controls row */}
             <View style={styles.controlsRow}>
-              {/* Left side: Play icon, progress bar, episode info, time */}
               <View style={styles.leftControls}>
                 <Ionicons name="play" size={10} color="#fff" />
-                <View style={styles.progressTrack}>
-                  <View style={[styles.progressFill, { width: `${progress}%` }]} />
-                </View>
-                {/* Show episode info (S1, E1) for episodes */}
-                {item.type === 'episode' && item.parentIndex && item.index && (
-                  <Text style={styles.episodeText}>S{item.parentIndex}, E{item.index}</Text>
+                {!item.isUpNext && (
+                  <View style={styles.progressTrack}>
+                    <View style={[styles.progressFill, { width: `${item.progress}%` }]} />
+                  </View>
                 )}
-                <Text style={styles.timeText}>{remainingTime}</Text>
+                {episodeLabel && <Text style={styles.episodeText}>{episodeLabel}</Text>}
+                <Text style={styles.timeText}>{status}</Text>
               </View>
 
-              {/* Right side: Context Menu */}
               <Pressable onPress={(e) => e.stopPropagation()}>
                 <ContextMenu
-                  actions={[
-                    { title: 'Info', systemIcon: 'info.circle' },
-                    { title: 'Mark as Watched', systemIcon: 'checkmark.circle' },
-                    { title: 'Remove', systemIcon: 'trash', destructive: true },
-                  ]}
+                  actions={menuItems}
                   onPress={(e) => {
-                    const index = e.nativeEvent.index;
-                    if (index === 0) onInfo?.(item);
-                    else if (index === 1) onMarkWatched?.(item);
-                    else if (index === 2) onRemove?.(item);
+                    const selected = menuItems[e.nativeEvent.index];
+                    if (selected) onAction(selected.action, item);
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   }}
                   dropdownMenuMode
@@ -158,24 +129,23 @@ function ContinueWatchingPosterRow({
           </LinearGradient>
         </View>
 
-        {/* Title and subtitle below poster */}
-        {settings.showPosterTitles && (title || subtitle || versionString) && (
+        {settings.showPosterTitles && (
           <View style={styles.textContainer}>
-            {title && <Text style={styles.titleText} numberOfLines={1}>{title}</Text>}
+            <Text style={styles.titleText} numberOfLines={1}>{item.title}</Text>
             {subtitle && <Text style={styles.subtitleText} numberOfLines={1}>{subtitle}</Text>}
-            {versionString && <Text style={styles.versionText} numberOfLines={1}>{versionString}</Text>}
+            {item.versionLabel && <Text style={styles.versionText} numberOfLines={1}>{item.versionLabel}</Text>}
           </View>
         )}
       </Pressable>
     );
-  }, [getImageUri, getTitle, getSubtitle, handleItemPress, onInfo, onMarkWatched, onRemove, size, borderRadius, settings.showPosterTitles, itemsWithMultipleVersions]);
+  }, [blurNextUp, handleItemPress, onAction, size, borderRadius, settings.showPosterTitles]);
 
   return (
     <View style={styles.container}>
       {/* Row header */}
       <View style={styles.header}>
         <Pressable onPress={handleTitlePress} style={styles.titleRow}>
-          <Text style={styles.rowTitle}>Continue Watching</Text>
+          <Text style={styles.rowTitle}>{title}</Text>
           <Ionicons name="chevron-forward" size={18} color="#fff" style={styles.chevron} />
         </Pressable>
       </View>
@@ -183,8 +153,8 @@ function ContinueWatchingPosterRow({
       {/* Horizontal card list */}
       <FlatList
         horizontal
-        data={items}
-        keyExtractor={(item) => item.ratingKey || item.key || ''}
+        data={entries}
+        keyExtractor={(entry) => entry.key}
         renderItem={renderCard}
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.listContent}

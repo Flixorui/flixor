@@ -1,18 +1,28 @@
-import React from 'react';
-import { View, Text, ScrollView, Switch, Pressable, StyleSheet } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import React, { useCallback, useState } from 'react';
+import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import SettingsHeader from '../../components/settings/SettingsHeader';
 import SettingsCard from '../../components/settings/SettingsCard';
 import SettingItem from '../../components/settings/SettingItem';
+import SettingsSwitch from '../../components/settings/SettingsSwitch';
+import HeroSourceSheet, { heroSourceLabel } from '../../components/home/HeroSourceSheet';
 import { useAppSettings } from '../../hooks/useAppSettings';
 
 export default function HomeScreenSettings() {
   const nav: any = useNavigation();
   const insets = useSafeAreaInsets();
-  const { settings, updateSetting } = useAppSettings();
+  const { settings, updateSetting, refresh } = useAppSettings();
   const headerHeight = insets.top + 52;
+  const [heroSourceOpen, setHeroSourceOpen] = useState(false);
+
+  // Home registers its rows without notifying, so pick up the list on focus.
+  useFocusEffect(
+    useCallback(() => {
+      refresh();
+    }, [refresh])
+  );
 
   return (
     <View style={styles.container}>
@@ -24,13 +34,37 @@ export default function HomeScreenSettings() {
             description="Display the featured hero row"
             icon="star-outline"
             renderRight={() => (
-              <Switch
+              <SettingsSwitch
                 value={settings.showHeroSection}
                 onValueChange={(value) => updateSetting('showHeroSection', value)}
               />
             )}
-            isLast={true}
+            isLast={!settings.showHeroSection}
           />
+          {settings.showHeroSection && (
+            <>
+              <SettingItem
+                title="Auto-Rotate Hero"
+                description="Advance the Carousel and Apple TV layouts every 8 seconds"
+                icon="sync-outline"
+                renderRight={() => (
+                  <SettingsSwitch
+                    value={settings.heroAutoRotate}
+                    onValueChange={(value) => updateSetting('heroAutoRotate', value)}
+                  />
+                )}
+                isLast={false}
+              />
+              <SettingItem
+                title="Hero Source"
+                description={`${heroSourceLabel(settings)}. Falls back to the default when empty.`}
+                icon="image-outline"
+                renderRight={() => <Ionicons name="chevron-forward" size={18} color="#9ca3af" />}
+                onPress={() => setHeroSourceOpen(true)}
+                isLast={true}
+              />
+            </>
+          )}
         </SettingsCard>
 
         {settings.showHeroSection && (
@@ -68,11 +102,32 @@ export default function HomeScreenSettings() {
 
         <SettingsCard title="ROWS">
           <SettingItem
+            title="Arrange Rows"
+            description="Reorder, rename and hide rows"
+            icon="reorder-three-outline"
+            renderRight={() => <Ionicons name="chevron-forward" size={18} color="#9ca3af" />}
+            onPress={() => nav.navigate('HomeRowsSettings')}
+            isLast={false}
+          />
+          <SettingItem
+            title="Addon Catalogs"
+            description={settings.stremioPlaybackEnabled ? 'Show catalogs from your Stremio addons' : 'Turn on Stremio addons to use this'}
+            icon="extension-puzzle-outline"
+            renderRight={() => (
+              <SettingsSwitch
+                value={settings.showStremioCatalogRows}
+                onValueChange={(value) => updateSetting('showStremioCatalogRows', value)}
+                disabled={!settings.stremioPlaybackEnabled}
+              />
+            )}
+            isLast={false}
+          />
+          <SettingItem
             title="Continue Watching"
             description="Show continue watching row"
             icon="play-outline"
             renderRight={() => (
-              <Switch
+              <SettingsSwitch
                 value={settings.showContinueWatchingRow}
                 onValueChange={(value) => updateSetting('showContinueWatchingRow', value)}
               />
@@ -84,7 +139,7 @@ export default function HomeScreenSettings() {
             description={settings.discoveryDisabled ? "Disabled by Library Only Mode" : "Show TMDB trending rows"}
             icon="stats-chart-outline"
             renderRight={() => (
-              <Switch
+              <SettingsSwitch
                 value={settings.showTrendingRows}
                 onValueChange={(value) => updateSetting('showTrendingRows', value)}
                 disabled={settings.discoveryDisabled}
@@ -97,22 +152,9 @@ export default function HomeScreenSettings() {
             description={settings.discoveryDisabled ? "Disabled by Library Only Mode" : "Show Trakt watchlist, history, and recs"}
             icon="layers-outline"
             renderRight={() => (
-              <Switch
+              <SettingsSwitch
                 value={settings.showTraktRows}
                 onValueChange={(value) => updateSetting('showTraktRows', value)}
-                disabled={settings.discoveryDisabled}
-              />
-            )}
-            isLast={false}
-          />
-          <SettingItem
-            title="Trakt Continue Watching"
-            description={settings.discoveryDisabled ? "Disabled by Library Only Mode" : "Show in-progress items synced from Trakt"}
-            icon="time-outline"
-            renderRight={() => (
-              <Switch
-                value={settings.showTraktContinueWatching}
-                onValueChange={(value) => updateSetting('showTraktContinueWatching', value)}
                 disabled={settings.discoveryDisabled}
               />
             )}
@@ -123,7 +165,7 @@ export default function HomeScreenSettings() {
             description={settings.discoveryDisabled ? "Disabled by Library Only Mode" : "Show Plex popularity row"}
             icon="flame-outline"
             renderRight={() => (
-              <Switch
+              <SettingsSwitch
                 value={settings.showPlexPopularRow}
                 onValueChange={(value) => updateSetting('showPlexPopularRow', value)}
                 disabled={settings.discoveryDisabled}
@@ -136,7 +178,7 @@ export default function HomeScreenSettings() {
             description="Show genre-based rows (Drama, Animation, etc.)"
             icon="pricetags-outline"
             renderRight={() => (
-              <Switch
+              <SettingsSwitch
                 value={settings.showPlexGenreRows}
                 onValueChange={(value) => updateSetting('showPlexGenreRows', value)}
               />
@@ -148,7 +190,7 @@ export default function HomeScreenSettings() {
             description="Show Plex collection rows on home"
             icon="albums-outline"
             renderRight={() => (
-              <Switch
+              <SettingsSwitch
                 value={settings.showCollectionRows}
                 onValueChange={(value) => updateSetting('showCollectionRows', value)}
               />
@@ -172,7 +214,7 @@ export default function HomeScreenSettings() {
             description="Show 'Recently Added in {Library}' rows"
             icon="time-outline"
             renderRight={() => (
-              <Switch
+              <SettingsSwitch
                 value={settings.showRecentlyAddedRows}
                 onValueChange={(value) => updateSetting('showRecentlyAddedRows', value)}
               />
@@ -188,7 +230,7 @@ export default function HomeScreenSettings() {
               description="Show series posters instead of individual episodes"
               icon="albums-outline"
               renderRight={() => (
-                <Switch
+                <SettingsSwitch
                   value={settings.groupRecentlyAddedEpisodes}
                   onValueChange={(value) => updateSetting('groupRecentlyAddedEpisodes', value)}
                 />
@@ -204,7 +246,7 @@ export default function HomeScreenSettings() {
             description="Display title text below each poster"
             icon="image-outline"
             renderRight={() => (
-              <Switch
+              <SettingsSwitch
                 value={settings.showPosterTitles}
                 onValueChange={(value) => updateSetting('showPosterTitles', value)}
               />
@@ -216,13 +258,52 @@ export default function HomeScreenSettings() {
             description="Display title text in Library grid"
             icon="library-outline"
             renderRight={() => (
-              <Switch
+              <SettingsSwitch
                 value={settings.showLibraryTitles}
                 onValueChange={(value) => updateSetting('showLibraryTitles', value)}
               />
             )}
             isLast={false}
           />
+          <SettingItem
+            title="Rating Badges"
+            description="Show the rating on cards when one is available"
+            icon="star-half-outline"
+            renderRight={() => (
+              <SettingsSwitch
+                value={settings.showRatingBadges}
+                onValueChange={(value) => updateSetting('showRatingBadges', value)}
+              />
+            )}
+            isLast={false}
+          />
+          <View style={styles.posterGroup}>
+            <Text style={styles.posterLabel}>Row Layout</Text>
+            <View style={styles.posterSegment}>
+              {([
+                { label: 'Poster', value: 'poster' },
+                { label: 'Landscape', value: 'landscape' },
+              ] as const).map((option, index) => {
+                const selected = settings.rowLayout === option.value;
+                return (
+                  <Pressable
+                    key={option.value}
+                    style={[
+                      styles.posterChip,
+                      styles.posterChipFill,
+                      index > 0 && styles.posterChipDivider,
+                      selected && styles.posterChipActive,
+                    ]}
+                    onPress={() => updateSetting('rowLayout', option.value)}
+                  >
+                    <Text style={[styles.posterChipText, selected && styles.posterChipTextActive]}>
+                      {option.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
           <View style={styles.posterGroup}>
             <Text style={styles.posterLabel}>Poster Size</Text>
             <View style={styles.posterSegment}>
@@ -277,6 +358,7 @@ export default function HomeScreenSettings() {
           </View>
         </SettingsCard>
       </ScrollView>
+      <HeroSourceSheet visible={heroSourceOpen} settings={settings} onClose={() => setHeroSourceOpen(false)} />
     </View>
   );
 }

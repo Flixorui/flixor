@@ -3,6 +3,7 @@ import { View, Text, Modal, Pressable, StyleSheet, Dimensions, ActivityIndicator
 import ConditionalBlurView from './ConditionalBlurView';
 import * as Haptics from 'expo-haptics';
 import YoutubePlayer from 'react-native-youtube-iframe';
+import { useTheme } from '../hooks/useTheme';
 
 interface TrailerVideo {
   key: string;
@@ -40,6 +41,7 @@ function formatTrailerType(type: string): string {
 }
 
 export default function TrailerModal({ visible, trailer, onClose, contentTitle }: TrailerModalProps) {
+  const theme = useTheme();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [playing, setPlaying] = useState(true);
@@ -115,7 +117,7 @@ export default function TrailerModal({ visible, trailer, onClose, contentTitle }
             <View style={styles.playerContainer}>
               {loading && (
                 <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="large" color="#e50914" />
+                  <ActivityIndicator size="large" color={theme.accent} />
                   <Text style={styles.loadingText}>Loading trailer...</Text>
                 </View>
               )}
@@ -127,6 +129,7 @@ export default function TrailerModal({ visible, trailer, onClose, contentTitle }
                     onPress={handleRetry}
                     style={({ pressed }) => [
                       styles.retryButton,
+                      { backgroundColor: theme.accent },
                       { opacity: pressed ? 0.8 : 1 }
                     ]}
                   >
@@ -253,7 +256,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   retryButton: {
-    backgroundColor: '#e50914',
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 20,

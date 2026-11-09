@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '../hooks/useTheme';
 
 interface ProfileAvatarProps {
   thumb?: string;
@@ -19,10 +20,11 @@ export default function ProfileAvatar({
   isRestricted = false,
   isProtected = false,
 }: ProfileAvatarProps) {
+  const { chosenAccent } = useTheme();
   const initial = title?.[0]?.toUpperCase() || '?';
 
   return (
-    <View style={[styles.container, isActive && styles.containerActive]}>
+    <View style={[styles.container, isActive && styles.containerActive, isActive && chosenAccent ? { borderColor: chosenAccent } : null]}>
       {thumb ? (
         <Image
           source={{ uri: thumb }}

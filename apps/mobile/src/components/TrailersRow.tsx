@@ -7,6 +7,7 @@ import * as Haptics from 'expo-haptics';
 import Animated, { useSharedValue, withTiming, withDelay, useAnimatedStyle } from 'react-native-reanimated';
 import TrailerModal from './TrailerModal';
 import { getYouTubeThumbnailUrl } from '../core/DetailsData';
+import { useTheme } from '../hooks/useTheme';
 
 export interface TrailerVideo {
   key: string;
@@ -117,6 +118,7 @@ function TrailerCard({ trailer, width, onPress }: { trailer: TrailerVideo; width
 }
 
 export default function TrailersRow({ trailers, title = 'Trailers & Videos', contentTitle }: TrailersRowProps) {
+  const theme = useTheme();
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedTrailer, setSelectedTrailer] = useState<TrailerVideo | null>(null);
   const [dropdownVisible, setDropdownVisible] = useState(false);
@@ -224,7 +226,7 @@ export default function TrailersRow({ trailers, title = 'Trailers & Videos', con
                       <Ionicons
                         name={getCategoryIcon(category) as any}
                         size={16}
-                        color="#e50914"
+                        color={theme.accent}
                       />
                     </View>
                     <Text style={styles.dropdownItemText}>

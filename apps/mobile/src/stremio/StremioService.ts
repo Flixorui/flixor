@@ -14,6 +14,8 @@ import type {
   StremioAddonManifest,
   StremioAddonStreamResult,
   StremioContentIdentity,
+  StremioMetaDetail,
+  StremioMetaVideo,
   StremioPlayableStream,
   StremioRequestType,
   StremioResource,
@@ -33,6 +35,10 @@ type StreamPayload = {
 
 type SubtitlePayload = {
   subtitles?: any[];
+};
+
+type MetaPayload = {
+  meta?: any;
 };
 
 function toErrorDetails(error: unknown): { name?: string; message: string; stack?: string } {
@@ -234,10 +240,21 @@ function normalizeStream(
   };
 }
 
-async function fetchJson<T>(url: string, timeoutMs: number = 10000): Promise<AddonResponse<T>> {
+async function fetchJson<T>(
+  url: string,
+  timeoutMs: number = 10000,
+  externalSignal?: AbortSignal
+): Promise<AddonResponse<T>> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const abortFromCaller = () => controller.abort();
+  if (externalSignal?.aborted) {
+    controller.abort();
+  } else {
+    externalSignal?.addEventListener('abort', abortFromCaller);
+  }
+
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
     const response = await fetch(url, {
       method: 'GET',
       headers: {
@@ -245,7 +262,6 @@ async function fetchJson<T>(url: string, timeoutMs: number = 10000): Promise<Add
       },
       signal: controller.signal,
     });
-    clearTimeout(timer);
 
     if (!response.ok) {
       const responseText = await response.text().catch(() => '');
@@ -276,7 +292,27 @@ async function fetchJson<T>(url: string, timeoutMs: number = 10000): Promise<Add
       return { error: `Network request failed for ${url}: ${error.message}` };
     }
     return { error: `${error?.message || 'Request failed'} (${url})` };
+  } finally {
+    clearTimeout(timer);
+    externalSignal?.removeEventListener('abort', abortFromCaller);
   }
+}
+
+function parseMetaVideo(raw: any): StremioMetaVideo | null {
+  if (!raw || typeof raw !== 'object') {
+    return null;
+  }
+  const season = Number(raw.season);
+  const episode = Number(raw.episode ?? raw.number);
+  return {
+    id: raw.id,
+    title: raw.name || raw.title,
+    season: Number.isFinite(season) ? season : undefined,
+    episode: Number.isFinite(episode) ? episode : undefined,
+    released: raw.released || raw.firstAired,
+    overview: raw.overview || raw.description,
+    thumbnail: raw.thumbnail,
+  };
 }
 
 class StremioService {
@@ -558,73 +594,185 @@ class StremioService {
     return unconstrainedStreamAddons.length > 0;
   }
 
-  async getStreams(identity: StremioContentIdentity): Promise<StremioAddonStreamResult[]> {
-    await this.ensureReady();
-    const addons = await this.getInstalledAddons();
-    const streamAddons = addons.filter((addon) =>
+  private streamAddonsFor(
+    addons: StremioAddonManifest[],
+    identity: StremioContentIdentity
+  ): StremioAddonManifest[] {
+    return addons.filter((addon) =>
       addonSupportsResource(addon, 'stream', identity.requestType, identity.requestId)
     );
+  }
 
+  private async fetchAddonStreams(
+    addon: StremioAddonManifest,
+    identity: StremioContentIdentity,
+    signal?: AbortSignal
+  ): Promise<StremioAddonStreamResult> {
+    if (!addon.url) {
+      return {
+        addonId: addon.id,
+        addonName: addon.name,
+        installationId: addon.installationId,
+        streams: [],
+        error: 'Addon has no transport URL',
+      };
+    }
+
+    const resourcePath = `/stream/${identity.requestType}/${encodeURIComponent(identity.requestId)}.json`;
+    const requestUrl = buildResourceUrl(addon.url, resourcePath);
+    appLogger.info('[Stremio] Fetching streams', {
+      addonId: addon.id,
+      installationId: addon.installationId,
+      requestType: identity.requestType,
+      requestId: identity.requestId,
+    });
+
+    const response = await fetchJson<StreamPayload>(requestUrl, 60000, signal);
+    if (!response.data) {
+      appLogger.warn('[Stremio] Stream request failed', {
+        addonId: addon.id,
+        installationId: addon.installationId,
+        error: response.error,
+      });
+      return {
+        addonId: addon.id,
+        addonName: addon.name,
+        installationId: addon.installationId,
+        streams: [],
+        error: response.error || 'Request failed',
+      };
+    }
+
+    const processed = Array.isArray(response.data.streams)
+      ? (response.data.streams
+          .map((stream, index) => normalizeStream(addon, stream, index))
+          .filter(Boolean) as StremioPlayableStream[])
+      : [];
+
+    return {
+      addonId: addon.id,
+      addonName: addon.name,
+      installationId: addon.installationId,
+      streams: processed,
+    };
+  }
+
+  async getStreams(identity: StremioContentIdentity): Promise<StremioAddonStreamResult[]> {
+    await this.ensureReady();
+    const streamAddons = this.streamAddonsFor(await this.getInstalledAddons(), identity);
     if (streamAddons.length === 0) {
       return [];
     }
-
-    const results = await Promise.all(
-      streamAddons.map(async (addon): Promise<StremioAddonStreamResult> => {
-        if (!addon.url) {
-          return {
-            addonId: addon.id,
-            addonName: addon.name,
-            installationId: addon.installationId,
-            streams: [],
-            error: 'Addon has no transport URL',
-          };
-        }
-
-        const resourcePath = `/stream/${identity.requestType}/${encodeURIComponent(identity.requestId)}.json`;
-        const requestUrl = buildResourceUrl(addon.url, resourcePath);
-        appLogger.info('[Stremio] Fetching streams', {
-          addonId: addon.id,
-          installationId: addon.installationId,
-          requestType: identity.requestType,
-          requestId: identity.requestId,
-        });
-
-        const response = await fetchJson<StreamPayload>(requestUrl, addon.id.toLowerCase().includes('torrentio') ? 60000 : 60000);
-        if (!response.data) {
-          appLogger.warn('[Stremio] Stream request failed', {
-            addonId: addon.id,
-            installationId: addon.installationId,
-            error: response.error,
-          });
-          return {
-            addonId: addon.id,
-            addonName: addon.name,
-            installationId: addon.installationId,
-            streams: [],
-            error: response.error || 'Request failed',
-          };
-        }
-
-        const processed = Array.isArray(response.data.streams)
-          ? response.data.streams
-              .map((stream, index) => normalizeStream(addon, stream, index))
-              .filter(Boolean) as StremioPlayableStream[]
-          : [];
-
-        return {
-          addonId: addon.id,
-          addonName: addon.name,
-          installationId: addon.installationId,
-          streams: processed,
-        };
-      })
-    );
-
-    return results;
+    return Promise.all(streamAddons.map((addon) => this.fetchAddonStreams(addon, identity)));
   }
 
-  async getSubtitles(identity: StremioContentIdentity): Promise<StremioSubtitleCandidate[]> {
+  /**
+   * Like `getStreams`, but stops as soon as `shouldStop` says so or the time limit
+   * passes; addons that have not answered are left out and their requests aborted.
+   * `shouldStop` gets the results so far in addon order and the installation ids still pending.
+   */
+  async getStreamsWithin(
+    identity: StremioContentIdentity,
+    options: {
+      timeLimitMs: number;
+      shouldStop?: (
+        results: StremioAddonStreamResult[],
+        pending: ReadonlySet<string>
+      ) => boolean;
+      /** Aborts the lookup early, resolving with what has arrived. */
+      signal?: AbortSignal;
+    }
+  ): Promise<{ results: StremioAddonStreamResult[]; timedOut: boolean }> {
+    await this.ensureReady();
+    const addons = await this.getInstalledAddons();
+    const streamAddons = this.streamAddonsFor(addons, identity);
+    if (streamAddons.length === 0) {
+      return { results: [], timedOut: false };
+    }
+
+    const order = addons.map((addon) => addon.installationId);
+    const sorted = (items: StremioAddonStreamResult[]) =>
+      [...items].sort(
+        (left, right) => order.indexOf(left.installationId) - order.indexOf(right.installationId)
+      );
+
+    return new Promise((resolve) => {
+      const controller = new AbortController();
+      const results: StremioAddonStreamResult[] = [];
+      const pending = new Set(streamAddons.map((addon) => addon.installationId));
+      let settled = false;
+      const onCallerAbort = () => finish(false);
+
+      const finish = (timedOut: boolean) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        options.signal?.removeEventListener('abort', onCallerAbort);
+        controller.abort();
+        resolve({ results: sorted(results), timedOut });
+      };
+
+      const timer = setTimeout(() => finish(true), options.timeLimitMs);
+      if (options.signal?.aborted) {
+        finish(false);
+        return;
+      }
+      options.signal?.addEventListener('abort', onCallerAbort);
+
+      for (const addon of streamAddons) {
+        this.fetchAddonStreams(addon, identity, controller.signal).then((result) => {
+          if (settled) return;
+          results.push(result);
+          pending.delete(addon.installationId);
+          if (pending.size === 0) {
+            finish(false);
+            return;
+          }
+          let stop = false;
+          try {
+            stop = options.shouldStop?.(sorted(results), pending) ?? false;
+          } catch (error) {
+            appLogger.warn('[Stremio] Early-stop check failed', toErrorDetails(error));
+          }
+          if (stop) {
+            finish(false);
+          }
+        });
+      }
+    });
+  }
+
+  /** Full metadata for one title, from the first meta-capable addon that has it. */
+  async getMeta(type: StremioRequestType, id: string): Promise<StremioMetaDetail | null> {
+    const addons = await this.getInstalledAddons();
+    for (const addon of addons) {
+      if (!addon.url || !addonSupportsResource(addon, 'meta', type, id)) {
+        continue;
+      }
+      const resourcePath = `/meta/${type}/${encodeURIComponent(id)}.json`;
+      const response = await fetchJson<MetaPayload>(buildResourceUrl(addon.url, resourcePath), 20000);
+      const meta = response.data?.meta;
+      if (meta && typeof meta === 'object') {
+        return {
+          id: meta.id || id,
+          name: meta.name,
+          videos: Array.isArray(meta.videos)
+            ? (meta.videos.map(parseMetaVideo).filter(Boolean) as StremioMetaVideo[])
+            : undefined,
+        };
+      }
+    }
+    return null;
+  }
+
+  /**
+   * @param options.deadlineMs Stop waiting on subtitle addons after this long and
+   * return what has arrived, so a slow addon can't delay switching episodes.
+   */
+  async getSubtitles(
+    identity: StremioContentIdentity,
+    options?: { deadlineMs?: number }
+  ): Promise<StremioSubtitleCandidate[]> {
     await this.ensureReady();
     const addons = await this.getInstalledAddons();
     const subtitleAddons = addons.filter((addon) =>
@@ -640,41 +788,52 @@ class StremioService {
         ? `${identity.baseId}:${identity.seasonNumber}:${identity.episodeNumber}`
         : identity.requestId;
 
-    const results = await Promise.all(
+    const deduped = new Map<string, StremioSubtitleCandidate>();
+    const controller = new AbortController();
+
+    const lookups = Promise.all(
       subtitleAddons.map(async (addon) => {
         if (!addon.url) {
-          return [] as StremioSubtitleCandidate[];
+          return;
         }
 
         const resourcePath = `/subtitles/${identity.requestType}/${encodeURIComponent(requestId)}.json`;
-        const response = await fetchJson<SubtitlePayload>(buildResourceUrl(addon.url, resourcePath), 10000);
+        const response = await fetchJson<SubtitlePayload>(
+          buildResourceUrl(addon.url, resourcePath),
+          10000,
+          controller.signal
+        );
         if (!response.data?.subtitles || !Array.isArray(response.data.subtitles)) {
-          return [] as StremioSubtitleCandidate[];
+          return;
         }
 
-        return response.data.subtitles
-          .map((subtitle: any, index: number): StremioSubtitleCandidate | null => {
-            if (!subtitle?.url) {
-              return null;
-            }
-            return {
+        response.data.subtitles.forEach((subtitle: any, index: number) => {
+          if (subtitle?.url && !deduped.has(subtitle.url)) {
+            deduped.set(subtitle.url, {
               id: subtitle.id || `${addon.id}-${index}`,
               url: subtitle.url,
               lang: subtitle.lang || subtitle.language || 'unknown',
               format: subtitle.format,
               addonId: addon.id,
               addonName: addon.name,
-            };
-          })
-          .filter(Boolean) as StremioSubtitleCandidate[];
+            });
+          }
+        });
       })
     );
 
-    const deduped = new Map<string, StremioSubtitleCandidate>();
-    for (const subtitle of results.flat()) {
-      if (!deduped.has(subtitle.url)) {
-        deduped.set(subtitle.url, subtitle);
-      }
+    if (options?.deadlineMs === undefined) {
+      await lookups;
+    } else {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      await Promise.race([
+        lookups,
+        new Promise<void>((resolve) => {
+          timer = setTimeout(resolve, options.deadlineMs);
+        }),
+      ]);
+      clearTimeout(timer);
+      controller.abort();
     }
     return Array.from(deduped.values());
   }

@@ -3,6 +3,7 @@ import {
   View,
   Text,
   FlatList,
+  Image,
   Pressable,
   StyleSheet,
   useWindowDimensions,
@@ -12,7 +13,13 @@ import { LinearGradient } from 'expo-linear-gradient';
 import ContextMenu from 'react-native-context-menu-view';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { getVersionString, type PlexMediaItem } from '@flixor/core';
+import type { ContinueWatchingEntry } from '../core/TraktContinueWatching';
+import {
+  continueWatchingEpisodeLabel,
+  continueWatchingMenuItems,
+  continueWatchingStatus,
+  type ContinueWatchingMenuAction,
+} from './home/continueWatchingMenu';
 
 const CARD_GAP = 12;
 const TABLET_BREAKPOINT = 600;
@@ -21,52 +28,21 @@ const TABLET_CARD_WIDTH_RATIO = 0.55;
 const TABLET_CARD_MAX_WIDTH = 460;
 
 interface ContinueWatchingLandscapeRowProps {
-  items: PlexMediaItem[];
-  itemsWithMultipleVersions?: Set<string>;
-  onItemPress: (item: PlexMediaItem) => void;
+  title: string;
+  entries: ContinueWatchingEntry[];
+  blurNextUp: boolean;
+  onItemPress: (entry: ContinueWatchingEntry) => void;
   onBrowsePress?: () => void;
-  onRemove?: (item: PlexMediaItem) => void;
-  onMarkWatched?: (item: PlexMediaItem) => void;
-  onInfo?: (item: PlexMediaItem) => void;
-  getImageUri: (item: PlexMediaItem) => string;
+  onAction: (action: ContinueWatchingMenuAction, entry: ContinueWatchingEntry) => void;
 }
 
-// Calculate progress percentage
-const getProgress = (item: PlexMediaItem): number => {
-  if (!item.viewOffset || !item.duration) return 0;
-  return Math.min((item.viewOffset / item.duration) * 100, 100);
-};
-
-// Format remaining time
-const getRemainingTime = (item: PlexMediaItem): string => {
-  if (!item.duration) return '';
-  const remainingMs = item.duration - (item.viewOffset || 0);
-  const minutes = Math.floor(remainingMs / 60000);
-  if (minutes >= 60) {
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
-  }
-  return `${minutes}m`;
-};
-
-// Get title for display (used in menu)
-const getTitle = (item: PlexMediaItem): string => {
-  if (item.type === 'episode') {
-    return item.grandparentTitle || item.title || 'Episode';
-  }
-  return item.title || '';
-};
-
 function ContinueWatchingLandscapeRow({
-  items,
-  itemsWithMultipleVersions,
+  title,
+  entries,
+  blurNextUp,
   onItemPress,
   onBrowsePress,
-  onRemove,
-  onMarkWatched,
-  onInfo,
-  getImageUri,
+  onAction,
 }: ContinueWatchingLandscapeRowProps) {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const isTablet = Math.min(windowWidth, windowHeight) >= TABLET_BREAKPOINT;
@@ -84,18 +60,16 @@ function ContinueWatchingLandscapeRow({
     }
   }, [onBrowsePress]);
 
-  const handleItemPress = useCallback((item: PlexMediaItem) => {
+  const handleItemPress = useCallback((entry: ContinueWatchingEntry) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    onItemPress(item);
+    onItemPress(entry);
   }, [onItemPress]);
 
-  const renderCard = useCallback(({ item }: { item: PlexMediaItem }) => {
-    const progress = getProgress(item);
-    const remainingTime = getRemainingTime(item);
-    const imageUri = getImageUri(item);
-    // Only show version if this item had multiple versions across libraries (was deduplicated)
-    const showVersion = itemsWithMultipleVersions?.has(item.ratingKey) ?? false;
-    const versionString = showVersion ? getVersionString(item.Media) : null;
+  const renderCard = useCallback(({ item }: { item: ContinueWatchingEntry }) => {
+    const imageUri = item.backdrop || item.image;
+    const episodeLabel = continueWatchingEpisodeLabel(item);
+    const status = continueWatchingStatus(item);
+    const menuItems = continueWatchingMenuItems(item);
 
     return (
       <Pressable
@@ -105,53 +79,51 @@ function ContinueWatchingLandscapeRow({
           { width: cardWidth, height: cardHeight, opacity: pressed ? 0.95 : 1 },
         ]}
       >
-        {/* Landscape Image - includes movie title/branding */}
-        <FastImage
-          source={{
-            uri: imageUri,
-            priority: FastImage.priority.high,
-            cache: FastImage.cacheControl.immutable,
-          }}
-          style={styles.cardImage}
-          resizeMode={FastImage.resizeMode.cover}
-        />
+        {imageUri && item.isUpNext && blurNextUp ? (
+          <Image source={{ uri: imageUri }} blurRadius={24} style={styles.cardImage} resizeMode="cover" />
+        ) : imageUri ? (
+          <FastImage
+            source={{
+              uri: imageUri,
+              priority: FastImage.priority.high,
+              cache: FastImage.cacheControl.immutable,
+            }}
+            style={styles.cardImage}
+            resizeMode={FastImage.resizeMode.cover}
+          />
+        ) : (
+          <View style={[styles.cardImage, styles.placeholder]}>
+            <Text style={styles.placeholderTitle} numberOfLines={2}>{item.title}</Text>
+          </View>
+        )}
 
         {/* Bottom gradient - seamless blend */}
         <LinearGradient
           colors={['transparent', 'rgba(0,0,0,0.6)']}
           style={styles.bottomGradient}
         >
-          {/* Controls row */}
           <View style={styles.controlsRow}>
-            {/* Left side: Play icon, progress bar, episode info, time, edition */}
             <View style={styles.leftControls}>
               <Ionicons name="play" size={12} color="#fff" />
 
-              <View style={styles.progressTrack}>
-                <View style={[styles.progressFill, { width: `${progress}%` }]} />
-              </View>
-
-              {/* Show episode info (S1, E1) for episodes */}
-              {item.type === 'episode' && item.parentIndex && item.index && (
-                <Text style={styles.episodeText}>S{item.parentIndex}, E{item.index}</Text>
+              {!item.isUpNext && (
+                <View style={styles.progressTrack}>
+                  <View style={[styles.progressFill, { width: `${item.progress}%` }]} />
+                </View>
               )}
-              <Text style={styles.timeText}>{remainingTime}</Text>
-              {versionString && <Text style={styles.versionText}>{versionString}</Text>}
+
+              {episodeLabel && <Text style={styles.episodeText}>{episodeLabel}</Text>}
+              <Text style={styles.timeText}>{status}</Text>
+              {item.versionLabel && <Text style={styles.versionText}>{item.versionLabel}</Text>}
             </View>
 
-            {/* Right side: Context Menu - wrapped in Pressable to stop event propagation */}
+            {/* Wrapped in Pressable to stop event propagation */}
             <Pressable onPress={(e) => e.stopPropagation()}>
               <ContextMenu
-                actions={[
-                  { title: 'Info', systemIcon: 'info.circle' },
-                  { title: 'Mark as Watched', systemIcon: 'checkmark.circle' },
-                  { title: 'Remove', systemIcon: 'trash', destructive: true },
-                ]}
+                actions={menuItems}
                 onPress={(e) => {
-                  const index = e.nativeEvent.index;
-                  if (index === 0) onInfo?.(item);
-                  else if (index === 1) onMarkWatched?.(item);
-                  else if (index === 2) onRemove?.(item);
+                  const selected = menuItems[e.nativeEvent.index];
+                  if (selected) onAction(selected.action, item);
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 }}
                 dropdownMenuMode
@@ -165,14 +137,14 @@ function ContinueWatchingLandscapeRow({
         </LinearGradient>
       </Pressable>
     );
-  }, [cardHeight, cardWidth, getImageUri, handleItemPress, onInfo, onMarkWatched, onRemove, itemsWithMultipleVersions]);
+  }, [blurNextUp, cardHeight, cardWidth, handleItemPress, onAction]);
 
   return (
     <View style={styles.container}>
       {/* Row header */}
       <View style={styles.header}>
         <Pressable onPress={handleTitlePress} style={styles.titleRow}>
-          <Text style={styles.rowTitle}>Continue Watching</Text>
+          <Text style={styles.rowTitle}>{title}</Text>
           <Ionicons name="chevron-forward" size={18} color="#fff" style={styles.chevron} />
         </Pressable>
       </View>
@@ -180,8 +152,8 @@ function ContinueWatchingLandscapeRow({
       {/* Horizontal card list */}
       <FlatList
         horizontal
-        data={items}
-        keyExtractor={(item) => item.ratingKey || item.key || ''}
+        data={entries}
+        keyExtractor={(entry) => entry.key}
         renderItem={renderCard}
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.listContent}
@@ -239,6 +211,17 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     backgroundColor: '#1a1a1a',
+  },
+  placeholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+  },
+  placeholderTitle: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+    textAlign: 'center',
   },
   bottomGradient: {
     position: 'absolute',

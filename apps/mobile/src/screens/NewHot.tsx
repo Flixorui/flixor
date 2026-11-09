@@ -15,14 +15,22 @@ import {
   getTrendingAll,
   getTop10Shows,
   getTop10Movies,
+  getWorthTheWait,
   fetchPreferredBackdrops,
   ContentItem,
+  TrendingPeriod,
 } from '../core/NewHotData';
+import { useAppMode } from '../core/AppMode';
+import { useTheme } from '../hooks/useTheme';
+import Chip from '../components/collections/Chip';
 
-type TabType = 'coming-soon' | 'everyones-watching' | 'top10-shows' | 'top10-movies';
+type TabType = 'coming-soon' | 'worth-the-wait' | 'everyones-watching' | 'top10-shows' | 'top10-movies';
+
+const PERIOD_TABS: TabType[] = ['everyones-watching', 'top10-shows', 'top10-movies'];
 
 const TABS = [
   { id: 'coming-soon' as const, label: '🎁 Coming Soon' },
+  { id: 'worth-the-wait' as const, label: '⏳ Worth the Wait' },
   { id: 'everyones-watching' as const, label: "🔥 Everyone's Watching" },
   { id: 'top10-shows' as const, label: '🔝 Top 10 Shows' },
   { id: 'top10-movies' as const, label: '🔝 Top 10 Movies' },
@@ -31,22 +39,28 @@ const TABS = [
 // Persistent store for caching content across mounts (like NuvioStreaming)
 const persistentStore: {
   'coming-soon': ContentItem[] | null;
+  'worth-the-wait': ContentItem[] | null;
   'everyones-watching': ContentItem[] | null;
   'top10-shows': ContentItem[] | null;
   'top10-movies': ContentItem[] | null;
   lastFetchTime: Record<TabType, number>;
 } = {
   'coming-soon': null,
+  'worth-the-wait': null,
   'everyones-watching': null,
   'top10-shows': null,
   'top10-movies': null,
   lastFetchTime: {
     'coming-soon': 0,
+    'worth-the-wait': 0,
     'everyones-watching': 0,
     'top10-shows': 0,
     'top10-movies': 0,
   },
 };
+
+// Survives remounts along with the cached lists it describes
+const persistentPeriod: { value: TrendingPeriod } = { value: 'week' };
 
 // TabPill component - defined outside to be available in useMemo
 function TabPill({ active, label, onPress }: { active?: boolean; label: string; onPress?: () => void }) {
@@ -65,7 +79,13 @@ function TabPill({ active, label, onPress }: { active?: boolean; label: string; 
 export default function NewHot() {
   const nav: any = useNavigation();
   const { isConnected } = useFlixor();
+  const { isStremioOnly } = useAppMode();
+  // TMDB supplies everything here, so Stremio-only mode has nothing to wait for
+  const ready = isConnected || isStremioOnly;
+  const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const [period, setPeriod] = useState<TrendingPeriod>(persistentPeriod.value);
+  const loadId = useRef(0);
   const [activeTab, setActiveTab] = useState<TabType>('coming-soon');
   const [loading, setLoading] = useState(false);
   // Initialize from persistent store for instant render
@@ -118,7 +138,7 @@ export default function NewHot() {
   }, [activeTab]);
 
   useEffect(() => {
-    if (isConnected) {
+    if (ready) {
       // Check if cache is still valid
       if (isCacheValid(persistentStore.lastFetchTime[activeTab], CACHE_TTL.NEW_HOT) && persistentStore[activeTab]) {
         // Use cached data, no need to refetch
@@ -126,11 +146,24 @@ export default function NewHot() {
       }
       loadContent();
     }
-  }, [isConnected, activeTab]);
+  }, [ready, activeTab, period]);
+
+  const changePeriod = (next: TrendingPeriod) => {
+    if (next === period) return;
+    persistentPeriod.value = next;
+    // The cached lists belong to the old period
+    PERIOD_TABS.forEach((tab) => {
+      persistentStore[tab] = null;
+      persistentStore.lastFetchTime[tab] = 0;
+    });
+    setPeriod(next);
+  };
 
   const loadContent = async () => {
-    if (!isConnected) return;
+    if (!ready) return;
 
+    const id = ++loadId.current;
+    const tab = activeTab;
     setLoading(true);
     try {
       let items: ContentItem[] = [];
@@ -138,19 +171,24 @@ export default function NewHot() {
         case 'coming-soon':
           items = await getUpcomingMovies();
           break;
+        case 'worth-the-wait':
+          items = await getWorthTheWait();
+          break;
         case 'everyones-watching':
-          items = await getTrendingAll();
+          items = await getTrendingAll(period);
           break;
         case 'top10-shows':
-          items = await getTop10Shows();
+          items = await getTop10Shows(period);
           break;
         case 'top10-movies':
-          items = await getTop10Movies();
+          items = await getTop10Movies(period);
           break;
       }
       // Update persistent store
-      persistentStore[activeTab] = items;
-      persistentStore.lastFetchTime[activeTab] = Date.now();
+      persistentStore[tab] = items;
+      persistentStore.lastFetchTime[tab] = Date.now();
+      // The user moved on while this was loading
+      if (id !== loadId.current) return;
 
       // Preload images for smoother scrolling
       const imagesToPreload = items
@@ -173,10 +211,10 @@ export default function NewHot() {
             ...item,
             backdropImage: backdrops[item.id] || item.backdropImage,
           }));
-          persistentStore[activeTab] = updatedItems;
+          persistentStore[tab] = updatedItems;
 
           InteractionManager.runAfterInteractions(() => {
-            setContent(updatedItems);
+            if (id === loadId.current) setContent(updatedItems);
           });
         }
       });
@@ -184,7 +222,7 @@ export default function NewHot() {
       console.error('[NewHot] Failed to load content:', error);
     } finally {
       InteractionManager.runAfterInteractions(() => {
-        setLoading(false);
+        if (id === loadId.current) setLoading(false);
       });
     }
   };
@@ -220,6 +258,13 @@ export default function NewHot() {
             { nativeEvent: { contentOffset: { y } } }
           ], { useNativeDriver: false })}
         >
+          {PERIOD_TABS.includes(activeTab) ? (
+            <View style={styles.periods}>
+              <Chip label="Today" active={period === 'day'} onPress={() => changePeriod('day')} />
+              <Chip label="This Week" active={period === 'week'} onPress={() => changePeriod('week')} />
+            </View>
+          ) : null}
+
           {/* Content */}
           {loading ? (
             <View style={{ alignItems: 'center', paddingTop: 40 }}>
@@ -251,7 +296,7 @@ export default function NewHot() {
 
                     {/* Rank badge for Top 10 */}
                     {item.rank && (
-                      <View style={styles.rankBadge}>
+                      <View style={[styles.rankBadge, { backgroundColor: theme.accent }]}>
                         <Text style={styles.rankNumber}>{item.rank}</Text>
                       </View>
                     )}
@@ -288,6 +333,11 @@ export default function NewHot() {
 }
 
 const styles = StyleSheet.create({
+  periods: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+  },
   tabPill: {
     paddingHorizontal: 14,
     paddingVertical: 6,
@@ -324,7 +374,6 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 4,
-    backgroundColor: '#E50914',
     alignItems: 'center',
     justifyContent: 'center',
   },

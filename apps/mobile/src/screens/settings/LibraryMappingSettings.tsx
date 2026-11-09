@@ -8,6 +8,7 @@ import SettingsCard from '../../components/settings/SettingsCard';
 import ConditionalBlurView from '../../components/ConditionalBlurView';
 import { fetchAllLibraries } from '../../core/HomeData';
 import { useAppSettings } from '../../hooks/useAppSettings';
+import { useTheme } from '../../hooks/useTheme';
 
 type LibraryItem = { key: string; title: string; type: string };
 
@@ -19,6 +20,7 @@ type DropdownOption = {
 
 export default function LibraryMappingSettings() {
   const nav: any = useNavigation();
+  const theme = useTheme();
   const insets = useSafeAreaInsets();
   const headerHeight = insets.top + 52;
   const { settings, updateSetting } = useAppSettings();
@@ -161,7 +163,7 @@ export default function LibraryMappingSettings() {
   );
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.settingsBackground }]}>
       <SettingsHeader title="Library Mapping" onBack={() => nav.goBack()} />
       <ScrollView
         contentContainerStyle={[

@@ -3,6 +3,7 @@ import { View, Text, Pressable, StyleSheet, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ConditionalBlurView from '../ConditionalBlurView';
+import { useTheme } from '../../hooks/useTheme';
 
 type SettingsHeaderProps = {
   title: string;
@@ -12,6 +13,7 @@ type SettingsHeaderProps = {
 
 export default function SettingsHeader({ title, onBack, scrollY }: SettingsHeaderProps) {
   const insets = useSafeAreaInsets();
+  const theme = useTheme();
   const headerHeight = insets.top + 52;
 
   // Animate blur/tint based on scroll (matching TopAppBar behavior)
@@ -28,7 +30,7 @@ export default function SettingsHeader({ title, onBack, scrollY }: SettingsHeade
       <Animated.View style={[StyleSheet.absoluteFillObject, { opacity: blurOpacity }]}>
         <ConditionalBlurView intensity={90} tint="dark" style={StyleSheet.absoluteFillObject} />
         {/* Glass tint overlay */}
-        <View pointerEvents="none" style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(27,10,16,0.12)' }]} />
+        <View pointerEvents="none" style={[StyleSheet.absoluteFillObject, { backgroundColor: theme.glassTint }]} />
       </Animated.View>
       {/* Hairline separator - fades in on scroll */}
       <Animated.View style={[styles.separator, { opacity: separatorOpacity }]} />

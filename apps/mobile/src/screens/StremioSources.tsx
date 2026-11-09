@@ -1,5 +1,5 @@
 import React from 'react';
-import { ActivityIndicator, ImageBackground, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, ImageBackground, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -21,6 +21,9 @@ export default function StremioSources({ route }: RouteParams) {
   const params = route?.params;
   const {
     loading,
+    autoSelecting,
+    autoSelectNotice,
+    chooseSourceInstead,
     visibleResults,
     providers,
     selectedProvider,
@@ -61,7 +64,13 @@ export default function StremioSources({ route }: RouteParams) {
           </Text>
         </View>
 
-        {cachedSource ? (
+        {autoSelectNotice ? (
+          <View style={styles.stateCard}>
+            <Text style={styles.stateText}>{autoSelectNotice}</Text>
+          </View>
+        ) : null}
+
+        {cachedSource && !autoSelecting ? (
           <View style={styles.resumeSection}>
             <Text style={styles.sectionTitle}>Resume Cached Source</Text>
             <StremioStreamCard
@@ -88,7 +97,15 @@ export default function StremioSources({ route }: RouteParams) {
           onSelect={setSelectedProvider}
         />
 
-        {loading ? (
+        {autoSelecting ? (
+          <View style={styles.loadingState}>
+            <ActivityIndicator color="#ffffff" />
+            <Text style={styles.stateText}>Finding a source…</Text>
+            <Pressable onPress={chooseSourceInstead} accessibilityRole="button" style={styles.chooseButton}>
+              <Text style={styles.chooseButtonText}>Choose a Source Instead</Text>
+            </Pressable>
+          </View>
+        ) : loading ? (
           <View style={styles.loadingState}>
             <ActivityIndicator color="#ffffff" />
             <Text style={styles.stateText}>Loading addon sources…</Text>
@@ -147,6 +164,18 @@ export default function StremioSources({ route }: RouteParams) {
 }
 
 const styles = StyleSheet.create({
+  chooseButton: {
+    marginTop: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+  },
+  chooseButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
   container: {
     flex: 1,
     backgroundColor: '#08080a',

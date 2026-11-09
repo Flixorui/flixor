@@ -7,6 +7,7 @@ import * as Clipboard from 'expo-clipboard';
 import SettingsHeader from '../../components/settings/SettingsHeader';
 import SettingsCard from '../../components/settings/SettingsCard';
 import { appLogger, type LogEntry, type LogLevel } from '../../core/AppLogger';
+import { useTheme } from '../../hooks/useTheme';
 
 const LOG_COLORS: Record<LogLevel, string> = {
   debug: '#6b7280', // gray
@@ -17,6 +18,7 @@ const LOG_COLORS: Record<LogLevel, string> = {
 
 export default function LogsScreen() {
   const nav: any = useNavigation();
+  const theme = useTheme();
   const insets = useSafeAreaInsets();
   const headerHeight = insets.top + 52;
 
@@ -78,7 +80,7 @@ export default function LogsScreen() {
   });
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.settingsBackground }]}>
       <SettingsHeader title="Logs" onBack={() => nav.goBack()} />
       <ScrollView
         contentContainerStyle={[

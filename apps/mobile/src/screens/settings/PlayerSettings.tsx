@@ -1,17 +1,41 @@
 import React from 'react';
-import { View, Text, ScrollView, Switch, Pressable, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Pressable, StyleSheet, TextInput } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import SettingsHeader from '../../components/settings/SettingsHeader';
 import SettingsCard from '../../components/settings/SettingsCard';
 import SettingItem from '../../components/settings/SettingItem';
+import SettingsSwitch from '../../components/settings/SettingsSwitch';
 import { useAppSettings } from '../../hooks/useAppSettings';
+import { PLAYBACK_SPEED_PRESETS, formatSpeed } from '../../components/player/panels/SpeedPanel';
+import { SUBTITLE_TEXT_COLORS } from '../../components/player/panels/SubtitlePanel';
 
 export default function PlayerSettings() {
   const nav: any = useNavigation();
   const insets = useSafeAreaInsets();
   const { settings, updateSetting } = useAppSettings();
   const headerHeight = insets.top + 52;
+
+  const segmented = <T,>(
+    options: Array<{ label: string; value: T }>,
+    selected: T,
+    onSelect: (value: T) => void
+  ) => (
+    <View style={styles.segmentedControl}>
+      {options.map((option, index) => {
+        const isSelected = option.value === selected;
+        return (
+          <Pressable
+            key={option.label}
+            style={[styles.segmentedChip, index > 0 && styles.segmentedChipDivider, isSelected && styles.segmentedChipActive]}
+            onPress={() => onSelect(option.value)}
+          >
+            <Text style={[styles.segmentedChipText, isSelected && styles.segmentedChipTextActive]}>{option.label}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
 
   return (
     <View style={styles.container}>
@@ -24,7 +48,7 @@ export default function PlayerSettings() {
             description="Automatically play next episode when current finishes"
             icon="play-forward-outline"
             renderRight={() => (
-              <Switch
+              <SettingsSwitch
                 value={settings.autoPlayNext}
                 onValueChange={(value) => updateSetting('autoPlayNext', value)}
               />
@@ -36,9 +60,69 @@ export default function PlayerSettings() {
             description="Remember audio/subtitle language choices"
             icon="list-outline"
             renderRight={() => (
-              <Switch
+              <SettingsSwitch
                 value={settings.rememberTrackSelections}
                 onValueChange={(value) => updateSetting('rememberTrackSelections', value)}
+              />
+            )}
+            isLast={false}
+          />
+          <View style={[styles.sliderGroup, styles.sliderGroupLast]}>
+            <Text style={styles.sliderLabel}>Default Speed</Text>
+            <Text style={styles.sliderSubtitle}>Speed each video starts at</Text>
+            {segmented(
+              PLAYBACK_SPEED_PRESETS.filter((speed) => speed >= 0.75 && speed !== 1.75).map((speed) => ({
+                label: formatSpeed(speed),
+                value: speed,
+              })),
+              settings.defaultPlaybackSpeed,
+              (speed) => updateSetting('defaultPlaybackSpeed', speed)
+            )}
+          </View>
+        </SettingsCard>
+
+        <SettingsCard title="SUBTITLE STYLE">
+          <View style={styles.sliderGroup}>
+            <Text style={styles.sliderLabel}>Size</Text>
+            {segmented(
+              [35, 45, 55, 65, 75].map((size) => ({ label: String(size), value: size })),
+              settings.subtitleFontSize,
+              (size) => updateSetting('subtitleFontSize', size)
+            )}
+          </View>
+          <View style={styles.sliderGroup}>
+            <Text style={styles.sliderLabel}>Color</Text>
+            {segmented(
+              SUBTITLE_TEXT_COLORS.map((option) => ({ label: option.name, value: option.hex })),
+              settings.subtitleTextColor.toUpperCase(),
+              (hex) => updateSetting('subtitleTextColor', hex)
+            )}
+          </View>
+          <View style={styles.sliderGroup}>
+            <Text style={styles.sliderLabel}>Outline</Text>
+            {segmented(
+              [0, 1, 2, 3, 4, 5].map((size) => ({ label: String(size), value: size })),
+              settings.subtitleBorderSize,
+              (size) => updateSetting('subtitleBorderSize', size)
+            )}
+          </View>
+          <View style={styles.sliderGroup}>
+            <Text style={styles.sliderLabel}>Position</Text>
+            <Text style={styles.sliderSubtitle}>100 is the bottom of the screen</Text>
+            {segmented(
+              [70, 80, 90, 95, 100].map((position) => ({ label: String(position), value: position })),
+              settings.subtitlePosition,
+              (position) => updateSetting('subtitlePosition', position)
+            )}
+          </View>
+          <SettingItem
+            title="Remove Hearing-Impaired Text"
+            description="Strip [MUSIC], (laughs) and speaker labels from addon subtitles"
+            icon="ear-outline"
+            renderRight={() => (
+              <SettingsSwitch
+                value={settings.subtitleFilterSDH}
+                onValueChange={(value) => updateSetting('subtitleFilterSDH', value)}
               />
             )}
             isLast={true}
@@ -81,6 +165,7 @@ export default function PlayerSettings() {
             <View style={styles.segmentedControl}>
               {[
                 { label: 'System', value: undefined },
+                { label: 'Original', value: 'original' },
                 { label: 'English', value: 'en' },
                 { label: 'Japanese', value: 'ja' },
                 { label: 'Spanish', value: 'es' },
@@ -139,7 +224,7 @@ export default function PlayerSettings() {
             description="Automatically choose subtitles based on the preferences above"
             icon="text-outline"
             renderRight={() => (
-              <Switch
+              <SettingsSwitch
                 value={settings.enableSubtitleAutoSelect ?? true}
                 onValueChange={(value) => updateSetting('enableSubtitleAutoSelect', value)}
               />
@@ -155,7 +240,7 @@ export default function PlayerSettings() {
             description="Auto-skip detected intro segments"
             icon="play-skip-forward-outline"
             renderRight={() => (
-              <Switch
+              <SettingsSwitch
                 value={settings.skipIntroAutomatically}
                 onValueChange={(value) => updateSetting('skipIntroAutomatically', value)}
               />
@@ -167,13 +252,53 @@ export default function PlayerSettings() {
             description="Auto-skip detected credits segments"
             icon="play-skip-forward-outline"
             renderRight={() => (
-              <Switch
+              <SettingsSwitch
                 value={settings.skipCreditsAutomatically}
                 onValueChange={(value) => updateSetting('skipCreditsAutomatically', value)}
               />
             )}
             isLast={false}
           />
+          <SettingItem
+            title="Skip Recap Automatically"
+            description="Auto-skip detected recap segments"
+            icon="play-skip-forward-outline"
+            renderRight={() => (
+              <SettingsSwitch
+                value={settings.skipRecapAutomatically}
+                onValueChange={(value) => updateSetting('skipRecapAutomatically', value)}
+              />
+            )}
+            isLast={false}
+          />
+          <SettingItem
+            title="Community Skip Data"
+            description="Look up intro, recap and credits timings from IntroDB and AniSkip when Plex has none"
+            icon="people-outline"
+            renderRight={() => (
+              <SettingsSwitch
+                value={settings.communitySkipSegmentsEnabled}
+                onValueChange={(value) => updateSetting('communitySkipSegmentsEnabled', value)}
+              />
+            )}
+            isLast={false}
+          />
+          {settings.communitySkipSegmentsEnabled ? (
+            <View style={styles.sliderGroup}>
+              <Text style={styles.sliderLabel}>Anime-Skip Client ID</Text>
+              <Text style={styles.sliderSubtitle}>Optional. Anime-Skip is only used with your own client ID</Text>
+              <TextInput
+                defaultValue={settings.animeSkipClientId}
+                onEndEditing={(event) => updateSetting('animeSkipClientId', event.nativeEvent.text.trim())}
+                placeholder="Client ID"
+                placeholderTextColor="#6b7280"
+                autoCapitalize="none"
+                autoCorrect={false}
+                secureTextEntry
+                style={styles.textInput}
+              />
+            </View>
+          ) : null}
           <View style={styles.sliderGroup}>
             <Text style={styles.sliderLabel}>Skip Delay</Text>
             <Text style={styles.sliderSubtitle}>Seconds before auto-skipping</Text>
@@ -292,6 +417,13 @@ export default function PlayerSettings() {
             updateSetting('preferredAudioLanguage', undefined);
             updateSetting('subtitleSourcePreference', 'internal');
             updateSetting('enableSubtitleAutoSelect', true);
+            updateSetting('defaultPlaybackSpeed', 1);
+            updateSetting('subtitleFontSize', 55);
+            updateSetting('subtitleTextColor', '#FFFFFF');
+            updateSetting('subtitleBorderSize', 3);
+            updateSetting('subtitlePosition', 100);
+            updateSetting('subtitleFilterSDH', false);
+            updateSetting('skipRecapAutomatically', true);
           }}
         >
           <Text style={styles.resetButtonText}>Reset to Defaults</Text>
@@ -362,6 +494,16 @@ const styles = StyleSheet.create({
   },
   segmentedChipTextActive: {
     color: '#111827',
+  },
+  textInput: {
+    color: '#f9fafb',
+    fontSize: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 10,
   },
   resetButton: {
     alignSelf: 'center',

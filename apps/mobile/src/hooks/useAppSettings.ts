@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import {
   DEFAULT_APP_SETTINGS,
   type AppSettings,
+  addSettingsListener,
+  getAppSettings,
   loadAppSettings,
   setAppSettings,
 } from '../core/SettingsData';
@@ -55,4 +57,13 @@ export function useAppSettings() {
     isLoaded,
     refresh,
   };
+}
+
+/**
+ * One setting, kept current without a storage read. Use for primitive values the shell
+ * reads on every render.
+ */
+export function useAppSetting<K extends keyof AppSettings>(key: K): AppSettings[K] {
+  const read = () => getAppSettings()[key];
+  return useSyncExternalStore(addSettingsListener, read, read);
 }

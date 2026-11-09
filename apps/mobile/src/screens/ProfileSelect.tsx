@@ -20,6 +20,7 @@ import {
 } from '../core/ProfileService';
 import ProfileAvatar from '../components/ProfileAvatar';
 import PinEntryModal from '../components/PinEntryModal';
+import { useTheme } from '../hooks/useTheme';
 
 interface ProfileSelectProps {
   onProfileSelected?: () => void;
@@ -30,6 +31,9 @@ export default function ProfileSelect({
   onProfileSelected,
   onClose,
 }: ProfileSelectProps) {
+  const theme = useTheme();
+  // Plex gold until the user picks an accent
+  const accent = theme.chosenAccent ?? '#e5a00d';
   const insets = useSafeAreaInsets();
 
   const [users, setUsers] = useState<PlexHomeUser[]>([]);
@@ -146,7 +150,7 @@ export default function ProfileSelect({
     return (
       <View style={[styles.container, { paddingTop: insets.top }]}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#e5a00d" />
+          <ActivityIndicator size="large" color={accent} />
           <Text style={styles.loadingText}>Loading profiles...</Text>
         </View>
       </View>
@@ -195,7 +199,7 @@ export default function ProfileSelect({
           <RefreshControl
             refreshing={refreshing}
             onRefresh={() => loadProfiles(true)}
-            tintColor="#e5a00d"
+            tintColor={accent}
           />
         }
       >
@@ -215,7 +219,7 @@ export default function ProfileSelect({
                 <View style={styles.profileContent}>
                   <View style={styles.avatarContainer}>
                     {switching === user.id ? (
-                      <ActivityIndicator size="large" color="#e5a00d" />
+                      <ActivityIndicator size="large" color={accent} />
                     ) : (
                       <ProfileAvatar
                         thumb={user.thumb}
@@ -235,7 +239,7 @@ export default function ProfileSelect({
                     {user.title}
                   </Text>
                   {isCurrentProfile && (
-                    <View style={styles.currentBadge}>
+                    <View style={[styles.currentBadge, { backgroundColor: accent }]}>
                       <Text style={styles.currentBadgeText}>Current</Text>
                     </View>
                   )}

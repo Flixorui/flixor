@@ -28,13 +28,32 @@ import {
   type PlexConnectionInfo,
 } from '../../core/SettingsData';
 import type { PlexServer } from '@flixor/core';
+import { useTheme } from '../../hooks/useTheme';
 
 interface PlexSettingsProps {
   onLogout?: () => Promise<void>;
 }
 
+function accentOverrides(accent: string | undefined, soft: string, onAccent: string) {
+  if (!accent) return {} as Record<string, undefined>;
+  return {
+    serverNameActive: { color: accent },
+    actionButtonExpanded: { backgroundColor: soft },
+    actionButtonPrimary: { backgroundColor: accent },
+    actionButtonTextExpanded: { color: accent },
+    actionButtonTextPrimary: { color: onAccent },
+    providerOptionActive: { backgroundColor: soft, borderColor: accent },
+    smallButtonPrimary: { backgroundColor: accent },
+    smallButtonTextPrimary: { color: onAccent },
+  };
+}
+
 export default function PlexSettings({ onLogout }: PlexSettingsProps) {
   const nav: any = useNavigation();
+  const theme = useTheme();
+  // Plex gold until the user picks an accent
+  const accent = theme.chosenAccent ?? '#e5a00d';
+  const accentStyles = accentOverrides(theme.chosenAccent, theme.accentSoft, theme.onAccent);
   const insets = useSafeAreaInsets();
   const headerHeight = insets.top + 52;
   const { flixor, isConnected } = useFlixor();
@@ -277,7 +296,7 @@ export default function PlexSettings({ onLogout }: PlexSettingsProps) {
   const getTestResultIcon = (uri: string) => {
     const result = testResults[uri];
     if (!result) return null;
-    if (result === 'testing') return <ActivityIndicator size="small" color="#e5a00d" />;
+    if (result === 'testing') return <ActivityIndicator size="small" color={accent} />;
     if (result === 'success') return <Ionicons name="checkmark-circle" size={16} color="#22c55e" />;
     if (result === 'failed') return <Ionicons name="close-circle" size={16} color="#ef4444" />;
     return null;
@@ -290,7 +309,7 @@ export default function PlexSettings({ onLogout }: PlexSettingsProps) {
       <View style={styles.endpointsContainer}>
         {loadingEndpoints ? (
           <View style={styles.endpointsLoading}>
-            <ActivityIndicator color="#e5a00d" size="small" />
+            <ActivityIndicator color={accent} size="small" />
             <Text style={styles.endpointsLoadingText}>Loading endpoints...</Text>
           </View>
         ) : (
@@ -319,7 +338,7 @@ export default function PlexSettings({ onLogout }: PlexSettingsProps) {
                       {getTestResultIcon(endpoint.uri)}
                       {endpoint.isCurrent && (
                         <View style={styles.currentBadge}>
-                          <Ionicons name="checkmark" size={10} color="#e5a00d" />
+                          <Ionicons name="checkmark" size={10} color={accent} />
                         </View>
                       )}
                     </View>
@@ -342,14 +361,14 @@ export default function PlexSettings({ onLogout }: PlexSettingsProps) {
                     </Pressable>
                     {!endpoint.isCurrent && (
                       <Pressable
-                        style={[styles.smallButton, styles.smallButtonPrimary]}
+                        style={[styles.smallButton, [styles.smallButtonPrimary, accentStyles.smallButtonPrimary]]}
                         onPress={() => selectEndpoint(endpoint.uri)}
                         disabled={selectingEndpoint !== null}
                       >
                         {selectingEndpoint === endpoint.uri ? (
                           <ActivityIndicator size="small" color="#000" />
                         ) : (
-                          <Text style={[styles.smallButtonText, styles.smallButtonTextPrimary]}>Use</Text>
+                          <Text style={[styles.smallButtonText, [styles.smallButtonTextPrimary, accentStyles.smallButtonTextPrimary]]}>Use</Text>
                         )}
                       </Pressable>
                     )}
@@ -386,11 +405,11 @@ export default function PlexSettings({ onLogout }: PlexSettingsProps) {
                   )}
                 </Pressable>
                 <Pressable
-                  style={[styles.smallButton, styles.smallButtonPrimary, !customEndpoint.trim() && styles.smallButtonDisabled]}
+                  style={[styles.smallButton, [styles.smallButtonPrimary, accentStyles.smallButtonPrimary], !customEndpoint.trim() && styles.smallButtonDisabled]}
                   onPress={() => selectCustomEndpoint(customEndpoint.trim())}
                   disabled={selectingEndpoint !== null || !customEndpoint.trim()}
                 >
-                  <Text style={[styles.smallButtonText, styles.smallButtonTextPrimary]}>Use</Text>
+                  <Text style={[styles.smallButtonText, [styles.smallButtonTextPrimary, accentStyles.smallButtonTextPrimary]]}>Use</Text>
                 </Pressable>
               </View>
             </View>
@@ -401,7 +420,7 @@ export default function PlexSettings({ onLogout }: PlexSettingsProps) {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.settingsBackground }]}>
       <SettingsHeader title="Plex" onBack={() => nav.goBack()} />
       <ScrollView
         contentContainerStyle={[styles.content, { paddingTop: headerHeight + 12, paddingBottom: insets.bottom + 100 }]}
@@ -451,7 +470,7 @@ export default function PlexSettings({ onLogout }: PlexSettingsProps) {
                 <Pressable
                   style={[
                     styles.providerOption,
-                    watchlistProvider === 'trakt' && styles.providerOptionActive,
+                    watchlistProvider === 'trakt' && [styles.providerOptionActive, accentStyles.providerOptionActive],
                   ]}
                   onPress={() => handleWatchlistProviderChange('trakt')}
                 >
@@ -468,7 +487,7 @@ export default function PlexSettings({ onLogout }: PlexSettingsProps) {
                 <Pressable
                   style={[
                     styles.providerOption,
-                    watchlistProvider === 'plex' && styles.providerOptionActive,
+                    watchlistProvider === 'plex' && [styles.providerOptionActive, accentStyles.providerOptionActive],
                   ]}
                   onPress={() => handleWatchlistProviderChange('plex')}
                 >
@@ -491,7 +510,7 @@ export default function PlexSettings({ onLogout }: PlexSettingsProps) {
         <SettingsCard title="AVAILABLE SERVERS">
           {loading ? (
             <View style={styles.loadingWrap}>
-              <ActivityIndicator color="#e5a00d" />
+              <ActivityIndicator color={accent} />
               <Text style={styles.loadingText}>Loading servers...</Text>
             </View>
           ) : servers.length === 0 ? (
@@ -518,11 +537,11 @@ export default function PlexSettings({ onLogout }: PlexSettingsProps) {
                       <Ionicons
                         name={server.owned ? "server" : "cloud-outline"}
                         size={18}
-                        color={isCurrentServer ? "#e5a00d" : "#e5e7eb"}
+                        color={isCurrentServer ? accent : "#e5e7eb"}
                       />
                     </View>
                     <View style={styles.serverInfo}>
-                      <Text style={[styles.serverName, isCurrentServer && styles.serverNameActive]}>
+                      <Text style={[styles.serverName, isCurrentServer && [styles.serverNameActive, accentStyles.serverNameActive]]}>
                         {server.name}
                       </Text>
                       <Text style={styles.serverMeta}>
@@ -531,35 +550,35 @@ export default function PlexSettings({ onLogout }: PlexSettingsProps) {
                     </View>
                     <View style={styles.serverActions}>
                       <Pressable
-                        style={[styles.actionButton, isExpanded && styles.actionButtonExpanded]}
+                        style={[styles.actionButton, isExpanded && [styles.actionButtonExpanded, accentStyles.actionButtonExpanded]]}
                         onPress={() => toggleServerEndpoints(server.id)}
                       >
                         <Ionicons
                           name={isExpanded ? "chevron-up" : "chevron-down"}
                           size={14}
-                          color={isExpanded ? "#e5a00d" : "#9ca3af"}
+                          color={isExpanded ? accent : "#9ca3af"}
                         />
-                        <Text style={[styles.actionButtonText, isExpanded && styles.actionButtonTextExpanded]}>
+                        <Text style={[styles.actionButtonText, isExpanded && [styles.actionButtonTextExpanded, accentStyles.actionButtonTextExpanded]]}>
                           Endpoints
                         </Text>
                       </Pressable>
                       {!isCurrentServer && (
                         <Pressable
-                          style={[styles.actionButton, styles.actionButtonPrimary]}
+                          style={[styles.actionButton, [styles.actionButtonPrimary, accentStyles.actionButtonPrimary]]}
                           onPress={() => connectToServer(server)}
                           disabled={isConnectingToThis || (connecting !== null && !isConnectingToThis)}
                         >
                           {isConnectingToThis ? (
                             <ActivityIndicator size="small" color="#000" />
                           ) : (
-                            <Text style={[styles.actionButtonText, styles.actionButtonTextPrimary]}>
+                            <Text style={[styles.actionButtonText, [styles.actionButtonTextPrimary, accentStyles.actionButtonTextPrimary]]}>
                               Switch
                             </Text>
                           )}
                         </Pressable>
                       )}
                       {isCurrentServer && !isExpanded && (
-                        <Ionicons name="checkmark-circle" size={20} color="#e5a00d" />
+                        <Ionicons name="checkmark-circle" size={20} color={accent} />
                       )}
                     </View>
                   </View>

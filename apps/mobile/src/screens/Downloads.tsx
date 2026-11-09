@@ -28,6 +28,7 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { DownloadListItem } from '../components/downloads';
 import DownloadProgressBar from '../components/downloads/DownloadProgressBar';
+import { useTheme } from '../hooks/useTheme';
 import { useAppSettings } from '../hooks/useAppSettings';
 import {
   useDownloads,
@@ -56,6 +57,7 @@ if (Platform.OS === 'ios') {
 type Tab = 'movies' | 'shows';
 
 export default function Downloads() {
+  const theme = useTheme();
   const insets = useSafeAreaInsets();
   const nav: any = useNavigation();
   const { settings } = useAppSettings();
@@ -273,7 +275,7 @@ export default function Downloads() {
                         </Text>
                       </View>
                       {isCompleted && (
-                        <Ionicons name="play-circle" size={28} color="#e50914" />
+                        <Ionicons name="play-circle" size={28} color={theme.accent} />
                       )}
                     </Pressable>
                     <Pressable
@@ -399,7 +401,7 @@ export default function Downloads() {
                 : 0}
               height={6}
               backgroundColor="#2a2a2a"
-              progressColor="#e50914"
+              progressColor={theme.accent}
             />
           </>
         )}
@@ -412,7 +414,7 @@ export default function Downloads() {
     return (
       <View style={[styles.container, styles.centered]}>
         {renderHeader()}
-        <ActivityIndicator size="large" color="#e50914" />
+        <ActivityIndicator size="large" color={theme.accent} />
       </View>
     );
   }
@@ -423,7 +425,7 @@ export default function Downloads() {
       <View style={[styles.container, styles.centered]}>
         {renderHeader()}
         <Text style={styles.errorText}>{error}</Text>
-        <Pressable style={styles.retryButton} onPress={refresh}>
+        <Pressable style={[styles.retryButton, { backgroundColor: theme.accent }]} onPress={refresh}>
           <Text style={styles.retryText}>Retry</Text>
         </Pressable>
       </View>
@@ -444,7 +446,7 @@ export default function Downloads() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={handleRefresh}
-              tintColor="#e50914"
+              tintColor={theme.accent}
             />
           }
         >
@@ -463,7 +465,7 @@ export default function Downloads() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={handleRefresh}
-              tintColor="#e50914"
+              tintColor={theme.accent}
             />
           }
         />
@@ -480,7 +482,7 @@ export default function Downloads() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={handleRefresh}
-              tintColor="#e50914"
+              tintColor={theme.accent}
             />
           }
         />
@@ -600,7 +602,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   retryButton: {
-    backgroundColor: '#e50914',
     paddingHorizontal: 24,
     paddingVertical: 10,
     borderRadius: 6,

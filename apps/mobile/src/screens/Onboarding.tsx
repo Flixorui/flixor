@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   StatusBar,
   Platform,
-  Switch,
   ScrollView,
 } from 'react-native';
 import Animated, {
@@ -32,6 +31,9 @@ import {
   setDiscoveryDisabled,
   AppSettings,
 } from '../core/SettingsData';
+import SettingsSwitch from '../components/settings/SettingsSwitch';
+import AddonSetupSlide from '../components/onboarding/AddonSetupSlide';
+import { useAppMode } from '../core/AppMode';
 
 const { width, height } = Dimensions.get('window');
 
@@ -43,6 +45,7 @@ interface OnboardingSlide {
   subtitle: string;
   description: string;
   isConfig?: boolean;
+  isAddonSetup?: boolean;
 }
 
 const onboardingData: OnboardingSlide[] = [
@@ -76,6 +79,28 @@ const onboardingData: OnboardingSlide[] = [
     subtitle: 'Discovery Settings',
     description: 'Choose how you want to discover content.',
     isConfig: true,
+  },
+];
+
+const stremioOnboardingData: OnboardingSlide[] = [
+  {
+    id: 'stremio-1',
+    title: 'Welcome to\nFlixor',
+    subtitle: 'No Plex Required',
+    description: 'Discover movies and shows with TMDB and Trakt, and stream them through the Stremio addons you choose.',
+  },
+  {
+    id: 'stremio-2',
+    title: 'Discover\nAnything',
+    subtitle: 'Connect Your Services',
+    description: 'Sign in to Trakt to sync your watch history and get recommendations. Without it, Flixor keeps your history on this device.',
+  },
+  {
+    id: 'stremio-3',
+    title: 'Add Your\nAddons',
+    subtitle: 'Where Your Streams Come From',
+    description: 'Paste the manifest URL of a stream addon to install it. You can add more later in Settings.',
+    isAddonSetup: true,
   },
 ];
 
@@ -199,7 +224,7 @@ const SettingRow = ({
       <Text style={[configStyles.settingTitle, disabled && configStyles.settingTitleDisabled]}>{title}</Text>
       <Text style={configStyles.settingDescription}>{description}</Text>
     </View>
-    <Switch
+    <SettingsSwitch
       value={value}
       onValueChange={onValueChange}
       trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#4CAF50' }}
@@ -293,7 +318,7 @@ const ConfigSlide = ({
                     Turn off all discovery features. Only show content from your Plex library.
                   </Text>
                 </View>
-                <Switch
+                <SettingsSwitch
                   value={discoveryOff}
                   onValueChange={setDiscoveryOff}
                   trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#FF6B6B' }}
@@ -379,6 +404,8 @@ interface OnboardingScreenProps {
 }
 
 const OnboardingScreen = ({ onComplete }: OnboardingScreenProps) => {
+  const { isStremioOnly } = useAppMode();
+  const slides = isStremioOnly ? stremioOnboardingData : onboardingData;
   const [currentIndex, setCurrentIndex] = useState(0);
   const flatListRef = useRef<Animated.FlatList<OnboardingSlide>>(null);
   const scrollX = useSharedValue(0);
@@ -435,7 +462,7 @@ const OnboardingScreen = ({ onComplete }: OnboardingScreenProps) => {
   const progressStyle = useAnimatedStyle(() => {
     const progress = interpolate(
       scrollX.value,
-      [0, (onboardingData.length - 1) * width],
+      [0, (slides.length - 1) * width],
       [0, 100],
       Extrapolation.CLAMP
     );
@@ -453,18 +480,20 @@ const OnboardingScreen = ({ onComplete }: OnboardingScreenProps) => {
 
   const handleGetStarted = async () => {
     try {
-      // Save discovery settings
-      if (discoveryOff) {
-        await setDiscoveryDisabled(true);
-      } else {
-        await setAppSettings({
-          discoveryDisabled: false,
-          showTrendingRows: !trendingOff,
-          showTraktRows: !traktOff,
-          showPlexPopularRow: !plexPopularOff,
-          showNewHotTab: !newHotOff,
-          includeTmdbInSearch: !tmdbSearchOff,
-        });
+      // Save discovery settings. Stremio-only onboarding has no discovery slide.
+      if (!isStremioOnly) {
+        if (discoveryOff) {
+          await setDiscoveryDisabled(true);
+        } else {
+          await setAppSettings({
+            discoveryDisabled: false,
+            showTrendingRows: !trendingOff,
+            showTraktRows: !traktOff,
+            showPlexPopularRow: !plexPopularOff,
+            showNewHotTab: !newHotOff,
+            includeTmdbInSearch: !tmdbSearchOff,
+          });
+        }
       }
       await AsyncStorage.setItem(STORAGE_KEY, 'true');
     } catch { }
@@ -472,6 +501,9 @@ const OnboardingScreen = ({ onComplete }: OnboardingScreenProps) => {
   };
 
   const renderSlide = ({ item, index }: { item: OnboardingSlide; index: number }) => {
+    if (item.isAddonSetup) {
+      return <AddonSetupSlide title={item.title} subtitle={item.subtitle} description={item.description} />;
+    }
     if (item.isConfig) {
       return (
         <ConfigSlide
@@ -530,7 +562,7 @@ const OnboardingScreen = ({ onComplete }: OnboardingScreenProps) => {
   }));
 
   // Animated opacity for button and swipe indicator based on scroll
-  const lastSlideStart = (onboardingData.length - 1) * width;
+  const lastSlideStart = (slides.length - 1) * width;
 
   const buttonOpacityStyle = useAnimatedStyle(() => {
     const opacity = interpolate(
@@ -586,7 +618,7 @@ const OnboardingScreen = ({ onComplete }: OnboardingScreenProps) => {
         {/* Slides */}
         <Animated.FlatList
           ref={flatListRef}
-          data={onboardingData}
+          data={slides}
           renderItem={renderSlide}
           horizontal
           pagingEnabled
@@ -608,7 +640,7 @@ const OnboardingScreen = ({ onComplete }: OnboardingScreenProps) => {
         >
           {/* Smooth Pagination */}
           <View style={styles.pagination}>
-            {onboardingData.map((_, index) => (
+            {slides.map((_, index) => (
               <PaginationDot key={index} index={index} />
             ))}
           </View>

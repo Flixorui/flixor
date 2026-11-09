@@ -4,6 +4,8 @@
 
 import { getFlixorCore } from './index';
 import { getTmdbBackdropWithTitle } from './HomeData';
+import { searchAddonCatalogs } from './AddonCatalogs';
+import type { DiscoverMediaType, SearchDiscoverFilters } from './SettingsData';
 
 export type SearchResult = {
   id: string;
@@ -11,9 +13,22 @@ export type SearchResult = {
   type: 'movie' | 'show';
   image?: string;
   year?: string;
-  source: 'plex' | 'tmdb';
+  source: 'plex' | 'tmdb' | 'addon';
   genreIds?: number[];
   editionTitle?: string;
+};
+
+export type PersonResult = {
+  id: number;
+  name: string;
+  image?: string;
+  department?: string;
+};
+
+export type DiscoverPage = {
+  items: SearchResult[];
+  totalResults: number;
+  hasMore: boolean;
 };
 
 export type RowItem = {
@@ -137,6 +152,43 @@ export async function searchTmdb(query: string): Promise<{ movies: SearchResult[
   }
 }
 
+export async function searchPeople(query: string): Promise<PersonResult[]> {
+  try {
+    const core = getFlixorCore();
+    const res = await core.tmdb.searchPeople(query);
+    return (res?.results || [])
+      .filter((person) => !!person.profile_path)
+      .slice(0, 12)
+      .map((person) => ({
+        id: person.id,
+        name: person.name,
+        image: core.tmdb.getProfileUrl(person.profile_path, 'w185'),
+        department: person.known_for_department || undefined,
+      }));
+  } catch (e) {
+    console.log('[SearchData] searchPeople error:', e);
+    return [];
+  }
+}
+
+/** Matches from the installed addons' searchable catalogs. */
+export async function searchAddons(query: string): Promise<SearchResult[]> {
+  try {
+    const items = await searchAddonCatalogs(query);
+    return items.map((item) => ({
+      id: item.id,
+      title: item.title,
+      type: item.type,
+      image: item.image,
+      year: item.year,
+      source: 'addon' as const,
+    }));
+  } catch (e) {
+    console.log('[SearchData] searchAddons error:', e);
+    return [];
+  }
+}
+
 // ============================================
 // Trending/Recommendations
 // ============================================
@@ -217,4 +269,101 @@ export async function discoverByGenre(genreId: number): Promise<SearchResult[]> 
     console.log('[SearchData] discoverByGenre error:', e);
     return [];
   }
+}
+
+// ============================================
+// Discover
+// ============================================
+
+export const DEFAULT_DISCOVER_FILTERS: SearchDiscoverFilters = { mediaType: 'movie', sort: 'popular' };
+
+export function hasActiveDiscoverFilters(filters: SearchDiscoverFilters): boolean {
+  return (
+    filters.genreId != null ||
+    filters.sort !== 'popular' ||
+    filters.yearFrom != null ||
+    filters.yearTo != null ||
+    filters.minimumRating != null
+  );
+}
+
+/** Keeps the year range ordered. */
+export function normalizeDiscoverFilters(filters: SearchDiscoverFilters): SearchDiscoverFilters {
+  const { yearFrom, yearTo } = filters;
+  if (yearFrom != null && yearTo != null && yearFrom > yearTo) {
+    return { ...filters, yearFrom: yearTo, yearTo: yearFrom };
+  }
+  return filters;
+}
+
+export async function getDiscoverGenres(mediaType: DiscoverMediaType): Promise<Array<{ id: number; name: string }>> {
+  try {
+    return await getFlixorCore().tmdb.getGenres(mediaType);
+  } catch (e) {
+    console.log('[SearchData] getDiscoverGenres error:', e);
+    return [];
+  }
+}
+
+function discoverSort(filters: SearchDiscoverFilters): { sortBy: string; minVoteCount?: number } {
+  const isMovie = filters.mediaType === 'movie';
+  const dateField = isMovie ? 'primary_release_date' : 'first_air_date';
+  // Minimum vote counts keep unrated placeholders out of the less popularity-driven orders.
+  let minVoteCount: number | undefined;
+  let sortBy = 'popularity.desc';
+  switch (filters.sort) {
+    case 'topRated':
+      sortBy = 'vote_average.desc';
+      minVoteCount = 200;
+      break;
+    case 'newest':
+      sortBy = `${dateField}.desc`;
+      break;
+    case 'oldest':
+      sortBy = `${dateField}.asc`;
+      minVoteCount = 50;
+      break;
+    case 'title':
+      sortBy = isMovie ? 'title.asc' : 'name.asc';
+      minVoteCount = 100;
+      break;
+    default:
+      break;
+  }
+  if (filters.minimumRating != null) minVoteCount = Math.max(minVoteCount ?? 0, 50);
+  return { sortBy, minVoteCount };
+}
+
+/** One page of TMDB discover. Throws on failure so the grid can show a retry. */
+export async function fetchDiscoverPage(filters: SearchDiscoverFilters, page: number): Promise<DiscoverPage> {
+  const core = getFlixorCore();
+  const isMovie = filters.mediaType === 'movie';
+  const options = {
+    page,
+    ...discoverSort(filters),
+    withGenres: filters.genreId != null ? String(filters.genreId) : undefined,
+    dateFrom: filters.yearFrom != null ? `${filters.yearFrom}-01-01` : undefined,
+    // Sorting by date with no upper bound surfaces unreleased placeholders.
+    dateTo:
+      filters.yearTo != null
+        ? `${filters.yearTo}-12-31`
+        : filters.sort === 'newest'
+          ? new Date().toISOString().slice(0, 10)
+          : undefined,
+    minRating: filters.minimumRating,
+  };
+  const res = isMovie ? await core.tmdb.discoverMovies(options) : await core.tmdb.discoverTV(options);
+  const items: SearchResult[] = (res?.results || []).map((item: any) => ({
+    id: `tmdb:${isMovie ? 'movie' : 'tv'}:${item.id}`,
+    title: isMovie ? item.title : item.name,
+    type: isMovie ? ('movie' as const) : ('show' as const),
+    image: item.poster_path ? core.tmdb.getPosterUrl(item.poster_path, 'w342') : undefined,
+    year: (isMovie ? item.release_date : item.first_air_date)?.slice(0, 4),
+    source: 'tmdb' as const,
+  }));
+  return {
+    items,
+    totalResults: res?.total_results ?? items.length,
+    hasMore: page < Math.min(res?.total_pages ?? page, 500),
+  };
 }

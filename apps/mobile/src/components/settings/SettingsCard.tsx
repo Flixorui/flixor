@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { useTheme } from '../../hooks/useTheme';
 
 type SettingsCardProps = {
   title?: string;
@@ -7,10 +8,11 @@ type SettingsCardProps = {
 };
 
 export default function SettingsCard({ title, children }: SettingsCardProps) {
+  const theme = useTheme();
   return (
     <View style={styles.container}>
       {title ? <Text style={styles.title}>{title}</Text> : null}
-      <View style={styles.card}>{children}</View>
+      <View style={[styles.card, theme.pureBlack && { backgroundColor: theme.surface }]}>{children}</View>
     </View>
   );
 }

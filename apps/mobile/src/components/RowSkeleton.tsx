@@ -2,23 +2,20 @@ import React, { useEffect, useRef } from 'react';
 import { View, Animated, StyleSheet, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAppSettings } from '../hooks/useAppSettings';
+import { LANDSCAPE_CARD_SIZE, POSTER_SIZES } from './Poster';
+import type { RowLayout } from '../core/SettingsData';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
-const POSTER_SIZES = {
-  small: { width: 96, height: 144 },
-  medium: { width: 110, height: 165 },
-  large: { width: 128, height: 192 },
-} as const;
 
 interface RowSkeletonProps {
   title?: string;
   itemCount?: number;
+  layout?: RowLayout;
 }
 
-function RowSkeleton({ title, itemCount = 5 }: RowSkeletonProps) {
+function RowSkeleton({ title, itemCount = 5, layout = 'poster' }: RowSkeletonProps) {
   const { settings } = useAppSettings();
-  const size = POSTER_SIZES[settings.posterSize] || POSTER_SIZES.medium;
+  const size = layout === 'landscape' ? LANDSCAPE_CARD_SIZE : POSTER_SIZES[settings.posterSize] || POSTER_SIZES.medium;
   const borderRadius = settings.posterBorderRadius || 8;
 
   const shimmerAnim = useRef(new Animated.Value(0)).current;

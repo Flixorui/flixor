@@ -1,5 +1,5 @@
 import React from 'react';
-import Svg, { Path } from 'react-native-svg';
+import Svg, { Path, Text as SvgText } from 'react-native-svg';
 
 export function Replay10Icon({ size = 32, color = '#fff' }: { size?: number; color?: string }) {
   return (
@@ -23,4 +23,34 @@ export function Forward10Icon({ size = 32, color = '#fff' }: { size?: number; co
       />
     </Svg>
   );
+}
+
+const REPLAY_ARROW_PATH =
+  'M11.0198 2.04817C13.3222 1.8214 15.6321 2.39998 17.5557 3.68532C19.4794 4.97066 20.8978 6.88324 21.5694 9.09717C22.241 11.3111 22.1242 13.6894 21.2388 15.8269C20.3534 17.9643 18.7543 19.7286 16.714 20.8192C14.6736 21.9098 12.3182 22.2592 10.0491 21.8079C7.77999 21.3565 5.73759 20.1323 4.26989 18.3439C2.80219 16.5555 2 14.3136 2 12L0 12C-2.74181e-06 14.7763 0.962627 17.4666 2.72387 19.6127C4.48511 21.7588 6.93599 23.2278 9.65891 23.7694C12.3818 24.3111 15.2083 23.8918 17.6568 22.5831C20.1052 21.2744 22.0241 19.1572 23.0866 16.5922C24.149 14.0273 24.2892 11.1733 23.4833 8.51661C22.6774 5.85989 20.9752 3.56479 18.6668 2.02238C16.3585 0.479973 13.5867 -0.214321 10.8238 0.0578004C8.71195 0.265799 6.70517 1.02858 5 2.2532V1H3V5C3 5.55228 3.44772 6 4 6H8V4H5.99999C7.45608 2.90793 9.19066 2.22833 11.0198 2.04817ZM2 4V7H5V9H1C0.447715 9 0 8.55228 0 8V4H2Z';
+const FORWARD_ARROW_PATH =
+  'M6.4443 3.68532C8.36795 2.39998 10.6778 1.8214 12.9802 2.04817C14.8093 2.22833 16.5439 2.90793 18 4H16V6H20C20.5523 6 21 5.55229 21 5V1H19V2.2532C17.2948 1.02859 15.2881 0.2658 13.1762 0.057802C10.4133 -0.214319 7.64154 0.479975 5.33316 2.02238C3.02478 3.56479 1.32262 5.85989 0.516718 8.51661C-0.289188 11.1733 -0.148981 14.0273 0.913451 16.5922C1.97588 19.1572 3.8948 21.2744 6.34325 22.5831C8.79169 23.8918 11.6182 24.3111 14.3411 23.7694C17.064 23.2278 19.5149 21.7588 21.2761 19.6127C23.0374 17.4666 24 14.7763 24 12L22 12C22 14.3136 21.1978 16.5555 19.7301 18.3439C18.2624 20.1323 16.22 21.3565 13.9509 21.8079C11.6818 22.2592 9.32641 21.9098 7.28604 20.8192C5.24567 19.7286 3.64657 17.9643 2.76121 15.8269C1.87585 13.6894 1.75901 11.3111 2.4306 9.09718C3.10219 6.88324 4.52065 4.97067 6.4443 3.68532ZM22 4V7H19V9H23C23.5523 9 24 8.55229 24 8V4H22Z';
+
+type SeekIconProps = { seconds: number; size?: number; color?: string };
+
+function SeekIcon({ path, seconds, size, color }: SeekIconProps & { path: string; size: number; color: string }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+      <Path fillRule="evenodd" clipRule="evenodd" d={path} />
+      <SvgText x={12} y={15.6} fill={color} fontSize={seconds >= 100 ? 6 : 8} fontWeight="700" textAnchor="middle">
+        {seconds}
+      </SvgText>
+    </Svg>
+  );
+}
+
+/** Replay icon for any seek length. */
+export function ReplayIcon({ seconds, size = 32, color = '#fff' }: SeekIconProps) {
+  if (seconds === 10) return <Replay10Icon size={size} color={color} />;
+  return <SeekIcon path={REPLAY_ARROW_PATH} seconds={seconds} size={size} color={color} />;
+}
+
+/** Forward icon for any seek length. */
+export function ForwardIcon({ seconds, size = 32, color = '#fff' }: SeekIconProps) {
+  if (seconds === 10) return <Forward10Icon size={size} color={color} />;
+  return <SeekIcon path={FORWARD_ARROW_PATH} seconds={seconds} size={size} color={color} />;
 }

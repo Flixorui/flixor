@@ -25,6 +25,8 @@ import {
   CollectionMediaItem,
 } from '../core/CollectionsData';
 import { IMAGE_PRELOAD_CAP, ITEM_LIMITS } from '../core/PerformanceConfig';
+import { useAppMode } from '../core/AppMode';
+import UserCollectionsSection from '../components/collections/UserCollectionsSection';
 
 type ViewMode = 'collections' | 'items';
 
@@ -32,6 +34,7 @@ export default function Collections() {
   const nav: any = useNavigation();
   const route = useRoute();
   const { isLoading: flixorLoading, isConnected } = useFlixor();
+  const { isStremioOnly } = useAppMode();
 
   const [viewMode, setViewMode] = useState<ViewMode>('collections');
   const [collections, setCollections] = useState<CollectionItem[]>([]);
@@ -49,6 +52,11 @@ export default function Collections() {
 
   // Load collections
   useEffect(() => {
+    if (isStremioOnly) {
+      // No Plex collections in this mode; the page is the user's own
+      setLoading(false);
+      return;
+    }
     if (flixorLoading || !isConnected) return;
 
     (async () => {
@@ -78,7 +86,7 @@ export default function Collections() {
         });
       }
     })();
-  }, [flixorLoading, isConnected, initialType]);
+  }, [flixorLoading, isConnected, initialType, isStremioOnly]);
 
   // Load collection items when a collection is selected
   const loadCollectionItems = async (collection: CollectionItem) => {
@@ -154,7 +162,7 @@ export default function Collections() {
   };
 
   // Show loading
-  if (flixorLoading || !isConnected) {
+  if (!isStremioOnly && (flixorLoading || !isConnected)) {
     return (
       <View style={styles.center}>
         <ActivityIndicator color="#fff" />
@@ -239,15 +247,20 @@ export default function Collections() {
               onPress={() => loadCollectionItems(item)}
             />
           )}
-          estimatedItemSize={itemSize + 60}
           numColumns={numColumns}
           contentContainerStyle={{ padding: 12, paddingTop: 100 }}
           onScroll={Animated.event(
             [{ nativeEvent: { contentOffset: { y: scrollY } } }],
             { useNativeDriver: false }
           )}
+          ListHeaderComponent={
+            <View>
+              <UserCollectionsSection horizontalInset={4} />
+              {!isStremioOnly ? <Text style={styles.plexHeading}>Plex Collections</Text> : null}
+            </View>
+          }
           ListEmptyComponent={
-            <View style={styles.emptyContainer}>
+            isStremioOnly ? null : <View style={styles.emptyContainer}>
               <Ionicons name="albums-outline" size={48} color="#444" />
               <Text style={styles.emptyText}>No collections found</Text>
               <Text style={styles.emptySubtext}>
@@ -396,6 +409,13 @@ function MediaCard({
 }
 
 const styles = StyleSheet.create({
+  plexHeading: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: '700',
+    marginHorizontal: 4,
+    marginBottom: 12,
+  },
   center: {
     flex: 1,
     backgroundColor: '#0a0a0a',

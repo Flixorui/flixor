@@ -23,6 +23,19 @@ import {
   FilterOption,
 } from '../core/MyListData';
 import { useAppSettings } from '../hooks/useAppSettings';
+import { useAppMode } from '../core/AppMode';
+import { showToast } from '../components/Toast';
+import ListSwitcher from '../components/lists/ListSwitcher';
+import TraktListContent from '../components/lists/TraktListContent';
+import TraktListEditorSheet from '../components/lists/TraktListEditorSheet';
+import AddToListSheet from '../components/lists/AddToListSheet';
+import {
+  fetchTraktLists,
+  traktListErrorMessage,
+  type TraktListGridItem,
+  type TraktListTitle,
+  type TraktUserList,
+} from '../core/TraktListsData';
 import * as Haptics from 'expo-haptics';
 
 // Conditionally import GlassView for iOS 26+ liquid glass effect
@@ -60,6 +73,15 @@ export default function MyList() {
   const insets = useSafeAreaInsets();
   const { flixor, isLoading: flixorLoading, isConnected } = useFlixor();
   const { settings } = useAppSettings();
+  const { isStremioOnly } = useAppMode();
+  // Stremio-only mode has no Plex server to wait for
+  const ready = isConnected || isStremioOnly;
+
+  const [traktLists, setTraktLists] = useState<TraktUserList[]>([]);
+  const [selectedListId, setSelectedListId] = useState<number | null>(null);
+  const [listEditor, setListEditor] = useState<{ list: TraktUserList | null } | null>(null);
+  const [addToListTitle, setAddToListTitle] = useState<TraktListTitle | null>(null);
+  const selectedList = traktLists.find((list) => list.ids.trakt === selectedListId) ?? null;
 
   // Initialize from persistent store for instant render
   const [items, setItems] = useState<MyListItem[]>(() => persistentStore.items || []);
@@ -128,15 +150,15 @@ export default function MyList() {
   }, [filter, sortOption]);
 
   useEffect(() => {
-    if (flixorLoading || !isConnected) return;
+    if (flixorLoading || !ready) return;
     loadItems();
-  }, [flixorLoading, isConnected, loadItems]);
+  }, [flixorLoading, ready, loadItems]);
 
   // Reload when screen comes into focus - but only if cache is stale
   // Using useFocusEffect to avoid continuous re-renders from useIsFocused
   useFocusEffect(
     useCallback(() => {
-      if (loading || flixorLoading || !isConnected) return;
+      if (loading || flixorLoading || !ready) return;
 
       // Check if cache is still valid before reloading
       const cacheValid = isCacheValid(persistentStore.lastFetchTime, CACHE_TTL.MY_LIST) &&
@@ -148,8 +170,61 @@ export default function MyList() {
         // Only reload if cache is stale or filters changed
         loadItems(false); // Don't show refresh indicator for background reload
       }
-    }, [loading, flixorLoading, isConnected, filter, sortOption.value, loadItems])
+    }, [loading, flixorLoading, ready, filter, sortOption.value, loadItems])
   );
+
+  // Trakt lists refresh on focus, since lists can change on other devices
+  useFocusEffect(
+    useCallback(() => {
+      if (flixorLoading || !ready || !isTraktConnected()) {
+        setTraktLists([]);
+        setSelectedListId(null);
+        return;
+      }
+      let current = true;
+      fetchTraktLists()
+        .then((lists) => {
+          if (current) setTraktLists(lists);
+        })
+        .catch((e) => {
+          console.log('[MyList] Error fetching Trakt lists:', e);
+          if (current) showToast(traktListErrorMessage(e, "Couldn't load your Trakt lists."), { kind: 'error' });
+        });
+      return () => {
+        current = false;
+      };
+    }, [flixorLoading, ready])
+  );
+
+  const handleListSaved = useCallback((saved: TraktUserList) => {
+    setTraktLists((prev) =>
+      prev.some((list) => list.ids.trakt === saved.ids.trakt)
+        ? prev.map((list) => (list.ids.trakt === saved.ids.trakt ? saved : list))
+        : [...prev, saved]
+    );
+    setSelectedListId(saved.ids.trakt);
+  }, []);
+
+  const handleListDeleted = useCallback(() => {
+    setTraktLists((prev) => prev.filter((list) => list.ids.trakt !== selectedListId));
+    setSelectedListId(null);
+  }, [selectedListId]);
+
+  const handleListCountChanged = useCallback((listId: number, count: number) => {
+    setTraktLists((prev) => {
+      const target = prev.find((list) => list.ids.trakt === listId);
+      if (!target || target.item_count === count) return prev;
+      return prev.map((list) => (list.ids.trakt === listId ? { ...list, item_count: count } : list));
+    });
+  }, []);
+
+  const handleTraktItemPress = useCallback((item: TraktListGridItem) => {
+    if (item.tmdbId) {
+      nav.navigate('Details', { type: 'tmdb', id: String(item.tmdbId), mediaType: item.type === 'movie' ? 'movie' : 'tv' });
+    } else {
+      showToast("This title can't be opened because Trakt has no TMDB id for it.", { kind: 'info' });
+    }
+  }, [nav]);
 
   // Pull-to-refresh handler
   const handleRefresh = useCallback(async () => {
@@ -195,6 +270,22 @@ export default function MyList() {
       ]
     );
   }, []);
+
+  const showItemMenu = useCallback((item: MyListItem) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (!isTraktConnected()) {
+      handleRemove(item);
+      return;
+    }
+    Alert.alert(item.title, undefined, [
+      {
+        text: 'Add to Trakt List',
+        onPress: () => setAddToListTitle({ type: item.type, tmdbId: item.tmdbId, imdbId: item.imdbId, title: item.title }),
+      },
+      { text: 'Remove from My List', style: 'destructive', onPress: () => handleRemove(item) },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  }, [handleRemove]);
 
   const handleItemPress = useCallback((item: MyListItem) => {
     // Check if plexRatingKey is a numeric library key (not a GUID)
@@ -244,7 +335,7 @@ export default function MyList() {
   );
 
   // Show loading while FlixorCore is initializing
-  if (flixorLoading || !isConnected) {
+  if (flixorLoading || !ready) {
     return (
       <View style={styles.center}>
         <ActivityIndicator color="#fff" />
@@ -255,7 +346,7 @@ export default function MyList() {
     );
   }
 
-  if (loading && !refreshing) {
+  if (loading && !refreshing && selectedListId === null) {
     return (
       <View style={styles.center}>
         <ActivityIndicator color="#fff" />
@@ -263,7 +354,7 @@ export default function MyList() {
     );
   }
 
-  if (error) {
+  if (error && selectedListId === null) {
     return (
       <View style={styles.center}>
         <Text style={styles.errorText}>{error}</Text>
@@ -273,6 +364,16 @@ export default function MyList() {
       </View>
     );
   }
+
+  const listSwitcher =
+    traktLists.length > 0 || isTraktConnected() ? (
+      <ListSwitcher
+        lists={traktLists}
+        selectedId={selectedListId}
+        onSelect={setSelectedListId}
+        onCreate={() => setListEditor({ list: null })}
+      />
+    ) : null;
 
   const numColumns = Dimensions.get('window').width >= 800 ? 5 : 3;
   const itemSize = Math.floor((Dimensions.get('window').width - 16 - (numColumns - 1) * 8) / numColumns);
@@ -293,11 +394,33 @@ export default function MyList() {
         style={StyleSheet.absoluteFillObject}
       />
 
-      <PullToRefresh scrollY={y} refreshing={refreshing} onRefresh={handleRefresh} />
+      {/* A selected Trakt list has its own refresh control */}
+      {selectedListId === null ? (
+        <PullToRefresh scrollY={y} refreshing={refreshing} onRefresh={handleRefresh} />
+      ) : null}
 
       {/* Items Grid */}
-      {items.length === 0 ? (
-        <View style={[styles.emptyContainer, { paddingTop: barHeight }]}>
+      {selectedList && listSwitcher ? (
+        <TraktListContent
+          key={selectedList.ids.trakt}
+          list={selectedList}
+          filter={filter}
+          sort={sortOption.value}
+          switcher={listSwitcher}
+          paddingTop={barHeight}
+          onScroll={(e: any) => {
+            y.setValue(e.nativeEvent.contentOffset.y);
+          }}
+          onPressItem={handleTraktItemPress}
+          onAddToList={setAddToListTitle}
+          onEdit={() => setListEditor({ list: selectedList })}
+          onDeleted={handleListDeleted}
+          onCountChanged={handleListCountChanged}
+        />
+      ) : items.length === 0 ? (
+        <View style={{ flex: 1, paddingTop: barHeight }}>
+        {listSwitcher}
+        <View style={styles.emptyContainer}>
           <Ionicons name="bookmark-outline" size={64} color="#444" />
           <Text style={styles.emptyTitle}>Your list is empty</Text>
           <Text style={styles.emptySubtitle}>
@@ -305,6 +428,7 @@ export default function MyList() {
               ? 'Add movies and shows to your watchlist to see them here'
               : 'Connect Trakt in Settings tab to sync your watchlist'}
           </Text>
+        </View>
         </View>
       ) : (
         <FlashList
@@ -315,11 +439,10 @@ export default function MyList() {
               item={item}
               size={itemSize}
               onPress={() => handleItemPress(item)}
-              onLongPress={() => handleRemove(item)}
+              onLongPress={() => showItemMenu(item)}
               showTitles={settings.showPosterTitles}
             />
           )}
-          estimatedItemSize={itemSize + 28}
           numColumns={numColumns}
           contentContainerStyle={{ padding: 8, paddingTop: barHeight, paddingBottom: 120 }}
           scrollEventThrottle={16}
@@ -329,6 +452,7 @@ export default function MyList() {
             y.setValue(currentY);
             lastScrollY.current = currentY;
           }}
+          ListHeaderComponent={listSwitcher ?? undefined}
           ListEmptyComponent={
             <Text style={styles.emptyText}>No items</Text>
           }
@@ -394,6 +518,14 @@ export default function MyList() {
           </View>
         </Pressable>
       </Modal>
+
+      <TraktListEditorSheet
+        visible={listEditor !== null}
+        list={listEditor?.list}
+        onClose={() => setListEditor(null)}
+        onSaved={handleListSaved}
+      />
+      <AddToListSheet title={addToListTitle} onClose={() => setAddToListTitle(null)} />
 
       {/* Custom refresh indicator above TopAppBar */}
       {refreshing && (

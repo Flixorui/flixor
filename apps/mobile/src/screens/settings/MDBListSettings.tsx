@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, ScrollView, TextInput, Pressable, StyleSheet, Switch, Linking, Image } from 'react-native';
+import { View, Text, ScrollView, TextInput, Pressable, StyleSheet, Linking, Image } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,6 +9,8 @@ import SettingItem from '../../components/settings/SettingItem';
 import MDBListIcon from '../../components/icons/MDBListIcon';
 import { useAppSettings } from '../../hooks/useAppSettings';
 import { clearMDBListCache, RATING_PROVIDERS } from '../../core/MDBListService';
+import { useTheme } from '../../hooks/useTheme';
+import SettingsSwitch from '../../components/settings/SettingsSwitch';
 
 // Rating source logos
 const RATING_LOGOS = {
@@ -23,6 +25,7 @@ const RATING_LOGOS = {
 
 export default function MDBListSettings() {
   const nav: any = useNavigation();
+  const theme = useTheme();
   const insets = useSafeAreaInsets();
   const headerHeight = insets.top + 52;
   const { settings, updateSetting } = useAppSettings();
@@ -45,7 +48,7 @@ export default function MDBListSettings() {
   const isReady = settings.mdblistEnabled && hasKey;
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.settingsBackground }]}>
       <SettingsHeader title="MDBList" onBack={() => nav.goBack()} />
       <ScrollView contentContainerStyle={[styles.content, { paddingTop: headerHeight + 12, paddingBottom: insets.bottom + 100 }]}>
         {/* Header with MDBList logo */}
@@ -88,7 +91,7 @@ export default function MDBListSettings() {
             description="Fetch ratings from multiple sources"
             icon="analytics-outline"
             renderRight={() => (
-              <Switch
+              <SettingsSwitch
                 value={settings.mdblistEnabled}
                 onValueChange={toggleEnabled}
               />

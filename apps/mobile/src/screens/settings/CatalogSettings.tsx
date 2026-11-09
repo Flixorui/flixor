@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, Switch, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,11 +8,14 @@ import SettingsCard from '../../components/settings/SettingsCard';
 import SettingItem from '../../components/settings/SettingItem';
 import { fetchAllLibraries } from '../../core/HomeData';
 import { useAppSettings } from '../../hooks/useAppSettings';
+import { useTheme } from '../../hooks/useTheme';
+import SettingsSwitch from '../../components/settings/SettingsSwitch';
 
 type LibraryItem = { key: string; title: string; type: string };
 
 export default function CatalogSettings() {
   const nav: any = useNavigation();
+  const theme = useTheme();
   const insets = useSafeAreaInsets();
   const headerHeight = insets.top + 52;
   const { settings, updateSetting } = useAppSettings();
@@ -51,7 +54,7 @@ export default function CatalogSettings() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.settingsBackground }]}>
       <SettingsHeader title="Catalogs" onBack={() => nav.goBack()} />
       <ScrollView contentContainerStyle={[styles.content, { paddingTop: headerHeight + 12, paddingBottom: insets.bottom + 100 }]}>
         <SettingsCard title="LIBRARIES">
@@ -76,7 +79,7 @@ export default function CatalogSettings() {
                 description={lib.type === 'movie' ? 'Movies' : 'TV Shows'}
                 icon={lib.type === 'movie' ? 'film-outline' : 'tv-outline'}
                 renderRight={() => (
-                  <Switch value={enabled} onValueChange={(value) => toggleLibrary(key, value)} />
+                  <SettingsSwitch value={enabled} onValueChange={(value) => toggleLibrary(key, value)} />
                 )}
                 isLast={index === libraries.length - 1}
               />

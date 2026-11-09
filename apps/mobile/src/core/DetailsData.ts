@@ -4,6 +4,8 @@
  */
 
 import { getFlixorCore } from './index';
+import { isStremioOnlyMode } from './AppMode';
+import { localLibrary } from './LocalLibrary';
 import type { PlexMediaItem } from '@flixor/core';
 
 export type RowItem = {
@@ -233,7 +235,13 @@ export async function fetchTmdbCredits(mediaType: 'movie' | 'tv', tmdbId: number
 // TMDB Seasons and Episodes
 // ============================================
 
-export async function fetchTmdbSeasonsList(tvId: number): Promise<Array<{ key: string; title: string; season_number: number }>> {
+export async function fetchTmdbSeasonsList(tvId: number): Promise<Array<{
+  key: string;
+  title: string;
+  season_number: number;
+  poster_path?: string | null;
+  episode_count?: number;
+}>> {
   try {
     const core = getFlixorCore();
     const details = await core.tmdb.getTVDetails(tvId);
@@ -245,6 +253,8 @@ export async function fetchTmdbSeasonsList(tvId: number): Promise<Array<{ key: s
         key: String(s.season_number),
         title: `Season ${s.season_number}`,
         season_number: s.season_number,
+        poster_path: s.poster_path,
+        episode_count: s.episode_count,
       }));
   } catch (e) {
     console.log('[DetailsData] fetchTmdbSeasonsList error:', e);
@@ -304,6 +314,27 @@ export async function fetchTmdbSimilar(mediaType: 'movie' | 'tv', tmdbId: number
   } catch (e) {
     console.log('[DetailsData] fetchTmdbSimilar error:', e);
     return [];
+  }
+}
+
+/** The franchise a movie belongs to, with its films in release order. Null when none. */
+export async function fetchTmdbMovieCollection(movieId: number): Promise<{ id: number; name: string; items: RowItem[] } | null> {
+  try {
+    const core = getFlixorCore();
+    const details = await core.tmdb.getMovieDetails(movieId);
+    const collection = details?.belongs_to_collection;
+    if (!collection?.id) return null;
+    const full = await core.tmdb.getCollectionDetails(collection.id);
+    const items: RowItem[] = (full.parts || []).map((part: any) => ({
+      id: `tmdb:movie:${part.id}`,
+      title: part.title || part.name || 'Untitled',
+      image: part.poster_path ? core.tmdb.getPosterUrl(part.poster_path, 'w342') : undefined,
+      mediaType: 'movie',
+    }));
+    return items.length > 1 ? { id: collection.id, name: full.name || collection.name || 'Collection', items } : null;
+  } catch (e) {
+    console.log('[DetailsData] fetchTmdbMovieCollection error:', e);
+    return null;
   }
 }
 
@@ -950,6 +981,11 @@ export interface WatchlistIds {
   imdbId?: string;
   plexRatingKey?: string;
   mediaType: 'movie' | 'tv';
+  /** Saved with the title when the watchlist is kept on this device. */
+  title?: string;
+  posterUrl?: string;
+  backdropUrl?: string;
+  year?: number;
 }
 
 /**
@@ -1076,11 +1112,42 @@ export async function removeFromTraktWatchlist(ids: WatchlistIds): Promise<boole
  * REMOVE behavior (keeps providers in sync):
  * - Always removes from BOTH Plex and Trakt to prevent orphaned entries
  */
+function localWatchlistId(ids: WatchlistIds): string | null {
+  if (ids.tmdbId != null) return `tmdb:${ids.mediaType}:${ids.tmdbId}`;
+  return ids.imdbId ? `imdb:${ids.imdbId}` : null;
+}
+
+/** With no Plex account the list lives on this device, and on Trakt when it's linked. */
+async function toggleLocalWatchlist(ids: WatchlistIds): Promise<{ inWatchlist: boolean; success: boolean }> {
+  const id = localWatchlistId(ids);
+  if (!id) return { inWatchlist: false, success: false };
+  const core = getFlixorCore();
+  const canUseTrakt = core.isTraktAuthenticated && (ids.tmdbId != null || !!ids.imdbId);
+  if (await localLibrary.isInWatchlist(id)) {
+    await localLibrary.removeFromWatchlist(id);
+    if (canUseTrakt) await removeFromTraktWatchlist(ids);
+    return { inWatchlist: false, success: true };
+  }
+  await localLibrary.addToWatchlist({
+    id,
+    title: ids.title ?? 'Untitled',
+    type: ids.mediaType === 'movie' ? 'movie' : 'show',
+    posterUrl: ids.posterUrl,
+    backdropUrl: ids.backdropUrl,
+    year: ids.year,
+    imdbId: ids.imdbId,
+    tmdbId: ids.tmdbId,
+  });
+  if (canUseTrakt) await addToTraktWatchlist(ids);
+  return { inWatchlist: true, success: true };
+}
+
 export async function toggleWatchlist(
   ids: WatchlistIds,
   _provider: 'plex' | 'trakt' | 'both' = 'both'
 ): Promise<{ inWatchlist: boolean; success: boolean }> {
   try {
+    if (isStremioOnlyMode()) return await toggleLocalWatchlist(ids);
     const core = getFlixorCore();
     const { getAppSettings } = await import('./SettingsData');
     const settings = getAppSettings();
@@ -1160,6 +1227,10 @@ export async function toggleWatchlist(
  */
 export async function checkWatchlistStatus(ids: WatchlistIds): Promise<boolean> {
   try {
+    if (isStremioOnlyMode()) {
+      const id = localWatchlistId(ids);
+      return id ? await localLibrary.isInWatchlist(id) : false;
+    }
     const core = getFlixorCore();
 
     // Check Plex first

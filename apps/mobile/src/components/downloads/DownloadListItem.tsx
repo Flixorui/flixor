@@ -8,6 +8,7 @@
  * - Action buttons (play, delete, retry)
  */
 
+import { useTheme } from '../../hooks/useTheme';
 import React, { useCallback } from 'react';
 import { View, Text, Pressable, StyleSheet, Alert, Image } from 'react-native';
 import FastImage from '@d11/react-native-fast-image';
@@ -45,6 +46,7 @@ function formatDuration(ms: number | undefined): string {
 }
 
 function DownloadListItem({ globalKey, metadata, media }: DownloadListItemProps) {
+  const theme = useTheme();
   const nav: any = useNavigation();
   const { progress, isDownloaded, isDownloading, isPaused, isFailed } = useDownloadStatus(globalKey);
 
@@ -185,7 +187,7 @@ function DownloadListItem({ globalKey, metadata, media }: DownloadListItemProps)
             <View style={styles.progressContainer}>
               <DownloadProgressBar
                 progress={progress.progress}
-                progressColor={isPaused ? '#FFA500' : '#e50914'}
+                progressColor={isPaused ? '#FFA500' : theme.accent}
               />
             </View>
           )}

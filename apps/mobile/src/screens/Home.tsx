@@ -5,12 +5,22 @@ import FastImage from '@d11/react-native-fast-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import Row from '../components/Row';
-import LazyRow from '../components/LazyRow';
-import ContinueWatchingLandscapeRow from '../components/ContinueWatchingLandscapeRow';
-import ContinueWatchingPosterRow from '../components/ContinueWatchingPosterRow';
-import TraktContinueWatchingLandscapeRow from '../components/TraktContinueWatchingLandscapeRow';
-import TraktContinueWatchingPosterRow from '../components/TraktContinueWatchingPosterRow';
+import HomeRows from '../components/home/HomeRows';
+import { HomeViewport } from '../components/home/homeViewport';
+import { preheatArtwork } from '../components/home/preheat';
+import { useContinueWatching } from '../components/home/useContinueWatching';
+import { useHeroOverride } from '../components/home/useHeroOverride';
+import { useHomeBackgroundRefresh } from '../components/home/useHomeBackgroundRefresh';
+import { useStremioCatalogs } from '../components/home/useStremioCatalogs';
+import {
+  arrangeHomeRows,
+  buildHomeRowModels,
+  HOME_GENRE_ROWS,
+  toBrowseItems,
+  toRowDescriptors,
+  type HomeRowModel,
+} from '../components/home/homeRowModels';
+import type { ContinueWatchingMenuAction } from '../components/home/continueWatchingMenu';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { TopBarStore } from '../components/TopBarStore';
 import { TOP_BAR_EXPANDED_CONTENT_HEIGHT } from '../components/topBarMetrics';
@@ -19,7 +29,7 @@ import HeroCarousel from '../components/HeroCarousel';
 import BrowseModal from '../components/BrowseModal';
 import { useFlixor } from '../core/FlixorContext';
 import { useAppSettings } from '../hooks/useAppSettings';
-import type { PlexMediaItem, BrowseContext, BrowseItem } from '@flixor/core';
+import type { PlexMediaItem, BrowseContext } from '@flixor/core';
 import {
   fetchTmdbTrendingTVWeek,
   fetchTmdbTrendingMoviesWeek,
@@ -35,22 +45,20 @@ import {
   fetchTraktWatchlist,
   fetchTraktHistory,
   fetchTraktRecommendations,
-  fetchTraktContinueWatching,
+  fetchLocalWatchlistRow,
+  matchTraktEpisodeToPlex,
+  refreshContinueWatching,
   fetchCollectionRowsForHome,
   fetchRecentlyAddedPerLibrary,
   getPlexImageUrl,
-  getContinueWatchingImageUrl,
   getTmdbLogo,
   getTmdbTextlessPoster,
   getTmdbTextlessBackdrop,
-  getTmdbBackdropWithTitle,
-  getShowTmdbId,
   getTmdbOverview,
   getUltraBlurColors,
   getUsername,
   convertPlexItemsToHero,
   RowItem,
-  TraktContinueWatchingItem,
   GenreItem,
   PlexUltraBlurColors,
   HeroItem,
@@ -65,6 +73,13 @@ import {
   extractImdbIdFromGuids,
 } from '../core/DetailsData';
 import { stremioStreamCache } from '../stremio/StremioStreamCache';
+import { useTheme } from '../hooks/useTheme';
+import { useAppMode } from '../core/AppMode';
+import { registerHomeRows } from '../core/HomeRowsStore';
+import { localLibrary } from '../core/LocalLibrary';
+import { seedTraktResumePoint, type ContinueWatchingEntry } from '../core/TraktContinueWatching';
+import { addWatchStateListener } from '../core/WatchState';
+import { useHomeCollections } from '../core/UserCollectionsStore';
 
 interface HomeProps {
   onLogout: () => Promise<void>;
@@ -88,13 +103,31 @@ const ITEM_LIMITS = {
   HERO: Platform.OS === 'android' ? 6 : 8,
 };
 
+const HERO_AUTO_ROTATE_MS = 8000;
+const ROW_REGISTRATION_DELAY_MS = 1500;
+const NO_PLEX_CONTINUE = { items: [] as PlexMediaItem[], itemsWithMultipleVersions: new Set<string>() };
+
 type HeroPick = { title: string; image?: string; subtitle?: string; tmdbId?: number; mediaType?: 'movie' | 'tv' };
 
 export default function Home({ onLogout }: HomeProps) {
   const { flixor, isLoading: flixorLoading, isConnected } = useFlixor();
   const nav: any = useNavigation();
   const insets = useSafeAreaInsets();
-  const { settings } = useAppSettings();
+  const { settings, isLoaded: settingsLoaded } = useAppSettings();
+  const theme = useTheme();
+  const { isStremioOnly } = useAppMode();
+  const hasPlex = isConnected && !isStremioOnly;
+  const canLoad = isConnected || isStremioOnly;
+  const continueWatching = useContinueWatching(settings, isStremioOnly);
+  const continueItems = continueWatching.plexItems;
+  const applyPlexContinue = continueWatching.applyPlexResult;
+  const refreshContinueEntries = continueWatching.refresh;
+  const homeCollections = useHomeCollections();
+  const catalogs = useStremioCatalogs(settings.stremioPlaybackEnabled && settings.showStremioCatalogRows);
+  const viewportRef = useRef<HomeViewport | null>(null);
+  viewportRef.current ??= new HomeViewport();
+  const viewport = viewportRef.current;
+  const [reloadToken, setReloadToken] = useState(0);
   // Initialize loading based on cache - if we have cached hero data, skip loading screen
   const [loading, setLoading] = useState(() => !persistentStore.heroSourceItems);
   const [error, setError] = useState<string | null>(null);
@@ -102,12 +135,8 @@ export default function Home({ onLogout }: HomeProps) {
   const [welcome, setWelcome] = useState<string>('');
 
   // Plex data
-  const [continueItems, setContinueItems] = useState<PlexMediaItem[]>([]);
-  const [continueVersions, setContinueVersions] = useState<Set<string>>(new Set());
   const [onDeckItems, setOnDeckItems] = useState<PlexMediaItem[]>([]);
   const [recent, setRecent] = useState<PlexMediaItem[]>([]);
-  // Cache for TMDB backdrop URLs with titles (ratingKey -> url)
-  const [continueBackdrops, setContinueBackdrops] = useState<Record<string, string>>({});
   // Hero source items (Plex items used for hero carousel)
   const [heroSourceItems, setHeroSourceItems] = useState<PlexMediaItem[]>(
     () => persistentStore.heroSourceItems || []
@@ -133,7 +162,6 @@ export default function Home({ onLogout }: HomeProps) {
   const [traktMyWatchlist, setTraktMyWatchlist] = useState<RowItem[]>([]);
   const [traktHistory, setTraktHistory] = useState<RowItem[]>([]);
   const [traktRecommendations, setTraktRecommendations] = useState<RowItem[]>([]);
-  const [traktContinueWatching, setTraktContinueWatching] = useState<TraktContinueWatchingItem[]>([]);
 
   // Collection rows
   const [collectionRows, setCollectionRows] = useState<CollectionRowData[]>([]);
@@ -176,9 +204,100 @@ export default function Home({ onLogout }: HomeProps) {
       };
     });
   }, [heroSourceItems, continueItems, onDeckItems, recent]);
-  const [heroCarouselData, setHeroCarouselData] = useState<HeroItem[]>(
+  const [plexHeroData, setHeroCarouselData] = useState<HeroItem[]>(
     () => persistentStore.heroCarouselData || []
   );
+  const recentRowItems = useMemo<RowItem[]>(
+    () =>
+      recent.map((item) => ({
+        id: `plex:${item.ratingKey}`,
+        title: item.title || 'Untitled',
+        image: getPlexImageUrl(item, 300) || undefined,
+        backdrop: item.art ? getPlexImageUrl({ ...item, thumb: item.art } as PlexMediaItem, 600) : undefined,
+        rating: item.rating || undefined,
+        mediaType: item.type === 'movie' ? ('movie' as const) : ('tv' as const),
+      })),
+    [recent]
+  );
+  const rowModels = useMemo(
+    () =>
+      buildHomeRowModels({
+        showCollectionRows: settings.showCollectionRows,
+        showRecentlyAddedRows: settings.showRecentlyAddedRows,
+        showPlexPopularRow: settings.showPlexPopularRow,
+        showTrendingRows: settings.showTrendingRows,
+        showPlexGenreRows: settings.showPlexGenreRows,
+        showTraktRows: settings.showTraktRows,
+        collectionRows,
+        recentlyAddedSections,
+        userCollections: homeCollections,
+        catalogs,
+        popularOnPlex: popularOnPlexTmdb,
+        trendingNow,
+        trendingMovies,
+        trendingAll,
+        watchlist,
+        genres,
+        recent: recentRowItems,
+        traktTrendMovies,
+        traktTrendShows,
+        traktWatchlist: traktMyWatchlist,
+        traktHistory,
+        traktRecommendations,
+        traktPopularShows,
+      }),
+    [
+      settings.showCollectionRows,
+      settings.showRecentlyAddedRows,
+      settings.showPlexPopularRow,
+      settings.showTrendingRows,
+      settings.showPlexGenreRows,
+      settings.showTraktRows,
+      collectionRows,
+      recentlyAddedSections,
+      homeCollections,
+      catalogs,
+      popularOnPlexTmdb,
+      trendingNow,
+      trendingMovies,
+      trendingAll,
+      watchlist,
+      genres,
+      recentRowItems,
+      traktTrendMovies,
+      traktTrendShows,
+      traktMyWatchlist,
+      traktHistory,
+      traktRecommendations,
+      traktPopularShows,
+    ]
+  );
+  const displayRows = useMemo(
+    () =>
+      arrangeHomeRows(
+        rowModels,
+        {
+          homeRowHidden: settings.homeRowHidden,
+          homeRowTitles: settings.homeRowTitles,
+          homeRowOrder: settings.homeRowOrder,
+        },
+        tab
+      ),
+    [rowModels, settings.homeRowHidden, settings.homeRowTitles, settings.homeRowOrder, tab]
+  );
+  const rowModelsRef = useRef<HomeRowModel[]>(rowModels);
+  rowModelsRef.current = rowModels;
+  const displayRowsRef = useRef(displayRows);
+  displayRowsRef.current = displayRows;
+
+  const heroOverride = useHeroOverride(
+    settings.homeHeroSource,
+    continueWatching.entries,
+    rowModels,
+    plexHeroData.length > 0 || heroSourceItems.length > 0,
+    ITEM_LIMITS.HERO
+  );
+  const heroCarouselData = heroOverride ?? plexHeroData;
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [carouselInWatchlist, setCarouselInWatchlist] = useState(false);
   const [carouselWatchlistLoading, setCarouselWatchlistLoading] = useState(false);
@@ -191,25 +310,6 @@ export default function Home({ onLogout }: HomeProps) {
 
   // Pull-to-refresh state
   const [refreshing, setRefreshing] = useState(false);
-
-  // Preload images for hero carousel (capped at 10 images like NuvioStreaming)
-  const preloadImages = useCallback((items: Array<{ image?: string; backdrop?: string }>) => {
-    const MAX_PRELOAD = 10;
-    const images = items
-      .slice(0, MAX_PRELOAD)
-      .flatMap(item => [item.backdrop, item.image])
-      .filter(Boolean) as string[];
-
-    if (images.length > 0) {
-      const sources = images.map(uri => ({
-        uri,
-        priority: FastImage.priority.normal,
-        cache: FastImage.cacheControl.immutable,
-      }));
-      FastImage.preload(sources);
-      console.log(`[Home] Preloaded ${sources.length} images (max ${MAX_PRELOAD})`);
-    }
-  }, []);
 
   // Pull-to-refresh handler
   const handleRefresh = useCallback(async () => {
@@ -230,11 +330,11 @@ export default function Home({ onLogout }: HomeProps) {
         flixor.clearPlexCache(),
         flixor.clearTraktCache(),
         flixor.clearTmdbCache(),
-      ]);
+      ]).catch((e) => console.log('[Home] Cache clear failed:', e));
     }
 
     // Reset all row states
-    setContinueItems([]);
+    applyPlexContinue(NO_PLEX_CONTINUE);
     setOnDeckItems([]);
     setRecent([]);
     setHeroSourceItems([]);
@@ -250,7 +350,6 @@ export default function Home({ onLogout }: HomeProps) {
     setTraktMyWatchlist([]);
     setTraktHistory([]);
     setTraktRecommendations([]);
-    setTraktContinueWatching([]);
     setCollectionRows([]);
     setRecentlyAddedSections([]);
     setHeroCarouselData([]);
@@ -258,15 +357,23 @@ export default function Home({ onLogout }: HomeProps) {
     // Re-trigger data load by incrementing retryCount
     setLoading(true);
     setRetryCount(c => c + 1);
+    setReloadToken(c => c + 1);
+    refreshContinueEntries({ force: true });
     setRefreshing(false);
-  }, [flixor]);
+  }, [flixor, applyPlexContinue, refreshContinueEntries]);
 
-  // Preload hero carousel images when data changes
+  // Warm artwork that is about to be on screen
   useEffect(() => {
-    if (heroCarouselData.length > 0) {
-      preloadImages(heroCarouselData);
-    }
-  }, [heroCarouselData, preloadImages]);
+    preheatArtwork(heroCarouselData.flatMap((item) => [item.backdrop, item.image]));
+  }, [heroCarouselData]);
+
+  useEffect(() => {
+    preheatArtwork(
+      continueWatching.entries.map((entry) =>
+        settings.continueWatchingLayout === 'landscape' ? entry.backdrop || entry.image : entry.image || entry.backdrop
+      )
+    );
+  }, [continueWatching.entries, settings.continueWatchingLayout]);
 
   const y = React.useRef(new Animated.Value(0)).current;
   const contentTopInset = insets.top + TOP_BAR_EXPANDED_CONTENT_HEIGHT;
@@ -372,40 +479,39 @@ export default function Home({ onLogout }: HomeProps) {
     return null;
   };
 
-  // Navigate to Browse screen with context and initial items
-  const openRowBrowse = useCallback((context: BrowseContext, title: string, items: RowItem[]) => {
-    // Convert RowItem to BrowseItem format
-    const browseItems: BrowseItem[] = items.map((item) => ({
-      id: item.id,
-      title: item.title,
-      image: item.image,
-    }));
-    nav.navigate('Browse', { context, title, initialItems: browseItems });
+  // Navigate to Browse for a row
+  const openRowBrowse = useCallback((rowId: string) => {
+    const row = displayRowsRef.current.find((candidate) => candidate.model.id === rowId);
+    if (!row) return;
+    const { model, title } = row;
+    if (model.type === 'catalog') {
+      nav.navigate('Browse', { context: { type: 'stremioCatalog', catalog: model.catalog }, title });
+    } else if (model.type === 'userCollection') {
+      nav.navigate('UserCollection', { collectionId: model.collection.id, title });
+    } else if (model.type === 'items') {
+      nav.navigate('Browse', { context: model.browseContext, title, initialItems: toBrowseItems(model.items) });
+    }
   }, [nav]);
 
-  // Navigate to Browse for Continue Watching (PlexMediaItem -> BrowseItem conversion)
+  const continueEntriesRef = useRef(continueWatching.entries);
+  continueEntriesRef.current = continueWatching.entries;
   const openContinueWatchingBrowse = useCallback(() => {
-    const browseItems: BrowseItem[] = continueItems.map((item) => {
-      const isEpisode = item.type === 'episode';
-      return {
-        id: `plex:${item.ratingKey}`,
-        title: isEpisode ? (item.grandparentTitle || item.title) : item.title,
-        image: getContinueWatchingImageUrl(item, 300), // Use show poster for episodes
-        subtitle: isEpisode ? `S${item.parentIndex || 1}, E${item.index || 1}` : undefined,
-        year: !isEpisode && item.year ? item.year : undefined,
-      };
-    });
-    nav.navigate('Browse', {
-      context: { type: 'plexContinue' } as any,
-      title: 'Continue Watching',
-      initialItems: browseItems
-    });
-  }, [nav, continueItems]);
+    const items = continueEntriesRef.current.map((entry) => ({
+      id: entry.plexRatingKey
+        ? `plex:${entry.plexRatingKey}`
+        : `tmdb:${entry.mediaType === 'movie' ? 'movie' : 'tv'}:${entry.tmdbId}`,
+      title: entry.title,
+      image: entry.image,
+      subtitle: entry.mediaType === 'episode' ? `S${entry.seasonNumber || 1}, E${entry.episodeNumber || 1}` : undefined,
+      year: entry.mediaType === 'movie' ? entry.year : undefined,
+    }));
+    nav.navigate('Browse', { context: { type: 'static' } as BrowseContext, title: 'Continue Watching', initialItems: items });
+  }, [nav]);
 
   // Main data loading effect - Progressive loading pattern (like NuvioStreaming)
   // Shows UI as soon as first content is ready instead of waiting for everything
   useEffect(() => {
-    if (flixorLoading || !isConnected) return;
+    if (flixorLoading || !canLoad) return;
 
     let hasExitedLoading = false;
     const exitLoading = () => {
@@ -428,11 +534,11 @@ export default function Home({ onLogout }: HomeProps) {
         setWelcome(`Welcome, ${name}`);
 
         // Start ALL fetches in parallel but don't wait for all
-        const continuePromise = fetchContinueWatching();
-        const onDeckPromise = fetchOnDeck();
-        const recentPromise = fetchRecentlyAdded();
+        const continuePromise = hasPlex ? fetchContinueWatching() : Promise.resolve(NO_PLEX_CONTINUE);
+        const onDeckPromise = hasPlex ? fetchOnDeck() : Promise.resolve<PlexMediaItem[]>([]);
+        const recentPromise = hasPlex ? fetchRecentlyAdded() : Promise.resolve<PlexMediaItem[]>([]);
         const trendingTVPromise = fetchTmdbTrendingTVWeek();
-        const watchlistPromise = fetchPlexWatchlist();
+        const watchlistPromise = hasPlex ? fetchPlexWatchlist() : fetchLocalWatchlistRow();
         const trendingMoviesPromise = fetchTmdbTrendingMoviesWeek();
         const trendingAllPromise = fetchTmdbTrendingAllWeek();
 
@@ -442,8 +548,7 @@ export default function Home({ onLogout }: HomeProps) {
           InteractionManager.runAfterInteractions(async () => {
             const continueData = continueResult?.items || [];
             console.log('[Home] Setting continueItems:', continueData.length);
-            setContinueItems(continueData);
-            setContinueVersions(continueResult?.itemsWithMultipleVersions || new Set());
+            applyPlexContinue(continueResult || NO_PLEX_CONTINUE);
 
             // If we have continue watching items, use them for hero
             if (continueData.length > 0) {
@@ -460,35 +565,9 @@ export default function Home({ onLogout }: HomeProps) {
                 persistentStore.heroCarouselData = enriched;
               });
             }
-
-            // Fetch TMDB backdrops for Continue Watching row
-            continueData.forEach(async (item) => {
-              try {
-                let tmdbId: string | null = null;
-                let mediaType: 'movie' | 'tv' = 'movie';
-
-                if (item.type === 'movie') {
-                  tmdbId = extractTmdbIdFromGuids(item.Guid || []);
-                  mediaType = 'movie';
-                } else if (item.type === 'episode' && item.grandparentRatingKey) {
-                  tmdbId = await getShowTmdbId(item.grandparentRatingKey);
-                  mediaType = 'tv';
-                }
-
-                if (tmdbId) {
-                  const backdrop = await getTmdbBackdropWithTitle(Number(tmdbId), mediaType);
-                  if (backdrop) {
-                    setContinueBackdrops(prev => ({ ...prev, [item.ratingKey]: backdrop }));
-                  }
-                }
-              } catch (e) {
-                // Silently handle errors - fallback to Plex images
-              }
-            });
           });
         }).catch((err) => {
           console.log('[Home] continuePromise error:', err);
-          setContinueItems([]);
         });
 
         // On Deck fallback for hero
@@ -575,21 +654,10 @@ export default function Home({ onLogout }: HomeProps) {
         exitLoading();
 
         // Genre rows - load in background (don't block UI)
-        const genreDefs: Array<{ key: string; type: 'movie' | 'show'; label: string }> = [
-          { key: 'TV Shows - Children', type: 'show', label: 'Children' },
-          { key: 'Movie - Music', type: 'movie', label: 'Music' },
-          { key: 'Movies - Documentary', type: 'movie', label: 'Documentary' },
-          { key: 'Movies - History', type: 'movie', label: 'History' },
-          { key: 'TV Shows - Reality', type: 'show', label: 'Reality' },
-          { key: 'Movies - Drama', type: 'movie', label: 'Drama' },
-          { key: 'TV Shows - Suspense', type: 'show', label: 'Suspense' },
-          { key: 'Movies - Animation', type: 'movie', label: 'Animation' },
-        ];
-
         // Load genres progressively - update state as each completes (deferred)
         // Only fetch if genre rows are enabled in settings
-        if (settings.showPlexGenreRows) {
-          genreDefs.forEach(async (gd) => {
+        if (hasPlex && settings.showPlexGenreRows) {
+          HOME_GENRE_ROWS.forEach(async (gd) => {
             try {
               const items = await fetchPlexGenreRow(gd.type, gd.label);
               InteractionManager.runAfterInteractions(() => {
@@ -619,15 +687,8 @@ export default function Home({ onLogout }: HomeProps) {
           InteractionManager.runAfterInteractions(() => setTraktRecommendations(items));
         }).catch(() => {});
 
-        // Trakt Continue Watching (only if enabled in settings)
-        if (settings.showTraktContinueWatching) {
-          fetchTraktContinueWatching().then((items) => {
-            InteractionManager.runAfterInteractions(() => setTraktContinueWatching(items));
-          }).catch(() => setTraktContinueWatching([]));
-        }
-
         // Collection rows - load in background (deferred)
-        if (settings.showCollectionRows) {
+        if (hasPlex && settings.showCollectionRows) {
           fetchCollectionRowsForHome(10).then((rows) => {
             InteractionManager.runAfterInteractions(() => {
               // Filter out hidden collections and limit to 5
@@ -641,7 +702,7 @@ export default function Home({ onLogout }: HomeProps) {
         }
 
         // Recently Added per library rows - load in background (deferred)
-        if (settings.showRecentlyAddedRows) {
+        if (hasPlex && settings.showRecentlyAddedRows) {
           fetchRecentlyAddedPerLibrary(
             settings.groupRecentlyAddedEpisodes,
             settings.enabledLibraryKeys
@@ -662,7 +723,8 @@ export default function Home({ onLogout }: HomeProps) {
         const currentRetry = retryCount + 1;
         setRetryCount(currentRetry);
 
-        if (currentRetry >= 3) {
+        // Stremio-only has no account to sign out of, and a retry can't fix that.
+        if (currentRetry >= 3 && !isStremioOnly) {
           console.log('[Home] Max retries exceeded, logging out user');
           setTimeout(async () => {
             await onLogout();
@@ -672,87 +734,63 @@ export default function Home({ onLogout }: HomeProps) {
         }
       }
     })();
-  }, [flixorLoading, isConnected, retryCount]);
+  }, [flixorLoading, canLoad, hasPlex, isStremioOnly, retryCount]);
 
-  // Polling for dynamic rows (Continue Watching, Recently Added)
-  // Poll every 30 seconds to keep content fresh without full page refresh
+  // Keeps Continue Watching and Recently Added fresh without a full reload
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+  const refreshDynamicRows = useCallback(async () => {
+    const current = settingsRef.current;
+    const tasks: Promise<unknown>[] = [];
+    if (current.showContinueWatchingRow) {
+      tasks.push(refreshContinueEntries());
+      if (hasPlex) tasks.push(refreshContinueWatching().then(applyPlexContinue));
+    }
+    if (hasPlex && current.showRecentlyAddedRows) {
+      tasks.push(
+        fetchRecentlyAddedPerLibrary(current.groupRecentlyAddedEpisodes, current.enabledLibraryKeys).then((sections) => {
+          // The fetcher returns nothing on failure, which shouldn't empty the rows.
+          if (sections.length === 0) return;
+          const idsOf = (list: RecentlyAddedSection[]) =>
+            list.map((section) => `${section.id}:${section.items.map((item) => item.id).join(',')}`).join('|');
+          setRecentlyAddedSections((prev) => (idsOf(prev) === idsOf(sections) ? prev : sections));
+        })
+      );
+    }
+    await Promise.allSettled(tasks);
+  }, [hasPlex, applyPlexContinue, refreshContinueEntries]);
+
+  const invalidateDynamicRows = useHomeBackgroundRefresh(!loading && canLoad, refreshDynamicRows);
+
+  // Watched state or local progress changed somewhere else in the app
   useEffect(() => {
-    if (loading || !isConnected) return;
-
-    const POLL_INTERVAL = 30000; // 30 seconds
-
-    const pollDynamicRows = async () => {
-      console.log('[Home] Polling dynamic rows...');
-
-      // Poll Continue Watching
-      if (settings.showContinueWatchingRow) {
-        try {
-          const data = await fetchContinueWatching();
-          const existingKeys = new Set(continueItems.map(item => item.ratingKey));
-          const newKeys = new Set(data.items.map(item => item.ratingKey));
-          // Only update if data changed
-          if (existingKeys.size !== newKeys.size || ![...existingKeys].every(k => newKeys.has(k))) {
-            setContinueItems(data.items);
-            setContinueVersions(data.itemsWithMultipleVersions);
-            console.log('[Home] Continue Watching updated:', data.items.length, 'items');
-
-            // Fetch TMDB backdrops for new items
-            data.items.forEach(async (item) => {
-              if (continueBackdrops[item.ratingKey]) return; // Already have backdrop
-              try {
-                let tmdbId: string | null = null;
-                let mediaType: 'movie' | 'tv' = 'movie';
-
-                if (item.type === 'movie') {
-                  tmdbId = extractTmdbIdFromGuids(item.Guid || []);
-                  mediaType = 'movie';
-                } else if (item.type === 'episode' && item.grandparentRatingKey) {
-                  tmdbId = await getShowTmdbId(item.grandparentRatingKey);
-                  mediaType = 'tv';
-                }
-
-                if (tmdbId) {
-                  const backdrop = await getTmdbBackdropWithTitle(Number(tmdbId), mediaType);
-                  if (backdrop) {
-                    setContinueBackdrops(prev => ({ ...prev, [item.ratingKey]: backdrop }));
-                  }
-                }
-              } catch (e) {
-                // Silently handle errors
-              }
-            });
-          }
-        } catch (e) {
-          console.log('[Home] Poll Continue Watching error:', e);
-        }
-      }
-
-      // Poll Recently Added per library
-      if (settings.showRecentlyAddedRows) {
-        try {
-          const sections = await fetchRecentlyAddedPerLibrary(
-            settings.groupRecentlyAddedEpisodes,
-            settings.enabledLibraryKeys
-          );
-          const existingIds = new Set(recentlyAddedSections.flatMap(s => s.items.map(i => i.id)));
-          const newIds = new Set(sections.flatMap(s => s.items.map(i => i.id)));
-          // Only update if data changed
-          if (existingIds.size !== newIds.size || ![...existingIds].every(id => newIds.has(id))) {
-            setRecentlyAddedSections(sections);
-            console.log('[Home] Recently Added updated:', sections.length, 'sections');
-          }
-        } catch (e) {
-          console.log('[Home] Poll Recently Added error:', e);
-        }
-      }
-    };
-
-    const intervalId = setInterval(pollDynamicRows, POLL_INTERVAL);
-
+    const removeWatchState = addWatchStateListener(invalidateDynamicRows);
+    const removeLocal = localLibrary.addListener((change) => {
+      if (change === 'history') invalidateDynamicRows();
+    });
     return () => {
-      clearInterval(intervalId);
+      removeWatchState();
+      removeLocal();
     };
-  }, [loading, isConnected, settings.showContinueWatchingRow, settings.showRecentlyAddedRows, settings.groupRecentlyAddedEpisodes]);
+  }, [invalidateDynamicRows]);
+
+  // Records the rows for Rows Settings once loading has settled
+  useEffect(() => {
+    if (!settingsLoaded || loading) return;
+    const timer = setTimeout(() => {
+      registerHomeRows(toRowDescriptors(rowModelsRef.current));
+    }, ROW_REGISTRATION_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [rowModels, settingsLoaded, loading]);
+
+  // The Carousel layout rotates itself; Apple TV is driven by its selected index
+  useEffect(() => {
+    if (!settings.heroAutoRotate || settings.heroLayout !== 'appletv' || heroCarouselData.length < 2) return;
+    const timer = setInterval(() => {
+      if (isFocusedRef.current) setAppleTvIndex((index) => (index + 1) % heroCarouselData.length);
+    }, HERO_AUTO_ROTATE_MS);
+    return () => clearInterval(timer);
+  }, [settings.heroAutoRotate, settings.heroLayout, heroCarouselData.length]);
 
   // Memory management: Clear FastImage memory cache when app goes to background
   // Note: Memory cleanup on app background is now handled centrally by MemoryManager
@@ -846,7 +884,7 @@ export default function Home({ onLogout }: HomeProps) {
   // Hero enrichment is now handled in the data loading effect via convertPlexItemsToHero
   // This effect only runs if heroCarouselData is empty but heroSourceItems changed
   useEffect(() => {
-    if (heroCarouselData.length > 0 || heroSourceItems.length === 0) return;
+    if (plexHeroData.length > 0 || heroSourceItems.length === 0) return;
 
     let active = true;
     (async () => {
@@ -861,7 +899,7 @@ export default function Home({ onLogout }: HomeProps) {
     return () => {
       active = false;
     };
-  }, [heroSourceItems, heroCarouselData.length]);
+  }, [heroSourceItems, plexHeroData.length]);
 
   // Precompute ultraBlur colors for all carousel items
   useEffect(() => {
@@ -1008,19 +1046,14 @@ export default function Home({ onLogout }: HomeProps) {
       const cancel = scheduleIdleWork(async () => {
         try {
           await new Promise(resolve => setTimeout(resolve, 500));
-          const promises: Promise<RowItem[]>[] = [
+          const results = await Promise.allSettled([
             fetchTraktTrendingMovies(),
             fetchTraktTrendingShows(),
             fetchTraktPopularShows(),
             fetchTraktWatchlist(),
             fetchTraktHistory(),
             fetchTraktRecommendations(),
-          ];
-          // Add Trakt Continue Watching refresh if enabled
-          if (settings.showTraktContinueWatching) {
-            promises.push(fetchTraktContinueWatching());
-          }
-          const results = await Promise.allSettled(promises);
+          ]);
           const tval = <T,>(i: number): T =>
             results[i].status === 'fulfilled'
               ? (results[i] as PromiseFulfilledResult<T>).value
@@ -1040,21 +1073,14 @@ export default function Home({ onLogout }: HomeProps) {
           setTraktHistory(prev => (isSameRowList(prev, nextHistory) ? prev : nextHistory));
           setTraktRecommendations(prev => (isSameRowList(prev, nextRecommendations) ? prev : nextRecommendations));
 
-          // Update Trakt Continue Watching if enabled
-          if (settings.showTraktContinueWatching && results.length > 6) {
-            const nextContinueWatching = tval<TraktContinueWatchingItem[]>(6);
-            setTraktContinueWatching(prev => (isSameRowList(prev, nextContinueWatching) ? prev : nextContinueWatching));
-          }
           lastTraktRefreshRef.current = Date.now();
         } catch {}
       }, 1200);
 
       return cancel;
-    }, [loading, isSameRowList, scheduleIdleWork, settings.showTraktContinueWatching])
+    }, [loading, isSameRowList, scheduleIdleWork])
   );
 
-  const getRowUri = useCallback((it: RowItem) => it.image, []);
-  const getRowTitle = useCallback((it: RowItem) => it.title, []);
   const onRowPress = useCallback((it: RowItem) => {
     if (!it?.id) return;
     if (it.id.startsWith('plex:')) {
@@ -1067,66 +1093,6 @@ export default function Home({ onLogout }: HomeProps) {
     }
   }, [nav]);
 
-  // Custom handler for Trakt Continue Watching - uses Plex ratingKey for episodes if available
-  const onTraktContinuePress = useCallback((it: TraktContinueWatchingItem) => {
-    if (!it?.id) return;
-
-    // If we have a matched Plex episode ratingKey, navigate directly to episode details (like normal Continue Watching)
-    if (it.plexRatingKey) {
-      return nav.navigate('Details', { type: 'plex', ratingKey: it.plexRatingKey });
-    }
-
-    // Fallback to TMDB navigation
-    if (it.id.startsWith('tmdb:')) {
-      const [, media, id] = it.id.split(':');
-      const mediaType = media === 'movie' ? 'movie' : 'tv';
-      // For episodes without Plex match, still pass season/episode for context
-      if (mediaType === 'tv' && it.seasonNumber) {
-        return nav.navigate('Details', {
-          type: 'tmdb',
-          mediaType,
-          id,
-          initialSeason: it.seasonNumber,
-          initialEpisode: it.episodeNumber,
-        });
-      }
-      return nav.navigate('Details', { type: 'tmdb', mediaType, id });
-    }
-  }, [nav]);
-
-  const plexImage = useCallback((item: PlexMediaItem) => getPlexImageUrl(item, 300), []);
-  const plexContinueImage = useCallback((item: PlexMediaItem) => getContinueWatchingImageUrl(item, 300), []);
-  // Landscape image for Continue Watching - prefer TMDB backdrop with title
-  const plexContinueLandscapeImage = useCallback((item: PlexMediaItem) => {
-    // Check if we have a TMDB backdrop with title cached (for both movies and episodes)
-    if (item.ratingKey && continueBackdrops[item.ratingKey]) {
-      return continueBackdrops[item.ratingKey];
-    }
-    // Fallback to Plex art - for episodes use grandparentArt (show backdrop)
-    const path = item.type === 'episode'
-      ? (item.grandparentArt || item.art || item.thumb)
-      : (item.art || item.thumb);
-    if (!path) return '';
-    return getPlexImageUrl({ ...item, thumb: path } as PlexMediaItem, 600);
-  }, [continueBackdrops]);
-  const getContinueTitle = useCallback((it: any) => {
-    if (it.type === 'episode') {
-      return it.grandparentTitle || it.title || 'Episode';
-    }
-    return it.title || it.name;
-  }, []);
-  const getContinueSubtitle = useCallback((it: any) => {
-    if (it.type === 'episode') {
-      const seasonNum = it.parentIndex || 1;
-      const episodeNum = it.index || 1;
-      return `S${seasonNum}, E${episodeNum}`;
-    }
-    // For movies, show the year
-    if (it.year) {
-      return String(it.year);
-    }
-    return undefined;
-  }, []);
   const onContinuePress = useCallback(async (it: any) => {
     const ratingKey = String(it.ratingKey || it.guid || '');
     if (settings.useCachedStreams) {
@@ -1175,8 +1141,83 @@ export default function Home({ onLogout }: HomeProps) {
     }
   }, [nav, settings.useCachedStreams, settings.openMetadataScreenWhenCacheDisabled]);
 
+  /** Opens an addon stream saved for this entry, if caching is on and one is still valid. */
+  const playCachedStream = useCallback(async (entry: ContinueWatchingEntry): Promise<boolean> => {
+    if (!settings.useCachedStreams) return false;
+    const baseId = entry.imdbId || (entry.tmdbId ? `tmdb:${entry.tmdbId}` : undefined);
+    const contentKey =
+      entry.contentKey ||
+      (baseId &&
+        (entry.mediaType === 'episode'
+          ? `series:${baseId}:${entry.seasonNumber || 1}:${entry.episodeNumber || 1}`
+          : `movie:${baseId}`));
+    if (!contentKey) return false;
+    const cached = await stremioStreamCache.get(contentKey);
+    if (!cached) return false;
+    nav.navigate('Player', {
+      type: 'stream',
+      provider: 'stremio',
+      uri: cached.uri,
+      headers: cached.headers,
+      title: cached.title,
+      mediaType: cached.mediaType,
+      contentKey: cached.contentKey,
+      imdbId: cached.imdbId,
+      tmdbId: cached.tmdbId,
+      seasonNumber: cached.seasonNumber,
+      episodeNumber: cached.episodeNumber,
+      episodeTitle: cached.episodeTitle,
+      backdrop: cached.backdrop,
+      streamLabel: cached.streamLabel,
+      streamAddonId: cached.addonId,
+      streamAddonName: cached.addonName,
+      availableStreams: cached.availableStreams,
+      externalSubtitles: cached.externalSubtitles,
+      stremioIdentity: cached.stremioIdentity,
+    });
+    return true;
+  }, [nav, settings.useCachedStreams]);
+
+  const openContinueDetails = useCallback(async (entry: ContinueWatchingEntry) => {
+    if (entry.plexRatingKey) {
+      return nav.navigate('Details', { type: 'plex', ratingKey: entry.plexRatingKey });
+    }
+    if (entry.tmdbId == null) return;
+    const isEpisode = entry.mediaType === 'episode' && !!entry.seasonNumber;
+    if (hasPlex && isEpisode) {
+      // Prefer the library copy so Plex playback and metadata are available.
+      const ratingKey = await matchTraktEpisodeToPlex(entry.tmdbId, entry.title, entry.seasonNumber!, entry.episodeNumber || 1).catch(() => null);
+      if (ratingKey) return nav.navigate('Details', { type: 'plex', ratingKey });
+    }
+    nav.navigate('Details', {
+      type: 'tmdb',
+      mediaType: entry.mediaType === 'movie' ? 'movie' : 'tv',
+      id: String(entry.tmdbId),
+      ...(isEpisode ? { initialSeason: entry.seasonNumber, initialEpisode: entry.episodeNumber } : null),
+    });
+  }, [nav, hasPlex]);
+
+  const onContinueEntryPress = useCallback(async (entry: ContinueWatchingEntry) => {
+    if (entry.plex) return onContinuePress(entry.plex);
+    await seedTraktResumePoint(entry).catch((e) => console.log('[Home] Could not save Trakt resume point:', e));
+    if (await playCachedStream(entry)) return;
+    await openContinueDetails(entry);
+  }, [onContinuePress, playCachedStream, openContinueDetails]);
+
+  const performContinueAction = continueWatching.performAction;
+  const onContinueAction = useCallback(async (action: ContinueWatchingMenuAction, entry: ContinueWatchingEntry) => {
+    if (action === 'info') {
+      openContinueDetails(entry);
+      return;
+    }
+    const result = await performContinueAction(action, entry);
+    if (action === 'startOver' && result && (result.isSuccess || result.isPartialSuccess)) {
+      onContinueEntryPress({ ...entry, positionMs: undefined, progress: 0 });
+    }
+  }, [openContinueDetails, performContinueAction, onContinueEntryPress]);
+
   // Show loading while FlixorCore is initializing or not connected
-  if (flixorLoading || !isConnected) {
+  if (flixorLoading || !canLoad) {
     return (
       <View style={{ flex: 1, backgroundColor: '#1b0a10', alignItems: 'center', justifyContent: 'center' }}>
         <ActivityIndicator color="#fff" />
@@ -1200,8 +1241,8 @@ export default function Home({ onLogout }: HomeProps) {
             </Text>
             <Text style={{ color: '#999', fontSize: 14, marginBottom: 20, textAlign: 'center' }}>{error}</Text>
             <Text style={{ color: '#999', fontSize: 14, marginBottom: 20, textAlign: 'center' }}>Retry {retryCount}/3</Text>
-            {retryCount >= 3 ? (
-              <Text style={{ color: '#e50914', fontSize: 14, textAlign: 'center' }}>
+            {retryCount >= 3 && !isStremioOnly ? (
+              <Text style={{ color: theme.accent, fontSize: 14, textAlign: 'center' }}>
                 Logging out... Please check your connection and try again.
               </Text>
             ) : (
@@ -1267,6 +1308,7 @@ export default function Home({ onLogout }: HomeProps) {
         onScroll={(e: any) => {
           const currentY = e.nativeEvent.contentOffset.y;
           y.setValue(currentY);
+          viewport.setOffset(currentY);
         }}
       >
         {canShowHero ? (
@@ -1307,6 +1349,7 @@ export default function Home({ onLogout }: HomeProps) {
               inWatchlist={carouselInWatchlist}
               watchlistLoading={carouselWatchlistLoading}
               onActiveIndexChange={setCarouselIndex}
+              autoRotate={settings.heroAutoRotate}
             />
           ) : settings.heroLayout === 'appletv' ? (
             <HeroAppleTV
@@ -1365,274 +1408,21 @@ export default function Home({ onLogout }: HomeProps) {
           )
         ) : null}
 
-        <View style={{ marginTop: 16 }}>
-        {settings.showContinueWatchingRow && continueItems.length > 0 && (
-            settings.continueWatchingLayout === 'landscape' ? (
-              <ContinueWatchingLandscapeRow
-                items={continueItems}
-                itemsWithMultipleVersions={continueVersions}
-                onItemPress={onContinuePress}
-                onBrowsePress={openContinueWatchingBrowse}
-                getImageUri={plexContinueLandscapeImage}
-                onInfo={(item) => nav.navigate('Details', { type: 'plex', ratingKey: item.ratingKey })}
-              />
-            ) : (
-              <ContinueWatchingPosterRow
-                items={continueItems}
-                itemsWithMultipleVersions={continueVersions}
-                onItemPress={onContinuePress}
-                onBrowsePress={openContinueWatchingBrowse}
-                getImageUri={plexContinueImage}
-                getTitle={getContinueTitle}
-                getSubtitle={getContinueSubtitle}
-                onInfo={(item) => nav.navigate('Details', { type: 'plex', ratingKey: item.ratingKey })}
-              />
-            )
-          )}
-
-          {/* Trakt Continue Watching Row */}
-          {settings.showTraktContinueWatching && traktContinueWatching.length > 0 && (
-            settings.continueWatchingLayout === 'landscape' ? (
-              <TraktContinueWatchingLandscapeRow
-                items={traktContinueWatching}
-                onItemPress={onTraktContinuePress}
-                onBrowsePress={() => openRowBrowse(
-                  { type: 'trakt', kind: 'continueWatching', mediaType: 'movie', title: 'Continue Watching' } as any,
-                  'Continue Watching',
-                  traktContinueWatching
-                )}
-              />
-            ) : (
-              <TraktContinueWatchingPosterRow
-                items={traktContinueWatching}
-                onItemPress={onTraktContinuePress}
-                onBrowsePress={() => openRowBrowse(
-                  { type: 'trakt', kind: 'continueWatching', mediaType: 'movie', title: 'Continue Watching' } as any,
-                  'Continue Watching',
-                  traktContinueWatching
-                )}
-              />
-            )
-          )}
-
-          {/* Collection Rows */}
-          {settings.showCollectionRows && collectionRows.map((collection) => (
-            collection.items.length > 0 ? (
-              <LazyRow
-                key={`collection-${collection.ratingKey}`}
-                title={collection.title}
-                titleIcon="sparkles"
-                items={collection.items}
-                getImageUri={getRowUri}
-                getTitle={getRowTitle}
-                onItemPress={onRowPress}
-                onBrowsePress={() => openRowBrowse(
-                  { type: 'plexCollection', collectionKey: collection.ratingKey } as any,
-                  collection.title,
-                  collection.items
-                )}
-                keyPrefix={`collection-${collection.ratingKey}-`}
-              />
-            ) : null
-          ))}
-
-          {/* Recently Added per Library Rows */}
-          {settings.showRecentlyAddedRows && recentlyAddedSections.map((section) => (
-            section.items.length > 0 ? (
-              <LazyRow
-                key={section.id}
-                title={section.title}
-                titleIcon="time-outline"
-                items={section.items}
-                getImageUri={getRowUri}
-                getTitle={getRowTitle}
-                getSubtitle={(item) => item.subtitle}
-                onItemPress={onRowPress}
-                onBrowsePress={() => openRowBrowse(
-                  { type: 'plexDirectory', path: `/library/sections/${section.libraryKey}/recentlyAdded`, title: section.title } as any,
-                  section.title,
-                  section.items
-                )}
-                keyPrefix={`recently-added-${section.libraryKey}-`}
-              />
-            ) : null
-          ))}
-
-          {settings.showPlexPopularRow && popularOnPlexTmdb.length > 0 && (
-            <Row
-              title="Popular on Plex"
-              items={popularOnPlexTmdb}
-              getImageUri={getRowUri}
-              getTitle={getRowTitle}
-              onItemPress={onRowPress}
-              onBrowsePress={() => openRowBrowse({ type: 'tmdb', kind: 'trending', mediaType: 'tv', title: 'Popular on Plex' }, 'Popular on Plex', popularOnPlexTmdb)}
-            />
-          )}
-
-          {settings.showTrendingRows && trendingNow.length > 0 && (
-            <LazyRow
-              title="Trending Now"
-              items={trendingNow}
-              getImageUri={getRowUri}
-              getTitle={getRowTitle}
-              onItemPress={onRowPress}
-              onBrowsePress={() => openRowBrowse({ type: 'tmdb', kind: 'trending', mediaType: 'tv', title: 'Trending Now' }, 'Trending Now', trendingNow)}
-              keyPrefix="tmdb-trending-now-"
-            />
-          )}
-
-          {settings.showTrendingRows && trendingMovies.length > 0 && (
-            <LazyRow
-              title="Trending Movies"
-              items={trendingMovies}
-              getImageUri={getRowUri}
-              getTitle={getRowTitle}
-              onItemPress={onRowPress}
-              onBrowsePress={() => openRowBrowse({ type: 'tmdb', kind: 'trending', mediaType: 'movie', title: 'Trending Movies' }, 'Trending Movies', trendingMovies)}
-              keyPrefix="tmdb-trending-movies-"
-            />
-          )}
-
-          {settings.showTrendingRows && trendingAll.length > 0 && (
-            <LazyRow
-              title="Trending This Week"
-              items={trendingAll}
-              getImageUri={getRowUri}
-              getTitle={getRowTitle}
-              onItemPress={onRowPress}
-              onBrowsePress={() => openRowBrowse({ type: 'tmdb', kind: 'trending', mediaType: 'movie', title: 'Trending This Week' }, 'Trending This Week', trendingAll)}
-              keyPrefix="tmdb-trending-week-"
-            />
-          )}
-
-          {watchlist.length > 0 && (
-            <LazyRow
-              title="Watchlist"
-              items={watchlist}
-              getImageUri={getRowUri}
-              getTitle={getRowTitle}
-              onItemPress={onRowPress}
-              onBrowsePress={() => openRowBrowse({ type: 'plexWatchlist' }, 'Watchlist', watchlist)}
-              keyPrefix="plex-watchlist-"
-            />
-          )}
-
-          {/* Plex Genre Rows */}
-          {settings.showPlexGenreRows && genres['TV Shows - Children']?.length ? (
-            <LazyRow title="TV Shows - Children" items={genres['TV Shows - Children']} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} onBrowsePress={() => openRowBrowse({ type: 'plexGenre', genre: 'Children', mediaType: 'tv' }, 'TV Shows - Children', genres['TV Shows - Children'])} keyPrefix="genre-tv-children-" />
-          ) : null}
-          {settings.showPlexGenreRows && genres['Movie - Music']?.length ? (
-            <LazyRow title="Movie - Music" items={genres['Movie - Music']} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} onBrowsePress={() => openRowBrowse({ type: 'plexGenre', genre: 'Music', mediaType: 'movie' }, 'Movie - Music', genres['Movie - Music'])} keyPrefix="genre-movie-music-" />
-          ) : null}
-          {settings.showPlexGenreRows && genres['Movies - Documentary']?.length ? (
-            <LazyRow title="Movies - Documentary" items={genres['Movies - Documentary']} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} onBrowsePress={() => openRowBrowse({ type: 'plexGenre', genre: 'Documentary', mediaType: 'movie' }, 'Movies - Documentary', genres['Movies - Documentary'])} keyPrefix="genre-movie-doc-" />
-          ) : null}
-          {settings.showPlexGenreRows && genres['Movies - History']?.length ? (
-            <LazyRow title="Movies - History" items={genres['Movies - History']} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} onBrowsePress={() => openRowBrowse({ type: 'plexGenre', genre: 'History', mediaType: 'movie' }, 'Movies - History', genres['Movies - History'])} keyPrefix="genre-movie-history-" />
-          ) : null}
-          {settings.showPlexGenreRows && genres['TV Shows - Reality']?.length ? (
-            <LazyRow title="TV Shows - Reality" items={genres['TV Shows - Reality']} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} onBrowsePress={() => openRowBrowse({ type: 'plexGenre', genre: 'Reality', mediaType: 'tv' }, 'TV Shows - Reality', genres['TV Shows - Reality'])} keyPrefix="genre-tv-reality-" />
-          ) : null}
-          {settings.showPlexGenreRows && genres['Movies - Drama']?.length ? (
-            <LazyRow title="Movies - Drama" items={genres['Movies - Drama']} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} onBrowsePress={() => openRowBrowse({ type: 'plexGenre', genre: 'Drama', mediaType: 'movie' }, 'Movies - Drama', genres['Movies - Drama'])} keyPrefix="genre-movie-drama-" />
-          ) : null}
-          {settings.showPlexGenreRows && genres['TV Shows - Suspense']?.length ? (
-            <LazyRow title="TV Shows - Suspense" items={genres['TV Shows - Suspense']} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} onBrowsePress={() => openRowBrowse({ type: 'plexGenre', genre: 'Suspense', mediaType: 'tv' }, 'TV Shows - Suspense', genres['TV Shows - Suspense'])} keyPrefix="genre-tv-suspense-" />
-          ) : null}
-          {settings.showPlexGenreRows && genres['Movies - Animation']?.length ? (
-            <LazyRow title="Movies - Animation" items={genres['Movies - Animation']} getImageUri={getRowUri} getTitle={getRowTitle} onItemPress={onRowPress} onBrowsePress={() => openRowBrowse({ type: 'plexGenre', genre: 'Animation', mediaType: 'movie' }, 'Movies - Animation', genres['Movies - Animation'])} keyPrefix="genre-movie-animation-" />
-          ) : null}
-
-          {recent.length > 0 && (
-            <LazyRow
-              title="Recently Added"
-              items={recent}
-              getImageUri={plexImage}
-              getTitle={(it) => it.title || it.name}
-              onItemPress={(it) => nav.navigate('Details', { type: 'plex', ratingKey: String(it.ratingKey || it.guid || '') })}
-              onBrowsePress={() => openRowBrowse({ type: 'plexRecent' }, 'Recently Added', recent)}
-              keyPrefix="plex-recent-"
-            />
-          )}
-
-          {settings.showTraktRows && tab !== 'shows' && traktTrendMovies.length > 0 && (
-            <LazyRow
-              title="Trending Movies"
-              badge={{ text: 'Trakt' }}
-              items={traktTrendMovies}
-              getImageUri={getRowUri}
-              getTitle={getRowTitle}
-              onItemPress={onRowPress}
-              onBrowsePress={() => openRowBrowse({ type: 'trakt', kind: 'trending', mediaType: 'movie', title: 'Trending Movies' }, 'Trending Movies', traktTrendMovies)}
-              keyPrefix="trakt-trend-movies-"
-            />
-          )}
-
-          {settings.showTraktRows && tab !== 'movies' && traktTrendShows.length > 0 && (
-            <LazyRow
-              title="Trending Shows"
-              badge={{ text: 'Trakt' }}
-              items={traktTrendShows}
-              getImageUri={getRowUri}
-              getTitle={getRowTitle}
-              onItemPress={onRowPress}
-              onBrowsePress={() => openRowBrowse({ type: 'trakt', kind: 'trending', mediaType: 'tv', title: 'Trending Shows' }, 'Trending Shows', traktTrendShows)}
-              keyPrefix="trakt-trend-shows-"
-            />
-          )}
-
-          {settings.showTraktRows && traktMyWatchlist.length > 0 && (
-            <LazyRow
-              title="Watchlist"
-              badge={{ text: 'Trakt' }}
-              items={traktMyWatchlist}
-              getImageUri={getRowUri}
-              getTitle={getRowTitle}
-              onItemPress={onRowPress}
-              onBrowsePress={() => openRowBrowse({ type: 'trakt', kind: 'watchlist', mediaType: 'movie', title: 'Watchlist' }, 'Watchlist', traktMyWatchlist)}
-              keyPrefix="trakt-watchlist-"
-            />
-          )}
-
-          {settings.showTraktRows && traktHistory.length > 0 && (
-            <LazyRow
-              title="Recently Watched"
-              badge={{ text: 'Trakt' }}
-              items={traktHistory}
-              getImageUri={getRowUri}
-              getTitle={getRowTitle}
-              onItemPress={onRowPress}
-              onBrowsePress={() => openRowBrowse({ type: 'trakt', kind: 'history', mediaType: 'movie', title: 'Recently Watched' }, 'Recently Watched', traktHistory)}
-              keyPrefix="trakt-history-"
-            />
-          )}
-
-          {settings.showTraktRows && traktRecommendations.length > 0 && (
-            <LazyRow
-              title="Recommended for You"
-              badge={{ text: 'Trakt' }}
-              items={traktRecommendations}
-              getImageUri={getRowUri}
-              getTitle={getRowTitle}
-              onItemPress={onRowPress}
-              onBrowsePress={() => openRowBrowse({ type: 'trakt', kind: 'recommendations', mediaType: 'movie', title: 'Recommended for You' }, 'Recommended for You', traktRecommendations)}
-              keyPrefix="trakt-recommendations-"
-            />
-          )}
-
-          {settings.showTraktRows && traktPopularShows.length > 0 && (
-            <LazyRow
-              title="Popular Shows"
-              badge={{ text: 'Trakt' }}
-              items={traktPopularShows}
-              getImageUri={getRowUri}
-              getTitle={getRowTitle}
-              onItemPress={onRowPress}
-              onBrowsePress={() => openRowBrowse({ type: 'trakt', kind: 'trending', mediaType: 'tv', title: 'Popular Shows' }, 'Popular Shows', traktPopularShows)}
-              keyPrefix="trakt-popular-shows-"
-            />
-          )}
-        </View>
+        <HomeRows
+          rows={displayRows}
+          layout={settings.rowLayout}
+          viewport={viewport}
+          reloadToken={reloadToken}
+          showContinueWatching={settings.showContinueWatchingRow}
+          continueLayout={settings.continueWatchingLayout}
+          continueEntries={continueWatching.entries}
+          blurNextUp={settings.continueWatchingBlurNextUp}
+          onContinuePress={onContinueEntryPress}
+          onContinueAction={onContinueAction}
+          onContinueBrowse={openContinueWatchingBrowse}
+          onItemPress={onRowPress}
+          onBrowseRow={openRowBrowse}
+        />
       </Animated.ScrollView>
 
 
@@ -1658,7 +1448,7 @@ export default function Home({ onLogout }: HomeProps) {
 
       {/* Custom refresh indicator above TopAppBar */}
       {refreshing && (
-        <View style={{ position: 'absolute', top: expandedPadding + insets.top + 10, left: 0, right: 0, alignItems: 'center', zIndex: 50 }}>
+        <View style={{ position: 'absolute', top: contentTopInset + 10, left: 0, right: 0, alignItems: 'center', zIndex: 50 }}>
           <View style={{ backgroundColor: 'rgba(0,0,0,0.7)', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, flexDirection: 'row', alignItems: 'center' }}>
             <ActivityIndicator color="#fff" size="small" />
             <Text style={{ color: '#fff', marginLeft: 8, fontSize: 13 }}>Refreshing...</Text>

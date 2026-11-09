@@ -266,6 +266,114 @@ export async function selectServerEndpoint(serverId: string, uri: string): Promi
 // Profile-scoped: each profile has separate settings
 // ============================================
 
+// ============================================
+// Settings value types (matching macOS)
+// ============================================
+
+export type StremioPlayAction = 'showSources' | 'playBest' | 'matchRules' | 'addonOrder';
+
+/** The "Match my rules" settings. Empty fields place no restriction. */
+export interface StremioStreamRules {
+  /** Include words (separated by `|` or `,`), or a regex when includeIsRegex. */
+  include: string;
+  includeIsRegex: boolean;
+  /** Exclude words, separated by `|` or `,`. */
+  exclude: string;
+  /** Installation id of the addon to prefer. */
+  preferredAddonId?: string;
+  /** Highest resolution allowed. */
+  maxResolution?: 2160 | 1080 | 720 | 480;
+}
+
+export type ContinueWatchingSource = 'automatic' | 'library' | 'trakt';
+export type ContinueWatchingSort = 'recent' | 'nextEpisodeFirst' | 'title';
+
+export type HomeRowKind =
+  | 'continueWatching'
+  | 'recentlyAdded'
+  | 'collection'
+  | 'watchlist'
+  | 'discovery'
+  | 'genre'
+  | 'trakt'
+  | 'stremioCatalog'
+  | 'userCollection';
+
+export type HomeRowGroup =
+  | 'continueWatching'
+  | 'recentlyAdded'
+  | 'collections'
+  | 'userCollections'
+  | 'extras';
+
+/** A home row as listed in Rows Settings, so the list is available before Home loads. */
+export interface HomeRowDescriptor {
+  /** Stable row id, e.g. "continue-watching" or "recently-added-3". */
+  id: string;
+  /** Title the app gives the row, before any rename. */
+  defaultTitle: string;
+  kind: HomeRowKind;
+  group: HomeRowGroup;
+  /** Source shown as a secondary line in settings, e.g. the addon name. */
+  detail?: string;
+}
+
+/** "default", "continueWatching", "myList" or "row:<row id>". */
+export type HomeHeroSource = 'default' | 'continueWatching' | 'myList' | `row:${string}`;
+
+export type RowLayout = 'landscape' | 'poster';
+
+export type DetailsSectionKey =
+  | 'episodes'
+  | 'suggested'
+  | 'collection'
+  | 'cast'
+  | 'trailers'
+  | 'comments'
+  | 'about';
+
+export interface DetailsSectionPreference {
+  key: DetailsSectionKey;
+  enabled: boolean;
+}
+
+export type DetailsSeasonPickerStyle = 'chips' | 'posters';
+
+export type AccentPalette =
+  | 'crimson'
+  | 'orange'
+  | 'amber'
+  | 'emerald'
+  | 'teal'
+  | 'sky'
+  | 'blue'
+  | 'violet'
+  | 'pink'
+  | 'mono';
+
+export type TabLabelMode = 'always' | 'selected' | 'none';
+
+/** Phone equivalent of macOS NavigationBarStyle, applied to the top bar's filter pills. */
+export type TopBarStyle = 'adaptive' | 'expanded' | 'compact';
+
+export type DiscoverMediaType = 'movie' | 'tv';
+
+export type DiscoverSortOption = 'popular' | 'topRated' | 'newest' | 'oldest' | 'title';
+
+export interface SearchDiscoverFilters {
+  mediaType: DiscoverMediaType;
+  genreId?: number;
+  /** Kept with the id so the chip has a label before the genre list loads. */
+  genreName?: string;
+  sort: DiscoverSortOption;
+  yearFrom?: number;
+  yearTo?: number;
+  minimumRating?: number;
+}
+
+/** Maximum number of recent searches kept per profile. */
+export const RECENT_SEARCHES_LIMIT = 15;
+
 export interface AppSettings {
   watchlistProvider: 'trakt' | 'plex';
   tmdbApiKey?: string; // Custom TMDB API key override
@@ -351,6 +459,60 @@ export interface AppSettings {
   // Download settings
   downloadOnWifiOnly: boolean; // Only download on WiFi
   maxConcurrentDownloads: number; // Max simultaneous downloads (1-3)
+
+  // Player: playback and subtitle styling
+  defaultPlaybackSpeed: number;
+  subtitleFontSize: number;
+  subtitleTextColor: string; // #RRGGBB
+  subtitleBorderSize: number;
+  subtitlePosition: number; // 0-150, 100 is the default baseline
+  subtitleFilterSDH: boolean; // Remove hearing-impaired text
+  skipRecapAutomatically: boolean;
+  communitySkipSegmentsEnabled: boolean; // IntroDB, AniSkip, Anime-Skip
+  animeSkipClientId: string; // Empty means Anime-Skip is not queried
+
+  // Addon playback
+  stremioPlayAction: StremioPlayAction; // Replaces stremioAutoPlayBestSource
+  stremioAutoPickTimeLimit: number; // Seconds to wait on addons
+  stremioStreamRules: StremioStreamRules;
+
+  // Home and Continue Watching
+  showStremioCatalogRows: boolean;
+  continueWatchingSource: ContinueWatchingSource;
+  continueWatchingSort: ContinueWatchingSort;
+  continueWatchingBlurNextUp: boolean;
+  continueWatchingTraktDismissals: Record<string, number>; // Row key to dismissal time (ms)
+  homeRowOrder: string[]; // Row ids; empty means default order
+  homeRowTitles: Record<string, string>; // Custom titles by row id
+  homeRowHidden: string[]; // Individually hidden row ids
+  homeRowCatalog: HomeRowDescriptor[]; // Known rows in default order
+  homeHeroSource: HomeHeroSource;
+  heroAutoRotate: boolean;
+  rowLayout: RowLayout;
+  showRatingBadges: boolean;
+
+  // Details screen
+  detailsSectionPreferences: DetailsSectionPreference[];
+  detailsHideEpisodeSpoilers: boolean;
+  detailsSeasonPickerStyle: DetailsSeasonPickerStyle;
+  detailsShowEpisodeRatings: boolean;
+  detailsHeroInlineTrailerEnabled: boolean;
+  detailsHeroTrailerStartsMuted: boolean;
+
+  // Trakt
+  traktAutoSyncWatched: boolean; // Send watched state to Trakt
+
+  // Appearance and navigation
+  accentPalette?: AccentPalette; // Unset keeps each surface's original color (see theme.chosenAccent)
+  pureBlack: boolean; // True black backgrounds instead of near-black
+  tabLabelMode: TabLabelMode;
+  topBarStyle: TopBarStyle;
+  navGlowEnabled: boolean; // Soft accent light around the selected tab
+
+  // Search
+  stremioCatalogSearchEnabled: boolean;
+  recentSearches: string[]; // Most recent first, capped at RECENT_SEARCHES_LIMIT
+  searchDiscoverFilters?: SearchDiscoverFilters; // Unset until the user changes one
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -438,11 +600,69 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   // Download defaults
   downloadOnWifiOnly: true, // Default: only download on WiFi
   maxConcurrentDownloads: 1, // Default: 1 concurrent download
+
+  // Defaults below keep the app looking as it did before these settings existed, so an
+  // upgrade changes nothing. Where that differs from macOS, the macOS default is noted.
+  defaultPlaybackSpeed: 1.0,
+  subtitleFontSize: 48, // The native player's built-in size. macOS: 55
+  subtitleTextColor: '#FFFFFF',
+  subtitleBorderSize: 3,
+  subtitlePosition: 100,
+  subtitleFilterSDH: false,
+  skipRecapAutomatically: true,
+  communitySkipSegmentsEnabled: false, // No new skip prompts or third-party lookups until opted in. macOS: true
+  animeSkipClientId: '',
+
+  stremioPlayAction: 'showSources',
+  stremioAutoPickTimeLimit: 5,
+  stremioStreamRules: { include: '', includeIsRegex: false, exclude: '' },
+
+  showStremioCatalogRows: false, // setAppMode turns this on for Stremio-only. macOS: true
+  continueWatchingSource: 'library', // macOS: automatic
+  continueWatchingSort: 'recent',
+  continueWatchingBlurNextUp: false,
+  continueWatchingTraktDismissals: {},
+  homeRowOrder: [],
+  homeRowTitles: {},
+  homeRowHidden: [],
+  homeRowCatalog: [],
+  homeHeroSource: 'default',
+  heroAutoRotate: false, // macOS: true
+  rowLayout: 'poster', // macOS: landscape
+  showRatingBadges: false,
+
+  detailsSectionPreferences: [
+    { key: 'episodes', enabled: true },
+    { key: 'suggested', enabled: true },
+    { key: 'collection', enabled: true },
+    { key: 'cast', enabled: true },
+    { key: 'trailers', enabled: true },
+    { key: 'comments', enabled: false }, // macOS: true
+    { key: 'about', enabled: true },
+  ],
+  detailsHideEpisodeSpoilers: false,
+  detailsSeasonPickerStyle: 'chips',
+  detailsShowEpisodeRatings: false, // macOS: true
+  detailsHeroInlineTrailerEnabled: false, // macOS: true
+  detailsHeroTrailerStartsMuted: true,
+
+  traktAutoSyncWatched: true,
+
+  accentPalette: undefined,
+  pureBlack: false,
+  tabLabelMode: 'always', // Mobile-only; matches today's tab bar
+  topBarStyle: 'adaptive', // Today's behaviour: pills hide on scroll and return on scroll up
+  navGlowEnabled: false,
+
+  stremioCatalogSearchEnabled: false, // setAppMode turns this on for Stremio-only. macOS: true
+  recentSearches: [],
+  searchDiscoverFilters: undefined,
 };
 
 let cachedSettings: AppSettings = { ...DEFAULT_APP_SETTINGS };
 
 let settingsLoaded = false;
+let lastLoadedSettingsJson: string | null = null;
 
 // Simple event emitter for settings changes
 type SettingsListener = () => void;
@@ -463,11 +683,22 @@ export async function loadAppSettings(): Promise<AppSettings> {
     const storageKey = getProfileKey(PROFILE_SCOPED_KEYS.APP_SETTINGS);
     const stored = await AsyncStorage.getItem(storageKey);
     if (stored) {
-      cachedSettings = { ...DEFAULT_APP_SETTINGS, ...JSON.parse(stored) };
+      const parsed = JSON.parse(stored);
+      cachedSettings = { ...DEFAULT_APP_SETTINGS, ...parsed };
+      // Profiles that turned on the older toggle and never chose an action keep auto-playing
+      if (parsed.stremioPlayAction === undefined && parsed.stremioAutoPlayBestSource === true) {
+        cachedSettings.stremioPlayAction = 'playBest';
+      }
     } else {
       cachedSettings = { ...DEFAULT_APP_SETTINGS };
     }
     settingsLoaded = true;
+    // A load can change what subscribers see (first load, profile switch). Comparing
+    // the raw JSON keeps a listener that reloads settings from looping.
+    if (stored !== lastLoadedSettingsJson) {
+      lastLoadedSettingsJson = stored;
+      notifySettingsListeners();
+    }
   } catch (e) {
     console.log('[SettingsData] loadAppSettings error:', e);
   }

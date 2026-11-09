@@ -22,6 +22,9 @@ import {
   PersonInfo,
   PersonCredit,
 } from '../core/DetailsData';
+import { useTheme } from '../hooks/useTheme';
+import UserCollectionEditor from '../screens/UserCollectionEditor';
+import { createUserCollectionId, type UserCollectionSource } from '../core/UserCollectionsStore';
 
 interface PersonModalProps {
   visible: boolean;
@@ -42,6 +45,8 @@ export default function PersonModal({
   const [person, setPerson] = useState<PersonInfo | null>(null);
   const [credits, setCredits] = useState<PersonCredit[]>([]);
   const [showFullBio, setShowFullBio] = useState(false);
+  const [collectionSources, setCollectionSources] = useState<UserCollectionSource[] | null>(null);
+  const theme = useTheme();
 
   const screenWidth = Dimensions.get('window').width;
   const posterWidth = (screenWidth - 48 - 2 * 8) / 3;
@@ -150,7 +155,7 @@ export default function PersonModal({
 
                 <View style={styles.profileInfo}>
                   {person?.knownFor && (
-                    <Text style={styles.knownFor}>{person.knownFor}</Text>
+                    <Text style={[styles.knownFor, { color: theme.accentBright }]}>{person.knownFor}</Text>
                   )}
 
                   {person?.birthday && (
@@ -187,12 +192,34 @@ export default function PersonModal({
                   </Text>
                   {person.biography.length > 300 && (
                     <Pressable onPress={() => setShowFullBio(!showFullBio)}>
-                      <Text style={styles.readMore}>
+                      <Text style={[styles.readMore, { color: theme.accentBright }]}>
                         {showFullBio ? 'Show Less' : 'Read More'}
                       </Text>
                     </Pressable>
                   )}
                 </View>
+              ) : null}
+
+              {personId != null && (person?.name || personName) ? (
+                <Pressable
+                  onPress={() =>
+                    setCollectionSources([
+                      {
+                        id: createUserCollectionId(),
+                        kind: 'person',
+                        personId,
+                        name: (person?.name || personName) as string,
+                        profilePath: person?.profilePath ?? undefined,
+                        credits: 'knownFor',
+                        order: 'popularity',
+                      },
+                    ])
+                  }
+                  style={[styles.collectionButton, { backgroundColor: theme.surfaceOverlay }]}
+                >
+                  <Ionicons name="albums-outline" size={18} color={theme.accentBright} />
+                  <Text style={{ color: theme.textPrimary, fontWeight: '600', marginLeft: 8 }}>Create Collection</Text>
+                </Pressable>
               ) : null}
 
               {/* Known For / Filmography */}
@@ -250,6 +277,13 @@ export default function PersonModal({
           )}
         </View>
       </View>
+
+      <UserCollectionEditor
+        visible={collectionSources !== null}
+        initialName={person?.name || personName}
+        initialSources={collectionSources ?? undefined}
+        onClose={() => setCollectionSources(null)}
+      />
     </Modal>
   );
 }
@@ -327,8 +361,15 @@ const styles = StyleSheet.create({
     marginLeft: 16,
     justifyContent: 'center',
   },
+  collectionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 10,
+    marginBottom: 24,
+  },
   knownFor: {
-    color: '#e50914',
     fontSize: 14,
     fontWeight: '600',
     marginBottom: 8,
@@ -355,7 +396,6 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   readMore: {
-    color: '#e50914',
     fontSize: 14,
     fontWeight: '600',
     marginTop: 8,

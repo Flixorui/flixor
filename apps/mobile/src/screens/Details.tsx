@@ -1,20 +1,16 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import { View, Text, ActivityIndicator, ScrollView, Pressable, Dimensions, StyleSheet, Linking, Alert, Image, FlatList, useWindowDimensions, Platform } from 'react-native';
+import { View, Text, ActivityIndicator, ScrollView, Pressable, StyleSheet, Linking, Alert, Image, useWindowDimensions, Platform } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedScrollHandler,
   useAnimatedStyle,
   interpolate,
   Extrapolation,
-  withTiming,
-  Easing,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Row from '../components/Row';
 import TrailersRow from '../components/TrailersRow';
 import { Ionicons } from '@expo/vector-icons';
 import Feather from '@expo/vector-icons/Feather';
-import { LinearGradient } from 'expo-linear-gradient';
 import ConditionalBlurView from '../components/ConditionalBlurView';
 import BadgePill from '../components/BadgePill';
 import { TechBadge, ContentRatingBadge } from '../components/badges';
@@ -22,7 +18,7 @@ import PersonModal from '../components/PersonModal';
 import RequestButton from '../components/RequestButton';
 import { DownloadButton } from '../components/downloads';
 import VersionPicker, { MediaVersion, parseVersionDetails } from '../components/VersionPicker';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation, useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { TopBarStore } from '../components/TopBarStore';
 import { useFlixor } from '../core/FlixorContext';
 import { useAppSettings } from '../hooks/useAppSettings';
@@ -38,6 +34,7 @@ import {
   fetchTmdbSeasonsList,
   fetchTmdbSeasonEpisodes,
   fetchTmdbEpisodeStills,
+  fetchTmdbMovieCollection,
   TMDBEpisodeData,
   fetchTmdbRecommendations,
   fetchTmdbSimilar,
@@ -60,7 +57,6 @@ import {
   PersonCredit,
   NextUpEpisode,
 } from '../core/DetailsData';
-import { getUltraBlurColors, PlexUltraBlurColors } from '../core/HomeData';
 import { appLogger } from '../core/AppLogger';
 
 import FastImage from '@d11/react-native-fast-image';
@@ -68,6 +64,22 @@ import {
   resolveStremioIdentityFromPlexMetadata,
   resolveStremioIdentityFromTmdb,
 } from '../stremio/StremioContentResolver';
+import { useAppMode, isStremioOnlyMode } from '../core/AppMode';
+import { useTheme } from '../hooks/useTheme';
+import { withAlpha } from '../core/theme';
+import { orderedEnabledSections } from '../core/DetailsSectionsStore';
+import type { DetailsSectionKey } from '../core/SettingsData';
+import type { WatchStateTarget } from '../core/WatchState';
+import DetailsBackdrop from '../components/details/DetailsBackdrop';
+import { useDetailsBackdropTint } from '../components/details/backdropTint';
+import DetailsComments from '../components/details/DetailsComments';
+import DetailsEpisodesSection from '../components/details/DetailsEpisodesSection';
+import DetailsPosterRow from '../components/details/DetailsPosterRow';
+import DetailsSectionHeading, { DetailsSectionStyle } from '../components/details/DetailsSectionHeading';
+import DetailsSectionTabs from '../components/details/DetailsSectionTabs';
+import AddToListSheet from '../components/lists/AddToListSheet';
+import { isTraktAvailable, type TraktListTitle } from '../core/TraktListsData';
+import DetailsWatchActions, { DetailsActionLabel, type DetailsSeasonOption } from '../components/details/DetailsWatchActions';
 
 // Optional iOS liquid glass effect with safe fallback
 let GlassViewComp: any = null;
@@ -103,6 +115,10 @@ export default function Details({ route }: RouteParams) {
   const { isLoading: flixorLoading, isConnected } = useFlixor();
   const { settings } = useAppSettings();
   const insets = useSafeAreaInsets();
+  const theme = useTheme();
+  const { isStremioOnly } = useAppMode();
+  const canLoad = isConnected || isStremioOnly;
+  const isFocused = useIsFocused();
 
   // Details screen settings with defaults
   const detailsSettings = {
@@ -119,7 +135,7 @@ export default function Details({ route }: RouteParams) {
   const [seasons, setSeasons] = useState<any[]>([]);
   const [seasonKey, setSeasonKey] = useState<string | null>(null);
   const [seasonSource, setSeasonSource] = useState<'plex'|'tmdb'|null>(null);
-  const [tab, setTab] = useState<'episodes'|'suggested'|'details'>('suggested');
+  const [tab, setTab] = useState<DetailsSectionKey>('suggested');
   const [tmdbCast, setTmdbCast] = useState<Array<{ id: number; name: string; profile_path?: string }>>([]);
   const [tmdbCrew, setTmdbCrew] = useState<Array<{ name: string; job?: string }>>([]);
   const [matchedPlex, setMatchedPlex] = useState<boolean>(false);
@@ -159,7 +175,11 @@ export default function Details({ route }: RouteParams) {
   const [pendingPlayRatingKey, setPendingPlayRatingKey] = useState<string | null>(null);
   const [imdbId, setImdbId] = useState<string | undefined>(undefined);
   const [firstEpisodeMedia, setFirstEpisodeMedia] = useState<any[]>([]); // Technical info from first episode (for TV shows)
-  const [ultraBlurColors, setUltraBlurColors] = useState<PlexUltraBlurColors | null>(null);
+  const [addToListTitle, setAddToListTitle] = useState<TraktListTitle | null>(null);
+  const [collection, setCollection] = useState<{ id: number; name: string; items: RowItem[] } | null>(null);
+  const [heroTrailerFinished, setHeroTrailerFinished] = useState(false);
+  const [heroTrailerPlaying, setHeroTrailerPlaying] = useState(false);
+  const [heroTrailerMuted, setHeroTrailerMuted] = useState(true);
   const scrollRef = useRef<Animated.ScrollView | null>(null);
   const nav: any = useNavigation();
   const { width: screenWidth } = useWindowDimensions();
@@ -167,7 +187,6 @@ export default function Details({ route }: RouteParams) {
   // Parallax animation values
   const scrollY = useSharedValue(0);
   const HERO_HEIGHT = useMemo(() => screenWidth * (9 / 16), [screenWidth]); // 16:9 aspect ratio
-  const PARALLAX_FACTOR = 0.3;
   const LOGO_PARALLAX_FACTOR = 0.2;
   const HEADER_APPEAR_THRESHOLD = HERO_HEIGHT - 60; // When to start showing sticky header
 
@@ -176,26 +195,6 @@ export default function Details({ route }: RouteParams) {
     onScroll: (event) => {
       scrollY.value = event.contentOffset.y;
     },
-  });
-
-  // Animated style for backdrop parallax
-  const backdropAnimatedStyle = useAnimatedStyle(() => {
-    const translateY = interpolate(
-      scrollY.value,
-      [-100, 0, HERO_HEIGHT],
-      [-100 * PARALLAX_FACTOR, 0, HERO_HEIGHT * PARALLAX_FACTOR],
-      Extrapolation.CLAMP
-    );
-    // Scale up slightly on overscroll (pull down)
-    const scale = interpolate(
-      scrollY.value,
-      [-150, 0],
-      [1.15, 1],
-      Extrapolation.CLAMP
-    );
-    return {
-      transform: [{ translateY }, { scale }],
-    };
   });
 
   // Animated style for logo parallax (slower for depth effect)
@@ -244,38 +243,16 @@ export default function Details({ route }: RouteParams) {
     meta?.type === 'movie' ? 'movie' : 'show'
   );
 
-  // Fetch UltraBlur colors from backdrop image
+  const backdropUrl: string | undefined = meta?.backdropUrl
+    ? String(meta.backdropUrl)
+    : meta?.art || meta?.thumb
+      ? getPlexImageUrl(meta.art || meta.thumb, 1080)
+      : undefined;
+  const { tint, maxTintAlpha } = useDetailsBackdropTint(backdropUrl, theme);
+
   useEffect(() => {
-    if (!meta) return;
-
-    const fetchColors = async () => {
-      // Get backdrop URL
-      let backdropUrl: string | undefined;
-      if (meta.backdropUrl) {
-        backdropUrl = String(meta.backdropUrl);
-      } else {
-        const path = meta.art || meta.thumb;
-        if (path) {
-          backdropUrl = getPlexImageUrl(path, 1080);
-        }
-      }
-
-      if (!backdropUrl) return;
-
-      try {
-        console.log('[Details] Fetching UltraBlur colors for backdrop');
-        const colors = await getUltraBlurColors(backdropUrl);
-        if (colors) {
-          console.log('[Details] UltraBlur colors:', colors);
-          setUltraBlurColors(colors);
-        }
-      } catch (e) {
-        console.log('[Details] Error fetching UltraBlur colors:', e);
-      }
-    };
-
-    fetchColors();
-  }, [meta?.backdropUrl, meta?.art, meta?.thumb]);
+    setHeroTrailerMuted(settings.detailsHeroTrailerStartsMuted);
+  }, [settings.detailsHeroTrailerStartsMuted]);
 
   // Hide TopBar and TabBar when Details screen is focused (including when returning from Player)
   useFocusEffect(
@@ -289,7 +266,7 @@ export default function Details({ route }: RouteParams) {
   );
 
   useEffect(() => {
-    if (flixorLoading || !isConnected) return;
+    if (flixorLoading || !canLoad) return;
 
     (async () => {
       console.log('[Details] useEffect starting...');
@@ -443,7 +420,9 @@ export default function Details({ route }: RouteParams) {
           // Try to map TMDB to Plex
           const title = det?.title || det?.name;
           const year = (det?.release_date || det?.first_air_date || '').slice(0, 4);
-          const mapped = await mapTmdbToPlex(params.mediaType, String(params.id), title, year);
+          const mapped = isStremioOnlyMode()
+            ? null
+            : await mapTmdbToPlex(params.mediaType, String(params.id), title, year);
 
           if (mapped?.ratingKey) {
             // Found in Plex - use Plex metadata
@@ -617,7 +596,15 @@ export default function Details({ route }: RouteParams) {
             if (params.mediaType === 'tv') {
               const ss = await fetchTmdbSeasonsList(Number(params.id));
               if (ss.length) {
-                setSeasons(ss.map((s) => ({ key: s.key, title: s.title })) as any);
+                setSeasons(
+                  ss.map((s) => ({
+                    key: s.key,
+                    title: s.title,
+                    index: s.season_number,
+                    posterPath: s.poster_path,
+                    episodeCount: s.episode_count,
+                  })) as any
+                );
                 // Use initialSeason if provided (e.g., from Trakt Continue Watching), otherwise default to first season
                 const targetSeasonKey = params.initialSeason
                   ? ss.find((s) => Number(s.key) === params.initialSeason)?.key || ss[0].key
@@ -646,6 +633,10 @@ export default function Details({ route }: RouteParams) {
               imdbId: imdbIdTmdb,
               plexRatingKey: undefined,
               mediaType: params.mediaType,
+              title: det?.title || det?.name,
+              posterUrl: det?.poster_path ? getTmdbImageUrl(det.poster_path, 'w342') : undefined,
+              backdropUrl: back,
+              year: Number(year) || undefined,
             };
             setWatchlistIds(idsTmdb);
             checkWatchlistStatus(idsTmdb).then(setInWatchlist);
@@ -911,7 +902,7 @@ export default function Details({ route }: RouteParams) {
       }
     }
 
-    if (params.type === 'tmdb' && settings.stremioShowOnTmdbDetails && params.id) {
+    if (params.type === 'tmdb' && (settings.stremioShowOnTmdbDetails || isStremioOnly) && params.id) {
       if (params.mediaType === 'movie') {
         await openStremioSources({
           mode: 'tmdb',
@@ -938,7 +929,7 @@ export default function Details({ route }: RouteParams) {
 
       Alert.alert('Choose an Episode', 'Open a specific episode to fetch Stremio sources for this show.');
     }
-  }, [episodes, meta, nextUp, openStremioSources, params.id, params.mediaType, params.type, settings.stremioPlaybackEnabled, settings.stremioShowOnTmdbDetails]);
+  }, [episodes, isStremioOnly, meta, nextUp, openStremioSources, params.id, params.mediaType, params.type, settings.stremioPlaybackEnabled, settings.stremioShowOnTmdbDetails]);
 
   const handleStremioEpisode = useCallback(
     async (episode: any) => {
@@ -976,75 +967,138 @@ export default function Details({ route }: RouteParams) {
     [meta, openStremioSources, params.id, seasonKey, seasonSource, settings.stremioPlaybackEnabled]
   );
 
-  // Helper to parse hex color (with or without #) to RGB
-  const hexToRgb = useCallback((hex: string) => {
-    // Remove # if present, handle colors without #
-    const cleanHex = hex.replace(/^#/, '');
-    const result = /^([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(cleanHex);
-    return result ? {
-      r: parseInt(result[1], 16),
-      g: parseInt(result[2], 16),
-      b: parseInt(result[3], 16)
-    } : null;
-  }, []);
+  const loadSeasonEpisodes = useCallback(
+    async (key: string) => {
+      if (seasonSource === 'plex') {
+        setEpisodes(await fetchPlexSeasonEpisodes(key));
+      } else if (seasonSource === 'tmdb' && params.id) {
+        setEpisodes(await fetchTmdbSeasonEpisodes(Number(params.id), Number(key)));
+      }
+    },
+    [seasonSource, params.id]
+  );
 
-  // Default dark color for fallback
-  const DEFAULT_BG_COLOR = '#0d0d0f';
-  const DEFAULT_RGB = { r: 13, g: 13, b: 15 };
+  const handleSeasonChange = useCallback(
+    async (key: string) => {
+      setSeasonKey(key);
+      setEpisodesLoading(true);
+      try {
+        await loadSeasonEpisodes(key);
+      } finally {
+        setEpisodesLoading(false);
+      }
+    },
+    [loadSeasonEpisodes]
+  );
 
-  // Generate hero overlay gradient colors from UltraBlur (uses topLeft to blend with background)
-  // Must be before early returns to satisfy Rules of Hooks
-  const getGradientColors = useMemo(() => {
-    const rawColor = ultraBlurColors?.topLeft;
-    const rgb = rawColor ? hexToRgb(rawColor) : null;
-    const { r, g, b } = rgb || DEFAULT_RGB;
-    return [
-      `rgba(${r},${g},${b},0)`,
-      `rgba(${r},${g},${b},0.4)`,
-      `rgba(${r},${g},${b},0.7)`,
-      `rgba(${r},${g},${b},0.9)`,
-      `rgba(${r},${g},${b},1)`,
-    ];
-  }, [ultraBlurColors, hexToRgb]);
+  const reloadEpisodes = useCallback(async () => {
+    if (seasonKey) await loadSeasonEpisodes(seasonKey);
+  }, [seasonKey, loadSeasonEpisodes]);
 
-  // Header overlay color with opacity (uses topLeft to match hero area)
-  const headerOverlayColor = useMemo(() => {
-    const rawColor = ultraBlurColors?.topLeft;
-    const rgb = rawColor ? hexToRgb(rawColor) : null;
-    const { r, g, b } = rgb || DEFAULT_RGB;
-    return `rgba(${r},${g},${b},0.85)`;
-  }, [ultraBlurColors, hexToRgb]);
+  const titleName: string = meta?.title || meta?.grandparentTitle || 'Title';
+  const showTmdbId = meta?.type === 'episode' ? undefined : watchlistIds?.tmdbId;
+  const showImdbId = meta?.type === 'episode' ? undefined : imdbId;
 
-  // Background gradient colors (vertical gradient from top to bottom)
-  // Uses 3 stops: solid topLeft for hero area, then transitions to bottomLeft
-  const backgroundGradientColors = useMemo(() => {
-    const formatColor = (color: string | undefined) => {
-      if (!color) return DEFAULT_BG_COLOR;
-      return color.startsWith('#') ? color : `#${color}`;
+  // Without Plex the key must be absent so changes go to Trakt and this device
+  const plexKey = isStremioOnly ? undefined : mappedRk || (params.type === 'plex' ? params.ratingKey : undefined);
+
+  const titleTarget = useMemo<WatchStateTarget | null>(() => {
+    if (!meta) return null;
+    if (meta.type === 'episode') {
+      return plexKey
+        ? { kind: 'episode', plexRatingKey: plexKey, seasonNumber: meta.parentIndex, episodeNumber: meta.index, title: titleName }
+        : null;
+    }
+    if (!plexKey && showTmdbId == null && !showImdbId) return null;
+    return {
+      kind: meta.type === 'movie' ? 'movie' : 'show',
+      plexRatingKey: plexKey,
+      tmdbId: showTmdbId,
+      imdbId: showImdbId,
+      title: titleName,
     };
-    const topColor = formatColor(ultraBlurColors?.topLeft);
-    const bottomColor = formatColor(ultraBlurColors?.bottomLeft);
-    // 3-stop gradient: solid at top (hero area), then fade to bottom color
-    return [topColor, topColor, bottomColor];
-  }, [ultraBlurColors]);
+  }, [meta, plexKey, showTmdbId, showImdbId, titleName]);
 
-  // Hero blend overlay colors (fades from solid topLeft to transparent)
-  const heroBlendColors = useMemo(() => {
-    const rawColor = ultraBlurColors?.topLeft;
-    const rgb = rawColor ? hexToRgb(rawColor) : null;
-    const { r, g, b } = rgb || DEFAULT_RGB;
-    return [
-      `rgba(${r},${g},${b},1)`,
-      `rgba(${r},${g},${b},0.6)`,
-      `rgba(${r},${g},${b},0)`,
-    ];
-  }, [ultraBlurColors, hexToRgb]);
+  const seasonNumber = useMemo<number | null>(() => {
+    const current = seasons.find((s: any, i: number) => String(s.ratingKey || s.key || i) === seasonKey);
+    if (current?.index != null) return Number(current.index);
+    return seasonSource === 'tmdb' && seasonKey ? Number(seasonKey) : null;
+  }, [seasons, seasonKey, seasonSource]);
+
+  const seasonOptions = useMemo<DetailsSeasonOption[]>(
+    () =>
+      meta?.type !== 'show'
+        ? []
+        : seasons.map((s: any, i: number) => ({
+            id: String(s.ratingKey || s.key || i),
+            title: s.title || `Season ${s.index || i + 1}`,
+            target: {
+              kind: 'season',
+              plexRatingKey: seasonSource === 'plex' && !isStremioOnly ? String(s.ratingKey) : undefined,
+              seasonNumber: s.index ?? Number(s.key),
+              tmdbId: showTmdbId,
+              imdbId: showImdbId,
+              title: titleName,
+            },
+          })),
+    [meta?.type, seasons, seasonSource, isStremioOnly, showTmdbId, showImdbId, titleName]
+  );
+
+  // TMDB franchise row for movies
+  const collectionMovieId = meta?.type === 'movie' ? watchlistIds?.tmdbId : undefined;
+  useEffect(() => {
+    let cancelled = false;
+    setCollection(null);
+    if (collectionMovieId == null) return;
+    fetchTmdbMovieCollection(collectionMovieId).then((result) => {
+      if (!cancelled) setCollection(result);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [collectionMovieId]);
+
+  const hasCastOrCrew =
+    tmdbCast.length > 0 ||
+    tmdbCrew.length > 0 ||
+    !!meta?.Role?.length ||
+    !!meta?.Director?.length ||
+    !!meta?.Writer?.length ||
+    !!tmdbExtraInfo.creators?.length;
+
+  const availableSections = useMemo<DetailsSectionKey[]>(
+    () =>
+      orderedEnabledSections(settings.detailsSectionPreferences).filter((key) => {
+        switch (key) {
+          case 'episodes':
+            return meta?.type === 'show' && seasons.length > 0;
+          case 'collection':
+            return collection !== null;
+          case 'cast':
+            return hasCastOrCrew;
+          case 'trailers':
+            return trailers.length > 0;
+          case 'comments':
+            return titleTarget !== null;
+          case 'suggested':
+          case 'about':
+            return true;
+        }
+      }),
+    [settings.detailsSectionPreferences, meta?.type, seasons.length, collection, hasCastOrCrew, trailers.length, titleTarget]
+  );
+
+  const heroTrailerKey = useMemo(() => {
+    if (!settings.detailsHeroInlineTrailerEnabled || heroTrailerFinished) return undefined;
+    const youtube = trailers.filter((t) => t.site?.toLowerCase() === 'youtube');
+    return (youtube.find((t) => t.type === 'Trailer' && t.official) ?? youtube.find((t) => t.type === 'Trailer') ?? youtube[0])?.key;
+  }, [settings.detailsHeroInlineTrailerEnabled, heroTrailerFinished, trailers]);
 
   console.log('[Details] Render - loading:', loading, 'isConnected:', isConnected, 'meta:', !!meta);
 
-  if (flixorLoading || !isConnected || loading) {
+  if (flixorLoading || !canLoad || loading) {
     return (
-      <View style={{ flex:1, backgroundColor:'#0b0b0b', alignItems:'center', justifyContent:'center' }}>
+      <View style={{ flex:1, backgroundColor: theme.background, alignItems:'center', justifyContent:'center' }}>
         <ActivityIndicator color="#fff" />
       </View>
     );
@@ -1052,7 +1106,7 @@ export default function Details({ route }: RouteParams) {
 
   if (!meta) {
     return (
-      <View style={{ flex:1, backgroundColor:'#0b0b0b', alignItems:'center', justifyContent:'center' }}>
+      <View style={{ flex:1, backgroundColor: theme.background, alignItems:'center', justifyContent:'center' }}>
         <Text style={{ color:'#fff' }}>No metadata available</Text>
       </View>
     );
@@ -1060,17 +1114,19 @@ export default function Details({ route }: RouteParams) {
 
   console.log('[Details] Rendering full UI for:', meta?.title);
 
-  const backdrop = () => {
-    if (meta?.backdropUrl) return String(meta.backdropUrl);
-    const path = meta?.art || meta?.thumb;
-    return path ? getPlexImageUrl(path, 1080) : undefined;
-  };
-
   const title = meta?.title || meta?.grandparentTitle || 'Title';
+  const stremioOnTmdb = settings.stremioShowOnTmdbDetails || isStremioOnly;
   const showStremioButton =
     settings.stremioPlaybackEnabled &&
-    (params.type === 'plex' || (params.type === 'tmdb' && settings.stremioShowOnTmdbDetails)) &&
+    (params.type === 'plex' || (params.type === 'tmdb' && stremioOnTmdb)) &&
     (meta?.type === 'movie' || meta?.type === 'show');
+  // Addons are the only playback path with no Plex, so they take the main button
+  const stremioIsPrimary = isStremioOnly && showStremioButton;
+  const headerOverlayColor = withAlpha(tint, 0.85);
+  const listTitle: TraktListTitle | null =
+    (meta?.type === 'movie' || meta?.type === 'show') && (showTmdbId != null || !!showImdbId)
+      ? { type: meta.type, tmdbId: showTmdbId, imdbId: showImdbId, title }
+      : null;
   const contentRating = meta?.contentRating || 'PG';
   // Badges parsing from Plex streams (matching macOS logic)
   const media = (meta?.Media || [])[0] || {};
@@ -1154,14 +1210,96 @@ export default function Details({ route }: RouteParams) {
     }
   };
 
+  const activeSection: DetailsSectionKey = availableSections.includes(tab) ? tab : availableSections[0] ?? 'about';
+
+  const openPerson = (id: number, name: string) => {
+    setSelectedPersonId(id);
+    setSelectedPersonName(name);
+    setPersonModalVisible(true);
+  };
+
+  const renderSection = (key: DetailsSectionKey): React.ReactNode => {
+    switch (key) {
+      case 'episodes':
+        return (
+          <DetailsEpisodesSection
+            seasons={seasons}
+            seasonKey={seasonKey}
+            seasonNumber={seasonNumber}
+            seasonPickerStyle={settings.detailsSeasonPickerStyle}
+            onSeasonChange={handleSeasonChange}
+            episodes={episodes}
+            loading={episodesLoading}
+            tmdbMode={seasonSource === 'tmdb'}
+            tmdbId={showTmdbId}
+            imdbId={showImdbId}
+            showTitle={title}
+            tmdbEpisodeData={tmdbEpisodeData}
+            horizontalLayout={settings.episodeLayoutStyle === 'horizontal'}
+            hideSpoilers={settings.detailsHideEpisodeSpoilers}
+            showRatings={settings.detailsShowEpisodeRatings}
+            stremioEnabled={settings.stremioPlaybackEnabled && (seasonSource !== 'tmdb' || stremioOnTmdb)}
+            onPlayEpisode={handlePlayEpisode}
+            onOpenStremioEpisode={handleStremioEpisode}
+            onChanged={reloadEpisodes}
+          />
+        );
+      case 'suggested':
+        return <SuggestedRows meta={meta} routeParams={route?.params} parentShowMeta={parentShowMeta} keyPrefix={isUnifiedLayout ? 'unified-' : ''} />;
+      case 'collection':
+        return collection ? (
+          <DetailsPosterRow
+            title={collection.name}
+            items={collection.items}
+            onTitlePress={() => nav.push('EntityBrowse', { kind: 'collection', id: collection.id, name: collection.name })}
+            onItemPress={(item) => {
+              const [, media, id] = item.id.split(':');
+              nav.push('Details', { type: 'tmdb', mediaType: media === 'movie' ? 'movie' : 'tv', id });
+            }}
+          />
+        ) : null;
+      case 'cast':
+        return (
+          <View>
+            <DetailsSectionHeading title="Cast & Crew" />
+            <CastScroller meta={meta} tmdbCast={tmdbCast} onPersonPress={openPerson} />
+            <CrewList meta={meta} tmdbCrew={tmdbCrew} creators={tmdbExtraInfo?.creators} isShow={meta?.type === 'show'} />
+          </View>
+        );
+      case 'trailers':
+        return <TrailersRow trailers={trailers} contentTitle={meta?.title} />;
+      case 'comments':
+        return <DetailsComments target={titleTarget} />;
+      case 'about':
+        return (
+          <DetailsTab
+            meta={meta}
+            productionInfo={productionInfo}
+            tmdbExtraInfo={tmdbExtraInfo}
+            mdblistRatings={mdblistRating.ratings}
+            firstEpisodeMedia={firstEpisodeMedia}
+            onOpenEntity={(kind, id, name) => nav.push('EntityBrowse', { kind, id, name })}
+          />
+        );
+    }
+  };
+
   return (
-    <View style={{ flex: 1, backgroundColor: DEFAULT_BG_COLOR }}>
-      {/* Background gradient using UltraBlur colors */}
-      {/* 3-stop: solid topLeft for hero area (0-35%), then transitions to bottomLeft */}
-      <LinearGradient
-        colors={backgroundGradientColors as [string, string, ...string[]]}
-        locations={[0, 0.35, 1]}
-        style={StyleSheet.absoluteFillObject}
+    <View style={{ flex: 1, backgroundColor: tint }}>
+      <DetailsBackdrop
+        imageUrl={backdropUrl}
+        tint={tint}
+        maxTintAlpha={maxTintAlpha}
+        heroHeight={HERO_HEIGHT}
+        scrollY={scrollY}
+        trailerKey={heroTrailerKey}
+        trailerMuted={heroTrailerMuted}
+        trailerAllowed={isFocused}
+        onTrailerPlayingChange={setHeroTrailerPlaying}
+        onTrailerFinished={() => {
+          setHeroTrailerPlaying(false);
+          setHeroTrailerFinished(true);
+        }}
       />
       {/* Sticky Header with Logo - appears when scrolled past hero */}
       <Animated.View
@@ -1234,14 +1372,9 @@ export default function Details({ route }: RouteParams) {
         bounces={true}
         contentContainerStyle={{ paddingBottom: 32 + insets.bottom }}
       >
-        {/* Hero backdrop with parallax */}
-        <View style={{ overflow: 'hidden' }} pointerEvents="box-none">
-          <View style={{ width: '100%', aspectRatio: 16/9, backgroundColor: '#111' }} pointerEvents="box-none">
-            {backdrop() && FastImage ? (
-              <Animated.View style={[{ width: '100%', height: '100%' }, backdropAnimatedStyle]} pointerEvents="none">
-                <FastImage source={{ uri: backdrop() }} style={{ width: '100%', height: '120%' }} resizeMode="cover" />
-              </Animated.View>
-            ) : null}
+        {/* Hero: the artwork itself is fixed behind the page in DetailsBackdrop */}
+        <View pointerEvents="box-none">
+          <View style={{ width: '100%', aspectRatio: 16/9 }} pointerEvents="box-none">
             {/* Top-left back button */}
             <View style={{ position: 'absolute', left: 12, top: insets.top + 8, flexDirection: 'row' }}>
               <Pressable onPress={() => nav.goBack()} style={{ width: 36, height: 36 }}>
@@ -1262,13 +1395,17 @@ export default function Details({ route }: RouteParams) {
                 )}
               </Pressable>
             </View>
-            {/* Gradient from image into content - 5-stop gradient with UltraBlur colors */}
-            <LinearGradient
-              colors={getGradientColors as [string, string, ...string[]]}
-              locations={[0, 0.3, 0.5, 0.7, 1]}
-              style={{ position: 'absolute', left: 0, right: 0, bottom: -1, height: '70%' }}
-              pointerEvents="none"
-            />
+            {heroTrailerPlaying ? (
+              <Pressable
+                onPress={() => setHeroTrailerMuted((muted) => !muted)}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={heroTrailerMuted ? 'Unmute trailer' : 'Mute trailer'}
+                style={{ position: 'absolute', right: 12, top: insets.top + 8, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' }}
+              >
+                <Ionicons name={heroTrailerMuted ? 'volume-mute' : 'volume-high'} size={18} color="#fff" />
+              </Pressable>
+            ) : null}
             {/* TMDB logo overlay with parallax */}
             {meta?.logoUrl && FastImage ? (
               <Animated.View style={[{ position: 'absolute', bottom: 24, left: '10%', right: '10%', height: 48 }, logoAnimatedStyle]} pointerEvents="none">
@@ -1296,7 +1433,7 @@ export default function Details({ route }: RouteParams) {
           {hasSDH ? <TechBadge type="sdh" size={10} /> : null}
           {hasAD ? <TechBadge type="ad" size={10} /> : null}
           {matchedPlex ? <BadgePill label="Plex" /> : null}
-          {!matchedPlex && params.type === 'tmdb' ? <BadgePill label="No local source" /> : null}
+          {!matchedPlex && params.type === 'tmdb' && !isStremioOnly ? <BadgePill label="No local source" /> : null}
           {/* Ratings - controlled by settings */}
           {detailsSettings.showIMDbRating && typeof imdbRating === 'number' ? (
             <View style={{ flexDirection:'row', alignItems:'center', backgroundColor:'rgba(255,255,255,0.1)', paddingHorizontal:8, paddingVertical:4, borderRadius:6 }}>
@@ -1325,7 +1462,7 @@ export default function Details({ route }: RouteParams) {
           {meta?.year ? `${meta.year}` : ''}
           {extractEditionTitle(meta?.Media) ? ` · ${extractEditionTitle(meta?.Media)}` : ''}
           {(meta?.year || extractEditionTitle(meta?.Media)) ? ' • ' : ''}
-          {meta?.type === 'show' ? `${meta?.leafCount || 0} Episodes` : (meta?.duration ? `${Math.round(meta.duration/60000)}m` : '')}
+          {meta?.type === 'show' ? `${meta?.leafCount || tmdbExtraInfo.numberOfEpisodes || 0} Episodes` : (meta?.duration ? `${Math.round(meta.duration/60000)}m` : '')}
           {meta?.Genre?.length ? ` • ${meta.Genre.map((g:any)=>g.tag).slice(0,3).join(', ')}` : ''}
         </Text>
 
@@ -1358,9 +1495,11 @@ export default function Details({ route }: RouteParams) {
         {/* Play / Continue */}
         <View style={{ marginHorizontal: 16, marginTop: 12, gap: 10 }}>
           <Pressable
-            disabled={!matchedPlex}
+            disabled={!matchedPlex && !stremioIsPrimary}
             onPress={() => {
-              if (matchedPlex || params.type === 'plex') {
+              if (stremioIsPrimary) {
+                handleStremioFromHero();
+              } else if (matchedPlex || params.type === 'plex') {
                 // For TV shows with nextUp, play that episode (with version check)
                 if (meta?.type === 'show' && nextUp) {
                   console.log('[Details] Playing next up episode:', nextUp.ratingKey, `S${nextUp.seasonNumber}E${nextUp.episodeNumber}`);
@@ -1387,13 +1526,15 @@ export default function Details({ route }: RouteParams) {
               }
             }}
             style={{
-              backgroundColor: matchedPlex ? '#fff' : '#333',
+              backgroundColor: matchedPlex || stremioIsPrimary ? '#fff' : '#333',
               paddingVertical: 12,
               borderRadius: 12,
               alignItems: 'center',
             }}
           >
-            {matchedPlex ? (
+            {stremioIsPrimary ? (
+              <Text style={{ color:'#000', fontWeight:'900', letterSpacing:2 }}>▶  PLAY</Text>
+            ) : matchedPlex ? (
               meta?.type === 'show' && nextUp ? (
                 <Text style={{ color:'#000', fontWeight:'900', letterSpacing:1 }}>
                   {nextUp.status === 'in-progress' ? '▶  CONTINUE' : nextUp.status === 'all-watched' ? '▶  REWATCH' : '▶  PLAY'}
@@ -1409,7 +1550,7 @@ export default function Details({ route }: RouteParams) {
             )}
           </Pressable>
 
-          {showStremioButton ? (
+          {showStremioButton && !stremioIsPrimary ? (
             <Pressable
               onPress={handleStremioFromHero}
               style={{
@@ -1427,7 +1568,7 @@ export default function Details({ route }: RouteParams) {
         </View>
 
         {/* Actions */}
-        <View style={{ flexDirection:'row', justifyContent:'space-around', marginTop:14 }}>
+        <View style={{ flexDirection:'row', flexWrap:'wrap', rowGap:12, justifyContent:'space-around', marginTop:14 }}>
           <Pressable
             disabled={trailers.length === 0}
             onPress={() => {
@@ -1443,10 +1584,7 @@ export default function Details({ route }: RouteParams) {
             }}
             style={{ alignItems: 'center', opacity: trailers.length > 0 ? 1 : 0.4 }}
           >
-            <Ionicons name="play-circle-outline" size={22} color="#fff" />
-            <Text style={{ color: '#fff', marginTop: 4, fontWeight: '600' }}>
-              {trailers.length > 0 ? 'TRAILER' : 'NO TRAILER'}
-            </Text>
+            <DetailsActionLabel icon="play-circle-outline" label={trailers.length > 0 ? 'TRAILER' : 'NO TRAILER'} />
           </Pressable>
           <WatchlistButton
             inWatchlist={inWatchlist}
@@ -1464,7 +1602,18 @@ export default function Details({ route }: RouteParams) {
               }
             }}
           />
-          {noLocalSource && (
+          <DetailsWatchActions
+            target={titleTarget}
+            title={title}
+            episodeTotal={tmdbExtraInfo.numberOfEpisodes}
+            seasonOptions={seasonOptions}
+          />
+          {listTitle && isTraktAvailable() ? (
+            <Pressable onPress={() => setAddToListTitle(listTitle)} accessibilityRole="button" accessibilityLabel="Add to list">
+              <DetailsActionLabel icon="list-outline" label="ADD TO LIST" />
+            </Pressable>
+          ) : null}
+          {noLocalSource && !isStremioOnly && (
             <RequestButton
               tmdbId={watchlistIds?.tmdbId}
               mediaType={meta?.type === 'movie' ? 'movie' : 'tv'}
@@ -1487,158 +1636,24 @@ export default function Details({ route }: RouteParams) {
           <Text style={{ color:'#ddd', marginHorizontal:16, marginTop:16, lineHeight:20 }}>{meta.summary}</Text>
         ) : null}
 
-        {/* Trailers & Videos Row */}
-        {trailers.length > 0 && (
-          <TrailersRow
-            trailers={trailers}
-            contentTitle={meta?.title}
-          />
-        )}
-
         {/* Tabs - only show in tabbed layout */}
-        {!isUnifiedLayout && (
-          <Tabs tab={tab} setTab={setTab} showEpisodes={meta?.type === 'show' && (seasons.length > 0)} />
-        )}
+        {!isUnifiedLayout && availableSections.length > 0 ? (
+          <DetailsSectionTabs sections={availableSections} active={activeSection} onSelect={setTab} />
+        ) : null}
 
-        {/* Content area */}
-        <View style={{ marginTop:20 }}>
-          {isUnifiedLayout ? (
-            // Unified Layout: Stack all sections vertically
-            // Order: Episodes (for TV) → Suggested → Details
-            <View key="unified-layout">
-              {/* Episodes section (only for TV shows) */}
-              {meta?.type === 'show' && seasons.length > 0 && (
-                <View key="unified-episodes" style={{ marginBottom: 32 }}>
-                  <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700', marginHorizontal: 16, marginBottom: 12 }}>Episodes</Text>
-                  <SeasonSelector
-                    seasons={seasons}
-                    seasonKey={seasonKey}
-                    onChange={async (key)=> {
-                      setSeasonKey(key);
-                      setEpisodesLoading(true);
-                      try {
-                        if (seasonSource === 'plex') {
-                          setEpisodes(await fetchPlexSeasonEpisodes(key));
-                        } else if (seasonSource === 'tmdb') {
-                          const tvId = route?.params?.id ? String(route?.params?.id) : undefined;
-                          if (tvId) setEpisodes(await fetchTmdbSeasonEpisodes(Number(tvId), Number(key)));
-                        }
-                      } finally {
-                        setEpisodesLoading(false);
-                      }
-                    }}
-                  />
-                  <EpisodeList
-                    season={(() => {
-                      const idx = seasons.findIndex((s: any, i: number) => String(s.ratingKey || s.key || i) === seasonKey);
-                      if (idx !== -1) {
-                        return String(seasons[idx].index || (idx + 1));
-                      }
-                      return seasonKey;
-                    })()}
-                    episodes={episodes}
-                    tmdbMode={seasonSource==='tmdb'}
-                    tmdbId={route?.params?.id ? String(route?.params?.id) : undefined}
-                    loading={episodesLoading}
-                    tmdbEpisodeData={tmdbEpisodeData}
-                    onPlayEpisode={handlePlayEpisode}
-                    onOpenStremioEpisode={handleStremioEpisode}
-                    stremioEnabled={settings.stremioPlaybackEnabled && (seasonSource !== 'tmdb' || settings.stremioShowOnTmdbDetails)}
-                  />
+        {/* Sections in the user's order */}
+        <View style={{ marginTop: 20 }}>
+          {isUnifiedLayout
+            ? availableSections.map((key) => (
+                <View key={key} style={{ marginBottom: DetailsSectionStyle.sectionGap }}>
+                  {renderSection(key)}
                 </View>
-              )}
-
-              {/* Suggested section */}
-              <View key="unified-suggested" style={{ marginBottom: 32 }}>
-                <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700', marginHorizontal: 16, marginBottom: 12 }}>Suggested</Text>
-                <SuggestedRows meta={meta} routeParams={route?.params} parentShowMeta={parentShowMeta} keyPrefix="unified-" />
-              </View>
-
-              {/* Details section */}
-              <View key="unified-details" style={{ marginBottom: 32 }}>
-                <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700', marginHorizontal: 16, marginBottom: 12 }}>Details</Text>
-                <DetailsTab
-                  meta={meta}
-                  tmdbCast={tmdbCast}
-                  tmdbCrew={tmdbCrew}
-                  productionInfo={productionInfo}
-                  tmdbExtraInfo={tmdbExtraInfo}
-                  mdblistRatings={mdblistRating.ratings}
-                  onPersonPress={(id, name) => {
-                    setSelectedPersonId(id);
-                    setSelectedPersonName(name);
-                    setPersonModalVisible(true);
-                  }}
-                  keyPrefix="unified-"
-                  firstEpisodeMedia={firstEpisodeMedia}
-                />
-              </View>
-            </View>
-          ) : (
-            // Tabbed Layout: Show one section at a time
-            <>
-              {meta?.type === 'show' && tab === 'episodes' ? (
-                <>
-                  <SeasonSelector
-                    seasons={seasons}
-                    seasonKey={seasonKey}
-                    onChange={async (key)=> {
-                      setSeasonKey(key);
-                      setEpisodesLoading(true);
-                      try {
-                        if (seasonSource === 'plex') {
-                          setEpisodes(await fetchPlexSeasonEpisodes(key));
-                        } else if (seasonSource === 'tmdb') {
-                          const tvId = route?.params?.id ? String(route?.params?.id) : undefined;
-                          if (tvId) setEpisodes(await fetchTmdbSeasonEpisodes(Number(tvId), Number(key)));
-                        }
-                      } finally {
-                        setEpisodesLoading(false);
-                      }
-                    }}
-                  />
-                  <EpisodeList
-                    season={(() => {
-                      const idx = seasons.findIndex((s: any, i: number) => String(s.ratingKey || s.key || i) === seasonKey);
-                      if (idx !== -1) {
-                        return String(seasons[idx].index || (idx + 1));
-                      }
-                      return seasonKey;
-                    })()}
-                    episodes={episodes}
-                    tmdbMode={seasonSource==='tmdb'}
-                    tmdbId={route?.params?.id ? String(route?.params?.id) : undefined}
-                    loading={episodesLoading}
-                    tmdbEpisodeData={tmdbEpisodeData}
-                    onPlayEpisode={handlePlayEpisode}
-                    onOpenStremioEpisode={handleStremioEpisode}
-                    stremioEnabled={settings.stremioPlaybackEnabled && (seasonSource !== 'tmdb' || settings.stremioShowOnTmdbDetails)}
-                  />
-                </>
-              ) : null}
-              {tab === 'suggested' ? (
-                <SuggestedRows meta={meta} routeParams={route?.params} parentShowMeta={parentShowMeta} />
-              ) : null}
-              {tab === 'details' ? (
-                <DetailsTab
-                  meta={meta}
-                  tmdbCast={tmdbCast}
-                  tmdbCrew={tmdbCrew}
-                  productionInfo={productionInfo}
-                  tmdbExtraInfo={tmdbExtraInfo}
-                  mdblistRatings={mdblistRating.ratings}
-                  onPersonPress={(id, name) => {
-                    setSelectedPersonId(id);
-                    setSelectedPersonName(name);
-                    setPersonModalVisible(true);
-                  }}
-                  firstEpisodeMedia={firstEpisodeMedia}
-                />
-              ) : null}
-            </>
-          )}
+              ))
+            : renderSection(activeSection)}
         </View>
       </Animated.ScrollView>
+
+      <AddToListSheet title={addToListTitle} onClose={() => setAddToListTitle(null)} />
 
       {/* Person Modal */}
       <PersonModal
@@ -1684,371 +1699,15 @@ export default function Details({ route }: RouteParams) {
   );
 }
 
-function Badge({ label }: { label: string }) {
-  return (
-    <View style={{ backgroundColor:'#262626', paddingHorizontal:10, paddingVertical:6, borderRadius:8 }}>
-      <Text style={{ color:'#fff', fontWeight:'700' }}>{label}</Text>
-    </View>
-  );
-}
-
-function ActionIcon({ icon, label }: { icon: any; label: string }) {
-  return (
-    <View style={{ alignItems:'center' }}>
-      <Ionicons name={icon} size={22} color="#fff" />
-      <Text style={{ color:'#fff', marginTop:4, fontWeight:'600' }}>{label}</Text>
-    </View>
-  );
-}
-
 function WatchlistButton({ inWatchlist, loading, onPress }: { inWatchlist: boolean; loading: boolean; onPress: () => void }) {
   return (
     <Pressable onPress={onPress} disabled={loading} style={{ alignItems:'center', opacity: loading ? 0.5 : 1 }}>
       {loading ? (
         <ActivityIndicator size="small" color="#fff" />
       ) : (
-        <Ionicons name={inWatchlist ? 'checkmark' : 'add'} size={22} color="#fff" />
+        <DetailsActionLabel icon={inWatchlist ? 'checkmark' : 'add'} label={inWatchlist ? 'IN LIST' : 'WATCHLIST'} />
       )}
-      <Text style={{ color:'#fff', marginTop:4, fontWeight:'600' }}>
-        {inWatchlist ? 'IN LIST' : 'WATCHLIST'}
-      </Text>
     </Pressable>
-  );
-}
-
-function EpisodeList({
-  season,
-  episodes,
-  tmdbMode,
-  tmdbId,
-  loading,
-  tmdbEpisodeData,
-  onPlayEpisode,
-  onOpenStremioEpisode,
-  stremioEnabled,
-}: {
-  season: string | null;
-  episodes: any[];
-  tmdbMode?: boolean;
-  tmdbId?: string;
-  loading?: boolean;
-  tmdbEpisodeData?: Map<number, TMDBEpisodeData>;
-  onPlayEpisode?: (episode: any) => void;
-  onOpenStremioEpisode?: (episode: any) => void;
-  stremioEnabled?: boolean;
-}) {
-  const nav: any = useNavigation();
-  const { settings } = useAppSettings();
-  const useHorizontalLayout = settings.episodeLayoutStyle === 'horizontal';
-  const screenW = Dimensions.get('window').width;
-  const horizontalCardWidth = Math.min(screenW * 0.75, 340);
-  const horizontalCardHeight = 180;
-  const horizontalItemSpacing = 14;
-
-  const resolveEpisodeImage = (ep: any) => {
-    // Priority: TMDB still (preferred) > Plex thumb > Plex art
-    const epIndex = ep.index || ep.episode_number;
-    const tmdbData = tmdbEpisodeData?.get(epIndex);
-
-    // For TMDB mode - use episode's own still_path
-    if (tmdbMode && ep.still_path) {
-      return getTmdbImageUrl(ep.still_path, 'w780');
-    }
-
-    // For Plex mode - prefer TMDB still over Plex images
-    if (tmdbData?.still_path) {
-      return getTmdbImageUrl(tmdbData.still_path, 'w780');
-    }
-
-    // Fallback to Plex images
-    const path = ep.thumb || ep.art;
-    return path ? getPlexImageUrl(path, 640) : undefined;
-  };
-
-  // Get enriched air date from TMDB data
-  const resolveAirDate = (ep: any): string | undefined => {
-    const epIndex = ep.index || ep.episode_number;
-    const tmdbData = tmdbEpisodeData?.get(epIndex);
-
-    // TMDB mode already has air_date in episode
-    if (tmdbMode && ep.air_date) {
-      return formatAirDate(ep.air_date);
-    }
-
-    // For Plex mode - use TMDB air_date
-    if (tmdbData?.air_date) {
-      return formatAirDate(tmdbData.air_date);
-    }
-
-    // Fallback to Plex originallyAvailableAt
-    if (ep.originallyAvailableAt) {
-      return formatAirDate(ep.originallyAvailableAt);
-    }
-
-    return undefined;
-  };
-
-  // Format air date for display (e.g., "Jan 15, 2024")
-  function formatAirDate(dateStr: string | undefined): string | undefined {
-    if (!dateStr) return undefined;
-    try {
-      const date = new Date(dateStr);
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    } catch {
-      return dateStr;
-    }
-  }
-
-  const resolveEpisodeProgress = (ep: any) => {
-    if (tmdbMode) return undefined;
-    try {
-      const dur = (ep.duration || 0) / 1000;
-      const vo = (ep.viewOffset || 0) / 1000;
-      const vc = ep.viewCount || 0;
-      if (vc > 0) return 100;
-      if (dur > 0 && vo / dur >= 0.95) return 100;
-      if (dur > 0) return Math.round((vo / dur) * 100);
-    } catch {}
-    return undefined;
-  };
-
-  const resolveDurationLabel = (ep: any) => {
-    if (tmdbMode) {
-      return ep.runtime ? `${ep.runtime}m` : '';
-    }
-    return ep.duration ? `${Math.round(ep.duration / 60000)}m` : '';
-  };
-
-  const resolveOverview = (ep: any) => ep.summary || ep.description || ep.overview || ep.synopsis || '';
-
-  if (loading) {
-    return (
-      <View style={{ marginTop: 12, alignItems: 'center', paddingVertical: 20 }}>
-        <ActivityIndicator color="#fff" />
-      </View>
-    );
-  }
-
-  const renderHorizontalCard = ({ item: ep, index }: { item: any; index: number }) => {
-    const img = resolveEpisodeImage(ep);
-    const progress = resolveEpisodeProgress(ep);
-    const durationLabel = resolveDurationLabel(ep);
-    const overview = resolveOverview(ep);
-    const airDate = resolveAirDate(ep);
-    const showProgress = typeof progress === 'number' && progress > 0 && progress < 85;
-    const showCompleted = typeof progress === 'number' && progress >= 85;
-
-    return (
-      <Pressable
-        onPress={() => {
-          if (!tmdbMode && ep.ratingKey) {
-            console.log('[Details] Playing episode:', ep.ratingKey);
-            if (onPlayEpisode) {
-              onPlayEpisode(ep);
-            } else {
-              nav.navigate('Player', { type: 'plex', ratingKey: String(ep.ratingKey) });
-            }
-          }
-        }}
-        style={{
-          width: horizontalCardWidth,
-          height: horizontalCardHeight,
-          borderRadius: 16,
-          overflow: 'hidden',
-          marginRight: horizontalItemSpacing,
-          backgroundColor: '#1a1a1a',
-          borderWidth: 1,
-          borderColor: 'rgba(255,255,255,0.12)',
-        }}
-      >
-        {img && FastImage ? (
-          <FastImage source={{ uri: img }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-        ) : null}
-        <LinearGradient
-          colors={['rgba(0,0,0,0.05)', 'rgba(0,0,0,0.2)', 'rgba(0,0,0,0.6)', 'rgba(0,0,0,0.9)']}
-          locations={[0, 0.25, 0.6, 1]}
-          style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'flex-end' }}
-        >
-          <View style={{ padding: 12 }}>
-            <View style={{ alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, backgroundColor: 'rgba(0,0,0,0.5)' }}>
-              <Text style={{ color: '#e5e7eb', fontSize: 10, fontWeight: '700', letterSpacing: 0.8 }}>
-                EPISODE {index + 1}
-              </Text>
-            </View>
-            <Text style={{ color: '#fff', fontWeight: '800', fontSize: 15, marginTop: 6 }} numberOfLines={2}>
-              {ep.title || ep.name || 'Episode'}
-            </Text>
-            {overview ? (
-              <Text style={{ color: 'rgba(255,255,255,0.82)', fontSize: 12, marginTop: 6 }} numberOfLines={3}>
-                {overview}
-              </Text>
-            ) : null}
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
-              {durationLabel ? (
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 12 }}>
-                  <Ionicons name="time-outline" size={12} color="#9ca3af" />
-                  <Text style={{ color: '#9ca3af', fontSize: 11, marginLeft: 4 }}>{durationLabel}</Text>
-                </View>
-              ) : null}
-              {airDate ? (
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Ionicons name="calendar-outline" size={11} color="#9ca3af" />
-                  <Text style={{ color: '#9ca3af', fontSize: 11, marginLeft: 4 }}>{airDate}</Text>
-                </View>
-              ) : null}
-            </View>
-            {stremioEnabled ? (
-              <Pressable
-                onPress={(event) => {
-                  event.stopPropagation();
-                  onOpenStremioEpisode?.(ep);
-                }}
-                style={{
-                  alignSelf: 'flex-start',
-                  marginTop: 10,
-                  paddingHorizontal: 10,
-                  paddingVertical: 6,
-                  borderRadius: 999,
-                  backgroundColor: 'rgba(255,255,255,0.16)',
-                }}
-              >
-                <Text style={{ color: '#fff', fontSize: 11, fontWeight: '800', letterSpacing: 0.6 }}>
-                  STREMIO
-                </Text>
-              </Pressable>
-            ) : null}
-          </View>
-          {showProgress ? (
-            <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 4, backgroundColor: '#ffffff33' }}>
-              <View style={{ width: `${Math.min(100, Math.max(0, progress as number))}%`, height: '100%', backgroundColor: '#fff' }} />
-            </View>
-          ) : null}
-          {showCompleted ? (
-            <View style={{ position: 'absolute', top: 10, left: 10, width: 22, height: 22, borderRadius: 11, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }}>
-              <Ionicons name="checkmark" size={14} color="#111" />
-            </View>
-          ) : null}
-          {/* Download button for horizontal cards - only for Plex sources */}
-          {!tmdbMode && ep.ratingKey && (
-            <View style={{ position: 'absolute', top: 10, right: 10 }}>
-              <DownloadButton metadata={ep} variant="icon" size="small" />
-            </View>
-          )}
-        </LinearGradient>
-      </Pressable>
-    );
-  };
-
-  return (
-    <View style={{ marginTop: 12 }}>
-      <Text style={{ color:'#fff', fontSize:18, fontWeight:'800', marginHorizontal:16, marginBottom:8 }}>Season {season}</Text>
-      {useHorizontalLayout ? (
-        <FlatList
-          data={episodes}
-          renderItem={renderHorizontalCard}
-          keyExtractor={(item, index) => String(item?.ratingKey || item?.id || `${season}-${index}`)}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 16 }}
-          snapToInterval={horizontalCardWidth + horizontalItemSpacing}
-          snapToAlignment="start"
-          decelerationRate="fast"
-          getItemLayout={(_, index) => {
-            const length = horizontalCardWidth + horizontalItemSpacing;
-            return { length, offset: 16 + (length * index), index };
-          }}
-        />
-      ) : (
-        episodes.map((ep:any, idx:number) => {
-          const img = resolveEpisodeImage(ep);
-          const progress = resolveEpisodeProgress(ep);
-          const durationLabel = resolveDurationLabel(ep);
-          const airDate = resolveAirDate(ep);
-
-          return (
-            <Pressable
-              key={idx}
-              onPress={() => {
-                if (!tmdbMode && ep.ratingKey) {
-                  console.log('[Details] Playing episode:', ep.ratingKey);
-                  if (onPlayEpisode) {
-                    onPlayEpisode(ep);
-                  } else {
-                    nav.navigate('Player', { type: 'plex', ratingKey: String(ep.ratingKey) });
-                  }
-                }
-              }}
-              style={{ flexDirection: 'row', marginHorizontal: 16, marginBottom: 12 }}
-            >
-              <View style={{ width: 140, height: 78, borderRadius: 10, overflow: 'hidden', backgroundColor: '#222' }}>
-                {img && FastImage ? (
-                  <FastImage source={{ uri: img }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-                ) : null}
-                {typeof progress === 'number' && progress > 0 ? (
-                  <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 4, backgroundColor: '#ffffff33' }}>
-                    <View style={{ width: `${Math.min(100, Math.max(0, progress))}%`, height: '100%', backgroundColor: '#fff' }} />
-                  </View>
-                ) : null}
-              </View>
-              <View style={{ flex: 1, marginLeft: 12, justifyContent: 'center' }}>
-                <Text style={{ color: '#fff', fontWeight: '800' }}>
-                  {idx + 1}. {ep.title || ep.name || 'Episode'}
-                </Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
-                  {durationLabel ? <Text style={{ color: '#bbb' }}>{durationLabel}</Text> : null}
-                  {durationLabel && airDate ? <Text style={{ color: '#bbb', marginHorizontal: 6 }}>•</Text> : null}
-                  {airDate ? <Text style={{ color: '#bbb' }}>{airDate}</Text> : null}
-                </View>
-                {stremioEnabled ? (
-                  <Pressable
-                    onPress={(event) => {
-                      event.stopPropagation();
-                      onOpenStremioEpisode?.(ep);
-                    }}
-                    style={{
-                      alignSelf: 'flex-start',
-                      marginTop: 8,
-                      paddingHorizontal: 10,
-                      paddingVertical: 5,
-                      borderRadius: 999,
-                      backgroundColor: 'rgba(255,255,255,0.12)',
-                    }}
-                  >
-                    <Text style={{ color: '#fff', fontSize: 11, fontWeight: '800', letterSpacing: 0.6 }}>
-                      STREMIO
-                    </Text>
-                  </Pressable>
-                ) : null}
-              </View>
-              {/* Download button for episodes - only for Plex sources */}
-              {!tmdbMode && ep.ratingKey && (
-                <View style={{ alignSelf: 'center', marginLeft: 8 }}>
-                  <DownloadButton metadata={ep} variant="icon" size="small" />
-                </View>
-              )}
-            </Pressable>
-          );
-        })
-      )}
-    </View>
-  );
-}
-
-function Tabs({ tab, setTab, showEpisodes }: { tab: 'episodes'|'suggested'|'details'; setTab: (t:any)=>void; showEpisodes: boolean }) {
-  const tabs: Array<{ key: any; label: string }> = showEpisodes
-    ? [ { key:'episodes', label:'EPISODES' }, { key:'suggested', label:'SUGGESTED' }, { key:'details', label:'DETAILS' } ]
-    : [ { key:'suggested', label:'SUGGESTED' }, { key:'details', label:'DETAILS' } ];
-  return (
-    <View style={{ marginTop:18 }}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal:16 }}>
-        {tabs.map(t => (
-          <Pressable key={t.key} onPress={()=> setTab(t.key)} style={{ marginRight:28 }}>
-            <Text style={{ color:'#fff', fontWeight:'900', letterSpacing:1.2, fontSize:14 }}>{t.label}</Text>
-            {tab===t.key ? <View style={{ height:4, backgroundColor:'#fff', marginTop:6, borderRadius:2 }} /> : <View style={{ height:4, backgroundColor:'transparent', marginTop:6 }} />}
-          </Pressable>
-        ))}
-      </ScrollView>
-    </View>
   );
 }
 
@@ -2095,8 +1754,6 @@ function SuggestedRows({ meta, routeParams, parentShowMeta, keyPrefix = '' }: { 
     })();
   }, [tmdbId, mediaType]);
 
-  const getUri = (it: RowItem) => it.image;
-  const getTitle = (it: RowItem) => it.title;
   const nav: any = useNavigation();
   const onPress = (it: RowItem) => {
     if (!it?.id) return;
@@ -2123,21 +1780,21 @@ function SuggestedRows({ meta, routeParams, parentShowMeta, keyPrefix = '' }: { 
     });
   };
 
-  if (loading) return <Text style={{ color:'#888', marginHorizontal:16 }}>Loading…</Text>;
-  if (!recs.length && !similar.length) return <Text style={{ color:'#888', marginHorizontal:16 }}>No suggestions</Text>;
+  if (loading) return <Text style={{ color:'#888', marginHorizontal: DetailsSectionStyle.inset }}>Loading…</Text>;
+  if (!recs.length && !similar.length) return <Text style={{ color:'#888', marginHorizontal: DetailsSectionStyle.inset }}>No suggestions</Text>;
   return (
     <View>
       {recs.length > 0 && (
-        <Row title="Recommended" items={recs}
-          getImageUri={getUri} getTitle={getTitle}
-          onItemPress={onPress}
-          onTitlePress={() => openBrowse('Recommended', recs)}
-          keyPrefix={keyPrefix}
-        />
+        <View style={{ marginBottom: 20 }}>
+          <DetailsPosterRow title="Recommended" items={recs}
+            onItemPress={onPress}
+            onTitlePress={() => openBrowse('Recommended', recs)}
+            keyPrefix={keyPrefix}
+          />
+        </View>
       )}
       {similar.length > 0 && (
-        <Row title="More Like This" items={similar}
-          getImageUri={getUri} getTitle={getTitle}
+        <DetailsPosterRow title="More Like This" items={similar}
           onItemPress={onPress}
           onTitlePress={() => openBrowse('More Like This', similar)}
           keyPrefix={keyPrefix}
@@ -2149,7 +1806,9 @@ function SuggestedRows({ meta, routeParams, parentShowMeta, keyPrefix = '' }: { 
 
 function SectionHeader({ title }: { title: string }) {
   return (
-    <Text style={{ color:'#fff', fontSize:18, fontWeight:'800', marginHorizontal:16, marginTop:18 }}>{title}</Text>
+    <View style={{ marginTop: 18 }}>
+      <DetailsSectionHeading title={title} />
+    </View>
   );
 }
 
@@ -2445,7 +2104,11 @@ function Collections({ meta }: { meta:any }) {
   );
 }
 
-function ProductionRow({ items, isMovie }: { items: Array<{id: number; name: string; logo?: string}>; isMovie: boolean }) {
+function ProductionRow({ items, isMovie, onOpenEntity }: {
+  items: Array<{id: number; name: string; logo?: string}>;
+  isMovie: boolean;
+  onOpenEntity: (kind: 'company' | 'network', id: number, name: string) => void;
+}) {
   if (!items?.length) return null;
 
   return (
@@ -2457,8 +2120,12 @@ function ProductionRow({ items, isMovie }: { items: Array<{id: number; name: str
         contentContainerStyle={{ paddingHorizontal: 12, gap: 10, paddingTop: 8 }}
       >
         {items.slice(0, 6).map((item) => (
-          <View
+          <Pressable
             key={String(item.id || item.name)}
+            disabled={!item.id}
+            onPress={() => onOpenEntity(isMovie ? 'company' : 'network', item.id, item.name)}
+            accessibilityRole="button"
+            accessibilityLabel={item.name}
             style={{
               paddingVertical: 10,
               paddingHorizontal: 14,
@@ -2480,7 +2147,7 @@ function ProductionRow({ items, isMovie }: { items: Array<{id: number; name: str
             ) : (
               <Text style={{ color: '#000', fontSize: 13, fontWeight: '600' }}>{item.name}</Text>
             )}
-          </View>
+          </Pressable>
         ))}
       </ScrollView>
     </View>
@@ -2536,10 +2203,8 @@ function extractEditionTitle(media?: any[]): string | undefined {
   return undefined;
 }
 
-function DetailsTab({ meta, tmdbCast, tmdbCrew, productionInfo, tmdbExtraInfo, mdblistRatings, onPersonPress, keyPrefix = '', firstEpisodeMedia }: {
+function DetailsTab({ meta, productionInfo, tmdbExtraInfo, mdblistRatings, firstEpisodeMedia, onOpenEntity }: {
   meta: any;
-  tmdbCast?: Array<{ id: number; name: string; profile_path?: string }>;
-  tmdbCrew?: Array<{ name: string; job?: string }>;
   productionInfo?: Array<{id: number; name: string; logo?: string}>;
   tmdbExtraInfo?: {
     runtime?: number;
@@ -2559,9 +2224,8 @@ function DetailsTab({ meta, tmdbCast, tmdbCrew, productionInfo, tmdbExtraInfo, m
     voteCount?: number;
   };
   mdblistRatings?: MDBListRatings | null;
-  onPersonPress?: (id: number, name: string) => void;
-  keyPrefix?: string;
   firstEpisodeMedia?: any[];
+  onOpenEntity: (kind: 'company' | 'network', id: number, name: string) => void;
 }) {
   const guids: string[] = Array.isArray(meta?.Guid) ? meta.Guid.map((g:any)=> String(g.id||'')) : [];
   const imdbId = guids.find(x=> x.startsWith('imdb://'))?.split('://')[1];
@@ -2578,14 +2242,8 @@ function DetailsTab({ meta, tmdbCast, tmdbCrew, productionInfo, tmdbExtraInfo, m
         </Text>
       ) : null}
 
-      <SectionHeader title="Cast" />
-      <CastScroller meta={meta} tmdbCast={tmdbCast} onPersonPress={onPersonPress} />
-
-      <SectionHeader title="Crew" />
-      <CrewList meta={meta} tmdbCrew={tmdbCrew} creators={tmdbExtraInfo?.creators} isShow={isShow} />
-
       {productionInfo && productionInfo.length > 0 && (
-        <ProductionRow items={productionInfo} isMovie={isMovie} />
+        <ProductionRow items={productionInfo} isMovie={isMovie} onOpenEntity={onOpenEntity} />
       )}
 
       <TechSpecs meta={meta} firstEpisodeMedia={firstEpisodeMedia} />
@@ -2612,26 +2270,6 @@ function DetailsTab({ meta, tmdbCast, tmdbCrew, productionInfo, tmdbExtraInfo, m
       <SectionHeader title="Ratings" />
       <RatingsRow meta={meta} tmdbRating={tmdbExtraInfo?.voteAverage} mdblistRatings={mdblistRatings} />
       <View style={{ height:12 }} />
-    </View>
-  );
-}
-
-function SeasonSelector({ seasons, seasonKey, onChange }: { seasons:any[]; seasonKey:string|null; onChange:(key:string)=>void }) {
-  if (!seasons?.length) return null;
-  return (
-    <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:16, marginBottom:8 }}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        {seasons.map((s:any, idx:number) => {
-          const key = String(s.ratingKey || s.key || idx);
-          const active = key === seasonKey;
-          return (
-            <Pressable key={key} onPress={()=> onChange(key)} style={{ marginRight:10, paddingHorizontal:12, paddingVertical:8, borderRadius:999, backgroundColor: active? '#ffffff22' : '#1a1b20', borderWidth:1, borderColor: active? '#ffffff' : '#2a2b30' }}>
-              <Text style={{ color:'#fff', fontWeight:'700' }}>{s.title || `Season ${s.index || (idx+1)}`}</Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-
     </View>
   );
 }

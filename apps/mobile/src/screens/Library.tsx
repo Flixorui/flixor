@@ -1,4 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTheme } from '../hooks/useTheme';
+import { useAppMode } from '../core/AppMode';
+import UserCollectionsSection from '../components/collections/UserCollectionsSection';
 import { View, Text, ActivityIndicator, Pressable, StyleSheet, Dimensions, Animated, Modal, Platform, InteractionManager } from 'react-native';
 import PullToRefresh from '../components/PullToRefresh';
 import FastImage from '@d11/react-native-fast-image';
@@ -38,7 +41,46 @@ if (Platform.OS === 'ios') {
   }
 }
 
+/** No Plex libraries to browse in Stremio-only mode: the page is the user's collections. */
+function StremioOnlyLibrary() {
+  const insets = useSafeAreaInsets();
+  const theme = useTheme();
+  const y = useRef(new Animated.Value(0)).current;
+
+  useFocusEffect(
+    useCallback(() => {
+      TopBarStore.setState({
+        visible: true,
+        tabBarVisible: true,
+        showFilters: false,
+        compact: false,
+        customFilters: undefined,
+        activeGenre: undefined,
+        onClearGenre: undefined,
+      });
+      TopBarStore.setScrollY(y);
+    }, [y])
+  );
+
+  return (
+    <View style={{ flex: 1, backgroundColor: theme.background }}>
+      <Animated.ScrollView
+        contentContainerStyle={{ paddingTop: insets.top + TOP_BAR_EXPANDED_CONTENT_HEIGHT + 12, paddingBottom: 120 }}
+        scrollEventThrottle={16}
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y } } }], { useNativeDriver: false })}
+      >
+        <UserCollectionsSection />
+      </Animated.ScrollView>
+    </View>
+  );
+}
+
 export default function Library() {
+  const { isStremioOnly } = useAppMode();
+  return isStremioOnly ? <StremioOnlyLibrary /> : <PlexLibrary />;
+}
+
+function PlexLibrary() {
   const route = useRoute();
   const nav: any = useNavigation();
   const { flixor, isLoading: flixorLoading, isConnected } = useFlixor();

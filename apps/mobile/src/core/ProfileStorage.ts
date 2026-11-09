@@ -79,6 +79,11 @@ export const PROFILE_SCOPED_KEYS = {
   STREMIO_RESUME_STATE: 'stremio_resume_state',
   STREMIO_REMOVED_DEFAULT_ADDONS: 'stremio_removed_default_addons',
 
+  // Watch history, watched items and watchlist kept on this device
+  LOCAL_WATCH_HISTORY: 'local_watch_history',
+  LOCAL_WATCHED: 'local_watched_items',
+  LOCAL_WATCHLIST: 'local_watchlist',
+
   // Note: plex_auth is handled specially - stores main token + profile info
 } as const;
 
@@ -94,6 +99,9 @@ export const GLOBAL_KEYS = {
 
   // Main Plex auth (contains main token + current profile info)
   PLEX_AUTH: 'plex_auth',
+
+  // App mode (plex or stremio). Global because profiles are keyed by Plex Home.
+  APP_MODE: 'flixor_app_mode',
 
   // Active profile tracking
   ACTIVE_PROFILE: 'flixor_active_profile',

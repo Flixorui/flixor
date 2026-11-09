@@ -7,6 +7,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import SettingsHeader from '../../components/settings/SettingsHeader';
 import SettingsCard from '../../components/settings/SettingsCard';
+import SettingItem from '../../components/settings/SettingItem';
+import SettingsSwitch from '../../components/settings/SettingsSwitch';
+import { useAppSettings } from '../../hooks/useAppSettings';
 import TraktIcon from '../../components/icons/TraktIcon';
 import {
   getTraktProfile,
@@ -15,9 +18,12 @@ import {
   saveTraktTokens,
   signOutTrakt,
 } from '../../core/SettingsData';
+import { useTheme } from '../../hooks/useTheme';
 
 export default function TraktSettings() {
   const nav: any = useNavigation();
+  const theme = useTheme();
+  const { settings, updateSetting } = useAppSettings();
   const insets = useSafeAreaInsets();
   const headerHeight = insets.top + 52;
   const [profile, setProfile] = useState<any | null>(null);
@@ -72,7 +78,7 @@ export default function TraktSettings() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.settingsBackground }]}>
       <SettingsHeader title="Trakt" onBack={() => nav.goBack()} />
       <ScrollView contentContainerStyle={[styles.content, { paddingTop: headerHeight + 12, paddingBottom: insets.bottom + 100 }]}>
         {/* Header with Trakt logo */}
@@ -103,6 +109,23 @@ export default function TraktSettings() {
             </View>
           )}
         </SettingsCard>
+
+        {profile && (
+          <SettingsCard title="SYNC">
+            <SettingItem
+              title="Auto-Sync Watched"
+              description="Send titles you mark watched to Trakt"
+              icon="sync-outline"
+              renderRight={() => (
+                <SettingsSwitch
+                  value={settings.traktAutoSyncWatched}
+                  onValueChange={(value) => updateSetting('traktAutoSyncWatched', value)}
+                />
+              )}
+              isLast={true}
+            />
+          </SettingsCard>
+        )}
 
         {deviceCode && (
           <SettingsCard title="DEVICE CODE">
