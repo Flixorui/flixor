@@ -201,13 +201,14 @@ function Stepper({ label, value, onMinus, onPlus, onReset }: { label: string; va
   );
 }
 
-function SyncList({ engine, videoRef }: { engine: SubtitleEngine; videoRef: React.RefObject<HTMLVideoElement> }) {
+function SyncList({ engine, videoRef, timeOffset }: { engine: SubtitleEngine; videoRef: React.RefObject<HTMLVideoElement>; timeOffset: number }) {
   const { cues, delay, syncToCue } = engine;
-  const [position, setPosition] = useState(() => videoRef.current?.currentTime ?? 0);
+  // Film time: a converted stream's video clock starts at the timeline offset.
+  const [position, setPosition] = useState(() => (videoRef.current?.currentTime ?? 0) + timeOffset);
   useEffect(() => {
-    const timer = setInterval(() => setPosition(videoRef.current?.currentTime ?? 0), 1000);
+    const timer = setInterval(() => setPosition((videoRef.current?.currentTime ?? 0) + timeOffset), 1000);
     return () => clearInterval(timer);
-  }, [videoRef]);
+  }, [videoRef, timeOffset]);
 
   if (cues.length === 0) return <p className="py-6 text-center text-white/60 text-sm">Pick a text subtitle track to sync by line.</p>;
 
@@ -251,7 +252,7 @@ function Swatches({ label, value, onChange }: { label: string; value: string; on
   );
 }
 
-export function SubtitlePanel({ engine, videoRef, onClose }: { engine: SubtitleEngine; videoRef: React.RefObject<HTMLVideoElement>; onClose: () => void }) {
+export function SubtitlePanel({ engine, videoRef, timeOffset = 0, onClose }: { engine: SubtitleEngine; videoRef: React.RefObject<HTMLVideoElement>; timeOffset?: number; onClose: () => void }) {
   const settings = useSettings();
   const [tab, setTab] = useState<'tracks' | 'sync' | 'style'>('tracks');
   const fontSize = settings.subtitleFontSize ?? 100;
@@ -289,7 +290,7 @@ export function SubtitlePanel({ engine, videoRef, onClose }: { engine: SubtitleE
               onPlus={() => engine.setDelay(engine.delay + 0.1)}
               onReset={engine.delay !== 0 ? () => engine.setDelay(0) : undefined}
             />
-            <SyncList engine={engine} videoRef={videoRef} />
+            <SyncList engine={engine} videoRef={videoRef} timeOffset={timeOffset} />
           </>
         )}
         {tab === 'style' && (

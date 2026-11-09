@@ -29,6 +29,9 @@ import versionRoutes from './api/version';
 import stremioRoutes from './api/stremio';
 import skipSegmentsRoutes from './api/skip-segments';
 import syncRoutes from './api/sync';
+import { relayRouter } from './services/media/relay';
+import { stopAllConversions } from './services/media/ffmpeg';
+import { stopAllHlsSessions } from './services/media/hls';
 import { requireAuth } from './middleware/auth';
 import { errorHandler } from './middleware/errorHandler';
 import { requestLogger } from './middleware/requestLogger';
@@ -129,6 +132,8 @@ async function startServer() {
     app.use('/api/plextv', plextvRoutes);
     app.use('/api/overseerr', overseerrRoutes);
     app.use('/api/version', versionRoutes);
+    // Loopback only, for FFmpeg (services/media/relay.ts).
+    app.use('/internal/media-relay', relayRouter);
     app.use('/api/stremio', requireAuth, stremioRoutes);
     app.use('/api/skip-segments', requireAuth, skipSegmentsRoutes);
     app.use('/api/sync', requireAuth, syncRoutes);
@@ -155,12 +160,16 @@ async function startServer() {
     // Graceful shutdown
     process.on('SIGTERM', async () => {
       serverLogger.info('SIGTERM signal received: closing server');
+      stopAllHlsSessions();
+      stopAllConversions();
       await AppDataSource.destroy();
       process.exit(0);
     });
 
     process.on('SIGINT', async () => {
       serverLogger.info('SIGINT signal received: closing server');
+      stopAllHlsSessions();
+      stopAllConversions();
       await AppDataSource.destroy();
       process.exit(0);
     });

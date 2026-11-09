@@ -99,13 +99,33 @@ export default function PlayerShell({ session, clock }: { session: PlayerSession
     feedbackTimer.current = setTimeout(() => setFeedback(null), 1500);
   }, []);
 
+  const timeline = session.timeline;
+  const timelineRef = useRef(timeline);
+  timelineRef.current = timeline;
+
+  // Seconds here are real film time. A converted stream (session.timeline.seek) only
+  // holds what was converted from its offset, so a seek outside that restarts it.
   const seekTo = useCallback((seconds: number) => {
     const video = videoRef.current;
     if (!video) return;
-    const end = Number.isFinite(video.duration) ? video.duration : seconds;
-    video.currentTime = Math.max(0, Math.min(end, seconds));
-  }, []);
-  const seekBy = useCallback((delta: number) => seekTo((videoRef.current?.currentTime ?? 0) + delta), [seekTo]);
+    const line = timelineRef.current;
+    const total = line?.duration || (Number.isFinite(video.duration) ? video.duration : seconds);
+    const target = Math.max(0, Math.min(total, seconds));
+    if (line?.seek) {
+      const local = target - line.offset;
+      const end = video.buffered.length ? video.buffered.end(video.buffered.length - 1) : 0;
+      if (local >= 0 && local <= end + 1) {
+        video.currentTime = local;
+      } else {
+        clock.time.current = target;
+        setCurrentTime(target);
+        line.seek(target);
+      }
+      return;
+    }
+    video.currentTime = target;
+  }, [clock]);
+  const seekBy = useCallback((delta: number) => seekTo(clock.time.current + delta), [clock, seekTo]);
 
   const play = useCallback(() => {
     videoRef.current?.play().catch(() => {});
@@ -155,7 +175,12 @@ export default function PlayerShell({ session, clock }: { session: PlayerSession
     setPanel((current) => (current === name ? null : name));
   }, [session.browser]);
 
-  const handleTimeUpdate = useCallback((time: number, total: number) => {
+  const handleTimeUpdate = useCallback((localTime: number, localTotal: number) => {
+    // Converted streams start at the timeline offset and have no duration of their own.
+    const line = timelineRef.current;
+    const offset = line?.offset ?? 0;
+    const time = localTime + offset;
+    const total = line?.duration || localTotal;
     clock.time.current = time;
     if (total > 0 && Number.isFinite(total)) clock.duration.current = total;
     // Throttled, since re-rendering at the timeupdate rate costs dropped frames.
@@ -165,7 +190,7 @@ export default function PlayerShell({ session, clock }: { session: PlayerSession
     setCurrentTime(time);
     if (total > 0 && Number.isFinite(total)) setDuration(total);
     const video = videoRef.current;
-    if (video?.buffered.length) setBuffered(video.buffered.end(video.buffered.length - 1));
+    if (video?.buffered.length) setBuffered(video.buffered.end(video.buffered.length - 1) + offset);
   }, [clock]);
 
   const autoSkip = useAutoSkip(session, currentTime, seekTo);
@@ -231,7 +256,7 @@ export default function PlayerShell({ session, clock }: { session: PlayerSession
   const chapterJump = useCallback((direction: -1 | 1) => {
     const { chapters } = session;
     if (chapters.length === 0) return;
-    const now = videoRef.current?.currentTime ?? 0;
+    const now = clock.time.current;
     const index = chapters.reduce((found, chapter, i) => (chapter.start <= now ? i : found), -1);
     if (direction === 1) {
       const next = chapters[index + 1];
@@ -354,7 +379,7 @@ export default function PlayerShell({ session, clock }: { session: PlayerSession
         </div>
       )}
 
-      {!error && <SubtitleOverlay cues={subtitles.cues} delay={subtitles.delay} videoRef={videoRef as React.RefObject<HTMLVideoElement>} controlsVisible={showControls} />}
+      {!error && <SubtitleOverlay cues={subtitles.cues} delay={subtitles.delay} videoRef={videoRef as React.RefObject<HTMLVideoElement>} timeOffset={timeline?.offset ?? 0} controlsVisible={showControls} />}
 
       {(buffering || session.loading || status) && !error && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 pointer-events-none z-40">
@@ -526,7 +551,7 @@ export default function PlayerShell({ session, clock }: { session: PlayerSession
           {panel === 'chapters' && <ChaptersPanel chapters={session.chapters} currentTime={currentTime} onSeek={seekTo} onClose={closePanel} />}
           {panel === 'speed' && <SpeedPanel rate={rate} onChange={(next) => { changeRate(next); closePanel(); }} />}
           {panel === 'settings' && <SettingsPanel session={session} aspect={aspect} onAspect={applyAspect} onDone={closePanel} />}
-          {panel === 'subtitles' && <SubtitlePanel engine={subtitles} videoRef={videoRef as React.RefObject<HTMLVideoElement>} onClose={closePanel} />}
+          {panel === 'subtitles' && <SubtitlePanel engine={subtitles} videoRef={videoRef as React.RefObject<HTMLVideoElement>} timeOffset={timeline?.offset ?? 0} onClose={closePanel} />}
         </div>
       </div>
 

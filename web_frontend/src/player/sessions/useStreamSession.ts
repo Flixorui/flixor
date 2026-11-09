@@ -20,6 +20,7 @@ import {
   recordLocalProgress,
   removeCachedStream,
   saveResumeState,
+  streamProxyBase,
   type StreamEpisodeInfo,
   type StreamPlayerState,
   type StremioAddonStreams,
@@ -31,10 +32,14 @@ import { useCommunitySegments } from '../hooks/useCommunitySegments';
 import { useEpisodeBrowserState } from '../hooks/useEpisodeBrowserState';
 import { episodeLabel, withDeadline } from '../format';
 import { mergeMarkers } from '../markers';
-import { detectStreamKind } from '../streamKind';
+import { detectStreamKind, streamKindFromName } from '../streamKind';
 import { pickAudioTrack, saveTrackPreference } from '../tracks/trackPreferences';
 import { cinemetaMeta, StreamEpisode, streamSeasonEpisodes, streamSeasonNumbers } from './streamEpisodes';
 import { lookupStreams } from './streamLookup';
+import { checkServerConversion, conversionUrl, fetchConversionState, probeStream } from '../engine/api';
+import { browserCaps, prefersHlsDelivery } from '../engine/capabilities';
+import { decidePlayback, type AudioTrackInfo, type Decision, type MediaInfo } from '../engine/decide';
+import { parseSubtitles, type SubtitleCue } from '../subtitles/parser';
 import { streamAddonsFor } from '@/stremio/streams';
 import type {
   EpisodeEntry,
@@ -53,6 +58,45 @@ const MAX_RECOVERY_ATTEMPTS = 2;
 const RECOVERY_LOOKUP_LIMIT_MS = 30_000;
 const NEXT_EPISODE_LOOKUP_LIMIT_MS = 15_000;
 const NEXT_EPISODE_SUBTITLE_WAIT_MS = 2_000;
+const PROBE_LIMIT_MS = 25_000;
+const CONVERSION_POLL_MS = 1_000;
+
+/** How the engine plays the current source (player/engine). */
+interface EngineState {
+  /** Backend proxy address for the source: `.../stremio/stream/<token>`. */
+  base: string;
+  info: MediaInfo;
+  decision: Exclude<Decision, { path: 'unsupported' }>;
+  /** Seconds of real time at the start of the current conversion (0 for direct play). */
+  offset: number;
+  /** URL for direct play. */
+  directUrl: string;
+  audioIndex: number | null;
+  subtitleIndex: number | null;
+  /** Image subtitle drawn into the picture (conversion only). */
+  burnIndex: number | null;
+  avoidDirect: boolean;
+  avoidRemux: boolean;
+}
+
+interface EngineOptions {
+  base?: string;
+  info?: MediaInfo;
+  audioIndex?: number | null;
+  subtitleIndex?: number | null;
+  burnIndex?: number | null;
+  avoidDirect?: boolean;
+  avoidRemux?: boolean;
+}
+
+type EngineResult = 'handled' | 'direct' | 'none';
+
+function audioLabel(track: AudioTrackInfo): string {
+  const language = track.language && track.language !== 'und' ? track.language.toUpperCase() : 'Unknown';
+  const layout = track.channels >= 8 ? '7.1' : track.channels >= 6 ? '5.1' : track.channels === 1 ? 'Mono' : 'Stereo';
+  const name = track.title ? ` • ${track.title}` : '';
+  return `${language}${name} • ${track.codec.toUpperCase()} ${layout}`;
+}
 
 type Outcome =
   | { kind: 'playable'; state: StreamPlayerState }
@@ -127,6 +171,15 @@ export function useStreamSession({ identity, initialState, clock, onPlayStream, 
   const [hlsAudioSelected, setHlsAudioSelected] = useState<string | null>(null);
   const [imdbId, setImdbId] = useState(identity.imdbId);
   const [markerDuration, setMarkerDuration] = useState(0);
+  const [engine, setEngineState] = useState<EngineState | null>(null);
+  const [embeddedCues, setEmbeddedCues] = useState<SubtitleCue[]>([]);
+  const engineRef = useRef<EngineState | null>(null);
+  const setEngine = useCallback((next: EngineState | null) => {
+    engineRef.current = next;
+    setEngineState(next);
+  }, []);
+  // Identifies this player to the backend, which runs one conversion per player.
+  const playerId = useRef(`p${Math.random().toString(36).slice(2, 12)}`);
 
   const isEpisode = identity.requestType === 'series' && identity.seasonNumber !== undefined;
   const closed = useRef(false);
@@ -154,7 +207,80 @@ export function useStreamSession({ identity, initialState, clock, onPlayStream, 
 
   const onPrepareFailed = useRef<() => void>(() => {});
 
-  const loadStream = useCallback(async (next: StremioStream, at: number) => {
+  /**
+   * Probes the source and plays it the way the engine decides. 'direct' leaves direct
+   * play to the caller; 'none' means no engine (no FFmpeg on the server, or no probe).
+   */
+  const playWithEngine = useCallback(async (
+    token: number,
+    prepared: StremioStream,
+    directUrl: string,
+    at: number,
+    options: EngineOptions,
+  ): Promise<EngineResult> => {
+    if (!(await checkServerConversion())) return 'none';
+    let { base, info } = options;
+    try {
+      base ??= await streamProxyBase(prepared, identity);
+      info ??= (await withDeadline(probeStream(base), PROBE_LIMIT_MS, null)) ?? undefined;
+    } catch {
+      return 'none';
+    }
+    if (token !== loadToken.current || closed.current) return 'handled';
+    if (!base || !info) return 'none';
+
+    let audioIndex = options.audioIndex;
+    if (audioIndex === undefined && info.audio.length > 1) {
+      const tracks: TrackOption[] = info.audio.map((track) => ({
+        id: String(track.index), label: audioLabel(track), language: track.language, languageCode: track.language, default: track.isDefault,
+      }));
+      const preferred = pickAudioTrack(tracks, { itemKey: `stream:${identity.requestId}`, seriesKey: isEpisode ? `stream:${identity.baseId}` : undefined });
+      if (preferred) audioIndex = Number(preferred.id);
+    }
+    const subtitleIndex = options.subtitleIndex ?? null;
+    const burnIndex = options.burnIndex ?? null;
+    const decision = decidePlayback(info, browserCaps(), {
+      audioIndex,
+      embeddedSubtitle: subtitleIndex !== null,
+      burnSubtitle: burnIndex !== null,
+      avoidDirect: options.avoidDirect,
+      avoidRemux: options.avoidRemux,
+    });
+    if (decision.path === 'unsupported') {
+      setEngine(null);
+      setSrc('');
+      setStatus(null);
+      setLoading(false);
+      setError({ message: decision.reason, canChooseSource: true });
+      return 'handled';
+    }
+
+    const state: EngineState = {
+      base, info, decision, offset: 0, directUrl,
+      audioIndex: decision.audioIndex,
+      subtitleIndex,
+      burnIndex,
+      avoidDirect: Boolean(options.avoidDirect),
+      avoidRemux: Boolean(options.avoidRemux),
+    };
+    if (decision.path === 'direct') {
+      setEngine(state);
+      return 'direct';
+    }
+    // Until the backend reports the real start (a key frame for remux), assume `at`.
+    const start = Math.max(0, at);
+    setEngine({ ...state, offset: start });
+    setEmbeddedCues([]);
+    setStartAt(undefined);
+    const hls = prefersHlsDelivery();
+    setStreamKind(hls ? 'hls' : 'direct');
+    // A changing nonce remounts the video element, even for a restart at the same place.
+    setSrc(conversionUrl(base, { decision, start, player: playerId.current, subtitleIndex, burnIndex }, { hls, nonce: token }));
+    setLoading(false);
+    return 'handled';
+  }, [identity, isEpisode, setEngine]);
+
+  const loadStream = useCallback(async (next: StremioStream, at: number, engineOptions: EngineOptions = {}) => {
     const token = ++loadToken.current;
     const verdict = classifyPlayability(next);
     if (!verdict.playable || !next.url) {
@@ -168,25 +294,69 @@ export function useStreamSession({ identity, initialState, clock, onPlayStream, 
     setLoading(true);
     setSrc('');
     setHlsAudio([]);
+    setEngine(null);
+    setEmbeddedCues([]);
     audioApplied.current = false;
     startAtRef.current = at;
 
     // The sheet prepares what it hands over. Everything else is prepared here.
+    let prepared: StremioStream;
     let url: string;
     try {
-      url = next.playbackUrl ?? (await prepareStreamForPlayback(next, identity)).playbackUrl ?? next.url;
+      prepared = next.playbackUrl ? next : await prepareStreamForPlayback(next, identity);
+      url = prepared.playbackUrl ?? next.url;
     } catch {
       if (token === loadToken.current && !closed.current) onPrepareFailed.current();
       return;
     }
     if (token !== loadToken.current || closed.current) return;
+
+    // Files go through the engine; adaptive streams (HLS, DASH) play as they are.
+    const named = streamKindFromName(url) ?? streamKindFromName(next.behaviorHints?.filename ?? '');
+    if (named !== 'hls' && named !== 'dash') {
+      setStatus({ message: 'Preparing the video…' });
+      const result = await playWithEngine(token, prepared, url, at, engineOptions);
+      if (token !== loadToken.current || closed.current) return;
+      setStatus(null);
+      if (result === 'handled') return;
+    }
     const kind = await detectStreamKind(url, next.behaviorHints?.filename);
     if (token !== loadToken.current || closed.current) return;
     setStartAt(at > 0 ? at : undefined);
     setStreamKind(kind);
     setSrc(url);
     setLoading(false);
-  }, [identity]);
+  }, [identity, playWithEngine, setEngine]);
+
+  /** Starts the current source again at `at` through the engine, e.g. after a seek. */
+  const restartEngine = useCallback((at: number, changes: EngineOptions) => {
+    const current = engineRef.current;
+    const playing = streamRef.current;
+    if (!current || !playing || closed.current) return;
+    const token = ++loadToken.current;
+    startAtRef.current = at;
+    setError(null);
+    setLoading(true);
+    setSrc('');
+    const options: EngineOptions = {
+      base: current.base,
+      info: current.info,
+      audioIndex: current.audioIndex,
+      subtitleIndex: current.subtitleIndex,
+      burnIndex: current.burnIndex,
+      avoidDirect: current.avoidDirect,
+      avoidRemux: current.avoidRemux,
+      ...changes,
+    };
+    playWithEngine(token, playing, current.directUrl, at, options).then((result) => {
+      if (token !== loadToken.current || closed.current || result === 'handled') return;
+      setEngine(result === 'direct' ? engineRef.current : null);
+      setStartAt(at > 0 ? at : undefined);
+      setStreamKind('direct');
+      setSrc(current.directUrl);
+      setLoading(false);
+    });
+  }, [playWithEngine, setEngine]);
 
   // First stream, from router state or by looking the title up.
   useEffect(() => {
@@ -377,13 +547,26 @@ export function useStreamSession({ identity, initialState, clock, onPlayStream, 
   const onEngineError = useCallback((message: string) => {
     console.error('Stream playback error');
     if (closed.current) return;
+    // Before trying another source, play this one the next way down: direct, remux, convert.
+    const current = engineRef.current;
+    if (current) {
+      const at = clock.time.current > 1 ? clock.time.current : startAtRef.current;
+      if (current.decision.path === 'direct') {
+        restartEngine(at, { avoidDirect: true });
+        return;
+      }
+      if (current.decision.path === 'remux' && !current.avoidRemux) {
+        restartEngine(at, { avoidDirect: true, avoidRemux: true });
+        return;
+      }
+    }
     const early = clock.time.current < 1;
     if (!attemptRecovery(early)) {
       failPlayback(message.toLowerCase().includes('network')
         ? 'The source stopped responding. Choose another source.'
         : "This source can't be played in this browser. Choose another source.");
     }
-  }, [attemptRecovery, clock, failPlayback]);
+  }, [attemptRecovery, clock, failPlayback, restartEngine]);
 
   onPrepareFailed.current = () => {
     if (!attemptRecovery(clock.time.current < 1)) {
@@ -576,10 +759,88 @@ export function useStreamSession({ identity, initialState, clock, onPlayStream, 
     seriesKey: isEpisode ? `stream:${identity.baseId}` : undefined,
   }), [isEpisode, currentEpisode, title, identity]);
 
-  const subtitles = useMemo(
-    () => mergeSubtitles(stream?.subtitles, addonSubtitles).map(subtitleOption),
-    [stream, addonSubtitles],
-  );
+  const subtitles = useMemo(() => {
+    // Text tracks stream as cues; image tracks (PGS, VobSub) are drawn into a conversion.
+    const embedded: SubtitleOption[] = (engine?.info.subtitles ?? []).map((track) => {
+      const language = track.language && track.language !== 'und' ? track.language.toUpperCase() : 'Unknown';
+      const kind = track.isText ? '' : ' • Image';
+      return {
+        id: track.isText ? `embedded:${track.index}` : `burn:${track.index}`,
+        label: `${language} • In file${track.title ? ` • ${track.title}` : ''}${track.forced ? ' • Forced' : ''}${kind}`,
+        language: track.language,
+        languageCode: track.language,
+        forced: track.forced,
+        default: track.isDefault,
+        delivery: track.isText ? 'embedded' : 'burn',
+      };
+    });
+    return [...embedded, ...mergeSubtitles(stream?.subtitles, addonSubtitles).map(subtitleOption)];
+  }, [stream, addonSubtitles, engine?.info]);
+
+  /** Draws an embedded image subtitle into a conversion (`burn:<index>`), or stops ('0'). */
+  const setBurnedSubtitle = useCallback((id: string) => {
+    const current = engineRef.current;
+    if (!current) return;
+    const index = id.startsWith('burn:') ? Number(id.slice(5)) : null;
+    if (index === current.burnIndex) return;
+    restartEngine(clock.time.current, { burnIndex: index, subtitleIndex: index !== null ? null : current.subtitleIndex });
+  }, [clock, restartEngine]);
+
+  /** Shows an embedded subtitle by restarting the conversion with it, or hides it. */
+  const setEmbeddedSubtitle = useCallback((id: string | null) => {
+    const current = engineRef.current;
+    if (!current) return;
+    const index = id ? Number(id.replace('embedded:', '')) : null;
+    if (index === current.subtitleIndex) return;
+    if (index === null) {
+      setEngine({ ...current, subtitleIndex: null });
+      setEmbeddedCues([]);
+      return;
+    }
+    // A text subtitle replaces a burned one.
+    restartEngine(clock.time.current, { subtitleIndex: index, burnIndex: null });
+  }, [clock, restartEngine, setEngine]);
+
+  // While a conversion runs: learn where it really starts (the clock offset), and
+  // collect embedded subtitle cues, which already use the film's timeline.
+  const conversionSrc = engine && engine.decision.path !== 'direct' ? src : '';
+  useEffect(() => {
+    const current = engineRef.current;
+    if (!conversionSrc || !current) return;
+    const controller = new AbortController();
+    const wantsCues = current.subtitleIndex !== null;
+    let startKnown = false;
+    let text = '';
+    let from = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const poll = async () => {
+      try {
+        const state = await fetchConversionState(current.base, playerId.current, from, controller.signal);
+        if (controller.signal.aborted) return;
+        if (!startKnown && typeof state.start === 'number') {
+          startKnown = true;
+          const latest = engineRef.current;
+          if (latest && latest.base === current.base && Math.abs(latest.offset - state.start) > 0.01) {
+            setEngine({ ...latest, offset: state.start });
+          }
+        }
+        if (wantsCues && state.text) {
+          text += state.text;
+          from = state.next;
+          setEmbeddedCues(parseSubtitles(text, 'vtt'));
+        }
+        const more = !startKnown || (wantsCues && (!state.done || state.missing));
+        if (more) timer = setTimeout(poll, wantsCues && startKnown ? CONVERSION_POLL_MS * 2 : CONVERSION_POLL_MS);
+      } catch {
+        if (!controller.signal.aborted) timer = setTimeout(poll, CONVERSION_POLL_MS * 3);
+      }
+    };
+    timer = setTimeout(poll, 500);
+    return () => {
+      controller.abort();
+      clearTimeout(timer);
+    };
+  }, [conversionSrc, setEngine]);
 
   const scrobbleMedia = useMemo<TraktMediaInfo | null>(() => {
     if (!identity.imdbId && !identity.tmdbId) return null;
@@ -610,15 +871,50 @@ export function useStreamSession({ identity, initialState, clock, onPlayStream, 
     setHlsAudioSelected((preferred ?? tracks.find((track) => track.default) ?? tracks[0]).id);
   }, [identity, isEpisode]);
 
+  const engineAudio = useMemo<TrackOption[]>(() => (engine?.info.audio ?? []).map((track) => ({
+    id: String(track.index),
+    label: audioLabel(track),
+    language: track.language,
+    languageCode: track.language,
+    default: track.isDefault,
+  })), [engine?.info]);
+
   const selectAudio = useCallback((id: string) => {
+    const current = engineRef.current;
+    if (current && current.info.audio.length > 0) {
+      const track = engineAudio.find((option) => option.id === id);
+      if (track) {
+        saveTrackPreference('audio', `stream:${identity.requestId}`, isEpisode ? `stream:${identity.baseId}` : undefined, track.languageCode || track.language || '');
+      }
+      if (Number(id) !== current.audioIndex) restartEngine(clock.time.current, { audioIndex: Number(id) });
+      return;
+    }
     const track = hlsAudio.find((option) => option.id === id);
     if (track) {
       saveTrackPreference('audio', `stream:${identity.requestId}`, isEpisode ? `stream:${identity.baseId}` : undefined, track.languageCode || track.language || '');
     }
     setHlsAudioSelected(id);
-  }, [hlsAudio, identity, isEpisode]);
+  }, [clock, engineAudio, hlsAudio, identity, isEpisode, restartEngine]);
 
-  const stats = useMemo(() => ({ videoDecision: 'directplay', audioDecision: 'directplay', isTranscoding: false }), []);
+  const stats = useMemo(() => {
+    if (!engine) return { videoDecision: 'directplay', audioDecision: 'directplay', isTranscoding: false };
+    const { decision, info } = engine;
+    return {
+      videoDecision: decision.path === 'compatible' ? 'transcode' : decision.path === 'remux' ? 'copy' : 'directplay',
+      audioDecision: decision.path === 'direct' || decision.copyAudio ? 'directplay' : 'transcode',
+      isTranscoding: decision.path === 'compatible',
+      engine: decision.path,
+      engineReason: decision.reason,
+      container: info.container,
+      videoCodec: info.video ? `${info.video.codec} ${info.video.bitDepth}-bit${info.video.hdr ? ` ${info.video.hdr.toUpperCase()}` : ''}${info.video.dolbyVisionProfile !== null ? ` DV${info.video.dolbyVisionProfile}` : ''}` : 'none',
+    };
+  }, [engine]);
+
+  const timeline = useMemo<PlayerSession['timeline']>(() => {
+    if (!engine) return undefined;
+    if (engine.decision.path === 'direct') return { offset: 0, duration: engine.info.duration };
+    return { offset: engine.offset, duration: engine.info.duration, seek: (seconds: number) => restartEngine(seconds, {}) };
+  }, [engine, restartEngine]);
 
   return {
     kind: 'stream',
@@ -636,10 +932,15 @@ export function useStreamSession({ identity, initialState, clock, onPlayStream, 
     exitAtCredits: false,
     scrobbleMedia,
     quality: null,
-    audio: { options: hlsAudio, selected: hlsAudioSelected, select: selectAudio },
+    audio: engineAudio.length > 0
+      ? { options: engineAudio, selected: engine?.audioIndex !== null && engine?.audioIndex !== undefined ? String(engine.audioIndex) : null, select: selectAudio }
+      : { options: hlsAudio, selected: hlsAudioSelected, select: selectAudio },
     subtitles,
+    embeddedCues,
+    setEmbeddedSubtitle,
+    timeline,
     initialSubtitleId: null,
-    setBurnedSubtitle: () => {},
+    setBurnedSubtitle,
     stats,
     next,
     playNext,
@@ -653,7 +954,7 @@ export function useStreamSession({ identity, initialState, clock, onPlayStream, 
     onEnded,
     onReady,
     onAudioTracks,
-    audioTrackIndex: hlsAudioSelected !== null ? Number(hlsAudioSelected) : undefined,
+    audioTrackIndex: engine ? undefined : hlsAudioSelected !== null ? Number(hlsAudioSelected) : undefined,
     exit: onBack,
     goToDetails: onBack,
   };

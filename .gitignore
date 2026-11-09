@@ -26,3 +26,7 @@ Pods/
 libmpv/
 *.apk
 *.xcuserstate
+
+# Test media from scripts/make-media-fixtures.sh
+.media-fixtures/
+

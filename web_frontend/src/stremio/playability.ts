@@ -1,5 +1,5 @@
 /**
- * Whether this browser can play an addon stream. There is no transcoder, so a source
+ * Whether this browser can play an addon stream. Without server conversion a source
  * either plays as it is or is labelled as unplayable. Decisions come from the source
  * type, the file extension, release-name tokens and `canPlayType`. A source with no
  * negative signal counts as playable, as the addon protocol tells addons to flag the rest.
@@ -11,6 +11,23 @@ import type {
 } from './types';
 
 const supportCache = new Map<string, boolean>();
+
+/**
+ * Set when the backend has FFmpeg. Then files the browser can't open as they are
+ * (MKV with TrueHD/DTS/AC3, AVI, HEVC...) still play: the player engine remuxes or
+ * converts them (player/engine). Torrents, NZBs and external links stay unplayable.
+ */
+let serverConversion = false;
+
+export function setServerConversion(available: boolean) {
+  serverConversion = available;
+}
+
+export function hasServerConversion(): boolean {
+  return serverConversion;
+}
+
+const CONVERTIBLE_REASONS = new Set<PlayabilityReason>(['container', 'notWebReady', 'videoCodec', 'audioCodec', 'hdrFormat']);
 
 function canPlay(type: string): boolean {
   let supported = supportCache.get(type);
@@ -115,6 +132,15 @@ function classifyAudio(text: string): BrowserPlayability | null {
 }
 
 export function classifyPlayability(stream: StremioStream): BrowserPlayability {
+  const verdict = classifyForBrowser(stream);
+  if (!verdict.playable && serverConversion && verdict.reason && CONVERTIBLE_REASONS.has(verdict.reason)
+    && !(verdict.reason === 'container' && /adaptive/i.test(verdict.label ?? ''))) {
+    return PLAYABLE;
+  }
+  return verdict;
+}
+
+function classifyForBrowser(stream: StremioStream): BrowserPlayability {
   switch (stream.sourceType) {
     case 'infoHash':
       return unplayable('torrent', "Torrents can't play in a browser");

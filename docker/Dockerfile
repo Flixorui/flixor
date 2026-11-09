@@ -30,10 +30,11 @@ RUN npm run build
 # =============================================================================
 FROM node:20-slim AS production
 
-# Install nginx and supervisord
+# Install nginx, supervisord, and FFmpeg (the web player's remux/convert engine)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     nginx \
     supervisor \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/* \
     && rm /etc/nginx/sites-enabled/default
 

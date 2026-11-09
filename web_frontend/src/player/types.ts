@@ -1,3 +1,4 @@
+import type { SubtitleCue } from './subtitles/parser';
 import type { MutableRefObject } from 'react';
 import type { StremioContentIdentity, StremioStream, StremioSubtitle } from '@/stremio';
 
@@ -42,8 +43,11 @@ export interface TrackOption {
 }
 
 export interface SubtitleOption extends TrackOption {
-  /** `client` tracks are parsed and drawn here. `burn` tracks need a Plex transcode. */
-  delivery: 'client' | 'burn';
+  /**
+   * `client` tracks are parsed and drawn here. `burn` tracks need a Plex transcode.
+   * `embedded` tracks are inside the file; the engine streams their cues.
+   */
+  delivery: 'client' | 'burn' | 'embedded';
   url?: string;
   format?: string;
   addonName?: string;
@@ -163,6 +167,15 @@ export interface PlayerSession {
   };
   /** Subtitle tracks known to this source, without an "Off" entry. */
   subtitles: SubtitleOption[];
+  /** Cues of the embedded subtitle being streamed, on the real timeline. */
+  embeddedCues?: SubtitleCue[];
+  /** Turns an `embedded` track on (by id) or off (null). */
+  setEmbeddedSubtitle?: (id: string | null) => void;
+  /**
+   * Set when the engine plays the source. A converted stream starts at `offset` seconds
+   * of the real film, so the video's own clock is shifted; `seek` restarts it elsewhere.
+   */
+  timeline?: { offset: number; duration: number; seek?: (seconds: number) => void };
   /** Track Plex or the remembered choice already applied, if any. */
   initialSubtitleId: string | null;
   /** Switches a `burn` track on, or off with `'0'`. Restarts the Plex stream. */

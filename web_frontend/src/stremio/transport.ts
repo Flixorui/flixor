@@ -5,7 +5,7 @@
  */
 import { API_BASE_URL } from '@/services/api';
 
-const STREMIO_API = `${API_BASE_URL.replace(/\/$/, '')}/stremio`;
+export const STREMIO_API = `${API_BASE_URL.replace(/\/$/, '')}/stremio`;
 const ROUTE_STORAGE_KEY = 'flixor.stremio.proxiedOrigins';
 
 export class AddonRequestError extends Error {}

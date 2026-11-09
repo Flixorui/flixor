@@ -5,7 +5,7 @@ import {
   listInstalledAddons,
   type InstalledAddon,
 } from './addons';
-import { fetchAddonJson, fetchSubtitleFile, isMixedContent, requestStreamProxyUrl } from './transport';
+import { fetchAddonJson, fetchSubtitleFile, isMixedContent, requestStreamProxyUrl, STREMIO_API } from './transport';
 import type {
   StremioAddonStreams,
   StremioContentIdentity,
@@ -205,6 +205,34 @@ async function hlsIsReadable(url: string, signal: AbortSignal | undefined): Prom
  * browser cannot play the URL itself: request headers the addon requires, http media on
  * an https page, or HLS from a host without CORS.
  */
+/**
+ * The backend proxy address for this stream (`.../stremio/stream/<token>`), minting a
+ * token if the stream was prepared without one. The player engine probes and converts
+ * through it.
+ */
+export async function streamProxyBase(
+  stream: StremioStream,
+  identity: StremioContentIdentity,
+  signal?: AbortSignal,
+): Promise<string> {
+  const prefix = `${STREMIO_API}/stream/`;
+  if (stream.playbackUrl?.startsWith(prefix)) return stream.playbackUrl;
+  if (!stream.url) throw new Error('This source has no link');
+  const addon = listInstalledAddons().find((other) => other.installationId === stream.installationId);
+  if (!addon) throw new Error('The addon for this source is no longer installed');
+  return requestStreamProxyUrl(
+    {
+      manifestUrl: addon.manifestUrl,
+      type: identity.requestType,
+      id: identity.requestId,
+      streamIndex: stream.streamIndex,
+      url: stream.url,
+      filename: stream.behaviorHints?.filename,
+    },
+    signal,
+  );
+}
+
 export async function prepareStreamForPlayback(
   stream: StremioStream,
   identity: StremioContentIdentity,

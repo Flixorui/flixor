@@ -12,6 +12,19 @@ import { isHlsResponse, rewriteHlsPlaylist } from '../services/stremio/hlsPlayli
 import { openStreamToken, sealStreamToken } from '../services/stremio/streamToken';
 import { getDefaultTMDBClient, getUserTMDBClient } from '../services/tmdb/TMDBClient';
 import { OutboundUrlError, assertPublicUrl, safeFetch } from '../utils/outboundUrl';
+import {
+  ConversionLimitError,
+  mediaToolsAvailable,
+  pickVideoEncoder,
+  readConversionState,
+  startConversion,
+  stopConversion,
+} from '../services/media/ffmpeg';
+import { allowPrivateMedia, openRelay } from '../services/media/relay';
+import { probeMedia } from '../services/media/probe';
+import { buildPlayArgs, type PlayMode } from '../services/media/transcode';
+import { addHlsSession, createHlsDir, getHlsSession, HLS_FILE, HLS_SESSION, hlsFile } from '../services/media/hls';
+import fs from 'fs';
 
 // Mounted behind requireAuth in server.ts. Any route here that fetches a
 // user-supplied URL must go through utils/outboundUrl.ts. URLs in this file can embed
@@ -109,7 +122,7 @@ router.post('/stream/token', wrap(async (req, res) => {
   const stream = findAddonStream(data?.streams, url, streamIndex, filename);
   if (!stream) throw new AppError('The addon no longer offers this source', 404);
 
-  await assertPublicUrl(stream.url);
+  await assertPublicUrl(stream.url, { allowPrivateNetwork: allowPrivateMedia() });
   res.json({
     token: sealStreamToken(
       {
@@ -154,6 +167,7 @@ router.get('/stream/:token', wrap(async (req, res) => {
     idleTimeoutMs: 120_000,
     maxBytes: Infinity,
     signal: controller.signal,
+    allowPrivateNetwork: allowPrivateMedia(),
   });
 
   res.setHeader('Cache-Control', 'private, no-store, no-transform'); // no-transform keeps compression off
@@ -191,6 +205,197 @@ router.get('/stream/:token', wrap(async (req, res) => {
     return res.end();
   }
   pipeline(upstream.body, res, () => upstream.abort());
+}));
+
+// ---------------------------------------------------------------------------
+// Player engine: probe, then play directly or through FFmpeg (remux / compatible).
+// FFmpeg reads through the loopback relay (services/media/relay.ts), never the
+// upstream URL, so redirects get the same address checks as the proxy above.
+
+function playerKey(req: AuthenticatedRequest): string {
+  const player = typeof req.query.player === 'string' ? req.query.player : '';
+  if (!/^[\w-]{1,64}$/.test(player)) throw new AppError('Invalid player id', 400);
+  return `${req.user!.id}:${player}`;
+}
+
+function streamIndex(value: unknown): number | null {
+  if (value === undefined || value === '' || value === 'none') return null;
+  const n = Number(value);
+  if (!Number.isInteger(n) || n < 0 || n > 255) throw new AppError('Invalid track', 400);
+  return n;
+}
+
+async function requireMediaTools() {
+  const tools = await mediaToolsAvailable();
+  if (!tools.ffmpeg || !tools.ffprobe) throw new AppError('FFmpeg is not installed on the server', 501);
+  return tools;
+}
+
+/** Whether this server can convert files (FFmpeg installed). */
+router.get('/engine', wrap(async (_req, res) => {
+  const tools = await mediaToolsAvailable();
+  res.json({ conversion: tools.ffmpeg && tools.ffprobe });
+}));
+
+/** What the file contains. `available: false` when the server has no FFmpeg. */
+router.get('/stream/:token/probe', wrap(async (req, res) => {
+  const target = openStreamToken(req.params.token, req.user!.id);
+  const tools = await mediaToolsAvailable();
+  if (!tools.ffmpeg || !tools.ffprobe) return res.json({ available: false });
+  const relay = openRelay(target);
+  try {
+    const info = await probeMedia(relay.url, target.url);
+    res.json({ available: true, info });
+  } catch {
+    throw new AppError('This source could not be read', 502);
+  } finally {
+    relay.release();
+  }
+}));
+
+interface PreparedConversion {
+  args: string[];
+  key: string;
+  relay: { url: string; release: () => void };
+  subtitlePipe: boolean;
+  knownStart?: number;
+}
+
+/** Reads the player's choices from the query, probes, and builds FFmpeg's arguments. */
+async function prepareConversion(req: AuthenticatedRequest, hlsDir?: string): Promise<PreparedConversion> {
+  const target = openStreamToken(req.params.token, req.user!.id);
+  const tools = await requireMediaTools();
+  const key = playerKey(req);
+  const burnIndex = streamIndex(req.query.burn);
+  // Drawing an image subtitle into the picture needs conversion.
+  const mode: PlayMode = req.query.mode === 'compatible' || burnIndex !== null ? 'compatible' : 'remux';
+  const start = Math.max(0, Number(req.query.start) || 0);
+  const audioIndex = streamIndex(req.query.audio);
+  const subtitleIndex = streamIndex(req.query.sub);
+
+  const relay = openRelay(target);
+  const fail = (message: string, status: number): never => {
+    relay.release();
+    throw new AppError(message, status);
+  };
+  let info;
+  try {
+    info = await probeMedia(relay.url, target.url);
+  } catch {
+    return fail('This source could not be read', 502);
+  }
+  if (!info.video) fail('This source has no video', 415);
+  if (audioIndex !== null && !info.audio.some((a) => a.index === audioIndex)) fail('Audio track not found', 400);
+  if (subtitleIndex !== null && !info.subtitles.some((s) => s.index === subtitleIndex && s.isText)) {
+    fail('Subtitle track not found', 400);
+  }
+  const burnTrack = burnIndex === null ? undefined : info.subtitles.find((s) => s.index === burnIndex && !s.isText);
+  if (burnIndex !== null && !burnTrack) fail('Subtitle track not found', 400);
+
+  const args = buildPlayArgs({
+    input: relay.url,
+    mode,
+    start,
+    info,
+    audioIndex,
+    copyAudio: req.query.acopy === '1',
+    audioChannels: req.query.ch === '6' ? 6 : 2,
+    keepDolbyVision: req.query.dv === '1',
+    encoder: await pickVideoEncoder(),
+    filters: tools.filters,
+    subtitleIndex,
+    burnSubtitle: burnTrack ? { index: burnTrack.index, width: burnTrack.width, height: burnTrack.height } : null,
+    hlsDir,
+  });
+  // Conversion seeks exactly; remux starts at a key frame that FFmpeg reports on fd 4.
+  return { args, key, relay, subtitlePipe: subtitleIndex !== null, knownStart: mode === 'compatible' ? start : undefined };
+}
+
+function launch(prepared: PreparedConversion) {
+  try {
+    return startConversion(prepared.key, prepared.args, { subtitlePipe: prepared.subtitlePipe, knownStart: prepared.knownStart });
+  } catch (error) {
+    prepared.relay.release();
+    if (error instanceof ConversionLimitError) throw new AppError(error.message, 503);
+    throw error;
+  }
+}
+
+/** The file as fragmented MP4, remuxed or converted from `start`. */
+router.get('/stream/:token/play', wrap(async (req, res) => {
+  const prepared = await prepareConversion(req);
+  const child = launch(prepared);
+  const stop = () => {
+    stopConversion(child);
+    prepared.relay.release();
+  };
+  res.on('close', stop);
+  child.once('close', () => prepared.relay.release());
+
+  res.setHeader('Content-Type', 'video/mp4');
+  res.setHeader('Cache-Control', 'private, no-store, no-transform');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.status(200);
+  res.flushHeaders();
+  // Backpressure: a paused player stops reading, the pipe fills, and FFmpeg waits.
+  pipeline(child.stdout!, res, () => stop());
+}));
+
+const HLS_TYPES: Record<string, string> = {
+  m3u8: 'application/vnd.apple.mpegurl',
+  mp4: 'video/mp4',
+  m4s: 'video/iso.segment',
+};
+
+/**
+ * The same conversion as HLS, for Safari (services/media/hls.ts). The first playlist
+ * request of a session (`<player>-<n>`) starts FFmpeg with the query's choices; the
+ * playlist's relative segment links resolve inside the same session path.
+ */
+router.get('/stream/:token/hls/:session/:file', wrap(async (req, res) => {
+  const { session, file } = req.params;
+  if (!HLS_SESSION.test(session) || !HLS_FILE.test(file)) throw new AppError('Not found', 404);
+  openStreamToken(req.params.token, req.user!.id);
+  const owner = req.user!.id;
+
+  if (file === 'index.m3u8' && !getHlsSession(owner, session)) {
+    const dir = createHlsDir();
+    let prepared: PreparedConversion;
+    try {
+      prepared = await prepareConversion(req, dir);
+    } catch (error) {
+      fs.rm(dir, { recursive: true, force: true }, () => {});
+      throw error;
+    }
+    const child = launch(prepared);
+    const player = String(req.query.player);
+    addHlsSession(owner, session, player, dir, child, prepared.relay.release);
+  }
+
+  const full = await hlsFile(owner, session, file);
+  if (!full) throw new AppError('This part of the video is not ready', 404);
+  res.setHeader('Content-Type', HLS_TYPES[file.split('.').pop()!] ?? 'application/octet-stream');
+  if (file === 'index.m3u8') {
+    // A growing EVENT playlist looks live, and Safari would start at its newest
+    // segments. EXT-X-START makes it start at the beginning of the conversion.
+    const playlist = await fs.promises.readFile(full, 'utf8');
+    res.setHeader('Cache-Control', 'no-store');
+    return res.send(playlist.replace('#EXTM3U\n', '#EXTM3U\n#EXT-X-START:TIME-OFFSET=0,PRECISE=YES\n'));
+  }
+  res.setHeader('Cache-Control', 'private, max-age=3600');
+  res.sendFile(full);
+}));
+
+/**
+ * The player's current conversion: where it really starts (null until FFmpeg has
+ * written its first video packet), and WebVTT written so far after `from`.
+ */
+router.get('/stream/:token/conversion', wrap(async (req, res) => {
+  openStreamToken(req.params.token, req.user!.id);
+  const key = playerKey(req);
+  const from = Math.max(0, parseInt(String(req.query.from || '0'), 10) || 0);
+  res.setHeader('Cache-Control', 'no-store');
+  res.json(readConversionState(key, from) ?? { start: null, text: '', next: 0, done: true, missing: true });
 }));
 
 export default router;

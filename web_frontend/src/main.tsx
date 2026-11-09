@@ -38,6 +38,7 @@ import TraktSettings from './components/settings/TraktSettings';
 import { initAccent } from './state/accent';
 import { initLogger } from './services/logger';
 import { initProfiles } from './services/profiles';
+import { checkServerConversion } from './player/engine/api';
 
 const router = createBrowserRouter([
   {
@@ -88,6 +89,8 @@ if (typeof window !== 'undefined') {
 initAccent();
 initLogger();
 initProfiles();
+// Source labels need to know early whether the server converts files.
+checkServerConversion();
 
 createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

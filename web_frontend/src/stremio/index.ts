@@ -8,9 +8,9 @@ import type { StremioAddon } from './types';
 export * from './types';
 
 export { resolveContentIdentity, buildContentKey } from './identity';
-export { getStreams, getSubtitles, fetchSubtitleText, prepareStreamForPlayback } from './streams';
+export { getStreams, getSubtitles, fetchSubtitleText, prepareStreamForPlayback, streamProxyBase } from './streams';
 export { getCatalogs, getCatalogItems, searchCatalogs, catalogDisplayName } from './catalogs';
-export { classifyPlayability } from './playability';
+export { classifyPlayability, hasServerConversion, setServerConversion } from './playability';
 export {
   rankStreams,
   rankedPlayable,

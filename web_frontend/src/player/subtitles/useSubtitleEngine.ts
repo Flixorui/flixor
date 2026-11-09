@@ -57,6 +57,9 @@ export function useSubtitleEngine(session: PlayerSession, clock: PlayerClock): S
     if (previous?.delivery === 'burn' && option?.delivery !== 'burn') {
       sessionRef.current.setBurnedSubtitle('0');
     }
+    if (previous?.delivery === 'embedded' && option?.delivery !== 'embedded') {
+      sessionRef.current.setEmbeddedSubtitle?.(null);
+    }
     if (!option) {
       setRawCues([]);
       setLoading(false);
@@ -66,6 +69,13 @@ export function useSubtitleEngine(session: PlayerSession, clock: PlayerClock): S
       setRawCues([]);
       setLoading(false);
       sessionRef.current.setBurnedSubtitle(option.id);
+      return;
+    }
+    if (option.delivery === 'embedded') {
+      // Cues stream in from the conversion; see the effect below.
+      setRawCues([]);
+      setLoading(true);
+      sessionRef.current.setEmbeddedSubtitle?.(option.id);
       return;
     }
 
@@ -127,6 +137,15 @@ export function useSubtitleEngine(session: PlayerSession, clock: PlayerClock): S
       if (flagged) applySelection(flagged);
     }
   }, [options, initialId, itemKey, seriesKey, applySelection]);
+
+  // An embedded track's cues arrive from the session as the conversion writes them.
+  const embeddedCues = session.embeddedCues;
+  const showingEmbedded = selectedRef.current?.delivery === 'embedded';
+  useEffect(() => {
+    if (!showingEmbedded) return;
+    setRawCues(embeddedCues ?? []);
+    if (embeddedCues && embeddedCues.length > 0) setLoading(false);
+  }, [embeddedCues, showingEmbedded, selectedId]);
 
   const cues = useMemo(() => (subtitleFilterSDH ? applySdhFilter(rawCues) : rawCues), [rawCues, subtitleFilterSDH]);
 

@@ -14,11 +14,13 @@ interface Props {
   cues: SubtitleCue[];
   delay: number;
   videoRef: React.RefObject<HTMLVideoElement>;
+  /** Real time at the video's 0, for converted streams that start mid-film. */
+  timeOffset?: number;
   /** Lifts the text clear of the player controls while they are showing. */
   controlsVisible: boolean;
 }
 
-export default function SubtitleOverlay({ cues, delay, videoRef, controlsVisible }: Props) {
+export default function SubtitleOverlay({ cues, delay, videoRef, timeOffset = 0, controlsVisible }: Props) {
   const settings = useSettings();
   const [text, setText] = useState('');
 
@@ -27,13 +29,13 @@ export default function SubtitleOverlay({ cues, delay, videoRef, controlsVisible
     const tick = () => {
       const video = videoRef.current;
       if (!video) return;
-      const index = activeCueIndex(cues, video.currentTime - delay);
+      const index = activeCueIndex(cues, video.currentTime + timeOffset - delay);
       setText(index >= 0 ? cues[index].text : '');
     };
     tick();
     const timer = setInterval(tick, 100);
     return () => clearInterval(timer);
-  }, [cues, delay, videoRef]);
+  }, [cues, delay, videoRef, timeOffset]);
 
   const fontSize = settings.subtitleFontSize ?? 100;
   const bottomOffset = settings.subtitleOffset ?? 0;

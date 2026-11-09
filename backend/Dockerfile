@@ -22,6 +22,11 @@ FROM node:20-slim AS runner
 ENV NODE_ENV=production
 WORKDIR /app
 
+# FFmpeg lets the web player remux or convert addon files browsers can't open
+# (MKV with TrueHD/DTS/AC3, AVI, HEVC). Debian's build includes zscale for HDR.
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
 # Create writable directories for DB and caches (mountable as volumes)
 RUN mkdir -p /app/config/db && mkdir -p /app/cache/images
 

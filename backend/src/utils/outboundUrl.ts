@@ -238,6 +238,25 @@ export interface SafeFetchOptions {
    * hop. Loopback, link-local and cloud metadata stay blocked. Default false.
    */
   allowPrivateNetwork?: boolean;
+  /**
+   * Reuse connections and TLS sessions across requests (media relay range requests).
+   * Each address policy has its own pool, and a pooled socket was checked when it
+   * connected, so reuse can't reach an address the policy blocks.
+   */
+  keepAlive?: boolean;
+}
+
+const pools = new Map<string, http.Agent>();
+
+function pooledAgent(protocol: string, allowPrivateNetwork: boolean | undefined): http.Agent {
+  const key = `${protocol}:${allowPrivateNetwork ? 'private' : 'public'}`;
+  let agent = pools.get(key);
+  if (!agent) {
+    const options = { keepAlive: true, keepAliveMsecs: 15_000, maxSockets: 16, maxFreeSockets: 8, timeout: 60_000 };
+    agent = protocol === 'https:' ? new https.Agent(options) : new http.Agent(options);
+    pools.set(key, agent);
+  }
+  return agent;
 }
 
 export interface SafeFetchResponse {
@@ -277,6 +296,7 @@ export async function safeFetch(
     maxRedirects = 5,
     signal,
     allowPrivateNetwork,
+    keepAlive,
   } = options;
   const deadline = Date.now() + timeoutMs;
   const headers: Record<string, string> = {};
@@ -291,7 +311,7 @@ export async function safeFetch(
   };
 
   for (let redirects = 0; ; redirects++) {
-    const { req, res } = await send(hop, deadline, idleTimeoutMs, signal, allowPrivateNetwork);
+    const { req, res } = await send(hop, deadline, idleTimeoutMs, signal, allowPrivateNetwork, keepAlive);
     const location = res.headers.location;
     if (!location || !REDIRECT_STATUSES.has(res.statusCode ?? 0)) {
       return toResponse(hop.url, req, res, maxBytes, idleTimeoutMs, deadline);
@@ -341,6 +361,7 @@ function send(
   idleTimeoutMs: number,
   signal: AbortSignal | undefined,
   allowPrivateNetwork: boolean | undefined,
+  keepAlive?: boolean,
 ): Promise<{ req: http.ClientRequest; res: http.IncomingMessage }> {
   return new Promise((resolve, reject) => {
     const timeout = () => new OutboundUrlError('TIMEOUT', 'Upstream request timed out');
@@ -356,8 +377,9 @@ function send(
       path: hop.url.pathname + hop.url.search,
       method: hop.method,
       headers: hop.headers,
-      // A pooled socket could skip the lookup check, so every request connects fresh.
-      agent: false,
+      // A shared pool could hand out a socket checked under another policy, so only
+      // callers that ask get a per-policy pool; everyone else connects fresh.
+      agent: keepAlive ? pooledAgent(hop.url.protocol, allowPrivateNetwork) : false,
       lookup: guardedLookup(policyFor(hop.url, allowPrivateNetwork)),
       signal,
     });
