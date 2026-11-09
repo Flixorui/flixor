@@ -1,16 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import RatingsBar from '@/components/RatingsBar';
+import RatingsBar, { type RatingsData } from '@/components/RatingsBar';
 import ContentRatingBadge from '@/components/ContentRatingBadge';
 import { TechBadgeCompact, AccessibilityBadges } from '@/components/TechBadge';
 import RequestButton from '@/components/RequestButton';
 import { useNavigate } from 'react-router-dom';
-
-interface Trailer {
-  key: string;
-  name: string;
-  type?: string;
-  site?: string;
-}
 
 interface DetailsHeroProps {
   title: string;
@@ -23,7 +16,7 @@ interface DetailsHeroProps {
   runtime?: number;
   genres?: string[];
   badges?: string[];
-  ratings?: { imdb?: { rating?: number; votes?: number } | null; rt?: { critic?: number; audience?: number } | null } | null;
+  ratings?: RatingsData | null;
   cast?: Array<{ id?: string; name: string; img?: string }>;
   director?: string;
   moodTags?: string[];
@@ -54,7 +47,8 @@ interface DetailsHeroProps {
   onAddToList?: () => void;
   watchlistProps?: { itemId: string; itemType: 'movie'|'show'; tmdbId?: string|number; imdbId?: string };
   requestProps?: { tmdbId: number; mediaType: 'movie' | 'tv' };
-  onMarkWatched?: () => void;
+  /** Extra circle actions: watched and rating controls. */
+  watchActions?: React.ReactNode;
   onPersonClick?: (person: { id?: string; name: string }) => void;
 
   // Trailer background
@@ -63,10 +57,6 @@ interface DetailsHeroProps {
   trailerMuted?: boolean;
   showTrailer?: boolean;
   onToggleMute?: () => void;
-
-  // Trailers row
-  trailers?: Trailer[];
-  onTrailerClick?: (trailer: Trailer) => void;
 
   // Accessibility badges
   hasCC?: boolean;
@@ -106,7 +96,7 @@ export default function DetailsHero({
   playable = false,
   onPlay,
   onAddToList,
-  onMarkWatched,
+  watchActions,
   watchlistProps,
   requestProps,
   onPersonClick,
@@ -117,8 +107,6 @@ export default function DetailsHero({
   onToggleMute,
   continueLabel,
   onContinue,
-  trailers = [],
-  onTrailerClick,
   hasCC = false,
   hasSDH = false,
   hasAD = false,
@@ -127,13 +115,39 @@ export default function DetailsHero({
   episodeInfo,
   onViewShow,
 }: DetailsHeroProps) {
-  const [imageLoaded, setImageLoaded] = useState(false);
   const [localShowTrailer, setLocalShowTrailer] = useState(showTrailer);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const heroRef = useRef<HTMLDivElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  // The trailer only plays while most of the hero is on screen.
+  const [heroInView, setHeroInView] = useState(true);
+
+  useEffect(() => {
+    const hero = heroRef.current;
+    if (!hero || typeof IntersectionObserver === 'undefined') return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setHeroInView(entry.intersectionRatio >= 0.6),
+      { threshold: [0, 0.3, 0.6, 0.8, 1] },
+    );
+    observer.observe(hero);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!localShowTrailer) return;
+    const video = videoRef.current;
+    if (video) {
+      if (heroInView) video.play().catch(() => {});
+      else video.pause();
+    }
+    iframeRef.current?.contentWindow?.postMessage(
+      JSON.stringify({ event: 'command', func: heroInView ? 'playVideo' : 'pauseVideo', args: [] }),
+      'https://www.youtube.com',
+    );
+  }, [heroInView, localShowTrailer]);
 
   // Reset trailer state when title changes (detected by backdrop/trailer change)
   useEffect(() => {
-    console.log('[DetailsHero] Trailer props changed:', { showTrailer, trailerKey, trailerUrl });
     setLocalShowTrailer(showTrailer);
   }, [showTrailer, trailerUrl, trailerKey, backdrop]);
 
@@ -173,30 +187,15 @@ export default function DetailsHero({
   }, [localShowTrailer, trailerKey]);
 
   return (
-    <div className="relative w-full min-h-[85vh] md:min-h-[90vh] overflow-hidden">
+    <div ref={heroRef} className="relative w-full min-h-[85vh] md:min-h-[90vh] overflow-hidden">
       {/* Background Image/Video Layer */}
       <div className="absolute inset-0">
-        {/* Backdrop image */}
-        {backdrop && (
-          <div className="absolute inset-0">
-            <img
-              src={backdrop}
-              alt=""
-              className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${
-                imageLoaded && !localShowTrailer ? 'opacity-100' : 'opacity-0'
-              }`}
-              style={{
-                maskImage: 'linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 60%, rgba(0,0,0,0.8) 80%, rgba(0,0,0,0) 100%)',
-                WebkitMaskImage: 'linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 60%, rgba(0,0,0,0.8) 80%, rgba(0,0,0,0) 100%)'
-              }}
-              onLoad={() => setImageLoaded(true)}
-            />
-          </div>
-        )}
-
         {/* Trailer overlay - prefer YouTube over Plex for reliability */}
         {localShowTrailer && (trailerUrl || trailerKey) && (
-          <div className="absolute inset-0">
+          <div
+            className="absolute inset-0 transition-opacity duration-500"
+            style={{ opacity: heroInView ? 1 : 0 }}
+          >
             {trailerKey ? (
               <div
                 className="absolute inset-0 w-full h-full"
@@ -206,6 +205,7 @@ export default function DetailsHero({
                 }}
               >
                 <iframe
+                  ref={iframeRef}
                   id="hero-trailer-iframe"
                   className="absolute inset-0 w-full h-full scale-125 origin-center"
                 src={`https://www.youtube.com/embed/${trailerKey}?autoplay=1&mute=${
@@ -251,21 +251,11 @@ export default function DetailsHero({
           </div>
         )}
 
-        {/* Gradient Overlays - seamless blend */}
-        <div className="absolute inset-0">
-          {/* Bottom fade - matches page background */}
-          <div className="absolute inset-0 bg-gradient-to-t from-[#0b0b0b] via-[#0b0b0b]/80 via-50% to-transparent" />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#141414] via-[#141414]/40 via-60% to-transparent" />
-          {/* Side fade for content readability */}
-          <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 via-50% to-transparent" />
-          {/* Extra bottom blend for seamless transition */}
-          <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-[#0b0b0b] to-transparent" />
-        </div>
       </div>
 
       {/* Content Layer - Two Column Layout like MacOS */}
       <div className="relative z-10 flex flex-col justify-end min-h-[85vh] md:min-h-[90vh]">
-        <div className="px-4 md:px-8 lg:px-12 xl:px-16 pb-12 md:pb-16">
+        <div className="page-gutter pb-12 md:pb-16">
           <div className="flex justify-between items-end gap-8">
             {/* Left Column - Main Content */}
             <div className="flex-1 max-w-3xl">
@@ -386,8 +376,8 @@ export default function DetailsHero({
                     Not Available
                   </span>
                 )}
-                {ratings && (ratings.imdb || ratings.rt) && (
-                  <RatingsBar imdb={ratings.imdb || undefined} rt={ratings.rt || undefined} size="sm" />
+                {ratings && (
+                  <RatingsBar {...ratings} size="sm" />
                 )}
               </div>
 
@@ -441,18 +431,7 @@ export default function DetailsHero({
                   </button>
                 )}
 
-                {/* Mark Watched - Circle Icon Button */}
-                {onMarkWatched && (
-                  <button
-                    onClick={onMarkWatched}
-                    className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 border border-white/30 text-white hover:bg-white/20 transition-all"
-                    title="Mark as Watched"
-                  >
-                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
-                    </svg>
-                  </button>
-                )}
+                {watchActions}
 
                 {requestProps && (
                   <RequestButton
@@ -477,49 +456,6 @@ export default function DetailsHero({
                 )}
               </div>
 
-              {/* Trailers & Videos Row */}
-              {trailers.length > 0 && (
-                <div className="mb-6">
-                  <h3 className="text-xs font-medium text-white/50 mb-2 uppercase tracking-wider">Trailers & Videos</h3>
-                  <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2 -mx-1 px-1">
-                    {trailers.slice(0, 8).map((trailer) => (
-                      <button
-                        key={trailer.key}
-                        onClick={() => onTrailerClick?.(trailer)}
-                        className="flex-shrink-0 group relative rounded-lg overflow-hidden focus:outline-none focus:ring-2 focus:ring-white/50"
-                      >
-                        {/* Thumbnail */}
-                        <div className="relative w-[140px] md:w-[160px] aspect-video bg-black/40">
-                          <img
-                            src={`https://img.youtube.com/vi/${trailer.key}/mqdefault.jpg`}
-                            alt={trailer.name}
-                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                            loading="lazy"
-                          />
-                          {/* Type Badge */}
-                          {trailer.type && (
-                            <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 text-[10px] font-semibold bg-red-600 text-white rounded">
-                              {trailer.type === 'Trailer' ? 'TRAILER' : trailer.type.toUpperCase()}
-                            </span>
-                          )}
-                          {/* Play overlay */}
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/40 transition-colors">
-                            <div className="w-10 h-10 rounded-full bg-white/90 flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
-                              <svg className="w-4 h-4 text-black ml-0.5" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M8 5v14l11-7z" />
-                              </svg>
-                            </div>
-                          </div>
-                        </div>
-                        {/* Title */}
-                        <div className="absolute bottom-0 left-0 right-0 p-1.5 bg-gradient-to-t from-black/90 to-transparent">
-                          <p className="text-[11px] text-white font-medium truncate">{trailer.name}</p>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* Right Column - Starring & Director (Desktop only) */}
@@ -605,7 +541,7 @@ export default function DetailsHero({
       {localShowTrailer && (trailerUrl || trailerKey) && (
         <button
           onClick={onToggleMute}
-          className="absolute bottom-8 right-8 p-3 bg-white/20 backdrop-blur-sm rounded-full hover:bg-white/30 transition-all"
+          className="absolute bottom-8 right-8 lg:bottom-auto lg:top-24 p-3 bg-white/20 backdrop-blur-sm rounded-full hover:bg-white/30 transition-all"
           aria-label={trailerMuted ? 'Unmute' : 'Mute'}
         >
           {trailerMuted ? (

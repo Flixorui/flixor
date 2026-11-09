@@ -17,7 +17,11 @@
       "@/routes/*": ["src/routes/*"],
       "@/services/*": ["src/services/*"],
       "@/state/*": ["src/state/*"],
-      "@/hooks/*": ["src/hooks/*"]
+      "@/hooks/*": ["src/hooks/*"],
+      "@/version": ["src/version.ts"],
+      "@/stremio": ["src/stremio/index.ts"],
+      "@/stremio/*": ["src/stremio/*"],
+      "@/player/*": ["src/player/*"]
     }
   },
   "include": ["src"]

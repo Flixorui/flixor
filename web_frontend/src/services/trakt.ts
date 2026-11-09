@@ -1,12 +1,40 @@
 import { loadSettings, saveSettings } from '@/state/settings';
 import { cached } from '@/services/cache';
 import { API_BASE_URL } from './api';
+import { clearTraktReconnect, traktNeedsReconnect } from './traktConnection';
 
 // Always use backend proxy for Trakt (same-origin or configured API base)
 const TRAKT = `${API_BASE_URL.replace(/\/$/, '')}/trakt`;
-// Keep client constants unused to avoid exposing secrets in the browser
-const CLIENT_ID = '';
-const CLIENT_SECRET = '';
+
+export class TraktApiError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = 'TraktApiError';
+    this.status = status;
+  }
+}
+
+/** JSON request to the backend's Trakt routes, using the session cookie. */
+async function traktFetch<T = any>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`${TRAKT}${path}`, {
+    ...init,
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', ...init?.headers },
+  });
+  if (!response.ok) {
+    let message = `Trakt request failed: ${response.status}`;
+    try {
+      const body = await response.json();
+      if (body?.message || body?.error) message = String(body.message || body.error);
+    } catch {
+      // Keep the status message.
+    }
+    throw new TraktApiError(response.status, message);
+  }
+  return response.json();
+}
 
 export interface TraktDeviceCode {
   device_code: string;
@@ -146,60 +174,27 @@ export async function traktPollForToken(deviceCode: string): Promise<TraktTokens
 
   // Success envelope from backend
   if (data && data.ok === true && data.tokens) {
+    clearTraktReconnect();
     return data.tokens as TraktTokens;
   }
 
   // In case backend returns raw Trakt tokens directly
   if (data && data.access_token) {
+    clearTraktReconnect();
     return data as TraktTokens;
   }
 
   throw new Error('Unexpected token response');
 }
 
-export async function traktRefreshToken(refreshToken: string): Promise<TraktTokens> {
-  // Web fallback
-
-  // Web fallback
-  const response = await fetch(`${TRAKT}/oauth/token`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      refresh_token: refreshToken,
-      client_id: CLIENT_ID,
-      client_secret: CLIENT_SECRET,
-      grant_type: 'refresh_token'
-    })
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to refresh token: ${response.status}`);
-  }
-
-  return response.json();
+export async function traktRefreshToken(_refreshToken: string): Promise<TraktTokens> {
+  // The backend holds the refresh token.
+  return traktFetch<TraktTokens>('/oauth/token', { method: 'POST', body: '{}' });
 }
 
-export async function traktRevokeToken(accessToken: string): Promise<void> {
-  // Web fallback
-
-  // Web fallback
-  const response = await fetch(`${TRAKT}/oauth/revoke`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      token: accessToken,
-      client_id: CLIENT_ID,
-      client_secret: CLIENT_SECRET
-    })
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to revoke token: ${response.status}`);
-  }
+/** Revokes the token on Trakt and clears it from the backend. */
+export async function traktRevokeToken(_accessToken: string): Promise<void> {
+  await traktFetch('/oauth/revoke', { method: 'POST', body: '{}' });
 }
 
 // User
@@ -283,40 +278,91 @@ export async function traktGetHistory(accessToken: string, type?: 'movies' | 'sh
   return response.json();
 }
 
-export async function traktAddToHistory(accessToken: string, items: any[]): Promise<any> {
-  // Web-only
-
-  const response = await fetch(`${TRAKT}/sync/history`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-      'trakt-api-version': '2',
-      'trakt-api-key': CLIENT_ID
-    },
-    body: JSON.stringify(items)
-  });
-
-  if (!response.ok) throw new Error(`Failed to add to history: ${response.status}`);
-  return response.json();
+export interface TraktSyncResult {
+  added?: Record<string, number>;
+  deleted?: Record<string, number>;
+  not_found?: Record<string, unknown[]>;
 }
 
-export async function traktRemoveFromHistory(accessToken: string, items: any[]): Promise<any> {
-  // Web-only
+export async function traktAddToHistory(_accessToken: string, items: any): Promise<TraktSyncResult> {
+  return traktSyncHistoryAdd(items);
+}
 
-  const response = await fetch(`${TRAKT}/sync/history/remove`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-      'trakt-api-version': '2',
-      'trakt-api-key': CLIENT_ID
-    },
-    body: JSON.stringify(items)
-  });
+export async function traktRemoveFromHistory(_accessToken: string, items: any): Promise<TraktSyncResult> {
+  return traktSyncHistoryRemove(items);
+}
 
-  if (!response.ok) throw new Error(`Failed to remove from history: ${response.status}`);
-  return response.json();
+export const traktSyncHistoryAdd = (items: any) =>
+  traktFetch<TraktSyncResult>('/sync/history', { method: 'POST', body: JSON.stringify(items) });
+
+export const traktSyncHistoryRemove = (items: any) =>
+  traktFetch<TraktSyncResult>('/sync/history/remove', { method: 'POST', body: JSON.stringify(items) });
+
+export const traktItemHistory = (type: 'movies' | 'shows' | 'seasons' | 'episodes', traktId: number, limit = 1) =>
+  traktFetch<any[]>(`/sync/history/${type}/${traktId}?limit=${limit}`);
+
+// Playback progress
+export interface TraktPlaybackItem {
+  id: number;
+  progress: number;
+  paused_at?: string;
+  type: 'movie' | 'episode';
+  movie?: TraktMovie & { runtime?: number };
+  show?: TraktShow & { runtime?: number };
+  episode?: TraktEpisode & { runtime?: number };
+}
+
+export const traktGetPlayback = (type?: 'movies' | 'episodes') =>
+  traktFetch<TraktPlaybackItem[]>(`/sync/playback${type ? `/${type}` : ''}`);
+
+export const traktRemovePlayback = (id: number) =>
+  traktFetch(`/sync/playback/${id}`, { method: 'DELETE' });
+
+// Ratings
+export const traktGetRatings = (type: 'movies' | 'shows' | 'seasons' | 'episodes') =>
+  traktFetch<any[]>(`/sync/ratings/${type}`);
+
+export const traktAddRatings = (items: any) =>
+  traktFetch<TraktSyncResult>('/sync/ratings', { method: 'POST', body: JSON.stringify(items) });
+
+export const traktRemoveRatings = (items: any) =>
+  traktFetch<TraktSyncResult>('/sync/ratings/remove', { method: 'POST', body: JSON.stringify(items) });
+
+// Watched shows and show progress
+export interface TraktWatchedShowSummary {
+  last_watched_at?: string;
+  show: TraktShow & { runtime?: number };
+}
+
+export interface TraktShowProgress {
+  aired: number;
+  completed: number;
+  last_watched_at?: string;
+  seasons: Array<{
+    number: number;
+    aired: number;
+    completed: number;
+    episodes: Array<{ number: number; completed: boolean; last_watched_at?: string }>;
+  }>;
+  next_episode?: (TraktEpisode & { runtime?: number }) | null;
+}
+
+export const traktWatchedShows = () => traktFetch<TraktWatchedShowSummary[]>('/sync/watched/shows');
+
+export const traktShowProgress = (showId: string | number) =>
+  traktFetch<TraktShowProgress>(`/shows/${encodeURIComponent(String(showId))}/progress/watched`);
+
+/** Finds the Trakt item for an external id. Works without a Trakt login. */
+export async function traktLookupId(
+  source: 'tmdb' | 'imdb' | 'tvdb',
+  id: string | number,
+  type?: 'movie' | 'show',
+): Promise<any | null> {
+  const results = await traktFetch<any[]>(
+    `/search/id/${source}/${encodeURIComponent(String(id))}${type ? `?type=${type}` : ''}`,
+  );
+  const wanted = (r: any) => !type || r?.type === type;
+  return (results || []).find(wanted) ?? null;
 }
 
 // Watchlist
@@ -350,16 +396,6 @@ export async function traktRemoveFromWatchlist(accessToken: string, items: any[]
   });
 
   if (!response.ok) throw new Error(`Failed to remove from watchlist: ${response.status}`);
-  return response.json();
-}
-
-// Progress
-export async function traktGetProgress(accessToken: string, type: 'shows', sort?: string): Promise<any[]> {
-  let url = `${TRAKT}/users/me/watched/${type}/progress`;
-  if (sort) url += `?sort=${sort}`;
-  const response = await fetch(url, { credentials: 'include' });
-
-  if (!response.ok) throw new Error(`Failed to get progress: ${response.status}`);
   return response.json();
 }
 
@@ -410,9 +446,7 @@ export async function traktMostWatched(type: 'movies'|'shows', period: 'daily'|'
   const url = limit ? `${urlBase}?limit=${limit}` : urlBase;
   // 30m TTL
   return cached(`trakt:mostwatched:${type}:${period}:${limit||'all'}`, 30 * 60 * 1000, async () => {
-    const res = await fetch(url, {
-      headers: { 'trakt-api-version': '2', 'trakt-api-key': CLIENT_ID }
-    });
+    const res = await fetch(url);
     if (!res.ok) throw new Error(`Failed to get most watched: ${res.status}`);
     return res.json();
   });
@@ -424,9 +458,7 @@ export async function traktAnticipated(type: 'movies'|'shows', limit?: number): 
   const urlBase = `${TRAKT}/${type}/anticipated`;
   const url = limit ? `${urlBase}?limit=${limit}` : urlBase;
   return cached(`trakt:anticipated:${type}:${limit||'all'}`, 30 * 60 * 1000, async () => {
-    const res = await fetch(url, {
-      headers: { 'trakt-api-version': '2', 'trakt-api-key': CLIENT_ID }
-    });
+    const res = await fetch(url);
     if (!res.ok) throw new Error(`Failed to get anticipated: ${res.status}`);
     return res.json();
   });
@@ -434,6 +466,7 @@ export async function traktAnticipated(type: 'movies'|'shows', limit?: number): 
 
 // Token Management Helpers
 export function getTraktTokens(): TraktTokens | null {
+  if (traktNeedsReconnect()) return null;
   const settings = loadSettings();
   if (settings.traktTokens) {
     try {
@@ -455,9 +488,9 @@ export function isTraktAuthenticated(): boolean {
   const tokens = getTraktTokens();
   if (!tokens) return false;
 
-  // Check if token is expired
+  // The backend refreshes expired tokens, so a refresh token is enough.
   const expiresAt = (tokens.created_at + tokens.expires_in) * 1000;
-  return Date.now() < expiresAt;
+  return Date.now() < expiresAt || !!tokens.refresh_token;
 }
 
 export async function ensureValidToken(): Promise<string | null> {

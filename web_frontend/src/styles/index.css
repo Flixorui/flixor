@@ -2,6 +2,23 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Accent color. state/accent.ts overwrites these from the accentPalette setting. */
+:root {
+  --accent-rgb: 229 9 20;
+  --accent-strong-rgb: 178 7 16;
+  --accent-bright-rgb: 255 59 71;
+  --accent: rgb(var(--accent-rgb));
+}
+
+/* Pure black background (Settings > Appearance). state/accent.ts sets the attribute. */
+html[data-pure-black] body,
+html[data-pure-black] .app-bg-fixed,
+html[data-pure-black] .bg-home-gradient,
+html[data-pure-black] .bg-app-gradient,
+html[data-pure-black] .bg-\[\#0b0b0d\],
+html[data-pure-black] .bg-\[\#0a0a0a\] { background: #000; }
+html[data-pure-black] .app-bg-fixed::after { display: none; }
+
 /* Prevent horizontal scroll from any bleed elements */
 html, body, #root { overflow-x: hidden; }
 
@@ -73,6 +90,28 @@ body {
     -webkit-backdrop-filter: blur(var(--nav-blur, 0));
     transition: background 200ms ease, border-color 200ms ease, backdrop-filter 200ms ease;
   }
+  /* Floating nav: labels slide open and shut by animating a grid track. */
+  .nav-label { display: grid; flex-shrink: 0; grid-template-columns: 0fr; opacity: 0; transition: grid-template-columns 320ms cubic-bezier(0.4, 0, 0.2, 1), opacity 320ms cubic-bezier(0.4, 0, 0.2, 1); }
+  .nav-label[data-open='true'] { grid-template-columns: 1fr; opacity: 1; }
+  .nav-label > span { min-width: 0; overflow: hidden; white-space: nowrap; }
+  .nav-track { transition: background-color 320ms ease, backdrop-filter 320ms ease; }
+  .nav-track[data-frosted='true'] {
+    background: linear-gradient(to bottom, rgba(255,255,255,0.14), rgba(255,255,255,0.03) 50%, transparent), rgba(28,28,30,0.55);
+    -webkit-backdrop-filter: blur(24px) saturate(160%);
+    backdrop-filter: blur(24px) saturate(160%);
+  }
+  .nav-track[data-frosted='false'] { background: rgba(15,15,17,0.2); }
+  .nav-selection { background: rgb(var(--accent-rgb) / 0.28); }
+  .nav-selection[data-glow='true'] { box-shadow: 0 0 12px rgb(var(--accent-rgb) / 0.55); }
+  .nav-selection[data-animate='true'] { transition: transform 380ms cubic-bezier(0.34, 1.4, 0.64, 1), width 380ms cubic-bezier(0.34, 1.4, 0.64, 1); }
+  @media (prefers-reduced-motion: reduce) {
+    .nav-label, .nav-track, .nav-selection[data-animate='true'] { transition: none; }
+  }
+  /* Room for the sidebar rail beside the page content (md and up). */
+  @media (min-width: 768px) {
+    .has-nav-rail { --nav-rail-inset: 68px; padding-left: 68px; transition: padding-left 240ms ease; }
+    .has-nav-rail[data-pinned='true'] { --nav-rail-inset: 200px; padding-left: 200px; }
+  }
   .input { @apply px-3 py-2 rounded bg-neutral-900 border border-neutral-800 text-sm text-neutral-200 placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-white/10; }
   .btn { @apply inline-flex items-center justify-center px-4 py-2 rounded bg-white/10 hover:bg-white/20 text-sm font-medium; }
   .btn-primary { @apply bg-brand hover:bg-brand-600 text-white; }
@@ -129,7 +168,11 @@ body {
     padding-right: 0;
   }
   /* Viewport bleed that does not create horizontal scroll */
-  .bleed { width: 100vw; margin-left: calc(50% - 50vw); margin-right: calc(50% - 50vw); }
+  .bleed {
+    width: calc(100vw - var(--nav-rail-inset, 0px));
+    margin-left: calc(50% - (100vw - var(--nav-rail-inset, 0px)) / 2);
+    margin-right: calc(50% - (100vw - var(--nav-rail-inset, 0px)) / 2);
+  }
   /* Row band used to render a boxed background per row.
      We’re de-emphasizing it so rows flow over the page background. */
   .row-band { position: relative; border-radius: 22px; overflow: visible; border: 0; background: transparent; box-shadow: none; }

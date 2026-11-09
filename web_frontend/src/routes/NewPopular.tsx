@@ -9,6 +9,7 @@ import { cached } from '@/services/cache';
 import HomeHero from '@/components/HomeHero';
 import WatchlistButton from '@/components/WatchlistButton';
 import Row from '@/components/Row';
+import SectionBanner from '@/components/SectionBanner';
 import UltraBlurBackground from '@/components/UltraBlurBackground';
 
 type TabType = 'trending' | 'top10' | 'coming-soon' | 'worth-wait';
@@ -45,9 +46,11 @@ export default function NewPopular() {
   const [popular, setPopular] = useState<MediaItem[]>([]);
   const [upcoming, setUpcoming] = useState<MediaItem[]>([]);
 
+  const libraryOnly = settings.discoveryDisabled === true;
+
   useEffect(() => {
-    loadContent();
-  }, [activeTab, contentType, period]);
+    if (!libraryOnly) loadContent();
+  }, [activeTab, contentType, period, libraryOnly]);
 
   async function loadContent() {
     setLoading(true);
@@ -300,6 +303,14 @@ export default function NewPopular() {
   const handleItemClick = (id: string) => {
     navigate(`/details/${encodeURIComponent(id)}`);
   };
+
+  if (libraryOnly) {
+    return (
+      <div className="pt-24">
+        <SectionBanner title="New & Popular" message="Library Only Mode is on, so discovery features are turned off." cta="Open Settings" to="/settings" />
+      </div>
+    );
+  }
 
   return (
     <UltraBlurBackground imageUrl={hero?.backdrop} className="min-h-screen pb-12">

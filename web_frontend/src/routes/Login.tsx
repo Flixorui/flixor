@@ -105,7 +105,7 @@ export default function Login() {
             <div className="absolute -inset-6 rounded-3xl bg-gradient-to-br from-white/10 to-white/0 blur-2xl" />
             <div className="relative z-10">
               <div className="inline-flex items-baseline gap-2 mb-4">
-                <span className="text-5xl font-extrabold tracking-tight text-brand">FLIXOR</span>
+                <span className="text-5xl font-extrabold tracking-tight text-[#E50914]">FLIXOR</span>
                 <span className="text-sm px-2 py-1 rounded bg-white/10 text-white/80 align-middle">web</span>
               </div>
               <h2 className="text-2xl md:text-3xl text-white/90 font-semibold leading-tight mb-4">A Netflix‑quality Plex client</h2>

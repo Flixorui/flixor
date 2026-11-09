@@ -1,318 +1,332 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { loadSettings } from '@/state/settings';
+import LandscapeCard from '@/components/LandscapeCard';
+import SearchDiscover from '@/components/SearchDiscover';
+import SearchInput from '@/components/SearchInput';
+import SearchRecent from '@/components/SearchRecent';
+import SearchResults, { type SearchResult } from '@/components/SearchResults';
+import { appToast } from '@/components/cards/cardActions';
+import { detailsPath, resolveDetailsId, stremioItemToCard } from '@/components/cards/cardMedia';
+import type { CardItem } from '@/components/cards/cardTypes';
 import { apiClient } from '@/services/api';
 import { plexBackendSearch } from '@/services/plex_backend';
-import { tmdbSearchMulti, tmdbTrending, tmdbImage } from '@/services/tmdb';
-import SearchInput from '@/components/SearchInput';
-import SearchResults from '@/components/SearchResults';
-import SmartImage from '@/components/SmartImage';
+import { filterEnabledLibraries, getAllCollections, getPlexLibraries } from '@/services/plexCollections';
+import { tmdbImage, tmdbSearchMulti, tmdbTrending } from '@/services/tmdb';
+import { getSettings, saveSettings, useSettings, type SearchIdleTab } from '@/state/settings';
+import { searchCatalogs } from '@/stremio';
 
-type SearchResult = {
-  id: string;
-  title: string;
-  type: 'movie' | 'tv' | 'person' | 'collection';
-  image?: string;
-  year?: string;
-  overview?: string;
-  available?: boolean;
-};
+const RECENT_LIMIT = 15;
+const DEBOUNCE_MS = 300;
+
+function normalize(text: string) {
+  return text.trim().replace(/\s+/g, ' ');
+}
+
+function recordRecentSearch(text: string) {
+  const normalized = normalize(text);
+  if (!normalized) return;
+  const current = getSettings().recentSearches;
+  const next = [normalized, ...current.filter((entry) => entry.toLowerCase() !== normalized.toLowerCase())].slice(0, RECENT_LIMIT);
+  saveSettings({ recentSearches: next });
+}
+
+async function searchPlex(query: string): Promise<SearchResult[]> {
+  const [movies, shows]: any[] = await Promise.all([plexBackendSearch(query, 1), plexBackendSearch(query, 2)]);
+  const toResult = (type: 'movie' | 'tv') => (item: any): SearchResult => ({
+    id: `plex:${item.ratingKey}`,
+    title: item.title,
+    type,
+    image: apiClient.getPlexImageNoToken(item.thumb || item.art || ''),
+    year: item.year ? String(item.year) : undefined,
+    overview: item.summary,
+    available: true,
+  });
+  return [
+    ...(movies?.MediaContainer?.Metadata || []).slice(0, 10).map(toResult('movie')),
+    ...(shows?.MediaContainer?.Metadata || []).slice(0, 10).map(toResult('tv')),
+  ];
+}
+
+async function searchCollections(query: string): Promise<SearchResult[]> {
+  const libraries = filterEnabledLibraries(await getPlexLibraries(), getSettings().enabledLibraryKeys);
+  const wanted = query.toLowerCase();
+  return (await getAllCollections(libraries))
+    .filter((collection) => collection.title.toLowerCase().includes(wanted))
+    .slice(0, 12)
+    .map((collection) => ({ id: collection.ratingKey, title: collection.title, type: 'collection', image: collection.image }));
+}
+
+async function searchTmdb(query: string): Promise<SearchResult[]> {
+  const res: any = await tmdbSearchMulti('', query);
+  return (res?.results || []).slice(0, 30).flatMap((item: any): SearchResult[] => {
+    if (item.media_type === 'person') {
+      return [{
+        id: String(item.id),
+        title: item.name,
+        type: 'person',
+        image: tmdbImage(item.profile_path, 'w500'),
+        subtitle: item.known_for_department,
+      }];
+    }
+    if (item.media_type !== 'movie' && item.media_type !== 'tv') return [];
+    return [{
+      id: `tmdb:${item.media_type}:${item.id}`,
+      title: item.title || item.name,
+      type: item.media_type,
+      image: tmdbImage(item.poster_path, 'w500') || tmdbImage(item.backdrop_path, 'w780'),
+      year: String(item.release_date || item.first_air_date || '').slice(0, 4) || undefined,
+      overview: item.overview,
+      available: false,
+    }];
+  });
+}
+
+async function searchAddons(query: string): Promise<SearchResult[]> {
+  const entries = await searchCatalogs(query);
+  return entries.map((entry) => {
+    const card = stremioItemToCard(entry);
+    return {
+      id: card.id,
+      title: card.title,
+      type: entry.type === 'series' ? 'tv' : 'movie',
+      image: card.image,
+      year: entry.year ? String(entry.year) : undefined,
+      addon: 'Addons',
+    };
+  });
+}
+
+/** Keeps the first result per title, in source order: Plex, TMDB, then addons. */
+function mergeResults(sections: SearchResult[][]) {
+  const titles = new Set<string>();
+  const ids = new Set<string>();
+  const merged: SearchResult[] = [];
+  for (const result of sections.flat()) {
+    if (ids.has(`${result.type}:${result.id}`)) continue;
+    if (result.type === 'movie' || result.type === 'tv') {
+      const key = result.title.toLowerCase();
+      if (titles.has(key)) continue;
+      titles.add(key);
+    }
+    ids.add(`${result.type}:${result.id}`);
+    merged.push(result);
+  }
+  return merged;
+}
 
 export default function Search() {
   const nav = useNavigate();
+  const settings = useSettings();
   const [searchParams, setSearchParams] = useSearchParams();
   const [query, setQuery] = useState(searchParams.get('q') || '');
   const [results, setResults] = useState<SearchResult[]>([]);
-  const [trendingItems, setTrendingItems] = useState<SearchResult[]>([]);
+  const [activeQuery, setActiveQuery] = useState('');
   const [loading, setLoading] = useState(false);
-  const [searchMode, setSearchMode] = useState<'idle' | 'searching' | 'results'>('idle');
-  const searchTimeoutRef = useRef<NodeJS.Timeout>();
+  const [failed, setFailed] = useState(false);
+  const [trending, setTrending] = useState<CardItem[]>([]);
+  const requestId = useRef(0);
 
-  // Load initial content on mount
+  const tmdbAllowed = settings.discoveryDisabled !== true && settings.includeTmdbInSearch !== false;
+  const addonsAllowed = settings.discoveryDisabled !== true && settings.stremioCatalogSearchEnabled;
+  const idleTab: SearchIdleTab = tmdbAllowed ? settings.searchIdleTab : 'explore';
+
   useEffect(() => {
-    loadInitialContent();
-  }, []);
-
-  // Handle query changes
-  useEffect(() => {
-    if (query) {
-      setSearchParams({ q: query });
-      setSearchMode('searching');
-      performSearch(query);
-    } else {
-      setSearchParams({});
-      setSearchMode('idle');
-      setResults([]);
-    }
-  }, [query]);
-
-  async function loadInitialContent() {
-    const s = loadSettings();
-
-    // Load trending items from TMDB
-    if (s.tmdbBearer) {
-      try {
-        const [trendingMovies, trendingShows] = await Promise.all([
-          tmdbTrending(s.tmdbBearer, 'movie', 'week'),
-          tmdbTrending(s.tmdbBearer, 'tv', 'week')
-        ]);
-
-        const trending: SearchResult[] = [];
-
-        // Interleave movies and shows for variety
-        const movies = (trendingMovies as any).results?.slice(0, 6) || [];
-        const shows = (trendingShows as any).results?.slice(0, 6) || [];
-
-        for (let i = 0; i < Math.max(movies.length, shows.length); i++) {
-          if (movies[i]) {
-            trending.push({
-              id: `tmdb:movie:${movies[i].id}`,
-              title: movies[i].title,
-              type: 'movie',
-              image: tmdbImage(movies[i].backdrop_path, 'w780') || tmdbImage(movies[i].poster_path, 'w500'),
-              year: movies[i].release_date?.slice(0, 4)
-            });
-          }
-          if (shows[i]) {
-            trending.push({
-              id: `tmdb:tv:${shows[i].id}`,
-              title: shows[i].name,
-              type: 'tv',
-              image: tmdbImage(shows[i].backdrop_path, 'w780') || tmdbImage(shows[i].poster_path, 'w500'),
-              year: shows[i].first_air_date?.slice(0, 4)
-            });
-          }
-        }
-
-        setTrendingItems(trending.slice(0, 12));
-      } catch (err) {
-        console.error('Failed to load trending content:', err);
-      }
-    }
-  }
-
-  const performSearch = useCallback(async (searchQuery: string) => {
-    if (!searchQuery.trim()) {
-      setResults([]);
-      setSearchMode('idle');
+    if (!tmdbAllowed) {
+      setTrending([]);
       return;
     }
+    let alive = true;
+    Promise.all([tmdbTrending('', 'movie', 'week'), tmdbTrending('', 'tv', 'week')])
+      .then(([movies, shows]: any[]) => {
+        if (!alive) return;
+        const toCard = (media: 'movie' | 'tv') => (r: any): CardItem => ({
+          id: `tmdb:${media}:${r.id}`,
+          title: r.title || r.name,
+          image: tmdbImage(r.backdrop_path, 'w780') || tmdbImage(r.poster_path, 'w500'),
+          backdrop: tmdbImage(r.backdrop_path, 'w780'),
+          mediaType: media === 'movie' ? 'movie' : 'show',
+          year: String(r.release_date || r.first_air_date || '').slice(0, 4) || undefined,
+        });
+        const movieCards: CardItem[] = (movies?.results || []).slice(0, 6).map(toCard('movie'));
+        const showCards: CardItem[] = (shows?.results || []).slice(0, 6).map(toCard('tv'));
+        const interleaved = Array.from({ length: Math.max(movieCards.length, showCards.length) }).flatMap((_, i) => [movieCards[i], showCards[i]].filter(Boolean));
+        setTrending(interleaved.slice(0, 12));
+      })
+      .catch((err) => console.error('Failed to load trending content:', err));
+    return () => {
+      alive = false;
+    };
+  }, [tmdbAllowed]);
 
-    setLoading(true);
-    const s = loadSettings();
-    const searchResults: SearchResult[] = [];
+  const runSearch = useCallback(
+    async (text: string) => {
+      const id = ++requestId.current;
+      const s = getSettings();
+      const plexReady = !!s.plexBaseUrl && !!s.plexToken;
+      setLoading(true);
+      setFailed(false);
+      setActiveQuery(text);
 
-    try {
-      // Search Plex first
-      if (s.plexBaseUrl && s.plexToken) {
-        try {
-          // Search movies and TV shows in parallel
-          const [plexMovies, plexShows] = await Promise.all([
-            plexBackendSearch(searchQuery, 1),
-            plexBackendSearch(searchQuery, 2)
-          ]);
+      const sources: Array<Promise<SearchResult[]>> = [];
+      if (plexReady) sources.push(searchPlex(text), searchCollections(text));
+      if (tmdbAllowed) sources.push(searchTmdb(text));
+      if (addonsAllowed) sources.push(searchAddons(text));
 
-          const movieResults = (plexMovies as any)?.MediaContainer?.Metadata || [];
-          const showResults = (plexShows as any)?.MediaContainer?.Metadata || [];
-
-          movieResults.slice(0, 10).forEach((item: any) => {
-            searchResults.push({
-              id: `plex:${item.ratingKey}`,
-              title: item.title,
-              type: 'movie',
-              image: apiClient.getPlexImageNoToken((item.thumb || item.art) || ''),
-              year: item.year ? String(item.year) : undefined,
-              overview: item.summary,
-              available: true
-            });
-          });
-
-          showResults.slice(0, 10).forEach((item: any) => {
-            searchResults.push({
-              id: `plex:${item.ratingKey}`,
-              title: item.title,
-              type: 'tv',
-              image: apiClient.getPlexImageNoToken((item.thumb || item.art) || ''),
-              year: item.year ? String(item.year) : undefined,
-              overview: item.summary,
-              available: true
-            });
-          });
-        } catch (err) {
-          console.error('Plex search failed:', err);
-        }
+      const sections: SearchResult[][] = sources.map(() => []);
+      let settled = 0;
+      let failures = 0;
+      await Promise.all(
+        sources.map((source, index) =>
+          source
+            .then((found) => {
+              sections[index] = found;
+            })
+            .catch(() => {
+              failures += 1;
+            })
+            .finally(() => {
+              settled += 1;
+              if (id !== requestId.current) return;
+              setResults(mergeResults(sections));
+              if (settled === sources.length) {
+                setLoading(false);
+                setFailed(failures === sources.length && sources.length > 0);
+              }
+            }),
+        ),
+      );
+      if (sources.length === 0 && id === requestId.current) {
+        setResults([]);
+        setLoading(false);
       }
+    },
+    [tmdbAllowed, addonsAllowed],
+  );
 
-      // Search TMDB
-      if (s.tmdbBearer) {
-        try {
-          const tmdbResults: any = await tmdbSearchMulti(s.tmdbBearer, searchQuery);
-          const tmdbItems = tmdbResults?.results || [];
-
-          tmdbItems.slice(0, 20).forEach((item: any) => {
-            // Skip if already in Plex results or if it's a person
-            if (item.media_type === 'person') return;
-
-            const plexMatch = searchResults.find(r =>
-              r.title.toLowerCase() === (item.title || item.name || '').toLowerCase()
-            );
-
-            if (!plexMatch) {
-              searchResults.push({
-                id: `tmdb:${item.media_type}:${item.id}`,
-                title: item.title || item.name,
-                type: item.media_type as 'movie' | 'tv',
-                image: tmdbImage(item.poster_path, 'w500') || tmdbImage(item.backdrop_path, 'w780'),
-                year: (item.release_date || item.first_air_date)?.slice(0, 4),
-                overview: item.overview,
-                available: false
-              });
-            }
-          });
-        } catch (err) {
-          console.error('TMDB search failed:', err);
-        }
-      }
-
-      setResults(searchResults);
-      setSearchMode('results');
-    } finally {
+  useEffect(() => {
+    const normalized = normalize(query);
+    setSearchParams(normalized ? { q: normalized } : {}, { replace: true });
+    if (!normalized) {
+      requestId.current += 1;
+      setActiveQuery('');
+      setResults([]);
       setLoading(false);
+      return;
     }
-  }, []);
+    setLoading(true);
+    const timer = window.setTimeout(() => runSearch(normalized), DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+    // setSearchParams changes identity on every navigation.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, runSearch]);
 
-  const handleSearch = useCallback((value: string) => {
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current);
-    }
+  const openCard = async (item: CardItem) => {
+    if (normalize(query)) recordRecentSearch(query);
+    const id = await resolveDetailsId(item);
+    if (id) nav(detailsPath(id));
+    else appToast(`Could not find details for ${item.title}`);
+  };
 
-    setQuery(value);
-
-    if (value) {
-      searchTimeoutRef.current = setTimeout(() => {
-        performSearch(value);
-      }, 300);
-    }
-  }, [performSearch]);
-
-  const handleItemClick = (item: SearchResult) => {
-    if (item.type === 'collection') {
+  const handleResult = (item: SearchResult) => {
+    if (item.type === 'person') {
+      recordRecentSearch(query);
+      nav(`/person/${encodeURIComponent(item.id)}`);
+    } else if (item.type === 'collection') {
+      recordRecentSearch(query);
       nav(`/library?collection=${encodeURIComponent(item.id)}`);
     } else {
-      nav(`/details/${encodeURIComponent(item.id)}`);
+      openCard({ id: item.id, title: item.title, year: item.year });
     }
   };
 
+  const searching = !!normalize(query);
+  const recent = settings.recentSearches;
+
   return (
     <div className="min-h-screen relative">
-      {/* Background with accent gradients - matching MacOS */}
       <div className="fixed inset-0 pointer-events-none">
-        {/* Base dark gradient */}
-        <div
-          className="absolute inset-0"
-          style={{
-            background: 'linear-gradient(to bottom, #0a0a0a 0%, #0f0f10 50%, #0b0c0d 100%)'
-          }}
-        />
-        {/* Teal accent (top-right) */}
-        <div
-          className="absolute inset-0"
-          style={{
-            background: 'radial-gradient(circle at 88% 10%, rgba(20, 76, 84, 0.28) 0%, transparent 50%)'
-          }}
-        />
-        {/* Red accent (bottom-left) */}
-        <div
-          className="absolute inset-0"
-          style={{
-            background: 'radial-gradient(circle at 12% 88%, rgba(122, 22, 18, 0.30) 0%, transparent 50%)'
-          }}
-        />
+        <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, #0a0a0a 0%, #0f0f10 50%, #0b0c0d 100%)' }} />
+        <div className="absolute inset-0" style={{ background: 'radial-gradient(circle at 88% 10%, rgba(20, 76, 84, 0.28) 0%, transparent 50%)' }} />
+        <div className="absolute inset-0" style={{ background: 'radial-gradient(circle at 12% 88%, rgba(122, 22, 18, 0.30) 0%, transparent 50%)' }} />
       </div>
 
-      {/* Content */}
       <div className="relative z-10 pt-20 pb-10">
         <div className="page-gutter">
-          {/* Search Input */}
           <div className="max-w-2xl mb-10">
-            <SearchInput
-              value={query}
-              onChange={handleSearch}
-              autoFocus
-            />
+            <SearchInput value={query} onChange={setQuery} onSubmit={() => recordRecentSearch(query)} autoFocus />
           </div>
 
-          {/* Search Results */}
-          {searchMode === 'results' && (
+          {searching ? (
             <div className="mb-12">
-              {loading ? (
+              {results.length > 0 && <SearchResults results={results} onItemClick={handleResult} />}
+              {loading && results.length === 0 && (
                 <div className="text-center py-20">
-                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-white" />
                   <p className="mt-4 text-neutral-400">Searching...</p>
                 </div>
-              ) : results.length > 0 ? (
-                <SearchResults
-                  results={results}
-                  onItemClick={handleItemClick}
-                />
-              ) : (
+              )}
+              {!loading && results.length === 0 && (
                 <div className="text-center py-20">
-                  <p className="text-xl text-neutral-400">No results found for "{query}"</p>
-                  <p className="mt-2 text-sm text-neutral-500">Try searching with different keywords</p>
+                  {failed ? (
+                    <>
+                      <p className="text-xl text-neutral-400">Search failed</p>
+                      <button className="btn mt-4" onClick={() => runSearch(activeQuery || normalize(query))}>Retry</button>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-xl text-neutral-400">No results found for "{activeQuery || normalize(query)}"</p>
+                      <p className="mt-2 text-sm text-neutral-500">Try searching with different keywords</p>
+                    </>
+                  )}
                 </div>
               )}
             </div>
-          )}
-
-          {/* Idle State - Show Trending */}
-          {searchMode === 'idle' && trendingItems.length > 0 && (
-            <div>
-              <h2 className="text-lg font-semibold mb-4 text-white">Recommended TV Shows & Movies</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                {trendingItems.map(item => (
-                  <TrendingCard key={item.id} item={item} onClick={() => handleItemClick(item)} />
-                ))}
-              </div>
-            </div>
+          ) : (
+            <>
+              {recent.length > 0 && (
+                <SearchRecent
+                  searches={recent}
+                  onSelect={(text) => {
+                    setQuery(text);
+                    recordRecentSearch(text);
+                  }}
+                  onRemove={(text) => saveSettings({ recentSearches: getSettings().recentSearches.filter((entry) => entry !== text) })}
+                  onClear={() => saveSettings({ recentSearches: [] })}
+                />
+              )}
+              {tmdbAllowed && (
+                <div className="flex gap-1 mb-6" role="tablist" aria-label="Search mode">
+                  {(['explore', 'discover'] as const).map((tab) => (
+                    <button
+                      key={tab}
+                      role="tab"
+                      aria-selected={idleTab === tab}
+                      onClick={() => saveSettings({ searchIdleTab: tab })}
+                      className={`px-4 py-1.5 rounded-full text-sm font-semibold ${idleTab === tab ? 'bg-white text-black' : 'bg-white/10 text-white/80 hover:text-white'}`}
+                    >
+                      {tab === 'explore' ? 'Explore' : 'Discover'}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {idleTab === 'discover' ? (
+                <SearchDiscover onOpen={openCard} />
+              ) : (
+                trending.length > 0 && (
+                  <div>
+                    <h2 className="text-lg font-semibold mb-4 text-white">Recommended TV Shows & Movies</h2>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                      {trending.map((item) => (
+                        <LandscapeCard key={item.id} id={item.id} title={item.title} image={item.image} item={item} layout="grid" onClick={() => openCard(item)} />
+                      ))}
+                    </div>
+                  </div>
+                )
+              )}
+            </>
           )}
         </div>
       </div>
     </div>
-  );
-}
-
-function TrendingCard({ item, onClick }: { item: SearchResult; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className="group text-left focus:outline-none"
-    >
-      <div className="relative aspect-video rounded-lg overflow-hidden bg-neutral-800 ring-1 ring-white/10 group-hover:ring-white/30 transition-all">
-        {item.image ? (
-          <SmartImage
-            url={item.image}
-            alt={item.title}
-            width={320}
-            className="w-full h-full"
-            imgClassName="object-cover"
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center text-neutral-600">
-            <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z" />
-            </svg>
-          </div>
-        )}
-
-        {/* Gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-
-        {/* Title on hover */}
-        <div className="absolute bottom-0 left-0 right-0 p-3 translate-y-full group-hover:translate-y-0 transition-transform">
-          <p className="text-sm font-medium text-white truncate">{item.title}</p>
-          <p className="text-xs text-neutral-400">{item.year} • {item.type === 'movie' ? 'Movie' : 'TV Show'}</p>
-        </div>
-      </div>
-    </button>
   );
 }

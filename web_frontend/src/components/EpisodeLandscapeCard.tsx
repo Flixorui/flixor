@@ -9,24 +9,31 @@ export type Episode = {
   progress?: number; // percent 0-100
   index?: number; // episode number
   airDate?: string;
+  rating?: number; // 0-10
+  watched?: boolean;
 };
 
 type Props = {
   ep: Episode;
   onClick?: (id: string) => void;
   disabled?: boolean;
+  /** Blurs the still and hides the synopsis, until revealed. */
+  spoilerHidden?: boolean;
+  onReveal?: () => void;
+  onToggleWatched?: () => void;
 };
 
-export default function EpisodeLandscapeCard({ ep, onClick, disabled = false }: Props) {
+export default function EpisodeLandscapeCard({ ep, onClick, disabled = false, spoilerHidden = false, onReveal, onToggleWatched }: Props) {
   const progressPercent = ep.progress || 0;
   const showProgress = progressPercent > 0 && progressPercent < 85;
-  const showCompleted = progressPercent >= 85;
+  const showCompleted = progressPercent >= 85 || !!ep.watched;
 
   return (
+    <div className="group relative flex-shrink-0 w-[300px] md:w-[420px] aspect-[16/10]">
     <button
       onClick={() => !disabled && onClick?.(ep.id)}
       disabled={disabled}
-      className={`flex-shrink-0 w-[300px] md:w-[420px] aspect-[16/10] rounded-xl overflow-hidden bg-neutral-800 relative group text-left ${
+      className={`absolute inset-0 rounded-xl overflow-hidden bg-neutral-800 text-left ${
         disabled ? 'opacity-60 cursor-default' : 'cursor-pointer'
       }`}
     >
@@ -36,7 +43,7 @@ export default function EpisodeLandscapeCard({ ep, onClick, disabled = false }: 
           url={ep.image}
           alt={ep.title}
           width={420}
-          className="absolute inset-0 w-full h-full"
+          className={`absolute inset-0 w-full h-full ${spoilerHidden ? 'blur-2xl scale-110' : ''}`}
           imgClassName="object-cover"
         />
       ) : (
@@ -68,7 +75,9 @@ export default function EpisodeLandscapeCard({ ep, onClick, disabled = false }: 
         </h3>
 
         {/* Overview - 2 lines max */}
-        {ep.overview && (
+        {spoilerHidden ? (
+          <p className="text-neutral-400 text-[13px] italic mt-1">Synopsis hidden to avoid spoilers.</p>
+        ) : ep.overview && (
           <p className="text-neutral-300 text-[13px] line-clamp-2 mt-1 leading-[1.4]">
             {ep.overview}
           </p>
@@ -81,6 +90,7 @@ export default function EpisodeLandscapeCard({ ep, onClick, disabled = false }: 
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <span className="text-[13px]">{ep.duration}m</span>
+            {ep.rating != null && <span className="text-[13px] text-amber-300">★ {ep.rating.toFixed(1)}</span>}
           </div>
         )}
       </div>
@@ -95,5 +105,23 @@ export default function EpisodeLandscapeCard({ ep, onClick, disabled = false }: 
         </div>
       )}
     </button>
+    {(onToggleWatched || (spoilerHidden && onReveal)) && (
+      <div className="absolute right-3 top-3 flex gap-2 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+        {spoilerHidden && onReveal && (
+          <button onClick={onReveal} className="rounded-full bg-black/60 px-2.5 py-1 text-xs text-white hover:bg-black/80">Reveal</button>
+        )}
+        {onToggleWatched && (
+          <button
+            onClick={onToggleWatched}
+            aria-label={ep.watched ? `Mark ${ep.title} as unwatched` : `Mark ${ep.title} as watched`}
+            title={ep.watched ? 'Mark as unwatched' : 'Mark as watched'}
+            className={`rounded-full px-2.5 py-1 text-xs hover:bg-black/80 ${ep.watched ? 'bg-white text-black' : 'bg-black/60 text-white'}`}
+          >
+            {ep.watched ? 'Unwatched' : 'Watched'}
+          </button>
+        )}
+      </div>
+    )}
+    </div>
   );
 }

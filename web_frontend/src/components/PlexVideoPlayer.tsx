@@ -33,7 +33,18 @@ interface PlexVideoPlayerProps {
   onCodecError?: (error: string) => void; // Callback for codec-specific errors
   onUserSeek?: () => void;
   onStatsUpdate?: (stats: PlayerStats) => void; // Real-time stats callback
+  /** Skips URL sniffing. Addon URLs often have no telling extension. */
+  streamKind?: 'hls' | 'dash' | 'direct';
+  /** Null plays without CORS, which addon hosts rarely allow. Default 'anonymous'. */
+  crossOrigin?: 'anonymous' | null;
+  objectFit?: React.CSSProperties['objectFit'];
+  videoTransform?: string;
+  /** HLS audio renditions, when the stream has more than one. */
+  onAudioTracks?: (tracks: Array<{ id: string; label: string; language?: string; languageCode?: string; default?: boolean }>) => void;
+  audioTrackIndex?: number;
 }
+
+const MAX_HLS_FATAL_RETRIES = 3;
 
 export default function PlexVideoPlayer({
   src,
@@ -53,6 +64,12 @@ export default function PlexVideoPlayer({
   onCodecError,
   onUserSeek,
   onStatsUpdate,
+  streamKind,
+  crossOrigin = 'anonymous',
+  objectFit = 'contain',
+  videoTransform,
+  onAudioTracks,
+  audioTrackIndex,
 }: PlexVideoPlayerProps) {
   const internalVideoRef = useRef<HTMLVideoElement>(null);
   const videoRef = externalVideoRef || internalVideoRef;
@@ -74,6 +91,7 @@ export default function PlexVideoPlayer({
   const onCodecErrorRef = useRef(onCodecError);
   const onUserSeekRef = useRef(onUserSeek);
   const onStatsUpdateRef = useRef(onStatsUpdate);
+  const onAudioTracksRef = useRef(onAudioTracks);
 
   // Keep refs in sync with props
   useEffect(() => { onTimeUpdateRef.current = onTimeUpdate; }, [onTimeUpdate]);
@@ -85,6 +103,7 @@ export default function PlexVideoPlayer({
   useEffect(() => { onCodecErrorRef.current = onCodecError; }, [onCodecError]);
   useEffect(() => { onUserSeekRef.current = onUserSeek; }, [onUserSeek]);
   useEffect(() => { onStatsUpdateRef.current = onStatsUpdate; }, [onStatsUpdate]);
+  useEffect(() => { onAudioTracksRef.current = onAudioTracks; }, [onAudioTracks]);
 
   // Stats collection effect - collect real-time stats from dash.js/hls.js
   // Only collects when onStatsUpdate callback is provided
@@ -191,6 +210,16 @@ export default function PlexVideoPlayer({
 
     // console.log('PlexVideoPlayer: Setting up player for URL:', src);
 
+    // Direct Plex URLs carry their token in the query, so they need no credentials.
+    const applyCrossOrigin = () => {
+      if (crossOrigin === null) {
+        video.removeAttribute('crossorigin');
+        return;
+      }
+      const isDirectPlexUrl = src.includes('X-Plex-Token') || src.includes('plex.direct');
+      video.crossOrigin = isDirectPlexUrl ? 'anonymous' : 'use-credentials';
+    };
+
     const setupPlayer = () => {
       // Reset ready state when setting up new player
       setIsReady(false);
@@ -198,7 +227,6 @@ export default function PlexVideoPlayer({
       initialSeekDoneRef.current = false;
       // Update start time ref with current prop value
       startTimeRef.current = startTime;
-      console.log('[Resume Debug] PlexVideoPlayer setupPlayer - startTime prop:', startTime, 'startTimeRef.current:', startTimeRef.current);
 
       // Clean up previous HLS instance
       if (hlsRef.current) {
@@ -230,12 +258,12 @@ export default function PlexVideoPlayer({
       video.load();
 
       // Determine stream type
-      const isDash = src.includes('.mpd');
-      const isHls = src.includes('.m3u8');
+      const kind = streamKind ?? (src.includes('.mpd') ? 'dash' : src.includes('.m3u8') ? 'hls' : 'direct');
+      const isHls = kind === 'hls';
+      const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+      const useNativeHls = isHls && (isSafari || !Hls.isSupported()) && video.canPlayType('application/vnd.apple.mpegurl') !== '';
 
-      console.log('[Player] Stream type:', isDash ? 'DASH' : isHls ? 'HLS' : 'Direct', 'URL:', src.substring(0, 100));
-
-      if (isDash) {
+      if (kind === 'dash') {
         // Use DASH.js for DASH streams
         // console.log('Using DASH.js for:', src);
         const dash = dashjs.MediaPlayer().create();
@@ -268,12 +296,9 @@ export default function PlexVideoPlayer({
           debug: { logLevel: 0 },
         } as any);
 
-        console.log('[Player] DASH.js initialized');
-
         // Initialize DASH player with start time if available
         // Pass startTime as 4th parameter to initialize for proper initial seek
         const initialStartTime = startTimeRef.current && startTimeRef.current > 0 ? startTimeRef.current : undefined;
-        console.log('[Resume Debug] DASH initializing with startTime:', initialStartTime);
         dash.initialize(video, src, autoPlay, initialStartTime);
 
         // Handle DASH events
@@ -287,17 +312,15 @@ export default function PlexVideoPlayer({
 
         // Seek on CAN_PLAY for more reliable positioning (fallback if initialize didn't seek)
         dash.on(dashjs.MediaPlayer.events.CAN_PLAY, () => {
-          console.log('[Resume Debug] DASH CAN_PLAY - initialSeekDoneRef:', initialSeekDoneRef.current, 'startTimeRef:', startTimeRef.current, 'currentTime:', video.currentTime);
           // Only seek if we haven't already and current position is near 0
           if (!initialSeekDoneRef.current && startTimeRef.current && startTimeRef.current > 0 && video.currentTime < 5) {
-            console.log('[Resume Debug] DASH CAN_PLAY seeking to:', startTimeRef.current);
             dash.seek(startTimeRef.current);
             initialSeekDoneRef.current = true;
           }
         });
 
         dash.on(dashjs.MediaPlayer.events.ERROR, (e: any) => {
-          console.error('DASH error:', e);
+          console.error('DASH error:', e.error?.code);
           const errorMsg = e.error?.message || e.error?.code || 'Unknown error';
 
           // Check for Dolby Vision codec mismatch errors
@@ -320,15 +343,12 @@ export default function PlexVideoPlayer({
         });
 
         dashRef.current = dash;
-      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      } else if (useNativeHls) {
         // Safari native HLS support
-        // console.log('Using native HLS support');
-        // Don't use credentials for direct Plex URLs (token is in URL params)
-        const isDirectPlexUrl = src.includes('X-Plex-Token') || src.includes('plex.direct');
-        try { (video as any).crossOrigin = isDirectPlexUrl ? 'anonymous' : 'use-credentials'; } catch {}
+        applyCrossOrigin();
         video.src = src;
         video.load();
-      } else if (Hls.isSupported()) {
+      } else if (isHls && Hls.isSupported()) {
         // Use HLS.js for other browsers
         // console.log('Using HLS.js for:', src);
 
@@ -361,13 +381,14 @@ export default function PlexVideoPlayer({
           nudgeMaxRetry: 5,
           xhrSetup: (xhr: XMLHttpRequest, url: string) => {
             // Only send credentials for proxied URLs, not direct Plex URLs
-            if (!isDirectPlexUrl && !url.includes('X-Plex-Token') && !url.includes('plex.direct')) {
+            // Same-origin requests send the session anyway; this covers a separate API origin.
+            if (url.includes('/stremio/stream/')) {
+              xhr.withCredentials = true;
+            } else if (crossOrigin !== null && !isDirectPlexUrl && !url.includes('X-Plex-Token') && !url.includes('plex.direct')) {
               xhr.withCredentials = true;
             }
           },
         });
-
-        console.log('[Player] HLS.js initialized');
 
         hls.loadSource(src);
         hls.attachMedia(video);
@@ -380,9 +401,7 @@ export default function PlexVideoPlayer({
           }
           // Seek to start position for HLS streams (must be after manifest parsed)
           // Use ref to ensure we only seek once per source
-          console.log('[Resume Debug] HLS MANIFEST_PARSED - initialSeekDoneRef:', initialSeekDoneRef.current, 'startTimeRef:', startTimeRef.current);
           if (!initialSeekDoneRef.current && startTimeRef.current && startTimeRef.current > 0) {
-            console.log('[Resume Debug] HLS seeking to:', startTimeRef.current);
             video.currentTime = startTimeRef.current;
             initialSeekDoneRef.current = true;
           }
@@ -391,26 +410,54 @@ export default function PlexVideoPlayer({
           }
         });
 
+        const reportAudioTracks = () => {
+          const tracks = hls.audioTracks ?? [];
+          onAudioTracksRef.current?.(
+            tracks.length > 1
+              ? tracks.map((track, index) => ({
+                  id: String(index),
+                  label: track.name || track.lang || `Track ${index + 1}`,
+                  language: track.lang,
+                  languageCode: track.lang,
+                  default: track.default,
+                }))
+              : [],
+          );
+        };
+        hls.on(Hls.Events.MANIFEST_PARSED, reportAudioTracks);
+        hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, reportAudioTracks);
+
+        let fatalNetworkRetries = 0;
+        let fatalMediaRetries = 0;
+        const reportFatal = (details: string) => {
+          onErrorRef.current?.(`HLS Error: ${details}`);
+          hls.destroy();
+        };
+
         hls.on(Hls.Events.ERROR, (event, data) => {
           // Don't log non-fatal errors unless they're important
           if (data.fatal || data.details === 'bufferStalledError' || data.details === 'bufferAppendError') {
-            console.error('HLS error:', event, data);
+            // Details only: `data` holds URLs, which can carry tokens or debrid keys.
+            console.error('HLS error:', data.type, data.details);
           }
 
           if (data.fatal) {
             switch (data.type) {
               case Hls.ErrorTypes.NETWORK_ERROR:
+                fatalNetworkRetries += 1;
+                if (fatalNetworkRetries > MAX_HLS_FATAL_RETRIES) { reportFatal(data.details); break; }
                 console.error('Fatal network error, trying to recover');
                 hls.startLoad();
                 break;
               case Hls.ErrorTypes.MEDIA_ERROR:
+                fatalMediaRetries += 1;
+                if (fatalMediaRetries > MAX_HLS_FATAL_RETRIES) { reportFatal(data.details); break; }
                 console.error('Fatal media error, trying to recover');
                 hls.recoverMediaError();
                 break;
               default:
                 console.error('Fatal error, cannot recover');
-                onErrorRef.current?.(`HLS Error: ${data.details}`);
-                hls.destroy();
+                reportFatal(data.details);
                 break;
             }
           } else {
@@ -445,11 +492,8 @@ export default function PlexVideoPlayer({
 
         hlsRef.current = hls;
       } else {
-        // Fallback to direct playback
-        // console.log('HLS not supported, trying direct playback');
-        // Don't use credentials for direct Plex URLs (token is in URL params)
-        const isDirectPlexUrl = src.includes('X-Plex-Token') || src.includes('plex.direct');
-        try { (video as any).crossOrigin = isDirectPlexUrl ? 'anonymous' : 'use-credentials'; } catch {}
+        // Direct file playback
+        applyCrossOrigin();
         video.src = src;
         video.load();
       }
@@ -486,7 +530,7 @@ export default function PlexVideoPlayer({
     const handleError = (e: Event) => {
       const error = video.error;
       console.error('Video error:', error);
-      const errorMsg = error?.message || 'Unknown error';
+      const errorMsg = error?.message || (error?.code ? `MediaError ${error.code}` : 'Unknown error');
 
       // Check for Dolby Vision or codec mismatch errors
       if (errorMsg.includes('dolbyvision') ||
@@ -524,9 +568,7 @@ export default function PlexVideoPlayer({
 
     // Universal fallback: seek on canplay if we still haven't seeked and position is near 0
     const handleCanPlay = () => {
-      console.log('[Resume Debug] canplay event - initialSeekDoneRef:', initialSeekDoneRef.current, 'startTimeRef:', startTimeRef.current, 'currentTime:', video.currentTime);
       if (!initialSeekDoneRef.current && startTimeRef.current && startTimeRef.current > 0 && video.currentTime < 5) {
-        console.log('[Resume Debug] canplay fallback seeking to:', startTimeRef.current);
         video.currentTime = startTimeRef.current;
         initialSeekDoneRef.current = true;
       }
@@ -607,6 +649,13 @@ export default function PlexVideoPlayer({
     video.volume = Math.max(0, Math.min(1, volume));
   }, [volume]);
 
+  // Handle HLS audio track selection
+  useEffect(() => {
+    const hls = hlsRef.current;
+    if (!hls || audioTrackIndex === undefined || audioTrackIndex < 0) return;
+    if (hls.audioTrack !== audioTrackIndex) hls.audioTrack = audioTrackIndex;
+  }, [audioTrackIndex, isReady]);
+
   // Handle playback rate
   useEffect(() => {
     const video = videoRef.current;
@@ -617,11 +666,12 @@ export default function PlexVideoPlayer({
   return (
     <video
       ref={videoRef}
-      className="w-full h-full object-contain"
+      className="w-full h-full"
+      style={{ objectFit, transform: videoTransform }}
       poster={poster}
       playsInline
       controls={false} // We'll use custom controls
-      crossOrigin="anonymous"
+      crossOrigin={crossOrigin ?? undefined}
     />
   );
 }

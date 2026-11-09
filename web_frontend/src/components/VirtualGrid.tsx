@@ -1,16 +1,18 @@
 import { useMemo, useRef, useState, useEffect } from 'react';
 
-type Item = { id: string; title: string; image?: string; subtitle?: string; badge?: string };
+type Item = { id: string };
 
-export default function VirtualGrid({ items, rowHeight = 280, columnWidth = 160, gap = 12, overscan = 3, render, hasMore, loadMore }: {
-  items: Item[];
+export default function VirtualGrid<T extends Item>({ items, rowHeight = 280, columnWidth = 160, gap = 12, overscan = 3, render, hasMore, loadMore, singleColumn = false }: {
+  items: T[];
   rowHeight?: number;
   columnWidth?: number;
   gap?: number;
   overscan?: number;
-  render: (item: Item) => JSX.Element;
+  render: (item: T) => JSX.Element;
   hasMore?: boolean;
   loadMore?: () => void;
+  /** One full-width item per row, for list views. */
+  singleColumn?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scrollTop, setScrollTop] = useState(0);
@@ -54,16 +56,18 @@ export default function VirtualGrid({ items, rowHeight = 280, columnWidth = 160,
   }, []);
 
   const columnCount = useMemo(() => {
+    if (singleColumn) return 1;
     const w = containerWidth;
     return Math.max(1, Math.floor((w + gap) / (columnWidth + gap)));
-  }, [containerWidth, columnWidth, gap]);
+  }, [containerWidth, columnWidth, gap, singleColumn]);
+  const cellWidth = singleColumn ? Math.max(0, containerWidth - gap) : columnWidth;
 
   const rowCount = Math.ceil(items.length / columnCount);
   const startRow = Math.max(0, Math.floor(scrollTop / (rowHeight + gap)) - overscan);
   const endRow = Math.min(rowCount, Math.ceil((scrollTop + height) / (rowHeight + gap)) + overscan);
 
   const visibleItems = useMemo(() => {
-    const out: Array<{ item: Item; style: React.CSSProperties; key: string }> = [];
+    const out: Array<{ item: T; style: React.CSSProperties; key: string }> = [];
     for (let r = startRow; r < endRow; r++) {
       for (let c = 0; c < columnCount; c++) {
         const idx = r * columnCount + c;
@@ -75,15 +79,15 @@ export default function VirtualGrid({ items, rowHeight = 280, columnWidth = 160,
           style: {
             position: 'absolute',
             top: r * (rowHeight + gap),
-            left: c * (columnWidth + gap),
-            width: columnWidth,
+            left: c * (cellWidth + gap),
+            width: cellWidth,
             height: rowHeight,
           },
         });
       }
     }
     return out;
-  }, [items, startRow, endRow, columnCount, rowHeight, gap, columnWidth]);
+  }, [items, startRow, endRow, columnCount, rowHeight, gap, cellWidth]);
 
   return (
     <div ref={containerRef} className="relative overflow-auto will-change-transform" style={{ height: 'calc(100vh - 140px)' }}>

@@ -28,6 +28,32 @@ const TTL_OPTIONS = [
   { label: '24 hours', value: 24 * 60 * 60 * 1000 },
 ];
 
+function SegmentedPicker<T extends string>({ label, value, options, onChange }: {
+  label: string;
+  value: T;
+  options: { value: T; label: string }[];
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div className="p-[14px]">
+      <span className="block text-[#f9fafb] text-[15px] font-semibold mb-3">{label}</span>
+      <div className="flex gap-2">
+        {options.map((option) => (
+          <button
+            key={option.value}
+            onClick={() => onChange(option.value)}
+            className={`flex-1 py-3 rounded-[10px] border text-[13px] font-semibold transition-all ${
+              value === option.value ? 'bg-white border-white text-[#111827]' : 'bg-white/[0.04] border-white/[0.12] text-[#9ca3af] hover:text-white'
+            }`}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 interface ContinueWatchingSettingsProps {
   settings: AppSettings;
   updateSetting: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => void;
@@ -35,10 +61,8 @@ interface ContinueWatchingSettingsProps {
 }
 
 export default function ContinueWatchingSettings({ settings, updateSetting, onBack }: ContinueWatchingSettingsProps) {
-  // Cast to any for settings not in AppSettings type
-  const useCachedStreams = (settings as any).useCachedStreams ?? false;
-  const openMetadataScreenWhenCacheDisabled = (settings as any).openMetadataScreenWhenCacheDisabled ?? false;
-  const streamCacheTTL = (settings as any).streamCacheTTL ?? TTL_OPTIONS[2].value;
+  const useCachedStreams = settings.useCachedStreams ?? false;
+  const streamCacheTTL = settings.streamCacheTTL ?? TTL_OPTIONS[2].value;
 
   return (
     <div className="min-h-screen bg-[#0b0b0d] pb-20">
@@ -62,12 +86,13 @@ export default function ContinueWatchingSettings({ settings, updateSetting, onBa
               {[
                 { label: 'Landscape', value: 'landscape' },
                 { label: 'Poster', value: 'poster' },
+                { label: 'Wide', value: 'wide' },
               ].map((option) => {
                 const selected = (settings.continueWatchingLayout || 'landscape') === option.value;
                 return (
                   <button
                     key={option.value}
-                    onClick={() => updateSetting('continueWatchingLayout', option.value as 'landscape' | 'poster')}
+                    onClick={() => updateSetting('continueWatchingLayout', option.value as 'landscape' | 'poster' | 'wide')}
                     className={`
                       flex-1 py-3 rounded-[10px] border text-[14px] font-semibold transition-all
                       ${selected
@@ -81,39 +106,68 @@ export default function ContinueWatchingSettings({ settings, updateSetting, onBa
               })}
             </div>
             <p className="text-[#6b7280] text-xs mt-3 leading-4">
-              Landscape shows large cards with progress bar. Poster shows traditional vertical cards.
+              Landscape shows large cards with a progress bar. Poster shows vertical cards. Wide adds the episode still and title.
             </p>
           </div>
         </SettingsCard>
 
-        {/* PLAYBACK */}
-        <SettingsCard title="PLAYBACK">
+        {/* SOURCE */}
+        <SettingsCard title="SOURCE">
+          <SegmentedPicker
+            label="Continue Watching Source"
+            value={settings.continueWatchingSource || 'automatic'}
+            options={[
+              { value: 'automatic', label: 'Automatic' },
+              { value: 'library', label: 'Library' },
+              { value: 'trakt', label: 'Trakt' },
+            ]}
+            onChange={(v) => updateSetting('continueWatchingSource', v)}
+          />
+          <p className="text-[#9ca3af] text-xs px-[14px] pb-3">
+            Automatic combines your Plex progress with Trakt when Trakt is connected.
+          </p>
+        </SettingsCard>
+
+        {/* ORDER AND SPOILERS */}
+        <SettingsCard title="ORDER AND SPOILERS">
+          <SegmentedPicker
+            label="Sort Order"
+            value={settings.continueWatchingSort || 'recent'}
+            options={[
+              { value: 'recent', label: 'Recent' },
+              { value: 'nextEpisodeFirst', label: 'Next Episode' },
+              { value: 'title', label: 'Title' },
+            ]}
+            onChange={(v) => updateSetting('continueWatchingSort', v)}
+          />
           <SettingItem
-            title="Use Cached Streams"
-            description="Open the player directly using saved stream info"
+            title="Blur Next-Up Thumbnails"
+            description="Hide stills of episodes you haven't started (Wide cards)"
+            renderIcon={() => <IconWrap><InformationCircleIcon size={18} color="#e5e7eb" /></IconWrap>}
+            renderRight={() => (
+              <SettingToggle
+                checked={settings.continueWatchingBlurNextUp === true}
+                onChange={(v) => updateSetting('continueWatchingBlurNextUp', v)}
+              />
+            )}
+            isLast
+          />
+        </SettingsCard>
+
+        {/* PLAYBACK SOURCE CACHE */}
+        <SettingsCard title="PLAYBACK SOURCE CACHE">
+          <SettingItem
+            title="Cache Playback Sources"
+            description="Reuse recent addon stream links for faster resume"
             renderIcon={() => <IconWrap><FlashIcon size={18} color="#e5e7eb" /></IconWrap>}
             renderRight={() => (
               <SettingToggle
                 checked={useCachedStreams}
-                onChange={(v) => updateSetting('useCachedStreams' as any, v)}
+                onChange={(v) => updateSetting('useCachedStreams', v)}
               />
             )}
-            isLast={!useCachedStreams}
+            isLast
           />
-          {!useCachedStreams && (
-            <SettingItem
-              title="Open Metadata Screen"
-              description="When cache is off, open details instead of player"
-              renderIcon={() => <IconWrap><InformationCircleIcon size={18} color="#e5e7eb" /></IconWrap>}
-              renderRight={() => (
-                <SettingToggle
-                  checked={openMetadataScreenWhenCacheDisabled}
-                  onChange={(v) => updateSetting('openMetadataScreenWhenCacheDisabled' as any, v)}
-                />
-              )}
-              isLast
-            />
-          )}
         </SettingsCard>
 
         {/* CACHE DURATION - only show when cached streams enabled */}
@@ -125,7 +179,7 @@ export default function ContinueWatchingSettings({ settings, updateSetting, onBa
                 return (
                   <button
                     key={option.label}
-                    onClick={() => updateSetting('streamCacheTTL' as any, option.value)}
+                    onClick={() => updateSetting('streamCacheTTL', option.value)}
                     className={`
                       px-3 py-2 rounded-[10px] border text-xs font-semibold transition-all
                       ${selected
@@ -139,7 +193,7 @@ export default function ContinueWatchingSettings({ settings, updateSetting, onBa
               })}
             </div>
             <p className="text-[#9ca3af] text-xs px-[14px] pb-3">
-              Applies to direct play from Continue Watching.
+              Applies to resuming addon streams.
             </p>
           </SettingsCard>
         )}

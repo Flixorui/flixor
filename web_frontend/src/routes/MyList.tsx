@@ -6,6 +6,8 @@ import { tmdbDetails, tmdbImage } from '@/services/tmdb';
 import { apiClient } from '@/services/api';
 import WatchlistButton from '@/components/WatchlistButton';
 import { loadSettings } from '@/state/settings';
+import { TraktListsArea } from '@/components/collections/TraktLists';
+import UserCollectionsSection from '@/components/collections/UserCollectionsSection';
 
 type WatchlistItem = {
   id: string;
@@ -286,59 +288,10 @@ export default function MyList() {
     }
   };
 
-  return (
-    <div className="min-h-screen pb-12 relative">
-      {/* Floating Refresh Button */}
-      <button
-        onClick={handleRefresh}
-        disabled={isRefreshing || loading}
-        className="fixed top-20 right-4 z-40 p-3 rounded-full bg-white/10 backdrop-blur-md hover:bg-white/20 transition-all disabled:opacity-50"
-        title="Refresh watchlist"
-      >
-        <svg
-          className={`w-5 h-5 text-white ${isRefreshing ? 'animate-spin' : ''}`}
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-          />
-        </svg>
-      </button>
-      <div className="px-4 md:px-8 lg:px-12 xl:px-16 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">My List</h1>
-          <p className="text-white/60">
-            {items.length} {items.length === 1 ? 'title' : 'titles'}
-            {isTraktAuthenticated() && ' • Synced with Trakt'}
-          </p>
-        </div>
+  const showMessage = (message: string) => window.dispatchEvent(new CustomEvent('app-toast', { detail: message }));
 
-        {/* API Key Warning */}
-        {!tmdbKey && items.some(item => item.source === 'trakt' && !item.image) && (
-          <div className="mb-6 p-4 bg-yellow-900/20 border border-yellow-600/30 rounded-lg">
-            <div className="flex items-center gap-3">
-              <svg className="w-5 h-5 text-yellow-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
-              </svg>
-              <div className="text-sm text-yellow-200">
-                Some Trakt items are missing images. Configure TMDB API key to load poster images.
-                <button
-                  onClick={() => navigate('/settings')}
-                  className="ml-2 text-yellow-400 hover:text-yellow-300 underline"
-                >
-                  Configure in Settings
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
+  const listBody = (
+      <>
         {/* Controls */}
         <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
           <div className="flex items-center gap-4">
@@ -371,7 +324,7 @@ export default function MyList() {
             {bulkMode && selectedItems.size > 0 && (
               <button
                 onClick={removeBulkItems}
-                className="px-4 py-1.5 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-md transition-colors"
+                className="px-4 py-1.5 bg-brand hover:bg-brand-600 text-white text-sm font-medium rounded-md transition-colors"
               >
                 Remove {selectedItems.size} {selectedItems.size === 1 ? 'item' : 'items'}
               </button>
@@ -510,6 +463,67 @@ export default function MyList() {
             ))}
           </div>
         )}
+      </>
+  );
+
+  return (
+    <div className="min-h-screen pb-12 relative">
+      {/* Floating Refresh Button */}
+      <button
+        onClick={handleRefresh}
+        disabled={isRefreshing || loading}
+        className="fixed top-20 right-4 z-40 p-3 rounded-full bg-white/10 backdrop-blur-md hover:bg-white/20 transition-all disabled:opacity-50"
+        title="Refresh watchlist"
+      >
+        <svg
+          className={`w-5 h-5 text-white ${isRefreshing ? 'animate-spin' : ''}`}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+          />
+        </svg>
+      </button>
+      <div className="px-4 md:px-8 lg:px-12 xl:px-16 py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">My List</h1>
+          <p className="text-white/60">
+            {items.length} {items.length === 1 ? 'title' : 'titles'}
+            {isTraktAuthenticated() && ' • Synced with Trakt'}
+          </p>
+        </div>
+
+        {/* API Key Warning */}
+        {!tmdbKey && items.some(item => item.source === 'trakt' && !item.image) && (
+          <div className="mb-6 p-4 bg-yellow-900/20 border border-yellow-600/30 rounded-lg">
+            <div className="flex items-center gap-3">
+              <svg className="w-5 h-5 text-yellow-500 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+              </svg>
+              <div className="text-sm text-yellow-200">
+                Some Trakt items are missing images. Configure TMDB API key to load poster images.
+                <button
+                  onClick={() => navigate('/settings')}
+                  className="ml-2 text-yellow-400 hover:text-yellow-300 underline"
+                >
+                  Configure in Settings
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <UserCollectionsSection />
+
+        {isTraktAuthenticated() ? (
+          <TraktListsArea myListCount={items.length} onMessage={showMessage}>{listBody}</TraktListsArea>
+        ) : listBody}
       </div>
     </div>
   );

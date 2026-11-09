@@ -1,6 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import SettingsCard from '@/components/SettingsCard';
-import { AppSettings, loadSettings, saveSettings } from '@/state/settings';
+import { AppSettings } from '@/state/settings';
+import { adoptPlexServer } from '@/services/plexServers';
+import { signOut } from '@/services/profiles';
+import { showToast } from '@/services/toast';
+import { traktNeedsReconnect } from '@/services/traktConnection';
 import { apiClient } from '@/services/api';
 import {
   PlexIcon,
@@ -62,14 +66,13 @@ export default function PlexSettings({ settings, updateSetting, onBack }: PlexSe
   const [testingCustom, setTestingCustom] = useState(false);
 
   // Watchlist provider
-  const isTraktConnected = !!(settings.traktAccessToken || settings.traktTokens);
+  const isTraktConnected = !traktNeedsReconnect() && !!(settings.traktAccessToken || settings.traktTokens);
   const [watchlistProvider, setWatchlistProvider] = useState<'trakt' | 'plex'>(settings.watchlistProvider || 'trakt');
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const response = await apiClient.plexServers();
-      console.log('[PlexSettings] API response:', response);
 
       // Handle different response structures
       const serverList = response.servers || response.data?.servers || response || [];
@@ -89,7 +92,11 @@ export default function PlexSettings({ settings, updateSetting, onBack }: PlexSe
       }
 
       // Set current server
-      const current = response.currentServer || response.data?.currentServer;
+      const active = Array.isArray(serverList) ? serverList.find((s: any) => s.isActive) : null;
+      const current = response.currentServer || response.data?.currentServer || (active && {
+        name: active.name,
+        uri: active.preferredUri || `${active.protocol}://${active.host}:${active.port}`,
+      });
       if (current) {
         setCurrentServer({
           name: current.name,
@@ -134,10 +141,11 @@ export default function PlexSettings({ settings, updateSetting, onBack }: PlexSe
     try {
       setConnecting(server.id);
       await apiClient.plexSetCurrentServer(server.id);
+      adoptPlexServer(server.id);
       await loadData();
     } catch (e: any) {
       console.error('[PlexSettings] Connect error:', e);
-      alert(`Could not connect to ${server.name}. Make sure the server is online.`);
+      showToast(`Could not connect to ${server.name}. Make sure the server is online.`, 'error');
     } finally {
       setConnecting(null);
     }
@@ -168,15 +176,15 @@ export default function PlexSettings({ settings, updateSetting, onBack }: PlexSe
     }
   };
 
-  const testEndpoint = async (uri: string) => {
+  const probeEndpoint = async (uri: string) => {
     if (!expandedServerId) return;
 
     setTestingEndpoint(uri);
     setTestResults(prev => ({ ...prev, [uri]: 'testing' }));
 
     try {
-      const response = await apiClient.plexSetServerEndpoint(expandedServerId, uri, true);
-      setTestResults(prev => ({ ...prev, [uri]: response.success ? 'success' : 'failed' }));
+      await apiClient.plexSetServerEndpoint(expandedServerId, uri, true);
+      setTestResults(prev => ({ ...prev, [uri]: 'success' }));
     } catch (e) {
       setTestResults(prev => ({ ...prev, [uri]: 'failed' }));
     } finally {
@@ -184,9 +192,15 @@ export default function PlexSettings({ settings, updateSetting, onBack }: PlexSe
     }
   };
 
+  const testEndpoint = async (uri: string) => {
+    if (!expandedServerId) return;
+    await probeEndpoint(uri);
+  };
+
   const testAllEndpoints = async () => {
+    if (!expandedServerId || endpoints.length === 0) return;
     for (const endpoint of endpoints) {
-      await testEndpoint(endpoint.uri);
+      await probeEndpoint(endpoint.uri);
     }
   };
 
@@ -197,9 +211,9 @@ export default function PlexSettings({ settings, updateSetting, onBack }: PlexSe
       setSelectingEndpoint(uri);
       await apiClient.plexSetServerEndpoint(expandedServerId, uri, false);
       await loadData();
-      alert('Successfully switched to the selected endpoint.');
+      showToast('Switched to the selected endpoint', 'success');
     } catch (e: any) {
-      alert(e.message || 'Could not connect to this endpoint.');
+      showToast(e.message || 'Could not connect to this endpoint.', 'error');
     } finally {
       setSelectingEndpoint(null);
     }
@@ -212,16 +226,17 @@ export default function PlexSettings({ settings, updateSetting, onBack }: PlexSe
     const uri = customEndpoint.trim();
 
     try {
-      const response = await apiClient.plexSetServerEndpoint(expandedServerId, uri, true);
-      if (response.success) {
-        if (confirm('Custom endpoint is reachable! Use this endpoint?')) {
-          await selectEndpoint(uri);
-        }
-      } else {
-        alert('Could not reach this endpoint. Check the URL and try again.');
-      }
+      await apiClient.plexSetServerEndpoint(expandedServerId, uri, true);
     } catch (e) {
-      alert('Failed to test endpoint.');
+      showToast('Could not reach this endpoint. Check the URL and try again.', 'error');
+      setTestingCustom(false);
+      return;
+    }
+
+    try {
+      if (confirm('Custom endpoint is reachable! Use this endpoint?')) {
+        await selectEndpoint(uri);
+      }
     } finally {
       setTestingCustom(false);
     }
@@ -237,20 +252,10 @@ export default function PlexSettings({ settings, updateSetting, onBack }: PlexSe
       return;
     }
     try {
-      await apiClient.logout();
-      // Clear local settings
-      saveSettings({
-        plexBaseUrl: undefined,
-        plexToken: undefined,
-        plexTvToken: undefined,
-        plexAccountToken: undefined,
-        plexServer: undefined,
-        plexServers: undefined,
-        plexUserProfile: undefined,
-      });
-      window.location.href = '/login';
+      await signOut();
     } catch (e) {
       console.error('[PlexSettings] Logout error:', e);
+      showToast('Could not sign out. Try again.', 'error');
     }
   };
 

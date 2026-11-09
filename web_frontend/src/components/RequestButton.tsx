@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
+  canRequestSeason,
   getOverseerrMediaStatus,
+  isOverseerrReady,
   requestMedia,
+  seasonStatusLabel,
   OverseerrStatus,
   OverseerrMediaStatus,
 } from '@/services/overseerr';
-import { loadSettings } from '@/state/settings';
 import { OverseerrIcon } from '@/components/ServiceIcons';
 
 type RequestButtonProps = {
@@ -111,9 +113,10 @@ export default function RequestButton({
   const [isLoading, setIsLoading] = useState(true);
   const [isRequesting, setIsRequesting] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [selectedSeasons, setSelectedSeasons] = useState<Set<number>>(new Set());
+  const [requestError, setRequestError] = useState<string | null>(null);
 
-  const settings = loadSettings();
-  const isEnabled = settings.overseerrEnabled && settings.overseerrUrl && settings.overseerrApiKey;
+  const isEnabled = isOverseerrReady();
 
   const fetchStatus = useCallback(async () => {
     if (!isEnabled) {
@@ -137,33 +140,56 @@ export default function RequestButton({
     fetchStatus();
   }, [fetchStatus]);
 
+  const allSeasons = (status?.seasons ?? [])
+    .filter((season) => season.seasonNumber > 0)
+    .sort((a, b) => a.seasonNumber - b.seasonNumber);
+  const requestableSeasons = allSeasons.filter(canRequestSeason);
+  const showSeasonPicker = mediaType === 'tv' && allSeasons.length > 0;
+
   const handleRequest = async () => {
     if (!status?.canRequest || isRequesting) return;
+    if (showSeasonPicker && selectedSeasons.size === 0) return;
 
     setIsRequesting(true);
+    setRequestError(null);
 
     try {
-      const result = await requestMedia(tmdbId, mediaType);
+      const seasons = showSeasonPicker ? Array.from(selectedSeasons).sort((a, b) => a - b) : undefined;
+      const result = await requestMedia(tmdbId, mediaType, false, seasons);
 
       if (result.success) {
         setStatus({
           status: 'pending',
           requestId: result.requestId,
           canRequest: false,
+          seasons: status.seasons,
         });
+        setShowConfirm(false);
+      } else {
+        setRequestError(result.error || 'Request failed');
       }
     } catch {
-      // Request failed
+      setRequestError('Request failed');
     } finally {
       setIsRequesting(false);
-      setShowConfirm(false);
     }
   };
 
   const handleClick = () => {
     if (status?.canRequest) {
+      setRequestError(null);
+      setSelectedSeasons(new Set(requestableSeasons.map((season) => season.seasonNumber)));
       setShowConfirm(true);
     }
+  };
+
+  const toggleSeason = (seasonNumber: number) => {
+    setSelectedSeasons((current) => {
+      const next = new Set(current);
+      if (next.has(seasonNumber)) next.delete(seasonNumber);
+      else next.add(seasonNumber);
+      return next;
+    });
   };
 
   // Don't render if Overseerr is not enabled
@@ -194,16 +220,67 @@ export default function RequestButton({
   // MacOS: buttonColor.opacity(canRequest ? 0.9 : 0.4)
   const bgOpacity = canRequest ? 0.9 : 0.4;
 
-  // Confirmation dialog
+  // Confirmation dialog, with a season picker for shows
   const confirmDialog = showConfirm && (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="bg-neutral-900 border border-white/10 rounded-2xl p-6 max-w-sm mx-4 shadow-2xl">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-label={showSeasonPicker ? 'Request seasons' : 'Confirm request'}
+    >
+      <div className="bg-neutral-900 border border-white/10 rounded-2xl p-6 w-full max-w-sm mx-4 shadow-2xl">
         <h3 className="text-white text-lg font-bold mb-2">
-          Request {title || 'this title'}?
+          {showSeasonPicker ? 'Request Seasons' : `Request ${title || 'this title'}?`}
         </h3>
-        <p className="text-neutral-400 text-sm mb-6">
-          This will submit a request to Overseerr. You'll be notified when it becomes available.
-        </p>
+        {showSeasonPicker ? (
+          <>
+            <p className="text-neutral-400 text-sm mb-3">{title}</p>
+            {requestableSeasons.length === 0 && (
+              <p className="text-amber-300/90 text-sm bg-amber-400/10 rounded-lg p-3 mb-3">
+                All unavailable seasons have some episodes already downloaded. Overseerr cannot request the remaining episodes for partially downloaded seasons.
+              </p>
+            )}
+            <div className="max-h-64 overflow-y-auto space-y-1 mb-3 -mx-1 px-1">
+              {allSeasons.map((season) => {
+                const requestable = canRequestSeason(season);
+                return (
+                  <label
+                    key={season.seasonNumber}
+                    className={`flex items-center gap-3 rounded-lg px-3 py-2 ${requestable ? 'hover:bg-white/5 cursor-pointer' : 'opacity-50'}`}
+                  >
+                    <input
+                      type="checkbox"
+                      className="accent-[#6366F1]"
+                      disabled={!requestable}
+                      checked={selectedSeasons.has(season.seasonNumber)}
+                      onChange={() => toggleSeason(season.seasonNumber)}
+                    />
+                    <span className="flex-1 text-white text-sm">{season.name || `Season ${season.seasonNumber}`}</span>
+                    <span className="text-neutral-500 text-xs">{seasonStatusLabel(season)}</span>
+                  </label>
+                );
+              })}
+            </div>
+            {requestableSeasons.length > 0 && (
+              <div className="flex gap-4 mb-4 text-sm">
+                <button
+                  className="text-neutral-300 hover:text-white"
+                  onClick={() => setSelectedSeasons(new Set(requestableSeasons.map((season) => season.seasonNumber)))}
+                >
+                  Select All
+                </button>
+                <button className="text-neutral-300 hover:text-white" onClick={() => setSelectedSeasons(new Set())}>
+                  Clear
+                </button>
+              </div>
+            )}
+          </>
+        ) : (
+          <p className="text-neutral-400 text-sm mb-6">
+            This will submit a request to Overseerr. You'll be notified when it becomes available.
+          </p>
+        )}
+        {requestError && <p className="text-red-400 text-sm mb-3">{requestError}</p>}
         <div className="flex gap-3">
           <button
             onClick={() => setShowConfirm(false)}
@@ -213,7 +290,7 @@ export default function RequestButton({
           </button>
           <button
             onClick={handleRequest}
-            disabled={isRequesting}
+            disabled={isRequesting || (showSeasonPicker && selectedSeasons.size === 0)}
             className="flex-1 px-4 py-2.5 text-white font-medium rounded-lg transition-colors disabled:opacity-50"
             style={{ backgroundColor: '#6366F1' }}
           >

@@ -1,7 +1,13 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { loadSettings, saveSettings, setDiscoveryDisabled, resetAllSettings, type AppSettings } from '@/state/settings';
+import { useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { saveSettings, setDiscoveryDisabled, useSettings, type AppSettings } from '@/state/settings';
 import SettingsCard from '@/components/SettingsCard';
 import SettingItem, { SettingToggle } from '@/components/SettingItem';
+import { checkForUpdate } from '@/services/versionCheck';
+import { showToast } from '@/services/toast';
+import { useProfileSummary } from '@/services/profiles';
+import { traktNeedsReconnect } from '@/services/traktConnection';
+import { APP_VERSION } from '@/version';
 
 // Eye Off Icon for Discovery Mode
 function EyeOffIcon({ size = 18, color = '#e5e7eb' }: { size?: number; color?: string }) {
@@ -12,15 +18,6 @@ function EyeOffIcon({ size = 18, color = '#e5e7eb' }: { size?: number; color?: s
     </svg>
   );
 }
-import HomeScreenSettings from '@/components/settings/HomeScreenSettings';
-import DetailsScreenSettings from '@/components/settings/DetailsScreenSettings';
-import MDBListSettings from '@/components/settings/MDBListSettings';
-import OverseerrSettings from '@/components/settings/OverseerrSettings';
-import CatalogSettings from '@/components/settings/CatalogSettings';
-import ContinueWatchingSettings from '@/components/settings/ContinueWatchingSettings';
-import TMDBSettings from '@/components/settings/TMDBSettings';
-import TraktSettings from '@/components/settings/TraktSettings';
-import PlexSettings from '@/components/settings/PlexSettings';
 import {
   PlexIcon,
   TMDBIcon,
@@ -31,21 +28,22 @@ import {
   HomeIcon,
   InformationCircleIcon,
   PlayIcon,
+  PersonCircleIcon,
   GridIcon,
-  ImageIcon,
   ShieldIcon,
   BugIcon,
   PeopleIcon,
   CloudDownloadIcon,
   ChatbubblesIcon,
   ChatboxEllipsesIcon,
-  FlashIcon,
-  RefreshIcon,
   PlayCircleIcon,
   ChevronForwardIcon,
+  ColorPaletteIcon,
+  CompassIcon,
+  LayersIcon,
+  AnalyticsIcon,
+  StatsChartIcon,
 } from '@/components/ServiceIcons';
-
-const APP_VERSION = 'Beta1.9.5';
 
 const ABOUT_LINKS = {
   privacy: 'https://flixor.xyz/privacy',
@@ -54,19 +52,6 @@ const ABOUT_LINKS = {
   discord: 'https://discord.gg/flixor',
   reddit: 'https://www.reddit.com/r/flixor/',
 };
-
-// Possible sub-screens
-type SettingsScreen =
-  | 'main'
-  | 'plex'
-  | 'homeScreen'
-  | 'detailsScreen'
-  | 'mdblist'
-  | 'overseerr'
-  | 'catalogs'
-  | 'continueWatching'
-  | 'tmdb'
-  | 'trakt';
 
 // Icon wrapper - matches mobile's 34x34 icon container
 function IconWrap({ children }: { children: React.ReactNode }) {
@@ -86,364 +71,151 @@ function ChevronRight() {
 }
 
 export default function Settings() {
-  const [settings, setSettings] = useState<AppSettings>(loadSettings);
-  const [currentScreen, setCurrentScreen] = useState<SettingsScreen>('main');
-
-  useEffect(() => {
-    setSettings(loadSettings());
-  }, []);
+  const settings = useSettings();
+  const profile = useProfileSummary();
+  const navigate = useNavigate();
 
   const updateSetting = useCallback(<K extends keyof AppSettings>(key: K, value: AppSettings[K]) => {
-    setSettings(prev => {
-      const next = { ...prev, [key]: value };
-      saveSettings(next);
-      return next;
-    });
-  }, []);
-
-  const handleDiscoveryDisabledChange = useCallback((disabled: boolean) => {
-    setDiscoveryDisabled(disabled);
-    setSettings(prev => {
-      const next = {
-        ...prev,
-        discoveryDisabled: disabled,
-        ...(disabled ? {
-          showTrendingRows: false,
-          showTraktRows: false,
-          showPlexPopularRow: false,
-          showNewPopularTab: false,
-          includeTmdbInSearch: false,
-        } : {}),
-      };
-      return next;
-    });
+    saveSettings({ [key]: value });
   }, []);
 
   // Plex description
   const plexDescription = useMemo(() => {
-    // Check for actual server connection (plexBaseUrl + plexToken or plexServer)
     const isConnected = !!(settings.plexBaseUrl && settings.plexToken) || !!settings.plexServer;
     if (!isConnected) return 'Not connected';
-    if (settings.plexServer) return `${settings.plexUserProfile?.username || 'Connected'} · ${settings.plexServer.name}`;
-    return settings.plexUserProfile?.username || 'Connected';
-  }, [settings.plexBaseUrl, settings.plexToken, settings.plexServer, settings.plexUserProfile]);
+    const account = profile.signedIn ? profile.name : 'Connected';
+    return settings.plexServer ? `${account} · ${settings.plexServer.name}` : account;
+  }, [settings.plexBaseUrl, settings.plexToken, settings.plexServer, profile.name, profile.signedIn]);
 
-  // Trakt description
-  const traktDescription = useMemo(() => {
-    if (settings.traktAccessToken || settings.traktTokens) return 'Connected';
-    return 'Sign in to sync';
-  }, [settings.traktAccessToken, settings.traktTokens]);
+  const traktDescription = traktNeedsReconnect()
+    ? 'Reconnect needed'
+    : settings.traktAccessToken || settings.traktTokens ? 'Connected' : 'Sign in to sync';
 
-  // Render chevron for navigation items
   const renderChevron = useCallback(() => <ChevronRight />, []);
 
-  // Navigate back to main
-  const goBack = useCallback(() => setCurrentScreen('main'), []);
-
-  // Render sub-screens
-  if (currentScreen === 'plex') {
-    return (
-      <PlexSettings
-        settings={settings}
-        updateSetting={updateSetting}
-        onBack={goBack}
-      />
-    );
+  async function checkUpdates() {
+    const info = await checkForUpdate();
+    if (info.hasUpdate) {
+      showToast(`Version ${info.latestVersion} is available`, 'info', 5000);
+      if (info.releaseUrl) window.open(info.releaseUrl, '_blank', 'noopener');
+    } else {
+      showToast(`You're on the latest version (${info.currentVersion})`, 'success');
+    }
   }
 
-  if (currentScreen === 'homeScreen') {
-    return (
-      <HomeScreenSettings
-        settings={settings}
-        updateSetting={updateSetting}
-        onBack={goBack}
-      />
-    );
-  }
+  // Row that opens another settings page.
+  const linkRow = (title: string, description: string, icon: React.ReactNode, to: string, isLast = false) => (
+    <SettingItem
+      title={title}
+      description={description}
+      renderIcon={() => <IconWrap>{icon}</IconWrap>}
+      renderRight={renderChevron}
+      onClick={() => navigate(to)}
+      isLast={isLast}
+    />
+  );
 
-  if (currentScreen === 'detailsScreen') {
-    return (
-      <DetailsScreenSettings
-        settings={settings}
-        updateSetting={updateSetting}
-        onBack={goBack}
-      />
-    );
-  }
+  const externalRow = (title: string, description: string, icon: React.ReactNode, url: string, isLast = false) => (
+    <SettingItem
+      title={title}
+      description={description}
+      renderIcon={() => <IconWrap>{icon}</IconWrap>}
+      renderRight={renderChevron}
+      onClick={() => window.open(url, '_blank', 'noopener')}
+      isLast={isLast}
+    />
+  );
 
-  if (currentScreen === 'mdblist') {
-    return (
-      <MDBListSettings
-        settings={settings}
-        updateSetting={updateSetting}
-        onBack={goBack}
-      />
-    );
-  }
+  const c = '#e5e7eb';
 
-  if (currentScreen === 'overseerr') {
-    return (
-      <OverseerrSettings
-        settings={settings}
-        updateSetting={updateSetting}
-        onBack={goBack}
-      />
-    );
-  }
-
-  if (currentScreen === 'catalogs') {
-    return (
-      <CatalogSettings
-        settings={settings}
-        updateSetting={updateSetting}
-        onBack={goBack}
-      />
-    );
-  }
-
-  if (currentScreen === 'continueWatching') {
-    return (
-      <ContinueWatchingSettings
-        settings={settings}
-        updateSetting={updateSetting}
-        onBack={goBack}
-      />
-    );
-  }
-
-  if (currentScreen === 'tmdb') {
-    return (
-      <TMDBSettings
-        settings={settings}
-        updateSetting={updateSetting}
-        onBack={goBack}
-      />
-    );
-  }
-
-  if (currentScreen === 'trakt') {
-    return (
-      <TraktSettings
-        settings={settings}
-        updateSetting={updateSetting}
-        onBack={goBack}
-      />
-    );
-  }
-
-  // Main settings screen - matches mobile exactly
   return (
     <div className="min-h-screen bg-[#0b0b0d] pb-20">
-      {/* Header */}
-      <div className="px-4 pt-6 pb-4">
+      <div className="px-4 pt-6 pb-4 max-w-2xl mx-auto">
         <h1 className="text-white text-2xl font-bold">Settings</h1>
       </div>
 
       <div className="px-4 max-w-2xl mx-auto">
-        {/* ACCOUNT */}
         <SettingsCard title="ACCOUNT">
-          <SettingItem
-            title="Plex"
-            description={plexDescription}
-            renderIcon={() => <IconWrap><PlexIcon size={18} color="#e5e7eb" /></IconWrap>}
-            renderRight={renderChevron}
-            onClick={() => setCurrentScreen('plex')}
-            isLast
-          />
+          {linkRow('Plex', plexDescription, <PlexIcon size={18} color={c} />, '/settings/plex', !profile.canSwitch)}
+          {profile.canSwitch &&
+            linkRow('Switch Profile', 'Change to another Plex Home profile', <PersonCircleIcon size={18} color={c} />, '/profiles', true)}
         </SettingsCard>
 
-        {/* DISCOVERY MODE */}
-        <SettingsCard title="DISCOVERY MODE">
+        <SettingsCard title="PLAYER">
+          {linkRow('Player', 'Subtitles, skipping and playback', <PlayCircleIcon size={18} color={c} />, '/settings/player', true)}
+        </SettingsCard>
+
+        <SettingsCard title="CONTENT & DISCOVERY">
           <SettingItem
             title="Library Only Mode"
             description="Turn off all discovery features"
-            renderIcon={() => <IconWrap><EyeOffIcon size={18} color="#e5e7eb" /></IconWrap>}
+            renderIcon={() => <IconWrap><EyeOffIcon size={18} color={c} /></IconWrap>}
             renderRight={() => (
               <SettingToggle
                 checked={settings.discoveryDisabled === true}
-                onChange={handleDiscoveryDisabledChange}
+                onChange={(disabled) => setDiscoveryDisabled(disabled)}
               />
             )}
-            isLast
           />
+          {linkRow('Catalogs', 'Choose which libraries appear', <AlbumsIcon size={18} color={c} />, '/settings/catalogs')}
+          {linkRow('Rows', 'Reorder, rename and hide Home rows', <GridIcon size={18} color={c} />, '/settings/rows')}
+          {linkRow('Navigation', 'Navigation style and tabs', <CompassIcon size={18} color={c} />, '/settings/navigation')}
+          {linkRow('Search', 'Search sources and Discover', <StatsChartIcon size={18} color={c} />, '/settings/search', true)}
         </SettingsCard>
 
-        {/* CONTENT & DISCOVERY */}
-        <SettingsCard title="CONTENT & DISCOVERY">
-          <SettingItem
-            title="Catalogs"
-            description="Choose which libraries appear"
-            renderIcon={() => <IconWrap><AlbumsIcon size={18} color="#e5e7eb" /></IconWrap>}
-            renderRight={renderChevron}
-            onClick={() => setCurrentScreen('catalogs')}
-          />
-          <SettingItem
-            title="Home Screen"
-            description="Hero and row visibility"
-            renderIcon={() => <IconWrap><HomeIcon size={18} color="#e5e7eb" /></IconWrap>}
-            renderRight={renderChevron}
-            onClick={() => setCurrentScreen('homeScreen')}
-          />
-          <SettingItem
-            title="Details Screen"
-            description="Ratings and badges display"
-            renderIcon={() => <IconWrap><InformationCircleIcon size={18} color="#e5e7eb" /></IconWrap>}
-            renderRight={renderChevron}
-            onClick={() => setCurrentScreen('detailsScreen')}
-          />
-          <SettingItem
-            title="Continue Watching"
-            description="Playback and cache behavior"
-            renderIcon={() => <IconWrap><PlayIcon size={18} color="#e5e7eb" /></IconWrap>}
-            renderRight={renderChevron}
-            onClick={() => setCurrentScreen('continueWatching')}
-            isLast
-          />
-        </SettingsCard>
-
-        {/* APPEARANCE */}
         <SettingsCard title="APPEARANCE">
+          {linkRow('Appearance', 'Accent color and background', <ColorPaletteIcon size={18} color={c} />, '/settings/appearance')}
+          {linkRow('Home Screen', 'Hero and row visibility', <HomeIcon size={18} color={c} />, '/settings/home')}
+          {linkRow('Continue Watching', 'Playback and cache behavior', <PlayIcon size={18} color={c} />, '/settings/continue-watching')}
+          {linkRow('Details Screen', 'Ratings and badges display', <InformationCircleIcon size={18} color={c} />, '/settings/details')}
           <SettingItem
             title="Episode Layout"
             description={settings.episodeLayout === 'horizontal' ? 'Horizontal' : 'Vertical'}
-            renderIcon={() => <IconWrap><GridIcon size={18} color="#e5e7eb" /></IconWrap>}
+            renderIcon={() => <IconWrap><GridIcon size={18} color={c} /></IconWrap>}
             renderRight={() => (
               <SettingToggle
                 checked={settings.episodeLayout === 'horizontal'}
                 onChange={(v) => updateSetting('episodeLayout', v ? 'horizontal' : 'vertical')}
               />
             )}
-          />
-          <SettingItem
-            title="Streams Backdrop"
-            description="Show dimmed backdrop behind player settings"
-            renderIcon={() => <IconWrap><ImageIcon size={18} color="#e5e7eb" /></IconWrap>}
-            renderRight={() => (
-              <SettingToggle
-                checked={settings.showCardTitles !== false}
-                onChange={(v) => updateSetting('showCardTitles', v)}
-              />
-            )}
             isLast
           />
         </SettingsCard>
 
-        {/* INTEGRATIONS */}
         <SettingsCard title="INTEGRATIONS">
-          <SettingItem
-            title="TMDB"
-            description="Metadata and language (always enabled)"
-            renderIcon={() => <IconWrap><TMDBIcon size={18} color="#e5e7eb" /></IconWrap>}
-            renderRight={renderChevron}
-            onClick={() => setCurrentScreen('tmdb')}
-          />
-          <SettingItem
-            title="MDBList (Multi-source)"
-            description={settings.mdblistEnabled ? 'Enabled' : 'Disabled'}
-            renderIcon={() => <IconWrap><MDBListIcon size={18} color="#e5e7eb" /></IconWrap>}
-            renderRight={renderChevron}
-            onClick={() => setCurrentScreen('mdblist')}
-          />
-          <SettingItem
-            title="Trakt"
-            description={traktDescription}
-            renderIcon={() => <IconWrap><TraktIcon size={18} color="#e5e7eb" /></IconWrap>}
-            renderRight={renderChevron}
-            onClick={() => setCurrentScreen('trakt')}
-          />
-          <SettingItem
-            title="Overseerr"
-            description={settings.overseerrEnabled ? 'Enabled' : 'Disabled'}
-            renderIcon={() => <IconWrap><OverseerrIcon size={18} color="#e5e7eb" /></IconWrap>}
-            renderRight={renderChevron}
-            onClick={() => setCurrentScreen('overseerr')}
-            isLast
-          />
+          {linkRow('TMDB', 'Metadata and language (always enabled)', <TMDBIcon size={18} color={c} />, '/settings/tmdb')}
+          {linkRow('Stremio', 'Addons, sources and catalogs', <LayersIcon size={18} color={c} />, '/settings/stremio')}
+          {linkRow('MDBList (Multi-source)', settings.mdblistEnabled ? 'Enabled' : 'Disabled', <MDBListIcon size={18} color={c} />, '/settings/mdblist')}
+          {linkRow('Overseerr', settings.overseerrEnabled ? 'Enabled' : 'Disabled', <OverseerrIcon size={18} color={c} />, '/settings/overseerr')}
+          {linkRow('Trakt', traktDescription, <TraktIcon size={18} color={c} />, '/settings/trakt', true)}
         </SettingsCard>
 
-        {/* PLAYBACK */}
-        <SettingsCard title="PLAYBACK">
-          <SettingItem
-            title="Video Player"
-            description="Coming soon"
-            renderIcon={() => <IconWrap><PlayCircleIcon size={18} color="#e5e7eb" /></IconWrap>}
-            renderRight={() => <span className="text-[#9ca3af] text-xs font-semibold">Soon</span>}
-            disabled
-          />
-          <SettingItem
-            title="Auto-play Best Stream"
-            description="Coming soon"
-            renderIcon={() => <IconWrap><FlashIcon size={18} color="#e5e7eb" /></IconWrap>}
-            renderRight={() => <SettingToggle checked={false} onChange={() => {}} disabled />}
-            disabled
-          />
-          <SettingItem
-            title="Always Resume"
-            description="Coming soon"
-            renderIcon={() => <IconWrap><RefreshIcon size={18} color="#e5e7eb" /></IconWrap>}
-            renderRight={() => <SettingToggle checked={false} onChange={() => {}} disabled />}
-            disabled
-            isLast
-          />
+        <SettingsCard title="SYSTEM">
+          {linkRow('Advanced', 'Diagnostics and logs', <AnalyticsIcon size={18} color={c} />, '/settings/advanced', true)}
         </SettingsCard>
 
-        {/* ABOUT */}
         <SettingsCard title="ABOUT">
-          <SettingItem
-            title="Privacy Policy"
-            description="Review how data is handled"
-            renderIcon={() => <IconWrap><ShieldIcon size={18} color="#e5e7eb" /></IconWrap>}
-            renderRight={renderChevron}
-            onClick={() => window.open(ABOUT_LINKS.privacy, '_blank')}
-          />
-          <SettingItem
-            title="Report Issue"
-            description="Open a GitHub issue"
-            renderIcon={() => <IconWrap><BugIcon size={18} color="#e5e7eb" /></IconWrap>}
-            renderRight={renderChevron}
-            onClick={() => window.open(ABOUT_LINKS.reportIssue, '_blank')}
-          />
-          <SettingItem
-            title="Contributors"
-            description="Project contributors"
-            renderIcon={() => <IconWrap><PeopleIcon size={18} color="#e5e7eb" /></IconWrap>}
-            renderRight={renderChevron}
-            onClick={() => window.open(ABOUT_LINKS.contributors, '_blank')}
-          />
+          {externalRow('Privacy Policy', 'Review how data is handled', <ShieldIcon size={18} color={c} />, ABOUT_LINKS.privacy)}
+          {externalRow('Report Issue', 'Open a GitHub issue', <BugIcon size={18} color={c} />, ABOUT_LINKS.reportIssue)}
+          {externalRow('Contributors', 'Project contributors', <PeopleIcon size={18} color={c} />, ABOUT_LINKS.contributors)}
           <SettingItem
             title="Version"
             description={`v${APP_VERSION}`}
-            renderIcon={() => <IconWrap><InformationCircleIcon size={18} color="#e5e7eb" /></IconWrap>}
+            renderIcon={() => <IconWrap><InformationCircleIcon size={18} color={c} /></IconWrap>}
           />
           <SettingItem
             title="App Updates"
-            description="Check for OTA updates"
-            renderIcon={() => <IconWrap><CloudDownloadIcon size={18} color="#e5e7eb" /></IconWrap>}
+            description="Check for a new version"
+            renderIcon={() => <IconWrap><CloudDownloadIcon size={18} color={c} /></IconWrap>}
             renderRight={renderChevron}
-            onClick={() => {/* TODO: UpdateSettings */}}
+            onClick={checkUpdates}
           />
-          <SettingItem
-            title="Discord"
-            description="Join the community"
-            renderIcon={() => <IconWrap><ChatbubblesIcon size={18} color="#e5e7eb" /></IconWrap>}
-            renderRight={renderChevron}
-            onClick={() => window.open(ABOUT_LINKS.discord, '_blank')}
-          />
-          <SettingItem
-            title="Reddit"
-            description="Follow updates"
-            renderIcon={() => <IconWrap><ChatboxEllipsesIcon size={18} color="#e5e7eb" /></IconWrap>}
-            renderRight={renderChevron}
-            onClick={() => window.open(ABOUT_LINKS.reddit, '_blank')}
-            isLast
-          />
+          {externalRow('Discord', 'Join the community', <ChatbubblesIcon size={18} color={c} />, ABOUT_LINKS.discord)}
+          {externalRow('Reddit', 'Follow updates', <ChatboxEllipsesIcon size={18} color={c} />, ABOUT_LINKS.reddit, true)}
         </SettingsCard>
 
-        {/* Footer */}
         <div className="text-center py-8">
-          <p className="text-[#9ca3af] text-sm opacity-50">
-            Made with love by Flixor team
-          </p>
+          <p className="text-[#9ca3af] text-sm opacity-50">Made with love by Flixor team</p>
         </div>
       </div>
     </div>

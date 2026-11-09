@@ -47,7 +47,7 @@ export default function SettingItem({
 
       {/* Text content */}
       <div className="flex-1 min-w-0">
-        <span className="block text-[#f9fafb] text-[15px] font-semibold truncate">
+        <span className="block text-[#f9fafb] text-[15px] font-semibold break-words">
           {title}
         </span>
         {description && (
@@ -123,9 +123,9 @@ export function SettingToggle({
         relative inline-flex h-[31px] w-[51px] flex-shrink-0
         cursor-pointer rounded-full
         transition-colors duration-200 ease-in-out
-        focus:outline-none focus:ring-2 focus:ring-green-500/50 focus:ring-offset-2 focus:ring-offset-transparent
+        focus:outline-none focus:ring-2 focus:ring-brand/50 focus:ring-offset-2 focus:ring-offset-transparent
         disabled:opacity-50 disabled:cursor-not-allowed
-        ${checked ? 'bg-[#34c759]' : 'bg-white/20'}
+        ${checked ? 'bg-brand' : 'bg-white/20'}
       `}
     >
       <span

@@ -148,13 +148,25 @@ export default function HomeScreenSettings({ settings, updateSetting, onBack }: 
           <SettingsCard title="HERO LAYOUT">
             <SegmentedPicker
               label="Hero Layout"
-              value={settings.heroLayout || 'legacy'}
+              value={settings.heroLayout || 'carousel'}
               options={[
                 { value: 'legacy', label: 'Netflix' },
                 { value: 'carousel', label: 'Carousel' },
                 { value: 'appletv', label: 'Apple TV' },
               ]}
               onChange={(v) => updateSetting('heroLayout', v)}
+            />
+            <SettingItem
+              title="Rotate Automatically"
+              description="Move to the next featured title every 8 seconds"
+              renderIcon={() => <IconWrap><LayersIcon size={18} color="#e5e7eb" /></IconWrap>}
+              renderRight={() => (
+                <SettingToggle
+                  checked={settings.heroAutoRotate !== false}
+                  onChange={(v) => updateSetting('heroAutoRotate', v)}
+                />
+              )}
+              isLast
             />
           </SettingsCard>
         )}
@@ -210,22 +222,40 @@ export default function HomeScreenSettings({ settings, updateSetting, onBack }: 
               />
             )}
             disabled={isDiscoveryDisabled}
+          />
+          <SettingItem
+            title="Card Layout"
+            description="More row options are under Rows"
+            renderRight={() => (
+              <div className="flex gap-1">
+                {(['landscape', 'poster'] as const).map((layout) => (
+                  <button
+                    key={layout}
+                    onClick={() => updateSetting('rowLayout', layout)}
+                    className={`px-3 py-1.5 rounded-[10px] text-[12px] font-semibold ${
+                      (settings.rowLayout || 'landscape') === layout ? 'bg-white text-[#111827]' : 'bg-white/[0.06] text-[#e5e7eb]'
+                    }`}
+                  >
+                    {layout === 'landscape' ? 'Landscape' : 'Poster'}
+                  </button>
+                ))}
+              </div>
+            )}
             isLast
           />
         </SettingsCard>
 
-        {/* POSTERS */}
-        <SettingsCard title="POSTERS">
-          <SettingItem
-            title="Show Titles"
-            description="Display title text below each poster"
-            renderIcon={() => <IconWrap><ImageIcon size={18} color="#e5e7eb" /></IconWrap>}
-            renderRight={() => (
-              <SettingToggle
-                checked={settings.showPosterTitles !== false}
-                onChange={(v) => updateSetting('showPosterTitles', v)}
-              />
-            )}
+        {/* CARDS */}
+        <SettingsCard title="CARDS">
+          <SegmentedPicker
+            label="Card Titles"
+            value={settings.cardTitleMode || (settings.showPosterTitles === false ? 'never' : settings.showPosterTitles === true ? 'always' : 'hover')}
+            options={[
+              { value: 'always', label: 'Always' },
+              { value: 'hover', label: 'On Hover' },
+              { value: 'never', label: 'Never' },
+            ]}
+            onChange={(v) => updateSetting('cardTitleMode', v)}
           />
           <SettingItem
             title="Library Titles"
@@ -238,19 +268,66 @@ export default function HomeScreenSettings({ settings, updateSetting, onBack }: 
               />
             )}
           />
+          <SettingItem
+            title="Rating Badges"
+            description="Show the rating on each card"
+            renderIcon={() => <IconWrap><StarIcon size={18} color="#e5e7eb" /></IconWrap>}
+            renderRight={() => (
+              <SettingToggle
+                checked={settings.cardShowRatingBadges === true}
+                onChange={(v) => updateSetting('cardShowRatingBadges', v)}
+              />
+            )}
+          />
+          <SettingItem
+            title="Hover Preview"
+            description="Show details after resting the pointer on a card"
+            renderIcon={() => <IconWrap><ImageIcon size={18} color="#e5e7eb" /></IconWrap>}
+            renderRight={() => (
+              <SettingToggle
+                checked={settings.cardHoverPreviewEnabled !== false}
+                onChange={(v) => updateSetting('cardHoverPreviewEnabled', v)}
+              />
+            )}
+          />
+          {settings.cardHoverPreviewEnabled !== false && (
+            <>
+              <SegmentedPicker
+                label="Preview Delay"
+                value={String(settings.cardHoverPreviewDelay ?? 0.8)}
+                options={[
+                  { value: '0.3', label: 'Short' },
+                  { value: '0.8', label: 'Medium' },
+                  { value: '1.5', label: 'Long' },
+                ]}
+                onChange={(v) => updateSetting('cardHoverPreviewDelay', Number(v))}
+              />
+              <SegmentedPicker
+                label="Preview Trailer"
+                value={settings.cardHoverTrailerMode || 'muted'}
+                options={[
+                  { value: 'off', label: 'Off' },
+                  { value: 'muted', label: 'Muted' },
+                  { value: 'sound', label: 'With Sound' },
+                ]}
+                onChange={(v) => updateSetting('cardHoverTrailerMode', v)}
+              />
+            </>
+          )}
           <SegmentedPicker
-            label="Poster Size"
+            label="Card Size"
             value={settings.posterSize || 'medium'}
             options={[
               { value: 'small', label: 'Small' },
               { value: 'medium', label: 'Medium' },
               { value: 'large', label: 'Large' },
+              { value: 'xlarge', label: 'Extra Large' },
             ]}
             onChange={(v) => updateSetting('posterSize', v)}
           />
           <div className="pb-3">
             <SegmentedPicker
-              label="Poster Corners"
+              label="Card Corners"
               value={String(settings.posterBorderRadius ?? 12)}
               options={[
                 { value: '0', label: 'Square' },

@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { loadSettings, saveSettings, setDiscoveryDisabled } from '@/state/settings';
+import ServerSetupStep from '@/components/onboarding/ServerSetupStep';
+import AddonSetupStep from '@/components/onboarding/AddonSetupStep';
 
 interface OnboardingSlide {
   id: string;
@@ -8,6 +10,8 @@ interface OnboardingSlide {
   subtitle: string;
   description: string;
   isConfig?: boolean;
+  isServerSetup?: boolean;
+  isAddonSetup?: boolean;
 }
 
 const onboardingData: OnboardingSlide[] = [
@@ -34,6 +38,20 @@ const onboardingData: OnboardingSlide[] = [
     title: 'Your\nLibrary',
     subtitle: 'Beautifully Organized',
     description: 'Continue watching across devices, manage your watchlist, and enjoy stunning artwork from TMDB.',
+  },
+  {
+    id: 'server',
+    title: 'Choose\nYour Server',
+    subtitle: 'Connect to Plex',
+    description: 'Pick a server and Flixor finds the fastest way to reach it.',
+    isServerSetup: true,
+  },
+  {
+    id: 'addons',
+    title: 'Add a Stream\nProvider',
+    subtitle: 'Optional',
+    description: 'Stremio addons add extra sources alongside your Plex library. You can skip this and add them later in Settings.',
+    isAddonSetup: true,
   },
   {
     id: '5',
@@ -80,7 +98,7 @@ function SettingRow({
         <div className={`
           w-11 h-6 rounded-full peer transition-colors
           ${disabled ? 'bg-white/10 cursor-not-allowed' : 'bg-white/20'}
-          peer-checked:bg-green-500
+          peer-checked:bg-brand
           after:content-[''] after:absolute after:top-[2px] after:left-[2px]
           after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all
           peer-checked:after:translate-x-5
@@ -130,9 +148,9 @@ function ConfigSlide({
       {/* Library Only Mode Card */}
       <div className="bg-white/[0.08] rounded-2xl border border-white/10 p-5 mb-4">
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-red-500/15 flex items-center justify-center">
+          <div className="w-12 h-12 rounded-xl bg-brand/15 flex items-center justify-center">
             <span className="text-2xl">
-              <svg className="w-6 h-6 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-6 h-6 text-brand-bright" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
               </svg>
             </span>
@@ -150,7 +168,7 @@ function ConfigSlide({
               onChange={(e) => setDiscoveryOff(e.target.checked)}
               className="sr-only peer"
             />
-            <div className="w-11 h-6 bg-white/20 rounded-full peer peer-checked:bg-red-500 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5" />
+            <div className="w-11 h-6 bg-white/20 rounded-full peer peer-checked:bg-brand after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5" />
           </label>
         </div>
       </div>
@@ -326,7 +344,11 @@ export default function Onboarding() {
 
         {/* Slide Content */}
         <div className="flex-1 flex items-center justify-center px-6">
-          {currentSlide.isConfig ? (
+          {currentSlide.isServerSetup ? (
+            <ServerSetupStep title={currentSlide.title} subtitle={currentSlide.subtitle} description={currentSlide.description} />
+          ) : currentSlide.isAddonSetup ? (
+            <AddonSetupStep title={currentSlide.title} subtitle={currentSlide.subtitle} description={currentSlide.description} />
+          ) : currentSlide.isConfig ? (
             <ConfigSlide
               discoveryOff={discoveryOff}
               setDiscoveryOff={setDiscoveryOff}

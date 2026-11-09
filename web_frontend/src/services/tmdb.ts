@@ -267,3 +267,39 @@ export async function tmdbDiscoverTV(key: string, params?: any) {
  * but is no longer used since the backend handles authentication with its own keys.
  * This can be removed in a future refactor once all calling code is updated.
  */
+
+/**
+ * Get a TMDB collection (franchise) with its movies
+ */
+export async function tmdbCollection(id: string | number) {
+  return cached(`tmdb:collection:${id}`, 24 * 60 * 60 * 1000, async () => {
+    return tmdbBackendFetch(`/collection/${id}`);
+  });
+}
+
+/**
+ * Get a production company
+ */
+export async function tmdbCompany(id: string | number) {
+  return cached(`tmdb:company:${id}`, 24 * 60 * 60 * 1000, async () => {
+    return tmdbBackendFetch(`/company/${id}`);
+  });
+}
+
+/**
+ * Get a TV network
+ */
+export async function tmdbNetwork(id: string | number) {
+  return cached(`tmdb:network:${id}`, 24 * 60 * 60 * 1000, async () => {
+    return tmdbBackendFetch(`/network/${id}`);
+  });
+}
+
+/**
+ * Search TMDB collections (franchises)
+ */
+export async function tmdbSearchCollections(query: string) {
+  return cached(`tmdb:searchCollection:${query}`, 6 * 60 * 60 * 1000, async () => {
+    return tmdbBackendFetch('/search/collection', { query });
+  });
+}

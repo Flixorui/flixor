@@ -1,8 +1,14 @@
-import { useState, useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import SettingsCard from '@/components/SettingsCard';
 import SettingItem, { SettingToggle } from '@/components/SettingItem';
 import { AppSettings } from '@/state/settings';
 import { API_BASE_URL } from '@/services/api';
+import {
+  clearOverseerrCache,
+  getOverseerrPlexSession,
+  signInToOverseerrWithPlex,
+  signOutOfOverseerrPlex,
+} from '@/services/overseerr';
 import {
   OverseerrIcon,
   ChevronBackIcon,
@@ -39,8 +45,53 @@ export default function OverseerrSettings({ settings, updateSetting, onBack }: O
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<'success' | 'error' | null>(null);
 
-  const hasConfig = useMemo(() => url.trim().length > 0 && apiKey.trim().length > 0, [url, apiKey]);
+  const authMethod = settings.overseerrAuthMethod ?? 'api_key';
+  const [plexUsername, setPlexUsername] = useState(settings.overseerrPlexUsername || '');
+  const [signingIn, setSigningIn] = useState(false);
+  const [signInError, setSignInError] = useState<string | null>(null);
+
+  const hasConfig = useMemo(
+    () => url.trim().length > 0 && (authMethod === 'plex' ? plexUsername.length > 0 : apiKey.trim().length > 0),
+    [url, apiKey, authMethod, plexUsername],
+  );
   const isReady = settings.overseerrEnabled && hasConfig;
+
+  // The session lives on the server and can expire, so confirm it on open.
+  useEffect(() => {
+    if (authMethod !== 'plex' || !settings.overseerrUrl) return;
+    let alive = true;
+    getOverseerrPlexSession(settings.overseerrUrl).then((session) => {
+      if (!alive) return;
+      const name = session.signedIn ? session.username || plexUsername : '';
+      setPlexUsername(name);
+      if (name !== (settings.overseerrPlexUsername || '')) updateSetting('overseerrPlexUsername', name);
+    });
+    return () => { alive = false; };
+    // Run once per URL and method.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authMethod, settings.overseerrUrl]);
+
+  const signIn = async () => {
+    setSigningIn(true);
+    setSignInError(null);
+    const result = await signInToOverseerrWithPlex(url.trim());
+    setSigningIn(false);
+    if (result.valid) {
+      const name = result.username || 'Plex User';
+      setPlexUsername(name);
+      updateSetting('overseerrUrl', url.trim());
+      updateSetting('overseerrPlexUsername', name);
+      clearOverseerrCache();
+    } else {
+      setSignInError(result.error || 'Sign-in failed');
+    }
+  };
+
+  const signOut = async () => {
+    await signOutOfOverseerrPlex();
+    setPlexUsername('');
+    updateSetting('overseerrPlexUsername', '');
+  };
 
   const saveSettings = () => {
     updateSetting('overseerrUrl', url.trim() || undefined);
@@ -58,6 +109,7 @@ export default function OverseerrSettings({ settings, updateSetting, onBack }: O
       // Use backend proxy to avoid CORS issues
       const response = await fetch(OVERSEERR_PROXY, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -136,7 +188,7 @@ export default function OverseerrSettings({ settings, updateSetting, onBack }: O
               {!settings.overseerrEnabled
                 ? 'Enable Overseerr to request media not in your library.'
                 : !hasConfig
-                  ? 'Enter your Overseerr URL and API key.'
+                  ? (authMethod === 'plex' ? 'Enter your Overseerr URL and sign in with Plex.' : 'Enter your Overseerr URL and API key.')
                   : 'Request movies and TV shows directly from Flixor.'}
             </span>
           </div>
@@ -161,6 +213,26 @@ export default function OverseerrSettings({ settings, updateSetting, onBack }: O
         {/* Server Configuration */}
         <SettingsCard title="SERVER CONFIGURATION">
           <div className={`p-3.5 space-y-3 ${!settings.overseerrEnabled ? 'opacity-50' : ''}`}>
+            <div className="flex rounded-[14px] p-0.5 gap-0.5 h-[44px] bg-white/[0.04] border border-white/[0.12]">
+              {([
+                { value: 'api_key', label: 'API Key' },
+                { value: 'plex', label: 'Sign in with Plex' },
+              ] as const).map((option) => (
+                <button
+                  key={option.value}
+                  disabled={!settings.overseerrEnabled}
+                  onClick={() => {
+                    updateSetting('overseerrAuthMethod', option.value);
+                    clearOverseerrCache();
+                  }}
+                  className={`flex-1 rounded-[10px] text-[14px] font-semibold transition-colors ${
+                    authMethod === option.value ? 'bg-white text-[#111827]' : 'text-[#e5e7eb] hover:text-white'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
             <div>
               <label className="flex items-center gap-2 text-[#f9fafb] text-sm font-semibold mb-2">
                 <ServerIcon size={16} color="#9ca3af" />
@@ -180,6 +252,39 @@ export default function OverseerrSettings({ settings, updateSetting, onBack }: O
                 `}
               />
             </div>
+            {authMethod === 'plex' ? (
+              <div className="space-y-3">
+                {plexUsername ? (
+                  <div className="flex items-center gap-2 p-2.5 rounded-lg text-sm bg-[#22c55e]/10 text-[#22c55e]">
+                    <CheckmarkCircleIcon size={18} color="#22c55e" />
+                    <span className="flex-1">Signed in as {plexUsername}</span>
+                    <button onClick={signOut} className="text-[#e5e7eb] font-semibold hover:text-white">Sign out</button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={signIn}
+                    disabled={!settings.overseerrEnabled || !url.trim() || signingIn}
+                    className={`w-full py-2.5 rounded-[10px] font-bold text-sm transition-colors ${
+                      settings.overseerrEnabled && url.trim() && !signingIn
+                        ? 'bg-white text-[#0b0b0d] hover:bg-white/90'
+                        : 'bg-white/10 text-[#6b7280] cursor-not-allowed'
+                    }`}
+                  >
+                    {signingIn ? 'Signing in...' : 'Sign in with Plex'}
+                  </button>
+                )}
+                {signInError && (
+                  <div className="flex items-center gap-2 p-2.5 rounded-lg text-sm bg-[#ef4444]/10 text-[#ef4444]">
+                    <AlertCircleIcon size={18} color="#ef4444" />
+                    {signInError}
+                  </div>
+                )}
+                <p className="text-[#9ca3af] text-[12px]">
+                  Uses your Plex account. Your Plex user must have access to this Overseerr server.
+                </p>
+              </div>
+            ) : (
+            <>
             <div>
               <label className="flex items-center gap-2 text-[#f9fafb] text-sm font-semibold mb-2">
                 <KeyIcon size={16} color="#9ca3af" />
@@ -235,6 +340,8 @@ export default function OverseerrSettings({ settings, updateSetting, onBack }: O
             >
               {testing ? 'Testing...' : 'Test Connection & Save'}
             </button>
+            </>
+            )}
           </div>
         </SettingsCard>
 

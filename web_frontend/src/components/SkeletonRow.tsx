@@ -1,22 +1,27 @@
-export default function SkeletonRow({ count = 8, title }: { count?: number; title?: string }) {
+import { useSettings } from '@/state/settings';
+import { useCardStyle } from './cards/cardStyle';
+
+export default function SkeletonRow({ count, title }: { count?: number; title?: string }) {
+  const settings = useSettings();
+  const style = useCardStyle();
+  const poster = settings.rowLayout === 'poster';
+  const cards = count ?? (poster ? 8 : 5);
   return (
-    <section className="py-2 my-5">
-      <div className="page-gutter">
+    <section className="mb-4">
+      <div className="row-gutter">
         <div className="row-band">
-          <div className="pt-4">
-            <div className="flex items-baseline gap-3 group">
-              {title ? (
-                <h2 className="text-neutral-200 font-semibold text-xl md:text-2xl cursor-default">{title}</h2>
-              ) : (
-                <div className="h-6 w-48 skeleton rounded" />
-              )}
-            </div>
+          <div className="py-[15px]">
+            {title ? (
+              <h2 className="text-white font-bold text-lg cursor-default">{title}</h2>
+            ) : (
+              <div className="h-[28px] w-48 skeleton rounded" />
+            )}
           </div>
-          <div className="row-edge no-scrollbar overflow-x-auto" style={{ padding: '12px 0 16px 0' }}>
-            <div className="flex gap-8 pb-4 w-max">
-              {Array.from({ length: count }).map((_, i) => (
-                <div key={i} className="group flex-shrink-0 w-[360px] md:w-[420px]">
-                  <div className="relative aspect-[2/1] rounded-xl overflow-hidden bg-neutral-800 skeleton" />
+          <div className="row-edge no-scrollbar overflow-x-hidden py-[15px]">
+            <div className="flex gap-3 md:gap-4 w-max">
+              {Array.from({ length: cards }).map((_, i) => (
+                <div key={i} className="flex-shrink-0" style={{ width: poster ? style.posterWidth : `min(${style.landscapeWidth}px, 86vw)` }}>
+                  <div className={`relative overflow-hidden bg-neutral-800 skeleton ${poster ? 'aspect-[2/3]' : 'aspect-[2/1]'}`} style={{ borderRadius: style.radius }} />
                 </div>
               ))}
             </div>

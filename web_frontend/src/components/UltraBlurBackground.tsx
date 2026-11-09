@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { extractUltraBlurColors, hexToRgba, DEFAULT_ULTRABLUR_COLORS, UltraBlurColors } from '@/services/colorExtractor';
+import { useSettings } from '@/state/settings';
 
 type UltraBlurBackgroundProps = {
   imageUrl?: string;
@@ -21,6 +22,7 @@ export default function UltraBlurBackground({
   const [isAnimating, setIsAnimating] = useState(false);
   const lastImageRef = useRef<string | null>(null);
   const throttleRef = useRef<number>(0);
+  const { pureBlack } = useSettings();
 
   useEffect(() => {
     if (!imageUrl) return;
@@ -58,29 +60,29 @@ export default function UltraBlurBackground({
       <div
         className="fixed inset-0 pointer-events-none transition-opacity duration-500"
         style={{
-          background: 'linear-gradient(to bottom, #1a1a1a 0%, #181818 50%, #151515 100%)'
+          background: pureBlack ? '#000' : 'linear-gradient(to bottom, #1a1a1a 0%, #181818 50%, #151515 100%)'
         }}
       />
 
       {/* Bottom-left color gradient - fixed to cover entire viewport */}
-      <div
+      {!pureBlack && <div
         className={`fixed inset-0 pointer-events-none transition-all duration-800 ease-in-out ${
           isAnimating ? 'opacity-0' : 'opacity-100'
         }`}
         style={{
           background: `linear-gradient(135deg, ${hexToRgba(colors.bottomLeft, 0.55)} 0%, ${hexToRgba(colors.bottomLeft, 0.25)} 35%, transparent 65%)`
         }}
-      />
+      />}
 
       {/* Top-right color gradient - fixed to cover entire viewport */}
-      <div
+      {!pureBlack && <div
         className={`fixed inset-0 pointer-events-none transition-all duration-800 ease-in-out ${
           isAnimating ? 'opacity-0' : 'opacity-100'
         }`}
         style={{
           background: `linear-gradient(315deg, ${hexToRgba(colors.topRight, 0.50)} 0%, ${hexToRgba(colors.topRight, 0.20)} 35%, transparent 65%)`
         }}
-      />
+      />}
 
       {/* Content */}
       <div className="relative z-10">

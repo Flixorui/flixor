@@ -14,36 +14,49 @@ type SmartImageProps = {
   imgClassName?: string; // img element class
   priority?: boolean; // above-the-fold hero
   quality?: number; // 1-100
+  onLoad?: () => void;
 };
 
 // Clamp helper
 const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
 
-export function SmartImage({ plexPath, url, alt, width = 320, height, sizes, className = '', imgClassName = '', priority = false, quality = 70 }: SmartImageProps) {
-  const [loaded, setLoaded] = useState(false);
+type ImageSource = { plexPath?: string; url?: string; height?: number; baseWidth: number; quality: number };
+
+function buildImageUrl({ plexPath, url, height, baseWidth, quality }: ImageSource, fmt: 'webp' | 'jpeg', w: number) {
+  const opts = { width: w, quality, format: fmt } as any;
+  if (height) opts.height = Math.round(height * (w / baseWidth));
+  if (plexPath) return apiClient.getPlexImageNoToken(plexPath, opts);
+  if (url) {
+    // If this is already a same-origin Plex image URL (/api/image/plex?path=...),
+    // prefer generating via getPlexImageNoToken using the embedded path to avoid double-proxy.
+    try {
+      const u = new URL(url, typeof window !== 'undefined' ? window.location.origin : 'http://localhost');
+      if (u.pathname.includes('/api/image/plex')) {
+        const p = u.searchParams.get('path') || u.searchParams.get('url') || '';
+        if (p) return apiClient.getPlexImageNoToken(p, opts);
+      }
+    } catch {}
+    return apiClient.getImageProxyUrl(url, opts);
+  }
+  return '';
+}
+
+/** The URL a SmartImage of this width loads on this screen, for preheating. */
+export function smartImageUrl(url: string, width: number, quality = 70) {
+  const baseWidth = clamp(Math.round(width), 80, 1920);
   const dpr = (typeof window !== 'undefined' ? window.devicePixelRatio : 1) || 1;
+  const w = dpr >= 1.5 ? clamp(baseWidth * 2, baseWidth + 1, 2400) : baseWidth;
+  return buildImageUrl({ url, baseWidth, quality }, 'webp', w);
+}
+
+export function SmartImage({ plexPath, url, alt, width = 320, height, sizes, className = '', imgClassName = '', priority = false, quality = 70, onLoad: onLoadProp }: SmartImageProps) {
+  const [loaded, setLoaded] = useState(false);
   const baseW = clamp(Math.round(width), 80, 1920);
   const w1 = baseW;
   const w2 = clamp(Math.round(baseW * 2), baseW + 1, 2400);
 
-  const makeUrl = (fmt: 'webp' | 'jpeg', w: number) => {
-    const opts = { width: w, quality, format: fmt } as any;
-    if (height) (opts as any).height = Math.round(height * (w / baseW));
-    if (plexPath) return apiClient.getPlexImageNoToken(plexPath, opts);
-    if (url) {
-      // If this is already a same-origin Plex image URL (/api/image/plex?path=...),
-      // prefer generating via getPlexImageNoToken using the embedded path to avoid double-proxy.
-      try {
-        const u = new URL(url, typeof window !== 'undefined' ? window.location.origin : 'http://localhost');
-        if (u.pathname.includes('/api/image/plex')) {
-          const p = u.searchParams.get('path') || u.searchParams.get('url') || '';
-          if (p) return apiClient.getPlexImageNoToken(p, opts);
-        }
-      } catch {}
-      return apiClient.getImageProxyUrl(url, opts);
-    }
-    return '';
-  };
+  const makeUrl = (fmt: 'webp' | 'jpeg', w: number) =>
+    buildImageUrl({ plexPath, url, height, baseWidth: baseW, quality }, fmt, w);
 
   const srcWebp1x = useMemo(() => makeUrl('webp', w1), [plexPath, url, w1, quality, height]);
   const srcWebp2x = useMemo(() => makeUrl('webp', w2), [plexPath, url, w2, quality, height]);
@@ -51,7 +64,10 @@ export function SmartImage({ plexPath, url, alt, width = 320, height, sizes, cla
   const srcJpg2x = useMemo(() => makeUrl('jpeg', w2), [plexPath, url, w2, quality, height]);
   const lqip = useMemo(() => makeUrl('jpeg', 24), [plexPath, url, quality, height]);
 
-  const onLoad = () => setLoaded(true);
+  const onLoad = () => {
+    setLoaded(true);
+    onLoadProp?.();
+  };
   const fetchPriority = priority ? 'high' : 'auto';
   const loading = priority ? 'eager' : 'lazy';
 

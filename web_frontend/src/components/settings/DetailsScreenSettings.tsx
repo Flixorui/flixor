@@ -1,6 +1,6 @@
 import SettingsCard from '@/components/SettingsCard';
 import SettingItem, { SettingToggle } from '@/components/SettingItem';
-import { AppSettings } from '@/state/settings';
+import { AppSettings, SETTINGS_DEFAULTS, type DetailsSectionKey, type DetailsSectionPreference } from '@/state/settings';
 import {
   StarIcon,
   LeafIcon,
@@ -66,6 +66,38 @@ function SegmentedPicker<T extends string>({
   );
 }
 
+const SECTION_LABELS: Record<DetailsSectionKey, string> = {
+  episodes: 'Episodes',
+  suggested: 'More Like This',
+  collection: 'Collection',
+  cast: 'Cast & Crew',
+  trailers: 'Trailers & Videos',
+  comments: 'Comments',
+  about: 'About',
+};
+
+function completeSectionOrder(stored?: DetailsSectionPreference[]): DetailsSectionPreference[] {
+  const order = stored ?? SETTINGS_DEFAULTS.detailsSectionOrder;
+  const known = new Set(order.map((section) => section.key));
+  return [...order, ...SETTINGS_DEFAULTS.detailsSectionOrder.filter((section) => !known.has(section.key))];
+}
+
+function MoveButton({ label, disabled, onClick, path }: { label: string; disabled: boolean; onClick: () => void; path: string }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      title={label}
+      className="flex h-8 w-8 items-center justify-center rounded-full text-white hover:bg-white/10 disabled:opacity-25"
+    >
+      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d={path} />
+      </svg>
+    </button>
+  );
+}
+
 interface DetailsScreenSettingsProps {
   settings: AppSettings;
   updateSetting: <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => void;
@@ -73,6 +105,14 @@ interface DetailsScreenSettingsProps {
 }
 
 export default function DetailsScreenSettings({ settings, updateSetting, onBack }: DetailsScreenSettingsProps) {
+  const sections = completeSectionOrder(settings.detailsSectionOrder);
+  const moveSection = (index: number, delta: number) => {
+    const next = [...sections];
+    const [section] = next.splice(index, 1);
+    next.splice(index + delta, 0, section);
+    updateSetting('detailsSectionOrder', next);
+  };
+
   return (
     <div className="min-h-screen bg-[#0b0b0d] pb-20">
       {/* Header with back button */}
@@ -135,7 +175,120 @@ export default function DetailsScreenSettings({ settings, updateSetting, onBack 
                 onChange={(v) => updateSetting('ratingsVisible', { ...settings.ratingsVisible, rtAudience: v })}
               />
             )}
+          />
+          <SettingItem
+            title="Letterboxd"
+            description="Requires MDBList"
+            renderIcon={() => <IconWrap><StarIcon size={18} color="#e5e7eb" /></IconWrap>}
+            renderRight={() => (
+              <SettingToggle
+                checked={settings.ratingsVisible?.letterboxd !== false}
+                onChange={(v) => updateSetting('ratingsVisible', { ...settings.ratingsVisible, letterboxd: v })}
+              />
+            )}
+          />
+          <SettingItem
+            title="Metacritic"
+            description="Requires MDBList"
+            renderIcon={() => <IconWrap><StarIcon size={18} color="#e5e7eb" /></IconWrap>}
+            renderRight={() => (
+              <SettingToggle
+                checked={settings.ratingsVisible?.metacritic !== false}
+                onChange={(v) => updateSetting('ratingsVisible', { ...settings.ratingsVisible, metacritic: v })}
+              />
+            )}
             isLast
+          />
+        </SettingsCard>
+
+        {/* SECTIONS */}
+        <SettingsCard title="SECTIONS">
+          {sections.map((section, index) => (
+            <SettingItem
+              key={section.key}
+              title={SECTION_LABELS[section.key]}
+              renderRight={() => (
+                <div className="flex items-center gap-1">
+                  <MoveButton label={`Move ${SECTION_LABELS[section.key]} up`} disabled={index === 0} onClick={() => moveSection(index, -1)} path="M5 15l7-7 7 7" />
+                  <MoveButton label={`Move ${SECTION_LABELS[section.key]} down`} disabled={index === sections.length - 1} onClick={() => moveSection(index, 1)} path="M19 9l-7 7-7-7" />
+                  <SettingToggle
+                    checked={section.enabled}
+                    onChange={(enabled) => updateSetting('detailsSectionOrder', sections.map((item) => (item.key === section.key ? { ...item, enabled } : item)))}
+                  />
+                </div>
+              )}
+              isLast={index === sections.length - 1}
+            />
+          ))}
+        </SettingsCard>
+
+        {/* EPISODES */}
+        <SettingsCard title="EPISODES">
+          <SegmentedPicker
+            label="Season Picker"
+            value={settings.detailsSeasonPickerStyle ?? 'chips'}
+            options={[
+              { value: 'chips', label: 'Chips' },
+              { value: 'posters', label: 'Posters' },
+            ]}
+            onChange={(v) => updateSetting('detailsSeasonPickerStyle', v)}
+          />
+          <SettingItem
+            title="Hide Spoilers"
+            description="Blur images and hide synopses of unwatched episodes"
+            renderRight={() => (
+              <SettingToggle
+                checked={settings.detailsHideEpisodeSpoilers ?? false}
+                onChange={(v) => updateSetting('detailsHideEpisodeSpoilers', v)}
+              />
+            )}
+          />
+          <SettingItem
+            title="Episode Ratings"
+            description="Show the TMDB rating on each episode"
+            renderRight={() => (
+              <SettingToggle
+                checked={settings.detailsShowEpisodeRatings ?? true}
+                onChange={(v) => updateSetting('detailsShowEpisodeRatings', v)}
+              />
+            )}
+            isLast
+          />
+        </SettingsCard>
+
+        {/* HERO AND SUGGESTIONS */}
+        <SettingsCard title="HERO">
+          <SettingItem
+            title="Inline Trailer"
+            description="Play the trailer behind the title after a few seconds"
+            renderRight={() => (
+              <SettingToggle
+                checked={settings.detailsHeroInlineTrailerEnabled ?? true}
+                onChange={(v) => updateSetting('detailsHeroInlineTrailerEnabled', v)}
+              />
+            )}
+          />
+          <SettingItem
+            title="Start Muted"
+            renderRight={() => (
+              <SettingToggle
+                checked={settings.detailsHeroTrailerStartsMuted ?? true}
+                onChange={(v) => updateSetting('detailsHeroTrailerStartsMuted', v)}
+              />
+            )}
+            isLast
+          />
+        </SettingsCard>
+
+        <SettingsCard title="SUGGESTED">
+          <SegmentedPicker
+            label="Row Layout"
+            value={settings.suggestedLayout ?? 'landscape'}
+            options={[
+              { value: 'landscape', label: 'Landscape' },
+              { value: 'poster', label: 'Poster' },
+            ]}
+            onChange={(v) => updateSetting('suggestedLayout', v)}
           />
         </SettingsCard>
       </div>

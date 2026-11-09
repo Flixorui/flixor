@@ -1,6 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
 import SettingsCard from '@/components/SettingsCard';
+import SettingItem, { SettingToggle } from '@/components/SettingItem';
 import { AppSettings } from '@/state/settings';
+import {
+  traktGetUserProfile,
+  traktPollForToken,
+  traktRequestDeviceCode,
+  traktRevokeToken,
+  type TraktDeviceCode,
+} from '@/services/trakt';
+import { clearTraktReconnect } from '@/services/traktConnection';
 import {
   TraktIcon,
   ChevronBackIcon,
@@ -16,30 +25,39 @@ interface TraktSettingsProps {
   onBack: () => void;
 }
 
-// Trakt API constants
-const TRAKT_CLIENT_ID = '14c41a682a5e3ddafb1a4b6ed59f6a2e6edab9eb0569830e7b3f9f6a88a1e2f1';
-
 export default function TraktSettings({ settings, updateSetting, onBack }: TraktSettingsProps) {
-  const [profile, setProfile] = useState<any | null>(null);
-  const [deviceCode, setDeviceCode] = useState<any | null>(null);
+  const [connected, setConnected] = useState(false);
+  const [needsReconnect, setNeedsReconnect] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [deviceCode, setDeviceCode] = useState<TraktDeviceCode | null>(null);
   const [copied, setCopied] = useState(false);
-  const [polling, setPolling] = useState(false);
   const pollRef = useRef<number | null>(null);
 
-  // Check if we have Trakt tokens
-  const isConnected = !!(settings.traktAccessToken || settings.traktTokens);
+  const stopPolling = () => {
+    if (pollRef.current) clearInterval(pollRef.current);
+    pollRef.current = null;
+  };
 
+  // The backend's tokens are what every Trakt feature uses, so ask it directly.
+  const hasLocalTokens = !!(settings.traktAccessToken || settings.traktTokens);
   useEffect(() => {
-    // Try to get profile from tokens
-    if (isConnected) {
-      // For now just show connected status
-      // In a full implementation, we'd fetch the profile from Trakt API
-      setProfile({ connected: true });
-    }
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
-  }, [isConnected]);
+    let alive = true;
+    traktGetUserProfile('')
+      .then(() => {
+        if (!alive) return;
+        setConnected(true);
+        setNeedsReconnect(false);
+      })
+      .catch(() => {
+        if (!alive) return;
+        setConnected(false);
+        setNeedsReconnect(hasLocalTokens);
+      });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => stopPolling, []);
 
   const copyCode = async () => {
     if (!deviceCode?.user_code) return;
@@ -53,67 +71,44 @@ export default function TraktSettings({ settings, updateSetting, onBack }: Trakt
   };
 
   const startAuth = async () => {
+    setAuthError(null);
     try {
-      // Start device code flow
-      const response = await fetch('https://api.trakt.tv/oauth/device/code', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          client_id: settings.traktClientId || TRAKT_CLIENT_ID,
-        }),
-      });
-
-      if (!response.ok) throw new Error('Failed to get device code');
-      const dc = await response.json();
+      // Device flow through the backend, which keeps the tokens server-side.
+      const dc = await traktRequestDeviceCode();
       setDeviceCode(dc);
-      setPolling(true);
       setCopied(false);
 
-      // Open verification URL
       window.open(dc.verification_url, '_blank');
 
-      // Start polling for token
       if (pollRef.current) clearInterval(pollRef.current);
       pollRef.current = window.setInterval(async () => {
         try {
-          const tokenResponse = await fetch('https://api.trakt.tv/oauth/device/token', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              code: dc.device_code,
-              client_id: settings.traktClientId || TRAKT_CLIENT_ID,
-              client_secret: '', // Not needed for device auth
-            }),
-          });
-
-          if (tokenResponse.ok) {
-            const tokens = await tokenResponse.json();
-            // Save tokens
-            updateSetting('traktTokens', JSON.stringify(tokens));
-            updateSetting('traktAccessToken', tokens.access_token);
-
-            if (pollRef.current) clearInterval(pollRef.current);
-            setDeviceCode(null);
-            setPolling(false);
-            setProfile({ connected: true });
-          }
+          const tokens = await traktPollForToken(dc.device_code);
+          if (!tokens) return;
+          stopPolling();
+          updateSetting('traktTokens', JSON.stringify(tokens));
+          updateSetting('traktAccessToken', tokens.access_token);
+          setDeviceCode(null);
+          setConnected(true);
         } catch {
-          // Still waiting for authorization
+          // The code expired or was denied.
+          stopPolling();
+          setDeviceCode(null);
+          setAuthError('Authorization did not complete. Try again.');
         }
       }, Math.max(5, Number(dc.interval || 5)) * 1000);
-    } catch (e) {
-      console.error('Failed to start Trakt auth:', e);
+    } catch {
+      setAuthError('Could not reach Trakt. Try again.');
     }
   };
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
+    // Local sign-out still applies if the server call fails.
+    await traktRevokeToken('').catch(() => undefined);
     updateSetting('traktTokens', undefined);
     updateSetting('traktAccessToken', undefined);
-    setProfile(null);
+    clearTraktReconnect();
+    setConnected(false);
   };
 
   return (
@@ -144,7 +139,7 @@ export default function TraktSettings({ settings, updateSetting, onBack }: Trakt
 
         {/* Account Status */}
         <SettingsCard title="ACCOUNT">
-          {profile ? (
+          {connected ? (
             <div className="p-3.5 space-y-2.5">
               <div className="flex items-center gap-2">
                 <CheckmarkCircleIcon size={18} color="#22c55e" />
@@ -161,17 +156,50 @@ export default function TraktSettings({ settings, updateSetting, onBack }: Trakt
             <div className="p-3.5 space-y-2.5">
               <div className="flex items-center gap-2">
                 <CloseCircleIcon size={18} color="#ef4444" />
-                <span className="text-[#e5e7eb] text-sm">Not connected</span>
+                <span className="text-[#e5e7eb] text-sm">{needsReconnect ? 'Reconnect needed' : 'Not connected'}</span>
               </div>
+              {needsReconnect && (
+                <p className="text-[#9ca3af] text-[12px]">
+                  Flixor now keeps your Trakt sign-in on the server, and your earlier sign-in was only saved in this browser.
+                  Connect once more to turn syncing, scrobbling, ratings and Trakt rows back on. Your Trakt history isn't affected.
+                </p>
+              )}
+              {authError && <p className="text-[#ef4444] text-[13px]">{authError}</p>}
               <button
                 onClick={startAuth}
                 className="w-full py-2.5 rounded-[10px] font-bold text-sm bg-white text-[#0b0b0d] hover:bg-white/90 transition-colors"
               >
-                Connect Trakt
+                {needsReconnect ? 'Reconnect Trakt' : 'Connect Trakt'}
               </button>
             </div>
           )}
         </SettingsCard>
+
+        {connected && (
+          <SettingsCard title="SYNC">
+            <SettingItem
+              title="Auto-sync watched"
+              description="Send watched status and saved progress to Trakt"
+              renderRight={() => (
+                <SettingToggle
+                  checked={settings.traktAutoSyncWatched !== false}
+                  onChange={(value) => updateSetting('traktAutoSyncWatched', value)}
+                />
+              )}
+            />
+            <SettingItem
+              title="Enable scrobbling"
+              description="Report your watching activity to Trakt in real time"
+              renderRight={() => (
+                <SettingToggle
+                  checked={settings.traktScrobbleEnabled !== false}
+                  onChange={(value) => updateSetting('traktScrobbleEnabled', value)}
+                />
+              )}
+              isLast
+            />
+          </SettingsCard>
+        )}
 
         {/* Device Code - shown during auth */}
         {deviceCode && (

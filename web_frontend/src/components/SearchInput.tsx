@@ -3,6 +3,8 @@ import { useRef, useEffect, useState } from 'react';
 interface SearchInputProps {
   value: string;
   onChange: (value: string) => void;
+  /** The user pressed Return. */
+  onSubmit?: () => void;
   placeholder?: string;
   autoFocus?: boolean;
 }
@@ -10,6 +12,7 @@ interface SearchInputProps {
 export default function SearchInput({
   value,
   onChange,
+  onSubmit,
   placeholder = 'Search for movies, TV shows...',
   autoFocus = false
 }: SearchInputProps) {
@@ -56,6 +59,9 @@ export default function SearchInput({
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') onSubmit?.();
+        }}
         onFocus={() => setIsFocused(true)}
         onBlur={() => setIsFocused(false)}
         placeholder={placeholder}

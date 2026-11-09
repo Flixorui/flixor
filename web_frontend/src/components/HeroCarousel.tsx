@@ -1,272 +1,320 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState, type PointerEvent } from 'react';
 import SmartImage from './SmartImage';
+import type { CardItem } from './cards/cardTypes';
+import { heroMetadata, type HeroMetadata } from './home/heroData';
+import { preheatImages } from './home/preheat';
 
-type HeroItem = {
-  id: string;
-  title: string;
-  overview?: string;
-  backdropUrl?: string;
-  logoUrl?: string;
-  year?: string;
-  runtime?: number;
-  rating?: string;
-  genres?: string[];
-};
+const ROTATE_INTERVAL_MS = 8000;
+const PAGE_MS = 500;
+const BACKGROUND_PARALLAX = 0.055;
+const CONTENT_PARALLAX = 0.18;
+const SCROLL_PARALLAX = 0.38;
+const SCROLL_DOWN_SCALE = 0.0001;
+const SCROLL_UP_SCALE = 0.002;
+const MAX_SCROLL_SCALE = 1.3;
+const SWIPE_THRESHOLD = 0.16;
+const BACKDROP_WIDTH = 1920;
 
-type HeroCarouselProps = {
-  items: HeroItem[];
-  autoRotate?: boolean;
-  rotateInterval?: number; // ms, default 8000 (matches MacOS)
-  onPlay?: (id: string) => void;
-  onMoreInfo?: (id: string) => void;
-  onActiveChange?: (item: HeroItem, index: number) => void;
-};
+function prefersReducedMotion() {
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
 
+function useHeroMetadata(item?: CardItem) {
+  const [metadata, setMetadata] = useState<HeroMetadata | null>(null);
+  useEffect(() => {
+    setMetadata(null);
+    if (!item) return;
+    let alive = true;
+    heroMetadata(item).then((value) => {
+      if (alive) setMetadata(value);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [item]);
+  return metadata;
+}
+
+/** Full-bleed Home hero: artwork to the window edges, logo, genres, summary and View Details. */
 export default function HeroCarousel({
   items,
   autoRotate = false,
-  rotateInterval = 8000,
-  onPlay,
-  onMoreInfo,
+  onInfo,
   onActiveChange,
-}: HeroCarouselProps) {
-  const [activeIndex, setActiveIndex] = useState(0);
-  const [isPaused, setIsPaused] = useState(false);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+}: {
+  items: CardItem[];
+  autoRotate?: boolean;
+  onInfo: (item: CardItem) => void;
+  onActiveChange?: (backdropUrl: string | undefined) => void;
+}) {
+  const [index, setIndex] = useState(0);
+  const [outgoing, setOutgoing] = useState<number | null>(null);
+  const [forward, setForward] = useState(true);
+  const [paused, setPaused] = useState(false);
+  const [width, setWidth] = useState(() => window.innerWidth);
+  const [rotationEpoch, setRotationEpoch] = useState(0);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const artworkRef = useRef<HTMLDivElement>(null);
+  const dragStart = useRef<{ x: number; y: number } | null>(null);
+  const reduceMotion = prefersReducedMotion();
+  const safeIndex = index < items.length ? index : 0;
+  const current = items[safeIndex];
+  const metadata = useHeroMetadata(current);
 
-  const goToNext = useCallback(() => {
-    setActiveIndex((prev) => (prev + 1) % items.length);
-  }, [items.length]);
+  const changePage = useCallback(
+    (next: number, isForward: boolean, userInitiated: boolean) => {
+      if (next === safeIndex) return;
+      setForward(isForward);
+      setOutgoing(reduceMotion ? null : safeIndex);
+      setIndex(next);
+      if (userInitiated) setRotationEpoch((epoch) => epoch + 1);
+    },
+    [safeIndex, reduceMotion],
+  );
 
-  const goToPrev = useCallback(() => {
-    setActiveIndex((prev) => (prev - 1 + items.length) % items.length);
-  }, [items.length]);
+  useEffect(() => {
+    if (outgoing === null) return;
+    const timer = window.setTimeout(() => setOutgoing(null), PAGE_MS);
+    return () => window.clearTimeout(timer);
+  }, [outgoing, safeIndex]);
 
-  const goToIndex = useCallback((index: number) => {
-    setActiveIndex(index);
+  useEffect(() => {
+    if (!autoRotate || paused || items.length < 2) return;
+    const timer = window.setInterval(() => {
+      if (document.hidden) return;
+      changePage((safeIndex + 1) % items.length, true, false);
+    }, ROTATE_INTERVAL_MS);
+    return () => window.clearInterval(timer);
+  }, [autoRotate, paused, items.length, safeIndex, changePage, rotationEpoch]);
+
+  useEffect(() => {
+    if (metadata?.backdropUrl) onActiveChange?.(metadata.backdropUrl);
+  }, [metadata, onActiveChange]);
+
+  // Loads the next page ahead of time so it doesn't flash in empty.
+  useEffect(() => {
+    if (items.length < 2) return;
+    const next = items[(safeIndex + 1) % items.length];
+    let alive = true;
+    heroMetadata(next).then((value) => {
+      if (alive) preheatImages([value.backdropUrl, value.logoUrl], BACKDROP_WIDTH);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [items, safeIndex]);
+
+  useEffect(() => {
+    const onResize = () => setWidth(window.innerWidth);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  // Auto-rotation
+  // Scroll parallax is written straight to the element to avoid re-rendering the page.
   useEffect(() => {
-    if (!autoRotate || isPaused || items.length <= 1) return;
-
-    intervalRef.current = setInterval(goToNext, rotateInterval);
-
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
+    if (reduceMotion) return;
+    let frame = 0;
+    const apply = () => {
+      frame = 0;
+      const offset = Math.min(window.scrollY, 800);
+      const increase = offset < 0 ? -offset * SCROLL_UP_SCALE : offset * SCROLL_DOWN_SCALE;
+      const scale = Math.min(1 + increase, MAX_SCROLL_SCALE);
+      if (artworkRef.current) artworkRef.current.style.transform = `translate3d(0, ${Math.round(offset * SCROLL_PARALLAX)}px, 0) scale(${scale})`;
     };
-  }, [autoRotate, isPaused, rotateInterval, goToNext, items.length]);
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(apply);
+    };
+    apply();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, [reduceMotion]);
 
-  // Notify parent when active item changes
-  useEffect(() => {
-    if (items[activeIndex] && onActiveChange) {
-      onActiveChange(items[activeIndex], activeIndex);
-    }
-  }, [activeIndex, items, onActiveChange]);
+  if (!current) return null;
 
-  // Reset timer when manually changing slides
-  const handleManualChange = (index: number) => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-    }
-    goToIndex(index);
-    if (autoRotate && !isPaused && items.length > 1) {
-      intervalRef.current = setInterval(goToNext, rotateInterval);
+  const step = (delta: number) => changePage((safeIndex + delta + items.length) % items.length, delta > 0, true);
+
+  const onPointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    dragStart.current = { x: event.clientX, y: event.clientY };
+  };
+  const onPointerUp = (event: PointerEvent<HTMLDivElement>) => {
+    const start = dragStart.current;
+    dragStart.current = null;
+    if (!start || items.length < 2) return;
+    const dx = event.clientX - start.x;
+    const dy = event.clientY - start.y;
+    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > (rootRef.current?.clientWidth ?? width) * SWIPE_THRESHOLD) {
+      step(dx < 0 ? 1 : -1);
     }
   };
 
-  const currentItem = items[activeIndex];
-
-  if (!currentItem) return null;
-
-  // Metadata badges
-  const metaBadges: string[] = [];
-  if (currentItem.year) metaBadges.push(currentItem.year);
-  if (currentItem.runtime) metaBadges.push(`${currentItem.runtime} min`);
-  if (currentItem.rating) metaBadges.push(currentItem.rating);
+  const direction = forward ? 1 : -1;
+  const artworkShift = Math.round(width * BACKGROUND_PARALLAX * direction);
+  const contentShift = Math.round(width * CONTENT_PARALLAX * direction);
 
   return (
     <div
-      className="bleed relative"
-      style={{
-        paddingTop: '16px',
-        paddingBottom: '16px',
-        paddingLeft: 'var(--page-gutter)',
-        paddingRight: 'var(--page-gutter)',
+      ref={rootRef}
+      className="bleed relative overflow-hidden"
+      style={{ height: 'clamp(460px, 56vw, 640px)', touchAction: 'pan-y' }}
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      onPointerDown={onPointerDown}
+      onPointerUp={onPointerUp}
+      onKeyDown={(event) => {
+        if (event.key === 'ArrowLeft') step(-1);
+        if (event.key === 'ArrowRight') step(1);
       }}
-      onMouseEnter={() => setIsPaused(true)}
-      onMouseLeave={() => setIsPaused(false)}
     >
-      {/* Taller aspect ratio to match macOS billboard, capped at max height and centered */}
-      <div className="group rounded-2xl overflow-hidden shadow-billboard ring-1 ring-white/10 bg-neutral-900/40 relative aspect-[2/1] max-h-[1000px] max-w-[2000px] mx-auto">
-        {/* Background Images */}
-        <div className="absolute inset-0">
-          {items.map((item, index) => (
-            <div
-              key={item.id}
-              className={`absolute inset-0 transition-opacity duration-700 ${
-                index === activeIndex ? 'opacity-100' : 'opacity-0'
-              }`}
-            >
-              {item.backdropUrl && (
-                <SmartImage
-                  url={item.backdropUrl}
-                  alt=""
-                  width={1280}
-                  className="w-full h-full"
-                  imgClassName="object-cover"
-                  priority={index === activeIndex}
-                />
-              )}
-            </div>
-          ))}
+      <style>{`
+        @keyframes hero-page-in { from { opacity: 0; transform: translateX(var(--hero-shift)); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes hero-page-out { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(calc(var(--hero-shift) * -1)); } }
+        .hero-page-in { animation: hero-page-in ${PAGE_MS}ms ease-in-out both; }
+        .hero-page-out { animation: hero-page-out ${PAGE_MS}ms ease-in-out both; }
+      `}</style>
 
-          {/* Gradient Overlays */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent" />
-          <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/30 to-transparent" />
-        </div>
-
-        {/* Content Layer */}
-        <div className="absolute inset-0 flex flex-col justify-end p-5 md:p-8">
-          <div className="max-w-4xl">
-            {/* Title/Logo */}
-            <div className="mb-4">
-              {currentItem.logoUrl ? (
-                <img
-                  src={currentItem.logoUrl}
-                  alt={currentItem.title}
-                  className="h-12 md:h-20 lg:h-24 max-w-[80vw] md:max-w-[50vw] object-contain drop-shadow-2xl"
-                  style={{ filter: 'drop-shadow(0 10px 30px rgba(0,0,0,0.9))' }}
-                />
-              ) : (
-                <h1
-                  className="text-3xl md:text-5xl lg:text-6xl font-black tracking-tight text-white"
-                  style={{ textShadow: '0 4px 20px rgba(0,0,0,0.9)' }}
-                >
-                  {currentItem.title}
-                </h1>
-              )}
-            </div>
-
-            {/* Metadata */}
-            {(metaBadges.length > 0 || (currentItem.genres?.length ?? 0) > 0) && (
-              <div className="flex flex-wrap items-center gap-2 mb-4 text-sm md:text-base">
-                {metaBadges.map((badge, i) => (
-                  <span key={i} className="text-white/90 font-medium">
-                    {badge}
-                  </span>
-                ))}
-                {metaBadges.length > 0 && (currentItem.genres?.length ?? 0) > 0 && (
-                  <span className="text-white/50">•</span>
-                )}
-                {currentItem.genres?.slice(0, 3).map((genre, i) => (
-                  <span key={i} className="text-white/70">
-                    {genre}
-                  </span>
-                ))}
-              </div>
-            )}
-
-            {/* Overview */}
-            {currentItem.overview && (
-              <p className="mb-6 text-sm md:text-base text-white/80 leading-relaxed line-clamp-2 md:line-clamp-3 max-w-3xl">
-                {currentItem.overview}
-              </p>
-            )}
-
-            {/* Action Buttons */}
-            <div className="flex flex-wrap items-center gap-3">
-              {onPlay && (
-                <button
-                  onClick={() => onPlay(currentItem.id)}
-                  className="inline-flex items-center px-5 py-2.5 text-sm md:text-base font-semibold bg-white text-black rounded-md hover:bg-white/90 transition-all shadow-lg"
-                >
-                  <svg className="w-4 h-4 md:w-5 md:h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M8 5v14l11-7z" />
-                  </svg>
-                  Play
-                </button>
-              )}
-
-              {onMoreInfo && (
-                <button
-                  onClick={() => onMoreInfo(currentItem.id)}
-                  className="inline-flex items-center px-5 py-2.5 text-sm md:text-base font-medium text-white bg-white/20 backdrop-blur-sm rounded-md hover:bg-white/30 transition-all"
-                >
-                  <svg className="w-4 h-4 md:w-5 md:h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" />
-                  </svg>
-                  More Info
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Navigation Arrows */}
-        {items.length > 1 && (
-          <>
-            <button
-              onClick={() => handleManualChange((activeIndex - 1 + items.length) % items.length)}
-              className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 flex items-center justify-center bg-black/60 backdrop-blur-sm rounded-full hover:bg-black/80 hover:scale-105 transition-all duration-200 opacity-0 group-hover:opacity-100"
-              aria-label="Previous"
-            >
-              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
-            <button
-              onClick={() => handleManualChange((activeIndex + 1) % items.length)}
-              className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 flex items-center justify-center bg-black/60 backdrop-blur-sm rounded-full hover:bg-black/80 hover:scale-105 transition-all duration-200 opacity-0 group-hover:opacity-100"
-              aria-label="Next"
-            >
-              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            </button>
-          </>
+      <div
+        ref={artworkRef}
+        className="absolute inset-0 will-change-transform"
+        aria-hidden
+        style={{
+          maskImage: 'linear-gradient(to bottom, black calc(100% - 300px), transparent 100%)',
+          WebkitMaskImage: 'linear-gradient(to bottom, black calc(100% - 300px), transparent 100%)',
+        }}
+      >
+        {outgoing !== null && items[outgoing] && (
+          <HeroArtwork key={`out-${items[outgoing].id}`} item={items[outgoing]} className="hero-page-out" shift={artworkShift} />
         )}
+        <HeroArtwork
+          key={current.id}
+          item={current}
+          className={outgoing !== null ? 'hero-page-in' : ''}
+          shift={artworkShift}
+          priority
+        />
+      </div>
 
-        {/* Pagination Dots */}
+      <div className="absolute inset-x-0 top-0 h-40 pointer-events-none bg-gradient-to-b from-black/80 to-transparent" />
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background:
+            'linear-gradient(to right, rgba(10,10,10,.96) 0%, rgba(10,10,10,.90) 8%, rgba(10,10,10,.76) 16%, rgba(10,10,10,.54) 26%, rgba(10,10,10,.30) 36%, rgba(10,10,10,.12) 46%, transparent 54%)',
+        }}
+      />
+
+      <div
+        key={`content-${current.id}`}
+        className={`absolute bottom-10 cursor-pointer ${outgoing !== null ? 'hero-page-in' : ''}`}
+        style={{
+          left: 'var(--page-gutter)',
+          right: 32,
+          maxWidth: 'min(58%, 760px)',
+          minWidth: 'min(300px, 80vw)',
+          ['--hero-shift' as string]: `${contentShift}px`,
+        }}
+        onClick={() => onInfo(current)}
+      >
+        <HeroContent metadata={metadata} item={current} onInfo={() => onInfo(current)} />
+      </div>
+
+      <div className="absolute bottom-10 flex items-center gap-3" style={{ right: 'var(--page-gutter)' }}>
+        <FullScreenButton />
         {items.length > 1 && (
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2">
-            {items.map((_, index) => (
+          <div className="flex items-center" role="group" aria-label="Featured items">
+            {items.map((item, i) => (
               <button
-                key={index}
-                onClick={() => handleManualChange(index)}
-                className={`transition-all duration-300 rounded-full ${
-                  index === activeIndex
-                    ? 'w-8 h-2 bg-white'
-                    : 'w-2 h-2 bg-white/50 hover:bg-white/70'
-                }`}
-                aria-label={`Go to slide ${index + 1}`}
-              />
+                key={item.id}
+                onClick={() => changePage(i, i > safeIndex, true)}
+                aria-label={`Show item ${i + 1} of ${items.length}`}
+                aria-current={i === safeIndex}
+                title={`Show item ${i + 1} of ${items.length}`}
+                className="group flex items-center justify-center h-6 px-1"
+              >
+                <span
+                  className={`block h-2 rounded-full transition-all duration-300 ${
+                    i === safeIndex ? 'w-8 bg-white/90' : 'w-2 bg-white/35 group-hover:bg-white/70'
+                  }`}
+                />
+              </button>
             ))}
           </div>
         )}
-
-        {/* Progress Bar (optional visual indicator of auto-rotation) */}
-        {autoRotate && items.length > 1 && !isPaused && (
-          <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white/10">
-            <div
-              className="h-full bg-white/50 animate-progress"
-              style={{
-                animation: `progress ${rotateInterval}ms linear`,
-              }}
-              key={activeIndex}
-            />
-          </div>
-        )}
       </div>
-
-      <style>{`
-        @keyframes progress {
-          from { width: 0%; }
-          to { width: 100%; }
-        }
-      `}</style>
     </div>
+  );
+}
+
+function HeroArtwork({ item, className, shift, priority }: { item: CardItem; className: string; shift: number; priority?: boolean }) {
+  const metadata = useHeroMetadata(item);
+  return (
+    <div className={`absolute inset-0 ${className}`} style={{ ['--hero-shift' as string]: `${shift}px` }}>
+      {metadata?.backdropUrl && (
+        <SmartImage
+          url={metadata.backdropUrl}
+          alt=""
+          width={BACKDROP_WIDTH}
+          className="w-full h-full"
+          imgClassName="object-cover object-[center_20%]"
+          priority={priority}
+        />
+      )}
+    </div>
+  );
+}
+
+function HeroContent({ metadata, item, onInfo }: { metadata: HeroMetadata | null; item: CardItem; onInfo: () => void }) {
+  const title = metadata?.title || item.showTitle || item.title;
+  const genres = metadata?.genres ?? [];
+  const metaLine = genres.length > 0 ? genres.join(' • ') : item.mediaType === 'movie' ? 'Movie' : 'Series';
+  return (
+    <>
+      {metadata?.logoUrl ? (
+        <img src={metadata.logoUrl} alt={title} className="h-16 md:h-[120px] w-[74%] object-contain object-left-bottom" draggable={false} />
+      ) : metadata ? (
+        <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight text-white line-clamp-3">{title}</h1>
+      ) : (
+        <div className="h-16 md:h-[120px]" />
+      )}
+      <p className="mt-3 text-sm md:text-base font-medium text-white/70 line-clamp-1">{metaLine}</p>
+      {metadata?.overview && <p className="mt-4 text-sm md:text-lg leading-relaxed text-white line-clamp-3 md:line-clamp-4">{metadata.overview}</p>}
+      <button
+        onClick={(event) => {
+          event.stopPropagation();
+          onInfo();
+        }}
+        className="mt-6 h-12 px-6 rounded-[40px] bg-white text-black text-sm md:text-base font-bold hover:bg-white/90 transition-colors"
+      >
+        View Details
+      </button>
+    </>
+  );
+}
+
+function FullScreenButton() {
+  const [isFullScreen, setIsFullScreen] = useState(!!document.fullscreenElement);
+  useEffect(() => {
+    const onChange = () => setIsFullScreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onChange);
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, []);
+  if (!document.fullscreenEnabled) return null;
+  const label = isFullScreen ? 'Exit Full Screen' : 'Full Screen';
+  return (
+    <button
+      onClick={() => {
+        if (document.fullscreenElement) document.exitFullscreen();
+        else document.documentElement.requestFullscreen();
+      }}
+      title={label}
+      aria-label={label}
+      className="w-10 h-10 flex items-center justify-center rounded-full bg-neutral-800/80 text-white hover:bg-neutral-700/80 transition-colors"
+    >
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+        {isFullScreen ? <path d="M9 3v6H3M15 3v6h6M9 21v-6H3M15 21v-6h6" /> : <path d="M3 9V3h6M21 9V3h-6M3 15v6h6M21 15v6h-6" />}
+      </svg>
+    </button>
   );
 }

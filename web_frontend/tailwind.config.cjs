@@ -8,8 +8,9 @@ module.exports = {
     extend: {
       colors: {
         brand: {
-          DEFAULT: '#e50914',
-          600: '#b20710',
+          DEFAULT: 'rgb(var(--accent-rgb) / <alpha-value>)',
+          600: 'rgb(var(--accent-strong-rgb) / <alpha-value>)',
+          bright: 'rgb(var(--accent-bright-rgb) / <alpha-value>)',
         },
       },
     },
