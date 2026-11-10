@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import AppKit
 
 // MARK: - Player Controls
 
@@ -34,6 +35,10 @@ struct PlayerControlsView: View {
     @State private var showChaptersPanel = false
     @State private var showAspectPanel = false
     @State private var showSourcesPanel = false
+    @State private var settingsMenuAnchor = MenuAnchor()
+    @State private var isSettingsHovered = false
+    /// Right-hand time label: remaining ("−3:20") or the total. Click to switch.
+    @AppStorage("playerShowsRemainingTime") private var showsRemainingTime = true
 
     // Thumbnail preview states
     @State private var showThumbnailPreview = false
@@ -59,20 +64,6 @@ struct PlayerControlsView: View {
     @State private var isChaptersHovered = false
     @State private var isAspectHovered = false
 
-    // Computed property for formatted player title
-    // For episodes: "Show Name - S#E# - Episode Title"
-    // For other content: just the title
-    private var formattedPlayerTitle: String {
-        let item = viewModel.item
-        if item.type == "episode",
-           let showName = item.grandparentTitle,
-           let seasonNum = item.parentIndex,
-           let episodeNum = item.index {
-            return "\(showName) - S\(seasonNum)E\(episodeNum) - \(item.title)"
-        }
-        return item.title
-    }
-
     var body: some View {
         VStack {
             // Top Bar
@@ -92,99 +83,12 @@ struct PlayerControlsView: View {
 
                 Spacer()
 
-                // Display formatted title: "Show : S#E# : Episode Title" for episodes
-                Text(formattedPlayerTitle)
-                    .font(.headline)
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+                playerTitle
 
                 Spacer()
 
-                // Performance stats toggle (MPV only) - Top bar position
-                if viewModel.mpvController != nil {
-                    Button(action: {
-                        viewModel.togglePerformanceOverlay()
-                    }) {
-                        Image(systemName: "info.circle")
-                            .font(.flixor(.title3))
-                            .frame(width: 32, height: 32)
-                            .foregroundStyle(viewModel.showPerformanceOverlay ? theme.accent : .white)
-                    }
-                    .buttonStyle(.plain)
-                    .scaleEffect(isStatsHovered ? 1.1 : 1.0)
-                    .onHover { hovering in
-                        withAnimation(DS.Motion.standard) {
-                            isStatsHovered = hovering
-                        }
-                    }
-                    .help("Performance Stats (I)")
-                }
-
-                // Quality Selector
-                Menu {
-                    ForEach(viewModel.availableQualities) { quality in
-                        Button(action: {
-                            viewModel.changeQuality(quality)
-                        }) {
-                            HStack(spacing: DS.Space.s8) {
-                                // Checkmark
-                                if quality == viewModel.selectedQuality {
-                                    Image(systemName: "checkmark")
-                                        .font(.flixorIcon(DS.Icon.xs, weight: .semibold))
-                                        .foregroundStyle(theme.accent)
-                                        .frame(width: 12)
-                                } else {
-                                    Color.clear.frame(width: 12)
-                                }
-
-                                // Quality name
-                                VStack(alignment: .leading, spacing: DS.Space.s2) {
-                                    Text(quality.rawValue)
-                                        .font(.system(size: 13, weight: quality == viewModel.selectedQuality ? .semibold : .regular))
-                                        .foregroundStyle(quality == viewModel.selectedQuality ? .white : .white.opacity(0.85))
-
-                                    // Description
-                                    if quality == .original {
-                                        Text("Direct Play • Best Quality")
-                                            .font(.flixor(.caption))
-                                            .foregroundStyle(.white.opacity(0.5))
-                                    } else {
-                                        Text("Transcoded • H.264")
-                                            .font(.flixor(.caption))
-                                            .foregroundStyle(.orange.opacity(0.7))
-                                    }
-                                }
-
-                                Spacer()
-                            }
-                            .padding(.horizontal, DS.Space.s4)
-                            .padding(.vertical, DS.Space.s4)
-                        }
-                    }
-                } label: {
-                    HStack(spacing: DS.Space.s6) {
-                        // Quality text
-                        Text(viewModel.selectedQuality.rawValue)
-                            .font(.flixor(.body, weight: .medium))
-
-                        // Transcoding indicator badge
-                        if viewModel.isTranscoding {
-                            Circle()
-                                .fill(Color.orange)
-                                .frame(width: 6, height: 6)
-                        }
-
-                        Image(systemName: "chevron.down")
-                            .font(.flixor(.micro, weight: .semibold))
-                    }
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, DS.Space.s12)
-                    .padding(.vertical, DS.Space.s6)
-                    .background(viewModel.isTranscoding ? Color.orange.opacity(0.2) : Color.black.opacity(0.5))
-                    .clipShape(Capsule())
-                }
-                .menuStyle(.borderlessButton)
+                // Balances the back button so the title stays centred.
+                Color.clear.frame(width: 32, height: 32)
             }
             .padding(.horizontal, DS.Space.s20)
             .padding(.top, DS.Space.s20)
@@ -267,9 +171,18 @@ struct PlayerControlsView: View {
                             .font(.caption)
                             .foregroundStyle(.white)
                         Spacer()
-                        Text(formatTime(viewModel.duration))
-                            .font(.caption)
-                            .foregroundStyle(.white)
+                        Button {
+                            showsRemainingTime.toggle()
+                        } label: {
+                            Text(showsRemainingTime
+                                 ? "−" + formatTime(max(0, viewModel.duration - (isDraggingTimeline ? draggedTime : viewModel.currentTime)))
+                                 : formatTime(viewModel.duration))
+                                .font(.caption)
+                                .monospacedDigit()
+                                .foregroundStyle(.white)
+                        }
+                        .buttonStyle(.plain)
+                        .help(showsRemainingTime ? "Time remaining. Click to show the total." : "Total time. Click to show time remaining.")
                     }
                 }
                 .padding(.horizontal, DS.Space.s20)
@@ -421,21 +334,6 @@ struct PlayerControlsView: View {
                         .help("Audio & Subtitles")
                     }
 
-                    // Addon sources (Stremio playback)
-                    if viewModel.isStreamPlayback {
-                        Button(action: {
-                            togglePanel(showSourcesPanel) { showSourcesPanel = true }
-                        }) {
-                            Image(systemName: "square.stack.3d.up.fill")
-                                .font(.flixorIcon(DS.Icon.lg))
-                                .frame(width: 32, height: 32)
-                                .foregroundStyle(showSourcesPanel ? theme.accent : .white)
-                        }
-                        .buttonStyle(.plain)
-                        .help("Sources")
-                        .accessibilityLabel(Text("Sources"))
-                    }
-
                     // Playback speed button
                     Button(action: {
                         togglePanel(showPlaybackSpeed) { showPlaybackSpeed = true }
@@ -453,48 +351,8 @@ struct PlayerControlsView: View {
                     }
                     .help("Playback Speed")
 
-                    // Chapters button (MPV only, when chapters exist)
-                    if viewModel.mpvController != nil && !viewModel.chapters.isEmpty {
-                        Button(action: {
-                            togglePanel(showChaptersPanel) { showChaptersPanel = true }
-                        }) {
-                            Image("chaptericon")
-                                .resizable()
-                                .renderingMode(.template)
-                                .scaledToFit()
-                                .frame(width: 42, height: 42)
-                                .foregroundStyle(showChaptersPanel ? theme.accent : .white)
-                        }
-                        .buttonStyle(.plain)
-                        .scaleEffect(isChaptersHovered ? 1.1 : 1.0)
-                        .onHover { hovering in
-                            withAnimation(DS.Motion.standard) {
-                                isChaptersHovered = hovering
-                            }
-                        }
-                        .help("Chapters")
-                    }
-
-                    // Aspect mode button (MPV only)
-                    if viewModel.mpvController != nil {
-                        Button(action: {
-                            togglePanel(showAspectPanel) { showAspectPanel = true }
-                        }) {
-                            Image(systemName: viewModel.aspectMode.systemImage)
-                                .font(.flixorIcon(DS.Icon.lg))
-                                .frame(width: 32, height: 32)
-                                .foregroundStyle(showAspectPanel ? theme.accent : .white)
-                        }
-                        .buttonStyle(.plain)
-                        .scaleEffect(isAspectHovered ? 1.1 : 1.0)
-                        .onHover { hovering in
-                            withAnimation(DS.Motion.standard) {
-                                isAspectHovered = hovering
-                            }
-                        }
-                        .help("Aspect Ratio (A)")
-                        .accessibilityLabel("Aspect ratio, \(viewModel.aspectMode.displayName)")
-                    }
+                    // Quality, sources, chapters, aspect ratio and stats
+                    settingsButton
 
                     // Picture-in-Picture button (custom MPV PiP window)
                     if mpvPiPViewController != nil {
@@ -664,6 +522,113 @@ struct PlayerControlsView: View {
     }
 
     /// Panels share the same corner, so opening one closes any other.
+    // MARK: - Title and settings menu
+
+    /// Show name in bold and "S2 E14 · Episode" below; movies show the title (and year).
+    @ViewBuilder
+    private var playerTitle: some View {
+        let item = viewModel.item
+        VStack(spacing: 1) {
+            if item.type == "episode", let showName = item.grandparentTitle {
+                Text(showName)
+                    .font(.flixor(.bodyLarge, weight: .bold))
+                let episode = [item.parentIndex.map { "S\($0)" }, item.index.map { "E\($0)" }]
+                    .compactMap { $0 }.joined(separator: " ")
+                Text([episode.isEmpty ? nil : episode, item.title].compactMap { $0 }.joined(separator: " · "))
+                    .font(.flixor(.callout))
+                    .foregroundStyle(.white.opacity(0.75))
+            } else {
+                Text(item.title)
+                    .font(.flixor(.bodyLarge, weight: .bold))
+                if let year = item.year {
+                    Text(String(year))
+                        .font(.flixor(.callout))
+                        .foregroundStyle(.white.opacity(0.75))
+                }
+            }
+        }
+        .foregroundStyle(.white)
+        .lineLimit(1)
+        .truncationMode(.tail)
+        .multilineTextAlignment(.center)
+        .shadow(color: .black.opacity(0.5), radius: 4)
+    }
+
+    private var settingsButton: some View {
+        Button(action: showSettingsMenu) {
+            Image(systemName: "gearshape")
+                .font(.system(size: 22, weight: .regular))
+                .frame(width: 32, height: 32)
+                .foregroundStyle(.white)
+                .overlay(alignment: .topTrailing) {
+                    // Transcoding used to show on the quality pill.
+                    if viewModel.isTranscoding {
+                        Circle().fill(Color.orange).frame(width: 7, height: 7).offset(x: 1, y: 3)
+                    }
+                }
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .background(MenuAnchorReader(anchor: settingsMenuAnchor))
+        .scaleEffect(isSettingsHovered ? 1.1 : 1.0)
+        .onHover { hovering in
+            withAnimation(DS.Motion.standard) { isSettingsHovered = hovering }
+        }
+        .help("Quality, Sources, Chapters, Aspect Ratio and Stats")
+        .accessibilityLabel("Playback settings")
+    }
+
+    /// Native menu (keyboard and VoiceOver friendly). Each item opens the panel
+    /// or setting it opened before the controls were grouped.
+    private func showSettingsMenu() {
+        guard let view = settingsMenuAnchor.view else { return }
+        closeAllPanels()
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+
+        if !viewModel.availableQualities.isEmpty {
+            let qualityMenu = NSMenu()
+            for quality in viewModel.availableQualities {
+                let detail = quality == .original ? String(localized: "Direct Play") : String(localized: "Transcoded")
+                let item = MenuActionItem(title: "\(quality.rawValue)  ·  \(detail)") { viewModel.changeQuality(quality) }
+                item.state = quality == viewModel.selectedQuality ? .on : .off
+                qualityMenu.addItem(item)
+            }
+            let item = NSMenuItem(title: String(localized: "Quality: \(viewModel.selectedQuality.rawValue)"), action: nil, keyEquivalent: "")
+            item.image = NSImage(systemSymbolName: "sparkles.tv", accessibilityDescription: nil)
+            item.submenu = qualityMenu
+            menu.addItem(item)
+        }
+
+        if viewModel.isStreamPlayback {
+            menu.addItem(MenuActionItem(title: String(localized: "Sources…"), systemImage: "square.stack.3d.up") {
+                showSourcesPanel = true
+            })
+        }
+
+        if viewModel.mpvController != nil && !viewModel.chapters.isEmpty {
+            menu.addItem(MenuActionItem(title: String(localized: "Chapters…"), systemImage: "list.bullet.rectangle") {
+                showChaptersPanel = true
+            })
+        }
+
+        if viewModel.mpvController != nil {
+            menu.addItem(MenuActionItem(title: String(localized: "Aspect Ratio: \(viewModel.aspectMode.displayName)…"), systemImage: viewModel.aspectMode.systemImage) {
+                showAspectPanel = true
+            })
+            menu.addItem(.separator())
+            let stats = MenuActionItem(title: String(localized: "Playback Stats"), systemImage: "info.circle") {
+                viewModel.togglePerformanceOverlay()
+            }
+            stats.state = viewModel.showPerformanceOverlay ? .on : .off
+            stats.keyEquivalent = "i"
+            stats.keyEquivalentModifierMask = []
+            menu.addItem(stats)
+        }
+
+        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: view.bounds.height + DS.Space.s6), in: view)
+    }
+
     private func togglePanel(_ isOpen: Bool, open: () -> Void) {
         closeAllPanels()
         if !isOpen { open() }
