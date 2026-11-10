@@ -149,6 +149,34 @@ install_binary() {
   say "Installed $("$bin_dir/flixor-server" --version) to $bin_dir"
 }
 
+# Linux keeps ports below 1024 for root. A user install lets the server use port 80 (so
+# http://flixor.local needs no port) when sudo works without a password; otherwise it says how.
+allow_port_80() {
+  [ "$os" = linux ] && [ "$(id -u)" -ne 0 ] || return 0
+  setcap_bin=$(command -v setcap || true)
+  for candidate in /usr/sbin/setcap /sbin/setcap; do
+    [ -n "$setcap_bin" ] || { [ -x "$candidate" ] && setcap_bin=$candidate; }
+  done
+  if [ -n "$setcap_bin" ] && sudo -n true 2>/dev/null \
+    && sudo "$setcap_bin" cap_net_bind_service=+ep "$bin_dir/flixor-server" 2>/dev/null; then
+    say "Port 80: allowed, so the .local name works without a port."
+  else
+    say "Port 80: not allowed for your user. To open Flixor by name without :${port:-3001}, run:"
+    say "  sudo setcap cap_net_bind_service=+ep $bin_dir/flixor-server"
+  fi
+}
+
+# The .local address the server published, once it has (from /health).
+published_url() {
+  i=0
+  while [ "$i" -lt 20 ]; do
+    url=$(fetch_text "http://127.0.0.1:$port/health" 2>/dev/null | sed -n 's/.*"url":"\([^"]*\)".*/\1/p')
+    [ -z "$url" ] || { printf '%s' "$url"; return 0; }
+    i=$((i + 1))
+    sleep 0.5
+  done
+}
+
 # Sets KEY=value in the data folder's flixor.env, replacing an existing line.
 set_env() { # key value
   env_file="$data_dir/flixor.env"
@@ -435,6 +463,7 @@ main() {
   port=${port:-3001}
 
   ensure_ffmpeg
+  allow_port_80
 
   if [ "$want_service" = 1 ]; then
     install_service
@@ -454,8 +483,11 @@ main() {
   else
     say "Start it with: flixor run"
   fi
+  name_url=""
+  [ "$service_started" = 0 ] || name_url=$(published_url || true)
   say ""
   say "  Open:      http://localhost:$port"
+  [ -z "$name_url" ] || say "  Name:      $name_url  (from any device on your network)"
   lan=$(lan_address || true)
   [ -z "$lan" ] || say "  Network:   http://$lan:$port"
   say "  Data:      $data_dir"

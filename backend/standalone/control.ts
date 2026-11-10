@@ -45,6 +45,8 @@ export interface Status {
   service: ServiceState;
   healthy: boolean;
   database?: string;
+  /** The .local address the server publishes, e.g. http://flixor.local. */
+  nameUrl?: string;
   uptime?: string;
   ffmpeg?: string;
   latest?: string | null;
@@ -214,7 +216,7 @@ function lanAddress(): string | undefined {
   return undefined;
 }
 
-export function health(port: string, timeoutMs = 1500): Promise<{ healthy: boolean; database?: string }> {
+export function health(port: string, timeoutMs = 1500): Promise<{ healthy: boolean; database?: string; nameUrl?: string }> {
   return new Promise((resolve) => {
     const req = http.get({ host: '127.0.0.1', port: Number(port), path: '/health', timeout: timeoutMs }, (res) => {
       let body = '';
@@ -222,7 +224,7 @@ export function health(port: string, timeoutMs = 1500): Promise<{ healthy: boole
       res.on('end', () => {
         try {
           const parsed = JSON.parse(body);
-          resolve({ healthy: parsed.status === 'healthy', database: parsed.database });
+          resolve({ healthy: parsed.status === 'healthy', database: parsed.database, ...(parsed.discovery?.url ? { nameUrl: parsed.discovery.url } : {}) });
         } catch {
           resolve({ healthy: false });
         }
@@ -268,7 +270,7 @@ export async function latestVersion(install: Install, force = false): Promise<st
 export async function getStatus(install: Install, version: string, latest?: string | null): Promise<Status> {
   const port = serverPort(install);
   const service = serviceState(install);
-  const { healthy, database } = await health(port);
+  const { healthy, database, nameUrl } = await health(port);
   const lan = lanAddress();
   return {
     version,
@@ -279,6 +281,7 @@ export async function getStatus(install: Install, version: string, latest?: stri
     service,
     healthy,
     ...(database ? { database } : {}),
+    ...(nameUrl ? { nameUrl } : {}),
     ...(service.pid ? { uptime: uptime(service.pid) } : {}),
     ffmpeg: settings(install).FFMPEG_PATH,
     latest,
@@ -309,6 +312,7 @@ export function formatStatus(status: Status): string {
     `Flixor server ${status.version}`,
     `  State:    ${state}${status.service.pid ? ` (pid ${status.service.pid}${status.uptime ? `, up ${status.uptime}` : ''})` : ''}`,
     `  Open:     ${status.url}`,
+    ...(status.nameUrl ? [`  Name:     ${status.nameUrl}`] : []),
     ...(status.lanUrl ? [`  Network:  ${status.lanUrl}`] : []),
     `  Service:  ${serviceDescription(status.install)}${status.install.kind !== 'none' ? (status.service.enabled === false ? ', off until started' : ', starts automatically') : ''}`,
     `  Data:     ${home(status.install.dataDir)}`,

@@ -36,8 +36,24 @@ import { requireAuth } from './middleware/auth';
 import { errorHandler } from './middleware/errorHandler';
 import { requestLogger } from './middleware/requestLogger';
 import { mountWebApp } from './utils/webApp';
+import { discoveryState, startDiscovery, stopDiscovery } from './services/discovery';
 
 const serverLogger = logger.child({ component: 'server' });
+
+/** Listens on an extra port; false (and a note in the log) when not allowed or already taken. */
+function listenIfPossible(app: Express, port: number, host: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const extra = app.listen(port, host);
+    extra.once('listening', () => {
+      serverLogger.info(`🚀 Also listening on port ${port}`);
+      resolve(true);
+    });
+    extra.once('error', (error: NodeJS.ErrnoException) => {
+      serverLogger.info(`Port ${port} isn't available (${error.code === 'EACCES' ? 'needs permission' : error.code === 'EADDRINUSE' ? 'in use' : error.code}); using port ${process.env.PORT || '3001'} only`);
+      resolve(false);
+    });
+  });
+}
 
 async function startServer() {
   try {
@@ -122,6 +138,7 @@ async function startServer() {
         timestamp: new Date().toISOString(),
         environment: process.env.NODE_ENV,
         database: AppDataSource.isInitialized ? 'connected' : 'disconnected',
+        discovery: discoveryState(),
       });
     });
 
@@ -157,29 +174,28 @@ async function startServer() {
     app.use(errorHandler);
 
     // Start server
-    app.listen(PORT, HOST, () => {
+    app.listen(PORT, HOST, async () => {
       serverLogger.info(`🚀 Server running at http://${HOST}:${PORT}`);
       serverLogger.info(`📝 Environment: ${process.env.NODE_ENV}`);
       serverLogger.info(`🗄️  Database: ${process.env.DATABASE_PATH}`);
       serverLogger.info(`🔐 Session store: TypeORM/SQLite`);
+      // Port 80 too when allowed and free (LISTEN_PORT_80=auto), so http://flixor.local needs no port.
+      const port80 = (process.env.LISTEN_PORT_80 || '').toLowerCase() === 'auto' && PORT !== 80
+        && await listenIfPossible(app, 80, HOST);
+      await startDiscovery({ port: PORT, port80 });
     });
 
     // Graceful shutdown
-    process.on('SIGTERM', async () => {
-      serverLogger.info('SIGTERM signal received: closing server');
+    const shutdown = (signal: string) => async () => {
+      serverLogger.info(`${signal} signal received: closing server`);
       stopAllHlsSessions();
       stopAllConversions();
+      await stopDiscovery();
       await AppDataSource.destroy();
       process.exit(0);
-    });
-
-    process.on('SIGINT', async () => {
-      serverLogger.info('SIGINT signal received: closing server');
-      stopAllHlsSessions();
-      stopAllConversions();
-      await AppDataSource.destroy();
-      process.exit(0);
-    });
+    };
+    process.on('SIGTERM', shutdown('SIGTERM'));
+    process.on('SIGINT', shutdown('SIGINT'));
 
   } catch (error) {
     serverLogger.error('Failed to start server:', error);

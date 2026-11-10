@@ -55,6 +55,7 @@ export function render(status: Status, logs: string[], view: View, width: number
     rule,
     row('Status', `${dot} ${stateText}${details}`),
     row('Open', cyan(status.url)),
+    ...(status.nameUrl ? [row('Name', cyan(status.nameUrl))] : []),
     ...(status.lanUrl ? [row('Network', cyan(status.lanUrl))] : []),
     row('Service', `${serviceDescription(status.install)}${status.install.kind === 'none' ? '' : status.service.enabled === false ? dim(' · off until started') : dim(' · starts automatically')}`),
     row('Data', status.install.dataDir),

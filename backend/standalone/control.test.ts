@@ -71,6 +71,7 @@ const status = (overrides: Partial<Status> = {}): Status => ({
   healthy: true,
   uptime: '2h 5m',
   ffmpeg: '/usr/bin/ffmpeg',
+  nameUrl: 'http://flixor.local',
   latest: '1.1.0',
   ...overrides,
 });
@@ -87,6 +88,7 @@ test('status text', () => {
   const text = formatStatus(status());
   assert.match(text, /State:\s+running \(pid 77, up 2h 5m\)/);
   assert.match(text, /Network:\s+http:\/\/10\.0\.0\.5:3001/);
+  assert.match(text, /Name:\s+http:\/\/flixor\.local\n/);
   assert.match(text, /systemd user service flixor, starts automatically/);
   assert.doesNotMatch(text, /Update:/);
   assert.match(formatStatus(status({ latest: '1.2.0' })), /Update:\s+1\.2\.0 is available/);
@@ -103,6 +105,7 @@ test('dashboard fits the terminal and offers the right action', () => {
   assert.match(text, /FLIXOR server\s+1\.1\.0/);
   assert.match(text, /Running\s+pid 77 · up 2h 5m/);
   assert.match(text, /s stop/);
+  assert.match(text, /Name\s+http:\/\/flixor\.local/);
   assert.match(text, /log line 49/);
   assert.match(text, /up to date/);
 

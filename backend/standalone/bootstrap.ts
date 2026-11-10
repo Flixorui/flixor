@@ -113,6 +113,9 @@ export function configure(env: NodeJS.ProcessEnv, options: Options, dataDir: str
   env.HOST ||= '0.0.0.0';
   env.FRONTEND_URL ||= `http://localhost:${env.PORT}`;
   env.FLIXOR_WEB_DIR ||= webDir;
+  // Published as flixor.local on the network ("off" to disable), also on port 80 when allowed.
+  env.MDNS_NAME ||= 'flixor';
+  env.LISTEN_PORT_80 ||= 'auto';
   env.SESSION_SECRET ||= sessionSecret(configDir);
 
   // Services (launchd, systemd) start with a bare PATH; FFmpeg usually lives in one of these.

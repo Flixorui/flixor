@@ -91,6 +91,8 @@ test('settings: flags beat the environment, which beats flixor.env, which beats 
   assert.equal(env.NODE_ENV, 'production');
   assert.equal(env.FLIXOR_WEB_DIR, '/web');
   assert.equal(env.FRONTEND_URL, 'http://localhost:5000');
+  assert.equal(env.MDNS_NAME, 'flixor');
+  assert.equal(env.LISTEN_PORT_80, 'auto');
   assert.equal(env.SESSION_SECRET, fs.readFileSync(path.join(data, 'config', 'session-secret'), 'utf8').trim());
   assert.ok(env.PATH!.startsWith('/usr/bin:/bin:'));
   assert.ok(env.PATH!.includes('/opt/homebrew/bin'));
