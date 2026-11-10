@@ -25,8 +25,7 @@ struct ContinueWatchingLandscapeRow: View {
             // Header
             HStack {
                 Text(title)
-                    .font(.title2)
-                    .fontWeight(.bold)
+                    .font(.flixor(.title2, weight: .bold))
 
                 Spacer()
             }

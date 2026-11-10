@@ -345,7 +345,7 @@ struct CarouselRow<Item: Identifiable, Content: View>: View {
             // Header
             HStack(spacing: DS.Space.s12) {
                 Text(title)
-                    .font(titleFont ?? .title2.bold())
+                    .font(titleFont ?? .flixor(.title2, weight: .bold))
                     .foregroundStyle(.primary)
                     .padding(.vertical, DS.Space.s4)
 
@@ -367,9 +367,15 @@ struct CarouselRow<Item: Identifiable, Content: View>: View {
                             RoundedRectangle(cornerRadius: DS.Radius.r6, style: .continuous)
                                 .fill(Color.white.opacity(isHeaderHovered || browseFocused ? 0.12 : 0))
                         )
+                        // Our own neutral focus ring instead of the accent-red system one.
+                        .overlay(
+                            RoundedRectangle(cornerRadius: DS.Radius.r6, style: .continuous)
+                                .strokeBorder(Color.white.opacity(browseFocused ? 0.55 : 0), lineWidth: 1.5)
+                        )
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .flixorSystemFocusEffectDisabled()
                     .opacity(isHeaderHovered || browseFocused ? 1 : 0)
                     .offset(x: isHeaderHovered || browseFocused ? 4 : 0)
                     .animation(.easeOut(duration: 0.24), value: isHeaderHovered)

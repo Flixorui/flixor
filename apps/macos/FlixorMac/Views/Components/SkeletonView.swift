@@ -12,7 +12,7 @@ struct SkeletonView: View {
     let height: CGFloat
     let cornerRadius: CGFloat
 
-    @State private var shimmerOffset: CGFloat = -1.0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(width: CGFloat? = nil, height: CGFloat, cornerRadius: CGFloat = 8) {
         self.width = width
@@ -21,41 +21,53 @@ struct SkeletonView: View {
     }
 
     var body: some View {
-        GeometryReader { geometry in
-            let actualWidth = width ?? geometry.size.width
-
-            Rectangle()
-                .fill(Color.gray.opacity(0.2))
-                .frame(width: actualWidth, height: height)
-                .cornerRadius(cornerRadius)
-                .overlay(
-                    Rectangle()
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    Color.clear,
-                                    Color.white.opacity(0.3),
-                                    Color.clear
-                                ],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .frame(width: actualWidth * 0.3)
-                        .offset(x: shimmerOffset * actualWidth)
-                        .cornerRadius(cornerRadius)
-                )
-                .clipped()
-                .onAppear {
-                    withAnimation(
-                        Animation.linear(duration: 1.5)
-                            .repeatForever(autoreverses: false)
-                    ) {
-                        shimmerOffset = 2.0
-                    }
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .fill(Color.white.opacity(0.07))
+            .overlay {
+                if !reduceMotion {
+                    SkeletonShimmer()
+                        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
                 }
+            }
+            .frame(width: width, height: height)
+            .accessibilityHidden(true)
+    }
+}
+
+/// A soft highlight sweeping left to right. Its position comes from the clock
+/// and the view's place in the window, so every placeholder on screen shares
+/// one sweep that travels across the whole row (no per-view animation state,
+/// which lazy rows reset and left as a stuck stripe in the middle).
+private struct SkeletonShimmer: View {
+    /// Seconds for one sweep across the window, plus a short pause.
+    private static let period: Double = 1.8
+    /// Distance the sweep travels (wider than any window, so it starts and ends off screen).
+    private static let travel: CGFloat = 3200
+    private static let bandWidth: CGFloat = 360
+
+    var body: some View {
+        GeometryReader { proxy in
+            let frame = proxy.frame(in: .global)
+            TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
+                let t = context.date.timeIntervalSinceReferenceDate
+                let phase = CGFloat(t.truncatingRemainder(dividingBy: Self.period) / Self.period)
+                // Band centre in window coordinates, then relative to this view.
+                let center = -Self.bandWidth + phase * (Self.travel + Self.bandWidth * 2)
+                let x = center - frame.minX
+                LinearGradient(
+                    stops: [
+                        .init(color: .clear, location: 0),
+                        .init(color: Color.white.opacity(0.09), location: 0.5),
+                        .init(color: .clear, location: 1),
+                    ],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+                .frame(width: Self.bandWidth, height: proxy.size.height)
+                .offset(x: x - Self.bandWidth / 2)
+            }
         }
-        .frame(width: width, height: height)
+        .allowsHitTesting(false)
     }
 }
 

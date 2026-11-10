@@ -71,7 +71,10 @@ struct ContinueWatchingMoreButton: View {
             )
             .contentShape(Circle())
         }
-        .menuStyle(.borderlessButton)
+        // A borderless menu tints its label with the accent (red); the button
+        // style keeps our white icon, like the other controls on the card.
+        .menuStyle(.button)
+        .buttonStyle(.plain)
         .menuIndicator(.hidden)
         .fixedSize()
         .onHover { hovering in

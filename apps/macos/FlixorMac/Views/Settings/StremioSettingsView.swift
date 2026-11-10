@@ -123,11 +123,24 @@ struct StremioSettingsView: View {
                     icon: "magnifyingglass",
                     iconColor: .teal,
                     title: "Search Addon Catalogs",
-                    subtitle: "Include addon catalog matches in search",
-                    showDivider: false
+                    subtitle: "Include addon catalog matches in search"
                 ) {
                     Toggle("", isOn: $profileSettings.stremioCatalogSearchEnabled)
                         .labelsHidden()
+                }
+
+                SettingsRow(
+                    icon: "photo.on.rectangle",
+                    iconColor: .indigo,
+                    title: "Addon Posters",
+                    subtitle: "Use the posters addons supply (some show ratings on the artwork) instead of TMDB posters",
+                    showDivider: false
+                ) {
+                    Toggle("", isOn: Binding(
+                        get: { UserDefaults.standard.stremioUseAddonPosters },
+                        set: { UserDefaults.standard.stremioUseAddonPosters = $0; profileSettings.objectWillChange.send() }
+                    ))
+                    .labelsHidden()
                 }
             }
         }

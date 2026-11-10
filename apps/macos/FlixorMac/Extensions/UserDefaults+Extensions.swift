@@ -518,6 +518,7 @@ extension UserDefaults {
         static let stremioResumeStates = "stremioResumeStates"
         static let stremioRemovedDefaultAddons = "stremioRemovedDefaultAddons"
         static let showCatalogRows = "stremioShowCatalogRows"
+        static let useAddonPosters = "stremioUseAddonPosters"
         static let catalogSearch = "stremioCatalogSearch"
     }
 
@@ -536,6 +537,13 @@ extension UserDefaults {
     var showStremioCatalogRows: Bool {
         get { object(forKey: profileKey(StremioKeys.showCatalogRows)) as? Bool ?? true }
         set { set(newValue, forKey: profileKey(StremioKeys.showCatalogRows)) }
+    }
+
+    /// Use the posters addons supply (some print ratings onto the artwork)
+    /// instead of plain TMDB posters. Off by default so rows look like the rest of Flixor.
+    var stremioUseAddonPosters: Bool {
+        get { bool(forKey: profileKey(StremioKeys.useAddonPosters)) }
+        set { set(newValue, forKey: profileKey(StremioKeys.useAddonPosters)) }
     }
 
     /// Merge addon catalog search results into the Search screen.

@@ -212,7 +212,9 @@ struct PosterSectionCard: View {
 
                 // Type badge (top trailing)
                 // Shows "X new" for grouped recently added episodes, otherwise shows TV/episode label
-                if item.type == "show" || item.type == "episode" {
+                // The row title already says shows vs movies: only counts and
+                // episode labels get a badge, not a plain "TV".
+                if isGroupedRecentlyAdded || item.type == "episode" {
                     VStack {
                         HStack {
                             Spacer()

@@ -24,8 +24,7 @@ struct ContinueWatchingWideRow: View {
         VStack(alignment: .leading, spacing: DS.Space.itemGap) {
             HStack {
                 Text(title)
-                    .font(.title2)
-                    .fontWeight(.bold)
+                    .font(.flixor(.title2, weight: .bold))
                 Spacer()
             }
             .padding(.horizontal, DS.Space.s20)

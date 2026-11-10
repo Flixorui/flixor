@@ -21,6 +21,8 @@ actor StremioCatalogMapper {
     /// IMDb id -> resolved TMDB id, or nil when TMDB has no match.
     /// Cached for the session so a row of 30 items costs at most 30 lookups once.
     private var tmdbIdCache: [String: Int?] = [:]
+    /// IMDb id -> TMDB poster path from the same lookup.
+    private var posterPathCache: [String: String] = [:]
 
     /// How many id lookups to run at once. Several catalog rows map in parallel, so
     /// an unbounded task group here would fire hundreds of TMDB requests at once.
@@ -50,12 +52,18 @@ actor StremioCatalogMapper {
     func mediaItem(from preview: StremioMetaPreview) async -> MediaItem {
         let isSeries = preview.type == "series"
         let itemId = await resolveItemId(for: preview, isSeries: isSeries)
+        // Many addons serve posters with ratings printed on them; prefer the plain
+        // TMDB poster unless the user chose addon posters (Settings > Stremio).
+        let tmdbPoster = preview.imdbId
+            .flatMap { posterPathCache[$0] }
+            .map { "https://image.tmdb.org/t/p/w500\($0)" }
+        let poster = UserDefaults.standard.stremioUseAddonPosters ? preview.poster : (tmdbPoster ?? preview.poster)
 
         return MediaItem(
             id: itemId,
             title: preview.name,
             type: isSeries ? "show" : "movie",
-            thumb: preview.poster,
+            thumb: poster,
             art: preview.background,
             year: preview.year,
             rating: preview.imdbRating.flatMap(Double.init),
@@ -104,6 +112,7 @@ actor StremioCatalogMapper {
                 ? (response.tvResults.first ?? response.movieResults.first)
                 : (response.movieResults.first ?? response.tvResults.first)
             tmdbIdCache[imdbId] = match?.id
+            if let path = match?.posterPath { posterPathCache[imdbId] = path }
             return match?.id
         } catch {
             // Don't cache failures - this may just be a transient network error.

@@ -139,8 +139,22 @@ struct StremioCatalogDefinition: Codable, Hashable, Identifiable {
     }
 
     var displayName: String {
-        let base = name ?? catalogId.capitalized
-        return type == "series" ? "\(base) (TV)" : base
+        let base = (name ?? catalogId.capitalized).trimmingCharacters(in: .whitespaces)
+        return Self.cleanTitle(base, isSeries: type == "series")
+    }
+
+    /// "Apple TV+ (Series)" → "Apple TV+ Shows", "Apple TV+ (Movies)" → "Apple TV+ Movies".
+    /// Names without a type in them get one only when they are series ("Popular" → "Popular Shows").
+    static func cleanTitle(_ base: String, isSeries: Bool) -> String {
+        let kind = isSeries ? String(localized: "Shows") : String(localized: "Movies")
+        let suffixes = isSeries
+            ? ["(Series)", "(TV Shows)", "(Shows)", "(TV)", "- Series", "Series", "TV Shows"]
+            : ["(Movies)", "(Movie)", "(Films)", "- Movies", "Movies"]
+        for suffix in suffixes where base.lowercased().hasSuffix(suffix.lowercased()) {
+            let stem = base.dropLast(suffix.count).trimmingCharacters(in: CharacterSet(charactersIn: " -–·"))
+            return stem.isEmpty ? kind : "\(stem) \(kind)"
+        }
+        return isSeries ? "\(base) \(kind)" : base
     }
 }
 
