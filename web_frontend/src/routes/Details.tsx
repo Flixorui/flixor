@@ -263,6 +263,8 @@ function DetailsPage({ id }: { id: string }) {
             </>
           )}
           onPersonClick={openPerson}
+          trailers={trailers}
+          onSelectTrailer={(trailer) => setSelectedTrailerKey(trailer.key)}
           trailerUrl={plexTrailerUrl}
           trailerKey={trailerKey}
           trailerMuted={trailerMuted}

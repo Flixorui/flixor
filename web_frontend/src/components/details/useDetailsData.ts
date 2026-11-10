@@ -131,6 +131,8 @@ export function useDetailsData(id: string) {
   const [plexTrailerUrl, setPlexTrailerUrl] = useState<string | undefined>(undefined);
   const [logoUrl, setLogoUrl] = useState<string | undefined>(undefined);
   const [imdbId, setImdbId] = useState<string | undefined>(undefined);
+  // TMDB's audience score: the last fallback for the hero's IMDb badge, as on macOS.
+  const [tmdbScore, setTmdbScore] = useState<number | undefined>(undefined);
   const [plexRatings, setExternalRatings] = useState<{ imdb?: { rating?: number; votes?: number } | null; rt?: { critic?: number; audience?: number } | null } | null>(null);
   const [moodTags, setMoodTags] = useState<string[]>([]);
   const [plexMappedId, setPlexMappedId] = useState<string | undefined>(undefined);
@@ -359,6 +361,7 @@ export function useDetailsData(id: string) {
                   const d: any = await tmdbDetails(tmdbKey, mediaType as any, tid);
                   // For episodes, preserve episode title/overview from Plex, only get show metadata
                   if (m.type !== 'episode') {
+                    setTmdbScore(d.vote_count > 0 ? d.vote_average : undefined);
                     setTitle(d.title || d.name || title);
                     setOverview(d.overview || overview);
                   }
@@ -454,6 +457,7 @@ export function useDetailsData(id: string) {
           const [, media, tmdbId] = id.split(':');
           {
             const d: any = await tmdbDetails(tmdbKey, media as any, tmdbId);
+            setTmdbScore(d.vote_count > 0 ? d.vote_average : undefined);
             setTitle(d.title || d.name || '');
             setOverview(d.overview || '');
             setBackdrop(tmdbImage(d.backdrop_path, 'w1280') || tmdbImage(d.poster_path, 'w780') || backdrop);
@@ -743,8 +747,10 @@ export function useDetailsData(id: string) {
   const ratings = useMemo<RatingsData | null>(() => {
     const plex = plexRatings;
     const mdb = mdblistRatings;
-    if (!plex && !mdb) return null;
-    const imdbScore = plex?.imdb?.rating ?? mdb?.imdb;
+    // macOS shows TMDB's score under the IMDb mark when Plex and MDBList have none.
+    const tmdbFallback = tmdbScore && tmdbScore > 0 ? Math.round(tmdbScore * 10) / 10 : undefined;
+    if (!plex && !mdb && tmdbFallback === undefined) return null;
+    const imdbScore = plex?.imdb?.rating ?? mdb?.imdb ?? tmdbFallback;
     const critic = plex?.rt?.critic ?? mdb?.tomatoes;
     const audience = plex?.rt?.audience ?? mdb?.audience;
     return {
@@ -755,7 +761,7 @@ export function useDetailsData(id: string) {
       tmdb: mdb?.tmdb,
       trakt: mdb?.trakt,
     };
-  }, [plexRatings, mdblistRatings]);
+  }, [plexRatings, mdblistRatings, tmdbScore]);
 
   const loadEpisodes = useCallback(async () => {
     if (!seasonKey) return;

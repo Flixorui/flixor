@@ -51,6 +51,10 @@ interface DetailsHeroProps {
   watchActions?: React.ReactNode;
   onPersonClick?: (person: { id?: string; name: string }) => void;
 
+  /** Trailers & Videos shown under the actions, as on macOS. */
+  trailers?: Array<{ key: string; name: string; type?: string }>;
+  onSelectTrailer?: (trailer: { key: string; name: string; type?: string }) => void;
+
   // Trailer background
   trailerUrl?: string;
   trailerKey?: string;
@@ -100,6 +104,8 @@ export default function DetailsHero({
   watchlistProps,
   requestProps,
   onPersonClick,
+  trailers = [],
+  onSelectTrailer,
   trailerUrl,
   trailerKey,
   trailerMuted = true,
@@ -329,14 +335,8 @@ export default function DetailsHero({
                 )}
               </div>
 
-              {/* Overview with MORE button */}
-              {overview && (
-                <div className="mb-4">
-                  <p className="text-sm md:text-base text-white/80 leading-relaxed line-clamp-2">
-                    {overview}
-                  </p>
-                </div>
-              )}
+              {/* Overview: two lines, with MORE when it runs longer (as on macOS) */}
+              {overview && <HeroOverview text={overview} />}
 
               {/* Year + Runtime + Tech Badges + Ratings Row */}
               <div className="flex flex-wrap items-center gap-1.5 mb-5 text-xs">
@@ -456,6 +456,36 @@ export default function DetailsHero({
                 )}
               </div>
 
+              {trailers.length > 0 && onSelectTrailer && (
+                <div className="mb-6">
+                  <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-white/60">Trailers &amp; Videos</h3>
+                  <div className="-my-1 flex gap-2 overflow-x-auto py-1 no-scrollbar">
+                    {trailers.slice(0, 8).map((trailer) => (
+                      <button
+                        key={trailer.key}
+                        onClick={() => onSelectTrailer(trailer)}
+                        title={trailer.name}
+                        className="group relative aspect-video w-36 flex-shrink-0 overflow-hidden rounded-lg bg-black/40 text-left ring-1 ring-white/10 transition hover:ring-white/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 md:w-40"
+                      >
+                        <img src={`https://img.youtube.com/vi/${trailer.key}/mqdefault.jpg`} alt="" loading="lazy" className="h-full w-full object-cover" />
+                        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/10 to-black/80" />
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/90 shadow transition-transform group-hover:scale-110">
+                            <svg className="ml-0.5 h-3.5 w-3.5 text-black" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                          </span>
+                        </div>
+                        <div className="absolute inset-x-0 bottom-0 p-1.5">
+                          {trailer.type && (
+                            <span className="mb-0.5 inline-block rounded bg-red-600 px-1 py-px text-[9px] font-bold uppercase text-white">{trailer.type}</span>
+                          )}
+                          <p className="truncate text-[11px] font-semibold text-white">{trailer.name}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
             </div>
 
             {/* Right Column - Starring & Director (Desktop only) */}
@@ -465,21 +495,24 @@ export default function DetailsHero({
                   <h3 className="text-xs font-medium text-white/50 mb-1">Starring</h3>
                   <div className="text-sm text-white/90">
                     {cast.slice(0, 4).map((person, i) => (
-                      <button
-                        key={i}
-                        onClick={() => onPersonClick?.(person)}
-                        className="hover:text-white transition-colors"
-                      >
-                        {person.name}{i < Math.min(3, cast.length - 1) && ', '}
-                      </button>
+                      <span key={i}>
+                        <button
+                          onClick={() => onPersonClick?.(person)}
+                          className="hover:text-white transition-colors"
+                        >
+                          {person.name}
+                        </button>
+                        {/* Outside the button: trailing spaces inside an inline-block collapse. */}
+                        {i < Math.min(3, cast.length - 1) && ', '}
+                      </span>
                     ))}
                   </div>
                 </div>
               )}
               {director && (
                 <div>
-                  <h3 className="text-xs font-medium text-white/50 mb-1">Director</h3>
-                  <p className="text-sm text-white/90">{director}</p>
+                  <h3 className="text-xs font-medium text-white/50 mb-1">{director.includes(',') ? 'Directors' : 'Director'}</h3>
+                  <p className="text-sm text-white/90">{director.replace(/,\s*/g, ', ')}</p>
                 </div>
               )}
             </div>
@@ -559,3 +592,36 @@ export default function DetailsHero({
   );
 }
 import WatchlistButton from '@/components/WatchlistButton';
+
+/** Two lines of the overview; MORE expands it in place, LESS folds it back. */
+function HeroOverview({ text }: { text: string }) {
+  const ref = useRef<HTMLParagraphElement>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [clamped, setClamped] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => setClamped(el.scrollHeight > el.clientHeight + 1);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [text]);
+
+  return (
+    <div className="mb-4 flex items-end gap-3">
+      <p ref={ref} className={`text-sm md:text-base text-white/80 leading-relaxed ${expanded ? '' : 'line-clamp-2'}`}>
+        {text}
+      </p>
+      {(clamped || expanded) && (
+        <button
+          onClick={() => setExpanded((value) => !value)}
+          className="flex-shrink-0 rounded bg-white/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white/90 hover:bg-white/25"
+        >
+          {expanded ? 'Less' : 'More'}
+        </button>
+      )}
+    </div>
+  );
+}
