@@ -116,6 +116,9 @@ final class PlaybackCommandState: ObservableObject {
 struct AppCommands: Commands {
     @ObservedObject private var playback = PlaybackCommandState.shared
     @ObservedObject private var navigation = BackNavigationController.shared
+    #if FLIXOR_LIVE_TV
+    @ObservedObject private var liveTV = LiveTVStore.shared
+    #endif
 
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
@@ -137,6 +140,25 @@ struct AppCommands: Commands {
             }
             .keyboardShortcut("]", modifiers: .command)
             .disabled(!navigation.canGoForward)
+
+            #if FLIXOR_LIVE_TV
+            if liveTV.featureEnabled {
+                Divider()
+                // ⌘L toggles; ⌘⇧L always leaves. Inside Live TV its key monitor
+                // handles both first, so these also work while it is showing.
+                Button(liveTV.isActive ? "Exit Live TV" : "Live TV") {
+                    liveTV.toggle()
+                }
+                .keyboardShortcut("l", modifiers: .command)
+                .disabled(!liveTV.isActive && playback.isPlayerActive)
+
+                Button("Exit Live TV") {
+                    liveTV.exit()
+                }
+                .keyboardShortcut("l", modifiers: [.command, .shift])
+                .disabled(!liveTV.isActive)
+            }
+            #endif
         }
 
         // Space and the arrow keys are handled by the player's own key monitor

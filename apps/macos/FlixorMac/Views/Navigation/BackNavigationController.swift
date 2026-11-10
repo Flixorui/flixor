@@ -251,6 +251,9 @@ final class BackNavigationController: ObservableObject {
     private func isNavigationAllowed(in window: NSWindow?) -> Bool {
         guard let window, window === mainWindow else { return false }
         if PlaybackCommandState.shared.isPlayerActive { return false }
+        #if FLIXOR_LIVE_TV
+        if LiveTVStore.shared.isActive { return false }
+        #endif
         if NSApp.modalWindow != nil { return false }
         if window.attachedSheet != nil || !window.sheets.isEmpty { return false }
         // A popover or other panel took key status.

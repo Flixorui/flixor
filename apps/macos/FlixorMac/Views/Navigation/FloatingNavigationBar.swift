@@ -202,6 +202,9 @@ struct FloatingNavigationTrack: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Namespace private var selection
     @State private var labelWidths: [String: CGFloat] = [:]
+    #if FLIXOR_LIVE_TV
+    @ObservedObject private var liveTV = LiveTVStore.shared
+    #endif
 
     private let settingsKey = "floating-nav-settings"
 
@@ -230,6 +233,26 @@ struct FloatingNavigationTrack: View {
                         .font(.flixorIcon(DS.Icon.lg, weight: .medium))
                 }
             }
+
+            #if FLIXOR_LIVE_TV
+            if liveTV.featureEnabled {
+                FloatingNavButton(
+                    title: "Live TV",
+                    isSelected: false,
+                    showsLabel: showsLabels,
+                    labelWidth: labelWidths["floating-nav-live-tv"],
+                    glowEnabled: glowEnabled,
+                    selection: selection,
+                    onLabelWidth: { labelWidths["floating-nav-live-tv"] = $0 },
+                    action: { liveTV.enter() }
+                ) {
+                    Image(systemName: "dot.radiowaves.left.and.right")
+                        .font(.flixorIcon(DS.Icon.lg, weight: .medium))
+                        .foregroundStyle(Color(hex: "e50914"))
+                }
+                .help("Live TV (⌘L)")
+            }
+            #endif
 
             FloatingNavButton(
                 title: String(localized: "Settings"),

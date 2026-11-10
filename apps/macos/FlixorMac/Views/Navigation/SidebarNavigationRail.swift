@@ -59,6 +59,9 @@ struct SidebarNavigationRail: View {
     let profile: SidebarProfileMenu
 
     @ObservedObject private var store = NavigationStyleStore.shared
+    #if FLIXOR_LIVE_TV
+    @ObservedObject private var liveTV = LiveTVStore.shared
+    #endif
     @Environment(\.flixorTheme) private var theme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isHovered = false
@@ -86,6 +89,22 @@ struct SidebarNavigationRail: View {
                         .font(.flixorIcon(DS.Icon.lg, weight: .medium))
                 }
             }
+
+            #if FLIXOR_LIVE_TV
+            if liveTV.featureEnabled {
+                SidebarRow(
+                    title: "Live TV",
+                    isSelected: false,
+                    isExpanded: isExpanded,
+                    accentIcon: true,
+                    action: { liveTV.enter() }
+                ) {
+                    Image(systemName: "dot.radiowaves.left.and.right")
+                        .font(.flixorIcon(DS.Icon.lg, weight: .medium))
+                }
+                .help("Live TV (⌘L)")
+            }
+            #endif
 
             Spacer(minLength: DS.Space.s16)
 

@@ -396,7 +396,9 @@ class MPVPlayerController {
 
     /// - Parameter verifyTLS: Verify HTTPS certificates. Pass `false` for Plex
     ///   (custom/self-signed certs). Hosts on the local network are never verified.
-    func loadFile(_ url: String, headers: [String: String]? = nil, verifyTLS: Bool = true) {
+    /// - Parameter logLabel: Printed instead of the URL when the URL carries
+    ///   credentials (Xtream live streams put the username and password in the path).
+    func loadFile(_ url: String, headers: [String: String]? = nil, verifyTLS: Bool = true, logLabel: String? = nil) {
         guard mpv != nil else {
             print("❌ [MPV] Cannot load file: mpv not initialized")
             return
@@ -418,7 +420,7 @@ class MPVPlayerController {
         }
         withCache { cachedPath = nil }
 
-        print("📺 [MPV] Loading file: \(url)")
+        print("📺 [MPV] Loading file: \(logLabel ?? url)")
         perform { mpv in
             mpv_set_property_string(mpv, "tls-verify", shouldVerify ? "yes" : "no")
             if mpv_set_property_string(mpv, "stream-lavf-o", reconnect) < 0 {

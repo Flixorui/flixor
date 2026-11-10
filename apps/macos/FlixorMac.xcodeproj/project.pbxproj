@@ -7,6 +7,19 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		1D49DD3DA332C1FFB83E691C /* LiveTVArtwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DFE18F1A6A4643C4484AC8D /* LiveTVArtwork.swift */; };
+		644AF730A9FF2B7B7B882EEB /* LiveTVModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40FDEA20839D4AEA57C73372 /* LiveTVModels.swift */; };
+		7FF413A3D458208EFE6E9A9B /* LiveTVLineupBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4519E5A4334DCB2E8AB76ABD /* LiveTVLineupBuilder.swift */; };
+		CB1B20E02B627FF91DC7192C /* XtreamClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7882DB07B98A9041CF5E66BC /* XtreamClient.swift */; };
+		06F8D1EAA62EF9DAE74F713C /* XtreamWebGuideClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 796A322E00AA11F4D946D894 /* XtreamWebGuideClient.swift */; };
+		57611F596C545626ECA865CA /* LiveTVSecrets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8858D86E421D2CECA7B6564F /* LiveTVSecrets.swift */; };
+		8EFACC1FF40D0E436F071111 /* LiveTVStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14D2704C89D51F6823BA9B51 /* LiveTVStore.swift */; };
+		14C4AB75F1FED544D410188A /* LiveTVRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA87AFE8A038858DAEF0A6DE /* LiveTVRootView.swift */; };
+		C89B13763027275C6FE75598 /* LiveTVChannelList.swift in Sources */ = {isa = PBXBuildFile; fileRef = 814DAC543BF03FFF68030525 /* LiveTVChannelList.swift */; };
+		347FB18876C33F46F33CB1D5 /* LiveTVGuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30DB6508A5C23E1E236A2ACA /* LiveTVGuideView.swift */; };
+		8C51F5F3E6B757B827191325 /* LiveTVPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9541E04342CE38ED4B62CC3 /* LiveTVPlayerView.swift */; };
+		0B08276096216E7AD7042E3E /* LiveTVSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A59908C6E614351A7B83B6B2 /* LiveTVSettingsView.swift */; };
+		AB39EBF33FCEB5B8BCD821B6 /* LiveTVPlayerModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC103F201F28FDB5CD8C2A70 /* LiveTVPlayerModel.swift */; };
 		FE4C28B472B026114474292F /* MPVVideoLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73AD394BE16F687E64B0657F /* MPVVideoLayer.swift */; };
 		DFF3B68818F83A0445C6BFFC /* FloatingNavigationBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40B6D0B8D78A7F7E4EF4D69B /* FloatingNavigationBar.swift */; };
 		A4292701928946C388703A25 /* AppKitMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 516E6A7205B325E6F17AFD78 /* AppKitMenu.swift */; };
@@ -323,6 +336,19 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		6DFE18F1A6A4643C4484AC8D /* LiveTVArtwork.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveTVArtwork.swift; sourceTree = "<group>"; };
+		40FDEA20839D4AEA57C73372 /* LiveTVModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveTVModels.swift; sourceTree = "<group>"; };
+		4519E5A4334DCB2E8AB76ABD /* LiveTVLineupBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveTVLineupBuilder.swift; sourceTree = "<group>"; };
+		7882DB07B98A9041CF5E66BC /* XtreamClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XtreamClient.swift; sourceTree = "<group>"; };
+		796A322E00AA11F4D946D894 /* XtreamWebGuideClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XtreamWebGuideClient.swift; sourceTree = "<group>"; };
+		8858D86E421D2CECA7B6564F /* LiveTVSecrets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveTVSecrets.swift; sourceTree = "<group>"; };
+		14D2704C89D51F6823BA9B51 /* LiveTVStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveTVStore.swift; sourceTree = "<group>"; };
+		BA87AFE8A038858DAEF0A6DE /* LiveTVRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveTVRootView.swift; sourceTree = "<group>"; };
+		814DAC543BF03FFF68030525 /* LiveTVChannelList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveTVChannelList.swift; sourceTree = "<group>"; };
+		30DB6508A5C23E1E236A2ACA /* LiveTVGuideView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveTVGuideView.swift; sourceTree = "<group>"; };
+		E9541E04342CE38ED4B62CC3 /* LiveTVPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveTVPlayerView.swift; sourceTree = "<group>"; };
+		A59908C6E614351A7B83B6B2 /* LiveTVSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveTVSettingsView.swift; sourceTree = "<group>"; };
+		CC103F201F28FDB5CD8C2A70 /* LiveTVPlayerModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveTVPlayerModel.swift; sourceTree = "<group>"; };
 		73AD394BE16F687E64B0657F /* MPVVideoLayer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MPVVideoLayer.swift; sourceTree = "<group>"; };
 		40B6D0B8D78A7F7E4EF4D69B /* FloatingNavigationBar.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Navigation/FloatingNavigationBar.swift; sourceTree = "<group>"; };
 		516E6A7205B325E6F17AFD78 /* AppKitMenu.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppKitMenu.swift; sourceTree = "<group>"; };
@@ -649,6 +675,39 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		352727273D2B5B9744735964 /* LiveTV */ = {
+			isa = PBXGroup;
+			children = (
+				40FDEA20839D4AEA57C73372 /* LiveTVModels.swift */,
+			);
+			path = LiveTV;
+			sourceTree = "<group>";
+		};
+		D40F540B81418E6AA5829CCD /* LiveTV */ = {
+			isa = PBXGroup;
+			children = (
+				6DFE18F1A6A4643C4484AC8D /* LiveTVArtwork.swift */,
+				4519E5A4334DCB2E8AB76ABD /* LiveTVLineupBuilder.swift */,
+				7882DB07B98A9041CF5E66BC /* XtreamClient.swift */,
+				796A322E00AA11F4D946D894 /* XtreamWebGuideClient.swift */,
+				8858D86E421D2CECA7B6564F /* LiveTVSecrets.swift */,
+				14D2704C89D51F6823BA9B51 /* LiveTVStore.swift */,
+			);
+			path = LiveTV;
+			sourceTree = "<group>";
+		};
+		BF5FE0AD114331058235E639 /* LiveTV */ = {
+			isa = PBXGroup;
+			children = (
+				BA87AFE8A038858DAEF0A6DE /* LiveTVRootView.swift */,
+				814DAC543BF03FFF68030525 /* LiveTVChannelList.swift */,
+				30DB6508A5C23E1E236A2ACA /* LiveTVGuideView.swift */,
+				E9541E04342CE38ED4B62CC3 /* LiveTVPlayerView.swift */,
+				A59908C6E614351A7B83B6B2 /* LiveTVSettingsView.swift */,
+			);
+			path = LiveTV;
+			sourceTree = "<group>";
+		};
 		130CD414CABEA06C9562ECA8 /* Downloads */ = {
 			isa = PBXGroup;
 			children = (
@@ -735,6 +794,7 @@
 				7CB1C29CA6CFB52E468383D8 /* PerformanceStats.swift */,
 				234624854A3AE7BEDC53EB9A /* MpvConfigModels.swift */,
 				D4BBF226E4D1FFC47369CF00 /* DownloadModels.swift */,
+				352727273D2B5B9744735964 /* LiveTV */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -774,6 +834,7 @@
 				STG001 /* Stremio */,
 				E0E97337240E54ACD3562452 /* Profile */,
 				505287A7F0EBFDEE0C86DC3E /* Downloads */,
+				BF5FE0AD114331058235E639 /* LiveTV */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -822,6 +883,7 @@
 				B066 /* NewPopularViewModel.swift */,
 				B046 /* WatchlistController.swift */,
 				STF008 /* StremioSourcesViewModel.swift */,
+				CC103F201F28FDB5CD8C2A70 /* LiveTVPlayerModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -869,6 +931,7 @@
 				5F6BC834C21606D91C967707 /* AppLogger.swift */,
 				A551E079C93FFCF1E765E133 /* ProfileSettings.swift */,
 				130CD414CABEA06C9562ECA8 /* Downloads */,
+				D40F540B81418E6AA5829CCD /* LiveTV */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -1303,6 +1366,19 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1D49DD3DA332C1FFB83E691C /* LiveTVArtwork.swift in Sources */,
+				644AF730A9FF2B7B7B882EEB /* LiveTVModels.swift in Sources */,
+				7FF413A3D458208EFE6E9A9B /* LiveTVLineupBuilder.swift in Sources */,
+				CB1B20E02B627FF91DC7192C /* XtreamClient.swift in Sources */,
+				06F8D1EAA62EF9DAE74F713C /* XtreamWebGuideClient.swift in Sources */,
+				57611F596C545626ECA865CA /* LiveTVSecrets.swift in Sources */,
+				8EFACC1FF40D0E436F071111 /* LiveTVStore.swift in Sources */,
+				14C4AB75F1FED544D410188A /* LiveTVRootView.swift in Sources */,
+				C89B13763027275C6FE75598 /* LiveTVChannelList.swift in Sources */,
+				347FB18876C33F46F33CB1D5 /* LiveTVGuideView.swift in Sources */,
+				8C51F5F3E6B757B827191325 /* LiveTVPlayerView.swift in Sources */,
+				0B08276096216E7AD7042E3E /* LiveTVSettingsView.swift in Sources */,
+				AB39EBF33FCEB5B8BCD821B6 /* LiveTVPlayerModel.swift in Sources */,
 				FE4C28B472B026114474292F /* MPVVideoLayer.swift in Sources */,
 				DFF3B68818F83A0445C6BFFC /* FloatingNavigationBar.swift in Sources */,
 				A4292701928946C388703A25 /* AppKitMenu.swift in Sources */,
@@ -1743,7 +1819,7 @@
 				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/deps/include";
-				INFOPLIST_FILE = FlixorMac/Info.plist;
+				INFOPLIST_FILE = "$(FLIXOR_INFOPLIST_FILE)";
 				INFOPLIST_KEY_CFBundleDisplayName = Flixor;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
@@ -1792,7 +1868,7 @@
 				ENABLE_RESOURCE_ACCESS_PHOTO_LIBRARY = NO;
 				GENERATE_INFOPLIST_FILE = YES;
 				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/deps/include";
-				INFOPLIST_FILE = FlixorMac/Info.plist;
+				INFOPLIST_FILE = "$(FLIXOR_INFOPLIST_FILE)";
 				INFOPLIST_KEY_CFBundleDisplayName = Flixor;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.entertainment";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";

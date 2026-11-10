@@ -308,8 +308,29 @@ final class AppLogger: ObservableObject {
 
     // MARK: - Redaction
 
+    // Exact values registered at runtime (e.g. credentials that appear in stream URLs).
+    private let sensitiveValuesLock = NSLock()
+    private var sensitiveValues: [String] = []
+
+    /// Blanks `value` (and its percent-encoded form) out of every later log entry.
+    func registerSensitiveValue(_ value: String) {
+        guard value.count >= 3 else { return }
+        var forms = [value]
+        let allowed = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.!~*'()")
+        if let encoded = value.addingPercentEncoding(withAllowedCharacters: allowed), encoded != value { forms.append(encoded) }
+        sensitiveValuesLock.lock(); defer { sensitiveValuesLock.unlock() }
+        for form in forms where !sensitiveValues.contains(form) { sensitiveValues.append(form) }
+        sensitiveValues.sort { $0.count > $1.count }
+    }
+
     private func redact(_ text: String) -> String {
         var result = text
+        sensitiveValuesLock.lock()
+        let values = sensitiveValues
+        sensitiveValuesLock.unlock()
+        for value in values where result.contains(value) {
+            result = result.replacingOccurrences(of: value, with: "[REDACTED]")
+        }
         for pattern in sensitivePatterns {
             let range = NSRange(result.startIndex..., in: result)
             result = pattern.stringByReplacingMatches(in: result, options: [], range: range, withTemplate: "[REDACTED]")

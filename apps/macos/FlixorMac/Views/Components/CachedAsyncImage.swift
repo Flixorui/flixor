@@ -135,7 +135,10 @@ final class ImageCache: @unchecked Sendable {
     private let maxPixelSize = 2560
     private let maxDiskBytes = 2 * 1024 * 1024 * 1024
 
-    private lazy var diskCacheURL: URL? = {
+    // A constant, not `lazy`: loads read it from many threads at once, and a
+    // lazy var's first initialization races (crashed in swift_getObjectType).
+    private let diskCacheURL: URL? = {
+        let fileManager = FileManager.default
         guard let cacheDir = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first else {
             return nil
         }

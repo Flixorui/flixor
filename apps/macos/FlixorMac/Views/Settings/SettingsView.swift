@@ -13,6 +13,9 @@ import AppKit
 private enum SettingsCategory: String, CaseIterable, Identifiable {
     case plex
     case player
+    #if FLIXOR_LIVE_TV
+    case liveTV
+    #endif
     case discoveryMode
     case catalog
     case rowsSettings
@@ -35,6 +38,9 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         switch self {
         case .plex: return "Plex"
         case .player: return String(localized: "Player")
+        #if FLIXOR_LIVE_TV
+        case .liveTV: return "Live TV"
+        #endif
         case .discoveryMode: return String(localized: "Discovery Mode")
         case .catalog: return String(localized: "Catalogs")
         case .rowsSettings: return String(localized: "Rows Settings")
@@ -57,6 +63,9 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         switch self {
         case .plex: return String(localized: "Manage your Plex server connections")
         case .player: return String(localized: "Video playback and MPV configuration")
+        #if FLIXOR_LIVE_TV
+        case .liveTV: return "Xtream account, guide server and Live TV mode (personal build)"
+        #endif
         case .discoveryMode: return String(localized: "Control external content discovery features")
         case .catalog: return String(localized: "Configure library visibility and filtering")
         case .rowsSettings: return String(localized: "Choose which content rows to display")
@@ -80,6 +89,9 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         switch self {
         case .plex: return "server.rack"
         case .player: return "play.rectangle.fill"
+        #if FLIXOR_LIVE_TV
+        case .liveTV: return "antenna.radiowaves.left.and.right"
+        #endif
         case .discoveryMode: return "eye.slash"
         case .catalog: return "rectangle.stack"
         case .rowsSettings: return "square.grid.3x1.below.line.grid.1x2"
@@ -193,6 +205,9 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         switch self {
         case .plex: return Color(hex: "272A2D")
         case .player: return .blue
+        #if FLIXOR_LIVE_TV
+        case .liveTV: return Color(hex: "e50914")
+        #endif
         case .discoveryMode: return Color(hex: "FF6B6B")
         case .catalog: return .purple
         case .rowsSettings: return .blue
@@ -214,6 +229,16 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
 
 // MARK: - Sidebar Section
 
+private extension SidebarSection {
+    static var playerCategories: [SettingsCategory] {
+        #if FLIXOR_LIVE_TV
+        return [.player, .liveTV]
+        #else
+        return [.player]
+        #endif
+    }
+}
+
 private struct SidebarSection {
     let title: String
     let categories: [SettingsCategory]
@@ -221,7 +246,7 @@ private struct SidebarSection {
     static var all: [SidebarSection] {
         [
             SidebarSection(title: String(localized: "Account"), categories: [.plex]),
-            SidebarSection(title: String(localized: "Player"), categories: [.player]),
+            SidebarSection(title: String(localized: "Player"), categories: SidebarSection.playerCategories),
             SidebarSection(title: String(localized: "Content & Discovery"), categories: [.discoveryMode, .catalog, .rowsSettings, .sidebar, .search]),
             SidebarSection(title: String(localized: "Appearance"), categories: [.appearance, .homeScreenAppearance, .detailsScreen]),
             SidebarSection(title: String(localized: "Integrations"), categories: [.tmdb, .stremio, .mdblist, .overseerr, .trakt]),
@@ -429,6 +454,10 @@ struct SettingsView: View {
             PlexServersView()
         case .player:
             PlayerSettingsView()
+        #if FLIXOR_LIVE_TV
+        case .liveTV:
+            LiveTVSettingsView()
+        #endif
         case .discoveryMode:
             DiscoveryModeSettingsView()
         case .catalog:

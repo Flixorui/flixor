@@ -78,6 +78,9 @@ struct RootView: View {
     @State private var isInitializing = true
     @ObservedObject private var profileSettings = ProfileSettings.shared
     @ObservedObject private var appMode = AppModeStore.shared
+    #if FLIXOR_LIVE_TV
+    @ObservedObject private var liveTV = LiveTVStore.shared
+    #endif
     @Environment(\.flixorTheme) private var theme
 
     /// In Stremio-only mode there is no Plex step at all. A nil mode (existing
@@ -122,9 +125,28 @@ struct RootView: View {
                 .transition(.opacity)
             } else {
                 // Fully ready - show main app
+                #if FLIXOR_LIVE_TV
+                // Live TV covers the window; MainView stays alive underneath so
+                // leaving returns to the same tab and page.
+                ZStack {
+                    MainView()
+                        .toast() // single app-wide toast host
+                        .opacity(liveTV.isActive ? 0 : 1)
+                        .allowsHitTesting(!liveTV.isActive)
+                        .accessibilityHidden(liveTV.isActive)
+                    if liveTV.isActive {
+                        LiveTVRootView()
+                            .transition(.opacity)
+                            .zIndex(10)
+                    }
+                }
+                .transition(.opacity)
+                .onAppear { if liveTV.openOnLaunch && liveTV.featureEnabled { liveTV.enter() } }
+                #else
                 MainView()
                     .toast() // single app-wide toast host
                     .transition(.opacity)
+                #endif
             }
         }
         .animation(DS.Motion.emphasized, value: needsPlexAuth)

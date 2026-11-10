@@ -1,0 +1,13 @@
+// Copy this file to Personal.xcconfig (same folder) to build the personal
+// edition. Personal.xcconfig is gitignored. Never ship a public build with it.
+//
+// FLIXOR_LIVE_TV: Xtream Live TV mode (US and Indian lineup from xtream-web).
+// Its lineup data is not part of the repo or the app bundle: the export script
+// writes it to ~/Library/Application Support/Flixor/LiveTV/curated-lineup.json.
+
+SWIFT_ACTIVE_COMPILATION_CONDITIONS = $(inherited) FLIXOR_LIVE_TV
+
+// Xtream providers and their channel logos are usually plain http, which App
+// Transport Security blocks for URLSession. Personal-Info.plist adds the
+// exception; public builds keep FlixorMac/Info.plist without it.
+FLIXOR_INFOPLIST_FILE = FlixorMac/Config/Personal-Info.plist

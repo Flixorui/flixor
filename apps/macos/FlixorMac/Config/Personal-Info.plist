@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Personal build only (Personal.xcconfig). Keep the first three keys in step with FlixorMac/Info.plist. -->
+	<key>FlixorTMDBApiKey</key>
+	<string>$(FLIXOR_TMDB_API_KEY)</string>
+	<key>FlixorTraktClientId</key>
+	<string>$(FLIXOR_TRAKT_CLIENT_ID)</string>
+	<key>FlixorTraktClientSecret</key>
+	<string>$(FLIXOR_TRAKT_CLIENT_SECRET)</string>
+	<!-- Live TV: Xtream providers and their logos are usually plain http. -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
+</dict>
+</plist>

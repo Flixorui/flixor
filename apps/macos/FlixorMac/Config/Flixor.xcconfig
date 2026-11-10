@@ -9,3 +9,12 @@ FLIXOR_TRAKT_CLIENT_ID =
 FLIXOR_TRAKT_CLIENT_SECRET =
 
 #include? "Secrets.xcconfig"
+
+// Info.plist merged into the generated one. Personal.xcconfig may point it at
+// Personal-Info.plist (same keys plus the personal build's additions).
+FLIXOR_INFOPLIST_FILE = FlixorMac/Info.plist
+
+// Personal build features. Personal.xcconfig is gitignored and only exists on
+// the owner's Mac; it turns on FLIXOR_LIVE_TV (Xtream Live TV mode). Without it
+// none of the Live TV code is compiled. See Personal.example.xcconfig.
+#include? "Personal.xcconfig"
