@@ -180,6 +180,7 @@ export default function HoverPreview({
             title="Trailer"
             src={`https://www.youtube-nocookie.com/embed/${encodeURIComponent(trailerKey)}?autoplay=1&mute=${muted ? 1 : 0}&controls=0&rel=0&playsinline=1&modestbranding=1`}
             allow="autoplay; encrypted-media"
+            referrerPolicy="strict-origin-when-cross-origin"
           />
         )}
         <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-neutral-900 to-transparent" />

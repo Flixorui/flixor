@@ -77,6 +77,7 @@ export default function TrailerModal({
               src={`https://www.youtube.com/embed/${youtubeKey}?autoplay=1&rel=0&modestbranding=1&enablejsapi=1`}
               className="absolute inset-0 w-full h-full"
               allow="autoplay; encrypted-media; fullscreen"
+              referrerPolicy="strict-origin-when-cross-origin"
               allowFullScreen
             />
           ) : videoUrl ? (

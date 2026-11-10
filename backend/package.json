@@ -1,6 +1,6 @@
 {
   "name": "plex-media-backend",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Backend server for Plex Media Player",
   "main": "dist/server.js",
   "scripts": {

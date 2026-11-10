@@ -211,9 +211,22 @@ systemd_unit() {
 systemctl_scope() { if [ "$(id -u)" -eq 0 ]; then systemctl "$@"; else systemctl --user "$@"; fi; }
 has_systemd() { have systemctl && [ -d /run/systemd/system ]; }
 
+# 1 when an existing service was turned off with `flixor stop`: an update keeps it off.
+service_was_stopped() {
+  if [ "$os" = darwin ]; then
+    [ -f "$(launchd_plist)" ] && launchctl print-disabled "gui/$(id -u)" 2>/dev/null \
+      | grep -Eq "\"$LAUNCHD_LABEL\" => (true|disabled)"
+  elif has_systemd; then
+    [ -f "$(systemd_unit)" ] && [ "$(systemctl_scope is-enabled "$SERVICE_NAME.service" 2>/dev/null)" = disabled ]
+  else
+    return 1
+  fi
+}
+
 install_service() {
   step "Setting up the background service"
   mkdir -p "$data_dir/logs"
+  if service_was_stopped; then was_stopped=1; else was_stopped=0; fi
   if [ "$os" = darwin ]; then
     plist=$(launchd_plist)
     mkdir -p "$(dirname "$plist")"
@@ -235,12 +248,18 @@ install_service() {
 EOF
     domain="gui/$(id -u)"
     launchctl bootout "$domain/$LAUNCHD_LABEL" 2>/dev/null || true
-    if ! launchctl bootstrap "$domain" "$plist" 2>/dev/null; then
-      launchctl unload "$plist" 2>/dev/null || true
-      launchctl load -w "$plist" || die "couldn't start the launchd service ($plist)"
+    service_kind=launchd
+    if [ "$was_stopped" = 1 ]; then
+      say "launchd agent $LAUNCHD_LABEL: updated, and left off because it was stopped (start it with: flixor start)."
+    else
+      launchctl enable "$domain/$LAUNCHD_LABEL" 2>/dev/null || true
+      if ! launchctl bootstrap "$domain" "$plist" 2>/dev/null; then
+        launchctl unload "$plist" 2>/dev/null || true
+        launchctl load -w "$plist" || die "couldn't start the launchd service ($plist)"
+      fi
+      say "launchd agent $LAUNCHD_LABEL: starts at login, restarts if it stops."
+      service_started=1
     fi
-    say "launchd agent $LAUNCHD_LABEL: starts at login, restarts if it stops."
-    service_started=1
   elif has_systemd; then
     unit=$(systemd_unit)
     mkdir -p "$(dirname "$unit")"
@@ -256,11 +275,18 @@ Environment=FLIXOR_HOME=$data_dir
 ExecStart=$bin_dir/flixor-server
 Restart=on-failure
 RestartSec=3
+StandardOutput=append:$data_dir/logs/service.log
+StandardError=append:$data_dir/logs/service.log
 
 [Install]
 WantedBy=$wanted
 EOF
     systemctl_scope daemon-reload
+    if [ "$(id -u)" -eq 0 ]; then service_kind=systemd-system; else service_kind=systemd-user; fi
+    if [ "$was_stopped" = 1 ]; then
+      say "systemd service $SERVICE_NAME: updated, and left off because it was stopped (start it with: flixor start)."
+      return
+    fi
     systemctl_scope enable "$SERVICE_NAME.service" >/dev/null 2>&1 || true
     systemctl_scope restart "$SERVICE_NAME.service" || die "couldn't start $SERVICE_NAME.service"
     if [ "$(id -u)" -ne 0 ]; then
@@ -272,7 +298,7 @@ EOF
     say "systemd service $SERVICE_NAME ($unit): starts at boot, restarts if it fails."
     service_started=1
   else
-    warn "No launchd or systemd found, so no service was set up. Start it with: $bin_dir/flixor-server"
+    warn "No launchd or systemd found, so no service was set up. Start it with: flixor run"
   fi
 }
 
@@ -314,11 +340,36 @@ lan_address() {
   fi
 }
 
+# The `flixor` control command: the same executable, pointed at this install's data folder.
+install_control_command() {
+  cat > "$bin_dir/flixor.new" <<EOF
+#!/bin/sh
+# Controls the Flixor server (installed by install.sh). Run: flixor help
+FLIXOR_HOME="\${FLIXOR_HOME:-$data_dir}"
+export FLIXOR_HOME
+if [ \$# -eq 0 ]; then set -- ui; fi
+exec "$bin_dir/flixor-server" "\$@"
+EOF
+  chmod 755 "$bin_dir/flixor.new"
+  mv -f "$bin_dir/flixor.new" "$bin_dir/flixor"
+}
+
+# What was set up, for the control command.
+record_install() {
+  cat > "$data_dir/service.env" <<EOF
+# Written by install.sh; read by the flixor command.
+SERVICE=$service_kind
+SERVICE_NAME=$SERVICE_NAME
+LAUNCHD_LABEL=$LAUNCHD_LABEL
+BIN_DIR=$bin_dir
+EOF
+}
+
 uninstall() {
   step "Removing the Flixor server"
   remove_service
-  rm -f "$bin_dir/flixor-server"
-  say "Removed $bin_dir/flixor-server and its service."
+  rm -f "$bin_dir/flixor-server" "$bin_dir/flixor" "$data_dir/service.env"
+  say "Removed $bin_dir/flixor-server, the flixor command and the service."
   if [ "$purge" = 1 ]; then
     rm -rf "$data_dir"
     say "Deleted $data_dir."
@@ -337,6 +388,8 @@ main() {
   do_uninstall=0
   purge=0
   service_started=0
+  service_kind=none
+  was_stopped=0
 
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -386,6 +439,8 @@ main() {
   if [ "$want_service" = 1 ]; then
     install_service
   fi
+  install_control_command
+  record_install
 
   step "Done"
   if [ "$service_started" = 1 ]; then
@@ -394,8 +449,10 @@ main() {
     else
       warn "The service didn't answer yet. Its log: $data_dir/logs/service.log"
     fi
+  elif [ "$was_stopped" = 1 ]; then
+    say "Flixor is updated and stays off until you run: flixor start"
   else
-    say "Start it with: $bin_dir/flixor-server"
+    say "Start it with: flixor run"
   fi
   say ""
   say "  Open:      http://localhost:$port"
@@ -403,10 +460,10 @@ main() {
   [ -z "$lan" ] || say "  Network:   http://$lan:$port"
   say "  Data:      $data_dir"
   say "  Settings:  $data_dir/flixor.env"
-  say "  Update:    run this installer again"
+  say "  Control:   flixor  (dashboard), or flixor status | stop | start | logs | update"
   case ":$PATH:" in
     *":$bin_dir:"*) ;;
-    *) say ""; say "Note: $bin_dir isn't on your PATH. Add it to run flixor-server by name." ;;
+    *) say ""; say "Note: $bin_dir isn't on your PATH. Add it to run flixor by name, or use $bin_dir/flixor." ;;
   esac
 }
 

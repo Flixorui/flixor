@@ -1,5 +1,6 @@
 /**
- * Entry point of the standalone executable (`flixor-server`).
+ * Entry point of the standalone executable (`flixor-server`, and the `flixor`
+ * control command, which install.sh points at it).
  *
  * The executable carries the server as a payload (see payload.ts). On the first
  * run of each build this unpacks it into the data folder, then loads the server
@@ -20,7 +21,12 @@ import fs from 'fs';
 import { createRequire } from 'module';
 import os from 'os';
 import path from 'path';
+import { COMMANDS_HELP, defaultDataDir, readInstall, runCommand } from './control';
+import { parseEnvFile } from './envfile';
 import { unpack } from './payload';
+import { runTui } from './tui';
+
+export { parseEnvFile };
 
 export interface Manifest {
   version: string;
@@ -71,21 +77,6 @@ export function parseArgs(argv: string[]): Options {
   }
   if (options.port !== undefined && !/^\d{1,5}$/.test(options.port)) throw new Error(`--port must be a number: ${options.port}`);
   return options;
-}
-
-/** KEY=value lines; blank lines and # comments ignored; optional single or double quotes. */
-export function parseEnvFile(text: string): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const line of text.split(/\r?\n/)) {
-    const match = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/.exec(line);
-    if (!match || line.trimStart().startsWith('#')) continue;
-    let value = match[2];
-    const quoted = /^(['"])(.*)\1$/.exec(value);
-    if (quoted) value = quoted[2];
-    else value = value.replace(/\s+#.*$/, '');
-    out[match[1]] = value;
-  }
-  return out;
 }
 
 /** The session secret kept in the data folder, created on first use. */
@@ -184,7 +175,8 @@ function assets(): { manifest: Manifest; payload: () => Uint8Array } {
   };
 }
 
-export function main(argv = process.argv.slice(2)): void {
+/** Runs the server in this process: `flixor-server [options]` or `flixor run [options]`. */
+export function runServer(argv: string[]): void {
   let options: Options;
   try {
     options = parseArgs(argv);
@@ -212,6 +204,36 @@ export function main(argv = process.argv.slice(2)): void {
 
   const serverFile = path.join(runtime, 'app', 'server.js');
   createRequire(serverFile)(serverFile);
+}
+
+/** Control commands (the `flixor` command passes these, or `ui` when given none). */
+export const CONTROL_COMMANDS = new Set(['ui', 'status', 'start', 'stop', 'restart', 'logs', 'open', 'config', 'port', 'update', 'uninstall', 'version', 'help']);
+
+/**
+ * `flixor-server` with no arguments or only options runs the server (what the
+ * services start); a first word picks a control command instead.
+ */
+export function main(argv = process.argv.slice(2)): void {
+  const [command, ...rest] = argv;
+  if (!command || command.startsWith('-')) return runServer(argv);
+  if (command === 'run') return runServer(rest);
+  if (!CONTROL_COMMANDS.has(command)) {
+    process.stderr.write(`flixor: unknown command: ${command}\n\n${COMMANDS_HELP}`);
+    process.exit(2);
+  }
+  const { version } = assets().manifest;
+  const done = (code: number) => { process.exitCode = code; };
+  const fail = (error: Error) => {
+    process.stderr.write(`flixor: ${error.message}\n`);
+    process.exitCode = 1;
+  };
+  if (command === 'ui') {
+    const install = readInstall(defaultDataDir());
+    if (process.stdout.isTTY && process.stdin.isTTY) runTui(install, version).then(done, fail);
+    else runCommand('status', [], version).then(done, fail);
+    return;
+  }
+  runCommand(command, rest, version).then(done, fail);
 }
 
 if (require.main === module || require('node:sea').isSea()) main();

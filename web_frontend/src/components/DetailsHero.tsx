@@ -218,6 +218,7 @@ export default function DetailsHero({
                   trailerMuted ? 1 : 0
                 }&controls=0&loop=0&playsinline=1&rel=0&showinfo=0&modestbranding=1&enablejsapi=1&origin=${window.location.origin}&widget_referrer=${window.location.origin}`}
                 allow="autoplay; encrypted-media"
+                referrerPolicy="strict-origin-when-cross-origin"
                 style={{ pointerEvents: 'none' }}
                 onLoad={() => {
                   // Send API ready message to enable events

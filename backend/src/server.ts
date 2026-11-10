@@ -67,6 +67,9 @@ async function startServer() {
       contentSecurityPolicy: false, // We'll handle CSP separately
       crossOriginEmbedderPolicy: false,
       crossOriginResourcePolicy: { policy: 'cross-origin' }, // allow images/media to be embedded from this server
+      // Helmet's default (no-referrer) breaks YouTube embeds (Error 153: YouTube requires the
+      // embedding site's referrer). This sends only the origin to other sites.
+      referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
     }));
 
     // CORS configuration
