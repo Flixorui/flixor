@@ -21,6 +21,7 @@ enum HomeRowKind: String, Codable {
     case trakt
     case stremioCatalog
     case userCollection
+    case streaming
 
     var iconName: String {
         switch self {
@@ -33,6 +34,7 @@ enum HomeRowKind: String, Codable {
         case .trakt: return "chart.bar.fill"
         case .stremioCatalog: return "puzzlepiece.extension.fill"
         case .userCollection: return "rectangle.stack.fill"
+        case .streaming: return "list.number"
         }
     }
 
@@ -47,6 +49,7 @@ enum HomeRowKind: String, Codable {
         case .trakt: return "Trakt"
         case .stremioCatalog: return String(localized: "Addon catalog")
         case .userCollection: return String(localized: "Your collection")
+        case .streaming: return String(localized: "Streaming Availability")
         }
     }
 }

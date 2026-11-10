@@ -26,6 +26,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
     case mdblist
     case overseerr
     case trakt
+    case streamingAvailability
     case appearance
     case advanced
     case about
@@ -49,6 +50,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         case .mdblist: return "MDBList"
         case .overseerr: return "Overseerr"
         case .trakt: return "Trakt"
+        case .streamingAvailability: return String(localized: "Streaming Availability")
         case .appearance: return String(localized: "Appearance")
         case .advanced: return String(localized: "Advanced")
         case .about: return String(localized: "About")
@@ -72,6 +74,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         case .mdblist: return String(localized: "Ratings from IMDb, Rotten Tomatoes, Letterboxd and more")
         case .overseerr: return String(localized: "Request movies and shows you don't have yet")
         case .trakt: return String(localized: "Watch history, ratings and scrobbling")
+        case .streamingAvailability: return String(localized: "Top 10 and new arrivals on Netflix, Prime Video, Disney+, Apple TV+ and Max")
         case .appearance: return String(localized: "Accent colour and background")
         case .advanced: return String(localized: "Debug logging and diagnostics")
         case .about: return String(localized: "App information and credits")
@@ -87,6 +90,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         case .libraryScreen: return "library screen grid tabs"
         case .detailsScreen: return "details screen episodes"
         case .sidebar: return "navbar navigation tabs new & popular"
+        case .streamingAvailability: return "movie of the night top 10 netflix prime disney apple max api key"
         default: return ""
         }
     }
@@ -109,6 +113,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         case .mdblist: return "star"
         case .overseerr: return "arrow.down.circle"
         case .trakt: return "chart.bar"
+        case .streamingAvailability: return "list.number"
         case .appearance: return "paintpalette.fill"
         case .advanced: return "gearshape.fill"
         case .about: return "info"
@@ -166,6 +171,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         case .mdblist: return Color(hex: "4284CA")
         case .overseerr: return Color(hex: "0B1223")
         case .trakt: return Color(hex: "ED1C24")
+        case .streamingAvailability: return Color(hex: "7C3AED")
         case .appearance: return Color(hex: "E0405F")
         case .advanced: return Color(hex: "6E6E73")
         case .about: return Color(hex: "55555A")
@@ -192,7 +198,7 @@ private struct SidebarSection {
             SidebarSection(title: String(localized: "Sources"), categories: sourceCategories),
             SidebarSection(title: String(localized: "Playback & Content"), categories: [.player, .content]),
             SidebarSection(title: String(localized: "Screens"), categories: [.homeScreenAppearance, .libraryScreen, .detailsScreen, .sidebar]),
-            SidebarSection(title: String(localized: "Integrations"), categories: [.tmdb, .mdblist, .overseerr, .trakt]),
+            SidebarSection(title: String(localized: "Integrations"), categories: [.tmdb, .mdblist, .overseerr, .trakt, .streamingAvailability]),
             SidebarSection(title: String(localized: "General"), categories: [.appearance, .advanced, .about])
         ]
     }
@@ -391,6 +397,8 @@ struct SettingsView: View {
             OverseerrSettingsView()
         case .trakt:
             TraktSettingsContent()
+        case .streamingAvailability:
+            StreamingAvailabilitySettingsView()
         case .appearance:
             AppearanceSettingsView()
         case .advanced:

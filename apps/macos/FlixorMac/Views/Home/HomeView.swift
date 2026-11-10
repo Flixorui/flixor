@@ -11,9 +11,6 @@ import FlixorKit
 struct HomeView: View {
     @StateObject private var viewModel = HomeViewModel()
     @EnvironmentObject private var router: NavigationRouter
-    @StateObject private var browseViewModel = BrowseModalViewModel()
-    @State private var showBrowseModal = false
-    @State private var activeBrowseContext: BrowseContext?
 
     // Profile-scoped Home Screen Settings
     @ObservedObject private var profileSettings = ProfileSettings.shared
@@ -59,20 +56,9 @@ struct HomeView: View {
                 }
             }
 
-            if showBrowseModal {
-                BrowseModalView(
-                    isPresented: $showBrowseModal,
-                    viewModel: browseViewModel,
-                    onSelect: { item in
-                        viewModel.showItemDetails(item)
-                    }
-                )
-                .transition(.opacity)
-                .zIndex(2)
-            }
         }
         .overlay(alignment: .topTrailing) {
-            if heroIsFullBleed && !showBrowseModal {
+            if heroIsFullBleed {
                 HeroCarouselFullScreenOverlay()
                     .ignoresSafeArea(edges: .top)
             }
@@ -114,12 +100,6 @@ struct HomeView: View {
             }
             viewModel.pendingAction = nil
         }
-        .onChange(of: showBrowseModal) { value in
-            if !value {
-                activeBrowseContext = nil
-                browseViewModel.reset()
-            }
-        }
         .onChange(of: profileSettings.groupRecentlyAddedEpisodes) { _ in
             // Refresh Recently Added sections when grouping setting changes
             Task {
@@ -141,6 +121,9 @@ struct HomeView: View {
         .onChange(of: network.isOnline) { isOnline in
             guard isOnline, viewModel.hasRowFailures || viewModel.hasNoContent else { return }
             Task { await viewModel.refresh() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: StreamingAvailabilityStore.didUpdateNotification)) { _ in
+            Task { await viewModel.reloadExtraRows() }
         }
         .onReceive(NotificationCenter.default.publisher(for: .continueWatchingSourceDidChange)) { _ in
             Task { await viewModel.reloadContinueWatchingSources() }
@@ -268,24 +251,26 @@ struct HomeView: View {
 
     @ViewBuilder
     private func sectionRow(_ section: LibrarySection) -> some View {
-        if section.isCollection {
+        if section.id.hasPrefix("\(StreamingAvailabilityStore.rowIdPrefix)top-") {
+            TopTenRow(section: section, onTap: { item in viewModel.showItemDetails(item) })
+        } else if section.isCollection {
             CollectionSectionRow(
                 section: section,
                 rowLayout: profileSettings.rowLayout,
                 onTap: { item in viewModel.showItemDetails(item) },
-                onBrowse: { context in presentBrowse(context) }
+                onBrowse: { context in presentBrowse(context, title: section.title) }
             )
         } else if profileSettings.rowLayout == "poster" {
             PosterSectionRow(
                 section: section,
                 onTap: { item in viewModel.showItemDetails(item) },
-                onBrowse: { context in presentBrowse(context) }
+                onBrowse: { context in presentBrowse(context, title: section.title) }
             )
         } else {
             LandscapeSectionView(
                 section: section,
                 onTap: { item in viewModel.showItemDetails(item) },
-                onBrowse: { context in presentBrowse(context) }
+                onBrowse: { context in presentBrowse(context, title: section.title) }
             )
         }
     }
@@ -376,12 +361,9 @@ struct HomeView: View {
         )
     }
 
-    private func presentBrowse(_ context: BrowseContext) {
-        activeBrowseContext = context
-        showBrowseModal = true
-        Task {
-            await browseViewModel.load(context: context)
-        }
+    /// Opens the row's Browse page (pushed, like a details page).
+    private func presentBrowse(_ context: BrowseContext, title: String? = nil) {
+        router.homePath.append(BrowseRoute(context: context, title: title))
     }
 }
 
@@ -763,7 +745,7 @@ struct CollectionSectionRow: View {
                     .foregroundStyle(.white)
 
                 Text(section.title)
-                    .font(.flixor(.title3, weight: .semibold))
+                    .font(.flixor(.title2, weight: .bold))
                     .foregroundStyle(.white)
 
                 if let titleCaption {

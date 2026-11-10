@@ -196,12 +196,55 @@ extension HomeViewModel {
             return !store.isHidden(row.id)
         }
         visible = HomeRowsStore.ordered(visible, id: \.id, userOrder: store.order)
+        visible = Self.removingRepeatedTitles(visible, discoveryRowIds: Set(extraSlots.compactMap {
+            if case .section(let section) = $0 { return section.id } else { return nil }
+        }))
 
         let captions = duplicateTitleCaptions(for: visible.filter { !$0.isPlaceholder }.map { ($0.id, $0.title) })
         for index in visible.indices {
             visible[index].caption = captions[visible[index].id]
         }
         return visible
+    }
+
+    /// Discovery rows (trending, popular, Trakt, addon catalogs) skip titles a
+    /// row above already shows, so each title appears once down the page.
+    /// Library and collection rows are never trimmed. A row keeps its full list
+    /// if trimming would leave it with fewer than `minimumLeft` titles.
+    static func removingRepeatedTitles(_ rows: [HomeDisplayRow], discoveryRowIds: Set<String>, minimumLeft: Int = 6) -> [HomeDisplayRow] {
+        func key(_ item: MediaItem) -> String {
+            let title = (item.type == "episode" ? (item.grandparentTitle ?? item.title) : item.title)
+                .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            // Title only: addon and TMDB copies of a title often disagree on (or lack) the year.
+            return title
+        }
+        var seen = Set<String>()
+        var result: [HomeDisplayRow] = []
+        for var row in rows {
+            guard case .section(let section) = row.content else {
+                result.append(row)
+                continue
+            }
+            // Ranked lists (Top 10) keep every entry; their titles still count as shown.
+            let isRanked = section.id.hasPrefix(StreamingAvailabilityStore.rowIdPrefix + "top-")
+            if discoveryRowIds.contains(section.id) && !section.isCollection && !isRanked {
+                let fresh = section.items.filter { !seen.contains(key($0)) }
+                if fresh.count < section.items.count && fresh.count >= minimumLeft {
+                    let trimmed = LibrarySection(
+                        id: section.id, title: section.title, items: fresh,
+                        totalCount: section.totalCount, libraryKey: section.libraryKey,
+                        browseContext: section.browseContext, isCollection: section.isCollection
+                    )
+                    row = HomeDisplayRow(id: row.id, title: row.title, caption: row.caption, content: .section(trimmed))
+                }
+            }
+            if case .section(let shown) = row.content {
+                shown.items.forEach { seen.insert(key($0)) }
+            }
+            result.append(row)
+        }
+        return result
     }
 
     /// Captions for rows whose (final) title is shared with another row.
@@ -230,7 +273,9 @@ extension HomeViewModel {
     func descriptor(for slot: HomeRowSlot) -> HomeRowDescriptor {
         let id = slot.id
         let kind: HomeRowKind
-        if id.hasPrefix("stremio-catalog-") {
+        if id.hasPrefix(StreamingAvailabilityStore.rowIdPrefix) {
+            kind = .streaming
+        } else if id.hasPrefix("stremio-catalog-") {
             kind = .stremioCatalog
         } else if id.hasPrefix("trakt-") {
             kind = .trakt

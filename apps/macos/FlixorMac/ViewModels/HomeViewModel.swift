@@ -697,6 +697,12 @@ class HomeViewModel: ObservableObject {
 
     // MARK: - Additional Sections
 
+    /// Reloads the discovery / Trakt / addon / streaming rows (e.g. after a
+    /// Streaming Availability setting changed).
+    func reloadExtraRows() async {
+        await loadAdditionalRows()
+    }
+
     private func loadAdditionalRows() async {
         if isStremioOnly {
             await loadStremioAdditionalRows()
@@ -709,6 +715,8 @@ class HomeViewModel: ObservableObject {
         async let stremioCatalogs: [HomeRowSlot] = settings.showStremioCatalogRows
             ? fetchStremioCatalogSections()
             : []
+        // Top 10 and "New on" rows (cache first; only due lists cost an API call).
+        async let streamingRows = StreamingAvailabilityStore.shared.sections()
         var all: [String: HomeRowSlot] = [:]
         var genres: [LibrarySection] = []
         var trakt: [String: HomeRowSlot] = [:]
@@ -750,6 +758,9 @@ class HomeViewModel: ObservableObject {
         // Continue Watching is rendered separately with its own card style
         push(String(localized: "Trending Now"))
         push(String(localized: "Watchlist"))
+
+        // Streaming service Top 10 rows
+        ordered.append(contentsOf: await streamingRows.map { HomeRowSlot.section($0) })
 
         // Addon catalog rows, in addon priority order, as in Stremio-only mode.
         ordered.append(contentsOf: await stremioCatalogs)
@@ -964,6 +975,9 @@ class HomeViewModel: ObservableObject {
                 media: .tv, kind: .trending
             ) { ordered.append(s) }
         }
+
+        // Streaming service Top 10 rows (cache first)
+        ordered.append(contentsOf: await StreamingAvailabilityStore.shared.sections().map { HomeRowSlot.section($0) })
 
         // Watchlist: the Plex.tv half is skipped automatically when plexTv is nil,
         // so this is the Trakt watchlist (plus local entries once Phase 3 lands).
