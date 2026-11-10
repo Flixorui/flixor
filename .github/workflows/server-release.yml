@@ -131,7 +131,8 @@ jobs:
       - name: Create or update the release
         run: |
           if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
-            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "Flixor server ${TAG#server-v}" \
+            # --latest=false: the repo's "Latest" release stays the app release.
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --latest=false --title "Flixor server ${TAG#server-v}" \
               --notes "Install or update: curl -fsSL https://raw.githubusercontent.com/$GITHUB_REPOSITORY/main/install.sh | sh"
           fi
           gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber dist/*

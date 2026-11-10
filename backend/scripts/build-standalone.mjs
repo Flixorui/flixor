@@ -98,6 +98,9 @@ function findPackage(name, fromDir) {
   }
 }
 
+/** glibc or musl on Linux (npm installs sharp's builds for both), null elsewhere. */
+const LIBC = platform === 'linux' ? (process.report.getReport().header.glibcVersionRuntime ? 'glibc' : 'musl') : null;
+
 /** The add-ons and everything they load at run time, as package folders. */
 function runtimePackages() {
   const found = new Map();
@@ -109,8 +112,9 @@ function runtimePackages() {
       return; // An optional dependency for another platform.
     }
     if (found.has(dir)) return;
-    found.set(dir, name);
     const pkg = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'));
+    if (!required && LIBC && Array.isArray(pkg.libc) && !pkg.libc.includes(LIBC)) return; // built for the other C library
+    found.set(dir, name);
     for (const dep of Object.keys(pkg.dependencies || {})) visit(dep, dir, true);
     for (const dep of Object.keys(pkg.optionalDependencies || {})) visit(dep, dir, false);
   };
