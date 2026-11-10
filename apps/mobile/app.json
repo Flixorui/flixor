@@ -6,6 +6,7 @@
     "version": "0.1.8",
     "runtimeVersion": "0.1.8",
     "orientation": "default",
+    "userInterfaceStyle": "dark",
     "updates": {
       "enabled": true,
       "checkAutomatically": "NEVER",
