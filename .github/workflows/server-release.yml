@@ -1,0 +1,137 @@
+name: Release the standalone server
+
+# Builds flixor-server (the web app and backend in one executable) for each
+# platform and attaches it to a GitHub Release, where install.sh finds it.
+# Push a tag like server-v1.0.0, or run it by hand with an existing tag.
+
+on:
+  push:
+    tags:
+      - 'server-v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to build and upload to (e.g. server-v1.0.0)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: darwin-arm64
+            runner: macos-15
+          - target: darwin-x64
+            runner: macos-15-intel
+          # Ubuntu 22.04 keeps the glibc requirement at 2.35 or older.
+          - target: linux-x64
+            runner: ubuntu-22.04
+          - target: linux-arm64
+            runner: ubuntu-22.04-arm
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+      # Secrets can't be read in `if:`, so expose whether one is set.
+      HAS_MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE != '' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            web_frontend/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          npm ci --prefix backend
+          npm ci --prefix web_frontend
+
+      - name: Test
+        run: npm test --prefix backend
+
+      - name: Import the signing certificate
+        # Optional: a Developer ID certificate (base64 .p12). Without it the build is signed ad hoc,
+        # which runs fine when downloaded with curl.
+        if: runner.os == 'macOS' && env.HAS_MACOS_CERTIFICATE == 'true'
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: |
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          password=$(openssl rand -hex 16)
+          echo "$MACOS_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 3600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          security import "$RUNNER_TEMP/cert.p12" -k "$keychain" -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$password" "$keychain"
+          security list-keychains -d user -s "$keychain" login.keychain
+          identity=$(security find-identity -v -p codesigning "$keychain" | awk -F'"' '/Developer ID Application/ {print $2; exit}')
+          echo "CODESIGN_IDENTITY=$identity" >> "$GITHUB_ENV"
+
+      - name: Build
+        run: npm run build:standalone --prefix backend -- --version "$TAG"
+
+      - name: Smoke test
+        shell: bash
+        run: |
+          exe=backend/build/standalone/flixor-server
+          "$exe" --version
+          export FLIXOR_HOME="$RUNNER_TEMP/flixor-home"
+          "$exe" --port 3999 > "$RUNNER_TEMP/server.log" 2>&1 &
+          pid=$!
+          for _ in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:3999/health | grep -q healthy; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:3999/health | grep -q '"database":"connected"'
+          curl -fsS http://127.0.0.1:3999/ | grep -qi '<!doctype html'
+          curl -fsS -o /dev/null http://127.0.0.1:3999/settings
+          kill "$pid"
+
+      - name: Server log
+        if: failure()
+        run: cat "$RUNNER_TEMP/server.log" || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: flixor-server-${{ matrix.target }}
+          path: |
+            backend/build/standalone/flixor-server-${{ matrix.target }}.tar.gz
+            backend/build/standalone/flixor-server-${{ matrix.target }}.tar.gz.sha256
+          if-no-files-found: error
+
+  release:
+    name: Upload to the release
+    needs: build
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Checksums
+        working-directory: dist
+        run: cat ./*.sha256 > SHA256SUMS && cat SHA256SUMS
+
+      - name: Create or update the release
+        run: |
+          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "Flixor server ${TAG#server-v}" \
+              --notes "Install or update: curl -fsSL https://raw.githubusercontent.com/$GITHUB_REPOSITORY/main/install.sh | sh"
+          fi
+          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber dist/*

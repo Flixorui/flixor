@@ -11,11 +11,11 @@
     "migration:generate": "npm run typeorm -- migration:generate -d src/db/data-source.ts",
     "migration:run": "npm run typeorm -- migration:run -d src/db/data-source.ts",
     "migration:revert": "npm run typeorm -- migration:revert -d src/db/data-source.ts",
-    "test": "tsx --test 'src/**/*.test.ts'"
+    "test": "tsx --test 'src/**/*.test.ts' 'standalone/**/*.test.ts'",
+    "build:standalone": "node scripts/build-standalone.mjs"
   },
   "dependencies": {
     "axios": "^1.6.7",
-    "bcrypt": "^5.1.1",
     "compression": "^1.7.4",
     "connect-typeorm": "^2.0.0",
     "cookie-parser": "^1.4.6",
@@ -35,14 +35,15 @@
     "winston": "^3.11.0"
   },
   "devDependencies": {
-    "@types/bcrypt": "^5.0.2",
     "@types/compression": "^1.7.5",
     "@types/cookie-parser": "^1.4.6",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "@types/express-session": "^1.17.10",
     "@types/node": "^20.11.16",
+    "esbuild": "^0.28.2",
     "nodemon": "^3.0.3",
+    "postject": "^1.0.0-alpha.6",
     "tsx": "^4.7.0",
     "typescript": "^5.3.3"
   },

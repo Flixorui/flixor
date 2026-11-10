@@ -35,6 +35,7 @@ import { stopAllHlsSessions } from './services/media/hls';
 import { requireAuth } from './middleware/auth';
 import { errorHandler } from './middleware/errorHandler';
 import { requestLogger } from './middleware/requestLogger';
+import { mountWebApp } from './utils/webApp';
 
 const serverLogger = logger.child({ component: 'server' });
 
@@ -137,6 +138,9 @@ async function startServer() {
     app.use('/api/stremio', requireAuth, stremioRoutes);
     app.use('/api/skip-segments', requireAuth, skipSegmentsRoutes);
     app.use('/api/sync', requireAuth, syncRoutes);
+
+    const webDir = mountWebApp(app);
+    if (webDir) serverLogger.info(`🌐 Serving the web app from ${webDir}`);
 
     // 404 handler
     app.use((req, res) => {
