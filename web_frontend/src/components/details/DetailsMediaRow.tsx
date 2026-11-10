@@ -2,6 +2,7 @@ import { useSearchParams } from 'react-router-dom';
 import SmartImage from '@/components/SmartImage';
 import { useSettings } from '@/state/settings';
 import DetailsSectionHeading, { DetailsHorizontalRow } from './DetailsSectionHeading';
+import { useTitledArtwork } from './useTitledArtwork';
 
 export interface DetailsMediaItem {
   id: string;
@@ -53,37 +54,60 @@ export default function DetailsMediaRow({
       </div>
       {subtitle && <p className="-mt-3 mb-4 text-sm text-white/50">{subtitle}</p>}
       <DetailsHorizontalRow>
-        {items.map((item) => {
-          const isCurrent = item.id === currentId;
-          const image = usePoster ? item.poster || item.image : item.image || item.poster;
-          return (
-            <button
-              key={item.id}
-              onClick={() => { if (!isCurrent) onSelect(item.id); }}
-              disabled={isCurrent}
-              title={item.title}
-              className={`group flex-shrink-0 text-left ${usePoster ? 'w-[140px] md:w-[160px]' : 'w-[240px] md:w-[280px]'}`}
-            >
-              <div
-                className={`relative overflow-hidden rounded-xl bg-white/10 ${usePoster ? 'aspect-[2/3]' : 'aspect-video'} ${
-                  isCurrent ? 'ring-2 ring-white' : 'ring-1 ring-white/10 group-hover:ring-white/40'
-                } transition`}
-              >
-                {image ? (
-                  <SmartImage url={image} alt={item.title} width={usePoster ? 300 : 500} className="h-full w-full" imgClassName="object-cover" />
-                ) : (
-                  <div className="flex h-full items-center justify-center p-3 text-center text-sm text-white/50">{item.title}</div>
-                )}
-                {isCurrent && (
-                  <span className="absolute left-2 top-2 rounded bg-white px-1.5 py-0.5 text-[10px] font-bold text-black">Viewing</span>
-                )}
-              </div>
-              <p className="mt-2 text-sm text-white/90 truncate">{item.title}</p>
-              {item.subtitle && <p className="text-xs text-white/50 truncate">{item.subtitle}</p>}
-            </button>
-          );
-        })}
+        {items.map((item) => (
+          <DetailsMediaCard
+            key={item.id}
+            item={item}
+            usePoster={usePoster}
+            isCurrent={item.id === currentId}
+            onSelect={onSelect}
+          />
+        ))}
       </DetailsHorizontalRow>
     </section>
+  );
+}
+
+/**
+ * One title, as on macOS: artwork with the title designed into it (see
+ * useTitledArtwork), and the name only as an overlay on hover.
+ */
+function DetailsMediaCard({ item, usePoster, isCurrent, onSelect }: {
+  item: DetailsMediaItem;
+  usePoster: boolean;
+  isCurrent: boolean;
+  onSelect: (id: string) => void;
+}) {
+  const fallback = usePoster ? item.poster || item.image : item.image || item.poster;
+  const image = useTitledArtwork(item.id, usePoster ? 'portrait' : 'landscape', fallback);
+  return (
+    <button
+      onClick={() => { if (!isCurrent) onSelect(item.id); }}
+      disabled={isCurrent}
+      title={item.title}
+      aria-label={item.subtitle ? `${item.title}, ${item.subtitle}` : item.title}
+      className={`group flex-shrink-0 text-left ${usePoster ? 'w-[140px] md:w-[160px]' : 'w-[240px] md:w-[280px]'}`}
+    >
+      <div
+        className={`relative overflow-hidden rounded-xl bg-white/10 ${usePoster ? 'aspect-[2/3]' : 'aspect-video'} ${
+          isCurrent ? 'ring-2 ring-white' : 'ring-1 ring-white/10 group-hover:ring-white/40'
+        } transition`}
+      >
+        {image ? (
+          <SmartImage url={image} alt={item.title} width={usePoster ? 300 : 500} className="h-full w-full" imgClassName="object-cover" />
+        ) : (
+          <div className="flex h-full items-center justify-center p-3 text-center text-sm text-white/50">{item.title}</div>
+        )}
+        {image && (
+          <div className="pointer-events-none absolute inset-0 flex flex-col justify-end bg-gradient-to-b from-transparent to-black/75 p-3 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100">
+            <p className="truncate text-sm font-semibold text-white">{item.title}</p>
+            {item.subtitle && <p className="truncate text-xs text-white/80">{item.subtitle}</p>}
+          </div>
+        )}
+        {isCurrent && (
+          <span className="absolute left-2 top-2 rounded bg-white px-1.5 py-0.5 text-[10px] font-bold text-black">Viewing</span>
+        )}
+      </div>
+    </button>
   );
 }

@@ -11,7 +11,9 @@ export default function DetailsSectionHeading({ children, className = '' }: { ch
 /** Horizontal row that starts on the section's left edge and scrolls out to the page edges. */
 export function DetailsHorizontalRow({ children, gapClass = 'gap-3' }: { children: ReactNode; gapClass?: string }) {
   return (
-    <div className="row-edge overflow-x-auto no-scrollbar">
+    // A scroller clips what is drawn outside it, including the cards' rings, so it
+    // gets vertical room for them; the negative margin keeps the layout unchanged.
+    <div className="row-edge overflow-x-auto no-scrollbar py-1.5 -my-1.5">
       <div className={`flex w-max ${gapClass}`}>{children}</div>
     </div>
   );
