@@ -29,8 +29,10 @@ struct SearchView: View {
                         isFocused: $isSearchFieldFocused,
                         onSubmit: { viewModel.submitSearch() }
                     )
+                    .frame(maxWidth: SearchLayout.fieldMaxWidth)
+                    .frame(maxWidth: .infinity)
                     .padding(.horizontal, SearchLayout.gutter)
-                    .padding(.top, DS.Space.s16)
+                    .padding(.top, DS.Space.s20)
 
                     // Content based on search mode
                     Group {
@@ -113,7 +115,9 @@ struct SearchView: View {
                     selection: $viewModel.idleTab,
                     accessibilityTitle: String(localized: "Search view")
                 )
+                .frame(maxWidth: .infinity)
                 .padding(.horizontal, SearchLayout.gutter)
+                .padding(.top, -DS.Space.s8)
             }
 
             if showDiscover {
@@ -132,9 +136,15 @@ struct SearchView: View {
                     }
 
                     if profileSettings.includeTmdbInSearch {
-                        IdleStateView(viewModel: viewModel, onTap: { item in
-                            navigateToDetails(item: item)
-                        })
+                        IdleStateView(
+                            viewModel: viewModel,
+                            onTap: { item in navigateToDetails(item: item) },
+                            onGenre: { genre in
+                                discoverViewModel.setMediaType(.movie)
+                                discoverViewModel.setGenre(genre)
+                                withAnimation(DS.Motion.quick) { viewModel.idleTab = .discover }
+                            }
+                        )
                     } else {
                         SearchPlaceholderView()
                     }
@@ -214,6 +224,16 @@ struct SearchInputField: View {
                 .accessibilityLabel(Text("Search"))
                 .help("Search (Command-F)")
 
+            if query.isEmpty && !isFocused.wrappedValue {
+                Text("⌘F")
+                    .flixorFont(.caption, weight: .medium)
+                    .foregroundStyle(theme.textTertiary)
+                    .padding(.horizontal, DS.Space.s6)
+                    .padding(.vertical, 1)
+                    .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(theme.separatorStrong, lineWidth: DS.Border.thin))
+                    .accessibilityHidden(true)
+            }
+
             if !query.isEmpty {
                 Button(action: {
                     query = ""
@@ -227,13 +247,12 @@ struct SearchInputField: View {
                 .accessibilityLabel(Text("Clear search"))
             }
         }
-        .padding(.horizontal, DS.Space.s16)
-        .padding(.vertical, DS.Space.s12)
-        .background(theme.hoverFill)
-        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.poster, style: .continuous))
+        .padding(.horizontal, DS.Space.s18)
+        .frame(height: 44)
+        .background(Capsule(style: .continuous).fill(theme.hoverFill))
         .overlay(
-            RoundedRectangle(cornerRadius: DS.Radius.poster, style: .continuous)
-                .stroke(isFocused.wrappedValue ? theme.focusRing.opacity(DS.Opacity.tertiary) : theme.separatorStrong,
+            Capsule(style: .continuous)
+                .stroke(isFocused.wrappedValue ? Color.white.opacity(0.4) : theme.separatorStrong,
                         lineWidth: DS.Border.thin)
         )
     }
@@ -244,9 +263,80 @@ struct SearchInputField: View {
 struct IdleStateView: View {
     @ObservedObject var viewModel: SearchViewModel
     let onTap: (SearchViewModel.SearchResult) -> Void
+    var onGenre: (DiscoverGenre) -> Void = { _ in }
 
     var body: some View {
-        TrendingResultsRow(items: viewModel.trendingItems, onTap: onTap)
+        VStack(alignment: .leading, spacing: DS.Space.sectionGap) {
+            if !viewModel.trendingItems.isEmpty {
+                TrendingResultsRow(items: viewModel.trendingItems, onTap: onTap)
+            }
+            if !viewModel.popularItems.isEmpty {
+                SearchHorizontalRow(title: String(localized: "Popular Movies & TV"), items: viewModel.popularItems, onTap: onTap)
+            }
+            SearchGenreTiles(onSelect: onGenre)
+        }
+    }
+}
+
+/// "Browse by genre": each tile opens Discover with that genre picked.
+struct SearchGenreTiles: View {
+    let onSelect: (DiscoverGenre) -> Void
+
+    /// TMDB movie genres, each with a colour for its tile.
+    private static let genres: [(DiscoverGenre, Color)] = [
+        (DiscoverGenre(id: 28, name: String(localized: "Action")), Color(hex: "C0392B")),
+        (DiscoverGenre(id: 35, name: String(localized: "Comedy")), Color(hex: "D68910")),
+        (DiscoverGenre(id: 18, name: String(localized: "Drama")), Color(hex: "1F618D")),
+        (DiscoverGenre(id: 878, name: String(localized: "Science Fiction")), Color(hex: "117A65")),
+        (DiscoverGenre(id: 53, name: String(localized: "Thriller")), Color(hex: "4A235A")),
+        (DiscoverGenre(id: 27, name: String(localized: "Horror")), Color(hex: "641E16")),
+        (DiscoverGenre(id: 16, name: String(localized: "Animation")), Color(hex: "1ABC9C")),
+        (DiscoverGenre(id: 10749, name: String(localized: "Romance")), Color(hex: "C2185B")),
+        (DiscoverGenre(id: 80, name: String(localized: "Crime")), Color(hex: "424949")),
+        (DiscoverGenre(id: 14, name: String(localized: "Fantasy")), Color(hex: "6C3483")),
+        (DiscoverGenre(id: 10751, name: String(localized: "Family")), Color(hex: "2E86C1")),
+        (DiscoverGenre(id: 99, name: String(localized: "Documentary")), Color(hex: "7D6608")),
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DS.Space.s12) {
+            Text("Browse by Genre")
+                .flixorFont(.title2, weight: .bold)
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 170), spacing: DS.Space.s12)], spacing: DS.Space.s12) {
+                ForEach(Self.genres, id: \.0.id) { genre, color in
+                    GenreTile(name: genre.name, color: color) { onSelect(genre) }
+                }
+            }
+        }
+        .padding(.horizontal, SearchLayout.gutter)
+        .padding(.bottom, DS.Space.s32)
+    }
+
+    private struct GenreTile: View {
+        let name: String
+        let color: Color
+        let action: () -> Void
+        @State private var hovering = false
+
+        var body: some View {
+            Button(action: action) {
+                Text(name)
+                    .flixorFont(.callout, weight: .bold)
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity, minHeight: 64, alignment: .bottomLeading)
+                    .padding(DS.Space.s12)
+                    .background(
+                        LinearGradient(colors: [color.opacity(0.95), color.opacity(0.45)], startPoint: .topLeading, endPoint: .bottomTrailing),
+                        in: RoundedRectangle(cornerRadius: DS.Radius.r10, style: .continuous)
+                    )
+                    .overlay(RoundedRectangle(cornerRadius: DS.Radius.r10, style: .continuous)
+                        .strokeBorder(Color.white.opacity(hovering ? 0.6 : 0.08), lineWidth: hovering ? 1.5 : 1))
+                    .contentShape(RoundedRectangle(cornerRadius: DS.Radius.r10, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .onHover { hovering = $0 }
+            .help(String(localized: "Discover \(name)"))
+        }
     }
 }
 
@@ -363,16 +453,29 @@ struct TrendingResultsRow: View {
     let items: [SearchViewModel.SearchResult]
     let onTap: (SearchViewModel.SearchResult) -> Void
 
+    static let cardWidth: CGFloat = 340
+
     var body: some View {
         CarouselRow(
-            title: String(localized: "Recommended TV Shows & Movies"),
+            title: String(localized: "Trending This Week"),
             items: items,
-            itemWidth: 420,
-            spacing: 16,
-            rowHeight: (420 * 0.5) + 56
+            itemWidth: Self.cardWidth,
+            spacing: 14,
+            rowHeight: (Self.cardWidth * 0.5) + 84
         ) { item in
-            LandscapeCard(item: item.asMediaItem(), width: 420) {
-                onTap(item)
+            VStack(alignment: .leading, spacing: DS.Space.s6) {
+                LandscapeCard(item: item.asMediaItem(), width: Self.cardWidth) {
+                    onTap(item)
+                }
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(item.title)
+                        .flixorFont(.callout, weight: .medium)
+                        .lineLimit(1)
+                    Text([item.type == .tv ? String(localized: "TV Show") : String(localized: "Movie"), item.year].compactMap { $0 }.joined(separator: " · "))
+                        .flixorFont(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(width: Self.cardWidth, alignment: .leading)
             }
         }
     }
@@ -557,16 +660,6 @@ struct SearchBackground: View {
                 endRadius: 600
             )
 
-            // Subtle red accent (bottom-left)
-            RadialGradient(
-                gradient: Gradient(colors: [
-                    Color(red: 122/255, green: 22/255, blue: 18/255, opacity: 0.30),
-                    .clear
-                ]),
-                center: .init(x: 0.12, y: 0.88),
-                startRadius: 0,
-                endRadius: 600
-            )
         }
     }
 }

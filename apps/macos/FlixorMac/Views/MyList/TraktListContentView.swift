@@ -2,8 +2,8 @@
 //  TraktListContentView.swift
 //  FlixorMac
 //
-//  One Trakt list on the My List screen: the same search, type filter, sort,
-//  poster grid and bulk mode as My List.
+//  One Trakt list on the My List screen: the poster grid. Search, chips, sort
+//  and Select are in the My List header.
 //
 
 import SwiftUI
@@ -17,121 +17,20 @@ struct TraktListContentView: View {
     @Environment(\.flixorTheme) private var theme
     @Environment(\.windowMetrics) private var windowMetrics
     @ObservedObject private var profileSettings = ProfileSettings.shared
+    @ObservedObject private var librarySettings = LibraryScreenSettings.shared
 
-    // The same grid geometry as MyListView.
+    // The same grid as MyListView and the Library.
     private let horizontalPadding = DS.Space.s64
-    private let gridSpacing = DS.Space.s18
+    private var gridSpacing: CGFloat { librarySettings.density.spacing }
     private var minGridItemWidth: CGFloat {
-        windowMetrics.posterWidth(designWidth: 180, storedSize: profileSettings.posterSize)
+        let size = librarySettings.posterSize.resolved(homeSize: profileSettings.posterSize)
+        return windowMetrics.posterWidth(designWidth: 180, storedSize: size.rawValue)
     }
     private let skeletonCount = 12
 
+    // Search, type chips, sort and Select live in the My List header.
     var body: some View {
-        VStack(spacing: 0) {
-            controls
-                .padding(.horizontal, horizontalPadding)
-                .padding(.top, DS.Space.s24)
-
-            content
-                .padding(.top, DS.Space.s16)
-        }
-    }
-
-    // MARK: - Controls
-
-    private var controls: some View {
-        VStack(alignment: .leading, spacing: DS.Space.s16) {
-            HStack(spacing: DS.Space.s16) {
-                TextField("Search \(list.name)", text: $model.searchQuery)
-                    .textFieldStyle(.plain)
-                    .padding(.horizontal, DS.Space.s14)
-                    .padding(.vertical, DS.Space.s10)
-                    .background(theme.hoverFill, in: RoundedRectangle(cornerRadius: DS.Radius.group, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: DS.Radius.group, style: .continuous)
-                            .stroke(theme.separator, lineWidth: DS.Border.thin)
-                    )
-                    .frame(width: 260)
-                    .accessibilityLabel("Search this list")
-
-                Picker("Type", selection: $model.filter) {
-                    ForEach(TraktListsViewModel.FilterType.allCases) { filter in
-                        Text(filter.title).tag(filter)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 300)
-                .accessibilityLabel("Filter by type")
-
-                Spacer()
-
-                Picker("Sort", selection: $model.sort) {
-                    ForEach(TraktListsViewModel.SortOption.allCases) { option in
-                        Text(option.title).tag(option)
-                    }
-                }
-                .pickerStyle(.menu)
-                .frame(width: 180)
-                .accessibilityLabel("Sort by")
-
-                bulkButton
-
-                if model.bulkMode && !model.selectedIDs.isEmpty {
-                    removeSelectedButton
-                }
-            }
-
-            if let error = model.itemsError, !model.items.isEmpty {
-                errorBanner(error)
-            }
-        }
-    }
-
-    private var bulkButton: some View {
-        Button {
-            model.bulkMode.toggle()
-            if !model.bulkMode {
-                model.clearSelection()
-            }
-        } label: {
-            Text(model.bulkMode ? "Cancel" : "Select")
-                .flixorFont(.callout, weight: .semibold)
-                .padding(.horizontal, DS.Space.s16)
-                .padding(.vertical, DS.Space.s10)
-                .background(theme.pressedFill, in: RoundedRectangle(cornerRadius: DS.Radius.group, style: .continuous))
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(model.bulkMode ? "Cancel selection" : "Select titles")
-    }
-
-    private var removeSelectedButton: some View {
-        Button(role: .destructive) {
-            Task { await model.removeSelected() }
-        } label: {
-            Text("Remove (\(model.selectedIDs.count))")
-                .flixorFont(.callout, weight: .semibold)
-                .padding(.horizontal, DS.Space.s16)
-                .padding(.vertical, DS.Space.s10)
-                .background(theme.danger.opacity(DS.Opacity.strong), in: RoundedRectangle(cornerRadius: DS.Radius.group, style: .continuous))
-        }
-        .buttonStyle(.plain)
-        .disabled(model.isMutating)
-        .accessibilityLabel("Remove \(model.selectedIDs.count) selected from \(list.name)")
-    }
-
-    private func errorBanner(_ error: String) -> some View {
-        HStack {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(theme.warning)
-                .accessibilityHidden(true)
-            Text(error)
-                .foregroundStyle(theme.warning)
-            Spacer()
-            Button("Retry") { model.retry() }
-                .buttonStyle(.borderedProminent)
-                .tint(theme.accent)
-                .accessibilityLabel("Retry loading this list")
-        }
+        content
     }
 
     // MARK: - Content
@@ -163,7 +62,7 @@ struct TraktListContentView: View {
                 BrowseMessageView(
                     systemImage: "magnifyingglass",
                     title: "No matching titles",
-                    message: "Try a different search or type filter."
+                    message: "Try a different search or chip."
                 )
             )
         } else {
@@ -215,19 +114,23 @@ struct TraktListContentView: View {
                     }
                 }
                 .padding(.horizontal, horizontalPadding)
-                .padding(.vertical, DS.Space.s32)
+                .padding(.vertical, DS.Space.s24)
             }
         }
     }
 
     private func cell(_ item: TraktListGridItem, width: CGFloat) -> some View {
         let isSelected = model.selectedIDs.contains(item.id)
-        return ZStack(alignment: .topTrailing) {
+        return HoverReveal { hovering in
+          ZStack(alignment: .topTrailing) {
             PosterCard(
                 item: item.cardItem,
                 width: width,
+                showTitle: librarySettings.titleDisplay != .none,
+                showYear: librarySettings.titleDisplay == .titleAndYear,
                 badge: item.badgeText.map { AnyView(EntryBadge(text: $0)) },
-                topTrailingOverlay: model.bulkMode ? nil : AnyView(removeButton(for: item)),
+                // The − shows on hover, like My List.
+                topTrailingOverlay: model.bulkMode || !hovering ? nil : AnyView(removeButton(for: item)),
                 isSelected: isSelected,
                 customImageURL: item.imageURL,
                 // The artwork has its own context menu, which wins over the one below.
@@ -248,6 +151,7 @@ struct TraktListContentView: View {
             if model.bulkMode {
                 selectionMark(isSelected: isSelected)
             }
+          }
         }
         .contextMenu {
             Button("View Details") { openDetails(item) }
@@ -308,5 +212,17 @@ private struct EntryBadge: View {
             .padding(.horizontal, DS.Space.s6)
             .padding(.vertical, 3)
             .background(theme.scrim(DS.Opacity.scrimHeavy), in: RoundedRectangle(cornerRadius: DS.Radius.badge, style: .continuous))
+    }
+}
+
+/// Hands its content whether the pointer is over it.
+struct HoverReveal<Content: View>: View {
+    @ViewBuilder let content: (Bool) -> Content
+    @State private var hovering = false
+
+    var body: some View {
+        content(hovering)
+            .onHover { hovering = $0 }
+            .animation(DS.Motion.quick, value: hovering)
     }
 }

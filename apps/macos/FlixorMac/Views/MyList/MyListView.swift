@@ -10,7 +10,9 @@ import FlixorKit
 
 struct MyListView: View {
     @ObservedObject private var profileSettings = ProfileSettings.shared
+    @ObservedObject private var librarySettings = LibraryScreenSettings.shared
     @Environment(\.windowMetrics) private var metrics
+    @Environment(\.flixorTheme) private var theme
     @EnvironmentObject private var watchlistController: WatchlistController
     @EnvironmentObject private var router: NavigationRouter
     @EnvironmentObject private var mainViewState: MainViewState
@@ -19,43 +21,28 @@ struct MyListView: View {
 
     @State private var listEditor: TraktListEditorMode?
     @State private var listPendingDelete: TraktUserList?
+    @State private var searchOpen = false
 
     private let horizontalPadding: CGFloat = 64
-    private let gridSpacing: CGFloat = 18
+    /// Same grid as the Library (Settings > Library: poster size, spacing, titles).
+    private var gridSpacing: CGFloat { librarySettings.density.spacing }
     private var minGridItemWidth: CGFloat {
-        metrics.posterWidth(designWidth: 180, storedSize: profileSettings.posterSize)
+        let size = librarySettings.posterSize.resolved(homeSize: profileSettings.posterSize)
+        return metrics.posterWidth(designWidth: 180, storedSize: size.rawValue)
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-                .padding(.horizontal, horizontalPadding)
-                .padding(.top, DS.Space.s32)
-
-            if traktLists.isConnected {
-                TraktListSwitcher(
-                    model: traktLists,
-                    myListCount: viewModel.items.count,
-                    horizontalInset: horizontalPadding,
-                    onCreate: { listEditor = .create },
-                    onEdit: { listEditor = .edit($0) },
-                    onDelete: { listPendingDelete = $0 }
-                )
-                .padding(.top, DS.Space.s16)
-            }
-
+        Group {
             if let list = traktLists.selectedList {
                 TraktListContentView(model: traktLists, list: list)
                     .id(list.id)
             } else {
-                controls
-                    .padding(.horizontal, horizontalPadding)
-                    .padding(.top, DS.Space.s24)
-
                 content
-                    .padding(.top, DS.Space.s16)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // A frosted inset like the Library header: the grid scrolls under it.
+        .safeAreaInset(edge: .top, spacing: 0) { header }
         .background(HomeBackground())
         .navigationTitle("")
         .task {
@@ -68,6 +55,9 @@ struct MyListView: View {
         }
         .onChange(of: mainViewState.selectedTab) { _ in
             traktLists.refreshConnection()
+        }
+        .onChange(of: traktLists.selectedListId) { _ in
+            searchOpen = false
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
             traktLists.refreshConnection()
@@ -103,125 +93,218 @@ struct MyListView: View {
         }
     }
 
-    private var header: some View {
-        HStack(alignment: .top, spacing: DS.Space.s16) {
-            VStack(alignment: .leading, spacing: DS.Space.s8) {
-                Text(traktLists.selectedList?.name ?? String(localized: "My List"))
-                    .font(.system(size: 34, weight: .bold))
-                    .lineLimit(1)
-                Text(headerSubtitle)
-                    .foregroundStyle(.white.opacity(0.7))
-                    .lineLimit(1)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+    // MARK: - Header (Library style)
 
-            if let list = traktLists.selectedList {
-                Menu {
-                    TraktListActions(
-                        list: list,
-                        onEdit: { listEditor = .edit($0) },
-                        onDelete: { listPendingDelete = $0 }
-                    )
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                        .font(.flixorIcon(DS.Icon.lg))
+    private var isTraktList: Bool { traktLists.selectedList != nil }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: DS.Space.s12) {
+            HStack(alignment: .center, spacing: DS.Space.s10) {
+                tabs
+                Spacer(minLength: DS.Space.s16)
+                if isTraktList {
+                    BrowseSearchField(text: $traktLists.searchQuery,
+                                      placeholder: String(localized: "Search this list"),
+                                      isOpen: $searchOpen)
+                    sortMenu(selection: $traktLists.sort)
+                    selectControls(bulk: $traktLists.bulkMode, count: traktLists.selectedIDs.count,
+                                   isMutating: traktLists.isMutating,
+                                   onClear: { traktLists.clearSelection() },
+                                   onRemove: { Task { await traktLists.removeSelected() } })
+                    if let list = traktLists.selectedList { listMenu(list) }
+                } else {
+                    BrowseSearchField(text: $viewModel.searchQuery,
+                                      placeholder: String(localized: "Search My List"),
+                                      isOpen: $searchOpen)
+                    sortMenu(selection: $viewModel.sort)
+                    selectControls(bulk: $viewModel.bulkMode, count: viewModel.selectedIDs.count,
+                                   isMutating: false,
+                                   onClear: { viewModel.clearSelection() },
+                                   onRemove: { Task { await viewModel.removeSelected() } })
                 }
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
-                .fixedSize()
+            }
+            .frame(minHeight: 36)
+
+            chips
+
+            if let error = isTraktList ? (traktLists.items.isEmpty ? nil : traktLists.itemsError) : viewModel.errorMessage {
+                HStack(spacing: DS.Space.s8) {
+                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(theme.warning)
+                    Text(error).flixorFont(.callout).foregroundStyle(theme.warning).lineLimit(2)
+                    Spacer()
+                    BrowsePillButton(title: String(localized: "Retry")) {
+                        if isTraktList { traktLists.retry() } else { Task { await viewModel.reload() } }
+                    }
+                }
+            }
+        }
+        .browseHeaderInset()
+        .animation(DS.Motion.standard, value: searchOpen)
+    }
+
+    /// My List and each Trakt list as title tabs, like the Library's sections,
+    /// with ＋ right after them. Scrolls sideways only when there are too many.
+    private var tabs: some View {
+        ViewThatFits(in: .horizontal) {
+            tabsRow.fixedSize()
+            ScrollView(.horizontal, showsIndicators: false) { tabsRow }
+        }
+    }
+
+    private var tabsRow: some View {
+        HStack(alignment: .center, spacing: DS.Space.s20) {
+            HStack(alignment: .firstTextBaseline, spacing: DS.Space.s20) {
+                tab(title: String(localized: "My List"), count: viewModel.items.count, selected: !isTraktList) {
+                    withAnimation(DS.Motion.quick) { traktLists.select(nil) }
+                }
+                if traktLists.isConnected {
+                    ForEach(traktLists.lists) { list in
+                        tab(title: shortName(list.name), count: traktLists.count(for: list),
+                            selected: traktLists.selectedListId == list.id) {
+                            withAnimation(DS.Motion.quick) { traktLists.select(list.id) }
+                        }
+                        .help(list.name)
+                        .contextMenu {
+                            TraktListActions(list: list, onEdit: { listEditor = .edit($0) }, onDelete: { listPendingDelete = $0 })
+                        }
+                    }
+                }
+            }
+            if traktLists.isConnected {
+                if traktLists.isLoadingLists {
+                    ProgressView().controlSize(.small)
+                } else if traktLists.listsError != nil {
+                    Button { traktLists.loadLists() } label: {
+                        Label("Lists didn't load. Retry", systemImage: "exclamationmark.triangle.fill")
+                            .flixorFont(.callout, weight: .medium)
+                            .foregroundStyle(theme.warning)
+                    }
+                    .buttonStyle(.plain)
+                }
+                BrowseCircleButton(systemImage: "plus", help: String(localized: "New Trakt list")) {
+                    listEditor = .create
+                }
                 .disabled(traktLists.isMutating)
-                .accessibilityLabel("List options")
+            }
+        }
+        .padding(.vertical, DS.Space.s2)
+    }
+
+    private func tab(title: String, count: Int, selected: Bool, action: @escaping () -> Void) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: DS.Space.s8) {
+            LibraryTitleTab(title: title, selected: selected, action: action)
+            if selected {
+                BrowseTabCount(text: "\(count)")
             }
         }
     }
 
-    private var headerSubtitle: String {
-        traktLists.selectedListSummary
-            ?? String(localized: "\(viewModel.items.count) titles")
+    private func shortName(_ name: String) -> String {
+        name.count > 28 ? String(name.prefix(28)) + "…" : name
     }
 
-    private var controls: some View {
-        VStack(alignment: .leading, spacing: DS.Space.s16) {
-            HStack(spacing: DS.Space.s16) {
-                TextField("Search My List", text: $viewModel.searchQuery)
-                    .textFieldStyle(.plain)
-                    .padding(.horizontal, DS.Space.s14)
-                    .padding(.vertical, DS.Space.s10)
-                    .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: DS.Radius.r10, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: DS.Radius.r10, style: .continuous)
-                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
-                    )
-                    .frame(width: 260)
-
-                Picker("Type", selection: $viewModel.filter) {
-                    ForEach(MyListViewModel.FilterType.allCases) { filter in
-                        Text(filter.title).tag(filter)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 300)
-
-                Spacer()
-
-                Picker("Sort", selection: $viewModel.sort) {
-                    ForEach(MyListViewModel.SortOption.allCases) { option in
-                        Text(option.title).tag(option)
-                    }
-                }
-                .pickerStyle(.menu)
-                .frame(width: 180)
-
+    private func sortMenu(selection: Binding<MyListViewModel.SortOption>) -> some View {
+        LibraryPillMenu(label: nil, value: selection.wrappedValue.title, systemImage: "arrow.up.arrow.down", isActive: false) {
+            ForEach(MyListViewModel.SortOption.allCases) { option in
                 Button {
-                    viewModel.bulkMode.toggle()
-                    if !viewModel.bulkMode {
-                        viewModel.clearSelection()
-                    }
+                    selection.wrappedValue = option
                 } label: {
-                    Text(viewModel.bulkMode ? "Cancel" : "Select")
-                        .font(.flixor(.callout, weight: .semibold))
-                        .padding(.horizontal, DS.Space.s16)
-                        .padding(.vertical, DS.Space.s10)
-                        .background(Color.white.opacity(0.1), in: RoundedRectangle(cornerRadius: DS.Radius.r10, style: .continuous))
-                }
-                .buttonStyle(.plain)
-
-                if viewModel.bulkMode && !viewModel.selectedIDs.isEmpty {
-                    Button(role: .destructive) {
-                        Task { await viewModel.removeSelected() }
-                    } label: {
-                        Text("Remove (\(viewModel.selectedIDs.count))")
-                            .font(.flixor(.callout, weight: .semibold))
-                            .padding(.horizontal, DS.Space.s16)
-                            .padding(.vertical, DS.Space.s10)
-                            .background(Color.red.opacity(0.7), in: RoundedRectangle(cornerRadius: DS.Radius.r10, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-
-            if let error = viewModel.errorMessage {
-                HStack {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
-                    Text(error)
-                        .foregroundStyle(.orange)
-                    Spacer()
-                    Button("Retry") {
-                        Task { await viewModel.reload() }
-                    }
-                    .buttonStyle(.borderedProminent)
+                    if selection.wrappedValue == option { Label(option.title, systemImage: "checkmark") } else { Text(option.title) }
                 }
             }
         }
     }
 
     @ViewBuilder
+    private func selectControls(bulk: Binding<Bool>, count: Int, isMutating: Bool,
+                                onClear: @escaping () -> Void, onRemove: @escaping () -> Void) -> some View {
+        if bulk.wrappedValue && count > 0 {
+            BrowsePillButton(title: String(localized: "Remove \(count)"), systemImage: "minus.circle", destructive: true, action: onRemove)
+                .disabled(isMutating)
+        }
+        BrowsePillButton(title: bulk.wrappedValue ? String(localized: "Done") : String(localized: "Select")) {
+            bulk.wrappedValue.toggle()
+            if !bulk.wrappedValue { onClear() }
+        }
+    }
+
+    private func listMenu(_ list: TraktUserList) -> some View {
+        Menu {
+            TraktListActions(list: list, onEdit: { listEditor = .edit($0) }, onDelete: { listPendingDelete = $0 })
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.flixorIcon(DS.Icon.sm, weight: .semibold))
+                .foregroundStyle(theme.textPrimary)
+                .frame(width: 32, height: 32)
+                .background(Circle().fill(theme.hoverFill))
+                .overlay(Circle().strokeBorder(theme.separator, lineWidth: DS.Border.thin))
+                .contentShape(Circle())
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .disabled(traktLists.isMutating)
+        .help("List options")
+    }
+
+    // MARK: Chips
+
+    @ViewBuilder
+    private var chips: some View {
+        HStack(spacing: DS.Space.s8) {
+            if isTraktList {
+                typeChips(filter: $traktLists.filter, all: traktLists.items.count,
+                          movies: traktLists.movieCount, shows: traktLists.showCount)
+                BrowseCountChip(title: String(localized: "Added this month"), selected: traktLists.recentOnly) {
+                    traktLists.recentOnly.toggle()
+                }
+            } else {
+                typeChips(filter: $viewModel.filter, all: viewModel.items.count,
+                          movies: viewModel.movieCount, shows: viewModel.showCount)
+                if viewModel.items.contains(where: { $0.source == .plex || $0.source == .both }) {
+                    BrowseCountChip(title: String(localized: "In your library"), selected: viewModel.inLibraryOnly) {
+                        viewModel.inLibraryOnly.toggle()
+                    }
+                }
+                BrowseCountChip(title: String(localized: "Added this month"), selected: viewModel.recentOnly) {
+                    viewModel.recentOnly.toggle()
+                }
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    @ViewBuilder
+    private func typeChips(filter: Binding<MyListViewModel.FilterType>, all: Int, movies: Int, shows: Int) -> some View {
+        BrowseCountChip(title: String(localized: "All"), selected: filter.wrappedValue == .all) { filter.wrappedValue = .all }
+        if movies > 0 {
+            BrowseCountChip(title: String(localized: "Movies"), count: movies, selected: filter.wrappedValue == .movies) {
+                filter.wrappedValue = filter.wrappedValue == .movies ? .all : .movies
+            }
+        }
+        if shows > 0 {
+            BrowseCountChip(title: String(localized: "TV Shows"), count: shows, selected: filter.wrappedValue == .shows) {
+                filter.wrappedValue = filter.wrappedValue == .shows ? .all : .shows
+            }
+        }
+    }
+
+    // MARK: - Content
+
+    @ViewBuilder
     private var content: some View {
         if viewModel.isLoading && viewModel.visibleItems.isEmpty {
             skeletonGrid
-        } else if viewModel.visibleItems.isEmpty {
+        } else if viewModel.items.isEmpty {
             emptyState
+        } else if viewModel.visibleItems.isEmpty {
+            BrowseMessageView(
+                systemImage: "magnifyingglass",
+                title: "No matching titles",
+                message: "Try a different search or chip."
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             gridContent
         }
@@ -238,7 +321,7 @@ struct MyListView: View {
                 }
                 .background(TabScrollObserver(tab: .myList))
                 .padding(.horizontal, horizontalPadding)
-                .padding(.vertical, DS.Space.s32)
+                .padding(.vertical, DS.Space.s24)
             }
         }
     }
@@ -259,70 +342,22 @@ struct MyListView: View {
             ScrollView {
                 LazyVGrid(columns: columns, spacing: gridSpacing) {
                     ForEach(viewModel.visibleItems) { item in
-                        ZStack(alignment: .topTrailing) {
-                            PosterCard(
-                                item: item.canonicalMediaItem,
-                                width: cardWidth,
-                                badge: AnyView(SourceBadge(source: item.source)),
-                                topTrailingOverlay: AnyView(
-                                    WatchlistButton(
-                                        canonicalId: item.id,
-                                        mediaType: item.mediaType,
-                                        plexRatingKey: item.plexRatingKey,
-                                        plexGuid: item.plexGuid,
-                                        tmdbId: item.tmdbId,
-                                        imdbId: item.imdbId,
-                                        title: item.title,
-                                        year: Int(item.year ?? ""),
-                                        style: .icon
-                                    )
-                                ),
-                                isSelected: viewModel.selectedIDs.contains(item.id),
-                                customImageURL: item.imageURL,
-                                onTap: {
-                                    if viewModel.bulkMode {
-                                        viewModel.toggleSelection(for: item)
-                                    } else {
-                                        router.myListPath.append(DetailsNavigationItem(item: item.canonicalMediaItem))
-                                    }
-                                }
-                            )
-
-                            // Selection checkbox overlay for bulk mode
-                            if viewModel.bulkMode {
-                                Circle()
-                                    .strokeBorder(Color.white, lineWidth: 2)
-                                    .frame(width: 26, height: 26)
-                                    .background(
-                                        Circle()
-                                            .fill(viewModel.selectedIDs.contains(item.id) ? Color.white : Color.clear)
-                                    )
-                                    .overlay(
-                                        Image(systemName: "checkmark")
-                                            .font(.flixorIcon(DS.Icon.sm, weight: .bold))
-                                            .foregroundStyle(viewModel.selectedIDs.contains(item.id) ? Color.black : Color.white.opacity(0.6))
-                                    )
-                                    .padding(DS.Space.s10)
-                            }
-                        }
-                        .contextMenu {
-                            Button("View Details") {
-                                router.myListPath.append(DetailsNavigationItem(item: item.canonicalMediaItem))
-                            }
-                            if item.source == .plex || item.source == .both {
-                                Button("Play") {
-                                    router.myListPath.append(DetailsNavigationItem(item: item.canonicalMediaItem))
-                                }
-                            }
-                            Button("Remove from My List", role: .destructive) {
-                                Task { await viewModel.remove(item: item) }
-                            }
-                        }
+                        MyListPosterCell(
+                            item: item,
+                            width: cardWidth,
+                            showTitle: librarySettings.titleDisplay != .none,
+                            showYear: librarySettings.titleDisplay == .titleAndYear,
+                            bulkMode: viewModel.bulkMode,
+                            isSelected: viewModel.selectedIDs.contains(item.id),
+                            onOpen: { router.myListPath.append(DetailsNavigationItem(item: item.canonicalMediaItem)) },
+                            onToggleSelection: { viewModel.toggleSelection(for: item) },
+                            onRemove: { Task { await viewModel.remove(item: item) } }
+                        )
                     }
                 }
                 .background(TabScrollObserver(tab: .myList))
                 .padding(.horizontal, horizontalPadding)
-                .padding(.vertical, DS.Space.s32)
+                .padding(.vertical, DS.Space.s24)
             }
         }
     }
@@ -339,6 +374,96 @@ struct MyListView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(DS.Space.s80)
+    }
+}
+
+/// A poster with nothing on it until you hover: then where it comes from
+/// (Plex, Trakt, this Mac) and a − to remove it. In Select mode, a check.
+private struct MyListPosterCell: View {
+    let item: MyListViewModel.WatchlistItem
+    let width: CGFloat
+    let showTitle: Bool
+    let showYear: Bool
+    let bulkMode: Bool
+    let isSelected: Bool
+    let onOpen: () -> Void
+    let onToggleSelection: () -> Void
+    let onRemove: () -> Void
+
+    @State private var hovering = false
+    @Environment(\.flixorTheme) private var theme
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            PosterCard(
+                item: item.canonicalMediaItem,
+                width: width,
+                showTitle: showTitle,
+                showYear: showYear,
+                badge: hovering && !bulkMode ? AnyView(MyListSourceLabel(source: item.source)) : nil,
+                topTrailingOverlay: hovering && !bulkMode ? AnyView(removeButton) : nil,
+                isSelected: isSelected,
+                customImageURL: item.imageURL,
+                extraMenuActions: [
+                    CardMenuAction(title: String(localized: "Remove from My List"), role: .destructive, isDisabled: false, action: onRemove)
+                ],
+                onTap: { bulkMode ? onToggleSelection() : onOpen() }
+            )
+
+            if bulkMode {
+                Circle()
+                    .strokeBorder(Color.white, lineWidth: 2)
+                    .frame(width: 26, height: 26)
+                    .background(Circle().fill(isSelected ? Color.white : Color.black.opacity(0.3)))
+                    .overlay(
+                        Image(systemName: "checkmark")
+                            .font(.flixorIcon(DS.Icon.sm, weight: .bold))
+                            .foregroundStyle(isSelected ? Color.black : Color.white.opacity(0.6))
+                    )
+                    .padding(DS.Space.s10)
+                    .allowsHitTesting(false)
+            }
+        }
+        .onHover { hovering = $0 }
+        .animation(DS.Motion.quick, value: hovering)
+    }
+
+    private var removeButton: some View {
+        Button(action: onRemove) {
+            Image(systemName: "minus")
+                .font(.flixorIcon(DS.Icon.xs, weight: .bold))
+                .foregroundStyle(theme.textPrimary)
+                .frame(width: 28, height: 28)
+                .background(theme.scrim(), in: Circle())
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .help("Remove from My List")
+        .accessibilityLabel("Remove \(item.title) from My List")
+    }
+}
+
+/// "Plex", "Trakt", "Plex · Trakt" or "This Mac", shown on hover.
+private struct MyListSourceLabel: View {
+    let source: MyListViewModel.Source
+    @Environment(\.flixorTheme) private var theme
+
+    private var text: String {
+        switch source {
+        case .plex: return "Plex"
+        case .trakt: return "Trakt"
+        case .both: return "Plex · Trakt"
+        case .local: return String(localized: "This Mac")
+        }
+    }
+
+    var body: some View {
+        Text(text)
+            .flixorFont(.nano, weight: .bold)
+            .foregroundStyle(theme.textPrimary)
+            .padding(.horizontal, DS.Space.s6)
+            .padding(.vertical, 3)
+            .background(theme.scrim(DS.Opacity.scrimHeavy), in: RoundedRectangle(cornerRadius: DS.Radius.badge, style: .continuous))
     }
 }
 

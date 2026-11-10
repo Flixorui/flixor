@@ -12,6 +12,8 @@ enum SearchLayout {
     /// Horizontal inset of the Search page. Matches the inset `CarouselRow`
     /// uses so the field, chips, grids and carousels line up.
     static let gutter: CGFloat = DS.Space.s20
+    /// The search field is centred and stops growing past this width.
+    static let fieldMaxWidth: CGFloat = 640
 }
 
 struct SearchRecentSearchesView: View {

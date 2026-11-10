@@ -115,6 +115,15 @@ final class MyListViewModel: ObservableObject {
     @Published var searchQuery: String = "" {
         didSet { applyFilters() }
     }
+    /// Quick chips on the My List header.
+    @Published var recentOnly = false {
+        didSet { applyFilters() }
+    }
+    @Published var inLibraryOnly = false {
+        didSet { applyFilters() }
+    }
+    var movieCount: Int { items.filter { $0.mediaType == .movie }.count }
+    var showCount: Int { items.filter { $0.mediaType == .show }.count }
     @Published var bulkMode = false
     @Published var selectedIDs: Set<String> = []
     @Published private(set) var traktAvailable = false
@@ -551,6 +560,14 @@ final class MyListViewModel: ObservableObject {
             working = working.filter { $0.mediaType == .movie }
         case .shows:
             working = working.filter { $0.mediaType == .show }
+        }
+
+        if inLibraryOnly {
+            working = working.filter { $0.source == .plex || $0.source == .both }
+        }
+        if recentOnly {
+            let cutoff = Calendar.current.date(byAdding: .day, value: -30, to: Date()) ?? .distantPast
+            working = working.filter { ($0.dateAdded ?? .distantPast) >= cutoff }
         }
 
         if !searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {

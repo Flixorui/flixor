@@ -345,10 +345,167 @@ struct LibraryFilterBarView: View {
     }
 }
 
-// MARK: - Pieces
+// MARK: - Pieces (shared by Library, My List and Downloads)
+
+/// Search that sits as a round button and expands into a field (Library header style).
+struct BrowseSearchField: View {
+    @Binding var text: String
+    let placeholder: String
+    @Binding var isOpen: Bool
+
+    @FocusState private var focused: Bool
+    @Environment(\.flixorTheme) private var theme
+
+    var body: some View {
+        if isOpen || !text.isEmpty {
+            HStack(spacing: DS.Space.s8) {
+                Image(systemName: "magnifyingglass").font(.flixorIcon(DS.Icon.sm)).foregroundStyle(theme.textTertiary)
+                ZStack(alignment: .leading) {
+                    if text.isEmpty {
+                        Text(placeholder).flixorFont(.callout).foregroundStyle(theme.textTertiary).allowsHitTesting(false)
+                    }
+                    TextField("", text: $text)
+                        .textFieldStyle(.plain)
+                        .flixorFont(.callout)
+                        .foregroundStyle(theme.textPrimary)
+                        .focused($focused)
+                        .onExitCommand { close() }
+                        .onSubmit { focused = false }
+                }
+                Button { close() } label: {
+                    Image(systemName: "xmark.circle.fill").foregroundStyle(theme.textTertiary)
+                }
+                .buttonStyle(.plain)
+                .help("Close search")
+            }
+            .padding(.horizontal, DS.Space.s14)
+            .frame(minWidth: 220, idealWidth: 300, maxWidth: 340)
+            .frame(height: 32)
+            .background(Capsule().fill(theme.hoverFill))
+            .overlay(Capsule().strokeBorder(focused ? Color.white.opacity(0.35) : theme.separator, lineWidth: DS.Border.thin))
+            .transition(.opacity.combined(with: .move(edge: .trailing)))
+            .onAppear { focused = true }
+        } else {
+            BrowseCircleButton(systemImage: "magnifyingglass", help: String(localized: "Search")) { isOpen = true }
+        }
+    }
+
+    private func close() {
+        text = ""
+        focused = false
+        isOpen = false
+    }
+}
+
+/// 32pt round grey button used in the browse headers (search, new list).
+struct BrowseCircleButton: View {
+    let systemImage: String
+    let help: String
+    let action: () -> Void
+    @State private var hovering = false
+    @Environment(\.flixorTheme) private var theme
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.flixorIcon(DS.Icon.sm, weight: .semibold))
+                .foregroundStyle(theme.textPrimary)
+                .frame(width: 32, height: 32)
+                .background(Circle().fill(hovering ? theme.pressedFill : theme.hoverFill))
+                .overlay(Circle().strokeBorder(theme.separator, lineWidth: DS.Border.thin))
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .help(help)
+        .accessibilityLabel(help)
+    }
+}
+
+/// Grey capsule button ("Select", "Show in Finder"); `destructive` gives red text.
+struct BrowsePillButton: View {
+    let title: String
+    var systemImage: String? = nil
+    var destructive = false
+    var prominent = false
+    let action: () -> Void
+    @State private var hovering = false
+    @Environment(\.flixorTheme) private var theme
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: DS.Space.s6) {
+                if let systemImage { Image(systemName: systemImage).font(.flixorIcon(DS.Icon.xs, weight: .semibold)) }
+                Text(title).flixorFont(.callout, weight: .semibold).lineLimit(1)
+            }
+            .foregroundStyle(prominent ? Color.black : (destructive ? SettingsChrome.destructive : theme.textPrimary))
+            .padding(.horizontal, DS.Space.s14)
+            .frame(height: 32)
+            .background(Capsule().fill(prominent ? Color.white.opacity(hovering ? 0.88 : 1) : (hovering ? theme.pressedFill : theme.hoverFill)))
+            .overlay(Capsule().strokeBorder(prominent ? Color.clear : theme.separator, lineWidth: DS.Border.thin))
+            .contentShape(Capsule())
+            .fixedSize()
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+    }
+}
+
+/// The frosted header inset the grid scrolls under (Library, My List, Downloads).
+struct BrowseHeaderInset: ViewModifier {
+    @Environment(\.flixorTheme) private var theme
+
+    func body(content: Content) -> some View {
+        content
+            .padding(.horizontal, DS.Space.s64)
+            .padding(.top, DS.Space.s8)
+            .padding(.bottom, DS.Space.s14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background {
+                ZStack {
+                    Rectangle().fill(.ultraThinMaterial)
+                    theme.background.opacity(0.72)
+                }
+                .ignoresSafeArea(edges: .top)
+            }
+            .overlay(alignment: .bottom) {
+                Rectangle().fill(theme.separator).frame(height: DS.Border.hairline)
+            }
+    }
+}
+
+extension View {
+    func browseHeaderInset() -> some View { modifier(BrowseHeaderInset()) }
+}
+
+/// Grey count after the current title tab ("53").
+struct BrowseTabCount: View {
+    let text: String
+    @Environment(\.flixorTheme) private var theme
+    var body: some View {
+        Text(text).flixorFont(.callout).foregroundStyle(theme.textTertiary).monospacedDigit()
+    }
+}
+
+/// A chip with an optional count: "Movies 38".
+struct BrowseCountChip: View {
+    let title: String
+    var count: Int? = nil
+    let selected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            LibraryGenreChipLabel(title: count.map { "\(title)  \($0)" } ?? title, selected: selected, showsChevron: false)
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+    }
+}
+
 
 /// A section name used as the page title: large white when current, dim otherwise.
-private struct LibraryTitleTab: View {
+struct LibraryTitleTab: View {
     let title: String
     let selected: Bool
     let action: () -> Void
@@ -370,7 +527,7 @@ private struct LibraryTitleTab: View {
 }
 
 /// Grey capsule menu: "Year  2015 ⌄" or "⇅ Newest added ⌄".
-private struct LibraryPillMenu<Content: View>: View {
+struct LibraryPillMenu<Content: View>: View {
     let label: String?
     let value: String
     var systemImage: String? = nil
@@ -404,7 +561,7 @@ private struct LibraryPillMenu<Content: View>: View {
     }
 }
 
-private struct LibraryGenreChip: View {
+struct LibraryGenreChip: View {
     let title: String
     let selected: Bool
     let action: () -> Void
@@ -416,7 +573,7 @@ private struct LibraryGenreChip: View {
     }
 }
 
-private struct LibraryGenreChipLabel: View {
+struct LibraryGenreChipLabel: View {
     let title: String
     let selected: Bool
     let showsChevron: Bool

@@ -237,7 +237,7 @@ struct SearchSegmentOption<Value: Hashable>: Identifiable {
     var id: Value { value }
 }
 
-/// Capsule segmented control styled with the theme accent.
+/// Capsule segmented control: white when selected (neutral, like the Library).
 struct SearchSegmentedControl<Value: Hashable>: View {
     let options: [SearchSegmentOption<Value>]
     @Binding var selection: Value
@@ -254,12 +254,13 @@ struct SearchSegmentedControl<Value: Hashable>: View {
                 } label: {
                     Text(option.label)
                         .flixorFont(.callout, weight: isSelected ? .semibold : .medium)
-                        .foregroundStyle(isSelected ? theme.onAccent : theme.textSecondary)
+                        .foregroundStyle(isSelected ? Color.black : theme.textSecondary)
                         .padding(.horizontal, DS.Space.s14)
                         .padding(.vertical, DS.Space.s6)
                         .background(
+                            // Neutral like the Library and Settings switchers.
                             Capsule(style: .continuous)
-                                .fill(isSelected ? theme.accent : Color.clear)
+                                .fill(isSelected ? Color.white : Color.clear)
                         )
                         .contentShape(Capsule())
                 }

@@ -52,6 +52,12 @@ final class TraktListsViewModel: ObservableObject {
     @Published var searchQuery = "" {
         didSet { applyFilters() }
     }
+    /// Quick chips on the My List header.
+    @Published var recentOnly = false {
+        didSet { applyFilters() }
+    }
+    var movieCount: Int { items.filter { $0.mediaType == .movie }.count }
+    var showCount: Int { items.filter { $0.mediaType == .show }.count }
     @Published var bulkMode = false
     @Published var selectedIDs: Set<Int> = []
 
@@ -641,6 +647,11 @@ final class TraktListsViewModel: ObservableObject {
             working = working.filter { $0.mediaType == .movie }
         case .shows:
             working = working.filter { $0.mediaType == .show }
+        }
+
+        if recentOnly {
+            let cutoff = Calendar.current.date(byAdding: .day, value: -30, to: Date()) ?? .distantPast
+            working = working.filter { ($0.dateAdded ?? .distantPast) >= cutoff }
         }
 
         let term = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
