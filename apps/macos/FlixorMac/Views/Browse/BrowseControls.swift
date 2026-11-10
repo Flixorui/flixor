@@ -323,3 +323,118 @@ extension View {
         )
     }
 }
+
+// MARK: - Capsule segmented control
+
+/// Flixor's segmented control: a quiet capsule with the selected option as a
+/// white pill (black text). Options are text or SF Symbols.
+struct FlixorSegmentedControl<Option: Hashable>: View {
+    struct Item {
+        let value: Option
+        var title: String? = nil
+        var systemImage: String? = nil
+        var help: String? = nil
+    }
+
+    let items: [Item]
+    @Binding var selection: Option
+    var height: CGFloat = 32
+
+    @Environment(\.flixorTheme) private var theme
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(items.indices, id: \.self) { index in
+                let item = items[index]
+                let isSelected = item.value == selection
+                Button {
+                    withAnimation(DS.Motion.quick) { selection = item.value }
+                } label: {
+                    Group {
+                        if let systemImage = item.systemImage {
+                            Image(systemName: systemImage).font(.flixorIcon(DS.Icon.sm, weight: .semibold))
+                        } else {
+                            Text(item.title ?? "").flixorFont(.callout, weight: .semibold).lineLimit(1)
+                        }
+                    }
+                    .foregroundStyle(isSelected ? Color.black : theme.textSecondary)
+                    .padding(.horizontal, item.systemImage != nil ? DS.Space.s10 : DS.Space.s16)
+                    .frame(height: height - 6)
+                    .background(Capsule().fill(isSelected ? Color.white : Color.clear))
+                    .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .help(item.help ?? item.title ?? "")
+                .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+            }
+        }
+        .padding(3)
+        .background(Capsule().fill(theme.hoverFill))
+        .overlay(Capsule().strokeBorder(theme.separator, lineWidth: DS.Border.thin))
+    }
+}
+
+// MARK: - Capsule filter menu
+
+/// A filter or sort menu as a grey capsule: "Genre  All ⌄". An active filter
+/// (anything but its default) gets a small accent dot so it stands out.
+struct FlixorFilterMenu<Option: Hashable>: View {
+    let label: String?
+    let options: [(value: Option, title: String)]
+    @Binding var selection: Option
+    var systemImage: String? = nil
+    var isActive = false
+
+    @Environment(\.flixorTheme) private var theme
+    @State private var isHovered = false
+
+    var body: some View {
+        Menu {
+            ForEach(options.indices, id: \.self) { index in
+                let option = options[index]
+                Button {
+                    selection = option.value
+                } label: {
+                    if option.value == selection {
+                        Label(option.title, systemImage: "checkmark")
+                    } else {
+                        Text(option.title)
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: DS.Space.s6) {
+                if isActive {
+                    Circle().fill(theme.accent).frame(width: 6, height: 6)
+                }
+                if let systemImage {
+                    Image(systemName: systemImage)
+                        .font(.flixorIcon(DS.Icon.xs, weight: .semibold))
+                        .foregroundStyle(theme.textSecondary)
+                }
+                if let label {
+                    Text(label).flixorFont(.callout).foregroundStyle(theme.textTertiary)
+                }
+                Text(options.first { $0.value == selection }?.title ?? "")
+                    .flixorFont(.callout, weight: .semibold)
+                    .foregroundStyle(theme.textPrimary)
+                    .lineLimit(1)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(theme.textTertiary)
+            }
+            .padding(.horizontal, DS.Space.s14)
+            .frame(height: 32)
+            .background(Capsule().fill(isHovered ? theme.pressedFill : theme.hoverFill))
+            .overlay(Capsule().strokeBorder(theme.separator, lineWidth: DS.Border.thin))
+            .contentShape(Capsule())
+        }
+        // The borderless menu style drops custom backgrounds and tints the
+        // label with the accent; a plain button menu draws it as designed.
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .onHover { isHovered = $0 }
+    }
+}

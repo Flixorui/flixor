@@ -77,7 +77,8 @@ struct LiveTVChannelGrid: View {
                 .frame(height: 32)
                 .background(Capsule().fill(Color.white.opacity(0.10)))
             }
-            .menuStyle(.borderlessButton)
+            .menuStyle(.button)
+            .buttonStyle(.plain)
             .menuIndicator(.hidden)
             .fixedSize()
         }

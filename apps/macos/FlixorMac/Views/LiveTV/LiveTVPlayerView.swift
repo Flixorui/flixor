@@ -26,6 +26,9 @@ struct LiveTVPlayerView: View {
     @State private var numberTask: Task<Void, Never>?
     @State private var previousChannel: LiveChannel?
     @State private var isFullScreen = NSApp.keyWindow?.styleMask.contains(.fullScreen) ?? false
+    /// Picture in Picture, through the shared mpv PiP window (as the VOD player).
+    @State private var isPiPActive = false
+    @State private var mpvPiPViewController: NSViewController?
     /// The list the viewer zaps through: the filter at the time playback began.
     @State private var zapList: [LiveChannel] = []
 
@@ -33,9 +36,20 @@ struct LiveTVPlayerView: View {
         ZStack {
             Color.black
             if let controller = player.controller {
-                MPVVideoView(mpvController: controller)
+                MPVVideoViewWrapper(mpvController: controller, isPiPActive: $isPiPActive, mpvPiPViewController: $mpvPiPViewController)
                     .onTapGesture(count: 2) { toggleFullScreen() }
                     .onTapGesture { panel != .none ? (panel = .none) : toggleOverlay() }
+            }
+
+            if isPiPActive {
+                VStack(spacing: DS.Space.s12) {
+                    Image(systemName: "pip").font(.flixorIcon(DS.Icon.xxl, weight: .light))
+                    Text("Playing in Picture in Picture").flixorFont(.title3, weight: .bold)
+                    Text(channel?.displayName ?? "").flixorFont(.callout).foregroundStyle(.white.opacity(0.6))
+                    LiveTVPillButton(icon: "pip.exit", title: "Bring back here", prominent: true) { togglePiP() }
+                        .padding(.top, DS.Space.s4)
+                }
+                .foregroundStyle(.white)
             }
 
             if player.state == .starting || (player.isBuffering && player.state == .playing) {
@@ -80,6 +94,8 @@ struct LiveTVPlayerView: View {
             showOverlay()
         }
         .onDisappear {
+            // Never leave a floating window behind with no player feeding it.
+            MPVPiPWindowManager.shared.exitPiP()
             LiveTVKeyRouter.shared.player = nil
             PlaybackCommandState.shared.isPlayerActive = false
             hideTask?.cancel()
@@ -87,6 +103,9 @@ struct LiveTVPlayerView: View {
         }
         .onChange(of: store.playing) { _ in showOverlay() }
         .onReceive(NotificationCenter.default.publisher(for: .togglePlayPause)) { _ in player.togglePause() }
+        .onReceive(NotificationCenter.default.publisher(for: .togglePictureInPicture)) { _ in togglePiP() }
+        .onReceive(NotificationCenter.default.publisher(for: .mpvPiPDidClose)) { _ in isPiPActive = false; showOverlay() }
+        .onReceive(NotificationCenter.default.publisher(for: .mpvPiPRequestedPlayerClose)) { _ in close() }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEnterFullScreenNotification)) { _ in isFullScreen = true }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didExitFullScreenNotification)) { _ in isFullScreen = false }
     }
@@ -203,6 +222,9 @@ struct LiveTVPlayerView: View {
             }
             LiveTVPlayerIconButton(help: "Audio & Subtitles") { toggle(.tracks) } icon: {
                 SubtitlesIcon().frame(width: 30, height: 30)
+            }
+            LiveTVPlayerIconButton(help: isPiPActive ? "Exit Picture in Picture (P)" : "Picture in Picture (P)") { togglePiP() } icon: {
+                Image(systemName: isPiPActive ? "pip.exit" : "pip.enter").font(.flixorIcon(DS.Icon.lg, weight: .medium))
             }
             LiveTVPlayerIconButton(help: "Channels (C)") { toggle(.channels) } icon: {
                 EpisodeListIcon().frame(width: 30, height: 30)
@@ -329,7 +351,23 @@ struct LiveTVPlayerView: View {
 
     private func toggle(_ p: Panel) { panel = panel == p ? .none : p; showOverlay() }
 
-    private func close() { store.playing = nil }
+    private func close() {
+        MPVPiPWindowManager.shared.exitPiP()
+        store.playing = nil
+    }
+
+    private func togglePiP() {
+        guard let controller = mpvPiPViewController as? MPVVideoViewWrapper.MPVPiPViewController, let channel else { return }
+        let current = store.guideEntry(for: channel)?.current(at: store.now)
+        MPVPiPWindowManager.shared.togglePiP(
+            mpvViewController: controller,
+            stateBinding: $isPiPActive,
+            title: channel.displayName,
+            subtitle: current?.title ?? "Live",
+            aspectRatio: CGSize(width: 16, height: 9),
+            isPlaying: !player.isPaused
+        )
+    }
 
     private func tune(_ c: LiveChannel) {
         guard c != channel else { return }
@@ -394,6 +432,7 @@ struct LiveTVPlayerView: View {
         case "f": if let channel { store.toggleFavorite(channel) }; showOverlay(); return true
         case "g": store.screen = .guide; close(); return true
         case "i": toggleOverlay(); return true
+        case "p": togglePiP(); return true
         default: return false
         }
     }

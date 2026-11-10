@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		FF168F4E57A51AF8DF4F6028 /* LibraryScreenSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11CCA6F23B18108C0C482089 /* LibraryScreenSettingsView.swift */; };
+		9400B933D2EFA60EC17D50D3 /* LibraryScreenSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B4C3731B70896DE7ED4865B /* LibraryScreenSettings.swift */; };
 		1D49DD3DA332C1FFB83E691C /* LiveTVArtwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DFE18F1A6A4643C4484AC8D /* LiveTVArtwork.swift */; };
 		644AF730A9FF2B7B7B882EEB /* LiveTVModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40FDEA20839D4AEA57C73372 /* LiveTVModels.swift */; };
 		7FF413A3D458208EFE6E9A9B /* LiveTVLineupBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4519E5A4334DCB2E8AB76ABD /* LiveTVLineupBuilder.swift */; };
@@ -336,6 +338,8 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		11CCA6F23B18108C0C482089 /* LibraryScreenSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryScreenSettingsView.swift; sourceTree = "<group>"; };
+		1B4C3731B70896DE7ED4865B /* LibraryScreenSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryScreenSettings.swift; sourceTree = "<group>"; };
 		6DFE18F1A6A4643C4484AC8D /* LiveTVArtwork.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveTVArtwork.swift; sourceTree = "<group>"; };
 		40FDEA20839D4AEA57C73372 /* LiveTVModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveTVModels.swift; sourceTree = "<group>"; };
 		4519E5A4334DCB2E8AB76ABD /* LiveTVLineupBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveTVLineupBuilder.swift; sourceTree = "<group>"; };
@@ -891,6 +895,7 @@
 		D007 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				1B4C3731B70896DE7ED4865B /* LibraryScreenSettings.swift */,
 				087518E1FE0710817A9C2AA5 /* BackdropColorExtractor.swift */,
 				3CF8A4C3FD1B30C4E66C61C9 /* TraktContinueWatchingService.swift */,
 				80C4FA0B8998589F64D25892 /* UserCollectionsStore.swift */,
@@ -1049,6 +1054,7 @@
 		D015 /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				11CCA6F23B18108C0C482089 /* LibraryScreenSettingsView.swift */,
 				8D152E25D899CE52C15C46A8 /* SkipSegmentSettingsModel.swift */,
 				1C5AB65547BBF55331DF0A55 /* HomeRowsEditor.swift */,
 				946A0638B68C23F7D67219BC /* HeroSourceSettingsRow.swift */,
@@ -1366,6 +1372,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FF168F4E57A51AF8DF4F6028 /* LibraryScreenSettingsView.swift in Sources */,
+				9400B933D2EFA60EC17D50D3 /* LibraryScreenSettings.swift in Sources */,
 				1D49DD3DA332C1FFB83E691C /* LiveTVArtwork.swift in Sources */,
 				644AF730A9FF2B7B7B882EEB /* LiveTVModels.swift in Sources */,
 				7FF413A3D458208EFE6E9A9B /* LiveTVLineupBuilder.swift in Sources */,

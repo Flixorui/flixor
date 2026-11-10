@@ -14,11 +14,18 @@ struct LibraryView: View {
     @EnvironmentObject private var router: NavigationRouter
     @EnvironmentObject private var mainViewState: MainViewState
     @ObservedObject private var appMode = AppModeStore.shared
+    /// Width of the scroll area, measured in the background so the scroll view
+    /// itself can extend under the frosted header.
+    @State private var contentWidth: CGFloat = 1200
+
+    @ObservedObject private var librarySettings = LibraryScreenSettings.shared
 
     private let horizontalPadding: CGFloat = 64
-    private let gridSpacing: CGFloat = 18
+    private var gridSpacing: CGFloat { librarySettings.density.spacing }
+    /// Settings > Library Screen > Poster Size ("Same as Home" follows the Home card size).
     private var minGridItemWidth: CGFloat {
-        metrics.posterWidth(designWidth: 180, storedSize: profileSettings.posterSize)
+        let size = librarySettings.posterSize.resolved(homeSize: profileSettings.posterSize)
+        return metrics.posterWidth(designWidth: 180, storedSize: size.rawValue)
     }
 
     var body: some View {
@@ -31,24 +38,15 @@ struct LibraryView: View {
     }
 
     private var plexLibrary: some View {
-        VStack(spacing: 0) {
-            LibraryFilterBarView(viewModel: viewModel) { section in
-                viewModel.selectSection(section)
+        // The header is a frosted inset: the grid starts below it and scrolls
+        // under it instead of being clipped at a hard edge.
+        content
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .safeAreaInset(edge: .top, spacing: 0) {
+                LibraryFilterBarView(viewModel: viewModel) { section in
+                    viewModel.selectSection(section)
+                }
             }
-
-            HStack {
-                BrowseChipBar(
-                    options: LibraryViewModel.ContentTab.allCases,
-                    selection: $viewModel.contentTab,
-                    title: { $0.title }
-                )
-                Spacer()
-            }
-            .padding(.horizontal, horizontalPadding)
-            .padding(.bottom, DS.Space.s8)
-
-            content
-        }
         .background(HomeBackground())
         .navigationTitle("")
         .task {
@@ -88,18 +86,26 @@ struct LibraryView: View {
     }
 
     private var skeletonGrid: some View {
-        GeometryReader { geometry in
-            ScrollView {
-                LazyVGrid(columns: gridColumns(for: geometry.size.width), spacing: gridSpacing) {
-                    ForEach(0..<12, id: \.self) { _ in
-                        SkeletonView(height: minGridItemWidth * 1.5, cornerRadius: DS.Radius.r12)
-                            .frame(height: minGridItemWidth * 1.5)
-                    }
+        ScrollView {
+            LazyVGrid(columns: gridColumns(for: contentWidth), spacing: gridSpacing) {
+                ForEach(0..<12, id: \.self) { _ in
+                    SkeletonView(height: minGridItemWidth * 1.5, cornerRadius: DS.Radius.r12)
+                        .frame(height: minGridItemWidth * 1.5)
                 }
-                .background(TabScrollObserver(tab: .library))
-                .padding(.horizontal, horizontalPadding)
-                .padding(.vertical, DS.Space.s32)
             }
+            .background(TabScrollObserver(tab: .library))
+            .padding(.horizontal, horizontalPadding)
+            .padding(.top, DS.Space.s24)
+            .padding(.bottom, DS.Space.s32)
+        }
+        .background(widthReader)
+    }
+
+    private var widthReader: some View {
+        GeometryReader { proxy in
+            Color.clear
+                .onAppear { contentWidth = proxy.size.width }
+                .onChange(of: proxy.size.width) { contentWidth = $0 }
         }
     }
 
@@ -110,19 +116,19 @@ struct LibraryView: View {
     }
 
     private var gridView: some View {
-        GeometryReader { geometry in
-            let availableWidth = max(320, geometry.size.width - (horizontalPadding * 2))
-            let columnsCount = max(2, Int((availableWidth + gridSpacing) / (minGridItemWidth + gridSpacing)))
-            let cardWidth = (availableWidth - (CGFloat(columnsCount - 1) * gridSpacing)) / CGFloat(columnsCount)
-            let columns = Array(repeating: GridItem(.flexible(), spacing: gridSpacing), count: columnsCount)
+        let availableWidth = max(320, contentWidth - (horizontalPadding * 2))
+        let columnsCount = max(2, Int((availableWidth + gridSpacing) / (minGridItemWidth + gridSpacing)))
+        let cardWidth = (availableWidth - (CGFloat(columnsCount - 1) * gridSpacing)) / CGFloat(columnsCount)
+        let columns = Array(repeating: GridItem(.flexible(), spacing: gridSpacing), count: columnsCount)
 
-            ScrollView {
+        return ScrollView {
                 LazyVGrid(columns: columns, spacing: gridSpacing) {
                     ForEach(viewModel.visibleItems) { entry in
                         PosterCard(
                             item: entry.media,
                             width: cardWidth,
-                            showTitle: true
+                            showTitle: librarySettings.titleDisplay != .none,
+                            showYear: librarySettings.titleDisplay == .titleAndYear
                         ) {
                             router.libraryPath.append(DetailsNavigationItem(item: entry.media))
                         }
@@ -133,7 +139,8 @@ struct LibraryView: View {
                 }
                 .background(TabScrollObserver(tab: .library))
                 .padding(.horizontal, horizontalPadding)
-                .padding(.vertical, DS.Space.s32)
+                .padding(.top, DS.Space.s24)
+                .padding(.bottom, DS.Space.s32)
 
                 if viewModel.isLoadingMore {
                     ProgressView()
@@ -141,7 +148,7 @@ struct LibraryView: View {
                         .padding(.bottom, DS.Space.s40)
                 }
             }
-        }
+            .background(widthReader)
     }
 
     private var listView: some View {

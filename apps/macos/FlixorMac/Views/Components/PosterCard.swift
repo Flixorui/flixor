@@ -11,6 +11,8 @@ struct PosterCard: View {
     let item: MediaItem
     let width: CGFloat
     var showTitle: Bool = true
+    /// The year/edition line under the title (Library can show the title alone).
+    var showYear: Bool = true
     var showProgress: Bool = false
     var badge: AnyView? = nil
     var topTrailingOverlay: AnyView? = nil
@@ -123,7 +125,7 @@ struct PosterCard: View {
                         .lineLimit(2)
                         .frame(width: width, alignment: .leading)
 
-                    if item.year != nil || item.editionTitle != nil {
+                    if showYear, item.year != nil || item.editionTitle != nil {
                         Text(yearEditionText)
                             .font(.flixor(.caption))
                             .foregroundStyle(.secondary)

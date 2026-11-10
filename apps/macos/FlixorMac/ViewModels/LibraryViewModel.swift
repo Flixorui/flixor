@@ -127,6 +127,10 @@ final class LibraryViewModel: ObservableObject {
     @Published var activeSection: LibrarySectionSummary? {
         didSet {
             guard activeSection?.id != oldValue?.id else { return }
+            if let id = activeSection?.id {
+                if contentTab == .library { settings.lastTab = LibraryScreenSettings.sectionTab(id) }
+                restoreSort(for: id)
+            }
             Task { await reloadCurrentSection() }
         }
     }
@@ -139,12 +143,24 @@ final class LibraryViewModel: ObservableObject {
     }
 
     @Published var sort: SortOption = .dateAddedDesc {
-        didSet { applyFilters() }
+        didSet {
+            applyFilters()
+            if !isRestoringSort, settings.rememberSort, let id = activeSection?.id {
+                settings.setRememberedSort(sort.rawValue, section: id)
+            }
+        }
     }
 
-    @Published var viewMode: ViewMode = .grid
+    @Published var viewMode: ViewMode = .grid {
+        didSet { if settings.rememberViewMode { settings.lastViewMode = viewMode.rawValue } }
+    }
     @Published var contentTab: ContentTab = .library {
         didSet {
+            if contentTab == .collections {
+                settings.lastTab = LibraryScreenSettings.collectionsTab
+            } else if let id = activeSection?.id {
+                settings.lastTab = LibraryScreenSettings.sectionTab(id)
+            }
             guard contentTab == .collections else { return }
             Task { await loadCollectionsIfNeeded() }
         }
@@ -162,6 +178,8 @@ final class LibraryViewModel: ObservableObject {
     @Published private(set) var years: [FilterOption] = []
     @Published private(set) var selectedGenre: FilterOption?
     @Published private(set) var selectedYear: FilterOption?
+    /// A whole decade (e.g. 2010 for the 2010s), sent as Plex's `decade` filter.
+    @Published private(set) var selectedDecade: Int?
 
     @Published var isLoading: Bool = false
     @Published var isLoadingMore: Bool = false
@@ -172,6 +190,8 @@ final class LibraryViewModel: ObservableObject {
     // MARK: - Private
 
     private let api = APIClient.shared
+    private let settings = LibraryScreenSettings.shared
+    private var isRestoringSort = false
     private let pageSize = 50
     private var offsets: [String: Int] = [:]
     private var totals: [String: Int] = [:]
@@ -182,6 +202,9 @@ final class LibraryViewModel: ObservableObject {
 
     func loadIfNeeded() async {
         guard !sectionsLoaded else { return }
+        if settings.rememberViewMode, let mode = ViewMode(rawValue: settings.lastViewMode ?? "") {
+            viewMode = mode
+        }
         do {
             try await fetchSections()
             sectionsLoaded = true
@@ -197,21 +220,85 @@ final class LibraryViewModel: ObservableObject {
         activeSection = section
     }
 
+    /// Total titles in the active section for the current filters, once the
+    /// server has reported it.
+    var activeTotal: Int? {
+        activeSection.flatMap { totals[$0.id] }
+    }
+
     func updateGenre(_ option: FilterOption?) {
         guard selectedGenre?.id != option?.id else { return }
         selectedGenre = option
-        Task { await reloadCurrentSection() }
+        saveFilters()
+        Task { await reloadCurrentSection(refreshFacets: false) }
     }
 
     func updateYear(_ option: FilterOption?) {
-        guard selectedYear?.id != option?.id else { return }
+        guard selectedYear?.id != option?.id || selectedDecade != nil else { return }
         selectedYear = option
-        Task { await reloadCurrentSection() }
+        selectedDecade = nil
+        saveFilters()
+        Task { await reloadCurrentSection(refreshFacets: false) }
+    }
+
+    // MARK: Remembered sort and filters (Settings > Library Screen)
+
+    private func restoreSort(for sectionId: String) {
+        guard settings.rememberSort,
+              let raw = settings.rememberedSort(section: sectionId),
+              let saved = SortOption(rawValue: raw), saved != sort else { return }
+        isRestoringSort = true
+        sort = saved
+        isRestoringSort = false
+    }
+
+    private func restoreFilters(for sectionId: String) {
+        guard settings.rememberFilters else { return }
+        let saved = settings.rememberedFilters(section: sectionId)
+        selectedGenre = saved["genre"].flatMap { id in genres.first { $0.id == id } }
+        if let year = saved["year"] {
+            selectedYear = years.first { $0.id == year }
+        } else if let decade = saved["decade"].flatMap(Int.init) {
+            selectedDecade = decade
+        }
+    }
+
+    private func saveFilters() {
+        guard settings.rememberFilters, let id = activeSection?.id else { return }
+        var filters: [String: String] = [:]
+        filters["genre"] = selectedGenre?.id
+        filters["year"] = selectedYear?.id
+        if let decade = selectedDecade { filters["decade"] = String(decade) }
+        settings.setRememberedFilters(filters, section: id)
+    }
+
+    /// Filters to a whole decade; replaces any single-year filter.
+    func updateDecade(_ decade: Int?) {
+        guard selectedDecade != decade || selectedYear != nil else { return }
+        selectedDecade = decade
+        selectedYear = nil
+        saveFilters()
+        Task { await reloadCurrentSection(refreshFacets: false) }
+    }
+
+    /// Decades that have at least one title, newest first.
+    var decades: [Int] {
+        Set(years.compactMap { Int($0.value) }.map { $0 / 10 * 10 }).sorted(by: >)
+    }
+
+    /// The library's years within a decade, newest first.
+    func years(inDecade decade: Int) -> [FilterOption] {
+        years.filter { Int($0.value).map { $0 / 10 * 10 == decade } ?? false }
+    }
+
+    var hasActiveFilters: Bool {
+        selectedGenre != nil || selectedYear != nil || selectedDecade != nil
     }
 
     func clearFilters() {
         updateGenre(nil)
         updateYear(nil)
+        updateDecade(nil)
     }
 
     func loadMoreIfNeeded(currentItem item: LibraryEntry) {
@@ -264,8 +351,19 @@ final class LibraryViewModel: ObservableObject {
         guard !sections.isEmpty else { return }
         switch filter {
         case .all:
-            if activeSection == nil, let first = sections.first {
-                activeSection = first
+            if activeSection == nil {
+                // Settings > Library Screen > Default Tab (or the tab used last).
+                let ordered = settings.ordered(sections) { $0.id }
+                let tab = settings.defaultTab == LibraryScreenSettings.lastUsedTab
+                    ? (settings.lastTab ?? "") : settings.defaultTab
+                if tab == LibraryScreenSettings.collectionsTab, settings.showCollectionsTab {
+                    activeSection = ordered.first
+                    contentTab = .collections
+                } else if let match = ordered.first(where: { LibraryScreenSettings.sectionTab($0.id) == tab }) {
+                    activeSection = match
+                } else {
+                    activeSection = ordered.first
+                }
             }
         case .movies:
             if let movie = sections.first(where: { $0.kind == .movie }) {
@@ -278,7 +376,10 @@ final class LibraryViewModel: ObservableObject {
         }
     }
 
-    private func reloadCurrentSection() async {
+    /// - Parameter refreshFacets: Reload the genre/year lists (a new section).
+    ///   Filter changes pass false: reloading the lists resets the selected
+    ///   genre and year, which used to undo the filter before the fetch.
+    private func reloadCurrentSection(refreshFacets: Bool = true) async {
         guard let section = activeSection else { return }
         isLoading = true
         items = []
@@ -286,7 +387,10 @@ final class LibraryViewModel: ObservableObject {
         offsets[section.id] = 0
         totals[section.id] = nil
         clearCollectionCacheIfNeeded(for: section)
-        await fetchFacets(for: section)
+        if refreshFacets {
+            await fetchFacets(for: section)
+            restoreFilters(for: section.id)
+        }
         await fetchItems(reset: true)
         if contentTab == .collections {
             await loadCollectionsIfNeeded()
@@ -348,6 +452,7 @@ final class LibraryViewModel: ObservableObject {
             }
             .sorted { ($0.value) > ($1.value) }
             selectedYear = nil
+            selectedDecade = nil
         } catch {
             years = []
         }
@@ -382,6 +487,8 @@ final class LibraryViewModel: ObservableObject {
         }
         if let year = selectedYear?.value {
             queryItems.append(URLQueryItem(name: "year", value: year))
+        } else if let decade = selectedDecade {
+            queryItems.append(URLQueryItem(name: "decade", value: String(decade)))
         }
 
         do {

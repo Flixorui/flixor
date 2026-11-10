@@ -229,8 +229,7 @@ struct FloatingNavigationTrack: View {
                     onLabelWidth: { labelWidths[item.rawValue] = $0 },
                     action: { onSelect(item) }
                 ) {
-                    Image(systemName: item.sidebarSymbol(selected: item == selectedTab))
-                        .font(.flixorIcon(DS.Icon.lg, weight: .medium))
+                    FlixorNavIcon(asset: item.navIconAsset, selected: item == selectedTab)
                 }
             }
 
@@ -246,9 +245,7 @@ struct FloatingNavigationTrack: View {
                     onLabelWidth: { labelWidths["floating-nav-live-tv"] = $0 },
                     action: { liveTV.enter() }
                 ) {
-                    Image(systemName: "dot.radiowaves.left.and.right")
-                        .font(.flixorIcon(DS.Icon.lg, weight: .medium))
-                        .foregroundStyle(Color(hex: "e50914"))
+                    FlixorLiveTVNavIcon()
                 }
                 .help("Live TV (⌘L)")
             }

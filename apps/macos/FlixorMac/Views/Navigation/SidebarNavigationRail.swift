@@ -26,15 +26,43 @@ enum SidebarMetrics {
 
 extension NavItem {
     /// SF Symbol for the sidebar.
-    func sidebarSymbol(selected: Bool) -> String {
+    /// Nav icon in Assets.xcassets/NavIcons (Phosphor; Library and New &
+    /// Popular from Heroicons). Each has a "-fill" variant for the selected tab.
+    var navIconAsset: String {
         switch self {
-        case .home: return selected ? "house.fill" : "house"
-        case .library: return selected ? "books.vertical.fill" : "books.vertical"
-        case .myList: return selected ? "bookmark.fill" : "bookmark"
-        case .newPopular: return selected ? "flame.fill" : "flame"
-        case .downloads: return selected ? "arrow.down.circle.fill" : "arrow.down.circle"
-        case .search: return "magnifyingglass"
+        case .home: return "nav-home"
+        case .library: return "nav-library"
+        case .myList: return "nav-mylist"
+        case .newPopular: return "nav-newpopular"
+        case .downloads: return "nav-downloads"
+        case .search: return "nav-search"
         }
+    }
+}
+
+/// A navigation icon from the NavIcons asset set: outline normally, filled
+/// when selected. Template images, so they take the surrounding colour.
+struct FlixorNavIcon: View {
+    let asset: String
+    var selected = false
+    var size: CGFloat = 22
+
+    var body: some View {
+        Image(selected ? asset + "-fill" : asset)
+            .renderingMode(.template)
+            .resizable()
+            .interpolation(.high)
+            .aspectRatio(contentMode: .fit)
+            .frame(width: size, height: size)
+    }
+}
+
+/// The Live TV nav icon: a plain television, styled like the other tabs.
+struct FlixorLiveTVNavIcon: View {
+    var size: CGFloat = 22
+
+    var body: some View {
+        FlixorNavIcon(asset: "nav-livetv", size: size)
     }
 }
 
@@ -85,8 +113,7 @@ struct SidebarNavigationRail: View {
                     isExpanded: isExpanded,
                     action: { onSelect(item) }
                 ) {
-                    Image(systemName: item.sidebarSymbol(selected: item == selectedTab))
-                        .font(.flixorIcon(DS.Icon.lg, weight: .medium))
+                    FlixorNavIcon(asset: item.navIconAsset, selected: item == selectedTab)
                 }
             }
 
@@ -99,8 +126,7 @@ struct SidebarNavigationRail: View {
                     accentIcon: true,
                     action: { liveTV.enter() }
                 ) {
-                    Image(systemName: "dot.radiowaves.left.and.right")
-                        .font(.flixorIcon(DS.Icon.lg, weight: .medium))
+                    FlixorLiveTVNavIcon()
                 }
                 .help("Live TV (⌘L)")
             }
@@ -121,8 +147,7 @@ struct SidebarNavigationRail: View {
                 accentIcon: store.sidebarPinned,
                 action: { store.sidebarPinned.toggle() }
             ) {
-                Image(systemName: store.sidebarPinned ? "pin.fill" : "pin")
-                    .font(.flixorIcon(DS.Icon.md, weight: .medium))
+                FlixorNavIcon(asset: "nav-pin", selected: store.sidebarPinned, size: 18)
             }
 
             SidebarRow(
@@ -131,8 +156,7 @@ struct SidebarNavigationRail: View {
                 isExpanded: isExpanded,
                 action: profile.onOpenSettings
             ) {
-                Image(systemName: "gearshape")
-                    .font(.flixorIcon(DS.Icon.lg, weight: .medium))
+                FlixorNavIcon(asset: "nav-settings")
             }
 
             SidebarRow(

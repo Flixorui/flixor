@@ -58,10 +58,17 @@ struct LiveTVRootView: View {
         }
         .onDisappear {
             removeKeyMonitor()
+            MPVPiPWindowManager.shared.exitPiP()
             player.stop()
         }
         .onChange(of: store.playing) { channel in
-            if let channel { player.play(channel); store.recordWatch(channel) } else { player.stop() }
+            if let channel {
+                player.play(channel)
+                store.recordWatch(channel)
+            } else {
+                MPVPiPWindowManager.shared.exitPiP()
+                player.stop()
+            }
         }
         .sheet(isPresented: $showSetup) {
             LiveTVSetupSheet { showSetup = false }
@@ -105,7 +112,7 @@ struct LiveTVRootView: View {
 
             if case .loading = store.loadState { ProgressView().controlSize(.small) }
 
-            LiveTVIconButton(icon: "gearshape", help: "Live TV settings", size: 32) { showSetup = true }
+            LiveTVIconButton(icon: "gearshape", asset: "nav-settings", help: "Live TV settings", size: 32) { showSetup = true }
         }
         // Centred on the traffic lights and starting just after them.
         .padding(.leading, titlebar.leading)
@@ -534,6 +541,8 @@ struct LiveTVPillButton: View {
 
 struct LiveTVIconButton: View {
     let icon: String
+    /// A NavIcons asset to draw instead of the SF Symbol.
+    var asset: String? = nil
     var help: String = ""
     var size: CGFloat = 34
     let action: () -> Void
@@ -541,8 +550,11 @@ struct LiveTVIconButton: View {
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: icon)
-                .font(.flixorIcon(DS.Icon.md, weight: .medium))
+            Group {
+                if let asset { FlixorNavIcon(asset: asset, size: 18) } else {
+                    Image(systemName: icon).font(.flixorIcon(DS.Icon.md, weight: .medium))
+                }
+            }
                 .foregroundStyle(.white)
                 .frame(width: size, height: size)
                 .background(Circle().fill(Color.white.opacity(hovering ? 0.16 : 0.08)))
