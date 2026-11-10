@@ -500,6 +500,10 @@ extension View {
                     .backButtonContentInset()
                     .navigationBarBackButtonHidden(true)
             }
+            .navigationDestination(for: BrowseRoute.self) { route in
+                BrowsePageView(route: route)
+                    .navigationBarBackButtonHidden(true)
+            }
             .navigationDestination(for: EntityBrowseRoute.self) { route in
                 EntityBrowseView(route: route)
                     .backButtonContentInset()

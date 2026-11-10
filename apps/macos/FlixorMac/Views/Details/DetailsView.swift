@@ -12,9 +12,6 @@ struct DetailsView: View {
     let item: MediaItem
     @StateObject var vm = DetailsViewModel()
     @State var activeTab: String = "SUGGESTED"
-    @StateObject private var browseViewModel = BrowseModalViewModel()
-    @State private var showBrowseModal = false
-    @State private var activeBrowseContext: BrowseContext?
     @EnvironmentObject private var router: NavigationRouter
     @EnvironmentObject private var mainView: MainViewState
 
@@ -57,11 +54,11 @@ struct DetailsView: View {
     }
 
     private var isPageObscured: Bool {
-        showBrowseModal || commentsModel.selectedIndex != nil
+        commentsModel.selectedIndex != nil
     }
 
     private var showsFloatingHeader: Bool {
-        heroScroll.isHeroScrolledAway && !showsLoadingSkeleton && !showBrowseModal
+        heroScroll.isHeroScrolledAway && !showsLoadingSkeleton
     }
 
     /// Same primary action as the hero: Plex when there is a copy, else addons.
@@ -120,24 +117,6 @@ struct DetailsView: View {
             }
             .frame(maxWidth: .infinity, alignment: .top)
 
-            if showBrowseModal {
-                BrowseModalView(
-                    isPresented: $showBrowseModal,
-                    viewModel: browseViewModel,
-                    onSelect: { media in
-                        showBrowseModal = false
-                        Task {
-                            await vm.load(for: media)
-                            await MainActor.run {
-                                activeTab = (vm.mediaKind == "tv") ? "EPISODES" : "SUGGESTED"
-                            }
-                        }
-                    }
-                )
-                .padding(.top, DS.Space.s80)
-                .transition(.opacity)
-                .zIndex(2)
-            }
         }
         .ignoresSafeArea(edges: .top)
         .overlay(alignment: .top) {
@@ -214,12 +193,6 @@ struct DetailsView: View {
             } else {
                 titleActions.configure(with: vm)
                 heroTrailer.configure(tmdbId: vm.tmdbId, mediaKind: vm.mediaKind)
-            }
-        }
-        .onChange(of: showBrowseModal) { value in
-            if !value {
-                activeBrowseContext = nil
-                browseViewModel.reset()
             }
         }
         .sheet(isPresented: $showVersionPicker) {
@@ -397,12 +370,9 @@ struct DetailsView: View {
         }
     }
 
+    /// Opens the Browse page for More Like This (pushed on the current tab).
     func presentBrowse(_ context: BrowseContext) {
-        activeBrowseContext = context
-        showBrowseModal = true
-        Task {
-            await browseViewModel.load(context: context)
-        }
+        router.push(BrowseRoute(context: context, title: String(localized: "More Like This")), on: mainView.selectedTab)
     }
 
     func presentPerson(_ person: CastCrewCard.Person) {

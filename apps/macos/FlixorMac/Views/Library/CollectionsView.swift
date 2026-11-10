@@ -17,8 +17,6 @@ struct CollectionsView: View {
     @EnvironmentObject private var router: NavigationRouter
     @EnvironmentObject private var mainViewState: MainViewState
     @Environment(\.flixorTheme) private var theme
-    @StateObject private var browseViewModel = BrowseModalViewModel()
-    @State private var showBrowseModal = false
 
     private let columns = [GridItem(.adaptive(minimum: 220), spacing: 20)]
 
@@ -41,20 +39,6 @@ struct CollectionsView: View {
                 .padding(.vertical, DS.Space.s32)
             }
 
-            if showBrowseModal {
-                BrowseModalView(
-                    isPresented: $showBrowseModal,
-                    viewModel: browseViewModel,
-                    onSelect: { item in
-                        router.push(DetailsNavigationItem(item: item), on: mainViewState.selectedTab)
-                    }
-                )
-                .transition(.opacity)
-                .zIndex(2)
-            }
-        }
-        .onChange(of: showBrowseModal) { isShown in
-            if !isShown { browseViewModel.reset() }
         }
     }
 
@@ -98,10 +82,8 @@ struct CollectionsView: View {
 
     private func open(_ collection: LibraryViewModel.CollectionEntry) {
         onSelect(collection)
-        showBrowseModal = true
-        Task {
-            await browseViewModel.load(context: .plexCollection(ratingKey: collection.id, title: collection.title))
-        }
+        router.push(BrowseRoute(context: .plexCollection(ratingKey: collection.id, title: collection.title), title: collection.title),
+                    on: mainViewState.selectedTab)
     }
 
     private func collectionCard(for collection: LibraryViewModel.CollectionEntry) -> some View {

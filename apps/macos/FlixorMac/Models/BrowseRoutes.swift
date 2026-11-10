@@ -8,6 +8,18 @@
 
 import SwiftUI
 
+/// Full page for a row's "Browse" link (Home rows, addon catalogs, More Like This).
+/// `context` is Equatable only, so the route is identified by a fresh id.
+struct BrowseRoute: Hashable {
+    let id = UUID()
+    let context: BrowseContext
+    /// The row's own title ("Trending Now"); the page falls back to the source's name.
+    let title: String?
+
+    static func == (lhs: BrowseRoute, rhs: BrowseRoute) -> Bool { lhs.id == rhs.id }
+    func hash(into hasher: inout Hasher) { hasher.combine(id) }
+}
+
 /// Full page for a cast or crew member (TMDB person).
 struct PersonRoute: Hashable {
     let tmdbId: String
