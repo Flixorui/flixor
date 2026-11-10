@@ -81,24 +81,19 @@ struct PlayerSettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Space.s16) {
-            SettingsCard(title: "Playback Engine") {
+            SettingsGroupCard {
                 SettingsRow(
                     icon: "play.rectangle.fill",
                     iconColor: .blue,
                     title: "Playback Engine",
-                    subtitle: "Stremio, Plex, and offline playback all use MPV on macOS.",
+                    subtitle: "Plex, Stremio, direct URLs and offline files all play through MPV on macOS",
                     showDivider: false
                 ) {
                     Text("MPV")
-                        .font(.flixor(.callout, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.secondary)
                 }
             }
-
-            Text("MPV is the required playback engine on macOS for direct URL streams, custom headers, advanced codecs, and Stremio integration.")
-                .font(.flixor(.caption))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, DS.Space.s4)
 
             // Player Engine (MPV-specific settings) - GLOBAL
             SettingsCard(title: "MPV Engine") {
@@ -381,7 +376,7 @@ struct PlayerSettingsView: View {
                     showDivider: false
                 ) {
                     TextField("Optional", text: $skipSettings.animeSkipClientId)
-                        .textFieldStyle(.roundedBorder)
+                        .textFieldStyle(.settings)
                         .frame(width: 200)
                         .disabled(!skipSettings.communitySkipSegmentsEnabled)
                         .accessibilityLabel("Anime-Skip client ID")

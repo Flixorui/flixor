@@ -12,23 +12,21 @@ import AppKit
 
 private enum SettingsCategory: String, CaseIterable, Identifiable {
     case plex
-    case player
+    case stremio
     #if FLIXOR_LIVE_TV
     case liveTV
     #endif
-    case discoveryMode
-    case catalog
-    case rowsSettings
-    case sidebar
-    case search
-    case appearance
+    case player
+    case content
     case homeScreenAppearance
+    case libraryScreen
     case detailsScreen
+    case sidebar
     case tmdb
-    case stremio
     case mdblist
     case overseerr
     case trakt
+    case appearance
     case advanced
     case about
 
@@ -37,23 +35,21 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .plex: return "Plex"
-        case .player: return String(localized: "Player")
+        case .stremio: return "Stremio"
         #if FLIXOR_LIVE_TV
         case .liveTV: return "Live TV"
         #endif
-        case .discoveryMode: return String(localized: "Discovery Mode")
-        case .catalog: return String(localized: "Catalogs")
-        case .rowsSettings: return String(localized: "Rows Settings")
-        case .sidebar: return String(localized: "NavBar")
-        case .search: return String(localized: "Search")
-        case .appearance: return String(localized: "Appearance")
-        case .homeScreenAppearance: return String(localized: "Home Screen")
-        case .detailsScreen: return String(localized: "Details Screen")
+        case .player: return String(localized: "Player")
+        case .content: return String(localized: "Content")
+        case .homeScreenAppearance: return String(localized: "Home")
+        case .libraryScreen: return String(localized: "Library")
+        case .detailsScreen: return String(localized: "Details")
+        case .sidebar: return String(localized: "Navigation")
         case .tmdb: return "TMDB"
-        case .stremio: return "Stremio"
         case .mdblist: return "MDBList"
         case .overseerr: return "Overseerr"
         case .trakt: return "Trakt"
+        case .appearance: return String(localized: "Appearance")
         case .advanced: return String(localized: "Advanced")
         case .about: return String(localized: "About")
         }
@@ -61,196 +57,143 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
 
     var description: String {
         switch self {
-        case .plex: return String(localized: "Manage your Plex server connections")
-        case .player: return String(localized: "Video playback and MPV configuration")
+        case .plex: return String(localized: "Account and servers")
+        case .stremio: return String(localized: "Addons, subtitles and alternate playback")
         #if FLIXOR_LIVE_TV
-        case .liveTV: return "Xtream account, guide server and Live TV mode (personal build)"
+        case .liveTV: return "Xtream channels and the xtream-web guide. Personal build only."
         #endif
-        case .discoveryMode: return String(localized: "Control external content discovery features")
-        case .catalog: return String(localized: "Configure library visibility and filtering")
-        case .rowsSettings: return String(localized: "Choose which content rows to display")
-        case .sidebar: return String(localized: "Configure navigation tabs visibility")
-        case .search: return String(localized: "Configure search sources and behavior")
-        case .appearance: return String(localized: "Accent color and background style")
-        case .homeScreenAppearance: return String(localized: "Customize hero, posters and visual appearance")
-        case .detailsScreen: return String(localized: "Episode display and layout options")
-        case .tmdb: return String(localized: "The Movie Database metadata settings")
-        case .stremio: return String(localized: "Addon sources, subtitles, and alternate playback")
-        case .mdblist: return String(localized: "Multi-source ratings aggregation")
-        case .overseerr: return String(localized: "Media request management integration")
-        case .trakt: return String(localized: "Watch history and scrobbling")
+        case .player: return String(localized: "Playback, decoding, buffering and seeking")
+        case .content: return String(localized: "Which libraries show, and whether Flixor suggests things you don't own")
+        case .homeScreenAppearance: return String(localized: "Hero, rows, Continue Watching and cards")
+        case .libraryScreen: return String(localized: "Grid, genre chips, tabs and what the Library remembers")
+        case .detailsScreen: return String(localized: "Episodes, sections and layout")
+        case .sidebar: return String(localized: "Navigation style and tabs")
+        case .tmdb: return String(localized: "Artwork, metadata and language from The Movie Database")
+        case .mdblist: return String(localized: "Ratings from IMDb, Rotten Tomatoes, Letterboxd and more")
+        case .overseerr: return String(localized: "Request movies and shows you don't have yet")
+        case .trakt: return String(localized: "Watch history, ratings and scrobbling")
+        case .appearance: return String(localized: "Accent colour and background")
         case .advanced: return String(localized: "Debug logging and diagnostics")
         case .about: return String(localized: "App information and credits")
         }
     }
 
-    /// SF Symbol for sidebar (outline style, monotonic)
+    /// Words that should find this page in the sidebar search, for pages that
+    /// absorbed others (old page names still work).
+    var searchTerms: String {
+        switch self {
+        case .content: return "catalogs libraries discovery mode library only search tmdb results"
+        case .homeScreenAppearance: return "home screen rows settings hero continue watching posters cards"
+        case .libraryScreen: return "library screen grid tabs"
+        case .detailsScreen: return "details screen episodes"
+        case .sidebar: return "navbar navigation tabs new & popular"
+        default: return ""
+        }
+    }
+
+    /// SF Symbol for pages without a service logo.
     var icon: String {
         switch self {
         case .plex: return "server.rack"
-        case .player: return "play.rectangle.fill"
+        case .stremio: return "puzzlepiece.extension.fill"
         #if FLIXOR_LIVE_TV
         case .liveTV: return "antenna.radiowaves.left.and.right"
         #endif
-        case .discoveryMode: return "eye.slash"
-        case .catalog: return "rectangle.stack"
-        case .rowsSettings: return "square.grid.3x1.below.line.grid.1x2"
+        case .player: return "play.fill"
+        case .content: return "square.stack.fill"
+        case .homeScreenAppearance: return "house.fill"
+        case .libraryScreen: return "square.grid.3x2.fill"
+        case .detailsScreen: return "rectangle.fill.on.rectangle.fill"
         case .sidebar: return "sidebar.left"
-        case .search: return "magnifyingglass"
-        case .appearance: return "paintpalette"
-        case .homeScreenAppearance: return "house"
-        case .detailsScreen: return "play.rectangle"
         case .tmdb: return "film"
-        case .stremio: return "puzzlepiece.extension.fill"
         case .mdblist: return "star"
         case .overseerr: return "arrow.down.circle"
         case .trakt: return "chart.bar"
-        case .advanced: return "ladybug"
-        case .about: return "info.circle"
+        case .appearance: return "paintpalette.fill"
+        case .advanced: return "gearshape.fill"
+        case .about: return "info"
         }
     }
 
-    /// Whether this category uses a custom service icon
-    var hasCustomIcon: Bool {
+    /// Asset for pages that show a service logo instead of a symbol.
+    private var logoAsset: (name: String, template: Bool)? {
         switch self {
-        case .plex, .tmdb, .mdblist, .overseerr, .trakt:
-            return true
-        default:
-            return false
+        case .plex: return ("plexcolor", false)
+        case .tmdb: return ("tmdbcolor", false)
+        case .mdblist: return ("mdblistcolor", false)
+        case .overseerr: return ("overseerr", false)
+        case .trakt: return ("trakt", true)
+        default: return nil
         }
     }
 
-    /// Custom service icon view for sidebar (28pt)
+    /// Rounded-square icon used in the sidebar (20pt) and the page header (32pt).
     @ViewBuilder
-    var sidebarIcon: some View {
-        switch self {
-        case .plex:
-            PlexServiceIcon(size: 24)
-        case .tmdb:
-            TMDBServiceIcon(size: 24)
-        case .mdblist:
-            MDBListServiceIcon(size: 24)
-        case .overseerr:
-            OverseerrServiceIcon(size: 24)
-        case .trakt:
-            TraktServiceIcon(size: 24)
-        default:
-            EmptyView()
+    func iconView(size: CGFloat) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: size * 0.24, style: .continuous)
+                .fill(logoAsset == nil ? AnyShapeStyle(color.gradient) : AnyShapeStyle(color))
+            if let logo = logoAsset {
+                Image(logo.name)
+                    .renderingMode(logo.template ? .template : .original)
+                    .resizable()
+                    .scaledToFit()
+                    .foregroundStyle(.white)
+                    .frame(width: size * 0.64, height: size * 0.64)
+            } else {
+                Image(systemName: icon)
+                    .font(.system(size: size * 0.5, weight: .semibold))
+                    .foregroundStyle(.white)
+            }
         }
-    }
-
-    /// Custom service icon view for header (64pt) - colorful version
-    @ViewBuilder
-    var headerIcon: some View {
-        let size: CGFloat = 64
-        switch self {
-        case .plex:
-            ZStack {
-                RoundedRectangle(cornerRadius: DS.Radius.r14, style: .continuous)
-                    .fill(color)
-                    .frame(width: size, height: size)
-                Image("plexcolor")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: size * 0.65, height: size * 0.65)
-            }
-        case .tmdb:
-            ZStack {
-                RoundedRectangle(cornerRadius: DS.Radius.r14, style: .continuous)
-                    .fill(color)
-                    .frame(width: size, height: size)
-                Image("tmdbcolor")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: size * 0.65, height: size * 0.65)
-            }
-        case .mdblist:
-            ZStack {
-                RoundedRectangle(cornerRadius: DS.Radius.r14, style: .continuous)
-                    .fill(color)
-                    .frame(width: size, height: size)
-                Image("mdblistcolor")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: size * 0.65, height: size * 0.65)
-            }
-        case .overseerr:
-            ZStack {
-                RoundedRectangle(cornerRadius: DS.Radius.r14, style: .continuous)
-                    .fill(color)
-                    .frame(width: size, height: size)
-                Image("overseerr")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: size * 0.65, height: size * 0.65)
-            }
-        case .trakt:
-            ZStack {
-                RoundedRectangle(cornerRadius: DS.Radius.r14, style: .continuous)
-                    .fill(color)
-                    .frame(width: size, height: size)
-                Image("trakt")
-                    .renderingMode(.template)
-                    .resizable()
-                    .scaledToFit()
-                    .foregroundColor(.white)
-                    .frame(width: size * 0.65, height: size * 0.65)
-            }
-        default:
-            EmptyView()
-        }
+        .frame(width: size, height: size)
     }
 
     var color: Color {
         switch self {
         case .plex: return Color(hex: "272A2D")
-        case .player: return .blue
+        case .stremio: return Color(hex: "6D4FD8")
         #if FLIXOR_LIVE_TV
-        case .liveTV: return Color(hex: "e50914")
+        case .liveTV: return Color(hex: "D4202A")
         #endif
-        case .discoveryMode: return Color(hex: "FF6B6B")
-        case .catalog: return .purple
-        case .rowsSettings: return .blue
-        case .sidebar: return .cyan
-        case .search: return .mint
-        case .appearance: return .pink
-        case .homeScreenAppearance: return .indigo
-        case .detailsScreen: return .teal
+        case .player: return Color(hex: "0A84FF")
+        case .content: return Color(hex: "A64FD8")
+        case .homeScreenAppearance: return Color(hex: "5E5CE6")
+        case .libraryScreen: return Color(hex: "0A7AFF")
+        case .detailsScreen: return Color(hex: "2AA3BD")
+        case .sidebar: return Color(hex: "3B9FD6")
         case .tmdb: return Color(hex: "042541")
-        case .stremio: return .orange
         case .mdblist: return Color(hex: "4284CA")
         case .overseerr: return Color(hex: "0B1223")
         case .trakt: return Color(hex: "ED1C24")
-        case .advanced: return .gray
-        case .about: return .orange
+        case .appearance: return Color(hex: "E0405F")
+        case .advanced: return Color(hex: "6E6E73")
+        case .about: return Color(hex: "55555A")
         }
     }
 }
 
 // MARK: - Sidebar Section
 
-private extension SidebarSection {
-    static var playerCategories: [SettingsCategory] {
-        #if FLIXOR_LIVE_TV
-        return [.player, .liveTV]
-        #else
-        return [.player]
-        #endif
-    }
-}
-
 private struct SidebarSection {
     let title: String
     let categories: [SettingsCategory]
 
+    private static var sourceCategories: [SettingsCategory] {
+        #if FLIXOR_LIVE_TV
+        return [.plex, .stremio, .liveTV]
+        #else
+        return [.plex, .stremio]
+        #endif
+    }
+
     static var all: [SidebarSection] {
         [
-            SidebarSection(title: String(localized: "Account"), categories: [.plex]),
-            SidebarSection(title: String(localized: "Player"), categories: SidebarSection.playerCategories),
-            SidebarSection(title: String(localized: "Content & Discovery"), categories: [.discoveryMode, .catalog, .rowsSettings, .sidebar, .search]),
-            SidebarSection(title: String(localized: "Appearance"), categories: [.appearance, .homeScreenAppearance, .detailsScreen]),
-            SidebarSection(title: String(localized: "Integrations"), categories: [.tmdb, .stremio, .mdblist, .overseerr, .trakt]),
-            SidebarSection(title: String(localized: "System"), categories: [.advanced, .about])
+            SidebarSection(title: String(localized: "Sources"), categories: sourceCategories),
+            SidebarSection(title: String(localized: "Playback & Content"), categories: [.player, .content]),
+            SidebarSection(title: String(localized: "Screens"), categories: [.homeScreenAppearance, .libraryScreen, .detailsScreen, .sidebar]),
+            SidebarSection(title: String(localized: "Integrations"), categories: [.tmdb, .mdblist, .overseerr, .trakt]),
+            SidebarSection(title: String(localized: "General"), categories: [.appearance, .advanced, .about])
         ]
     }
 }
@@ -258,6 +201,10 @@ private struct SidebarSection {
 // MARK: - Main Settings View
 
 struct SettingsView: View {
+    /// The main window shows Settings as a sheet, which has no traffic lights,
+    /// so it needs its own close button. The Settings window (⌘,) does not.
+    var showsCloseButton = false
+
     @Environment(\.flixorTheme) private var theme
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var appMode = AppModeStore.shared
@@ -265,35 +212,31 @@ struct SettingsView: View {
     @State private var searchText: String = ""
 
     var body: some View {
-        ZStack(alignment: .topTrailing) {
-            HStack(spacing: 0) {
-                // Sidebar
-                sidebar
-                    .frame(width: 260)
+        HStack(spacing: 0) {
+            sidebar
+                .frame(width: 220)
 
-                // Content
-                contentArea
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-
-            // Close button
-            Button(action: { dismiss() }) {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.flixorIcon(DS.Icon.lg))
-                    .foregroundStyle(.secondary)
-                    .contentShape(Circle())
-            }
-            .buttonStyle(.plain)
-            .padding(DS.Space.s12)
-            .help("Close Settings")
+            contentArea
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(width: 920, height: 680)
         .background(theme.settingsWindowBackground)
-        .onChange(of: appMode.mode) { _ in
-            // Disconnecting Plex removes Catalogs from the sidebar; don't leave a
-            // pane selected that can no longer be reached.
-            if appMode.isStremioOnly && selectedCategory == .catalog {
-                selectedCategory = .plex
+        .toggleStyle(SettingsSwitchToggleStyle())
+        // Accent red is kept for switches (above). Everything else (pickers,
+        // bordered buttons, links) stays neutral so red only marks what's on.
+        .tint(SettingsChrome.neutralTint)
+        .overlay(alignment: .topTrailing) {
+            if showsCloseButton {
+                Button(action: { dismiss() }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.flixorIcon(DS.Icon.lg))
+                        .foregroundStyle(.secondary)
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .padding(DS.Space.s12)
+                .help("Close Settings")
+                .keyboardShortcut(.cancelAction)
             }
         }
     }
@@ -302,140 +245,110 @@ struct SettingsView: View {
 
     private var sidebar: some View {
         VStack(spacing: 0) {
-            // Search
-            HStack(spacing: DS.Space.s8) {
+            HStack(spacing: DS.Space.s6) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
-                    .font(.flixor(.callout))
+                    .font(.system(size: 12))
                 TextField("Search", text: $searchText)
                     .textFieldStyle(.plain)
-                    .font(.flixor(.callout))
+                    .font(.system(size: 13))
                 if !searchText.isEmpty {
                     Button(action: { searchText = "" }) {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundStyle(.secondary)
-                            .font(.flixorIcon(DS.Icon.xs))
+                            .font(.system(size: 11))
                     }
                     .buttonStyle(.plain)
                 }
             }
+            .padding(.horizontal, DS.Space.s8)
+            .frame(height: 28)
+            .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
             .padding(.horizontal, DS.Space.s10)
-            .padding(.vertical, 7)
-            .background(theme.settingsGroupBackground)
-            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r8, style: .continuous))
-            .padding(.horizontal, DS.Space.s16)
-            .padding(.top, DS.Space.s16)
-            .padding(.bottom, DS.Space.s12)
+            .padding(.top, DS.Space.s12)
+            .padding(.bottom, DS.Space.s6)
 
-            // Categories with section headers
             ScrollView {
-                VStack(alignment: .leading, spacing: DS.Space.s16) {
+                VStack(alignment: .leading, spacing: DS.Space.s12) {
                     ForEach(Array(SidebarSection.all.enumerated()), id: \.offset) { _, section in
                         let filteredCategories = filterCategories(section.categories)
                         if !filteredCategories.isEmpty {
-                            VStack(alignment: .leading, spacing: DS.Space.s4) {
-                                // Section header
-                                Text(section.title.uppercased())
-                                    .font(.flixor(.caption, weight: .semibold))
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(section.title)
+                                    .font(.system(size: 11, weight: .semibold))
                                     .foregroundStyle(.secondary)
-                                    .padding(.leading, DS.Space.s14)
-                                    .padding(.top, DS.Space.s4)
+                                    .padding(.leading, DS.Space.s8)
+                                    .padding(.bottom, DS.Space.s2)
 
-                                // Section items
-                                VStack(spacing: DS.Space.s2) {
-                                    ForEach(filteredCategories) { category in
-                                        SettingsSidebarRow(
-                                            category: category,
-                                            isSelected: selectedCategory == category
-                                        ) {
-                                            withAnimation(.easeInOut(duration: 0.15)) {
-                                                selectedCategory = category
-                                            }
-                                        }
+                                ForEach(filteredCategories) { category in
+                                    SettingsSidebarRow(
+                                        category: category,
+                                        isSelected: selectedCategory == category
+                                    ) {
+                                        selectedCategory = category
                                     }
                                 }
                             }
                         }
                     }
                 }
-                .padding(.horizontal, DS.Space.s12)
-                .padding(.bottom, DS.Space.s20)
+                .padding(.horizontal, DS.Space.s10)
+                .padding(.top, DS.Space.s6)
+                .padding(.bottom, DS.Space.s16)
             }
+            .scrollIndicators(.never)
         }
-        .background(theme.chromeColor(default: Color(NSColor.windowBackgroundColor).opacity(0.5)))
+        .background(theme.chromeColor(default: SettingsChrome.sidebarBackground, pureBlack: theme.background))
+        .overlay(alignment: .trailing) {
+            Rectangle().fill(Color.white.opacity(0.07)).frame(width: 1)
+        }
     }
 
     private func filterCategories(_ categories: [SettingsCategory]) -> [SettingsCategory] {
-        // "Catalogs" configures Plex library visibility, so it has nothing to show
-        // without a server. Plex itself stays, as the way to connect one.
-        var categories = categories
-        if appMode.isStremioOnly {
-            categories.removeAll { $0 == .catalog }
-        }
-
         if searchText.isEmpty {
             return categories
         }
         let term = searchText.lowercased()
         return categories.filter {
             $0.title.lowercased().contains(term) ||
-            $0.description.lowercased().contains(term)
+            $0.description.lowercased().contains(term) ||
+            $0.searchTerms.contains(term)
         }
     }
 
     // MARK: - Content Area
 
     private var contentArea: some View {
-        VStack(spacing: 0) {
-            ScrollView {
-                VStack(spacing: 0) {
-                    // Header (hide for About screen)
-                    if selectedCategory != .about {
-                        contentHeader
-                            .padding(.top, DS.Space.s32)
-                            .padding(.bottom, DS.Space.s24)
-                    }
-
-                    // Content
-                    VStack(alignment: .leading, spacing: DS.Space.s16) {
-                        categoryContent(for: selectedCategory)
-                    }
-                    .padding(.horizontal, DS.Space.s40)
-                    .padding(.top, selectedCategory == .about ? 32 : 0)
-                    .padding(.bottom, DS.Space.s40)
+        ScrollView {
+            VStack(alignment: .leading, spacing: DS.Space.s16) {
+                if selectedCategory != .about {
+                    contentHeader
+                        .padding(.bottom, DS.Space.s4)
                 }
+                categoryContent(for: selectedCategory)
             }
+            .padding(.horizontal, DS.Space.s28)
+            .padding(.top, DS.Space.s20)
+            .padding(.bottom, DS.Space.s32)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .id(selectedCategory)
         }
-        .background(theme.chromeColor(default: Color(NSColor.controlBackgroundColor).opacity(0.3)))
     }
 
     private var contentHeader: some View {
-        VStack(spacing: DS.Space.s12) {
-            // Icon - use custom service icon or SF Symbol
-            if selectedCategory.hasCustomIcon {
-                selectedCategory.headerIcon
-            } else {
-                ZStack {
-                    RoundedRectangle(cornerRadius: DS.Radius.r14, style: .continuous)
-                        .fill(selectedCategory.color.gradient)
-                        .frame(width: 64, height: 64)
-                    Image(systemName: selectedCategory.icon)
-                        .font(.flixor(.largeTitle, weight: .medium))
-                        .foregroundStyle(.white)
-                }
+        HStack(spacing: DS.Space.s12) {
+            selectedCategory.iconView(size: 34)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(selectedCategory.title)
+                    .font(.system(size: 19, weight: .bold))
+                Text(categoryDescription(for: selectedCategory))
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
             }
-
-            // Title
-            Text(selectedCategory.title)
-                .font(.system(size: 22, weight: .bold))
-
-            // Description
-            Text(categoryDescription(for: selectedCategory))
-                .font(.flixor(.callout))
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 400)
+            Spacer(minLength: 0)
         }
+        .padding(.trailing, showsCloseButton ? DS.Space.s32 : 0)
     }
 
     /// Plex is optional in Stremio-only mode, so say so rather than implying it's
@@ -452,38 +365,34 @@ struct SettingsView: View {
         switch category {
         case .plex:
             PlexServersView()
-        case .player:
-            PlayerSettingsView()
+        case .stremio:
+            StremioSettingsView()
         #if FLIXOR_LIVE_TV
         case .liveTV:
             LiveTVSettingsView()
         #endif
-        case .discoveryMode:
-            DiscoveryModeSettingsView()
-        case .catalog:
-            CatalogSettingsView()
-        case .rowsSettings:
-            RowsSettingsView()
-        case .sidebar:
-            SidebarSettingsView()
-        case .search:
-            SearchSettingsView()
-        case .appearance:
-            AppearanceSettingsView()
+        case .player:
+            PlayerSettingsView()
+        case .content:
+            ContentSettingsView()
         case .homeScreenAppearance:
             HomeScreenAppearanceView()
+        case .libraryScreen:
+            LibraryScreenSettingsView()
         case .detailsScreen:
             DetailsScreenSettingsView()
+        case .sidebar:
+            SidebarSettingsView()
         case .tmdb:
             TMDBSettingsView()
-        case .stremio:
-            StremioSettingsView()
         case .mdblist:
             MDBListSettingsView()
         case .overseerr:
             OverseerrSettingsView()
         case .trakt:
             TraktSettingsContent()
+        case .appearance:
+            AppearanceSettingsView()
         case .advanced:
             AdvancedSettingsContent()
         case .about:
@@ -495,46 +404,198 @@ struct SettingsView: View {
 // MARK: - Settings Sidebar Item
 
 private struct SettingsSidebarRow: View {
-    @Environment(\.flixorTheme) private var theme
     let category: SettingsCategory
     let isSelected: Bool
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: DS.Space.s12) {
-                // Use custom service icon or SF Symbol
-                if category.hasCustomIcon {
-                    category.sidebarIcon
-                } else {
-                    // SF Symbol with grey background
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 5, style: .continuous)
-                            .fill(Color.gray.opacity(0.3))
-                            .frame(width: 24, height: 24)
-                        Image(systemName: category.icon)
-                            .font(.flixorIcon(DS.Icon.xs, weight: .medium))
-                            .foregroundStyle(.white)
-                    }
-                }
-
+            HStack(spacing: DS.Space.s8) {
+                category.iconView(size: 20)
                 Text(category.title)
-                    .font(.flixor(.callout))
-                    .foregroundStyle(isSelected ? theme.onAccent : .primary)
-
-                Spacer()
+                    .font(.system(size: 13))
+                    .foregroundStyle(.primary)
+                Spacer(minLength: 0)
             }
-            .padding(.horizontal, DS.Space.s10)
-            .padding(.vertical, DS.Space.s8)
+            .padding(.horizontal, DS.Space.s8)
+            .frame(height: 28)
             .background(
-                isSelected
-                    ? theme.accent
-                    : Color.clear,
-                in: RoundedRectangle(cornerRadius: DS.Radius.r8, style: .continuous)
+                isSelected ? Color.white.opacity(0.12) : Color.clear,
+                in: RoundedRectangle(cornerRadius: 6, style: .continuous)
             )
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Shared Chrome
+
+enum SettingsChrome {
+    /// Tint for pickers, bordered buttons and other non-switch controls.
+    static let neutralTint = Color(white: 0.86)
+    static let sidebarBackground = Color.white.opacity(0.035)
+    static let destructive = Color(red: 1, green: 0.42, blue: 0.38)
+}
+
+/// A switch tinted with the accent colour. Applied to the whole Settings
+/// window, so plain `Toggle`s are switches too.
+struct SettingsSwitchToggleStyle: ToggleStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        SettingsSwitch(configuration: configuration)
+    }
+
+    private struct SettingsSwitch: View {
+        let configuration: ToggleStyleConfiguration
+        @Environment(\.flixorTheme) private var theme
+
+        var body: some View {
+            Toggle(configuration)
+                .toggleStyle(.switch)
+                .tint(theme.accent)
+        }
+    }
+}
+
+extension ToggleStyle where Self == SettingsSwitchToggleStyle {
+    static var settingsSwitch: SettingsSwitchToggleStyle { SettingsSwitchToggleStyle() }
+}
+
+/// The one main action on a page: a white button with black text.
+struct SettingsPrimaryButtonStyle: ButtonStyle {
+    var fullWidth = false
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(Color.black)
+            .padding(.horizontal, DS.Space.s16)
+            .frame(maxWidth: fullWidth ? .infinity : nil)
+            .frame(height: 28)
+            .background(Color.white.opacity(configuration.isPressed ? 0.8 : 1), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .opacity(isEnabled ? 1 : 0.4)
+            .contentShape(Rectangle())
+    }
+}
+
+/// Grey button; `destructive` gives it red text (Sign Out, Disconnect, Remove).
+struct SettingsSecondaryButtonStyle: ButtonStyle {
+    var destructive = false
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 12.5, weight: .medium))
+            .foregroundStyle(destructive ? SettingsChrome.destructive : Color.primary)
+            .padding(.horizontal, DS.Space.s10)
+            .frame(height: 24)
+            .background(Color.white.opacity(configuration.isPressed ? 0.2 : 0.12), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .opacity(isEnabled ? 1 : 0.4)
+            .contentShape(Rectangle())
+    }
+}
+
+extension ButtonStyle where Self == SettingsPrimaryButtonStyle {
+    static var settingsPrimary: SettingsPrimaryButtonStyle { SettingsPrimaryButtonStyle() }
+}
+
+extension ButtonStyle where Self == SettingsSecondaryButtonStyle {
+    static var settingsSecondary: SettingsSecondaryButtonStyle { SettingsSecondaryButtonStyle() }
+    static var settingsDestructive: SettingsSecondaryButtonStyle { SettingsSecondaryButtonStyle(destructive: true) }
+}
+
+enum SettingsStatus { case connected, notSetUp, warning, error }
+
+/// The first row of an integration page: where it stands, plus its action.
+struct SettingsStatusRow<Trailing: View>: View {
+    let state: SettingsStatus
+    let title: String
+    let subtitle: String?
+    @ViewBuilder let trailing: () -> Trailing
+
+    init(_ state: SettingsStatus, title: String, subtitle: String? = nil, @ViewBuilder trailing: @escaping () -> Trailing = { EmptyView() }) {
+        self.state = state
+        self.title = title
+        self.subtitle = subtitle
+        self.trailing = trailing
+    }
+
+    var body: some View {
+        HStack(spacing: DS.Space.s10) {
+            ZStack {
+                Circle().fill(badgeColor)
+                Image(systemName: badgeSymbol)
+                    .font(.system(size: 11, weight: .heavy))
+                    .foregroundStyle(state == .notSetUp ? Color.white.opacity(0.8) : .black)
+            }
+            .frame(width: 22, height: 22)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title).font(.system(size: 13, weight: .semibold))
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            Spacer(minLength: DS.Space.s8)
+            trailing()
+        }
+        .padding(.horizontal, DS.Space.s12)
+        .padding(.vertical, DS.Space.s10)
+    }
+
+    private var badgeColor: Color {
+        switch state {
+        case .connected: return Color(red: 0.19, green: 0.82, blue: 0.35)
+        case .notSetUp: return Color.white.opacity(0.18)
+        case .warning: return .orange
+        case .error: return SettingsChrome.destructive
+        }
+    }
+
+    private var badgeSymbol: String {
+        switch state {
+        case .connected: return "checkmark"
+        case .notSetUp: return "minus"
+        case .warning: return "exclamationmark"
+        case .error: return "xmark"
+        }
+    }
+}
+
+/// A text field with a visible box, for settings rows.
+struct SettingsTextFieldStyle: TextFieldStyle {
+    @Environment(\.flixorTheme) private var theme
+
+    func _body(configuration: TextField<Self._Label>) -> some View {
+        configuration
+            .textFieldStyle(.plain)
+            .font(.system(size: 12.5))
+            .padding(.horizontal, DS.Space.s8)
+            .frame(height: 26)
+            .background(theme.settingsFieldBackground, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(Color.white.opacity(0.16), lineWidth: 1))
+    }
+}
+
+extension TextFieldStyle where Self == SettingsTextFieldStyle {
+    static var settings: SettingsTextFieldStyle { SettingsTextFieldStyle() }
+}
+
+/// Footnote under a group.
+struct SettingsFootnote: View {
+    let text: LocalizedStringKey
+    init(_ text: LocalizedStringKey) { self.text = text }
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 11.5))
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, DS.Space.s10)
+            .padding(.top, -DS.Space.s8)
     }
 }
 
@@ -550,6 +611,7 @@ struct SettingsGroupCard<Content: View>: View {
         }
         .background(theme.settingsGroupBackground)
         .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r10, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: DS.Radius.r10, style: .continuous).strokeBorder(Color.white.opacity(0.05), lineWidth: 1))
     }
 }
 
@@ -560,10 +622,11 @@ struct SettingsSectionHeader: View {
 
     var body: some View {
         Text(title)
-            .textCase(.uppercase)
-            .font(.flixor(.caption, weight: .medium))
+            .font(.system(size: 11.5, weight: .semibold))
             .foregroundStyle(.secondary)
-            .padding(.leading, DS.Space.s4)
+            .padding(.leading, DS.Space.s10)
+            .padding(.top, DS.Space.s4)
+            .padding(.bottom, -DS.Space.s8)
     }
 }
 
@@ -608,35 +671,36 @@ struct SettingsRow<Trailing: View>: View {
                         Image(icon)
                             .resizable()
                             .scaledToFit()
-                            .frame(width: 28, height: 28)
-                            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r6, style: .continuous))
+                            .frame(width: 24, height: 24)
+                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                     } else {
                         // Use SF Symbol with colored background
                         ZStack {
-                            RoundedRectangle(cornerRadius: DS.Radius.r6, style: .continuous)
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
                                 .fill(iconColor.gradient)
-                                .frame(width: 28, height: 28)
+                                .frame(width: 24, height: 24)
                             Image(systemName: icon)
-                                .font(.flixorIcon(DS.Icon.sm, weight: .medium))
+                                .font(.system(size: 12, weight: .semibold))
                                 .foregroundStyle(.white)
                         }
                     }
                 }
 
-                VStack(alignment: .leading, spacing: DS.Space.s2) {
+                VStack(alignment: .leading, spacing: 1) {
                     Text(title)
-                        .font(.flixor(.callout))
+                        .font(.system(size: 13))
                     if let subtitle {
                         Text(subtitle)
-                            .font(.flixor(.caption))
+                            .font(.system(size: 11.5))
                             .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
 
-                Spacer()
+                Spacer(minLength: DS.Space.s8)
 
                 trailing()
-                    .toggleStyle(.switch)
+                    .toggleStyle(.settingsSwitch)
 
                 if showChevron {
                     Image(systemName: "chevron.right")
@@ -645,11 +709,15 @@ struct SettingsRow<Trailing: View>: View {
                 }
             }
             .padding(.horizontal, DS.Space.s12)
-            .padding(.vertical, DS.Space.s10)
+            .padding(.vertical, DS.Space.s8)
+            .frame(minHeight: 42)
 
             if showDivider {
-                Divider()
-                    .padding(.leading, icon != nil ? 52 : 12)
+                Rectangle()
+                    .fill(Color.white.opacity(0.08))
+                    .frame(height: 1)
+                    .padding(.leading, icon != nil ? 48 : 12)
+                    .padding(.trailing, DS.Space.s12)
             }
         }
     }
@@ -698,44 +766,48 @@ struct SettingsNavigationRow: View {
     }
 }
 
-// MARK: - Discovery Mode Settings View
+// MARK: - Content Settings View
 
-private struct DiscoveryModeSettingsView: View {
+/// Catalogs, Discovery Mode and Search used to be three pages; they all decide
+/// what Flixor shows you, so they live together.
+private struct ContentSettingsView: View {
     @ObservedObject private var settings = ProfileSettings.shared
+    @ObservedObject private var appMode = AppModeStore.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Space.s16) {
+            // Library visibility needs a Plex server.
+            if !appMode.isStremioOnly {
+                CatalogSettingsView()
+            }
+
+            SettingsSectionHeader(title: "Discovery")
             SettingsGroupCard {
                 SettingsRow(
                     icon: "eye.slash.fill",
-                    iconColor: Color(hex: "FF6B6B"),
-                    title: "Library Only Mode",
-                    subtitle: "Turn off all discovery features",
-                    showDivider: false
+                    iconColor: Color(hex: "E0405F"),
+                    title: "Library Only",
+                    subtitle: "Hide Trending, Trakt picks, Popular on Plex, New & Popular and TMDB results"
                 ) {
                     Toggle("", isOn: Binding(
                         get: { settings.discoveryDisabled },
-                        set: { newValue in
-                            settings.setDiscoveryDisabled(newValue)
-                        }
+                        set: { settings.setDiscoveryDisabled($0) }
                     ))
                     .labelsHidden()
                 }
-            }
-
-            Text("When enabled, this disables all external discovery features including trending rows, Trakt recommendations, Popular on Plex, New & Popular tab, and TMDB search results. Only content from your Plex library will be shown.")
-                .font(.flixor(.caption))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, DS.Space.s4)
-
-            if settings.discoveryDisabled {
-                HStack(spacing: DS.Space.s8) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
-                    Text("Library Only Mode is active")
-                        .font(.flixor(.footnote, weight: .medium))
+                SettingsRow(
+                    icon: "magnifyingglass",
+                    iconColor: Color(hex: "1E8E8E"),
+                    title: "TMDB Results in Search",
+                    subtitle: settings.discoveryDisabled
+                        ? "Off while Library Only is on"
+                        : "Movies and shows you don't own, plus suggestions before you type",
+                    showDivider: false
+                ) {
+                    Toggle("", isOn: $settings.includeTmdbInSearch)
+                        .labelsHidden()
+                        .disabled(settings.discoveryDisabled)
                 }
-                .padding(.horizontal, DS.Space.s4)
             }
         }
     }
@@ -775,35 +847,6 @@ private struct SidebarSettingsView: View {
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, DS.Space.s4)
             }
-        }
-    }
-}
-
-// MARK: - Search Settings View
-
-private struct SearchSettingsView: View {
-    @ObservedObject private var settings = ProfileSettings.shared
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: DS.Space.s16) {
-            SettingsGroupCard {
-                SettingsRow(
-                    icon: "film.fill",
-                    iconColor: .blue,
-                    title: "Include TMDB Results",
-                    subtitle: settings.discoveryDisabled ? "Disabled by Library Only Mode" : "Show TMDB movies and shows in search",
-                    showDivider: false
-                ) {
-                    Toggle("", isOn: $settings.includeTmdbInSearch)
-                        .labelsHidden()
-                        .disabled(settings.discoveryDisabled)
-                }
-            }
-
-            Text("When enabled, search results will include content from The Movie Database (TMDB) in addition to your Plex library. Recommendations will also be shown when not searching.")
-                .font(.flixor(.caption))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, DS.Space.s4)
         }
     }
 }
@@ -859,71 +902,33 @@ private struct TraktSettingsContent: View {
     private var traktColor: Color { Color(hex: "ED1C24") }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Space.s24) {
-        // Status
-        if let profile {
-            SettingsGroupCard {
-                HStack(spacing: DS.Space.s12) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.flixorIcon(DS.Icon.xl))
-                        .foregroundStyle(.green)
-                    VStack(alignment: .leading, spacing: DS.Space.s2) {
-                        Text("Connected")
-                            .font(.flixor(.callout, weight: .semibold))
-                        Text("Signed in as @\(profile.ids?.slug ?? profile.username ?? "user")")
-                            .font(.flixor(.caption))
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
+        VStack(alignment: .leading, spacing: DS.Space.s16) {
+        SettingsGroupCard {
+            if let profile {
+                SettingsStatusRow(.connected, title: String(localized: "Connected"),
+                                  subtitle: String(localized: "Signed in as @\(profile.ids?.slug ?? profile.username ?? "user")")) {
                     Button("Disconnect") {
                         Task { await disconnect() }
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
+                    .buttonStyle(.settingsDestructive)
                 }
-                .padding(DS.Space.s12)
-            }
-        } else {
-            SettingsGroupCard {
-                VStack(spacing: DS.Space.s12) {
-                    HStack(spacing: DS.Space.s12) {
-                        Image(systemName: "person.crop.circle.badge.questionmark")
-                            .font(.flixorIcon(DS.Icon.xl))
-                            .foregroundStyle(.secondary)
-                        VStack(alignment: .leading, spacing: DS.Space.s2) {
-                            Text("Not Connected")
-                                .font(.flixor(.callout, weight: .semibold))
-                            Text("Sign in to sync watch history")
-                                .font(.flixor(.caption))
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                    }
-                    .padding(.horizontal, DS.Space.s12)
-                    .padding(.top, DS.Space.s12)
-
-                    if let deviceCode {
-                        Divider()
-                        deviceCodeView(deviceCode)
-                    } else {
+            } else {
+                SettingsStatusRow(.notSetUp, title: String(localized: "Not connected"),
+                                  subtitle: String(localized: "Sign in to sync your watch history")) {
+                    if deviceCode == nil {
                         Button(action: { Task { await startDeviceCodeFlow() } }) {
-                            HStack {
-                                if isRequestingCode {
-                                    ProgressView()
-                                        .scaleEffect(0.6)
-                                        .frame(width: 14, height: 14)
-                                }
-                                Text(isRequestingCode ? "Requesting..." : "Sign in with Trakt")
+                            HStack(spacing: DS.Space.s6) {
+                                if isRequestingCode { ProgressView().controlSize(.small) }
+                                Text(isRequestingCode ? "Requesting…" : "Sign in with Trakt")
                             }
-                            .frame(maxWidth: .infinity)
                         }
-                        .buttonStyle(.borderedProminent)
-                        .tint(traktColor)
-                        .controlSize(.large)
+                        .buttonStyle(.settingsPrimary)
                         .disabled(isRequestingCode)
-                        .padding(.horizontal, DS.Space.s12)
-                        .padding(.bottom, DS.Space.s12)
                     }
+                }
+                if let deviceCode {
+                    Rectangle().fill(Color.white.opacity(0.08)).frame(height: 1).padding(.horizontal, DS.Space.s12)
+                    deviceCodeView(deviceCode)
                 }
             }
         }
@@ -941,16 +946,16 @@ private struct TraktSettingsContent: View {
         if let errorMessage {
             HStack(spacing: DS.Space.s8) {
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.red)
+                    .foregroundStyle(SettingsChrome.destructive)
                 Text(errorMessage)
                     .font(.flixor(.caption))
-                    .foregroundStyle(.red)
+                    .foregroundStyle(SettingsChrome.destructive)
             }
         }
 
-        // Sync Settings
+        SettingsSectionHeader(title: "Sync")
         SettingsGroupCard {
-            SettingsRow(icon: "arrow.triangle.2.circlepath", iconColor: .blue, title: "Auto-sync watched") {
+            SettingsRow(icon: "arrow.triangle.2.circlepath", iconColor: .blue, title: "Auto-sync watched", subtitle: "Mark items watched on Trakt when you finish them") {
                 Toggle("", isOn: $profileSettings.traktAutoSyncWatched).labelsHidden()
             }
             SettingsRow(icon: "star.fill", iconColor: .yellow, title: "Sync ratings") {
@@ -959,15 +964,11 @@ private struct TraktSettingsContent: View {
             SettingsRow(icon: "bookmark.fill", iconColor: .purple, title: "Sync watchlist") {
                 Toggle("", isOn: $profileSettings.traktSyncWatchlist).labelsHidden()
             }
-            SettingsRow(icon: "play.circle.fill", iconColor: traktColor, title: "Enable scrobbling", showDivider: false) {
+            SettingsRow(icon: "play.circle.fill", iconColor: traktColor, title: "Scrobbling", subtitle: "Report what you're watching in real time", showDivider: false) {
                 Toggle("", isOn: $profileSettings.traktScrobbleEnabled).labelsHidden()
             }
         }
 
-        Text("Scrobbling reports your watching activity to Trakt in real-time.")
-            .font(.flixor(.caption))
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, DS.Space.s4)
         }
         .onAppear {
             Task { await refreshProfile() }
@@ -993,17 +994,14 @@ private struct TraktSettingsContent: View {
                         pb.setString(code.user_code, forType: .string)
                         statusMessage = String(localized: "Code copied!")
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
+                    .buttonStyle(.settingsSecondary)
 
                     Button("Open Trakt") {
                         if let url = URL(string: code.verification_url) {
                             NSWorkspace.shared.open(url)
                         }
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(traktColor)
-                    .controlSize(.small)
+                    .buttonStyle(.settingsPrimary)
                 }
             }
 
@@ -1125,7 +1123,7 @@ private struct AdvancedSettingsContent: View {
     @State private var showLogsSheet = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Space.s24) {
+        VStack(alignment: .leading, spacing: DS.Space.s16) {
             // Debug Logging Toggle
             SettingsGroupCard {
                 SettingsRow(
@@ -1143,18 +1141,16 @@ private struct AdvancedSettingsContent: View {
                 }
             }
 
-            Text("When enabled, the app captures detailed logs that can help diagnose issues. Logs are stored in memory and cleared when the app restarts.")
-                .font(.flixor(.caption))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, DS.Space.s4)
+            SettingsFootnote("Detailed logs help diagnose problems. They stay in memory and are cleared when Flixor quits.")
 
-            // View Logs
             SettingsGroupCard {
                 SettingsNavigationRow(
                     icon: "doc.text.fill",
                     iconColor: .blue,
                     title: "View Logs",
-                    subtitle: "\(logger.logCount) entries",
+                    subtitle: logger.logCount == 0 && !logger.debugEnabled
+                        ? "Turn on debug logging to collect logs"
+                        : "\(logger.logCount) entries",
                     showDivider: false
                 ) {
                     showLogsSheet = true
@@ -1198,94 +1194,86 @@ private struct LogsSheetView: View {
 // MARK: - About Content
 
 private struct AboutSettingsContent: View {
+    @State private var showAcknowledgements = false
+
     var body: some View {
-        SettingsGroupCard {
-            VStack(spacing: DS.Space.s20) {
-                // App Icon from assets
-                Image(nsImage: NSApp.applicationIconImage)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 80, height: 80)
-                    .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r18, style: .continuous))
-
-                VStack(spacing: DS.Space.s4) {
-                    Text("Flixor")
-                        .font(.flixor(.title2, weight: .bold))
-                    Text("Version \(Bundle.main.appVersion)")
-                        .font(.flixor(.footnote))
-                        .foregroundStyle(.secondary)
-                }
-
-                Text("A native macOS client for Plex and Stremio addons")
-                    .font(.flixor(.callout))
+        HStack(spacing: DS.Space.s12) {
+            Image(nsImage: NSApp.applicationIconImage)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 52, height: 52)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Flixor")
+                    .font(.system(size: 19, weight: .bold))
+                Text("Version \(Bundle.main.appVersion) · A native macOS client for Plex and Stremio")
+                    .font(.system(size: 12.5))
                     .foregroundStyle(.secondary)
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, DS.Space.s24)
         }
+        .padding(.bottom, DS.Space.s4)
 
         SettingsGroupCard {
-            SettingsNavigationRow(
-                icon: "globe",
-                iconColor: .gray,
-                title: "Website",
-                subtitle: "flixor.xyz"
-            ) {
-                if let url = URL(string: "https://flixor.xyz") {
-                    NSWorkspace.shared.open(url)
-                }
+            SettingsNavigationRow(icon: "globe", iconColor: .gray, title: "Website", subtitle: "flixor.xyz") {
+                open("https://flixor.xyz")
             }
-            SettingsNavigationRow(
-                icon: "star.fill",
-                iconColor: .gray,
-                title: "Star on Github",
-                subtitle: "github.com/Flixorui/flixor"
-            ) {
-                if let url = URL(string: "https://github.com/Flixorui/flixor") {
-                    NSWorkspace.shared.open(url)
-                }
+            SettingsNavigationRow(icon: "star.fill", iconColor: .gray, title: "Star on GitHub", subtitle: "github.com/Flixorui/flixor") {
+                open("https://github.com/Flixorui/flixor")
             }
-            SettingsNavigationRow(
-                icon: "exclamationmark.bubble.fill",
-                iconColor: .gray,
-                title: "Report Issue"
-            ) {
-                if let url = URL(string: "https://github.com/Flixorui/flixor/issues/new") {
-                    NSWorkspace.shared.open(url)
-                }
+            SettingsNavigationRow(icon: "exclamationmark.bubble.fill", iconColor: .gray, title: "Report an Issue") {
+                open("https://github.com/Flixorui/flixor/issues/new")
             }
-            SettingsNavigationRow(
-                icon: "bubble.left.and.bubble.right.fill",
-                iconColor: .gray,
-                title: "Reddit",
-                subtitle: "r/Flixor",
-                showDivider: false
-            ) {
-                if let url = URL(string: "https://www.reddit.com/r/Flixor/") {
-                    NSWorkspace.shared.open(url)
-                }
+            SettingsNavigationRow(icon: "bubble.left.and.bubble.right.fill", iconColor: .gray, title: "Reddit", subtitle: "r/Flixor", showDivider: false) {
+                open("https://www.reddit.com/r/Flixor/")
             }
         }
 
         SettingsGroupCard {
-            SettingsNavigationRow(
-                icon: "doc.text.fill",
-                iconColor: .gray,
-                title: "Privacy Policy"
-            ) {}
-            SettingsNavigationRow(
-                icon: "doc.text.fill",
-                iconColor: .gray,
-                title: "Terms of Service",
-                showDivider: false
-            ) {}
+            SettingsNavigationRow(title: "Acknowledgements", subtitle: "Phosphor Icons, Heroicons") {
+                showAcknowledgements = true
+            }
+            SettingsNavigationRow(title: "Privacy Policy") {}
+            SettingsNavigationRow(title: "Terms of Service", showDivider: false) {}
         }
+        .sheet(isPresented: $showAcknowledgements) {
+            AcknowledgementsSheet(isPresented: $showAcknowledgements)
+        }
+    }
 
-        Text("Made with love for Plex enthusiasts")
-            .font(.flixor(.caption))
-            .foregroundStyle(.tertiary)
-            .frame(maxWidth: .infinity)
-            .padding(.top, DS.Space.s8)
+    private func open(_ address: String) {
+        if let url = URL(string: address) { NSWorkspace.shared.open(url) }
+    }
+}
+
+private struct AcknowledgementsSheet: View {
+    @Binding var isPresented: Bool
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Acknowledgements")
+                    .font(.system(size: 15, weight: .semibold))
+                Spacer()
+                Button("Done") { isPresented = false }
+                    .keyboardShortcut(.defaultAction)
+            }
+            .padding(DS.Space.s16)
+            Divider()
+            ScrollView {
+                VStack(alignment: .leading, spacing: DS.Space.s12) {
+                    Text("Navigation icons: Phosphor Icons (MIT License, © 2023 Phosphor Icons) and Heroicons (MIT License, © Tailwind Labs, Inc.).")
+                        .font(.system(size: 12.5))
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(ThirdPartyNotices.iconLicenses)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(DS.Space.s16)
+            }
+        }
+        .frame(width: 600, height: 520)
+        .pureBlackSheetBackground()
     }
 }
 
@@ -1304,10 +1292,9 @@ struct SettingsCard<Content: View>: View {
         VStack(alignment: .leading, spacing: DS.Space.s8) {
             if let title {
                 Text(title)
-                    .textCase(.uppercase)
-                    .font(.flixor(.caption, weight: .medium))
+                    .font(.system(size: 11.5, weight: .semibold))
                     .foregroundStyle(.secondary)
-                    .padding(.leading, DS.Space.s4)
+                    .padding(.leading, DS.Space.s10)
             }
             SettingsGroupCard {
                 content()
@@ -1404,3 +1391,58 @@ struct SettingsView_Previews: PreviewProvider {
     static var previews: some View { SettingsView() }
 }
 #endif
+
+// MARK: - Third-party notices
+
+enum ThirdPartyNotices {
+    /// Full licence texts for the navigation icons in Assets.xcassets/NavIcons.
+    static let iconLicenses = """
+    Phosphor Icons (https://phosphoricons.com)
+
+    MIT License
+
+    Copyright (c) 2023 Phosphor Icons
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.
+
+    Heroicons (https://heroicons.com)
+
+    MIT License
+
+    Copyright (c) Tailwind Labs, Inc.
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.
+    """
+}

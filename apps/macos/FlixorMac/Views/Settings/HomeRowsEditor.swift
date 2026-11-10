@@ -22,13 +22,14 @@ struct HomeRowsEditor: View {
 
         VStack(alignment: .leading, spacing: DS.Space.itemGap) {
             HStack {
-                SettingsSectionHeader(title: "Home Rows")
+                SettingsSectionHeader(title: "Rows")
                 Spacer()
-                Button("Reset to Default Order") {
+                Button("Reset Order") {
                     withAnimation(DS.Motion.standard) { store.resetOrder() }
                 }
                 .buttonStyle(.link)
-                .font(.flixor(.caption))
+                .font(.system(size: 11.5, weight: .medium))
+                .padding(.bottom, -DS.Space.s8)
                 .disabled(!store.hasCustomOrder)
                 .accessibilityLabel(Text("Reset home rows to default order"))
             }
@@ -61,10 +62,7 @@ struct HomeRowsEditor: View {
                 }
             }
 
-            Text("Drag to reorder. Rows you turn off stay here so you can bring them back. New rows appear next to where they would normally be.")
-                .flixorFont(.caption)
-                .foregroundStyle(theme.textSecondary)
-                .padding(.horizontal, DS.Space.s4)
+            SettingsFootnote("Drag to reorder. Rows you turn off stay here so you can bring them back.")
         }
     }
 }
@@ -144,7 +142,7 @@ private struct HomeRowEditorRow: View {
 
             Toggle("", isOn: isVisible)
                 .labelsHidden()
-                .toggleStyle(.switch)
+                .toggleStyle(.settingsSwitch)
                 .controlSize(.mini)
                 .accessibilityLabel(Text("Show \(title) on Home"))
         }

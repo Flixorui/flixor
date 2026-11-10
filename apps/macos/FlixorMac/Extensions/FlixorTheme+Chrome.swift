@@ -18,12 +18,12 @@ extension FlixorTheme {
 
     /// Settings window and settings sheets.
     var settingsWindowBackground: Color {
-        chromeColor(default: Color(NSColor.windowBackgroundColor))
+        chromeColor(default: Color(white: 0.118))
     }
 
-    /// Grouped cards and chips in settings.
+    /// Grouped cards and chips in settings: a lighter fill so a group reads as one block.
     var settingsGroupBackground: Color {
-        chromeColor(default: Color(NSColor.controlBackgroundColor), pureBlack: surface)
+        chromeColor(default: Color.white.opacity(0.055), pureBlack: surface)
     }
 
     /// Text fields in settings, which sit on top of a group card.

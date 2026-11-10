@@ -382,7 +382,7 @@ struct MainView: View {
         .environmentObject(router)
         .environmentObject(mainViewState)
         .sheet(isPresented: $showingSettings) {
-            SettingsView()
+            SettingsView(showsCloseButton: true)
         }
         .sheet(isPresented: $showingProfileSelect) {
             ProfileSelectView {

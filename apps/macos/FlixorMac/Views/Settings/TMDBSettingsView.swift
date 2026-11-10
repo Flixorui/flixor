@@ -15,29 +15,18 @@ struct TMDBSettingsView: View {
     private let tmdbColor = Color(hex: "01B4E4")
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Space.s24) {
-            // API Key
-            SettingsSectionHeader(title: "API Configuration")
+        VStack(alignment: .leading, spacing: DS.Space.s16) {
+            SettingsSectionHeader(title: "API Key")
             SettingsGroupCard {
-                VStack(alignment: .leading, spacing: DS.Space.s12) {
-                    Text("Custom API Key")
-                        .font(.flixor(.callout, weight: .medium))
-                        .padding(.horizontal, DS.Space.s12)
-                        .padding(.top, DS.Space.s12)
-
-                    TextField("Enter your TMDB API key (optional)", text: Binding(get: { defaults.tmdbApiKey }, set: { defaults.tmdbApiKey = $0 }))
-                        .textFieldStyle(.plain)
-                        .padding(DS.Space.s10)
-                        .background(theme.settingsFieldBackground)
-                        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r8, style: .continuous))
-                        .padding(.horizontal, DS.Space.s12)
-
-                    Text("Leave empty to use the default app key")
-                        .font(.flixor(.caption))
+                VStack(alignment: .leading, spacing: DS.Space.s6) {
+                    TextField("Optional: your own TMDB API key", text: Binding(get: { defaults.tmdbApiKey }, set: { defaults.tmdbApiKey = $0 }))
+                        .textFieldStyle(.settings)
+                    Text("Leave empty to use Flixor's key.")
+                        .font(.system(size: 11.5))
                         .foregroundStyle(.secondary)
-                        .padding(.horizontal, DS.Space.s12)
-                        .padding(.bottom, DS.Space.s12)
                 }
+                .padding(.horizontal, DS.Space.s12)
+                .padding(.vertical, DS.Space.s10)
             }
 
             // Language
@@ -67,11 +56,6 @@ struct TMDBSettingsView: View {
                 }
             }
 
-            // Info
-            Text("TMDB provides movie and TV show metadata, artwork, cast information, and logos.")
-                .font(.flixor(.caption))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, DS.Space.s4)
         }
     }
 }

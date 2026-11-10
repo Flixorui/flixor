@@ -67,8 +67,7 @@ struct CatalogSettingsView: View {
                     Button("Retry") {
                         Task { await loadLibraries() }
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.regular)
+                    .buttonStyle(.settingsSecondary)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(DS.Space.s24)
@@ -96,45 +95,14 @@ struct CatalogSettingsView: View {
     }
 
     private var librariesSection: some View {
-        VStack(alignment: .leading, spacing: DS.Space.s24) {
-            // Movies
-            let movieLibraries = libraries.filter { $0.type.lowercased() == "movie" }
-            if !movieLibraries.isEmpty {
-                SettingsSectionHeader(title: "Movie Libraries")
-                SettingsGroupCard {
-                    ForEach(Array(movieLibraries.enumerated()), id: \.element.key) { index, library in
-                        libraryRow(library, showDivider: index < movieLibraries.count - 1)
-                    }
+        VStack(alignment: .leading, spacing: DS.Space.s16) {
+            SettingsSectionHeader(title: "Plex Libraries")
+            SettingsGroupCard {
+                ForEach(Array(libraries.enumerated()), id: \.element.key) { index, library in
+                    libraryRow(library, showDivider: index < libraries.count - 1)
                 }
             }
-
-            // TV Shows
-            let showLibraries = libraries.filter { $0.type.lowercased() == "show" }
-            if !showLibraries.isEmpty {
-                SettingsSectionHeader(title: "TV Show Libraries")
-                SettingsGroupCard {
-                    ForEach(Array(showLibraries.enumerated()), id: \.element.key) { index, library in
-                        libraryRow(library, showDivider: index < showLibraries.count - 1)
-                    }
-                }
-            }
-
-            // Other
-            let otherLibraries = libraries.filter { !["movie", "show"].contains($0.type.lowercased()) }
-            if !otherLibraries.isEmpty {
-                SettingsSectionHeader(title: "Other Libraries")
-                SettingsGroupCard {
-                    ForEach(Array(otherLibraries.enumerated()), id: \.element.key) { index, library in
-                        libraryRow(library, showDivider: index < otherLibraries.count - 1)
-                    }
-                }
-            }
-
-            // Info
-            Text("Disabled libraries will be hidden from the sidebar and home screen.")
-                .font(.flixor(.caption))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, DS.Space.s4)
+            SettingsFootnote("Hidden libraries leave the Library tabs and Home.")
         }
     }
 
@@ -145,7 +113,6 @@ struct CatalogSettingsView: View {
             icon: libraryIcon(for: library.type),
             iconColor: libraryColor(for: library.type),
             title: .verbatim(library.title ?? String(localized: "Unknown Library")),
-            subtitle: .verbatim(library.type.capitalized),
             showDivider: showDivider
         ) {
             Toggle("", isOn: Binding(

@@ -12,39 +12,44 @@ struct MDBListSettingsView: View {
     @Environment(\.flixorTheme) private var theme
     @ObservedObject private var profileSettings = ProfileSettings.shared
 
-    private let mdblistColor = Color(hex: "F5C518")
+    @State private var showHowTo = false
 
-    private var isReady: Bool {
-        profileSettings.mdblistEnabled && !profileSettings.mdblistApiKey.isEmpty
+    private var hasKey: Bool { !profileSettings.mdblistApiKey.trimmingCharacters(in: .whitespaces).isEmpty }
+    private var isReady: Bool { profileSettings.mdblistEnabled && hasKey }
+
+    private var status: (SettingsStatus, String, String) {
+        if isReady { return (.connected, String(localized: "On"), String(localized: "Extra ratings show on details pages")) }
+        if hasKey { return (.notSetUp, String(localized: "Off"), String(localized: "Turn on ratings below")) }
+        if profileSettings.mdblistEnabled { return (.warning, String(localized: "API key needed"), String(localized: "Add a key to show ratings")) }
+        return (.notSetUp, String(localized: "Not set up"), String(localized: "Add an API key to show more ratings on details pages"))
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Space.s24) {
-            // Status
-            SettingsSectionHeader(title: "Status")
+        VStack(alignment: .leading, spacing: DS.Space.s16) {
             SettingsGroupCard {
-                HStack(spacing: DS.Space.s12) {
-                    Image(systemName: isReady ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
-                        .font(.flixorIcon(DS.Icon.lg))
-                        .foregroundStyle(isReady ? .green : .orange)
-                    VStack(alignment: .leading, spacing: DS.Space.s2) {
-                        Text(isReady ? "Active" : (profileSettings.mdblistEnabled ? "API Key Required" : "Disabled"))
-                            .font(.flixor(.callout, weight: .semibold))
-                        Text(isReady ? "Fetching ratings from multiple sources" : "Enable and add API key to activate")
-                            .font(.flixor(.caption))
-                            .foregroundStyle(.secondary)
+                SettingsStatusRow(status.0, title: status.1, subtitle: status.2)
+                divider
+                VStack(alignment: .leading, spacing: DS.Space.s6) {
+                    Text("API Key").font(.system(size: 13))
+                    SecureField("Paste your MDBList API key", text: $profileSettings.mdblistApiKey)
+                        .textFieldStyle(.settings)
+                    HStack(spacing: DS.Space.s4) {
+                        Text("Free at").foregroundStyle(.secondary)
+                        Link("mdblist.com ↗", destination: URL(string: "https://mdblist.com/preferences/")!)
                     }
-                    Spacer()
+                    .font(.system(size: 11.5))
                 }
-                .padding(DS.Space.s12)
-            }
-
-            // Enable
-            SettingsSectionHeader(title: "Integration")
-            SettingsGroupCard {
-                SettingsRow(icon: "star.fill", iconColor: mdblistColor, title: "Enable MDBList", subtitle: "Fetch ratings from multiple sources", showDivider: false) {
+                .padding(.horizontal, DS.Space.s12)
+                .padding(.vertical, DS.Space.s10)
+                divider
+                SettingsRow(
+                    title: "Show MDBList Ratings",
+                    subtitle: hasKey ? nil : "Add a key first",
+                    showDivider: false
+                ) {
                     Toggle("", isOn: $profileSettings.mdblistEnabled)
                         .labelsHidden()
+                        .disabled(!hasKey && !profileSettings.mdblistEnabled)
                         .onChange(of: profileSettings.mdblistEnabled) { newValue in
                             if !newValue {
                                 Task { @MainActor in
@@ -55,79 +60,37 @@ struct MDBListSettingsView: View {
                 }
             }
 
-            // API Key
-            SettingsSectionHeader(title: "API Configuration")
-            SettingsGroupCard {
-                VStack(alignment: .leading, spacing: DS.Space.s12) {
-                    Text("API Key")
-                        .font(.flixor(.callout, weight: .medium))
-                        .padding(.horizontal, DS.Space.s12)
-                        .padding(.top, DS.Space.s12)
-
-                    SecureField("Enter your MDBList API key", text: $profileSettings.mdblistApiKey)
-                        .textFieldStyle(.plain)
-                        .padding(DS.Space.s10)
-                        .background(theme.settingsFieldBackground)
-                        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r8, style: .continuous))
-                        .padding(.horizontal, DS.Space.s12)
-                        .disabled(!profileSettings.mdblistEnabled)
-                        .opacity(profileSettings.mdblistEnabled ? 1 : 0.5)
-
-                    Text("Get your free API key from mdblist.com")
-                        .font(.flixor(.caption))
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, DS.Space.s12)
-                        .padding(.bottom, DS.Space.s12)
-                }
-            }
-
-            // Rating Providers
-            SettingsSectionHeader(title: "Available Ratings")
-            SettingsGroupCard {
-                VStack(alignment: .leading, spacing: DS.Space.s12) {
-                    LazyVGrid(columns: [
-                        GridItem(.flexible()),
-                        GridItem(.flexible()),
-                        GridItem(.flexible())
-                    ], spacing: 8) {
-                        RatingProviderBadge(name: "IMDb", color: Color(hex: "F5C518"))
-                        RatingProviderBadge(name: "TMDB", color: Color(hex: "01B4E4"))
-                        RatingProviderBadge(name: "Trakt", color: Color(hex: "ED1C24"))
-                        RatingProviderBadge(name: "Letterboxd", color: Color(hex: "00E054"))
-                        RatingProviderBadge(name: "RT Critics", color: Color(hex: "FA320A"))
-                        RatingProviderBadge(name: "Metacritic", color: Color(hex: "FFCC33"))
-                    }
-                    .padding(DS.Space.s12)
-                }
-            }
-
-            // Instructions
-            SettingsSectionHeader(title: "Setup Instructions")
-            SettingsGroupCard {
-                VStack(alignment: .leading, spacing: DS.Space.s12) {
+            DisclosureGroup(isExpanded: $showHowTo) {
+                VStack(alignment: .leading, spacing: DS.Space.s8) {
                     InstructionRow(number: 1, text: "Create a free account at mdblist.com")
-                    InstructionRow(number: 2, text: "Go to Settings → API")
-                    InstructionRow(number: 3, text: "Copy your API key and paste above")
-
-                    Divider()
-
-                    Button(action: {
-                        if let url = URL(string: "https://mdblist.com/preferences/") {
-                            NSWorkspace.shared.open(url)
-                        }
-                    }) {
-                        HStack(spacing: DS.Space.s6) {
-                            Text("Open MDBList")
-                            Image(systemName: "arrow.up.right")
-                                .font(.flixor(.micro))
-                        }
-                        .font(.flixor(.callout))
-                    }
-                    .buttonStyle(.link)
+                    InstructionRow(number: 2, text: "Open Preferences and find the API section")
+                    InstructionRow(number: 3, text: "Copy your API key and paste it above")
                 }
-                .padding(DS.Space.s12)
+                .padding(.top, DS.Space.s8)
+            } label: {
+                Text("How to get a key").font(.system(size: 12.5))
+            }
+            .padding(.horizontal, DS.Space.s10)
+
+            SettingsSectionHeader(title: "Ratings Shown")
+            SettingsGroupCard {
+                HStack(spacing: DS.Space.s12) {
+                    RatingProviderBadge(name: "IMDb", color: Color(hex: "F5C518"))
+                    RatingProviderBadge(name: "TMDB", color: Color(hex: "01B4E4"))
+                    RatingProviderBadge(name: "Trakt", color: Color(hex: "ED1C24"))
+                    RatingProviderBadge(name: "Letterboxd", color: Color(hex: "00E054"))
+                    RatingProviderBadge(name: "RT Critics", color: Color(hex: "FA320A"))
+                    RatingProviderBadge(name: "Metacritic", color: Color(hex: "FFCC33"))
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, DS.Space.s12)
+                .padding(.vertical, DS.Space.s12)
             }
         }
+    }
+
+    private var divider: some View {
+        Rectangle().fill(Color.white.opacity(0.08)).frame(height: 1).padding(.horizontal, DS.Space.s12)
     }
 }
 
@@ -139,18 +102,14 @@ private struct RatingProviderBadge: View {
     let color: Color
 
     var body: some View {
-        HStack(spacing: DS.Space.s6) {
+        HStack(spacing: DS.Space.s4) {
             Circle()
                 .fill(color)
-                .frame(width: 8, height: 8)
+                .frame(width: 6, height: 6)
             Text(name)
-                .font(.flixor(.caption, weight: .medium))
+                .font(.system(size: 11.5))
+                .foregroundStyle(.secondary)
         }
-        .padding(.horizontal, DS.Space.s10)
-        .padding(.vertical, DS.Space.s6)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(theme.chromeColor(default: Color(NSColor.controlBackgroundColor).opacity(0.5), pureBlack: theme.surface))
-        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r6, style: .continuous))
     }
 }
 
@@ -164,13 +123,11 @@ private struct InstructionRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: DS.Space.s10) {
             Text("\(number)")
-                .font(.flixor(.caption, weight: .bold))
-                .foregroundStyle(theme.onAccent)
-                .frame(width: 20, height: 20)
-                .background(theme.accent)
-                .clipShape(Circle())
+                .font(.system(size: 11, weight: .bold))
+                .frame(width: 18, height: 18)
+                .background(Color.white.opacity(0.14), in: Circle())
             Text(text)
-                .font(.flixor(.footnote))
+                .font(.system(size: 12.5))
                 .foregroundStyle(.secondary)
         }
     }

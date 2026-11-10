@@ -15,40 +15,18 @@ struct DetailsScreenSettingsView: View {
     @State private var showSuggestedPreview: Bool = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Space.s24) {
+        VStack(alignment: .leading, spacing: DS.Space.s16) {
             // Screen Layout
             SettingsSectionHeader(title: "Screen Layout")
             SettingsGroupCard {
-                VStack(alignment: .leading, spacing: DS.Space.s12) {
-                    Text("Details Page Style")
-                        .font(.flixor(.callout, weight: .medium))
-                        .padding(.horizontal, DS.Space.s12)
-                        .padding(.top, DS.Space.s12)
-
-                    Text("Choose between tabbed navigation or a unified scrollable page. Tabs follow the section order below.")
-                        .font(.flixor(.caption))
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, DS.Space.s12)
-
-                    HStack(spacing: DS.Space.s12) {
-                        LayoutOptionButton(
-                            title: "Tabbed",
-                            icon: "rectangle.split.3x1",
-                            isSelected: profileSettings.detailsScreenLayout == "tabbed"
-                        ) {
-                            profileSettings.detailsScreenLayout = "tabbed"
-                        }
-
-                        LayoutOptionButton(
-                            title: "Unified",
-                            icon: "rectangle.portrait",
-                            isSelected: profileSettings.detailsScreenLayout == "unified"
-                        ) {
-                            profileSettings.detailsScreenLayout = "unified"
-                        }
+                SettingsRow(title: "Page Style", subtitle: "Tabs follow the section order below", showDivider: false) {
+                    Picker("", selection: $profileSettings.detailsScreenLayout) {
+                        Text("Tabbed").tag("tabbed")
+                        Text("Unified").tag("unified")
                     }
-                    .padding(.horizontal, DS.Space.s12)
-                    .padding(.bottom, DS.Space.s12)
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .fixedSize()
                 }
             }
 
@@ -61,36 +39,14 @@ struct DetailsScreenSettingsView: View {
             // Episode Layout
             SettingsSectionHeader(title: "Episode Display")
             SettingsGroupCard {
-                VStack(alignment: .leading, spacing: DS.Space.s12) {
-                    Text("Layout Style")
-                        .font(.flixor(.callout, weight: .medium))
-                        .padding(.horizontal, DS.Space.s12)
-                        .padding(.top, DS.Space.s12)
-
-                    Text("How episodes appear on TV show details")
-                        .font(.flixor(.caption))
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, DS.Space.s12)
-
-                    HStack(spacing: DS.Space.s12) {
-                        LayoutOptionButton(
-                            title: "Horizontal",
-                            icon: "rectangle.split.3x1.fill",
-                            isSelected: profileSettings.episodeLayout == "horizontal"
-                        ) {
-                            profileSettings.episodeLayout = "horizontal"
-                        }
-
-                        LayoutOptionButton(
-                            title: "Vertical",
-                            icon: "list.bullet",
-                            isSelected: profileSettings.episodeLayout == "vertical"
-                        ) {
-                            profileSettings.episodeLayout = "vertical"
-                        }
+                SettingsRow(title: "Episode Layout", subtitle: "How episodes appear on TV show pages", showDivider: false) {
+                    Picker("", selection: $profileSettings.episodeLayout) {
+                        Text("Horizontal").tag("horizontal")
+                        Text("Vertical").tag("vertical")
                     }
-                    .padding(.horizontal, DS.Space.s12)
-                    .padding(.bottom, DS.Space.s12)
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .fixedSize()
                 }
             }
 
@@ -145,36 +101,14 @@ struct DetailsScreenSettingsView: View {
             // Suggested Rows Layout
             SettingsSectionHeader(title: "Suggested Rows")
             SettingsGroupCard {
-                VStack(alignment: .leading, spacing: DS.Space.s12) {
-                    Text("Layout Style")
-                        .font(.flixor(.callout, weight: .medium))
-                        .padding(.horizontal, DS.Space.s12)
-                        .padding(.top, DS.Space.s12)
-
-                    Text("How Related and Similar content appears")
-                        .font(.flixor(.caption))
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, DS.Space.s12)
-
-                    HStack(spacing: DS.Space.s12) {
-                        LayoutOptionButton(
-                            title: "Landscape",
-                            icon: "rectangle.fill",
-                            isSelected: profileSettings.suggestedLayout == "landscape"
-                        ) {
-                            profileSettings.suggestedLayout = "landscape"
-                        }
-
-                        LayoutOptionButton(
-                            title: "Poster",
-                            icon: "rectangle.portrait.fill",
-                            isSelected: profileSettings.suggestedLayout == "poster"
-                        ) {
-                            profileSettings.suggestedLayout = "poster"
-                        }
+                SettingsRow(title: "Card Shape", subtitle: "Related and similar titles", showDivider: false) {
+                    Picker("", selection: $profileSettings.suggestedLayout) {
+                        Text("Landscape").tag("landscape")
+                        Text("Poster").tag("poster")
                     }
-                    .padding(.horizontal, DS.Space.s12)
-                    .padding(.bottom, DS.Space.s12)
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .fixedSize()
                 }
             }
 

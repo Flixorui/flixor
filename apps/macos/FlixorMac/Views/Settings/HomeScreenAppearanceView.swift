@@ -14,53 +14,30 @@ struct HomeScreenAppearanceView: View {
     @State private var showContinueWatchingPreview: Bool = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Space.s24) {
-            // Hero Section
-            SettingsSectionHeader(title: "Hero Section")
+        VStack(alignment: .leading, spacing: DS.Space.s16) {
+            // Hero
+            SettingsSectionHeader(title: "Hero")
             SettingsGroupCard {
-                SettingsRow(icon: "rectangle.inset.filled", iconColor: .blue, title: "Show Hero Section", showDivider: false) {
+                SettingsRow(icon: "rectangle.inset.filled", iconColor: .blue, title: "Show Hero", showDivider: profileSettings.showHeroSection) {
                     Toggle("", isOn: $profileSettings.showHeroSection).labelsHidden()
                 }
-            }
-
-            if profileSettings.showHeroSection {
-                SettingsGroupCard {
-                    VStack(alignment: .leading, spacing: DS.Space.s12) {
-                        Text("Hero Layout")
-                            .font(.flixor(.callout, weight: .medium))
-                            .padding(.horizontal, DS.Space.s12)
-                            .padding(.top, DS.Space.s12)
-
-                        HStack(spacing: DS.Space.s12) {
-                            LayoutOptionButton(
-                                title: "Billboard",
-                                icon: "rectangle.fill",
-                                isSelected: profileSettings.heroLayout == "billboard"
-                            ) {
-                                profileSettings.heroLayout = "billboard"
-                            }
-
-                            LayoutOptionButton(
-                                title: "Carousel",
-                                icon: "rectangle.stack.fill",
-                                isSelected: profileSettings.heroLayout == "carousel"
-                            ) {
-                                profileSettings.heroLayout = "carousel"
-                            }
+                if profileSettings.showHeroSection {
+                    SettingsRow(title: "Layout") {
+                        Picker("", selection: $profileSettings.heroLayout) {
+                            Text("Billboard").tag("billboard")
+                            Text("Carousel").tag("carousel")
                         }
-                        .padding(.horizontal, DS.Space.s12)
-                        .padding(.bottom, DS.Space.s12)
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                        .fixedSize()
                     }
-                }
-
-                SettingsGroupCard {
-                    SettingsRow(icon: "arrow.triangle.2.circlepath", iconColor: .orange, title: "Auto-Rotate Hero") {
+                    SettingsRow(title: "Auto-Rotate") {
                         Toggle("", isOn: $profileSettings.heroAutoRotate).labelsHidden()
                     }
                     HeroSourceSettingsRow()
                 }
-
-                // Hero Layout Preview
+            }
+            if profileSettings.showHeroSection {
                 CollapsiblePreviewSection(title: "Hero Preview", isExpanded: $showHeroPreview) {
                     if profileSettings.heroLayout == "billboard" {
                         billboardPreview
@@ -70,53 +47,12 @@ struct HomeScreenAppearanceView: View {
                 }
             }
 
-            // Shared layout for every catalog row
-            SettingsSectionHeader(title: "Catalog Rows")
-            SettingsGroupCard {
-                VStack(alignment: .leading, spacing: DS.Space.s12) {
-                    Text("Display Style · Plex, Stremio, and discovery catalogs")
-                        .font(.flixor(.callout, weight: .medium))
-                        .padding(.horizontal, DS.Space.s12)
-                        .padding(.top, DS.Space.s12)
+            // Rows: one list to reorder, rename and hide, then whole sources
+            HomeRowsEditor()
+            HomeRowSourcesSection()
 
-                    HStack(spacing: DS.Space.s12) {
-                        LayoutOptionButton(
-                            title: "Landscape",
-                            icon: "rectangle.fill",
-                            isSelected: profileSettings.rowLayout == "landscape"
-                        ) {
-                            profileSettings.rowLayout = "landscape"
-                        }
-
-                        LayoutOptionButton(
-                            title: "Poster",
-                            icon: "rectangle.portrait.fill",
-                            isSelected: profileSettings.rowLayout == "poster"
-                        ) {
-                            profileSettings.rowLayout = "poster"
-                        }
-                    }
-                    .padding(.horizontal, DS.Space.s12)
-                    .padding(.bottom, DS.Space.s12)
-                }
-            }
-
-            // Continue Watching Layout
-            SettingsSectionHeader(title: "Continue Watching")
-            SettingsGroupCard {
-                VStack(alignment: .leading, spacing: DS.Space.s12) {
-                    Text("Display Style")
-                        .font(.flixor(.callout, weight: .medium))
-                        .padding(.horizontal, DS.Space.s12)
-                        .padding(.top, DS.Space.s12)
-
-                    ContinueWatchingStylePicker()
-                        .padding(.horizontal, DS.Space.s12)
-                        .padding(.bottom, DS.Space.s12)
-                }
-            }
-
-            // Continue Watching Preview
+            // Continue Watching
+            HomeContinueWatchingSection()
             CollapsiblePreviewSection(title: "Continue Watching Preview", isExpanded: $showContinueWatchingPreview) {
                 switch ContinueWatchingCardStyle(storageValue: profileSettings.continueWatchingLayout) {
                 case .landscape: continueWatchingLandscapePreview
@@ -125,10 +61,19 @@ struct HomeScreenAppearanceView: View {
                 }
             }
 
-            // Poster Display
-            SettingsSectionHeader(title: "Poster Display")
+            // Cards in every other row
+            SettingsSectionHeader(title: "Catalog Rows")
             SettingsGroupCard {
-                SettingsRow(icon: "folder", iconColor: .blue, title: "Show Library Titles", showDivider: false) {
+                SettingsRow(title: "Card Shape", subtitle: "Plex, Stremio and discovery rows") {
+                    Picker("", selection: $profileSettings.rowLayout) {
+                        Text("Landscape").tag("landscape")
+                        Text("Poster").tag("poster")
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .fixedSize()
+                }
+                SettingsRow(title: "Show Library Titles", showDivider: false) {
                     Toggle("", isOn: $profileSettings.showLibraryTitles).labelsHidden()
                 }
             }
@@ -352,30 +297,27 @@ struct LayoutOptionButton: View {
 
     var body: some View {
         Button(action: action) {
-            VStack(spacing: DS.Space.s8) {
+            VStack(spacing: DS.Space.s6) {
                 Image(systemName: icon)
-                    .font(.flixorIcon(DS.Icon.lg))
+                    .font(.system(size: 16))
                 Text(title)
-                    .font(.flixor(.footnote, weight: .medium))
+                    .font(.system(size: 12, weight: .medium))
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, DS.Space.s16)
+            .padding(.vertical, DS.Space.s10)
             .background(
-                isSelected
-                    ? theme.accent
-                    : theme.settingsGroupBackground
+                isSelected ? Color.white.opacity(0.14) : Color.white.opacity(0.04),
+                in: RoundedRectangle(cornerRadius: DS.Radius.r8, style: .continuous)
             )
-            .foregroundStyle(isSelected ? theme.onAccent : .primary)
-            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r10, style: .continuous))
+            .foregroundStyle(isSelected ? Color.primary : Color.secondary)
             .overlay(
-                RoundedRectangle(cornerRadius: DS.Radius.r10, style: .continuous)
-                    .strokeBorder(
-                        isSelected ? Color.clear : Color(NSColor.separatorColor),
-                        lineWidth: 1
-                    )
+                RoundedRectangle(cornerRadius: DS.Radius.r8, style: .continuous)
+                    .strokeBorder(isSelected ? Color.white.opacity(0.7) : Color.white.opacity(0.08), lineWidth: isSelected ? 1.5 : 1)
             )
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 
@@ -396,10 +338,10 @@ struct CollapsiblePreviewSection<Content: View>: View {
                 }
             }) {
                 HStack {
-                    Text(title).textCase(.uppercase)
-                        .font(.flixor(.footnote, weight: .semibold))
+                    Text(title)
+                        .font(.system(size: 11.5, weight: .semibold))
                         .foregroundStyle(.secondary)
-                        .tracking(0.5)
+                        .padding(.leading, DS.Space.s10)
 
                     Spacer()
 

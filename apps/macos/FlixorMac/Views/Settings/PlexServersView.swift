@@ -34,13 +34,18 @@ struct PlexServersView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Space.s24) {
+        VStack(alignment: .leading, spacing: DS.Space.s16) {
             // Account Status Section
             accountSection
 
             // Servers Section
             if isAuthenticated {
                 serversSection
+            }
+
+            // Switching to Stremio-only keeps every setting; signing out resets them.
+            if isAuthenticated && !appMode.isStremioOnly {
+                modeSection
             }
 
             if let statusMessage, !statusMessage.isEmpty {
@@ -95,8 +100,6 @@ struct PlexServersView: View {
 
     private var accountSection: some View {
         VStack(alignment: .leading, spacing: DS.Space.s16) {
-            SettingsSectionHeader(title: "Account")
-
             SettingsGroupCard {
                 if isAuthenticated {
                     HStack(spacing: DS.Space.s12) {
@@ -110,12 +113,12 @@ struct PlexServersView: View {
                                 } placeholder: {
                                     Color(hex: "E5A00D")
                                 }
-                                .frame(width: 40, height: 40)
-                                .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r8, style: .continuous))
+                                .frame(width: 32, height: 32)
+                                .clipShape(Circle())
                             } else {
-                                RoundedRectangle(cornerRadius: DS.Radius.r8, style: .continuous)
+                                Circle()
                                     .fill(Color(hex: "E5A00D").gradient)
-                                    .frame(width: 40, height: 40)
+                                    .frame(width: 32, height: 32)
                                     .overlay(
                                         Text(plexUsername?.prefix(1).uppercased() ?? "P")
                                             .font(.flixor(.title3, weight: .bold))
@@ -144,21 +147,20 @@ struct PlexServersView: View {
                             Button("Choose Server") {
                                 showingServerFlow = true
                             }
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.small)
+                            .buttonStyle(.settingsPrimary)
                         }
 
                         Button(appMode.isStremioOnly ? "Disconnect" : "Sign Out") {
                             showLogoutConfirmation = true
                         }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
+                        .buttonStyle(.settingsDestructive)
                     }
-                    .padding(DS.Space.s12)
+                    .padding(.horizontal, DS.Space.s12)
+                    .padding(.vertical, DS.Space.s10)
                 } else {
                     HStack(spacing: DS.Space.s12) {
                         Image(systemName: "person.crop.circle.badge.questionmark")
-                            .font(.flixor(.largeTitle))
+                            .font(.system(size: 24))
                             .foregroundStyle(.secondary)
 
                         VStack(alignment: .leading, spacing: DS.Space.s2) {
@@ -176,8 +178,7 @@ struct PlexServersView: View {
                         Button(authViewModel.isAuthenticating ? "Waiting…" : "Connect Plex") {
                             Task { await authViewModel.startAuthentication() }
                         }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.small)
+                        .buttonStyle(.settingsPrimary)
                         .disabled(authViewModel.isAuthenticating)
                     }
                     .padding(DS.Space.s12)
@@ -187,30 +188,29 @@ struct PlexServersView: View {
                     Divider()
                     Text(authError)
                         .font(.flixor(.caption))
-                        .foregroundStyle(.red)
+                        .foregroundStyle(SettingsChrome.destructive)
                         .padding(DS.Space.s12)
                 }
+            }
+        }
+    }
 
-                // Switching to Stremio-only keeps every setting; signing out resets them.
-                if isAuthenticated && !appMode.isStremioOnly {
-                    Divider()
-                    HStack(spacing: DS.Space.s12) {
-                        VStack(alignment: .leading, spacing: DS.Space.s2) {
-                            Text("Use Stremio Only")
-                                .font(.flixor(.callout, weight: .semibold))
-                            Text("Disconnect Plex and run Flixor as a standalone Stremio app. Your settings are kept.")
-                                .font(.flixor(.caption))
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Button("Switch") {
-                            Task { await switchToStremioOnly() }
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                        .disabled(isPerformingAction)
+    // MARK: - Mode Section
+
+    private var modeSection: some View {
+        VStack(alignment: .leading, spacing: DS.Space.s16) {
+            SettingsSectionHeader(title: "Mode")
+            SettingsGroupCard {
+                SettingsRow(
+                    title: "Use Stremio Only",
+                    subtitle: "Disconnect Plex and run Flixor as a Stremio app. Your settings are kept.",
+                    showDivider: false
+                ) {
+                    Button("Switch…") {
+                        Task { await switchToStremioOnly() }
                     }
-                    .padding(DS.Space.s12)
+                    .buttonStyle(.settingsSecondary)
+                    .disabled(isPerformingAction)
                 }
             }
         }
@@ -220,7 +220,17 @@ struct PlexServersView: View {
 
     private var serversSection: some View {
         VStack(alignment: .leading, spacing: DS.Space.s16) {
-            SettingsSectionHeader(title: "Servers")
+            HStack {
+                SettingsSectionHeader(title: "Servers")
+                Spacer()
+                Button(action: { Task { await loadServers(force: true) } }) {
+                    Label("Refresh", systemImage: "arrow.clockwise")
+                        .font(.system(size: 11.5, weight: .medium))
+                }
+                .buttonStyle(.link)
+                .disabled(isLoading || isPerformingAction)
+                .padding(.bottom, -DS.Space.s8)
+            }
 
             if isLoading {
                 SettingsGroupCard {
@@ -242,17 +252,6 @@ struct PlexServersView: View {
                 serverList
             }
 
-            // Refresh button
-            HStack {
-                Spacer()
-                Button(action: { Task { await loadServers(force: true) } }) {
-                    Label("Refresh Servers", systemImage: "arrow.clockwise")
-                        .font(.flixor(.footnote))
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .disabled(isLoading || isPerformingAction)
-            }
         }
     }
 
@@ -268,7 +267,7 @@ struct PlexServersView: View {
                         ZStack {
                             RoundedRectangle(cornerRadius: DS.Radius.r6, style: .continuous)
                                 .fill(server.isActive == true ? Color.blue.gradient : Color.gray.opacity(0.3).gradient)
-                                .frame(width: 32, height: 32)
+                                .frame(width: 28, height: 28)
                             Image(systemName: "server.rack")
                                 .font(.flixorIcon(DS.Icon.sm, weight: .medium))
                                 .foregroundStyle(server.isActive == true ? .white : .secondary)
@@ -301,8 +300,11 @@ struct PlexServersView: View {
                             }
 
                             Text(server.baseURLDisplay)
-                                .font(.flixor(.caption))
+                                .font(.system(size: 11.5))
                                 .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                                .help(server.baseURLDisplay)
                         }
 
                         Spacer()
@@ -312,8 +314,7 @@ struct PlexServersView: View {
                                 Button("Connect") {
                                     Task { await setActiveServer(server) }
                                 }
-                                .buttonStyle(.borderedProminent)
-                                .controlSize(.small)
+                                .buttonStyle(.settingsSecondary)
                                 .disabled(isPerformingAction)
                             }
 
@@ -326,11 +327,12 @@ struct PlexServersView: View {
                             .disabled(isPerformingAction)
                         }
                     }
-                    .padding(DS.Space.s12)
+                    .padding(.horizontal, DS.Space.s12)
+                    .padding(.vertical, DS.Space.s10)
 
                     if index < servers.count - 1 {
-                        Divider()
-                            .padding(.leading, 56)
+                        Rectangle().fill(Color.white.opacity(0.08)).frame(height: 1)
+                            .padding(.leading, 52).padding(.trailing, DS.Space.s12)
                     }
                 }
             }

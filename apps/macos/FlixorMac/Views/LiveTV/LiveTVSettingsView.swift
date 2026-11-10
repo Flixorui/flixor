@@ -30,62 +30,76 @@ struct LiveTVSettingsForm: View {
     @State private var testingGuide = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Space.s14) {
+        VStack(alignment: .leading, spacing: DS.Space.s16) {
             if !compact {
-                section("Live TV mode", note: "Personal build only.") {
-                    Toggle("Show Live TV in Flixor", isOn: $store.featureEnabled)
-                    Toggle("Open Flixor in Live TV", isOn: $store.openOnLaunch)
-                        .disabled(!store.featureEnabled)
+                SettingsGroupCard {
+                    SettingsRow(title: "Show Live TV in Flixor", subtitle: "Adds Live TV to the navigation") {
+                        Toggle("", isOn: $store.featureEnabled).labelsHidden()
+                    }
+                    SettingsRow(title: "Open Flixor in Live TV", showDivider: false) {
+                        Toggle("", isOn: $store.openOnLaunch)
+                            .labelsHidden()
+                            .disabled(!store.featureEnabled)
+                    }
                 }
             }
 
-            section("Xtream account", note: "Saved in your Keychain. Flixor talks to the provider directly.") {
-                field("Name", text: $name, prompt: "My IPTV")
-                field("Server URL", text: $serverURL, prompt: "http://provider.example:8080")
-                HStack(spacing: 10) {
-                    field("Username", text: $username, prompt: "")
-                    secureField("Password", text: $password)
-                }
-                HStack(spacing: DS.Space.s8) {
-                    LiveTVFormButton(title: testingAccount ? "Testing…" : "Test connection", enabled: !testingAccount && draftAccount != nil) {
-                        Task { await testAccount() }
-                    }
+            SettingsSectionHeader(title: "Xtream Account")
+            SettingsGroupCard {
+                fieldRow("Name", text: $name, prompt: "My IPTV")
+                fieldRow("Server", text: $serverURL, prompt: "http://provider.example:8080")
+                fieldRow("Username", text: $username, prompt: "")
+                fieldRow("Password", text: $password, prompt: "", secure: true)
+                buttonRow(message: accountMessage) {
                     if store.account != nil {
-                        LiveTVFormButton(title: "Remove", destructive: true) {
+                        Button("Remove") {
                             store.saveAccount(nil)
                             loadFields()
                             accountMessage = ("Account removed.", true)
                         }
+                        .buttonStyle(.settingsDestructive)
                     }
-                    if let accountMessage { status(accountMessage) }
+                    Button(testingAccount ? "Testing…" : "Test Connection") {
+                        Task { await testAccount() }
+                    }
+                    .buttonStyle(.settingsSecondary)
+                    .disabled(testingAccount || draftAccount == nil)
                 }
             }
+            SettingsFootnote("Saved in your Keychain. Flixor talks to the provider directly.")
 
-            section("Guide server (xtream-web)", note: "The guide comes from your xtream-web server: its YouTube TV, India and premium schedules, with the provider guide as fallback.") {
-                field("Address", text: $guideURL, prompt: "https://tv.example.app")
-                secureField("Sign-in password", text: $guidePassword)
-                HStack(spacing: DS.Space.s8) {
-                    LiveTVFormButton(title: testingGuide ? "Signing in…" : "Test sign-in", enabled: !testingGuide && draftGuide != nil) {
-                        Task { await testGuide() }
-                    }
+            SettingsSectionHeader(title: "Guide Server (xtream-web)")
+            SettingsGroupCard {
+                fieldRow("Address", text: $guideURL, prompt: "https://tv.example.app")
+                fieldRow("Password", text: $guidePassword, prompt: "", secure: true)
+                buttonRow(message: guideMessage) {
                     if store.guideServer != nil {
-                        LiveTVFormButton(title: "Remove", destructive: true) {
+                        Button("Remove") {
                             store.saveGuideServer(nil)
                             loadFields()
                             guideMessage = ("Guide server removed. The provider guide is used.", true)
                         }
+                        .buttonStyle(.settingsDestructive)
                     }
-                    if let guideMessage { status(guideMessage) }
+                    Button(testingGuide ? "Signing in…" : "Test Sign-In") {
+                        Task { await testGuide() }
+                    }
+                    .buttonStyle(.settingsSecondary)
+                    .disabled(testingGuide || draftGuide == nil)
                 }
             }
+            SettingsFootnote("YouTube TV, India and premium schedules from your xtream-web server, with the provider guide as fallback.")
 
-            section("Curated lineup", note: nil) {
+            SettingsSectionHeader(title: "Curated Lineup")
+            SettingsGroupCard {
                 lineupStatus
             }
 
             HStack {
                 Spacer()
-                LiveTVFormButton(title: compact ? "Save and open Live TV" : "Save", prominent: true, enabled: draftAccount != nil) { save() }
+                Button(compact ? "Save and Open Live TV" : "Save") { save() }
+                    .buttonStyle(.settingsPrimary)
+                    .disabled(draftAccount == nil)
                     .keyboardShortcut(.defaultAction)
             }
         }
@@ -165,113 +179,73 @@ struct LiveTVSettingsForm: View {
     private var lineupStatus: some View {
         let url = LiveTVStore.rulesURL
         let rules = (try? Data(contentsOf: url)).flatMap { try? JSONDecoder().decode(CuratedLineupRules.self, from: $0) }
-        if let rules {
-            Text("Exported from xtream-web \(rules.generatedAt.prefix(10)) · \(rules.referenceLineup.count) US reference channels, \(rules.indianFeeds.count) Indian channels, \(rules.verifiedSources.count) verified sources")
-                .flixorFont(.callout).foregroundStyle(theme.textSecondary)
-            if !store.lineup.isEmpty {
-                Text("Matched on your provider: \(store.lineup.filter { $0.market == .us }.count) US and \(store.lineup.filter { $0.market == .india }.count) Indian channels")
-                    .flixorFont(.callout).foregroundStyle(theme.textSecondary)
+        VStack(alignment: .leading, spacing: DS.Space.s4) {
+            if let rules {
+                Text("Exported from xtream-web on \(rules.generatedAt.prefix(10))")
+                    .font(.system(size: 13))
+                Text("\(rules.referenceLineup.count) US reference channels, \(rules.indianFeeds.count) Indian channels, \(rules.verifiedSources.count) verified sources")
+                    .font(.system(size: 11.5)).foregroundStyle(.secondary)
+                if !store.lineup.isEmpty {
+                    Text("Matched on your provider: \(store.lineup.filter { $0.market == .us }.count) US and \(store.lineup.filter { $0.market == .india }.count) Indian channels")
+                        .font(.system(size: 11.5)).foregroundStyle(.secondary)
+                }
+            } else {
+                Text("Lineup file not found")
+                    .font(.system(size: 13))
+                Text("Run the xtream-web lineup export on this Mac. It writes ~/Library/Application Support/Flixor/LiveTV/curated-lineup.json.")
+                    .font(.system(size: 11.5)).foregroundStyle(theme.warning)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-        } else {
-            Text("Not found. Run the xtream-web lineup export on this Mac; it writes ~/Library/Application Support/Flixor/LiveTV/curated-lineup.json.")
-                .flixorFont(.callout).foregroundStyle(theme.warning)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, DS.Space.s12)
+        .padding(.vertical, DS.Space.s10)
+        Rectangle().fill(Color.white.opacity(0.08)).frame(height: 1).padding(.horizontal, DS.Space.s12)
         HStack(spacing: DS.Space.s8) {
-            LiveTVFormButton(title: "Show in Finder") {
+            Spacer()
+            if store.isConfigured {
+                Button("Reload Channels") { store.loadCatalog(force: true) }
+                    .buttonStyle(.settingsSecondary)
+            }
+            Button("Show in Finder") {
                 try? FileManager.default.createDirectory(at: LiveTVStore.supportDirectory, withIntermediateDirectories: true)
                 NSWorkspace.shared.activateFileViewerSelecting([rules != nil ? url : LiveTVStore.supportDirectory])
             }
-            if store.isConfigured {
-                LiveTVFormButton(title: "Reload channels") { store.loadCatalog(force: true) }
-            }
+            .buttonStyle(.settingsSecondary)
         }
+        .padding(.horizontal, DS.Space.s12)
+        .padding(.vertical, DS.Space.s8)
     }
 
     // MARK: Pieces
 
-    private func section<Content: View>(_ title: String, note: String?, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: DS.Space.s10) {
-            VStack(alignment: .leading, spacing: DS.Space.s4) {
-                Text(title).flixorFont(.headline, weight: .semibold).foregroundStyle(theme.textPrimary)
-                if let note { Text(note).flixorFont(.callout).foregroundStyle(theme.textSecondary).fixedSize(horizontal: false, vertical: true) }
-            }
-            content()
-        }
-        .padding(DS.Space.s16)
-        .background(theme.surface, in: RoundedRectangle(cornerRadius: DS.Radius.group, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: DS.Radius.group, style: .continuous).strokeBorder(theme.separator, lineWidth: DS.Border.thin))
-    }
-
-    private func field(_ label: String, text: Binding<String>, prompt: String) -> some View {
-        LiveTVTextField(label: label, text: text, placeholder: prompt, secure: false)
-    }
-
-    private func secureField(_ label: String, text: Binding<String>) -> some View {
-        LiveTVTextField(label: label, text: text, placeholder: "", secure: true)
-    }
-
-    private func status(_ message: (String, Bool)) -> some View {
-        Text(message.0).flixorFont(.footnote).foregroundStyle(message.1 ? theme.success : theme.warning).lineLimit(2)
-    }
-}
-
-/// Text field in Flixor's style: dim placeholder, quiet outline, focus ring.
-struct LiveTVTextField: View {
-    let label: String
-    @Binding var text: String
-    let placeholder: String
-    let secure: Bool
-    @FocusState private var focused: Bool
-    @Environment(\.flixorTheme) private var theme
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: DS.Space.s4) {
-            Text(label).flixorFont(.caption, weight: .medium).foregroundStyle(theme.textTertiary)
-            ZStack(alignment: .leading) {
-                if text.isEmpty && !placeholder.isEmpty {
-                    Text(placeholder).flixorFont(.body).foregroundStyle(theme.textDisabled).allowsHitTesting(false)
+    private func fieldRow(_ label: String, text: Binding<String>, prompt: String, secure: Bool = false) -> some View {
+        SettingsRow(title: LocalizedStringKey(label)) {
+            Group {
+                if secure {
+                    SecureField(prompt, text: text)
+                } else {
+                    TextField(prompt, text: text).disableAutocorrection(true)
                 }
-                Group {
-                    if secure { SecureField("", text: $text) } else { TextField("", text: $text).disableAutocorrection(true) }
-                }
-                .textFieldStyle(.plain)
-                .flixorFont(.body)
-                .foregroundStyle(theme.textPrimary)
-                .focused($focused)
             }
-            .padding(.horizontal, DS.Space.s12)
-            .frame(height: 36)
-            .background(Color.white.opacity(DS.Opacity.subtle), in: RoundedRectangle(cornerRadius: DS.Radius.button, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: DS.Radius.button, style: .continuous)
-                .strokeBorder(focused ? Color.white.opacity(0.45) : theme.separatorStrong, lineWidth: DS.Border.thin))
+            .textFieldStyle(.settings)
+            .frame(width: compact ? 250 : 280)
         }
     }
-}
 
-/// Buttons for the form: prominent (white), secondary (grey) or destructive (red text).
-struct LiveTVFormButton: View {
-    let title: String
-    var prominent = false
-    var destructive = false
-    var enabled = true
-    let action: () -> Void
-    @State private var hovering = false
-    @Environment(\.flixorTheme) private var theme
-
-    var body: some View {
-        Button(action: action) {
-            Text(title)
-                .flixorFont(.callout, weight: .semibold)
-                .foregroundStyle(prominent ? Color.black : destructive ? theme.danger : theme.textPrimary)
-                .padding(.horizontal, DS.Space.s14)
-                .frame(height: 32)
-                .background(Capsule().fill(prominent ? Color.white.opacity(hovering ? 0.9 : 1) : Color.white.opacity(hovering ? 0.14 : 0.08)))
-                .contentShape(Capsule())
+    private func buttonRow<Buttons: View>(message: (String, Bool)?, @ViewBuilder buttons: () -> Buttons) -> some View {
+        HStack(spacing: DS.Space.s8) {
+            if let message {
+                Text(message.0)
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(message.1 ? theme.success : theme.warning)
+                    .lineLimit(2)
+            }
+            Spacer(minLength: DS.Space.s8)
+            buttons()
         }
-        .buttonStyle(.plain)
-        .disabled(!enabled)
-        .opacity(enabled ? 1 : DS.Opacity.disabled)
-        .onHover { hovering = $0 && enabled }
+        .padding(.horizontal, DS.Space.s12)
+        .padding(.vertical, DS.Space.s8)
     }
 }
 
@@ -279,8 +253,6 @@ struct LiveTVFormButton: View {
 struct LiveTVSettingsView: View {
     var body: some View {
         LiveTVSettingsForm()
-            .padding(.vertical, 4)
-            .frame(maxWidth: 620, alignment: .leading)
     }
 }
 
@@ -317,7 +289,8 @@ struct LiveTVSetupSheet: View {
         .padding(DS.Space.s24)
         .frame(width: 540, height: 680)
         .background(theme.surfaceElevated)
-        .tint(.white)
+        .toggleStyle(.settingsSwitch)
+        .tint(SettingsChrome.neutralTint)
     }
 }
 #endif

@@ -19,29 +19,38 @@ struct StremioSettingsView: View {
     private var subtitleAddonCount: Int { addonSummaries.filter(\.subtitleCapable).count }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Space.s24) {
+        VStack(alignment: .leading, spacing: DS.Space.s16) {
+            SettingsGroupCard {
+                SettingsStatusRow(
+                    installedAddonCount == 0 ? .notSetUp : .connected,
+                    title: installedAddonCount == 0
+                        ? String(localized: "No addons")
+                        : String(localized: "\(installedAddonCount) addons installed"),
+                    subtitle: installedAddonCount == 0
+                        ? String(localized: "Install stream and subtitle addons to play from Stremio")
+                        : String(localized: "\(streamAddonCount) for streams, \(subtitleAddonCount) for subtitles")
+                ) {
+                    if isLoadingAddons {
+                        ProgressView().controlSize(.small)
+                    }
+                    Button("Manage Addons…") { showAddonManager = true }
+                        .buttonStyle(.settingsSecondary)
+                }
+            }
+            SettingsFootnote(isStremioOnlyMode
+                 ? "Running without Plex: addons provide catalogs, metadata and streams. Watch history and My List stay on this Mac (and sync with Trakt if connected)."
+                 : "Addon streams are offered next to your Plex library.")
+
             SettingsSectionHeader(title: "Playback")
             SettingsGroupCard {
                 SettingsRow(
                     icon: "play.fill",
                     iconColor: .orange,
-                    title: "Enable Stremio Playback",
-                    subtitle: "Show alternate Stremio source buttons on supported details screens"
+                    title: "Stremio Playback",
+                    subtitle: "Show Stremio source buttons on details pages"
                 ) {
                     Toggle("", isOn: $profileSettings.stremioPlaybackEnabled)
                         .labelsHidden()
-                }
-
-                SettingsNavigationRow(
-                    icon: "puzzlepiece.extension.fill",
-                    iconColor: .orange,
-                    title: "Manage Addons",
-                    subtitle: installedAddonCount == 0
-                        ? "Install stream and subtitle addons"
-                        : "\(installedAddonCount) installed • \(streamAddonCount) stream • \(subtitleAddonCount) subtitle",
-                    showDivider: true
-                ) {
-                    showAddonManager = true
                 }
 
                 StreamPlayActionRows(store: streamSelection)
@@ -49,8 +58,8 @@ struct StremioSettingsView: View {
                 SettingsRow(
                     icon: "film.stack",
                     iconColor: .blue,
-                    title: "Show On TMDB Details",
-                    subtitle: "Allow Stremio playback for TMDB-backed titles when IDs can be resolved"
+                    title: "On TMDB Details",
+                    subtitle: "Allow Stremio playback for TMDB titles when their IDs can be matched"
                 ) {
                     Toggle("", isOn: $profileSettings.stremioShowOnTmdbDetails)
                         .labelsHidden()
@@ -59,40 +68,10 @@ struct StremioSettingsView: View {
                 SettingsRow(
                     icon: "arrow.triangle.2.circlepath.circle.fill",
                     iconColor: .cyan,
-                    title: "Prefer Cached Source Resume",
-                    subtitle: "Offer resume from the last selected Stremio source when cache is valid"
+                    title: "Resume From Last Source",
+                    subtitle: "Offer the last Stremio source again while it's still cached"
                 ) {
                     Toggle("", isOn: $profileSettings.stremioPreferCachedSourceResume)
-                        .labelsHidden()
-                }
-
-                SettingsRow(
-                    icon: "captions.bubble.fill",
-                    iconColor: .purple,
-                    title: "Enable Subtitle Addons",
-                    subtitle: "Fetch external subtitles from Stremio subtitle addons"
-                ) {
-                    Toggle("", isOn: $profileSettings.stremioSubtitleAddonsEnabled)
-                        .labelsHidden()
-                }
-
-                SettingsRow(
-                    icon: "square.grid.2x2.fill",
-                    iconColor: .teal,
-                    title: "Catalog Rows On Home",
-                    subtitle: "Show a home row for each catalog your addons provide"
-                ) {
-                    Toggle("", isOn: $profileSettings.showStremioCatalogRows)
-                        .labelsHidden()
-                }
-
-                SettingsRow(
-                    icon: "magnifyingglass",
-                    iconColor: .teal,
-                    title: "Search Addon Catalogs",
-                    subtitle: "Include addon catalog matches in search results"
-                ) {
-                    Toggle("", isOn: $profileSettings.stremioCatalogSearchEnabled)
                         .labelsHidden()
                 }
 
@@ -100,7 +79,7 @@ struct StremioSettingsView: View {
                     icon: "eye.slash.fill",
                     iconColor: .gray,
                     title: "Unsupported Sources",
-                    subtitle: "Choose whether unsupported Stremio stream types stay visible",
+                    subtitle: "Stream types Flixor can't play",
                     showDivider: false
                 ) {
                     Picker("", selection: $profileSettings.stremioUnsupportedSourceVisibility) {
@@ -118,46 +97,38 @@ struct StremioSettingsView: View {
                 StreamRulesEditor(store: streamSelection, addons: addonSummaries)
             }
 
-            SettingsSectionHeader(title: "Status")
+            SettingsSectionHeader(title: "Addons")
             SettingsGroupCard {
-                VStack(alignment: .leading, spacing: DS.Space.s12) {
-                    HStack(spacing: DS.Space.s12) {
-                        Image(systemName: isStremioOnlyMode ? "puzzlepiece.extension.fill" : "server.rack")
-                            .foregroundStyle(.secondary)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(isStremioOnlyMode ? "Running without Plex" : "Works alongside Plex")
-                                .font(.flixor(.callout, weight: .semibold))
-                            Text(isStremioOnlyMode
-                                 ? "Your addons provide catalogs, metadata and streams. Watch history and My List are stored on this Mac (and synced with Trakt if connected)."
-                                 : "Addon streams are offered next to your Plex library. You can also use Flixor without Plex by choosing Stremio-only mode.")
-                                .font(.flixor(.caption))
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                    }
-
-                    Divider()
-
-                    HStack(spacing: DS.Space.s12) {
-                        Image(systemName: "play.rectangle.fill")
-                            .foregroundStyle(.secondary)
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text("Playback engine is fixed to MPV")
-                                .font(.flixor(.callout, weight: .semibold))
-                            Text("Direct URL streams, custom headers, advanced codecs, and external subtitles all rely on MPV.")
-                                .font(.flixor(.caption))
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                    }
+                SettingsRow(
+                    icon: "captions.bubble.fill",
+                    iconColor: .purple,
+                    title: "Subtitle Addons",
+                    subtitle: "Fetch subtitles from Stremio subtitle addons"
+                ) {
+                    Toggle("", isOn: $profileSettings.stremioSubtitleAddonsEnabled)
+                        .labelsHidden()
                 }
-                .padding(DS.Space.s12)
-            }
 
-            if isLoadingAddons {
-                ProgressView()
-                    .progressViewStyle(.circular)
-                    .frame(maxWidth: .infinity, alignment: .center)
+                SettingsRow(
+                    icon: "square.grid.2x2.fill",
+                    iconColor: .teal,
+                    title: "Catalog Rows on Home",
+                    subtitle: "A Home row for each catalog your addons provide"
+                ) {
+                    Toggle("", isOn: $profileSettings.showStremioCatalogRows)
+                        .labelsHidden()
+                }
+
+                SettingsRow(
+                    icon: "magnifyingglass",
+                    iconColor: .teal,
+                    title: "Search Addon Catalogs",
+                    subtitle: "Include addon catalog matches in search",
+                    showDivider: false
+                ) {
+                    Toggle("", isOn: $profileSettings.stremioCatalogSearchEnabled)
+                        .labelsHidden()
+                }
             }
         }
         .task {
