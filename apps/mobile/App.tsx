@@ -5,7 +5,7 @@ import { enableScreens } from 'react-native-screens';
 enableScreens(true);
 
 import React, { useEffect } from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, DarkTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
@@ -94,6 +94,10 @@ type RootStackParamList = {
   Player: undefined;
   StremioSources: undefined;
 };
+
+// The app is always dark (UIUserInterfaceStyle). Navigators read light or dark from this
+// theme, not from the system: without it the iOS 26 native tab bar is forced light.
+const navigationTheme = DarkTheme;
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator();
@@ -604,7 +608,7 @@ function AppContent() {
 
   return (
     <>
-      <NavigationContainer>
+      <NavigationContainer theme={navigationTheme}>
         <Stack.Navigator 
           screenOptions={{ 
             headerShown: false, 
