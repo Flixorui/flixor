@@ -454,19 +454,27 @@ private struct DetailsEntityLogoButton: View {
         Button(action: action) {
             Group {
                 if let logoURL = entity.logoURL {
+                    // TMDB logos are made for white backgrounds (mostly dark on
+                    // transparent): grey and inverted, they read as light marks
+                    // on the dark tile.
                     CachedAsyncImage(url: logoURL, aspectRatio: nil, contentMode: .fit)
-                        .frame(width: 80, height: 32)
+                        .grayscale(1)
+                        .colorInvert()
+                        .frame(width: 88, height: 30)
                 } else {
                     Text(entity.name)
                         .font(.flixor(.callout, weight: .semibold))
-                        .foregroundStyle(.black)
+                        .foregroundStyle(.white.opacity(0.9))
+                        .lineLimit(2)
+                        .multilineTextAlignment(.center)
+                        .frame(width: 88, height: 30)
                 }
             }
-            .padding(.horizontal, DS.Space.s16)
+            .padding(.horizontal, DS.Space.s14)
             .padding(.vertical, DS.Space.s12)
             .background(
                 RoundedRectangle(cornerRadius: DS.Radius.compactCard, style: .continuous)
-                    .fill(Color.white)
+                    .fill(Color.white.opacity(isHovered ? 0.12 : 0.07))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: DS.Radius.compactCard, style: .continuous)

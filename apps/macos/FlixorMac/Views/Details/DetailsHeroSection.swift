@@ -111,14 +111,22 @@ struct DetailsHeroSection: View {
             // Two-column layout: content left, credits right
             HStack(alignment: .bottom, spacing: DS.Space.s40) {
                 // LEFT COLUMN - Primary Content
-                VStack(alignment: .leading, spacing: DS.Space.s16) {
+                VStack(alignment: .leading, spacing: DS.Space.s10) {
                     Spacer(minLength: 0)
+
+                    // Availability above the title (where Apple TV shows "Available
+                    // for Rent"): positive only, never a warning when addons can play
+                    // it, and never a Plex mention in Stremio-only mode.
+                    availabilityBadge
+                        .fixedSize()
 
                     // Logo or Title
                     if let logo = vm.logoURL {
-                        CachedAsyncImage(url: logo, contentMode: .fit)
-                            .frame(maxWidth: logoWidth)
-                            .shadow(color: .black.opacity(0.7), radius: 16, y: 6)
+                        FittedLogoLayout(maxWidth: logoWidth, maxHeight: logoMaxHeight) {
+                            CachedAsyncImage(url: logo, contentMode: .fit)
+                        }
+                        .shadow(color: .black.opacity(0.7), radius: 16, y: 6)
+                            .padding(.bottom, DS.Space.s4)
                     } else {
                         Text(vm.title)
                             .font(.system(size: titleFontSize, weight: .heavy))
@@ -139,11 +147,8 @@ struct DetailsHeroSection: View {
 
                     // Action buttons (Play + circle buttons)
                     actionButtonsRow
-
-                    // Trailers section
-                    if hasTrailers {
-                        trailersSection
-                    }
+                        .fixedSize(horizontal: true, vertical: false)
+                        .padding(.top, DS.Space.s6)
                 }
                 .frame(maxWidth: contentColumnMaxWidth, maxHeight: .infinity, alignment: .bottomLeading)
 
@@ -247,7 +252,7 @@ struct DetailsHeroSection: View {
                 .font(.flixor(.body))
                 .foregroundStyle(.white.opacity(0.85))
                 .lineLimit(2)
-                .frame(maxWidth: layout.heroTextMaxWidth, alignment: .leading)
+                .frame(maxWidth: min(layout.heroTextMaxWidth, contentColumnMaxWidth - 70), alignment: .leading)
 
             if vm.overview.count > 100 {
                 Button(action: { showFullOverview = true }) {
@@ -284,6 +289,65 @@ struct DetailsHeroSection: View {
                 Text(runtime)
             }
 
+            // Ratings right after year and length (Apple TV order), then badges
+            // Fallback chain: Plex parsed -> Plex direct -> MDBList -> TMDB
+            let plexRatings = vm.externalRatings
+            let mdbRatings = vm.mdblistRatings
+
+            // IMDb: prefer Plex parsed, then Plex direct, then MDBList, then TMDB
+            if profileSettings.showIMDbRating {
+                let imdbScore: Double? = {
+                    if let score = plexRatings?.imdb?.score, score > 0 { return score }
+                    if let score = vm.plexImdbRating, score > 0 { return score }
+                    if let score = mdbRatings?.imdb, score > 0 { return score }
+                    if let score = vm.tmdbRating, score > 0 { return score }
+                    return nil
+                }()
+                if let score = imdbScore {
+                    HStack(spacing: DS.Space.s4) {
+                        IMDbMark()
+                        Text(String(format: "%.1f", score))
+                            .font(.flixor(.footnote, weight: .semibold))
+                    }
+                    .fixedSize()
+                }
+            }
+
+            // RT Critic: prefer Plex, then MDBList
+            if profileSettings.showRottenTomatoesCritic {
+                let criticScore: Int? = {
+                    if let score = plexRatings?.rottenTomatoes?.critic, score > 0 { return score }
+                    if let score = mdbRatings?.tomatoes, score > 0 { return Int(score) }
+                    return nil
+                }()
+                if let score = criticScore {
+                    HStack(spacing: DS.Space.s4) {
+                        TomatoIcon(score: score)
+                        Text("\(score)%")
+                            .font(.flixor(.footnote, weight: .semibold))
+                    }
+                    .fixedSize()
+                }
+            }
+
+            // RT Audience: prefer Plex parsed, then Plex direct, then MDBList
+            if profileSettings.showRottenTomatoesAudience {
+                let audienceScore: Int? = {
+                    if let score = plexRatings?.rottenTomatoes?.audience, score > 0 { return score }
+                    if let score = vm.plexAudienceRating, score > 0 { return score }
+                    if let score = mdbRatings?.audience, score > 0 { return Int(score) }
+                    return nil
+                }()
+                if let score = audienceScore {
+                    HStack(spacing: DS.Space.s4) {
+                        PopcornIcon(score: score)
+                        Text("\(score)%")
+                            .font(.flixor(.footnote, weight: .semibold))
+                    }
+                    .fixedSize()
+                }
+            }
+
             // Resolution badge from technical details (4K, HD, 720p)
             if let resBadge = resolutionBadge {
                 TechnicalBadge(text: resBadge, isHighlighted: false)
@@ -311,68 +375,11 @@ struct DetailsHeroSection: View {
                 TechnicalBadge(text: badge, isHighlighted: false)
             }
 
-            // Availability: positive only. Never a warning when addons can play it,
-            // and never a Plex mention in Stremio-only mode.
-            availabilityBadge
 
-            // Ratings at the end (with individual visibility settings)
-            // Fallback chain: Plex parsed -> Plex direct -> MDBList -> TMDB
-            let plexRatings = vm.externalRatings
-            let mdbRatings = vm.mdblistRatings
-
-            // IMDb: prefer Plex parsed, then Plex direct, then MDBList, then TMDB
-            if profileSettings.showIMDbRating {
-                let imdbScore: Double? = {
-                    if let score = plexRatings?.imdb?.score, score > 0 { return score }
-                    if let score = vm.plexImdbRating, score > 0 { return score }
-                    if let score = mdbRatings?.imdb, score > 0 { return score }
-                    if let score = vm.tmdbRating, score > 0 { return score }
-                    return nil
-                }()
-                if let score = imdbScore {
-                    HStack(spacing: DS.Space.s4) {
-                        IMDbMark()
-                        Text(String(format: "%.1f", score))
-                            .font(.flixor(.footnote, weight: .semibold))
-                    }
-                }
-            }
-
-            // RT Critic: prefer Plex, then MDBList
-            if profileSettings.showRottenTomatoesCritic {
-                let criticScore: Int? = {
-                    if let score = plexRatings?.rottenTomatoes?.critic, score > 0 { return score }
-                    if let score = mdbRatings?.tomatoes, score > 0 { return Int(score) }
-                    return nil
-                }()
-                if let score = criticScore {
-                    HStack(spacing: DS.Space.s4) {
-                        TomatoIcon(score: score)
-                        Text("\(score)%")
-                            .font(.flixor(.footnote, weight: .semibold))
-                    }
-                }
-            }
-
-            // RT Audience: prefer Plex parsed, then Plex direct, then MDBList
-            if profileSettings.showRottenTomatoesAudience {
-                let audienceScore: Int? = {
-                    if let score = plexRatings?.rottenTomatoes?.audience, score > 0 { return score }
-                    if let score = vm.plexAudienceRating, score > 0 { return score }
-                    if let score = mdbRatings?.audience, score > 0 { return Int(score) }
-                    return nil
-                }()
-                if let score = audienceScore {
-                    HStack(spacing: DS.Space.s4) {
-                        PopcornIcon(score: score)
-                        Text("\(score)%")
-                            .font(.flixor(.footnote, weight: .semibold))
-                    }
-                }
-            }
         }
         .font(.flixor(.footnote, weight: .medium))
         .foregroundStyle(.white.opacity(0.7))
+        .lineLimit(1)
     }
 
     // MARK: - Ratings Row
@@ -424,48 +431,29 @@ struct DetailsHeroSection: View {
 
     // MARK: - Credits Section (Right Column)
     @ViewBuilder private var creditsSection: some View {
-        VStack(alignment: .trailing, spacing: DS.Space.s20) {
-            // Starring
+        VStack(alignment: .leading, spacing: DS.Space.s2) {
             if !vm.castShort.isEmpty {
-                VStack(alignment: .trailing, spacing: DS.Space.s4) {
-                    Text("Starring")
-                        .font(.flixor(.footnote))
-                        .foregroundStyle(.white.opacity(0.5))
-                    Text(vm.castShort.prefix(4).map { $0.name }.joined(separator: ", "))
-                        .font(.flixor(.callout, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.9))
-                        .multilineTextAlignment(.trailing)
-                        .lineLimit(2)
-                }
+                creditLine(String(localized: "Starring"), vm.castShort.prefix(3).map { $0.name }.joined(separator: ", "))
             }
-
-            // Director(s) - directors is [String]
             if !vm.directors.isEmpty {
-                VStack(alignment: .trailing, spacing: DS.Space.s4) {
-                    Text(vm.directors.count > 1 ? "Directors" : "Director")
-                        .font(.flixor(.footnote))
-                        .foregroundStyle(.white.opacity(0.5))
-                    Text(vm.directors.prefix(2).joined(separator: ", "))
-                        .font(.flixor(.callout, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.9))
-                        .multilineTextAlignment(.trailing)
-                }
+                creditLine(vm.directors.count > 1 ? String(localized: "Directors") : String(localized: "Director"),
+                           vm.directors.prefix(2).joined(separator: ", "))
             }
-
-            // Creator(s) for TV shows - creators is [String]
             if vm.mediaKind == "tv", !vm.creators.isEmpty {
-                VStack(alignment: .trailing, spacing: DS.Space.s4) {
-                    Text(vm.creators.count > 1 ? "Creators" : "Creator")
-                        .font(.flixor(.footnote))
-                        .foregroundStyle(.white.opacity(0.5))
-                    Text(vm.creators.prefix(2).joined(separator: ", "))
-                        .font(.flixor(.callout, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.9))
-                        .multilineTextAlignment(.trailing)
-                }
+                creditLine(vm.creators.count > 1 ? String(localized: "Creators") : String(localized: "Creator"),
+                           vm.creators.prefix(2).joined(separator: ", "))
             }
         }
-        .padding(.bottom, DS.Space.s60)
+        .font(.flixor(.footnote, weight: .medium))
+        .shadow(color: .black.opacity(0.6), radius: 6)
+        .padding(.bottom, DS.Space.s4)
+    }
+
+    /// "Starring Tom Holland, Zendaya": grey label, white names, wrapping as one paragraph.
+    private func creditLine(_ label: String, _ names: String) -> some View {
+        (Text(label + " ").foregroundColor(.white.opacity(0.55)) + Text(names).foregroundColor(.white.opacity(0.92)))
+            .lineLimit(2)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     private var castSummary: String {
@@ -501,23 +489,50 @@ struct DetailsHeroSection: View {
     }
 
     private var logoWidth: CGFloat {
-        if width < 900 { return 340 }
-        if width < 1300 { return 420 }
-        return 480
+        if width < 900 { return 240 }
+        if width < 1300 { return 290 }
+        return 340
+    }
+
+    /// Tall logos (stacked titles) stay compact too.
+    private var logoMaxHeight: CGFloat {
+        if width < 900 { return 90 }
+        if width < 1300 { return 110 }
+        return 130
     }
 
     // Content column max width for two-column layout
     private var contentColumnMaxWidth: CGFloat {
         if width < 900 { return .infinity }
-        if width < 1200 { return 500 }
-        return 600
+        if width < 1200 { return 480 }
+        return 520
     }
 
     // Credits column width for right side
     private var creditsColumnWidth: CGFloat {
-        if width < 900 { return 200 }
-        if width < 1200 { return 240 }
-        return 280
+        if width < 900 { return 220 }
+        if width < 1200 { return 260 }
+        return 300
+    }
+}
+
+/// Sizes the logo to its fitted size inside a max box, so a wide, short logo
+/// takes only its own height (a plain max frame keeps the full box height,
+/// leaving a gap above the logo).
+private struct FittedLogoLayout: Layout {
+    let maxWidth: CGFloat
+    let maxHeight: CGFloat
+
+    private func box(_ proposal: ProposedViewSize) -> ProposedViewSize {
+        ProposedViewSize(width: min(proposal.width ?? maxWidth, maxWidth), height: maxHeight)
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        subviews.first?.sizeThatFits(box(proposal)) ?? .zero
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        subviews.first?.place(at: bounds.origin, anchor: .topLeading, proposal: ProposedViewSize(bounds.size))
     }
 }
 

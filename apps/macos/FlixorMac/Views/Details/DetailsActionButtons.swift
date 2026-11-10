@@ -11,7 +11,7 @@ import FlixorKit
 extension DetailsHeroSection {
     // MARK: - Action Buttons (Apple TV+ style)
     @ViewBuilder var actionButtonsRow: some View {
-        HStack(spacing: DS.Space.s16) {
+        HStack(spacing: DS.Space.s12) {
             // For seasons, show "View Show" button
             if vm.isSeason {
                 if let parentKey = vm.parentShowKey {
@@ -55,7 +55,7 @@ extension DetailsHeroSection {
                     .buttonStyle(.plain)
                 }
 
-                titleWatchActions
+                DetailsMoreActionsButton(model: titleActions, title: vm.title, download: nil)
             } else {
                 // With no local Plex copy, Stremio is the only way to play this, so it
                 // becomes the primary button instead of sitting next to a dead one.
@@ -134,9 +134,6 @@ extension DetailsHeroSection {
                     )
                 }
 
-                // Watched toggle / menu and Trakt rating
-                titleWatchActions
-
                 // Overseerr request button - circular (Apple TV+ style)
                 if let tmdbIdStr = vm.tmdbId, let tmdbIdInt = Int(tmdbIdStr) {
                     let overseerrMediaType = vm.mediaKind == "tv" ? "tv" : "movie"
@@ -148,35 +145,36 @@ extension DetailsHeroSection {
                     )
                 }
 
-                // Download button - circular (Apple TV+ style)
-                // Only show for movies and episodes (not TV shows or seasons) with a Plex source
-                if hasResolvedPlexSource,
-                   let ratingKey = effectivePlexRatingKey,
-                   let serverId = FlixorCore.shared.server?.id,
-                   (vm.mediaKind == "movie" || item.type == "movie" || isEpisode) {
-                    let downloadType: DownloadMediaType = isEpisode ? .episode : .movie
-                    DetailsDownloadButton(
-                        ratingKey: ratingKey,
-                        serverId: serverId,
-                        type: downloadType,
-                        title: vm.title,
-                        year: vm.year.flatMap { Int($0) },
-                        thumb: vm.posterURL?.absoluteString,
-                        grandparentTitle: item.grandparentTitle,
-                        grandparentRatingKey: item.grandparentRatingKey,
-                        parentIndex: item.parentIndex,
-                        index: item.index
-                    )
+                // Download shows here only while it has a state (progress,
+                // done, failed); starting one is in the ⋯ menu.
+                if let download = downloadRequest {
+                    DetailsDownloadSlot(request: download)
                 }
+
+                // Watched, Trakt rating and download
+                DetailsMoreActionsButton(model: titleActions, title: vm.title, download: downloadRequest)
             }
         }
     }
 
-    @ViewBuilder private var titleWatchActions: some View {
-        if let titleActions {
-            DetailsWatchedControl(model: titleActions)
-            DetailsRateControl(model: titleActions, title: vm.title)
-        }
+    /// Movies and episodes with a Plex source can be downloaded (not shows or seasons).
+    private var downloadRequest: DetailsDownloadRequest? {
+        guard hasResolvedPlexSource,
+              let ratingKey = effectivePlexRatingKey,
+              let serverId = FlixorCore.shared.server?.id,
+              vm.mediaKind == "movie" || item.type == "movie" || isEpisode else { return nil }
+        return DetailsDownloadRequest(
+            ratingKey: ratingKey,
+            serverId: serverId,
+            type: isEpisode ? .episode : .movie,
+            title: vm.title,
+            year: vm.year.flatMap { Int($0) },
+            thumb: vm.posterURL?.absoluteString,
+            grandparentTitle: item.grandparentTitle,
+            grandparentRatingKey: item.grandparentRatingKey,
+            parentIndex: item.parentIndex,
+            index: item.index
+        )
     }
 
     private var hasResolvedPlexSource: Bool {

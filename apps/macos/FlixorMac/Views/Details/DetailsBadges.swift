@@ -312,17 +312,30 @@ struct DetailsAvailabilityBadge: View {
             HStack(spacing: DS.Space.s4) {
                 Image(systemName: "checkmark.seal.fill")
                     .font(.flixorIcon(DS.Icon.xs - 2))
+                    .foregroundStyle(theme.success)
                 Text("In your Plex library")
             }
-            .font(.flixor(.caption, weight: .medium))
-            .foregroundStyle(theme.success)
+            .modifier(AvailabilityChip())
             .accessibilityElement(children: .combine)
             .accessibilityLabel("In your Plex library")
         } else if showsNotInLibraryNote {
             Text("Not in your Plex library")
-                .font(.flixor(.caption, weight: .medium))
-                .foregroundStyle(theme.textTertiary)
+                .foregroundStyle(theme.textSecondary)
+                .modifier(AvailabilityChip())
         }
+    }
+}
+
+/// Small dark chip above the title, like Apple TV's "Available for Rent".
+private struct AvailabilityChip: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .font(.flixor(.caption, weight: .semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, DS.Space.s8)
+            .padding(.vertical, 3)
+            .background(Color.black.opacity(0.45), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).strokeBorder(Color.white.opacity(0.18), lineWidth: 1))
     }
 }
 

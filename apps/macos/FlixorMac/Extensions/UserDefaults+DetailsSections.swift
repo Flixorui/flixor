@@ -82,6 +82,12 @@ enum DetailsSectionKey: String, CaseIterable, Codable, Identifiable {
 
     /// Default order when nothing is saved (or after a reset).
     static let defaultOrder: [DetailsSectionKey] = [
+        .episodes, .collection, .cast, .suggested, .trailers, .comments, .about
+    ]
+
+    /// The default before Collection and Cast moved up. A saved list that is
+    /// exactly this (all on) was never customised, so it follows the new default.
+    static let previousDefaultOrder: [DetailsSectionKey] = [
         .episodes, .suggested, .collection, .cast, .trailers, .comments, .about
     ]
 }
@@ -140,7 +146,11 @@ extension UserDefaults {
                 guard let key = DetailsSectionKey(rawValue: entry.key) else { return nil }
                 return DetailsSectionPreference(key: key, enabled: entry.enabled ?? true)
             }
-            return DetailsSectionPreference.normalized(prefs)
+            let normalized = DetailsSectionPreference.normalized(prefs)
+            if normalized.map(\.key) == DetailsSectionKey.previousDefaultOrder && normalized.allSatisfy(\.enabled) {
+                return DetailsSectionPreference.defaults
+            }
+            return normalized
         }
         set {
             guard let data = try? JSONEncoder().encode(DetailsSectionPreference.normalized(newValue)) else { return }

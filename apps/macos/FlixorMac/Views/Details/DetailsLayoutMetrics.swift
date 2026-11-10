@@ -19,9 +19,10 @@ struct DetailsLayoutMetrics {
     /// Same left edge as the sections below the hero.
     var heroHorizontalPadding: CGFloat { DetailsSectionStyle.inset }
 
-    // Dynamic top padding - approximately 45% of hero height to push content to lower portion
+    // Top padding that keeps the hero text in the lower part of the picture,
+    // leaving room for the corner block (availability, logo, overview, buttons)
     var heroTopPadding: CGFloat {
-        heroHeight * 0.45
+        heroHeight * 0.36
     }
 
     var heroBottomPadding: CGFloat {

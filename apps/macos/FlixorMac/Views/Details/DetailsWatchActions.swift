@@ -212,3 +212,177 @@ struct DetailsRateControl: View {
         }
     }
 }
+
+// MARK: - More (⋯)
+
+/// What the ⋯ menu needs to start a download. Built only for titles that can
+/// be downloaded (movies and episodes with a Plex source).
+struct DetailsDownloadRequest {
+    let ratingKey: String
+    let serverId: String
+    let type: DownloadMediaType
+    let title: String
+    let year: Int?
+    let thumb: String?
+    let grandparentTitle: String?
+    let grandparentRatingKey: String?
+    let parentIndex: Int?
+    let index: Int?
+
+    var globalKey: String { "\(serverId):\(ratingKey)" }
+
+    @MainActor func start() {
+        DownloadManager.shared.queueDownload(
+            ratingKey: ratingKey, serverId: serverId, type: type, title: title, year: year, thumb: thumb,
+            grandparentTitle: grandparentTitle, grandparentRatingKey: grandparentRatingKey,
+            parentIndex: parentIndex, index: index
+        )
+    }
+}
+
+/// While a download is queued, running, failed or done, the hero shows its
+/// own button (with progress); otherwise "Download" lives in the ⋯ menu.
+struct DetailsDownloadSlot: View {
+    let request: DetailsDownloadRequest
+    @ObservedObject private var downloads = DownloadManager.shared
+
+    var body: some View {
+        if downloads.isDownloaded(request.globalKey) || downloads.getProgress(request.globalKey) != nil {
+            DetailsDownloadButton(
+                ratingKey: request.ratingKey,
+                serverId: request.serverId,
+                type: request.type,
+                title: request.title,
+                year: request.year,
+                thumb: request.thumb,
+                grandparentTitle: request.grandparentTitle,
+                grandparentRatingKey: request.grandparentRatingKey,
+                parentIndex: request.parentIndex,
+                index: request.index
+            )
+        }
+    }
+}
+
+/// The hero's ⋯ button: watched state, Trakt rating and download, in one
+/// native menu (Apple TV style), so the action row stays short.
+struct DetailsMoreActionsButton: View {
+    let model: DetailsTitleActionsModel?
+    let title: String
+    let download: DetailsDownloadRequest?
+
+    @State private var menuAnchor = MenuAnchor()
+    @State private var showRatingSheet = false
+    @ObservedObject private var downloads = DownloadManager.shared
+
+    private var canDownload: Bool {
+        guard let download else { return false }
+        return !downloads.isDownloaded(download.globalKey) && downloads.getProgress(download.globalKey) == nil
+    }
+
+    private var hasItems: Bool {
+        (model?.kind != nil) || (model?.canRate ?? false) || canDownload
+    }
+
+    var body: some View {
+        if hasItems {
+            Button(action: showMenu) {
+                DetailsCircleActionLabel(
+                    systemImage: "ellipsis",
+                    isBusy: (model?.isWorking ?? false) || (model?.isRatingWorking ?? false)
+                )
+            }
+            .buttonStyle(.plain)
+            .background(MenuAnchorReader(anchor: menuAnchor))
+            .help("More")
+            .accessibilityLabel("More actions")
+            .sheet(isPresented: $showRatingSheet) {
+                if let model {
+                    DetailsRatingSheet(
+                        title: title,
+                        initialRating: model.userRating,
+                        onSave: { value in
+                            showRatingSheet = false
+                            model.rate(value)
+                        },
+                        onRemove: {
+                            showRatingSheet = false
+                            model.removeRating()
+                        },
+                        onCancel: { showRatingSheet = false }
+                    )
+                }
+            }
+        }
+    }
+
+    private func showMenu() {
+        guard let view = menuAnchor.view else { return }
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+
+        if let model, let kind = model.kind {
+            let watched = model.isWatched == true
+            if let progress = model.progressText {
+                let item = NSMenuItem(title: progress, action: nil, keyEquivalent: "")
+                item.isEnabled = false
+                menu.addItem(item)
+            }
+            if kind.isCollection {
+                menu.addItem(MenuActionItem(
+                    title: kind == .show ? String(localized: "Mark Show as Watched") : String(localized: "Mark Season as Watched"),
+                    systemImage: "checkmark.circle",
+                    isEnabled: !watched
+                ) { model.setWatched(true) })
+                menu.addItem(MenuActionItem(
+                    title: kind == .show ? String(localized: "Mark Show as Unwatched") : String(localized: "Mark Season as Unwatched"),
+                    systemImage: "arrow.uturn.backward.circle",
+                    isEnabled: model.isWatched != false || model.isInProgress
+                ) { model.setWatched(false) })
+                if !model.seasonOptions.isEmpty {
+                    let seasons = NSMenu()
+                    for season in model.seasonOptions {
+                        let submenu = NSMenu()
+                        submenu.addItem(MenuActionItem(title: String(localized: "Mark as Watched")) {
+                            model.setWatched(true, season: season)
+                        })
+                        submenu.addItem(MenuActionItem(title: String(localized: "Mark as Unwatched")) {
+                            model.setWatched(false, season: season)
+                        })
+                        let item = NSMenuItem(title: season.title, action: nil, keyEquivalent: "")
+                        item.submenu = submenu
+                        seasons.addItem(item)
+                    }
+                    let item = NSMenuItem(title: String(localized: "Seasons"), action: nil, keyEquivalent: "")
+                    item.submenu = seasons
+                    menu.addItem(item)
+                }
+            } else if watched {
+                menu.addItem(MenuActionItem(title: String(localized: "Mark as Unwatched"), systemImage: "arrow.uturn.backward.circle") {
+                    model.setWatched(false)
+                })
+            } else {
+                menu.addItem(MenuActionItem(title: String(localized: "Mark as Watched"), systemImage: "checkmark.circle") {
+                    model.setWatched(true)
+                })
+            }
+        }
+
+        if let model, model.canRate {
+            if menu.numberOfItems > 0 { menu.addItem(.separator()) }
+            let title = model.userRating.map { String(localized: "Change Trakt Rating (\($0)/10)…") } ?? String(localized: "Rate on Trakt…")
+            menu.addItem(MenuActionItem(title: title, systemImage: model.userRating == nil ? "star" : "star.fill") {
+                showRatingSheet = true
+            })
+        }
+
+        if canDownload, let download {
+            if menu.numberOfItems > 0 { menu.addItem(.separator()) }
+            menu.addItem(MenuActionItem(title: String(localized: "Download"), systemImage: "arrow.down.to.line") {
+                download.start()
+            })
+        }
+
+        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: -DS.Space.s6), in: view)
+    }
+}

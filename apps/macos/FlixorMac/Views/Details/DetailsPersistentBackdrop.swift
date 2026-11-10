@@ -104,24 +104,25 @@ struct DetailsPersistentBackdrop: View {
             endPoint: .center
         )
 
-        // Left, for the hero text
-        LinearGradient(
+        // Bottom-left corner, for the hero text (Apple TV style): the rest of
+        // the picture stays clear for the trailer.
+        RadialGradient(
             colors: [
                 Color.black.opacity(0.85),
-                Color.black.opacity(0.65),
-                Color.black.opacity(0.35),
-                Color.black.opacity(0.1),
+                Color.black.opacity(0.6),
+                Color.black.opacity(0.25),
                 .clear
             ],
-            startPoint: .leading,
-            endPoint: .trailing
+            center: .bottomLeading,
+            startRadius: 0,
+            endRadius: max(size.width * 0.72, size.height)
         )
 
-        RadialGradient(
-            gradient: Gradient(colors: [.clear, Color.black.opacity(0.4)]),
-            center: .center,
-            startRadius: size.width * 0.3,
-            endRadius: size.width * 0.8
+        // Bottom edge, for the credits on the right
+        LinearGradient(
+            colors: [Color.black.opacity(0.55), .clear],
+            startPoint: .bottom,
+            endPoint: UnitPoint(x: 0.5, y: 0.7)
         )
     }
 }

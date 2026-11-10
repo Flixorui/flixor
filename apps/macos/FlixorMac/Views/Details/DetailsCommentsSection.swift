@@ -247,6 +247,8 @@ struct DetailsCommentsSection: View {
             .pickerStyle(.segmented)
             .labelsHidden()
             .fixedSize()
+            // Neutral, like the rest of the UI: red is for progress and "on".
+            .tint(SettingsChrome.neutralTint)
             .disabled(model.phase == .loading)
             .accessibilityLabel(Text("Sort comments"))
         }

@@ -18,32 +18,26 @@ struct SuggestedSections: View {
     @ObservedObject private var profileSettings = ProfileSettings.shared
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Space.s48) {
-            if profileSettings.showRelatedContent && !vm.related.isEmpty {
-                suggestedRow(
-                    section: LibrarySection(
-                        id: "rel",
-                        title: String(localized: "Related"),
-                        items: vm.related,
-                        totalCount: vm.related.count,
-                        libraryKey: nil,
-                        browseContext: vm.relatedBrowseContext
-                    )
+        // One "More Like This" row: Related first, then Similar titles not
+        // already in it (TMDB's Similar list is the weaker of the two).
+        let items = moreLikeThis
+        if profileSettings.showRelatedContent && !items.isEmpty {
+            suggestedRow(
+                section: LibrarySection(
+                    id: "more-like-this",
+                    title: String(localized: "More Like This"),
+                    items: items,
+                    totalCount: items.count,
+                    libraryKey: nil,
+                    browseContext: vm.related.isEmpty ? vm.similarBrowseContext : vm.relatedBrowseContext
                 )
-            }
-            if profileSettings.showRelatedContent && !vm.similar.isEmpty {
-                suggestedRow(
-                    section: LibrarySection(
-                        id: "sim",
-                        title: String(localized: "Similar"),
-                        items: vm.similar,
-                        totalCount: vm.similar.count,
-                        libraryKey: nil,
-                        browseContext: vm.similarBrowseContext
-                    )
-                )
-            }
+            )
         }
+    }
+
+    private var moreLikeThis: [MediaItem] {
+        var seen = Set<String>()
+        return (vm.related + vm.similar).filter { seen.insert($0.id).inserted }
     }
 
     @ViewBuilder
