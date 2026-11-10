@@ -19,7 +19,6 @@ struct PlayerView: View {
     @State private var lastMousePosition: CGPoint = .zero
     @State private var mouseMovementTimer: Timer?
     @State private var isPiPActive = false
-    @State private var isCursorHidden = false
     @State private var mpvPiPViewController: NSViewController?
     @State var keyboardMonitor: Any?
     /// A panel in the controls is open: keep the controls up (the panel lives inside them).
@@ -309,6 +308,12 @@ struct PlayerView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in
             // The Space key-up goes to another app, so a held boost would stay on.
             releaseSpaceHold()
+            // The pointer now belongs to another app (PlayerCursor also does this app-wide).
+            PlayerCursor.show()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            // Back in front with the pointer left visible on the way out: resume idle auto-hide.
+            scheduleHideControls()
         }
         .onChange(of: viewModel.isPlaying) { isPlaying in
             MPVPiPWindowManager.shared.updatePlaybackState(isPlaying: isPlaying)
@@ -397,34 +402,16 @@ struct PlayerView: View {
     }
 
     private func hideCursor() {
-        #if os(macOS)
-        if !isCursorHidden {
-            NSCursor.hide()
-            isCursorHidden = true
-        }
-        #endif
+        PlayerCursor.hide()
     }
 
     private func showCursor() {
-        #if os(macOS)
-        if isCursorHidden {
-            NSCursor.unhide()
-            isCursorHidden = false
-        }
-        #endif
+        PlayerCursor.show()
     }
 
     private func forceShowCursor() {
-        #if os(macOS)
-        // NSCursor.hide() uses an internal counter, so we need to ensure we fully unhide
-        // Call unhide multiple times to clear any pending hides
-        for _ in 0..<10 {
-            NSCursor.unhide()
-        }
-        // Additionally, use setHiddenUntilMouseMoves to ensure cursor becomes visible
+        PlayerCursor.show()
         NSCursor.setHiddenUntilMouseMoves(false)
-        isCursorHidden = false
-        #endif
     }
 
     private func onMouseMoved() {
@@ -453,6 +440,50 @@ struct PlayerView: View {
             if !Task.isCancelled {
                 hideCursor()
             }
+        }
+    }
+}
+
+/// Hides the pointer over the playing video. `NSCursor.hide()`/`unhide()` are counted and
+/// app-wide, and a hide made while another app is in front (the idle timer firing just after
+/// a Cmd-Tab or a click elsewhere) leaves the pointer invisible over that app until Flixor
+/// comes back. So: at most one hide is ever outstanding, it is owned here rather than in view
+/// state (which can be rebuilt while the pointer is hidden), it is only made while Flixor is
+/// active with the pointer over its key window, and it is given back whenever the app resigns
+/// active or a window resigns key.
+@MainActor
+enum PlayerCursor {
+    private static var isHidden = false
+    private static var observers: [NSObjectProtocol] = []
+
+    static func hide() {
+        installObservers()
+        guard !isHidden,
+              NSApp.isActive,
+              let window = NSApp.keyWindow,
+              NSWindow.windowNumber(at: NSEvent.mouseLocation, belowWindowWithWindowNumber: 0) == window.windowNumber
+        else { return }
+        NSCursor.hide()
+        isHidden = true
+    }
+
+    static func show() {
+        guard isHidden else { return }
+        NSCursor.unhide()
+        isHidden = false
+    }
+
+    private static func installObservers() {
+        guard observers.isEmpty else { return }
+        let names: [Notification.Name] = [
+            NSApplication.willResignActiveNotification,
+            NSApplication.didResignActiveNotification,
+            NSWindow.didResignKeyNotification,
+        ]
+        for name in names {
+            observers.append(NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { _ in
+                MainActor.assumeIsolated { show() }
+            })
         }
     }
 }
