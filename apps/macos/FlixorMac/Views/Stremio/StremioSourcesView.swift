@@ -412,8 +412,9 @@ private struct StremioSourceRow: View {
 
     var body: some View {
         HStack(spacing: DS.Space.s12) {
-            StremioFactBadges(facts: entry.facts)
-                .frame(width: 340, alignment: .leading)
+            StremioFactBadges(facts: entry.facts, fitting: true)
+                .frame(width: 380, alignment: .leading)
+                .clipped()
             VStack(alignment: .leading, spacing: 1) {
                 // A grouped row stands for every server, so drop "· Server 1".
                 Text(entry.streams.count > 1
@@ -470,18 +471,38 @@ private struct StremioSourceRow: View {
 
 struct StremioFactBadges: View {
     let facts: StremioStreamFacts
+    /// In a fixed-width column: drop the least useful badges rather than overflow.
+    var fitting = false
 
     var body: some View {
+        if fitting {
+            ViewThatFits(in: .horizontal) {
+                badges(languageLimit: 3, showCached: true)
+                badges(languageLimit: 2, showCached: true)
+                badges(languageLimit: 2, showCached: false)
+                badges(languageLimit: 0, showCached: false)
+            }
+        } else {
+            badges(languageLimit: 3, showCached: true)
+        }
+    }
+
+    private func badges(languageLimit: Int, showCached: Bool) -> some View {
         HStack(spacing: DS.Space.s4) {
             if let resolution = facts.resolution { badge(resolution, style: .resolution) }
             if let hdr = facts.hdr { badge(hdr, style: hdr.hasPrefix("DV") ? .dolbyVision : .hdr) }
             if let codec = facts.codec { badge(codec) }
             if let audio = facts.audio { badge(audio) }
             if let size = facts.sizeText { badge(size) }
-            if !facts.languages.isEmpty { badge(facts.languages.prefix(3).joined(separator: " · ")) }
-            if facts.cached { badge(String(localized: "Cached"), style: .cached) }
+            if languageLimit > 0, !facts.languages.isEmpty {
+                let shown = facts.languages.prefix(languageLimit).joined(separator: " · ")
+                let extra = facts.languages.count - min(languageLimit, facts.languages.count)
+                badge(extra > 0 ? "\(shown) +\(extra)" : shown)
+            }
+            if showCached, facts.cached { badge(String(localized: "Cached"), style: .cached) }
         }
         .lineLimit(1)
+        .fixedSize()
     }
 
     enum Style { case plain, resolution, hdr, dolbyVision, cached }
