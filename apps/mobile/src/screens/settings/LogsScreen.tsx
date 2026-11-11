@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet, Platform, RefreshControl, Alert } from 'react-native';
+import { View, Text, ScrollView, Pressable, StyleSheet, Platform, RefreshControl, Alert, Animated } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,6 +17,7 @@ const LOG_COLORS: Record<LogLevel, string> = {
 };
 
 export default function LogsScreen() {
+  const headerScrollY = React.useRef(new Animated.Value(0)).current;
   const nav: any = useNavigation();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -81,8 +82,10 @@ export default function LogsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.settingsBackground }]}>
-      <SettingsHeader title="Logs" onBack={() => nav.goBack()} />
-      <ScrollView
+      <SettingsHeader scrollY={headerScrollY} title="Logs" onBack={() => nav.goBack()} />
+      <Animated.ScrollView
+        scrollEventThrottle={16}
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: headerScrollY } } }], { useNativeDriver: false })}
         contentContainerStyle={[
           styles.content,
           { paddingTop: headerHeight + 12, paddingBottom: insets.bottom + 100 },
@@ -164,7 +167,7 @@ export default function LogsScreen() {
             Sensitive data like tokens and passwords are automatically redacted.
           </Text>
         </View>
-      </ScrollView>
+      </Animated.ScrollView>
     </View>
   );
 }

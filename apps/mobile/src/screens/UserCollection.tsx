@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {Animated, ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -131,6 +131,7 @@ function useCollectionFeed(collection: UserCollectionModel | undefined) {
 }
 
 function CollectionDetail({ collectionId, fallbackTitle }: { collectionId: string; fallbackTitle?: string }) {
+  const headerScrollY = React.useRef(new Animated.Value(0)).current;
   const nav: any = useNavigation();
   const insets = useSafeAreaInsets();
   const theme = useTheme();
@@ -149,7 +150,7 @@ function CollectionDetail({ collectionId, fallbackTitle }: { collectionId: strin
   if (isLoaded && !collection) {
     return (
       <View style={[styles.container, { backgroundColor: theme.background }]}>
-        <SettingsHeader title={title} onBack={() => nav.goBack()} />
+        <SettingsHeader scrollY={headerScrollY} title={title} onBack={() => nav.goBack()} />
         <View style={[styles.center, { paddingTop: insets.top + 52 }]}>
           <Ionicons name="albums-outline" size={40} color={theme.textTertiary} />
           <Text style={[styles.message, { color: theme.textSecondary }]}>This collection no longer exists.</Text>
@@ -210,25 +211,27 @@ function CollectionDetail({ collectionId, fallbackTitle }: { collectionId: strin
         onEndReached={feed.loadMore}
         loadingMore={feed.loadingMore}
         paddingTop={insets.top + 60}
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: headerScrollY } } }], { useNativeDriver: false })}
         paddingBottom={insets.bottom + 40}
       />
-      <SettingsHeader title={title} onBack={() => nav.goBack()} />
+      <SettingsHeader scrollY={headerScrollY} title={title} onBack={() => nav.goBack()} />
       <UserCollectionEditor visible={editing} collection={collection} onClose={() => setEditing(false)} />
     </View>
   );
 }
 
 function CollectionsOverview() {
+  const headerScrollY = React.useRef(new Animated.Value(0)).current;
   const nav: any = useNavigation();
   const insets = useSafeAreaInsets();
   const theme = useTheme();
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <ScrollView contentContainerStyle={{ paddingTop: insets.top + 64, paddingBottom: insets.bottom + 40 }}>
+      <Animated.ScrollView scrollEventThrottle={16} onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: headerScrollY } } }], { useNativeDriver: false })} contentContainerStyle={{ paddingTop: insets.top + 64, paddingBottom: insets.bottom + 40 }}>
         <UserCollectionsSection />
-      </ScrollView>
-      <SettingsHeader title="Your Collections" onBack={() => nav.goBack()} />
+      </Animated.ScrollView>
+      <SettingsHeader scrollY={headerScrollY} title="Your Collections" onBack={() => nav.goBack()} />
     </View>
   );
 }

@@ -513,6 +513,15 @@ export interface AppSettings {
   stremioCatalogSearchEnabled: boolean;
   recentSearches: string[]; // Most recent first, capped at RECENT_SEARCHES_LIMIT
   searchDiscoverFilters?: SearchDiscoverFilters; // Unset until the user changes one
+
+  // Top 10 Lists (FlixPatrol and Streaming Availability). Keys and FlixPatrol sources are
+  // not here: they are shared across profiles and kept in the Keychain (core/top10).
+  top10Enabled: boolean; // Show the rows on Home once a source is set up
+  top10Region?: string; // Two-letter country; unset follows the device's region
+  top10Services: string[]; // Services with Top 10 rows
+  top10SplitByType: boolean; // Movies and Shows as separate rows (else one mixed row)
+  top10NewServices: string[]; // Services with "New on" rows (Streaming Availability only)
+  top10RefreshHours: number; // 12, 24 or 48
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -658,6 +667,13 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   stremioCatalogSearchEnabled: false, // setAppMode turns this on for Stremio-only. macOS: true
   recentSearches: [],
   searchDiscoverFilters: undefined,
+
+  top10Enabled: true,
+  top10Region: undefined,
+  top10Services: ['netflix', 'prime', 'disney', 'apple', 'hbo'],
+  top10SplitByType: true,
+  top10NewServices: [],
+  top10RefreshHours: 24,
 };
 
 let cachedSettings: AppSettings = { ...DEFAULT_APP_SETTINGS };

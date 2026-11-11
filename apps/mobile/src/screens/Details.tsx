@@ -6,7 +6,11 @@ import Animated, {
   useAnimatedStyle,
   interpolate,
   Extrapolation,
+  useAnimatedReaction,
+  runOnJS,
 } from 'react-native-reanimated';
+import HeaderGlass, { HEADER_GLASS_MIN_OPACITY } from '../components/HeaderGlass';
+import LiquidGlass from '../components/LiquidGlass';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import TrailersRow from '../components/TrailersRow';
 import { Ionicons } from '@expo/vector-icons';
@@ -220,12 +224,22 @@ export default function Details({ route }: RouteParams) {
     };
   });
 
+  // The sticky header is tappable only once it has faded in
+  const [stickyShown, setStickyShown] = useState(false);
+  useAnimatedReaction(
+    () => scrollY.value > HEADER_APPEAR_THRESHOLD,
+    (shown, prev) => {
+      if (shown !== prev) runOnJS(setStickyShown)(shown);
+    }
+  );
+
   // Animated style for sticky header
   const stickyHeaderStyle = useAnimatedStyle(() => {
+    // Never fully 0: iOS stops drawing Liquid Glass once a parent has been at zero alpha
     const opacity = interpolate(
       scrollY.value,
       [HEADER_APPEAR_THRESHOLD - 30, HEADER_APPEAR_THRESHOLD + 20],
-      [0, 1],
+      [HEADER_GLASS_MIN_OPACITY, 1],
       Extrapolation.CLAMP
     );
     const translateY = interpolate(
@@ -1392,12 +1406,12 @@ export default function Details({ route }: RouteParams) {
           },
           stickyHeaderStyle,
         ]}
-        pointerEvents="box-none"
+        // Takes touches only once shown (it covers the artwork's own buttons before that)
+        pointerEvents={stickyShown ? 'box-none' : 'none'}
       >
-        {/* Blur background */}
+        {/* Liquid Glass band, tinted with the page colour */}
         <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
-          <ConditionalBlurView intensity={50} tint="dark" style={StyleSheet.absoluteFillObject} />
-          <View style={[StyleSheet.absoluteFillObject, { backgroundColor: headerOverlayColor }]} />
+          <HeaderGlass fallbackIntensity={50} tint={withAlpha(tint, 0.45)} fallbackTint={headerOverlayColor} />
           {/* Bottom separator */}
           <View
             style={{
@@ -1413,8 +1427,14 @@ export default function Details({ route }: RouteParams) {
         {/* Header content */}
         <View style={{ paddingTop: insets.top, paddingBottom: 12 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12 }}>
-            {/* Back button in sticky header - uses simple styling since header already has blur */}
-            <Pressable onPress={() => nav.goBack()} style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(0,0,0,0.3)', alignItems: 'center', justifyContent: 'center' }}>
+            {/* Round Liquid Glass buttons, as on the other screens */}
+            <Pressable
+              onPress={() => nav.goBack()}
+              accessibilityRole="button"
+              accessibilityLabel="Back"
+              style={({ pressed }) => [{ width: 36, height: 36, borderRadius: 18, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }, pressed && { opacity: 0.7 }]}
+            >
+              <LiquidGlass radius={18} />
               <Ionicons name="chevron-back" color="#fff" size={22} />
             </Pressable>
             {/* Centered logo or title */}
@@ -1427,12 +1447,14 @@ export default function Details({ route }: RouteParams) {
                 </Text>
               )}
             </View>
-            {/* Watchlist button - uses simple styling since header already has blur */}
             <Pressable
               onPress={handleStickyWatchlistToggle}
               disabled={watchlistLoading}
-              style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(0,0,0,0.3)', alignItems: 'center', justifyContent: 'center', opacity: watchlistLoading ? 0.5 : 1 }}
+              accessibilityRole="button"
+              accessibilityLabel={inWatchlist ? 'Remove from My List' : 'Add to My List'}
+              style={{ width: 36, height: 36, borderRadius: 18, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', opacity: watchlistLoading ? 0.5 : 1 }}
             >
+              <LiquidGlass radius={18} />
               {watchlistLoading ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (

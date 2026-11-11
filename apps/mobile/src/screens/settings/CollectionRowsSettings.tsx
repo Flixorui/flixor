@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Animated } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,6 +11,7 @@ import { fetchCollections, CollectionItem } from '../../core/CollectionsData';
 import { useAppSettings } from '../../hooks/useAppSettings';
 
 export default function CollectionRowsSettings() {
+  const headerScrollY = React.useRef(new Animated.Value(0)).current;
   const nav: any = useNavigation();
   const insets = useSafeAreaInsets();
   const headerHeight = insets.top + 52;
@@ -51,8 +52,10 @@ export default function CollectionRowsSettings() {
 
   return (
     <View style={styles.container}>
-      <SettingsHeader title="Collection Rows" onBack={() => nav.goBack()} />
-      <ScrollView
+      <SettingsHeader scrollY={headerScrollY} title="Collection Rows" onBack={() => nav.goBack()} />
+      <Animated.ScrollView
+        scrollEventThrottle={16}
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: headerScrollY } } }], { useNativeDriver: false })}
         contentContainerStyle={[
           styles.content,
           { paddingTop: headerHeight + 12, paddingBottom: insets.bottom + 100 },
@@ -101,7 +104,7 @@ export default function CollectionRowsSettings() {
           Toggle collections to show or hide them on the home screen. Only the top 5 collections are
           displayed on the home screen.
         </Text>
-      </ScrollView>
+      </Animated.ScrollView>
     </View>
   );
 }

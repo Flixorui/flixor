@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, ScrollView, Text, Pressable, StyleSheet } from 'react-native';
+import { View, ScrollView, Text, Pressable, StyleSheet, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,6 +18,7 @@ import {
 import { DEFAULT_APP_SETTINGS, type DetailsSectionKey, type DetailsSeasonPickerStyle } from '../../core/SettingsData';
 
 export default function DetailsScreenSettings() {
+  const headerScrollY = React.useRef(new Animated.Value(0)).current;
   const nav: any = useNavigation();
   const insets = useSafeAreaInsets();
   const { settings, updateSetting } = useAppSettings();
@@ -59,8 +60,10 @@ export default function DetailsScreenSettings() {
 
   return (
     <View style={styles.container}>
-      <SettingsHeader title="Details" onBack={() => nav.goBack()} />
-      <ScrollView contentContainerStyle={[styles.content, { paddingTop: headerHeight + 12, paddingBottom: insets.bottom + 100 }]}>
+      <SettingsHeader scrollY={headerScrollY} title="Details" onBack={() => nav.goBack()} />
+      <Animated.ScrollView
+        scrollEventThrottle={16}
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: headerScrollY } } }], { useNativeDriver: false })} contentContainerStyle={[styles.content, { paddingTop: headerHeight + 12, paddingBottom: insets.bottom + 100 }]}>
         <SettingsCard title="SCREEN LAYOUT">
           <View style={styles.layoutGroup}>
             <Text style={styles.layoutLabel}>Details Page Style</Text>
@@ -279,7 +282,7 @@ export default function DetailsScreenSettings() {
             isLast={true}
           />
         </SettingsCard>
-      </ScrollView>
+      </Animated.ScrollView>
     </View>
   );
 }

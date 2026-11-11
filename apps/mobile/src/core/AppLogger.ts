@@ -148,8 +148,18 @@ class AppLogger {
   /**
    * Redact sensitive data from a string
    */
+  private sensitiveValues = new Set<string>();
+
+  /** Values (API keys) blanked out wherever they appear in a log line. */
+  registerSensitiveValue(value: string): void {
+    if (value && value.length >= 6) this.sensitiveValues.add(value);
+  }
+
   private redact(text: string): string {
     let result = text;
+    for (const value of this.sensitiveValues) {
+      if (result.includes(value)) result = result.split(value).join('[REDACTED]');
+    }
     for (const pattern of SENSITIVE_PATTERNS) {
       result = result.replace(pattern, '[REDACTED]');
     }

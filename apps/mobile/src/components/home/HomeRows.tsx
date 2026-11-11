@@ -14,7 +14,7 @@ import type { ContinueWatchingMenuAction } from './continueWatchingMenu';
 import { fetchCatalogRowItems, type HomeDisplayRow } from './homeRowModels';
 import type { HomeViewport } from './homeViewport';
 import { preheatArtwork } from './preheat';
-import Top10Row from './Top10Row';
+import StreamingTop10Rows from './StreamingTop10Rows';
 import type { ContentItem } from '../../core/NewHotData';
 
 const getPoster = (item: RowItem) => item.image;
@@ -196,7 +196,9 @@ function HomeRows({
         const shared = { rowId: model.id, title, caption, layout, onItemPress, onBrowseRow };
         switch (model.type) {
           case 'continueWatching': {
-            const top10 = onTop10Press ? <Top10Row key={`${model.id}-top10`} onItemPress={onTop10Press} /> : null;
+            // Top 10 rows per service when a FlixPatrol / Streaming Availability source is set up,
+            // else TMDB's weekly Top 10
+            const top10 = onTop10Press ? <StreamingTop10Rows key={`${model.id}-top10`} onItemPress={onTop10Press} /> : null;
             if (!showContinueWatching || continueEntries.length === 0) return top10;
             const ContinueRow = continueLayout === 'landscape' ? ContinueWatchingLandscapeRow : ContinueWatchingPosterRow;
             return (

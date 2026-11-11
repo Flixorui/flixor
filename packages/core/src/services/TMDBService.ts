@@ -258,6 +258,19 @@ export class TMDBService {
   // ============================================
 
   /**
+   * Everything a New & Hot card needs in one request: details, images (en + textless),
+   * age ratings (release_dates for movies, content_ratings for TV) and videos.
+   */
+  async getNewHotDetails(mediaType: 'movie' | 'tv', id: number): Promise<any> {
+    const ratings = mediaType === 'movie' ? 'release_dates' : 'content_ratings';
+    return this.get<any>(
+      `/${mediaType}/${id}`,
+      { append_to_response: `images,videos,${ratings}`, include_image_language: 'en,null' },
+      CacheTTL.TRENDING
+    );
+  }
+
+  /**
    * Get TV show details (includes external_ids for TVDB/IMDB matching)
    */
   async getTVDetails(id: number): Promise<TMDBTVDetails> {

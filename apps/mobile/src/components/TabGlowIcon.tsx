@@ -1,10 +1,12 @@
 import React from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { Image, Platform, StyleSheet, View, type ImageSourcePropType } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { FlixorTheme } from '../core/theme';
 
 type Props = {
-  name: keyof typeof Ionicons.glyphMap;
+  /** An Ionicon, or `source` for an image icon (the macOS nav icons). */
+  name?: keyof typeof Ionicons.glyphMap;
+  source?: ImageSourcePropType;
   size: number;
   color: string;
   /** Shows the soft accent light behind the icon. */
@@ -13,7 +15,7 @@ type Props = {
 };
 
 /** A tab icon with the selected-tab light from macOS's "Glass Glow". */
-export default function TabGlowIcon({ name, size, color, glow, theme }: Props) {
+export default function TabGlowIcon({ name, source, size, color, glow, theme }: Props) {
   return (
     <View style={styles.wrap}>
       {glow ? (
@@ -26,7 +28,11 @@ export default function TabGlowIcon({ name, size, color, glow, theme }: Props) {
           ]}
         />
       ) : null}
-      <Ionicons name={name} size={size} color={color} />
+      {source ? (
+        <Image source={source} style={{ width: size, height: size, tintColor: color }} resizeMode="contain" />
+      ) : (
+        <Ionicons name={name ?? 'ellipse-outline'} size={size} color={color} />
+      )}
     </View>
   );
 }

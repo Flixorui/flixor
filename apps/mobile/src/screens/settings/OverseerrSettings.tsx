@@ -7,8 +7,7 @@ import {
   Pressable,
   StyleSheet,
   Linking,
-  ActivityIndicator,
-} from 'react-native';
+  ActivityIndicator, Animated } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -28,6 +27,7 @@ import { useTheme } from '../../hooks/useTheme';
 import SettingsSwitch from '../../components/settings/SettingsSwitch';
 
 export default function OverseerrSettings() {
+  const headerScrollY = React.useRef(new Animated.Value(0)).current;
   const nav: any = useNavigation();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -274,8 +274,10 @@ export default function OverseerrSettings() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.settingsBackground }]}>
-      <SettingsHeader title="Overseerr" onBack={() => nav.goBack()} />
-      <ScrollView
+      <SettingsHeader scrollY={headerScrollY} title="Overseerr" onBack={() => nav.goBack()} />
+      <Animated.ScrollView
+        scrollEventThrottle={16}
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: headerScrollY } } }], { useNativeDriver: false })}
         contentContainerStyle={[
           styles.content,
           { paddingTop: headerHeight + 12, paddingBottom: insets.bottom + 100 },
@@ -552,7 +554,7 @@ export default function OverseerrSettings() {
             </View>
           </View>
         </SettingsCard>
-      </ScrollView>
+      </Animated.ScrollView>
     </View>
   );
 }

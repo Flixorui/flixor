@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, ScrollView, TextInput, Pressable, StyleSheet, Linking, Image } from 'react-native';
+import { View, Text, ScrollView, TextInput, Pressable, StyleSheet, Linking, Image, Animated } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,6 +24,7 @@ const RATING_LOGOS = {
 };
 
 export default function MDBListSettings() {
+  const headerScrollY = React.useRef(new Animated.Value(0)).current;
   const nav: any = useNavigation();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -49,8 +50,10 @@ export default function MDBListSettings() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.settingsBackground }]}>
-      <SettingsHeader title="MDBList" onBack={() => nav.goBack()} />
-      <ScrollView contentContainerStyle={[styles.content, { paddingTop: headerHeight + 12, paddingBottom: insets.bottom + 100 }]}>
+      <SettingsHeader scrollY={headerScrollY} title="MDBList" onBack={() => nav.goBack()} />
+      <Animated.ScrollView
+        scrollEventThrottle={16}
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: headerScrollY } } }], { useNativeDriver: false })} contentContainerStyle={[styles.content, { paddingTop: headerHeight + 12, paddingBottom: insets.bottom + 100 }]}>
         {/* Header with MDBList logo */}
         <View style={styles.logoHeader}>
           <View style={styles.logoContainer}>
@@ -168,7 +171,7 @@ export default function MDBListSettings() {
             </Pressable>
           </View>
         </SettingsCard>
-      </ScrollView>
+      </Animated.ScrollView>
     </View>
   );
 }

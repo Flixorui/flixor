@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, ScrollView, TextInput, Pressable, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TextInput, Pressable, StyleSheet, Animated } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import SettingsHeader from '../../components/settings/SettingsHeader';
@@ -20,6 +20,7 @@ const LANGUAGE_OPTIONS = [
 ];
 
 export default function TMDBSettings() {
+  const headerScrollY = React.useRef(new Animated.Value(0)).current;
   const nav: any = useNavigation();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -41,8 +42,10 @@ export default function TMDBSettings() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.settingsBackground }]}>
-      <SettingsHeader title="TMDB" onBack={() => nav.goBack()} />
-      <ScrollView contentContainerStyle={[styles.content, { paddingTop: headerHeight + 12, paddingBottom: insets.bottom + 100 }]}>
+      <SettingsHeader scrollY={headerScrollY} title="TMDB" onBack={() => nav.goBack()} />
+      <Animated.ScrollView
+        scrollEventThrottle={16}
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: headerScrollY } } }], { useNativeDriver: false })} contentContainerStyle={[styles.content, { paddingTop: headerHeight + 12, paddingBottom: insets.bottom + 100 }]}>
         {/* Header with TMDB logo */}
         <View style={styles.logoHeader}>
           <View style={styles.logoContainer}>
@@ -116,7 +119,7 @@ export default function TMDBSettings() {
           </View>
           <Text style={styles.note}>Applies to TMDB requests and logo localization.</Text>
         </SettingsCard>
-      </ScrollView>
+      </Animated.ScrollView>
     </View>
   );
 }

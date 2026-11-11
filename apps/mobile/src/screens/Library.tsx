@@ -3,7 +3,7 @@ import { useTheme } from '../hooks/useTheme';
 import { useAppMode } from '../core/AppMode';
 import UserCollectionsSection from '../components/collections/UserCollectionsSection';
 import { View, Text, ActivityIndicator, Pressable, StyleSheet, Dimensions, Animated, Modal, Platform, InteractionManager } from 'react-native';
-import PullToRefresh from '../components/PullToRefresh';
+import PullToRefresh, { usePullToRefresh } from '../components/PullToRefresh';
 import FastImage from '@d11/react-native-fast-image';
 import { FlashList } from '@shopify/flash-list';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -154,6 +154,8 @@ function PlexLibrary() {
 
     setRefreshing(false);
   }, [flixor, mType, resolvedLibraryKey, genreKey, sortOption]);
+  // Refreshes only when the finger is lifted past the line (never from momentum)
+  const pull = usePullToRefresh(y, refreshing, handleRefresh);
 
   // Get user's library preferences from settings
   const { settings } = useAppSettings();
@@ -416,7 +418,7 @@ function PlexLibrary() {
         style={StyleSheet.absoluteFillObject}
       />
 
-      <PullToRefresh scrollY={y} refreshing={refreshing} onRefresh={handleRefresh} />
+      <PullToRefresh {...pull.indicatorProps} top={barHeight + 6} />
 
       <FlashList
         data={items}
@@ -433,6 +435,7 @@ function PlexLibrary() {
         contentContainerStyle={{ padding: 8, paddingTop: barHeight }}
         onEndReached={loadMore}
         onEndReachedThreshold={0.5}
+        {...pull.dragHandlers}
         onScroll={(e: any) => {
           const currentY = e.nativeEvent.contentOffset.y;
           y.setValue(currentY);
@@ -501,15 +504,6 @@ function PlexLibrary() {
         </Pressable>
       </Modal>
 
-      {/* Custom refresh indicator above TopAppBar */}
-      {refreshing && (
-        <View style={{ position: 'absolute', top: barHeight + 10, left: 0, right: 0, alignItems: 'center', zIndex: 50 }}>
-          <View style={{ backgroundColor: 'rgba(0,0,0,0.7)', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, flexDirection: 'row', alignItems: 'center' }}>
-            <ActivityIndicator color="#fff" size="small" />
-            <Text style={{ color: '#fff', marginLeft: 8, fontSize: 13 }}>Refreshing...</Text>
-          </View>
-        </View>
-      )}
 
     </View>
   );

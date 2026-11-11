@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { View, ScrollView, StyleSheet, Linking } from 'react-native';
+import { View, ScrollView, StyleSheet, Linking, Animated } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,6 +24,7 @@ const LINKS = {
 };
 
 export default function AboutSettings() {
+  const headerScrollY = React.useRef(new Animated.Value(0)).current;
   const nav: any = useNavigation();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -33,8 +34,10 @@ export default function AboutSettings() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.settingsBackground }]}>
-      <SettingsHeader title="About" onBack={() => nav.goBack()} />
-      <ScrollView contentContainerStyle={[styles.content, { paddingTop: headerHeight + 12, paddingBottom: insets.bottom + 100 }]}>
+      <SettingsHeader scrollY={headerScrollY} title="About" onBack={() => nav.goBack()} />
+      <Animated.ScrollView
+        scrollEventThrottle={16}
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: headerScrollY } } }], { useNativeDriver: false })} contentContainerStyle={[styles.content, { paddingTop: headerHeight + 12, paddingBottom: insets.bottom + 100 }]}>
         <SettingsCard title="FLIXOR">
           <SettingItem title="Version" description={getAppVersion()} icon="information-circle-outline" isLast={false} />
           <SettingItem
@@ -58,7 +61,7 @@ export default function AboutSettings() {
         <SettingsCard title="LEGAL">
           <SettingItem title="Privacy Policy" icon="shield-outline" renderRight={chevron} onPress={open(LINKS.privacy)} isLast={true} />
         </SettingsCard>
-      </ScrollView>
+      </Animated.ScrollView>
     </View>
   );
 }

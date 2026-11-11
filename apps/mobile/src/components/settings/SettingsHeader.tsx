@@ -2,8 +2,8 @@ import React from 'react';
 import { View, Text, Pressable, StyleSheet, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import ConditionalBlurView from '../ConditionalBlurView';
-import { useTheme } from '../../hooks/useTheme';
+import HeaderGlass, { HEADER_GLASS_MIN_OPACITY } from '../HeaderGlass';
+import LiquidGlass from '../LiquidGlass';
 
 type SettingsHeaderProps = {
   title: string;
@@ -13,13 +13,17 @@ type SettingsHeaderProps = {
 
 export default function SettingsHeader({ title, onBack, scrollY }: SettingsHeaderProps) {
   const insets = useSafeAreaInsets();
-  const theme = useTheme();
   const headerHeight = insets.top + 52;
 
-  // Animate blur/tint based on scroll (matching TopAppBar behavior)
-  const blurOpacity = scrollY
-    ? scrollY.interpolate({ inputRange: [0, 120], outputRange: [0, 1], extrapolate: 'clamp' })
-    : new Animated.Value(1);
+  // Liquid Glass fades in as content scrolls under it, like the other screens. Never fully 0:
+  // iOS stops drawing Liquid Glass once a parent has been at zero alpha.
+  const blurOpacity = React.useMemo(
+    () =>
+      scrollY
+        ? scrollY.interpolate({ inputRange: [0, 8, 60], outputRange: [HEADER_GLASS_MIN_OPACITY, HEADER_GLASS_MIN_OPACITY, 1], extrapolate: 'clamp' })
+        : new Animated.Value(1),
+    [scrollY]
+  );
   const separatorOpacity = scrollY
     ? scrollY.interpolate({ inputRange: [0, 120], outputRange: [0, 0.08], extrapolate: 'clamp' })
     : new Animated.Value(0.08);
@@ -28,9 +32,7 @@ export default function SettingsHeader({ title, onBack, scrollY }: SettingsHeade
     <View style={[styles.header, { height: headerHeight }]}>
       {/* Animated blur background - fades in on scroll */}
       <Animated.View style={[StyleSheet.absoluteFillObject, { opacity: blurOpacity }]}>
-        <ConditionalBlurView intensity={90} tint="dark" style={StyleSheet.absoluteFillObject} />
-        {/* Glass tint overlay */}
-        <View pointerEvents="none" style={[StyleSheet.absoluteFillObject, { backgroundColor: theme.glassTint }]} />
+        <HeaderGlass fallbackIntensity={90} />
       </Animated.View>
       {/* Hairline separator - fades in on scroll */}
       <Animated.View style={[styles.separator, { opacity: separatorOpacity }]} />
@@ -38,7 +40,14 @@ export default function SettingsHeader({ title, onBack, scrollY }: SettingsHeade
       {/* Content */}
       <View style={[styles.content, { paddingTop: insets.top }]}>
         {onBack ? (
-          <Pressable onPress={onBack} style={styles.backButton} hitSlop={8}>
+          <Pressable
+            onPress={onBack}
+            style={({ pressed }) => [styles.backButton, pressed && { opacity: 0.7 }]}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+          >
+            <LiquidGlass radius={18} />
             <Ionicons name="chevron-back" size={22} color="#fff" />
           </Pressable>
         ) : null}
@@ -75,9 +84,10 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
+    overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 8,
+    marginRight: 10,
   },
   title: {
     color: '#fff',

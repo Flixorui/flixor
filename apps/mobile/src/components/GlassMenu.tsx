@@ -9,6 +9,7 @@ import { Animated, Easing, Modal, Pressable, ScrollView, StyleSheet, Text, View,
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import ConditionalBlurView from './ConditionalBlurView';
+import LiquidGlass, { liquidGlassAvailable } from './LiquidGlass';
 
 export type GlassMenuItem = {
   title: string;
@@ -78,6 +79,7 @@ export default function GlassMenu({
         {children}
       </Pressable>
       <Modal visible={open} transparent animationType="none" onRequestClose={() => close()} statusBarTranslucent>
+        <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.dim, { opacity: progress }]} />
         <Pressable style={StyleSheet.absoluteFill} onPress={() => close()} accessibilityLabel="Close menu" />
         <Animated.View
           style={[
@@ -86,15 +88,25 @@ export default function GlassMenu({
               left,
               top,
               maxHeight,
-              opacity: progress,
+              // Never fully 0: iOS doesn't draw Liquid Glass properly once a parent has been
+              // at zero alpha, so the menu fades from an invisible 2% instead
+              opacity: progress.interpolate({ inputRange: [0, 1], outputRange: [0.02, 1] }),
               // Grows from the point under the anchor's centre
               transformOrigin: [anchor.x + anchor.w / 2 - left, 0, 0],
               transform: [{ scale: progress.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] }) }],
             },
           ]}
         >
-          <ConditionalBlurView intensity={60} tint="dark" style={StyleSheet.absoluteFill} />
-          <View style={[StyleSheet.absoluteFill, styles.fill]} pointerEvents="none" />
+          {liquidGlassAvailable ? (
+            // Apple's Liquid Glass (Expo GlassView), with a dark tint so the text reads over
+            // bright artwork
+            <LiquidGlass radius={22} tint="rgba(20,20,24,0.55)" />
+          ) : (
+            <>
+              <ConditionalBlurView intensity={60} tint="dark" style={StyleSheet.absoluteFill} />
+              <View style={[StyleSheet.absoluteFill, styles.fill]} pointerEvents="none" />
+            </>
+          )}
           <ScrollView bounces={false} showsVerticalScrollIndicator={level.length > 8}>
             {path.length > 0 ? (
               <Pressable onPress={() => setPath((p) => p.slice(0, -1))} style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
@@ -144,6 +156,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   fill: { backgroundColor: 'rgba(60,62,68,0.55)' },
+  dim: { backgroundColor: 'rgba(0,0,0,0.25)' },
   row: { height: ROW_H, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18 },
   divider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'rgba(255,255,255,0.08)' },
   pressed: { backgroundColor: 'rgba(255,255,255,0.12)' },

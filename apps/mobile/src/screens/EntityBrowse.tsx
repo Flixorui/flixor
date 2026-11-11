@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {Animated, ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -66,6 +66,7 @@ async function fetchEntityInfo(kind: Kind, id: number): Promise<EntityInfo> {
 }
 
 function EntityGrid({ kind, id, name }: { kind: Kind; id: number; name?: string }) {
+  const headerScrollY = React.useRef(new Animated.Value(0)).current;
   const nav: any = useNavigation();
   const insets = useSafeAreaInsets();
   const theme = useTheme();
@@ -259,14 +260,16 @@ function EntityGrid({ kind, id, name }: { kind: Kind; id: number; name?: string 
           ) : null
         }
         paddingTop={insets.top + 60}
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: headerScrollY } } }], { useNativeDriver: false })}
         paddingBottom={insets.bottom + 40}
       />
-      <SettingsHeader title={title} onBack={() => nav.goBack()} />
+      <SettingsHeader scrollY={headerScrollY} title={title} onBack={() => nav.goBack()} />
     </View>
   );
 }
 
 function EntityLanding() {
+  const headerScrollY = React.useRef(new Animated.Value(0)).current;
   const nav: any = useNavigation();
   const insets = useSafeAreaInsets();
   const theme = useTheme();
@@ -307,7 +310,7 @@ function EntityLanding() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <ScrollView
+      <Animated.ScrollView scrollEventThrottle={16} onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: headerScrollY } } }], { useNativeDriver: false })}
         contentContainerStyle={{ paddingTop: insets.top + 64, paddingHorizontal: 16, paddingBottom: insets.bottom + 40 }}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
@@ -342,8 +345,8 @@ function EntityLanding() {
             <Chip key={network.id} label={network.name} onPress={() => open('network', network.id, network.name)} />
           ))}
         </View>
-      </ScrollView>
-      <SettingsHeader title="Studios & Networks" onBack={() => nav.goBack()} />
+      </Animated.ScrollView>
+      <SettingsHeader scrollY={headerScrollY} title="Studios & Networks" onBack={() => nav.goBack()} />
     </View>
   );
 }

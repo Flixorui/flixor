@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View, Animated } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -44,6 +44,7 @@ const KIND_LABELS: Record<HomeRowKind, string> = {
 };
 
 export default function HomeRowsSettings() {
+  const headerScrollY = React.useRef(new Animated.Value(0)).current;
   const nav: any = useNavigation();
   const insets = useSafeAreaInsets();
   const theme = useTheme();
@@ -82,7 +83,7 @@ export default function HomeRowsSettings() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <SettingsHeader title="Home Rows" onBack={() => nav.goBack()} />
+      <SettingsHeader scrollY={headerScrollY} title="Home Rows" onBack={() => nav.goBack()} />
       {rows.length === 0 ? (
         <View style={[styles.empty, { paddingTop: insets.top + 52 }]}>
           <Ionicons name="reorder-three-outline" size={40} color={theme.textTertiary} />
@@ -92,7 +93,9 @@ export default function HomeRowsSettings() {
           </Text>
         </View>
       ) : (
-        <ScrollView
+        <Animated.ScrollView
+        scrollEventThrottle={16}
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: headerScrollY } } }], { useNativeDriver: false })}
           contentContainerStyle={{ paddingTop: insets.top + 64, paddingBottom: insets.bottom + 100, paddingHorizontal: 16 }}
         >
           <View style={styles.toolbar}>
@@ -164,7 +167,7 @@ export default function HomeRowsSettings() {
             Tap a row to rename it. Rows you turn off stay here so you can bring them back. New rows appear next to where
             they would normally be.
           </Text>
-        </ScrollView>
+        </Animated.ScrollView>
       )}
 
       <Modal visible={renaming !== null} transparent animationType="fade" onRequestClose={() => setRenaming(null)}>

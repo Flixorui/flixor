@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet, TextInput } from 'react-native';
+import { View, Text, ScrollView, Pressable, StyleSheet, TextInput, Animated } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import SettingsHeader from '../../components/settings/SettingsHeader';
@@ -11,6 +11,7 @@ import { PLAYBACK_SPEED_PRESETS, formatSpeed } from '../../components/player/pan
 import { SUBTITLE_TEXT_COLORS } from '../../components/player/panels/SubtitlePanel';
 
 export default function PlayerSettings() {
+  const headerScrollY = React.useRef(new Animated.Value(0)).current;
   const nav: any = useNavigation();
   const insets = useSafeAreaInsets();
   const { settings, updateSetting } = useAppSettings();
@@ -39,8 +40,10 @@ export default function PlayerSettings() {
 
   return (
     <View style={styles.container}>
-      <SettingsHeader title="Player" onBack={() => nav.goBack()} />
-      <ScrollView contentContainerStyle={[styles.content, { paddingTop: headerHeight + 12, paddingBottom: insets.bottom + 100 }]}>
+      <SettingsHeader scrollY={headerScrollY} title="Player" onBack={() => nav.goBack()} />
+      <Animated.ScrollView
+        scrollEventThrottle={16}
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: headerScrollY } } }], { useNativeDriver: false })} contentContainerStyle={[styles.content, { paddingTop: headerHeight + 12, paddingBottom: insets.bottom + 100 }]}>
         {/* Playback */}
         <SettingsCard title="PLAYBACK">
           <SettingItem
@@ -440,7 +443,7 @@ export default function PlayerSettings() {
         >
           <Text style={styles.resetButtonText}>Reset to Defaults</Text>
         </Pressable>
-      </ScrollView>
+      </Animated.ScrollView>
     </View>
   );
 }

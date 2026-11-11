@@ -15,6 +15,7 @@ import { useTopBarStore } from './src/components/TopBarStore';
 import { useAppSetting, useAppSettings } from './src/hooks/useAppSettings';
 import { useTheme } from './src/hooks/useTheme';
 import TabGlowIcon from './src/components/TabGlowIcon';
+import { NAV_ICONS, navIconForRoute, type NavIconPair } from './src/components/navIcons';
 import { NativeTab, usesNativeTabBar } from './src/core/TabBarSupport';
 import GlobalTopAppBar from './src/components/GlobalTopAppBar';
 import { useSafeAreaInsets, SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
@@ -53,6 +54,7 @@ import BottomAppBarSettings from './src/screens/settings/BottomAppBarSettings';
 import TMDBSettings from './src/screens/settings/TMDBSettings';
 import TraktSettings from './src/screens/settings/TraktSettings';
 import MDBListSettings from './src/screens/settings/MDBListSettings';
+import { Top10ListsSettings, Top10FlixPatrolSettings, Top10KeysSettings, Top10ServicesSettings, Top10RegionSettings, Top10UsageSettings } from './src/screens/settings/Top10Settings';
 import OverseerrSettings from './src/screens/settings/OverseerrSettings';
 import PlexSettings from './src/screens/settings/PlexSettings';
 import UpdateSettings from './src/screens/settings/UpdateSettings';
@@ -397,6 +399,12 @@ const SettingsTabScreen = React.memo(() => (
     <SettingsStack.Screen name="TMDBSettings" component={TMDBSettings} />
     <SettingsStack.Screen name="TraktSettings" component={TraktSettings} />
     <SettingsStack.Screen name="MDBListSettings" component={MDBListSettings} />
+    <SettingsStack.Screen name="Top10ListsSettings" component={Top10ListsSettings} />
+    <SettingsStack.Screen name="Top10FlixPatrolSettings" component={Top10FlixPatrolSettings} />
+    <SettingsStack.Screen name="Top10KeysSettings" component={Top10KeysSettings} />
+    <SettingsStack.Screen name="Top10ServicesSettings" component={Top10ServicesSettings} />
+    <SettingsStack.Screen name="Top10RegionSettings" component={Top10RegionSettings} />
+    <SettingsStack.Screen name="Top10UsageSettings" component={Top10UsageSettings} />
     <SettingsStack.Screen name="OverseerrSettings" component={OverseerrSettings} />
     <SettingsStack.Screen name="PlexSettings">
       {() => <PlexSettings onLogout={triggerLogout} />}
@@ -438,12 +446,13 @@ const Tabs = React.memo(() => {
   // Use native iOS tabs only on iOS 26+ with liquid glass
   // iOS 18 and below falls back to regular tabs with blur view (same as Android)
   if (NativeTab) {
-    const nativeOptions = (title: string, symbol: string, extra?: object) =>
+    // The macOS nav icons: outline, and filled on the selected tab
+    const nativeOptions = (title: string, icons: NavIconPair, extra?: object) =>
       ({ navigation }: { navigation: any }) => ({
         title,
         // An empty label leaves only the icon. The options re-run when the tab changes.
         tabBarLabel: labelMode === 'always' || (labelMode === 'selected' && navigation.isFocused()) ? title : '',
-        tabBarIcon: () => ({ type: 'sfSymbol', name: symbol }),
+        tabBarIcon: ({ focused }: { focused: boolean }) => ({ type: 'image', source: focused ? icons.fill : icons.outline, tinted: true }),
         ...extra,
       });
 
@@ -464,38 +473,38 @@ const Tabs = React.memo(() => {
           <NativeTab.Screen
             name="HomeTab"
             component={HomeStackNavigator}
-            options={nativeOptions('Home', 'house')}
+            options={nativeOptions('Home', NAV_ICONS.home)}
           />
           <NativeTab.Screen
             name="SearchTab"
             component={SearchStackNavigator}
-            options={nativeOptions('Search', 'magnifyingglass', { tabBarSystemItem: 'search' })}
+            options={nativeOptions('Search', NAV_ICONS.search, { tabBarSystemItem: 'search' })}
           />
           {settings.showNewHotTab && (
             <NativeTab.Screen
               name="NewHotTab"
               component={NewHotStackNavigator}
-              options={nativeOptions('New & Hot', 'play.circle')}
+              options={nativeOptions('New & Hot', NAV_ICONS.newHot)}
             />
           )}
           {settings.showMyListTab && (
             <NativeTab.Screen
               name="MyTab"
               component={MyListStackNavigator}
-              options={nativeOptions('My List', 'bookmark')}
+              options={nativeOptions('My List', NAV_ICONS.myList)}
             />
           )}
           {settings.showDownloadsTab && (
             <NativeTab.Screen
               name="DownloadsTab"
               component={DownloadsStackNavigator}
-              options={nativeOptions('Downloads', 'arrow.down.circle')}
+              options={nativeOptions('Downloads', NAV_ICONS.downloads)}
             />
           )}
           <NativeTab.Screen
             name="SettingsTab"
             component={SettingsTabScreen}
-            options={nativeOptions('Settings', 'gear')}
+            options={nativeOptions('Settings', NAV_ICONS.settings)}
           />
         </NativeTab.Navigator>
       </View>
@@ -535,14 +544,9 @@ const Tabs = React.memo(() => {
           <ConditionalBlurView intensity={90} tint="dark" style={{ flex: 1 }} fallbackColor="rgba(0,0,0,0.9)" />
         ),
         tabBarIcon: ({ color, focused }) => {
-          const name = route.name === 'HomeTab' ? (focused ? 'home' : 'home-outline')
-            : route.name === 'SearchTab' ? (focused ? 'search' : 'search-outline')
-            : route.name === 'NewHotTab' ? (focused ? 'play-circle' : 'play-circle-outline')
-            : route.name === 'SettingsTab' ? (focused ? 'settings' : 'settings-outline')
-            : route.name === 'MyTab' ? (focused ? 'bookmark' : 'bookmark-outline')
-            : route.name === 'DownloadsTab' ? (focused ? 'download' : 'download-outline')
-            : (focused ? 'home' : 'home-outline');
-          return <TabGlowIcon name={name as any} size={22} color={color} glow={glowEnabled && focused} theme={theme} />;
+          // The macOS nav icons: outline, and filled on the selected tab
+          const icons = navIconForRoute(route.name);
+          return <TabGlowIcon source={focused ? icons.fill : icons.outline} size={22} color={color} glow={glowEnabled && focused} theme={theme} />;
         }
       })}
       screenListeners={{

@@ -7,8 +7,7 @@ import {
   Pressable,
   ActivityIndicator,
   Alert,
-  TextInput,
-} from 'react-native';
+  TextInput, Animated } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -49,6 +48,7 @@ function accentOverrides(accent: string | undefined, soft: string, onAccent: str
 }
 
 export default function PlexSettings({ onLogout }: PlexSettingsProps) {
+  const headerScrollY = React.useRef(new Animated.Value(0)).current;
   const nav: any = useNavigation();
   const theme = useTheme();
   // Plex gold until the user picks an accent
@@ -421,8 +421,10 @@ export default function PlexSettings({ onLogout }: PlexSettingsProps) {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.settingsBackground }]}>
-      <SettingsHeader title="Plex" onBack={() => nav.goBack()} />
-      <ScrollView
+      <SettingsHeader scrollY={headerScrollY} title="Plex" onBack={() => nav.goBack()} />
+      <Animated.ScrollView
+        scrollEventThrottle={16}
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: headerScrollY } } }], { useNativeDriver: false })}
         contentContainerStyle={[styles.content, { paddingTop: headerHeight + 12, paddingBottom: insets.bottom + 100 }]}
         keyboardShouldPersistTaps="handled"
       >
@@ -606,7 +608,7 @@ export default function PlexSettings({ onLogout }: PlexSettingsProps) {
           </Pressable>
           <Text style={styles.logoutHint}>Sign out and return to login screen</Text>
         </SettingsCard>
-      </ScrollView>
+      </Animated.ScrollView>
     </View>
   );
 }

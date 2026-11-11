@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Pressable, StyleSheet, Animated } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,6 +11,7 @@ import HeroSourceSheet, { heroSourceLabel } from '../../components/home/HeroSour
 import { useAppSettings } from '../../hooks/useAppSettings';
 
 export default function HomeScreenSettings() {
+  const headerScrollY = React.useRef(new Animated.Value(0)).current;
   const nav: any = useNavigation();
   const insets = useSafeAreaInsets();
   const { settings, updateSetting, refresh } = useAppSettings();
@@ -26,8 +27,10 @@ export default function HomeScreenSettings() {
 
   return (
     <View style={styles.container}>
-      <SettingsHeader title="Home" onBack={() => nav.goBack()} />
-      <ScrollView contentContainerStyle={[styles.content, { paddingTop: headerHeight + 12, paddingBottom: insets.bottom + 100 }]}>
+      <SettingsHeader scrollY={headerScrollY} title="Home" onBack={() => nav.goBack()} />
+      <Animated.ScrollView
+        scrollEventThrottle={16}
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: headerScrollY } } }], { useNativeDriver: false })} contentContainerStyle={[styles.content, { paddingTop: headerHeight + 12, paddingBottom: insets.bottom + 100 }]}>
         <SettingsCard title="HERO">
           <SettingItem
             title="Show Hero"
@@ -366,7 +369,7 @@ export default function HomeScreenSettings() {
             </View>
           </View>
         </SettingsCard>
-      </ScrollView>
+      </Animated.ScrollView>
       <HeroSourceSheet visible={heroSourceOpen} settings={settings} onClose={() => setHeroSourceOpen(false)} />
     </View>
   );

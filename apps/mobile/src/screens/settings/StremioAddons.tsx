@@ -7,8 +7,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  View,
-} from 'react-native';
+  View, Animated } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -20,6 +19,7 @@ import { stremioService } from '../../stremio/StremioService';
 type AddonSummary = Awaited<ReturnType<typeof stremioService.getAddonSummary>>[number];
 
 export default function StremioAddons() {
+  const headerScrollY = React.useRef(new Animated.Value(0)).current;
   const nav: any = useNavigation();
   const insets = useSafeAreaInsets();
   const headerHeight = insets.top + 52;
@@ -66,8 +66,10 @@ export default function StremioAddons() {
 
   return (
     <View style={styles.container}>
-      <SettingsHeader title="Stremio Addons" onBack={() => nav.goBack()} />
-      <ScrollView
+      <SettingsHeader scrollY={headerScrollY} title="Stremio Addons" onBack={() => nav.goBack()} />
+      <Animated.ScrollView
+        scrollEventThrottle={16}
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: headerScrollY } } }], { useNativeDriver: false })}
         contentContainerStyle={[
           styles.content,
           { paddingTop: headerHeight + 12, paddingBottom: insets.bottom + 100 },
@@ -191,7 +193,7 @@ export default function StremioAddons() {
             ))
           )}
         </SettingsCard>
-      </ScrollView>
+      </Animated.ScrollView>
     </View>
   );
 }

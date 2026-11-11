@@ -12,6 +12,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import FastImage from '@d11/react-native-fast-image';
+import { isTextlessArtwork } from '../core/HomeData';
 import { Pagination } from 'react-native-reanimated-carousel';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -283,8 +284,10 @@ function CarouselCard({
   inWatchlist: boolean;
   watchlistLoading: boolean;
 }) {
-  // Phones show the textless poster, tablets the wide backdrop; both carry the logo.
+  // Phones show the textless poster, tablets the wide backdrop. The logo goes on top only
+  // when the artwork has no title of its own (or there's no artwork), never twice.
   const heroImageUri = isTablet ? item.backdrop || item.image : item.image || item.backdrop;
+  const showLogo = !!item.logo && (!heroImageUri || isTextlessArtwork(heroImageUri));
 
   // Neighbouring cards dim slightly while swiping, as before
   const cardAnimatedStyle = useAnimatedStyle(() => {
@@ -326,14 +329,14 @@ function CarouselCard({
 
         <View style={styles.overlay} pointerEvents="box-none">
           <View pointerEvents="none" style={styles.titleArea}>
-            {item.logo ? (
+            {showLogo ? (
               <FastImage
                 source={{ uri: item.logo, priority: FastImage.priority.high, cache: FastImage.cacheControl.immutable }}
                 style={{ width: Math.round(cardWidth * 0.7), height: isTablet ? 110 : 88 }}
                 resizeMode={FastImage.resizeMode.contain}
               />
             ) : (
-              <Text style={styles.fallbackTitle} numberOfLines={2}>{item.title}</Text>
+              heroImageUri ? null : <Text style={styles.fallbackTitle} numberOfLines={2}>{item.title}</Text>
             )}
           </View>
           {tags.length ? (

@@ -5,6 +5,7 @@
  */
 
 import React, { useCallback, useMemo, useRef, useState } from 'react';
+import * as Top10Store from '../core/top10/Top10Store';
 import { View, Text, StyleSheet, Pressable, Animated, TextInput, Dimensions } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -75,6 +76,18 @@ export default function Settings({ onBack }: SettingsProps) {
 
   const go = useCallback((route: string) => () => nav.navigate(route), [nav]);
   const onOff = (on: boolean) => (on ? 'On' : 'Off');
+
+  // Top 10 Lists: how many sources are set up
+  const top10Version = Top10Store.useTop10Version();
+  React.useEffect(() => {
+    Top10Store.initTop10();
+  }, []);
+  const top10Summary = useMemo(() => {
+    const count = Top10Store.sourceInfos().length + Top10Store.keyInfos().length;
+    if (!count) return 'Not set up';
+    return settings.top10Enabled ? `${count} source${count === 1 ? '' : 's'}` : 'Off';
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [top10Version, settings.top10Enabled]);
 
   const groups: Group[] = useMemo(() => {
     const plexValue = isStremioOnly
@@ -158,7 +171,7 @@ export default function Settings({ onBack }: SettingsProps) {
           {
             id: 'navigation',
             title: 'Navigation',
-            keywords: 'tabs bottom app bar tab bar new & hot downloads my list',
+            keywords: 'tabs bottom app bar tab bar new & hot downloads my list tab labels titles text tab glow',
             tile: '#3B9FD6',
             icon: 'apps',
             onPress: go('BottomAppBarSettings'),
@@ -203,6 +216,15 @@ export default function Settings({ onBack }: SettingsProps) {
             renderIcon: () => <TraktIcon size={17} color="#fff" />,
             onPress: go('TraktSettings'),
           },
+          {
+            id: 'top10',
+            title: 'Top 10 Lists',
+            value: top10Summary,
+            keywords: 'flixpatrol streaming availability movie of the night top 10 netflix prime disney apple max paramount hulu starz hotstar api key new this week',
+            tile: '#7C3AED',
+            icon: 'list',
+            onPress: go('Top10ListsSettings'),
+          },
         ],
       },
       {
@@ -232,7 +254,7 @@ export default function Settings({ onBack }: SettingsProps) {
           {
             id: 'appearance',
             title: 'Appearance',
-            keywords: 'theme accent colour color background pure black tab glow',
+            keywords: 'theme accent colour color background pure black',
             tile: '#E0405F',
             icon: 'color-palette',
             onPress: go('AppearanceSettings'),
@@ -257,6 +279,7 @@ export default function Settings({ onBack }: SettingsProps) {
       },
     ];
   }, [
+    top10Summary,
     isStremioOnly,
     isConnected,
     serverInfo,

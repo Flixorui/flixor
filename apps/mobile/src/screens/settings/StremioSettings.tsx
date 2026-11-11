@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View, Animated } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import SettingsCard from '../../components/settings/SettingsCard';
@@ -11,6 +11,7 @@ import { useAppSettings } from '../../hooks/useAppSettings';
 import { stremioService } from '../../stremio/StremioService';
 
 export default function StremioSettings() {
+  const headerScrollY = React.useRef(new Animated.Value(0)).current;
   const nav: any = useNavigation();
   const insets = useSafeAreaInsets();
   const headerHeight = insets.top + 52;
@@ -28,8 +29,10 @@ export default function StremioSettings() {
 
   return (
     <View style={styles.container}>
-      <SettingsHeader title="Stremio" onBack={() => nav.goBack()} />
-      <ScrollView
+      <SettingsHeader scrollY={headerScrollY} title="Stremio" onBack={() => nav.goBack()} />
+      <Animated.ScrollView
+        scrollEventThrottle={16}
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: headerScrollY } } }], { useNativeDriver: false })}
         contentContainerStyle={[
           styles.content,
           { paddingTop: headerHeight + 12, paddingBottom: insets.bottom + 100 },
@@ -154,7 +157,7 @@ export default function StremioSettings() {
             </Text>
           </View>
         </SettingsCard>
-      </ScrollView>
+      </Animated.ScrollView>
     </View>
   );
 }

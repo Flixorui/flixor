@@ -1,138 +1,146 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { View, ActivityIndicator, Animated, StyleSheet } from 'react-native';
-import { useTopBarStore } from './TopBarStore';
+/**
+ * Pull to refresh with a round Liquid Glass button.
+ *
+ * Refresh starts only when the finger is lifted past the line (like iOS), never while
+ * dragging and never from momentum: a fast flick back to the top bounces past the line
+ * without a finger on the screen and must not refresh. Pushing back up before letting go
+ * cancels it.
+ *
+ * Feedback: the button follows the pull, grows in, and its arrow flips (with one tap) once
+ * the pull is far enough; while refreshing it holds still and spins.
+ *
+ * Usage:
+ *   const pull = usePullToRefresh(scrollY, refreshing, onRefresh);
+ *   <ScrollView {...pull.dragHandlers} onScroll={...sets scrollY...} />
+ *   <PullToRefresh {...pull.indicatorProps} top={headerHeight + 6} />
+ */
+
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Animated, StyleSheet, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import LiquidGlass from './LiquidGlass';
 
-interface PullToRefreshProps {
-  scrollY: Animated.Value;
-  refreshing: boolean;
-  onRefresh: () => void;
-}
+const THRESHOLD = 100; // pt of pull before letting go refreshes
+const SHOW_AFTER = 6; // pt of pull before the button appears
+const SIZE = 40;
+// Never fully transparent: iOS stops drawing Liquid Glass inside a view that reached 0 alpha
+const MIN_OPACITY = 0.02;
 
-const PULL_THRESHOLD = 120;
+export function usePullToRefresh(scrollY: Animated.Value, refreshing: boolean, onRefresh: () => void) {
+  const dragging = useRef(false);
+  const readyRef = useRef(false);
+  const visibleRef = useRef(false);
+  const refreshingRef = useRef(refreshing);
+  refreshingRef.current = refreshing;
+  const [ready, setReady] = useState(false);
+  const [visible, setVisible] = useState(false);
 
-const HAPTIC_INTERVAL = 30; // Haptic feedback every 30px of pull
-
-export default function PullToRefresh({ scrollY, refreshing, onRefresh }: PullToRefreshProps) {
-  const barHeight = useTopBarStore((s) => s.height || 90);
-  const [pullDistance, setPullDistance] = useState(0);
-  const hasTriggeredRef = useRef(false);
-  const lastHapticPullRef = useRef(0);
+  const setVisibleOnce = (v: boolean) => {
+    if (visibleRef.current !== v) {
+      visibleRef.current = v;
+      setVisible(v);
+    }
+  };
 
   useEffect(() => {
-    const listenerId = scrollY.addListener(({ value }) => {
-      // Negative value = pulling down (overscroll)
+    const id = scrollY.addListener(({ value }) => {
       const pull = Math.max(0, -value);
-      setPullDistance(pull);
-
-      // Progressive haptic feedback while pulling
-      if (pull > 20 && pull < PULL_THRESHOLD && !refreshing) {
-        const hapticStep = Math.floor(pull / HAPTIC_INTERVAL);
-        const lastStep = Math.floor(lastHapticPullRef.current / HAPTIC_INTERVAL);
-        if (hapticStep > lastStep) {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        }
-      }
-      lastHapticPullRef.current = pull;
-
-      // Stronger haptic when reaching threshold
-      if (pull >= PULL_THRESHOLD && lastHapticPullRef.current < PULL_THRESHOLD) {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      }
-
-      // Trigger refresh when pulled past threshold
-      if (value < -PULL_THRESHOLD && !hasTriggeredRef.current && !refreshing) {
-        hasTriggeredRef.current = true;
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        onRefresh();
-      }
-
-      // Reset trigger flag when back at top
-      if (value >= -10) {
-        hasTriggeredRef.current = false;
-        lastHapticPullRef.current = 0;
+      setVisibleOnce(pull > SHOW_AFTER || refreshingRef.current);
+      const nowReady = dragging.current && pull >= THRESHOLD && !refreshingRef.current;
+      if (nowReady !== readyRef.current) {
+        readyRef.current = nowReady;
+        setReady(nowReady);
+        if (nowReady) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       }
     });
+    return () => scrollY.removeListener(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scrollY]);
 
-    return () => scrollY.removeListener(listenerId);
-  }, [scrollY, refreshing, onRefresh]);
-
-  // Reset pull distance when refreshing ends
   useEffect(() => {
-    if (!refreshing) {
-      setPullDistance(0);
-    }
+    if (refreshing) setVisibleOnce(true);
+    // When refreshing ends the page is back at the top, so the button can go
+    else setVisibleOnce(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshing]);
 
-  const showIndicator = pullDistance > 15 || refreshing;
-  const progress = Math.min(1, pullDistance / PULL_THRESHOLD);
-  const isReady = pullDistance >= PULL_THRESHOLD;
+  const onScrollBeginDrag = useCallback(() => {
+    dragging.current = true;
+  }, []);
 
-  if (!showIndicator) return null;
+  const onScrollEndDrag = useCallback((e: any) => {
+    dragging.current = false;
+    const pull = -(e?.nativeEvent?.contentOffset?.y ?? 0);
+    if (readyRef.current) {
+      readyRef.current = false;
+      setReady(false);
+    }
+    if (pull >= THRESHOLD && !refreshingRef.current) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      onRefresh();
+    }
+  }, [onRefresh]);
+
+  return {
+    dragHandlers: { onScrollBeginDrag, onScrollEndDrag },
+    indicatorProps: { scrollY, refreshing, ready, visible },
+  };
+}
+
+export default function PullToRefresh({
+  scrollY,
+  refreshing,
+  ready,
+  visible,
+  top,
+}: {
+  scrollY: Animated.Value;
+  refreshing: boolean;
+  ready: boolean;
+  visible: boolean;
+  /** Where the button rests, below the screen's header. */
+  top: number;
+}) {
+  if (!visible) return null;
+
+  // While pulling it follows the finger at half speed and grows in; while refreshing it holds
+  const translateY = refreshing
+    ? 0
+    : scrollY.interpolate({ inputRange: [-THRESHOLD * 2, 0], outputRange: [THRESHOLD * 0.6, 0], extrapolate: 'clamp' });
+  const scale = refreshing
+    ? 1
+    : scrollY.interpolate({ inputRange: [-THRESHOLD, -SHOW_AFTER], outputRange: [1, 0.55], extrapolate: 'clamp' });
+  const opacity = refreshing
+    ? 1
+    : scrollY.interpolate({ inputRange: [-THRESHOLD * 0.6, -SHOW_AFTER], outputRange: [1, MIN_OPACITY], extrapolate: 'clamp' });
 
   return (
-    <View style={[styles.container, { top: barHeight + 8 }]} pointerEvents="none">
-      <View style={styles.indicatorWrapper}>
+    <Animated.View
+      pointerEvents="none"
+      style={[styles.container, { top, opacity, transform: [{ translateY }, { scale }] }]}
+      accessibilityLabel={refreshing ? 'Refreshing' : ready ? 'Release to refresh' : 'Pull to refresh'}
+    >
+      <View style={styles.button}>
+        <LiquidGlass radius={SIZE / 2} />
         {refreshing ? (
           <ActivityIndicator size="small" color="#fff" />
         ) : (
-          <View style={styles.progressContainer}>
-            {/* Circular progress indicator */}
-            <View style={[styles.progressRing, isReady && styles.progressRingReady]}>
-              <View
-                style={[
-                  styles.progressArc,
-                  {
-                    opacity: progress,
-                    transform: [{ rotate: `${progress * 360}deg` }],
-                  },
-                ]}
-              />
-            </View>
-          </View>
+          <Ionicons name="arrow-down" size={20} color="#fff" style={{ transform: [{ rotate: ready ? '180deg' : '0deg' }] }} />
         )}
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    zIndex: 30,
-  },
-  indicatorWrapper: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+  container: { position: 'absolute', left: 0, right: 0, alignItems: 'center', zIndex: 30 },
+  button: {
+    width: SIZE,
+    height: SIZE,
+    borderRadius: SIZE / 2,
+    overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  progressContainer: {
-    width: 24,
-    height: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  progressRing: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 2.5,
-    borderColor: 'rgba(255,255,255,0.3)',
-    borderTopColor: '#fff',
-  },
-  progressRingReady: {
-    borderColor: '#fff',
-  },
-  progressArc: {
-    position: 'absolute',
-    width: 22,
-    height: 22,
-    borderRadius: 11,
   },
 });

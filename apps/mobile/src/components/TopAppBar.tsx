@@ -1,10 +1,10 @@
 import React from 'react';
-import { Animated, Easing, View, Text, StyleSheet, LayoutAnimation, UIManager, Platform, Pressable, Image } from 'react-native';
+import { Animated, View, Text, StyleSheet, LayoutAnimation, UIManager, Platform, Pressable, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import ConditionalBlurView from './ConditionalBlurView';
 import Pills from './Pills';
+import HeaderGlass, { HEADER_GLASS_MIN_OPACITY } from './HeaderGlass';
 import type { CategoryPick } from './CategoriesMenu';
 import { TopBarStore } from './TopBarStore';
 import {
@@ -14,29 +14,12 @@ import {
   TOP_BAR_PILLS_AREA_HEIGHT,
 } from './topBarMetrics';
 import { useTheme } from '../hooks/useTheme';
-import { useAppSetting } from '../hooks/useAppSettings';
+import { HIDDEN_PILL_OPACITY, useHeaderCollapse } from './useHeaderCollapse';
 
 if (Platform.OS === 'android') {
   UIManager.setLayoutAnimationEnabledExperimental?.(true);
 }
 
-/*
- * Pill-row motion, measured frame by frame from the Netflix iOS app (Nov 2026):
- * - Hide after a small downward scroll: pills scale to 0.9, rise 6 pt and fade in ~180 ms,
- *   while the frosted band shrinks to the title row.
- * - A small nudge up is ignored; a deliberate upward scroll (or reaching the top) brings
- *   them back in ~250 ms, anywhere on the page.
- * - The title row shrinks ~6.5% while the pills are hidden (title toward the left edge,
- *   icons toward the right edge, lifted ~1.3 pt): 340 ms out, 400 ms back with a soft settle.
- * Time-based, not tied to the scroll position, so it plays the same at any scroll speed.
- */
-const HIDE_AFTER = 8; // pt of downward scroll
-const SHOW_AFTER = 60; // pt of upward scroll
-const TOP_ZONE = 8; // pt from the top where the pills always show
-const PILLS_HIDE = { duration: 180, easing: Easing.bezier(0.4, 0, 0.2, 1) };
-const PILLS_SHOW = { duration: 250, easing: Easing.bezier(0.2, 0.8, 0.2, 1) };
-const TITLE_HIDE = { duration: 340, easing: Easing.bezier(0.33, 0, 0.2, 1) };
-const TITLE_SHOW = { duration: 400, easing: Easing.bezier(0.16, 1, 0.3, 1) };
 
 function TopAppBar({ visible, username, showFilters, selected, onChange, onOpenCategories, onSelectCategory, onNavigateLibrary, onClose, scrollY, onHeightChange, compact, customFilters, activeGenre, onClearGenre, customPillLabel }: {
   visible: boolean;
@@ -59,72 +42,27 @@ function TopAppBar({ visible, username, showFilters, selected, onChange, onOpenC
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const theme = useTheme();
-  const barStyle = useAppSetting('topBarStyle');
 
   const collapsedHeight = insets.top + TOP_BAR_COLLAPSED_CONTENT_HEIGHT;
   const expandedHeight = insets.top + TOP_BAR_EXPANDED_CONTENT_HEIGHT;
   const headerHeight = (showFilters || customFilters) ? expandedHeight : collapsedHeight;
   const pillsAreaHeight = TOP_BAR_PILLS_AREA_HEIGHT;
 
-  const fallbackOpacity = React.useRef(new Animated.Value(0)).current;
+  const fallbackOpacity = React.useRef(new Animated.Value(HEADER_GLASS_MIN_OPACITY)).current;
 
   // Expanded keeps the pills on screen. Adaptive hides them on scroll down and returns
   // them on a deliberate scroll up. Compact hides them on scroll and returns them only at the top.
-  const canCollapse = !!scrollY && !!showFilters && !customFilters && barStyle !== 'expanded';
+  // Netflix behaviour: pills hide on a scroll down and return on a deliberate scroll up
+  const canCollapse = !!scrollY && !!showFilters && !customFilters;
 
-  // 0 = pills shown, 1 = hidden. Two native-driven values (pills and the slower title row)
-  // and one JS-driven value for the frosted band's height.
-  const pillsP = React.useRef(new Animated.Value(0)).current;
-  const titleP = React.useRef(new Animated.Value(0)).current;
-  const bandP = React.useRef(new Animated.Value(0)).current;
-  const [pillsHidden, setPillsHidden] = React.useState(false);
-  const hiddenRef = React.useRef(false);
+  // Netflix's measured pill hide / show (shared with the Shows / Movies page)
+  const { pillsP, titleP, bandP, pillsHidden } = useHeaderCollapse({
+    scrollY,
+    enabled: canCollapse,
+    showOnUpwardScroll: true,
+  });
 
-  const setHidden = React.useCallback((hide: boolean) => {
-    if (hiddenRef.current === hide) return;
-    hiddenRef.current = hide;
-    setPillsHidden(hide);
-    const to = hide ? 1 : 0;
-    const pills = hide ? PILLS_HIDE : PILLS_SHOW;
-    const title = hide ? TITLE_HIDE : TITLE_SHOW;
-    Animated.parallel([
-      Animated.timing(pillsP, { toValue: to, ...pills, useNativeDriver: true }),
-      Animated.timing(titleP, { toValue: to, ...title, useNativeDriver: true }),
-      Animated.timing(bandP, { toValue: to, ...pills, useNativeDriver: false }),
-    ]).start();
-  }, [pillsP, titleP, bandP]);
-
-  React.useEffect(() => {
-    if (!canCollapse || !scrollY) {
-      setHidden(false);
-      return;
-    }
-    let lastY = 0;
-    let down = 0;
-    let up = 0;
-    const id = scrollY.addListener(({ value: y }) => {
-      const delta = y - lastY;
-      lastY = y;
-      if (y <= TOP_ZONE) {
-        down = 0;
-        up = 0;
-        setHidden(false);
-        return;
-      }
-      if (delta > 0) {
-        down += delta;
-        up = 0;
-        if (down >= HIDE_AFTER) setHidden(true);
-      } else if (delta < 0) {
-        up -= delta;
-        down = 0;
-        if (barStyle === 'adaptive' && up >= SHOW_AFTER) setHidden(false);
-      }
-    });
-    return () => scrollY.removeListener(id);
-  }, [canCollapse, scrollY, barStyle, setHidden]);
-
-  const pillsOpacity = pillsP.interpolate({ inputRange: [0, 1], outputRange: [1, 0] });
+  const pillsOpacity = pillsP.interpolate({ inputRange: [0, 1], outputRange: [1, HIDDEN_PILL_OPACITY] });
   const pillsScale = pillsP.interpolate({ inputRange: [0, 1], outputRange: [1, 0.9] });
   const pillsTranslateY = pillsP.interpolate({ inputRange: [0, 1], outputRange: [0, -6] });
   const titleScale = titleP.interpolate({ inputRange: [0, 1], outputRange: [1, 0.935] });
@@ -137,7 +75,7 @@ function TopAppBar({ visible, username, showFilters, selected, onChange, onOpenC
 
   const backgroundOpacity = React.useMemo(() => {
     if (!scrollY) return fallbackOpacity;
-    return scrollY.interpolate({ inputRange: [0, 8, 120], outputRange: [0, 0, 1], extrapolate: 'clamp' });
+    return scrollY.interpolate({ inputRange: [0, 8, 120], outputRange: [HEADER_GLASS_MIN_OPACITY, HEADER_GLASS_MIN_OPACITY, 1], extrapolate: 'clamp' });
   }, [scrollY, fallbackOpacity]);
 
   const separatorOpacity = React.useMemo(() => {
@@ -193,8 +131,7 @@ function TopAppBar({ visible, username, showFilters, selected, onChange, onOpenC
           overflow: 'hidden',
         }}
       >
-        <ConditionalBlurView intensity={90} tint="dark" style={StyleSheet.absoluteFillObject} />
-        <View pointerEvents="none" style={[StyleSheet.absoluteFillObject, { backgroundColor: theme.glassTint }]} />
+        <HeaderGlass fallbackIntensity={90} />
         <Animated.View
           pointerEvents="none"
           style={{
@@ -215,7 +152,7 @@ function TopAppBar({ visible, username, showFilters, selected, onChange, onOpenC
             <Animated.Text
               style={{
                 color: '#fff',
-                fontSize: compact || barStyle === 'compact' ? 20 : 25,
+                fontSize: compact ? 20 : 25,
                 fontWeight: compact ? '700' : '600',
                 transformOrigin: 'left center',
                 transform: [{ translateX: titleShift }, { translateY: titleShift }, { scale: titleScale }],

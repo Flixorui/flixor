@@ -682,6 +682,19 @@ export async function getTmdbLogo(
   }
 }
 
+/*
+ * Artwork known to have no title printed in it. Some titles have no textless poster on TMDB
+ * (e.g. Housefull 2: every poster carries the title), so the helpers below fall back to a
+ * titled one. Callers draw the logo only over artwork listed here, never on top of a
+ * poster that already shows the title.
+ */
+const textlessArtwork = new Set<string>();
+
+/** The image at `url` was picked as textless (no title printed in it). */
+export function isTextlessArtwork(url: string | undefined | null): boolean {
+  return !!url && textlessArtwork.has(url);
+}
+
 /**
  * Fetch textless poster from TMDB (iso_639_1 is null)
  * These are clean posters without any text overlay
@@ -708,7 +721,9 @@ export async function getTmdbTextlessPoster(
     const poster = textless || posters[0];
 
     if (poster?.file_path) {
-      return core.tmdb.getPosterUrl(poster.file_path, 'w780');
+      const url = core.tmdb.getPosterUrl(poster.file_path, 'w780');
+      if (textless) textlessArtwork.add(url);
+      return url;
     }
     return undefined;
   } catch (e) {
@@ -738,7 +753,9 @@ export async function getTmdbTextlessBackdrop(
     const backdrop = textless || backdrops[0];
 
     if (backdrop?.file_path) {
-      return core.tmdb.getBackdropUrl(backdrop.file_path, 'w780');
+      const url = core.tmdb.getBackdropUrl(backdrop.file_path, 'w780');
+      if (textless) textlessArtwork.add(url);
+      return url;
     }
     return undefined;
   } catch (e) {

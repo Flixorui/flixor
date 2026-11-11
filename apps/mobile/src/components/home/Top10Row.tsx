@@ -67,12 +67,27 @@ function RankNumber({ rank }: { rank: number }) {
   );
 }
 
-export default function Top10Row({ onItemPress, kind = 'all' }: { onItemPress: (item: ContentItem) => void; kind?: Top10Kind }) {
+/** A ranked title. FlixPatrol / Streaming Availability lists pass these in; the TMDB fallback builds them. */
+export type RankedItem = { id: string; title: string; image?: string; tmdbId?: number; mediaType?: 'movie' | 'tv' };
+
+export default function Top10Row({
+  onItemPress,
+  kind = 'all',
+  items: given,
+  title,
+}: {
+  onItemPress: (item: RankedItem) => void;
+  kind?: Top10Kind;
+  /** A ready list in rank order (FlixPatrol / Streaming Availability); skips the TMDB fetch. */
+  items?: RankedItem[];
+  title?: string;
+}) {
   const { settings } = useAppSettings();
-  const [items, setItems] = useState<ContentItem[]>(cache[kind]?.items ?? []);
+  const [fetched, setItems] = useState<ContentItem[]>(cache[kind]?.items ?? []);
+  const items: RankedItem[] = given ? given.filter((i) => i.image).slice(0, 10) : fetched;
 
   useEffect(() => {
-    if (settings.discoveryDisabled) return;
+    if (given || settings.discoveryDisabled) return;
     const hit = cache[kind];
     if (hit && Date.now() - hit.at < CACHE_MS) {
       setItems(hit.items);
@@ -88,14 +103,14 @@ export default function Top10Row({ onItemPress, kind = 'all' }: { onItemPress: (
     return () => {
       cancelled = true;
     };
-  }, [settings.discoveryDisabled, kind]);
+  }, [settings.discoveryDisabled, kind, given]);
 
-  if (settings.discoveryDisabled || items.length === 0) return null;
+  if ((!given && settings.discoveryDisabled) || items.length === 0) return null;
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>{TITLES[kind]}</Text>
+        <Text style={styles.title}>{title ?? TITLES[kind]}</Text>
       </View>
       <FlatList
         horizontal
@@ -103,7 +118,7 @@ export default function Top10Row({ onItemPress, kind = 'all' }: { onItemPress: (
         keyExtractor={(item) => item.id}
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.list}
-        renderItem={({ item }) => (
+        renderItem={({ item, index }) => (
           <Pressable
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -111,9 +126,9 @@ export default function Top10Row({ onItemPress, kind = 'all' }: { onItemPress: (
             }}
             style={styles.item}
             accessibilityRole="button"
-            accessibilityLabel={`Number ${item.rank}, ${item.title}`}
+            accessibilityLabel={`Number ${index + 1}, ${item.title}`}
           >
-            <RankNumber rank={item.rank ?? 0} />
+            <RankNumber rank={index + 1} />
             <FastImage
               source={{ uri: item.image!, priority: FastImage.priority.normal, cache: FastImage.cacheControl.immutable }}
               style={[styles.poster, { borderRadius: settings.posterBorderRadius }]}

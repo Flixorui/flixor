@@ -1,5 +1,5 @@
 import React from 'react';
-import { ActivityIndicator, ImageBackground, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, ImageBackground, Pressable, ScrollView, StyleSheet, Text, View, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -15,6 +15,7 @@ type RouteParams = {
 };
 
 export default function StremioSources({ route }: RouteParams) {
+  const headerScrollY = React.useRef(new Animated.Value(0)).current;
   const nav: any = useNavigation();
   const insets = useSafeAreaInsets();
   const headerHeight = insets.top + 52;
@@ -48,9 +49,11 @@ export default function StremioSources({ route }: RouteParams) {
         </ImageBackground>
       ) : null}
 
-      <SettingsHeader title="Stremio Sources" onBack={() => nav.goBack()} />
+      <SettingsHeader scrollY={headerScrollY} title="Stremio Sources" onBack={() => nav.goBack()} />
 
-      <ScrollView
+      <Animated.ScrollView
+        scrollEventThrottle={16}
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: headerScrollY } } }], { useNativeDriver: false })}
         contentContainerStyle={[
           styles.content,
           { paddingTop: headerHeight + 24, paddingBottom: insets.bottom + 80 },
@@ -158,7 +161,7 @@ export default function StremioSources({ route }: RouteParams) {
             </View>
           </View>
         ))}
-      </ScrollView>
+      </Animated.ScrollView>
     </View>
   );
 }

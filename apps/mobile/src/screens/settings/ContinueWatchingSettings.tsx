@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Pressable, StyleSheet, Animated } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import SettingsHeader from '../../components/settings/SettingsHeader';
@@ -30,6 +30,7 @@ const SORT_OPTIONS: Array<{ label: string; value: ContinueWatchingSort }> = [
 ];
 
 export default function ContinueWatchingSettings() {
+  const headerScrollY = React.useRef(new Animated.Value(0)).current;
   const nav: any = useNavigation();
   const insets = useSafeAreaInsets();
   const headerHeight = insets.top + 52;
@@ -47,8 +48,10 @@ export default function ContinueWatchingSettings() {
 
   return (
     <View style={styles.container}>
-      <SettingsHeader title="Continue Watching" onBack={() => nav.goBack()} />
-      <ScrollView contentContainerStyle={[styles.content, { paddingTop: headerHeight + 12, paddingBottom: insets.bottom + 100 }]}>
+      <SettingsHeader scrollY={headerScrollY} title="Continue Watching" onBack={() => nav.goBack()} />
+      <Animated.ScrollView
+        scrollEventThrottle={16}
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: headerScrollY } } }], { useNativeDriver: false })} contentContainerStyle={[styles.content, { paddingTop: headerHeight + 12, paddingBottom: insets.bottom + 100 }]}>
         <SettingsCard title="LAYOUT">
           <View style={styles.layoutGroup}>
             <Text style={styles.layoutLabel}>Card Style</Text>
@@ -195,7 +198,7 @@ export default function ContinueWatchingSettings() {
             <Text style={styles.note}>Applies to cached alternate sources such as Stremio playback.</Text>
           </SettingsCard>
         )}
-      </ScrollView>
+      </Animated.ScrollView>
     </View>
   );
 }

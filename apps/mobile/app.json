@@ -61,11 +61,14 @@
       [
         "expo-font",
         {
-          "fonts": ["./assets/fonts/go-noto-current-regular.ttf"]
+          "fonts": [
+            "./assets/fonts/go-noto-current-regular.ttf"
+          ]
         }
       ],
       "./plugins/withMPViOS",
-      "./plugins/withMPVPlayer"
+      "./plugins/withMPVPlayer",
+      "expo-secure-store"
     ]
   }
 }

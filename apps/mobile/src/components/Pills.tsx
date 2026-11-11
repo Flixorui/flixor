@@ -3,6 +3,7 @@ import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import ConditionalBlurView from './ConditionalBlurView';
+import LiquidGlass, { liquidGlassAvailable } from './LiquidGlass';
 import * as Haptics from 'expo-haptics';
 import CategoriesMenu, { type CategoryPick } from './CategoriesMenu';
 
@@ -28,6 +29,8 @@ const PILL_HEIGHT = 40;
 const PILL_RADIUS = 12;
 
 function Glass() {
+  // iOS 26: Apple's Liquid Glass, as in the Netflix app; older systems keep the frosted look
+  if (liquidGlassAvailable) return <LiquidGlass radius={PILL_RADIUS} />;
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFillObject}>
       <ConditionalBlurView intensity={30} tint="dark" style={StyleSheet.absoluteFillObject} />

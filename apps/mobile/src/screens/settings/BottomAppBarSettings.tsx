@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, ScrollView, StyleSheet } from 'react-native';
+import { View, ScrollView, StyleSheet, Animated } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import SettingsHeader from '../../components/settings/SettingsHeader';
@@ -8,8 +8,10 @@ import SettingItem from '../../components/settings/SettingItem';
 import { useAppSettings } from '../../hooks/useAppSettings';
 import { useTheme } from '../../hooks/useTheme';
 import SettingsSwitch from '../../components/settings/SettingsSwitch';
+import NavigationStyleCards from '../../components/settings/NavigationStyleCards';
 
 export default function BottomAppBarSettings() {
+  const headerScrollY = React.useRef(new Animated.Value(0)).current;
   const nav: any = useNavigation();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -18,8 +20,10 @@ export default function BottomAppBarSettings() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.settingsBackground }]}>
-      <SettingsHeader title="Navigation" onBack={() => nav.goBack()} />
-      <ScrollView contentContainerStyle={[styles.content, { paddingTop: headerHeight + 12, paddingBottom: insets.bottom + 100 }]}>
+      <SettingsHeader scrollY={headerScrollY} title="Navigation" onBack={() => nav.goBack()} />
+      <Animated.ScrollView
+        scrollEventThrottle={16}
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: headerScrollY } } }], { useNativeDriver: false })} contentContainerStyle={[styles.content, { paddingTop: headerHeight + 12, paddingBottom: insets.bottom + 100 }]}>
         <SettingsCard title="TABS">
           <SettingItem
             title="New & Hot Tab"
@@ -59,7 +63,10 @@ export default function BottomAppBarSettings() {
             isLast={true}
           />
         </SettingsCard>
-      </ScrollView>
+
+        {/* Tab labels, top bar and tab glow (moved here from Appearance) */}
+        <NavigationStyleCards />
+      </Animated.ScrollView>
     </View>
   );
 }

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { View, Text, ActivityIndicator, Animated, FlatList, Pressable, Dimensions, InteractionManager, Platform } from 'react-native';
-import PullToRefresh from '../components/PullToRefresh';
+import PullToRefresh, { usePullToRefresh } from '../components/PullToRefresh';
 import GlobalTopAppBar from '../components/GlobalTopAppBar';
 import FastImage from '@d11/react-native-fast-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -57,6 +57,7 @@ import {
   getTmdbLogo,
   getTmdbTextlessPoster,
   getTmdbTextlessBackdrop,
+  isTextlessArtwork,
   getTmdbOverview,
   getUltraBlurColors,
   getUsername,
@@ -382,8 +383,31 @@ function HomeContent({ onLogout }: HomeProps) {
     setRetryCount(c => c + 1);
     setReloadToken(c => c + 1);
     refreshContinueEntries({ force: true });
-    setRefreshing(false);
+    // `refreshing` stays on until the reload has finished (see the effect below), so the
+    // pull-to-refresh spinner shows for the whole reload
   }, [flixor, applyPlexContinue, refreshContinueEntries]);
+
+  const refreshSawLoading = useRef(false);
+  useEffect(() => {
+    if (!refreshing) return;
+    if (loading) {
+      refreshSawLoading.current = true;
+      return;
+    }
+    if (refreshSawLoading.current) {
+      refreshSawLoading.current = false;
+      setRefreshing(false);
+    }
+  }, [refreshing, loading]);
+  // Safety: never spin forever if a reload doesn't report back
+  useEffect(() => {
+    if (!refreshing) return;
+    const t = setTimeout(() => {
+      refreshSawLoading.current = false;
+      setRefreshing(false);
+    }, 20000);
+    return () => clearTimeout(t);
+  }, [refreshing]);
 
   // Warm artwork that is about to be on screen
   useEffect(() => {
@@ -399,6 +423,8 @@ function HomeContent({ onLogout }: HomeProps) {
   }, [continueWatching.entries, settings.continueWatchingLayout]);
 
   const y = React.useRef(new Animated.Value(0)).current;
+  // Refreshes only when the finger is lifted past the line (never from momentum)
+  const pull = usePullToRefresh(y, refreshing, handleRefresh);
   const contentTopInset = insets.top + TOP_BAR_EXPANDED_CONTENT_HEIGHT;
   // Use ref instead of useIsFocused() to avoid re-renders on focus change
   const isFocusedRef = useRef(true);
@@ -1271,7 +1297,8 @@ function HomeContent({ onLogout }: HomeProps) {
   // Only show loading screen if we have no cached content to display
   // This prevents blank screen flash when returning to Home with cached data
   const hasContentToShow = heroSourceItems.length > 0 || heroCarouselData.length > 0 || continueItems.length > 0;
-  if ((loading && !hasContentToShow) || error) {
+  // A pull refresh stays on the page (skeleton rows and the glass spinner), not the loading screen
+  if ((loading && !hasContentToShow && !refreshing) || error) {
     return (
       <View style={{ flex: 1, backgroundColor: '#1b0a10', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
         {error ? (
@@ -1304,11 +1331,12 @@ function HomeContent({ onLogout }: HomeProps) {
       {/* Background takes the hero's colour and cross-fades as the hero changes */}
       <AmbientTint color={heroColors?.topLeft || heroColors?.topRight || '2b3a3f'} />
 
-      <PullToRefresh scrollY={y} refreshing={refreshing} onRefresh={handleRefresh} />
+      <PullToRefresh {...pull.indicatorProps} top={contentTopInset + 6} />
 
       <Animated.ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingBottom: 80 + insets.bottom, paddingTop: contentTopInset }}
+        {...pull.dragHandlers}
         scrollEventThrottle={16}
         onScroll={(e: any) => {
           const currentY = e.nativeEvent.contentOffset.y;
@@ -1466,15 +1494,6 @@ function HomeContent({ onLogout }: HomeProps) {
         }}
       />
 
-      {/* Custom refresh indicator above TopAppBar */}
-      {refreshing && (
-        <View style={{ position: 'absolute', top: contentTopInset + 10, left: 0, right: 0, alignItems: 'center', zIndex: 50 }}>
-          <View style={{ backgroundColor: 'rgba(0,0,0,0.7)', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, flexDirection: 'row', alignItems: 'center' }}>
-            <ActivityIndicator color="#fff" size="small" />
-            <Text style={{ color: '#fff', marginLeft: 8, fontSize: 13 }}>Refreshing...</Text>
-          </View>
-        </View>
-      )}
     </SafeAreaView>
   );
 }
@@ -1530,7 +1549,8 @@ function HeroAppleTV({
           style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
         />
         <View style={{ position: 'absolute', left: 18, right: 18, bottom: 18 }}>
-          {current.logo ? (
+          {/* The logo only over artwork without its own title (else the title shows twice) */}
+          {current.logo && (!(current.backdrop || current.image) || isTextlessArtwork(current.backdrop || current.image)) ? (
             <FastImage
               source={{
                 uri: current.logo,
