@@ -15,9 +15,11 @@ import FastImage from '@d11/react-native-fast-image';
 import { isTextlessArtwork } from '../core/HomeData';
 import { Pagination } from 'react-native-reanimated-carousel';
 import { Ionicons } from '@expo/vector-icons';
+import LiquidGlass from './LiquidGlass';
 
 const AUTO_ROTATE_INTERVAL_MS = 8000;
 const CARD_GAP = 12;
+const BUTTON_H = 44;
 
 type HeroCarouselItem = {
   id: string;
@@ -355,7 +357,7 @@ function CarouselCard({
               accessibilityRole="button"
               style={({ pressed }) => [styles.primary, pressed && { opacity: 0.85 }]}
             >
-              <Ionicons name={playable ? 'play' : 'information-circle-outline'} size={18} color="#000" />
+              {playable ? <Ionicons name="play" size={24} color="#000" /> : null}
               <Text style={styles.primaryText}>{playable ? 'Play' : 'Details'}</Text>
             </Pressable>
             <Pressable
@@ -365,7 +367,8 @@ function CarouselCard({
               accessibilityLabel={inWatchlist && showActions ? 'Remove from My List' : 'Add to My List'}
               style={({ pressed }) => [styles.secondary, (pressed || watchlistLoading) && { opacity: 0.7 }]}
             >
-              <Ionicons name={inWatchlist && showActions ? 'checkmark' : 'add'} size={20} color="#fff" />
+              <LiquidGlass radius={BUTTON_H / 2} tint="rgba(120,120,128,0.35)" />
+              <Ionicons name={inWatchlist && showActions ? 'checkmark' : 'add'} size={28} color="#fff" />
               <Text style={styles.secondaryText}>My List</Text>
             </Pressable>
           </View>
@@ -400,28 +403,32 @@ const styles = StyleSheet.create({
   tagStrong: { color: '#fff', fontWeight: '600' },
   tagDot: { color: 'rgba(255,255,255,0.4)' },
   buttons: { flexDirection: 'row', gap: 10 },
+  // Netflix's hero buttons: capsules, a white Play and a grey glass My List of equal width
   primary: {
     flex: 1,
-    height: 44,
-    borderRadius: 10,
+    height: BUTTON_H,
+    borderRadius: BUTTON_H / 2,
     backgroundColor: '#fff',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
   },
-  primaryText: { color: '#000', fontSize: 16, fontWeight: '600' },
+  primaryText: { color: '#000', fontSize: 17, fontWeight: '700', letterSpacing: -0.2 },
   secondary: {
     flex: 1,
-    height: 44,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.18)',
+    height: BUTTON_H,
+    borderRadius: BUTTON_H / 2,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.28)',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    gap: 4,
   },
-  secondaryText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  secondaryText: { color: '#fff', fontSize: 17, fontWeight: '700', letterSpacing: -0.2 },
   paginationWrap: {
     marginTop: 12,
   },
