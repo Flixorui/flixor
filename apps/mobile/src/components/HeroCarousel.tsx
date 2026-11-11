@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
-import { AppState, View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform, Image, useWindowDimensions } from 'react-native';
+import { AppState, View, Text, StyleSheet, Pressable, useWindowDimensions } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import Animated, {
   type SharedValue,
@@ -7,35 +7,16 @@ import Animated, {
   useAnimatedScrollHandler,
   useAnimatedReaction,
   useAnimatedStyle,
-  interpolate,
-  Extrapolation,
-  withTiming,
   runOnJS,
   useReducedMotion,
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
-import ConditionalBlurView from './ConditionalBlurView';
 import FastImage from '@d11/react-native-fast-image';
 import { Pagination } from 'react-native-reanimated-carousel';
 import { Ionicons } from '@expo/vector-icons';
 
-// Optional iOS glass effect (expo-glass-effect) with safe fallback
-let GlassViewComp: any = null;
-let liquidGlassAvailable = false;
-if (Platform.OS === 'ios') {
-  try {
-    const glass = require('expo-glass-effect');
-    GlassViewComp = glass.GlassView;
-    liquidGlassAvailable = typeof glass.isLiquidGlassAvailable === 'function'
-      ? glass.isLiquidGlassAvailable()
-      : false;
-  } catch {
-    GlassViewComp = null;
-    liquidGlassAvailable = false;
-  }
-}
-
 const AUTO_ROTATE_INTERVAL_MS = 8000;
+const CARD_GAP = 12;
 
 type HeroCarouselItem = {
   id: string;
@@ -45,6 +26,8 @@ type HeroCarouselItem = {
   mediaType?: 'movie' | 'tv';
   logo?: string;
   genres?: string[];
+  /** Set when the title is in the Plex library (hero ids are rewritten to TMDB ids). */
+  plexRatingKey?: string;
   description?: string;
   year?: string;
 };
@@ -52,6 +35,8 @@ type HeroCarouselItem = {
 function HeroCarousel({
   items,
   onSelect,
+  onPlay,
+  isPlayable,
   onAdd,
   inWatchlist,
   watchlistLoading,
@@ -60,6 +45,10 @@ function HeroCarousel({
 }: {
   items: HeroCarouselItem[];
   onSelect: (item: HeroCarouselItem) => void;
+  /** Primary button. Falls back to onSelect when not given. */
+  onPlay?: (item: HeroCarouselItem) => void;
+  /** Whether the primary button can start playback ("Play") or only opens Details ("Details"). */
+  isPlayable?: (item: HeroCarouselItem) => boolean;
   onAdd: (item: HeroCarouselItem) => void;
   inWatchlist: boolean;
   watchlistLoading: boolean;
@@ -68,11 +57,15 @@ function HeroCarousel({
 }) {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const isTablet = Math.min(windowWidth, windowHeight) >= 600;
-  const baseCardWidthForHeight = Math.min(windowWidth * 0.8, 480);
-  const cardWidth = isTablet ? Math.max(560, windowWidth - 2 * Math.round(0.1 * windowWidth)) : Math.min(windowWidth * 0.8, 480);
-  const cardHeight = Math.round(baseCardWidthForHeight * 9 / 16) + 310;
-  const interval = cardWidth + 16;
-  const contentPadding = useMemo(() => ({ paddingHorizontal: (windowWidth - cardWidth) / 2 }), [windowWidth, cardWidth]);
+  // Netflix billboard: one inset card, 16 pt from each edge, swiping through items. The
+  // textless poster fills the card; the title logo, tag line and Play / My List sit on a
+  // dark gradient over its lower part.
+  const cardWidth = isTablet ? Math.max(560, windowWidth - 2 * Math.round(0.1 * windowWidth)) : windowWidth - 32;
+  const cardHeight = isTablet
+    ? Math.round(cardWidth * 9 / 16)
+    : Math.round(Math.min(cardWidth * 1.42, windowHeight * 0.64));
+  const interval = cardWidth + CARD_GAP;
+  const contentPadding = useMemo(() => ({ paddingHorizontal: (windowWidth - cardWidth) / 2 - CARD_GAP / 2 }), [windowWidth, cardWidth]);
 
   const data = useMemo(() => (items && items.length ? items.slice(0, 10) : []), [items]);
   const loopingEnabled = data.length > 1;
@@ -88,7 +81,6 @@ function HeroCarousel({
   const scrollX = useSharedValue(initialOffset);
   const paginationProgress = useSharedValue(loopingEnabled ? 0 : 0);
   const scrollViewRef = useRef<any>(null);
-  const [flippedMap, setFlippedMap] = useState<Record<string, boolean>>({});
   const hasInitialized = useRef(false);
 
   // Reset initialization when data changes
@@ -145,9 +137,6 @@ function HeroCarousel({
     lastInteractionRef.current = Date.now();
   }, []);
 
-  const toggleFlipById = useCallback((id: string) => {
-    setFlippedMap((prev) => ({ ...prev, [id]: !prev[id] }));
-  }, []);
 
   const scrollHandler = useAnimatedScrollHandler({
     onScroll: (event) => {
@@ -233,9 +222,10 @@ function HeroCarousel({
               interval={interval}
               cardWidth={cardWidth}
               cardHeight={cardHeight}
-              flipped={!!flippedMap[item.id]}
-              onToggleFlip={() => toggleFlipById(item.id)}
+              isTablet={isTablet}
+              playable={isPlayable ? isPlayable(item) : true}
               onPress={() => onSelect(item)}
+              onPlay={() => (onPlay ? onPlay(item) : onSelect(item))}
               showActions={logicalIndex === activeIndex}
               onAdd={() => onAdd(item)}
               inWatchlist={inWatchlist}
@@ -264,14 +254,14 @@ function HeroCarousel({
 function CarouselCard({
   item,
   index,
-  logicalIndex,
   scrollX,
   interval,
   cardWidth,
   cardHeight,
-  flipped,
-  onToggleFlip,
+  isTablet,
+  playable,
   onPress,
+  onPlay,
   showActions,
   onAdd,
   inWatchlist,
@@ -284,157 +274,98 @@ function CarouselCard({
   interval: number;
   cardWidth: number;
   cardHeight: number;
-  flipped: boolean;
-  onToggleFlip: () => void;
+  isTablet: boolean;
+  playable: boolean;
   onPress: () => void;
+  onPlay: () => void;
   showActions: boolean;
   onAdd: () => void;
   inWatchlist: boolean;
   watchlistLoading: boolean;
 }) {
-  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
-  const isTablet = Math.min(windowWidth, windowHeight) >= 600;
-  const isFlipped = useSharedValue(flipped ? 1 : 0);
+  // Phones show the textless poster, tablets the wide backdrop; both carry the logo.
+  const heroImageUri = isTablet ? item.backdrop || item.image : item.image || item.backdrop;
 
-  React.useEffect(() => {
-    isFlipped.value = withTiming(flipped ? 1 : 0, { duration: 240 });
-  }, [flipped, isFlipped]);
-
-  // Tablet hero cards are wide enough to benefit from TMDB textless backdrops.
-  // Phones keep using poster art to preserve the denser carousel look.
-  const heroImageUri = isTablet
-    ? item.backdrop || item.image
-    : item.image || item.backdrop;
-
+  // Neighbouring cards dim slightly while swiping, as before
   const cardAnimatedStyle = useAnimatedStyle(() => {
     const distance = Math.abs(scrollX.value - index * interval);
-    if (distance > interval * 1.5) {
-      return {
-        transform: [{ scale: isTablet ? 0.95 : 0.9 }],
-        opacity: isTablet ? 0.85 : 0.7,
-      };
-    }
-    const maxDistance = interval;
-    const scale = 1 - (distance / maxDistance) * 0.1;
-    const clampedScale = Math.max(isTablet ? 0.95 : 0.9, Math.min(1, scale));
-    const opacity = 1 - (distance / maxDistance) * 0.3;
-    const clampedOpacity = Math.max(isTablet ? 0.85 : 0.7, Math.min(1, opacity));
-    return { transform: [{ scale: clampedScale }], opacity: clampedOpacity };
+    const t = Math.min(1, distance / interval);
+    return { opacity: 1 - t * 0.35, transform: [{ scale: 1 - t * 0.04 }] };
   });
 
-  const overlayAnimatedStyle = useAnimatedStyle(() => {
-    const distance = Math.abs(scrollX.value - index * interval);
-    if (distance > interval * 1.2) {
-      return { opacity: 0 };
-    }
-    const maxDistance = interval * 0.5;
-    const progress = Math.min(distance / maxDistance, 1);
-    const opacity = 1 - progress;
-    const clampedOpacity = Math.max(0, Math.min(1, opacity));
-    return { opacity: clampedOpacity };
-  });
-
-  const frontFlipStyle = useAnimatedStyle(() => ({
-    transform: [{ rotateY: `${interpolate(isFlipped.value, [0, 1], [0, 180])}deg` }],
-  }));
-
-  const backFlipStyle = useAnimatedStyle(() => ({
-    transform: [{ rotateY: `${interpolate(isFlipped.value, [0, 1], [180, 360])}deg` }],
-  }));
+  const tags = [
+    item.mediaType === 'tv' ? 'Series' : item.mediaType === 'movie' ? 'Film' : null,
+    ...(item.genres ?? []).slice(0, 3),
+  ].filter(Boolean) as string[];
+  if (tags.length < 2 && item.year) tags.push(item.year);
 
   return (
-    <View style={{ width: cardWidth + 16 }}>
+    <View style={{ width: cardWidth + CARD_GAP, alignItems: 'center' }}>
       <Animated.View style={[styles.card, { width: cardWidth, height: cardHeight }, cardAnimatedStyle]}>
-        <Animated.View style={[styles.flipFace, frontFlipStyle]}>
-          <TouchableOpacity activeOpacity={0.9} onPress={onPress} style={StyleSheet.absoluteFillObject as any}>
-            <View style={styles.bannerContainer}>
-              {heroImageUri ? (
-                <FastImage
-                  source={{ uri: heroImageUri, priority: FastImage.priority.normal, cache: FastImage.cacheControl.immutable }}
-                  style={styles.banner}
-                  resizeMode={FastImage.resizeMode.cover}
-                />
-              ) : null}
-              <LinearGradient
-                colors={['transparent', 'rgba(0,0,0,0.2)', 'rgba(0,0,0,0.6)']}
-                locations={[0.4, 0.7, 1]}
-                style={styles.bannerGradient}
-              />
-            </View>
-            {item.logo ? (
-              <View style={styles.logoOverlay} pointerEvents="none">
-                <FastImage
-                  source={{ uri: item.logo, priority: FastImage.priority.high, cache: FastImage.cacheControl.immutable }}
-                  style={[styles.logo, { width: Math.round(cardWidth * 0.72) }]}
-                  resizeMode={FastImage.resizeMode.contain}
-                />
-              </View>
-            ) : null}
-            {item.genres && item.genres.length ? (
-              <View style={styles.genresOverlay} pointerEvents="none">
-                <Animated.Text style={[styles.genres, overlayAnimatedStyle]} numberOfLines={1}>
-                  {item.genres.slice(0, 3).join(' • ')}
-                </Animated.Text>
-              </View>
-            ) : null}
-          </TouchableOpacity>
-        </Animated.View>
+        <Pressable
+          onPress={onPress}
+          accessibilityRole="button"
+          accessibilityLabel={`${item.title}, details`}
+          style={StyleSheet.absoluteFill}
+        >
+          {heroImageUri ? (
+            <FastImage
+              source={{ uri: heroImageUri, priority: FastImage.priority.high, cache: FastImage.cacheControl.immutable }}
+              style={StyleSheet.absoluteFill}
+              resizeMode={FastImage.resizeMode.cover}
+            />
+          ) : null}
+          {/* Darkens the lower part so the logo, tags and buttons read on any artwork */}
+          <LinearGradient
+            colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.45)', 'rgba(0,0,0,0.88)']}
+            locations={[0.5, 0.72, 1]}
+            style={StyleSheet.absoluteFill}
+            pointerEvents="none"
+          />
+        </Pressable>
 
-        <Animated.View style={[styles.flipFace, styles.backFace, backFlipStyle]} pointerEvents={flipped ? 'auto' : 'none'}>
-          <View style={styles.bannerContainer}>
-            {heroImageUri ? (
-              <FastImage
-                source={{ uri: heroImageUri, priority: FastImage.priority.low, cache: FastImage.cacheControl.immutable }}
-                style={styles.banner}
-                resizeMode={FastImage.resizeMode.cover}
-              />
-            ) : null}
-            {Platform.OS === 'ios' && GlassViewComp && liquidGlassAvailable ? (
-              <GlassViewComp style={styles.banner} glassEffectStyle="regular" />
-            ) : (
-              <ConditionalBlurView style={styles.banner} intensity={30} tint="dark" />
-            )}
-          </View>
-          <View style={styles.backContent}>
+        <View style={styles.overlay} pointerEvents="box-none">
+          <View pointerEvents="none" style={styles.titleArea}>
             {item.logo ? (
               <FastImage
-                source={{ uri: item.logo, priority: FastImage.priority.normal, cache: FastImage.cacheControl.immutable }}
-                style={[styles.logo, { width: Math.round(cardWidth * 0.72) }]}
+                source={{ uri: item.logo, priority: FastImage.priority.high, cache: FastImage.cacheControl.immutable }}
+                style={{ width: Math.round(cardWidth * 0.7), height: isTablet ? 110 : 88 }}
                 resizeMode={FastImage.resizeMode.contain}
               />
             ) : (
-              <Text style={styles.backTitle} numberOfLines={1}>
-                {item.title}
-              </Text>
+              <Text style={styles.fallbackTitle} numberOfLines={2}>{item.title}</Text>
             )}
-            {item.year ? (
-              <View style={styles.infoRow}>
-                <Ionicons name="calendar-outline" size={14} color="#9ca3af" />
-                <Text style={styles.infoText}>{item.year}</Text>
-              </View>
-            ) : null}
-            <ScrollView style={{ maxHeight: 120 }} showsVerticalScrollIndicator={false}>
-              <Text style={styles.backDescription} numberOfLines={2}>
-                {item.description || 'No description available'}
-              </Text>
-            </ScrollView>
           </View>
-        </Animated.View>
-
-        <View style={styles.topButtonsContainer} pointerEvents="box-none">
-          {showActions && (
-            <TouchableOpacity
-              activeOpacity={0.85}
-              onPress={onAdd}
-              disabled={watchlistLoading}
-              style={[styles.topButton, watchlistLoading && { opacity: 0.6 }]}
+          {tags.length ? (
+            <Text style={styles.tags} numberOfLines={1} pointerEvents="none">
+              {tags.map((t, i) => (
+                <Text key={t + i}>
+                  {i > 0 ? <Text style={styles.tagDot}>{'  •  '}</Text> : null}
+                  <Text style={i === 0 ? styles.tagStrong : undefined}>{t}</Text>
+                </Text>
+              ))}
+            </Text>
+          ) : null}
+          <View style={styles.buttons}>
+            <Pressable
+              onPress={onPlay}
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.primary, pressed && { opacity: 0.85 }]}
             >
-              <Ionicons name={inWatchlist ? 'bookmark' : 'bookmark-outline'} size={18} color="#fff" />
-            </TouchableOpacity>
-          )}
-          <TouchableOpacity activeOpacity={0.8} onPress={onToggleFlip} style={styles.topButton}>
-            <Ionicons name={flipped ? 'close' : 'information-outline'} size={18} color="#fff" />
-          </TouchableOpacity>
+              <Ionicons name={playable ? 'play' : 'information-circle-outline'} size={18} color="#000" />
+              <Text style={styles.primaryText}>{playable ? 'Play' : 'Details'}</Text>
+            </Pressable>
+            <Pressable
+              onPress={onAdd}
+              disabled={!showActions || watchlistLoading}
+              accessibilityRole="button"
+              accessibilityLabel={inWatchlist && showActions ? 'Remove from My List' : 'Add to My List'}
+              style={({ pressed }) => [styles.secondary, (pressed || watchlistLoading) && { opacity: 0.7 }]}
+            >
+              <Ionicons name={inWatchlist && showActions ? 'checkmark' : 'add'} size={20} color="#fff" />
+              <Text style={styles.secondaryText}>My List</Text>
+            </Pressable>
+          </View>
         </View>
       </Animated.View>
     </View>
@@ -443,125 +374,53 @@ function CarouselCard({
 
 const styles = StyleSheet.create({
   container: {
-    paddingBottom: 8,
+    paddingBottom: 4,
   },
   card: {
-    borderRadius: 16,
-    backgroundColor: '#111',
+    borderRadius: 14,
+    backgroundColor: '#0e0e10',
     overflow: 'hidden',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.16)',
   },
-  bannerContainer: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
-  },
-  banner: {
-    width: '100%',
-    height: '100%',
-  },
-  bannerGradient: {
+  fallbackTitle: { color: '#fff', fontSize: 30, fontWeight: '800', textAlign: 'center' },
+  overlay: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    top: 0,
+    paddingHorizontal: 14,
+    paddingBottom: 14,
   },
-  logoOverlay: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    paddingBottom: 40,
-  },
-  logo: {
-    height: 64,
-  },
-  titleOverlay: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 50,
-    alignItems: 'center',
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#fff',
-  },
-  genresOverlay: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 20,
-    alignItems: 'center',
-  },
-  genres: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 13,
-    textAlign: 'center',
-  },
-  flipFace: {
-    ...StyleSheet.absoluteFillObject,
-    backfaceVisibility: 'hidden',
-  },
-  backFace: {
-    transform: [{ rotateY: '180deg' }],
-  },
-  backContent: {
+  titleArea: { alignItems: 'center', justifyContent: 'flex-end', marginBottom: 10 },
+  tags: { color: 'rgba(255,255,255,0.85)', fontSize: 13, textAlign: 'center', marginBottom: 12 },
+  tagStrong: { color: '#fff', fontWeight: '600' },
+  tagDot: { color: 'rgba(255,255,255,0.4)' },
+  buttons: { flexDirection: 'row', gap: 10 },
+  primary: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    padding: 16,
-    paddingBottom: 22,
-  },
-  backTitle: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '800',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  backDescription: {
-    color: '#f3f4f6',
-    fontSize: 12,
-    lineHeight: 16,
-    textAlign: 'center',
-  },
-  infoRow: {
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: '#fff',
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 8,
-  },
-  infoText: {
-    color: '#9ca3af',
-    fontSize: 12,
-  },
-  topButtonsContainer: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    zIndex: 10,
-    flexDirection: 'row',
-    gap: 8,
-  },
-  topButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(0,0,0,0.45)',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.18)',
+    gap: 6,
   },
+  primaryText: { color: '#000', fontSize: 16, fontWeight: '600' },
+  secondary: {
+    flex: 1,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  secondaryText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   paginationWrap: {
-    marginTop: 8,
+    marginTop: 12,
   },
   paginationContainer: {
     gap: 6,

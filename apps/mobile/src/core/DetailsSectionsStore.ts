@@ -33,6 +33,28 @@ export const DETAILS_SECTION_META: Record<DetailsSectionKey, DetailsSectionMeta>
   about: { title: 'Details', tabLabel: 'Details', subtitle: 'Production, technical info and ratings', icon: 'information-circle-outline' },
 };
 
+/**
+ * The mobile default before it matched macOS (Suggested second, Comments off). A saved list
+ * that is exactly this was never customised, so it follows the new default.
+ * macOS does the same with DetailsSectionKey.previousDefaultOrder.
+ */
+const PREVIOUS_DEFAULT: DetailsSectionPreference[] = [
+  { key: 'episodes', enabled: true },
+  { key: 'suggested', enabled: true },
+  { key: 'collection', enabled: true },
+  { key: 'cast', enabled: true },
+  { key: 'trailers', enabled: true },
+  { key: 'comments', enabled: false },
+  { key: 'about', enabled: true },
+];
+
+function isPreviousDefault(sections: DetailsSectionPreference[]): boolean {
+  return (
+    sections.length === PREVIOUS_DEFAULT.length &&
+    sections.every((s, i) => s.key === PREVIOUS_DEFAULT[i].key && s.enabled === PREVIOUS_DEFAULT[i].enabled)
+  );
+}
+
 export function defaultDetailsSections(): DetailsSectionPreference[] {
   return DEFAULT_APP_SETTINGS.detailsSectionPreferences.map((section) => ({ ...section }));
 }
@@ -52,7 +74,7 @@ export function normalizeDetailsSections(saved?: DetailsSectionPreference[] | nu
   for (const section of defaultDetailsSections()) {
     if (!seen.has(section.key)) sections.push(section);
   }
-  return sections;
+  return isPreviousDefault(sections) ? defaultDetailsSections() : sections;
 }
 
 export function orderedEnabledSections(saved?: DetailsSectionPreference[] | null): DetailsSectionKey[] {

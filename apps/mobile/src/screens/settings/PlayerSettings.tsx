@@ -67,6 +67,18 @@ export default function PlayerSettings() {
             )}
             isLast={false}
           />
+          <SettingItem
+            title="Streams Backdrop"
+            description="Dim the backdrop behind the player's source and track panels"
+            icon="image-outline"
+            renderRight={() => (
+              <SettingsSwitch
+                value={settings.enableStreamsBackdrop}
+                onValueChange={(value) => updateSetting('enableStreamsBackdrop', value)}
+              />
+            )}
+            isLast={false}
+          />
           <View style={[styles.sliderGroup, styles.sliderGroupLast]}>
             <Text style={styles.sliderLabel}>Default Speed</Text>
             <Text style={styles.sliderSubtitle}>Speed each video starts at</Text>

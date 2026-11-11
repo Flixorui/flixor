@@ -18,7 +18,7 @@ export default function BottomAppBarSettings() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.settingsBackground }]}>
-      <SettingsHeader title="Bottom App Bar" onBack={() => nav.goBack()} />
+      <SettingsHeader title="Navigation" onBack={() => nav.goBack()} />
       <ScrollView contentContainerStyle={[styles.content, { paddingTop: headerHeight + 12, paddingBottom: insets.bottom + 100 }]}>
         <SettingsCard title="TABS">
           <SettingItem

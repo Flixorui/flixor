@@ -247,7 +247,7 @@ export default function DetailsEpisodesSection({
         <Ionicons
           name={watched ? 'checkmark-circle' : 'checkmark-circle-outline'}
           size={size}
-          color={watched ? theme.accentBright : 'rgba(255,255,255,0.75)'}
+          color={watched ? '#fff' : 'rgba(255,255,255,0.75)'}
         />
       </Pressable>
     );

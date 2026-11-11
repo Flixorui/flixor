@@ -226,7 +226,7 @@ export default function TrailersRow({ trailers, title = 'Trailers & Videos', con
                       <Ionicons
                         name={getCategoryIcon(category) as any}
                         size={16}
-                        color={theme.accent}
+                        color={theme.textPrimary}
                       />
                     </View>
                     <Text style={styles.dropdownItemText}>

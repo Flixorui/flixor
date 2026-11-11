@@ -29,11 +29,11 @@ type TabType = 'coming-soon' | 'worth-the-wait' | 'everyones-watching' | 'top10-
 const PERIOD_TABS: TabType[] = ['everyones-watching', 'top10-shows', 'top10-movies'];
 
 const TABS = [
-  { id: 'coming-soon' as const, label: '🎁 Coming Soon' },
-  { id: 'worth-the-wait' as const, label: '⏳ Worth the Wait' },
-  { id: 'everyones-watching' as const, label: "🔥 Everyone's Watching" },
-  { id: 'top10-shows' as const, label: '🔝 Top 10 Shows' },
-  { id: 'top10-movies' as const, label: '🔝 Top 10 Movies' },
+  { id: 'coming-soon' as const, label: 'Coming Soon' },
+  { id: 'worth-the-wait' as const, label: 'Worth the Wait' },
+  { id: 'everyones-watching' as const, label: "Everyone's Watching" },
+  { id: 'top10-shows' as const, label: 'Top 10 Shows' },
+  { id: 'top10-movies' as const, label: 'Top 10 Movies' },
 ];
 
 // Persistent store for caching content across mounts (like NuvioStreaming)
@@ -296,7 +296,7 @@ export default function NewHot() {
 
                     {/* Rank badge for Top 10 */}
                     {item.rank && (
-                      <View style={[styles.rankBadge, { backgroundColor: theme.accent }]}>
+                      <View style={[styles.rankBadge, { backgroundColor: 'rgba(0,0,0,0.6)' }]}>
                         <Text style={styles.rankNumber}>{item.rank}</Text>
                       </View>
                     )}

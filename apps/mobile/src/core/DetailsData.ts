@@ -12,6 +12,10 @@ export type RowItem = {
   id: string;
   title: string;
   image?: string;
+  /** 16:9 artwork for landscape rows. */
+  backdrop?: string;
+  /** Release year, or undefined when unknown. */
+  year?: string;
   mediaType?: 'movie' | 'tv';
 };
 
@@ -289,6 +293,8 @@ export async function fetchTmdbRecommendations(mediaType: 'movie' | 'tv', tmdbId
       id: `tmdb:${mediaType}:${r.id}`,
       title: r.title || r.name || 'Untitled',
       image: r.poster_path ? core.tmdb.getPosterUrl(r.poster_path, 'w342') : undefined,
+      backdrop: r.backdrop_path ? core.tmdb.getBackdropUrl(r.backdrop_path, 'w780') : undefined,
+      year: String(r.release_date || r.first_air_date || '').slice(0, 4) || undefined,
       mediaType,
     }));
   } catch (e) {
@@ -309,6 +315,8 @@ export async function fetchTmdbSimilar(mediaType: 'movie' | 'tv', tmdbId: number
       id: `tmdb:${mediaType}:${r.id}`,
       title: r.title || r.name || 'Untitled',
       image: r.poster_path ? core.tmdb.getPosterUrl(r.poster_path, 'w342') : undefined,
+      backdrop: r.backdrop_path ? core.tmdb.getBackdropUrl(r.backdrop_path, 'w780') : undefined,
+      year: String(r.release_date || r.first_air_date || '').slice(0, 4) || undefined,
       mediaType,
     }));
   } catch (e) {
@@ -325,10 +333,17 @@ export async function fetchTmdbMovieCollection(movieId: number): Promise<{ id: n
     const collection = details?.belongs_to_collection;
     if (!collection?.id) return null;
     const full = await core.tmdb.getCollectionDetails(collection.id);
-    const items: RowItem[] = (full.parts || []).map((part: any) => ({
+    // Release order, with undated (unreleased) parts last, as on macOS
+    const parts = [...(full.parts || [])].sort((a: any, b: any) => {
+      const da = a.release_date || '9999';
+      const db = b.release_date || '9999';
+      return da < db ? -1 : da > db ? 1 : 0;
+    });
+    const items: RowItem[] = parts.map((part: any) => ({
       id: `tmdb:movie:${part.id}`,
       title: part.title || part.name || 'Untitled',
       image: part.poster_path ? core.tmdb.getPosterUrl(part.poster_path, 'w342') : undefined,
+      year: String(part.release_date || '').slice(0, 4) || undefined,
       mediaType: 'movie',
     }));
     return items.length > 1 ? { id: collection.id, name: full.name || collection.name || 'Collection', items } : null;
@@ -640,6 +655,24 @@ export interface EpisodeEnrichment {
 }
 
 /**
+ * TMDB person id for a name, for Plex cast with no TMDB match (macOS looks people up the
+ * same way). Null when nothing matches.
+ */
+export async function findTmdbPersonIdByName(name: string): Promise<number | null> {
+  try {
+    const core = getFlixorCore();
+    const data: any = await core.tmdb.searchMulti(name);
+    const people = (data?.results || []).filter((r: any) => r.media_type === 'person');
+    const wanted = name.trim().toLowerCase();
+    const exact = people.find((p: any) => String(p.name || '').trim().toLowerCase() === wanted);
+    return (exact ?? people[0])?.id ?? null;
+  } catch (e) {
+    console.log('[DetailsData] findTmdbPersonIdByName error:', e);
+    return null;
+  }
+}
+
+/**
  * Fetch TMDB episode details for enrichment (guest stars, crew, etc.)
  */
 export async function fetchTmdbEpisodeDetails(
@@ -659,7 +692,7 @@ export async function fetchTmdbEpisodeDetails(
       air_date: details.air_date,
       vote_average: details.vote_average,
       runtime: details.runtime,
-      guest_stars: details.guest_stars?.slice(0, 8), // Limit to 8 guest stars
+      guest_stars: details.guest_stars?.slice(0, 12), // macOS shows up to 12
       director,
       writer,
     };
@@ -738,102 +771,6 @@ export function extractImdbIdFromGuids(guids: any[]): string | null {
 // ============================================
 // Person Data
 // ============================================
-
-export interface PersonInfo {
-  id: number;
-  name: string;
-  biography?: string;
-  birthday?: string;
-  deathday?: string;
-  placeOfBirth?: string;
-  profilePath?: string;
-  knownFor?: string;
-}
-
-export interface PersonCredit {
-  id: number;
-  title: string;
-  posterPath?: string;
-  mediaType: 'movie' | 'tv';
-  character?: string;
-  job?: string;
-  year?: string;
-  voteAverage?: number;
-}
-
-export async function fetchPersonDetails(personId: number): Promise<PersonInfo | null> {
-  try {
-    const core = getFlixorCore();
-    const person = await core.tmdb.getPersonDetails(personId);
-
-    return {
-      id: person.id,
-      name: person.name,
-      biography: person.biography,
-      birthday: person.birthday,
-      deathday: person.deathday,
-      placeOfBirth: person.place_of_birth,
-      profilePath: person.profile_path,
-      knownFor: person.known_for_department,
-    };
-  } catch (e) {
-    console.log('[DetailsData] fetchPersonDetails error:', e);
-    return null;
-  }
-}
-
-export async function fetchPersonCredits(personId: number): Promise<PersonCredit[]> {
-  try {
-    const core = getFlixorCore();
-    const credits = await core.tmdb.getPersonCredits(personId);
-
-    // Combine cast and crew, dedupe by id+media_type
-    const allCredits: PersonCredit[] = [];
-    const seen = new Set<string>();
-
-    // Process cast credits
-    for (const item of credits.cast || []) {
-      const key = `${item.media_type}:${item.id}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-
-      allCredits.push({
-        id: item.id,
-        title: item.title || item.name || 'Untitled',
-        posterPath: item.poster_path,
-        mediaType: item.media_type,
-        character: item.character,
-        year: (item.release_date || item.first_air_date || '').slice(0, 4),
-        voteAverage: item.vote_average,
-      });
-    }
-
-    // Process crew credits (if not already added as cast)
-    for (const item of credits.crew || []) {
-      const key = `${item.media_type}:${item.id}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-
-      allCredits.push({
-        id: item.id,
-        title: item.title || item.name || 'Untitled',
-        posterPath: item.poster_path,
-        mediaType: item.media_type,
-        job: item.job,
-        year: (item.release_date || item.first_air_date || '').slice(0, 4),
-        voteAverage: item.vote_average,
-      });
-    }
-
-    // Sort by popularity (vote_average as proxy)
-    allCredits.sort((a, b) => (b.voteAverage || 0) - (a.voteAverage || 0));
-
-    return allCredits.slice(0, 20); // Top 20 credits
-  } catch (e) {
-    console.log('[DetailsData] fetchPersonCredits error:', e);
-    return [];
-  }
-}
 
 export function getPersonProfileUrl(profilePath: string | undefined, size: string = 'w185'): string {
   if (!profilePath) return '';

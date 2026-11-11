@@ -26,7 +26,7 @@ export default function HomeScreenSettings() {
 
   return (
     <View style={styles.container}>
-      <SettingsHeader title="Home Screen" onBack={() => nav.goBack()} />
+      <SettingsHeader title="Home" onBack={() => nav.goBack()} />
       <ScrollView contentContainerStyle={[styles.content, { paddingTop: headerHeight + 12, paddingBottom: insets.bottom + 100 }]}>
         <SettingsCard title="HERO">
           <SettingItem
@@ -107,6 +107,15 @@ export default function HomeScreenSettings() {
             icon="reorder-three-outline"
             renderRight={() => <Ionicons name="chevron-forward" size={18} color="#9ca3af" />}
             onPress={() => nav.navigate('HomeRowsSettings')}
+            isLast={false}
+          />
+          {/* Continue Watching lives under Home, as on macOS */}
+          <SettingItem
+            title="Continue Watching Options"
+            description="Layout, source, spoilers and cached streams"
+            icon="play-circle-outline"
+            renderRight={() => <Ionicons name="chevron-forward" size={18} color="#9ca3af" />}
+            onPress={() => nav.navigate('ContinueWatchingSettings')}
             isLast={false}
           />
           <SettingItem

@@ -21,7 +21,8 @@ import DownloadProgressBar from './DownloadProgressBar';
 
 interface DownloadButtonProps {
   metadata: PlexMediaItem;
-  variant?: 'icon' | 'button' | 'pill';
+  /** 'round' matches the Details action row: a neutral circle with a caption. */
+  variant?: 'icon' | 'button' | 'pill' | 'round';
   size?: 'small' | 'medium' | 'large';
   showLabel?: boolean;
 }
@@ -169,6 +170,33 @@ function DownloadButton({
     return 'Download';
   };
 
+  if (variant === 'round') {
+    const roundIcon: keyof typeof Ionicons.glyphMap = isDownloaded
+      ? 'checkmark-circle'
+      : isPaused
+        ? 'pause'
+        : isFailed
+          ? 'refresh'
+          : 'arrow-down';
+    return (
+      <Pressable
+        onPress={handlePress}
+        accessibilityRole="button"
+        accessibilityLabel={getLabel()}
+        style={styles.round}
+      >
+        <View style={styles.roundCircle}>
+          {isDownloading ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <Ionicons name={roundIcon} size={22} color="#fff" />
+          )}
+        </View>
+        <Text numberOfLines={1} style={styles.roundLabel}>{getLabel()}</Text>
+      </Pressable>
+    );
+  }
+
   if (variant === 'icon') {
     return (
       <Pressable onPress={handlePress} hitSlop={8}>
@@ -257,6 +285,24 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
     overflow: 'hidden',
+  },
+  round: {
+    alignItems: 'center',
+    minWidth: 64,
+  },
+  roundCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  roundLabel: {
+    marginTop: 6,
+    fontSize: 12,
+    fontWeight: '500',
+    color: 'rgba(255,255,255,0.7)', // theme.textSecondary
   },
   progressContainer: {
     width: 24,

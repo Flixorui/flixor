@@ -256,6 +256,13 @@ export interface TMDBPerson {
   homepage?: string;
 }
 
+export interface TMDBPersonExternalIds {
+  imdb_id?: string | null;
+  instagram_id?: string | null;
+  twitter_id?: string | null;
+  facebook_id?: string | null;
+}
+
 export interface TMDBPersonCredits {
   cast?: TMDBPersonCreditItem[];
   crew?: TMDBPersonCreditItem[];
@@ -270,6 +277,10 @@ export interface TMDBPersonCreditItem {
   media_type: 'movie' | 'tv';
   character?: string;
   job?: string;
+  department?: string;
+  episode_count?: number;
+  genre_ids?: number[];
+  popularity?: number;
   release_date?: string;
   first_air_date?: string;
   vote_average?: number;

@@ -14,6 +14,8 @@ import type { ContinueWatchingMenuAction } from './continueWatchingMenu';
 import { fetchCatalogRowItems, type HomeDisplayRow } from './homeRowModels';
 import type { HomeViewport } from './homeViewport';
 import { preheatArtwork } from './preheat';
+import Top10Row from './Top10Row';
+import type { ContentItem } from '../../core/NewHotData';
 
 const getPoster = (item: RowItem) => item.image;
 const getBackdrop = (item: RowItem) => item.backdrop || item.image;
@@ -164,6 +166,8 @@ interface HomeRowsProps {
   onContinueBrowse: () => void;
   onItemPress: (item: RowItem) => void;
   onBrowseRow: (rowId: string) => void;
+  /** Top 10 row, placed right after Continue Watching. */
+  onTop10Press?: (item: ContentItem) => void;
 }
 
 /**
@@ -184,6 +188,7 @@ function HomeRows({
   onContinueBrowse,
   onItemPress,
   onBrowseRow,
+  onTop10Press,
 }: HomeRowsProps) {
   return (
     <View style={{ marginTop: 16 }} onLayout={(event) => viewport.setContentY(event.nativeEvent.layout.y)}>
@@ -191,11 +196,12 @@ function HomeRows({
         const shared = { rowId: model.id, title, caption, layout, onItemPress, onBrowseRow };
         switch (model.type) {
           case 'continueWatching': {
-            if (!showContinueWatching || continueEntries.length === 0) return null;
+            const top10 = onTop10Press ? <Top10Row key={`${model.id}-top10`} onItemPress={onTop10Press} /> : null;
+            if (!showContinueWatching || continueEntries.length === 0) return top10;
             const ContinueRow = continueLayout === 'landscape' ? ContinueWatchingLandscapeRow : ContinueWatchingPosterRow;
             return (
+              <React.Fragment key={model.id}>
               <ContinueRow
-                key={model.id}
                 title={title}
                 entries={continueEntries}
                 blurNextUp={blurNextUp}
@@ -203,6 +209,8 @@ function HomeRows({
                 onAction={onContinueAction}
                 onBrowsePress={onContinueBrowse}
               />
+              {top10}
+              </React.Fragment>
             );
           }
           case 'items':

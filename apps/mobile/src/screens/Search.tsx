@@ -25,12 +25,10 @@ import { useAppSettings } from '../hooks/useAppSettings';
 import { useTheme } from '../hooks/useTheme';
 import { useAppMode } from '../core/AppMode';
 import { RECENT_SEARCHES_LIMIT } from '../core/SettingsData';
-import type { PersonCredit } from '../core/DetailsData';
 import RecentSearches from '../components/search/RecentSearches';
 import PeopleRow from '../components/search/PeopleRow';
 import DiscoverPanel from '../components/search/DiscoverPanel';
 import Chip from '../components/collections/Chip';
-import PersonModal from '../components/PersonModal';
 
 type GenreRow = {
   title: string;
@@ -75,7 +73,6 @@ export default function Search({ isTab = false, nativeSearchText, hideCustomSear
   const [addonResults, setAddonResults] = useState<SearchResult[]>([]);
   const [people, setPeople] = useState<PersonResult[]>([]);
   const [idleMode, setIdleMode] = useState<'recommended' | 'discover'>('recommended');
-  const [selectedPerson, setSelectedPerson] = useState<PersonResult | null>(null);
   // Initialize from persistent store for instant render
   const [trending, setTrending] = useState<RowItem[]>(() => persistentStore.trending || []);
   const [genreRows, setGenreRows] = useState<GenreRow[]>([]);
@@ -330,9 +327,10 @@ export default function Search({ isTab = false, nativeSearchText, hideCustomSear
     }
   };
 
-  const handleCreditPress = (credit: PersonCredit) => {
+  // People open their full page on this tab's stack, as on macOS
+  const openPerson = (person: PersonResult) => {
     rememberSearch(query);
-    nav.navigate('Details', { type: 'tmdb', mediaType: credit.mediaType, id: String(credit.id) });
+    nav.push('Person', { id: person.id, name: person.name });
   };
 
   const idleModePicker = settings.includeTmdbInSearch ? (
@@ -442,19 +440,6 @@ export default function Search({ isTab = false, nativeSearchText, hideCustomSear
                       ) : (
                         <View style={{ width: '100%', height: '100%', backgroundColor: '#1a1a1a' }} />
                       )}
-                      {/* "Recently added" badge for some items */}
-                      {i < 3 ? (
-                        <View style={{ position: 'absolute', bottom: 8, left: 8, backgroundColor: theme.accent, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 }}>
-                          <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700' }}>Recently added</Text>
-                        </View>
-                      ) : null}
-                      {/* TOP 10 badge for top items */}
-                      {i < 2 ? (
-                        <View style={{ position: 'absolute', top: 8, right: 8, backgroundColor: theme.accent, width: 36, height: 36, borderRadius: 4, alignItems: 'center', justifyContent: 'center' }}>
-                          <Text style={{ color: '#fff', fontSize: 10, fontWeight: '700' }}>TOP</Text>
-                          <Text style={{ color: '#fff', fontSize: 16, fontWeight: '900' }}>10</Text>
-                        </View>
-                      ) : null}
                     </View>
                     <View style={{ flex: 1, marginLeft: 16, justifyContent: 'center' }}>
                       <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>{item.title}</Text>
@@ -570,7 +555,7 @@ export default function Search({ isTab = false, nativeSearchText, hideCustomSear
                     />
                   ) : null}
 
-                  <PeopleRow people={people} onPress={setSelectedPerson} />
+                  <PeopleRow people={people} onPress={openPerson} />
 
                   {/* Dynamic Genre Rows */}
                   {genreRows.map((genreRow, idx) => (
@@ -595,13 +580,6 @@ export default function Search({ isTab = false, nativeSearchText, hideCustomSear
         </Animated.View>
       </SafeAreaView>
 
-      <PersonModal
-        visible={selectedPerson !== null}
-        personId={selectedPerson?.id ?? null}
-        personName={selectedPerson?.name}
-        onClose={() => setSelectedPerson(null)}
-        onSelectCredit={handleCreditPress}
-      />
     </View>
   );
 }

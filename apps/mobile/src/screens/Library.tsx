@@ -8,6 +8,7 @@ import FastImage from '@d11/react-native-fast-image';
 import { FlashList } from '@shopify/flash-list';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TopBarStore } from '../components/TopBarStore';
+import GlobalTopAppBar from '../components/GlobalTopAppBar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRoute, useNavigation, useIsFocused, useFocusEffect } from '@react-navigation/native';
 import { useFlixor } from '../core/FlixorContext';
@@ -77,7 +78,13 @@ function StremioOnlyLibrary() {
 
 export default function Library() {
   const { isStremioOnly } = useAppMode();
-  return isStremioOnly ? <StremioOnlyLibrary /> : <PlexLibrary />;
+  // The header lives in the screen so it moves with it during navigation
+  return (
+    <View style={{ flex: 1 }}>
+      {isStremioOnly ? <StremioOnlyLibrary /> : <PlexLibrary />}
+      <GlobalTopAppBar screenContext="HomeStack" embedded />
+    </View>
+  );
 }
 
 function PlexLibrary() {

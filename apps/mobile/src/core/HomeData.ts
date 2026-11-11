@@ -862,6 +862,8 @@ export type HeroItem = {
   description?: string;
   year?: string;
   genres?: string[];
+  /** Plex ratingKey when the title is in the library (id is rewritten to a TMDB id). */
+  plexRatingKey?: string;
 };
 
 /**
@@ -917,6 +919,11 @@ export async function convertPlexItemsToHero(
       mediaType,
       year: item.year ? String(item.year) : undefined,
       description: item.summary || undefined,
+      // Episodes and seasons point at their show
+      plexRatingKey: String(
+        isEpisode ? item.grandparentRatingKey || item.ratingKey : isSeason ? item.parentRatingKey || item.ratingKey : item.ratingKey
+      ),
+      genres: (item as any).Genre?.slice(0, 3).map((g: { tag: string }) => g.tag),
     };
 
     // Get Plex poster as fallback (prefer thumb/poster over art/backdrop)

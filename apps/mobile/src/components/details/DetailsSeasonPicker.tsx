@@ -60,7 +60,7 @@ export default function DetailsSeasonPicker({
               <View
                 style={[
                   styles.poster,
-                  { backgroundColor: theme.surface, borderColor: active ? theme.chosenAccentBright ?? '#fff' : theme.separator, borderWidth: active ? 2 : StyleSheet.hairlineWidth },
+                  { backgroundColor: theme.surface, borderColor: active ? '#fff' : theme.separator, borderWidth: active ? 2 : StyleSheet.hairlineWidth },
                 ]}
               >
                 {uri ? <FastImage source={{ uri }} style={StyleSheet.absoluteFill} resizeMode="cover" /> : null}
@@ -94,12 +94,13 @@ export default function DetailsSeasonPicker({
             style={[
               styles.chip,
               {
-                backgroundColor: active ? (theme.chosenAccent ? theme.accentSoft : '#ffffff22') : '#1a1b20',
-                borderColor: active ? theme.chosenAccentBright ?? '#fff' : '#2a2b30',
+                // Selected season: white with black text, as on macOS
+                backgroundColor: active ? '#fff' : '#1a1b20',
+                borderColor: active ? '#fff' : '#2a2b30',
               },
             ]}
           >
-            <Text style={[styles.chipText, { color: theme.textPrimary }]}>
+            <Text style={[styles.chipText, { color: active ? '#000' : theme.textPrimary }]}>
               {season.title || `Season ${season.index || index + 1}`}
             </Text>
           </Pressable>

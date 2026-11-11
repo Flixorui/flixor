@@ -201,7 +201,7 @@ export default function AppearanceSettings() {
               })}
             </View>
             <Text style={[styles.note, { color: theme.textSecondary }]}>
-              Used for selection, progress bars, toggles and highlights. The Flixor logo always stays red.
+              Used for switches and progress bars. Everything else stays neutral, and the Flixor logo always stays red.
             </Text>
           </View>
         </SettingsCard>

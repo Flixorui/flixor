@@ -46,6 +46,12 @@ export default function DetailsScreenSettings() {
     { label: 'Posters', value: 'posters' },
   ];
 
+  // Moved here from the Settings root, next to the other episode options (as on macOS)
+  const episodeLayoutOptions: Array<{ label: string; value: 'vertical' | 'horizontal' }> = [
+    { label: 'Vertical', value: 'vertical' },
+    { label: 'Horizontal', value: 'horizontal' },
+  ];
+
   const layoutOptions = [
     { label: 'Tabbed', value: 'tabbed' },
     { label: 'Unified', value: 'unified' },
@@ -53,7 +59,7 @@ export default function DetailsScreenSettings() {
 
   return (
     <View style={styles.container}>
-      <SettingsHeader title="Details Screen" onBack={() => nav.goBack()} />
+      <SettingsHeader title="Details" onBack={() => nav.goBack()} />
       <ScrollView contentContainerStyle={[styles.content, { paddingTop: headerHeight + 12, paddingBottom: insets.bottom + 100 }]}>
         <SettingsCard title="SCREEN LAYOUT">
           <View style={styles.layoutGroup}>
@@ -63,7 +69,7 @@ export default function DetailsScreenSettings() {
             </Text>
             <View style={styles.layoutSegment}>
               {layoutOptions.map((option, index) => {
-                const selected = (settings.detailsScreenLayout ?? 'tabbed') === option.value;
+                const selected = (settings.detailsScreenLayout ?? 'unified') === option.value;
                 return (
                   <Pressable
                     key={option.value}
@@ -146,6 +152,29 @@ export default function DetailsScreenSettings() {
                       selected && styles.layoutChipActive,
                     ]}
                     onPress={() => updateSetting('detailsSeasonPickerStyle', option.value)}
+                  >
+                    <Text style={[styles.layoutChipText, selected && styles.layoutChipTextActive]}>{option.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+          <View style={styles.layoutGroup}>
+            <Text style={styles.layoutLabel}>Episode Layout</Text>
+            <Text style={styles.layoutDescription}>A vertical list, or a horizontal row of episode cards</Text>
+            <View style={styles.layoutSegment}>
+              {episodeLayoutOptions.map((option, index) => {
+                const selected = (settings.episodeLayoutStyle ?? 'vertical') === option.value;
+                return (
+                  <Pressable
+                    key={option.value}
+                    style={[
+                      styles.layoutChip,
+                      styles.layoutChipFill,
+                      index > 0 && styles.layoutChipDivider,
+                      selected && styles.layoutChipActive,
+                    ]}
+                    onPress={() => updateSetting('episodeLayoutStyle', option.value)}
                   >
                     <Text style={[styles.layoutChipText, selected && styles.layoutChipTextActive]}>{option.label}</Text>
                   </Pressable>

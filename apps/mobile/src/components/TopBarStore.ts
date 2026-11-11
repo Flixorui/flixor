@@ -1,5 +1,6 @@
 import { Animated } from 'react-native';
 import React from 'react';
+import type { CategoryPick } from './CategoriesMenu';
 
 type Pill = 'all'|'movies'|'shows';
 
@@ -15,6 +16,8 @@ type State = {
   onClose?: ()=>void;
   onBrowse?: ()=>void;
   onClearGenre?: ()=>void;
+  /** Picks from the native Categories menu on the Explore pill. */
+  onSelectCategory?: (pick: CategoryPick)=>void;
   compact?: boolean;
   customFilters?: React.ReactNode;
   activeGenre?: string;

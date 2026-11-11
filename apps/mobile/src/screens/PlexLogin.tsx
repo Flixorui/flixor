@@ -122,13 +122,38 @@ export default function PlexLogin({ onAuthenticated }: PlexLoginProps) {
 
       {polling && (
         <View style={{ marginBottom: 24, alignItems: 'center' }}>
-          <ActivityIndicator color={theme.accent} size="large" />
+          <ActivityIndicator color={theme.textPrimary} size="large" />
           <Text style={{ color: '#999', marginTop: 12, fontSize: 14 }}>
-            Waiting for authorization...
+            Waiting for authorization…
           </Text>
           <Text style={{ color: '#666', marginTop: 4, fontSize: 12 }}>
             Complete sign-in in your browser
           </Text>
+          {/* A way out if the browser was closed before signing in */}
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 24 }}>
+            <Pressable
+              onPress={() => {
+                if (!pin) return;
+                const url = buildPlexAuthUrl(getFlixorCore().getClientId(), pin.code);
+                RNLinking.openURL(url).catch(() => undefined);
+              }}
+              accessibilityRole="button"
+              style={{ backgroundColor: 'rgba(255,255,255,0.12)', paddingHorizontal: 18, height: 44, borderRadius: 12, justifyContent: 'center' }}
+            >
+              <Text style={{ color: '#fff', fontWeight: '600', fontSize: 15 }}>Open Browser Again</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                abortRef.current = true;
+                setPolling(false);
+                setPin(null);
+              }}
+              accessibilityRole="button"
+              style={{ backgroundColor: 'rgba(255,255,255,0.12)', paddingHorizontal: 18, height: 44, borderRadius: 12, justifyContent: 'center' }}
+            >
+              <Text style={{ color: '#fff', fontWeight: '600', fontSize: 15 }}>Cancel</Text>
+            </Pressable>
+          </View>
         </View>
       )}
 
@@ -137,18 +162,20 @@ export default function PlexLogin({ onAuthenticated }: PlexLoginProps) {
           onPress={startAuth}
           disabled={busy}
           style={{
-            backgroundColor: busy ? '#666' : theme.accent,
+            // White primary button (macOS rule: red is only for switches and progress)
+            backgroundColor: busy ? 'rgba(255,255,255,0.6)' : '#fff',
             paddingHorizontal: 24,
-            paddingVertical: 14,
-            borderRadius: 8,
+            height: 50,
+            justifyContent: 'center',
+            borderRadius: 12,
             minWidth: 200,
             alignItems: 'center',
           }}
         >
           {busy ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color="#000" />
           ) : (
-            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>
+            <Text style={{ color: '#000', fontWeight: '600', fontSize: 17 }}>
               Sign in with Plex
             </Text>
           )}

@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { View, Text, Pressable, LayoutChangeEvent } from 'react-native';
+import { View, Text, Pressable, LayoutChangeEvent, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Row, { RowBadge } from './Row';
 import RowSkeleton from './RowSkeleton';
@@ -55,6 +55,8 @@ function LazyRow({
   const [failed, setFailed] = useState(false);
   const [hasTriggered, setHasTriggered] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
+  // Remembers whether a skeleton was on screen, so only those rows fade in
+  const showedSkeletonRef = useRef(false);
   const layoutY = useRef<number | null>(null);
 
   // Use pre-loaded items if available, otherwise use fetched data
@@ -121,6 +123,7 @@ function LazyRow({
 
   // If not visible yet or still loading, show skeleton
   if (!isVisible || loading) {
+    showedSkeletonRef.current = true;
     return (
       <View onLayout={onLayout}>
         <RowSkeleton title={title} layout={layout} />
@@ -139,7 +142,7 @@ function LazyRow({
           </Text>
         </View>
         <Pressable onPress={retry} hitSlop={8}>
-          <Text style={{ color: theme.accentBright, fontSize: 14, fontWeight: '600' }}>Retry</Text>
+          <Text style={{ color: theme.textPrimary, fontSize: 14, fontWeight: '600' }}>Retry</Text>
         </Pressable>
       </View>
     );
@@ -151,7 +154,7 @@ function LazyRow({
   }
 
   return (
-    <View onLayout={onLayout}>
+    <FadeIn enabled={showedSkeletonRef.current} onLayout={onLayout}>
       <Row
         title={title}
         caption={caption}
@@ -168,8 +171,17 @@ function LazyRow({
         onBrowsePress={onBrowsePress}
         keyPrefix={keyPrefix}
       />
-    </View>
+    </FadeIn>
   );
+}
+
+/** Content that replaced a skeleton fades in once (250 ms) instead of popping in. */
+function FadeIn({ enabled, onLayout, children }: { enabled: boolean; onLayout?: (e: any) => void; children: React.ReactNode }) {
+  const opacity = useRef(new Animated.Value(enabled ? 0 : 1)).current;
+  useEffect(() => {
+    if (enabled) Animated.timing(opacity, { toValue: 1, duration: 250, useNativeDriver: true }).start();
+  }, [enabled, opacity]);
+  return <Animated.View onLayout={onLayout} style={{ opacity }}>{children}</Animated.View>;
 }
 
 export default React.memo(LazyRow);

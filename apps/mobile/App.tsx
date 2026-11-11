@@ -32,6 +32,7 @@ configureReanimatedLogger({
 
 import Home from './src/screens/Home';
 import Library from './src/screens/Library';
+import LibraryHome from './src/screens/LibraryHome';
 import Collections from './src/screens/Collections';
 import Details from './src/screens/Details';
 import Player from './src/screens/Player';
@@ -42,12 +43,13 @@ import MyList from './src/screens/MyList';
 import Downloads from './src/screens/Downloads';
 import StremioSources from './src/screens/StremioSources';
 import Settings from './src/screens/Settings';
-import CatalogSettings from './src/screens/settings/CatalogSettings';
+import ContentSettings from './src/screens/settings/ContentSettings';
+import AdvancedSettings from './src/screens/settings/AdvancedSettings';
+import AboutSettings from './src/screens/settings/AboutSettings';
 import HomeScreenSettings from './src/screens/settings/HomeScreenSettings';
 import DetailsScreenSettings from './src/screens/settings/DetailsScreenSettings';
 import ContinueWatchingSettings from './src/screens/settings/ContinueWatchingSettings';
 import BottomAppBarSettings from './src/screens/settings/BottomAppBarSettings';
-import SearchSettings from './src/screens/settings/SearchSettings';
 import TMDBSettings from './src/screens/settings/TMDBSettings';
 import TraktSettings from './src/screens/settings/TraktSettings';
 import MDBListSettings from './src/screens/settings/MDBListSettings';
@@ -63,6 +65,7 @@ import StremioAddons from './src/screens/settings/StremioAddons';
 import HomeRowsSettings from './src/screens/settings/HomeRowsSettings';
 import AppearanceSettings from './src/screens/settings/AppearanceSettings';
 import EntityBrowse from './src/screens/EntityBrowse';
+import Person from './src/screens/Person';
 import UserCollection from './src/screens/UserCollection';
 import ToastHost from './src/components/Toast';
 import { loadAppMode, useAppMode } from './src/core/AppMode';
@@ -116,8 +119,6 @@ const triggerLogout = () => logoutHandlerRef ? logoutHandlerRef() : Promise.reso
 // This is critical for performance - inline components cause React Navigation to do extra work
 
 const HomeStackNavigator = React.memo(() => {
-  const topBarVisible = useTopBarStore((s) => s.visible === true);
-
   return (
     <View style={{ flex: 1 }}>
       <HomeStack.Navigator screenOptions={{ headerShown: false }}>
@@ -138,6 +139,11 @@ const HomeStackNavigator = React.memo(() => {
           name="Library"
           component={Library}
           options={{ presentation: 'card', animation: 'fade' }}
+        />
+        <HomeStack.Screen
+          name="LibraryHome"
+          component={LibraryHome}
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
         />
         <HomeStack.Screen
           name="Collections"
@@ -165,12 +171,17 @@ const HomeStackNavigator = React.memo(() => {
           options={{ presentation: 'card', animation: 'slide_from_right' }}
         />
         <HomeStack.Screen
+          name="Person"
+          component={Person}
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
+        />
+        <HomeStack.Screen
           name="UserCollection"
           component={UserCollection}
           options={{ presentation: 'card', animation: 'slide_from_right' }}
         />
       </HomeStack.Navigator>
-      {topBarVisible && <GlobalTopAppBar screenContext="HomeStack" />}
+      {/* Home and Library render their own header so it moves with the screen */}
     </View>
   );
 });
@@ -200,6 +211,11 @@ const NewHotStackNavigator = React.memo(() => {
         <NewHotStack.Screen
           name="EntityBrowse"
           component={EntityBrowse}
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
+        />
+        <NewHotStack.Screen
+          name="Person"
+          component={Person}
           options={{ presentation: 'card', animation: 'slide_from_right' }}
         />
         <NewHotStack.Screen
@@ -243,6 +259,11 @@ const MyListStackNavigator = React.memo(() => {
         <MyListStack.Screen
           name="EntityBrowse"
           component={EntityBrowse}
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
+        />
+        <MyListStack.Screen
+          name="Person"
+          component={Person}
           options={{ presentation: 'card', animation: 'slide_from_right' }}
         />
         <MyListStack.Screen
@@ -342,6 +363,11 @@ const SearchStackNavigator = React.memo(() => {
           options={{ presentation: 'card', animation: 'slide_from_right' }}
         />
         <SearchStack.Screen
+          name="Person"
+          component={Person}
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
+        />
+        <SearchStack.Screen
           name="UserCollection"
           component={UserCollection}
           options={{ presentation: 'card', animation: 'slide_from_right' }}
@@ -361,12 +387,13 @@ const SettingsTabScreen = React.memo(() => (
     <SettingsStack.Screen name="SettingsMain">
       {() => <Settings onLogout={triggerLogout} />}
     </SettingsStack.Screen>
-    <SettingsStack.Screen name="CatalogSettings" component={CatalogSettings} />
+    <SettingsStack.Screen name="ContentSettings" component={ContentSettings} />
+    <SettingsStack.Screen name="AdvancedSettings" component={AdvancedSettings} />
+    <SettingsStack.Screen name="AboutSettings" component={AboutSettings} />
     <SettingsStack.Screen name="HomeScreenSettings" component={HomeScreenSettings} />
     <SettingsStack.Screen name="DetailsScreenSettings" component={DetailsScreenSettings} />
     <SettingsStack.Screen name="ContinueWatchingSettings" component={ContinueWatchingSettings} />
     <SettingsStack.Screen name="BottomAppBarSettings" component={BottomAppBarSettings} />
-    <SettingsStack.Screen name="SearchSettings" component={SearchSettings} />
     <SettingsStack.Screen name="TMDBSettings" component={TMDBSettings} />
     <SettingsStack.Screen name="TraktSettings" component={TraktSettings} />
     <SettingsStack.Screen name="MDBListSettings" component={MDBListSettings} />
@@ -394,6 +421,7 @@ const SettingsTabScreen = React.memo(() => (
       options={{ presentation: 'card', animation: 'slide_from_right' }}
     />
     <SettingsStack.Screen name="EntityBrowse" component={EntityBrowse} />
+    <SettingsStack.Screen name="Person" component={Person} options={{ presentation: 'card', animation: 'slide_from_right' }} />
     <SettingsStack.Screen name="UserCollection" component={UserCollection} />
   </SettingsStack.Navigator>
 ));
@@ -425,7 +453,8 @@ const Tabs = React.memo(() => {
           initialRouteName="HomeTab"
           screenOptions={{
             headerShown: false,
-            tabBarActiveTintColor: theme.chosenAccentBright ?? '#007AFF',
+            // Tabs show selection in neutral white; red is reserved for switches and progress.
+            tabBarActiveTintColor: '#fff',
             tabBarInactiveTintColor: '#8E8E93',
             translucent: true,
             lazy: false,
@@ -486,7 +515,7 @@ const Tabs = React.memo(() => {
               <Text style={{ color, fontSize: 10, textAlign: 'center', opacity: focused ? 1 : 0 }}>{children}</Text>
             )
           : undefined,
-        tabBarActiveTintColor: theme.chosenAccentBright ?? '#fff',
+        tabBarActiveTintColor: '#fff',
         tabBarInactiveTintColor: '#bdbdbd',
         lazy: true,
         freezeOnBlur: Platform.OS === 'android', // Freeze inactive tabs on Android for performance

@@ -35,21 +35,21 @@ export function DetailsActionLabel({
   const theme = useTheme();
   return (
     <View style={styles.action}>
-      <View style={styles.iconBox}>
+      <View style={styles.circle}>
         {busy ? (
           <ActivityIndicator size="small" color={theme.textPrimary} />
         ) : (
           <>
             <Ionicons name={icon} size={22} color={tint ?? theme.textPrimary} />
             {badge ? (
-              <View style={[styles.badge, { backgroundColor: theme.accent }]}>
-                <Text style={[styles.badgeText, { color: theme.onAccent }]}>{badge}</Text>
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{badge}</Text>
               </View>
             ) : null}
           </>
         )}
       </View>
-      <Text numberOfLines={1} style={[styles.label, { color: theme.textPrimary }]}>
+      <Text numberOfLines={1} style={[styles.label, { color: theme.textSecondary }]}>
         {label}
       </Text>
     </View>
@@ -67,7 +67,6 @@ export default function DetailsWatchActions({
   episodeTotal?: number;
   seasonOptions: DetailsSeasonOption[];
 }) {
-  const theme = useTheme();
   const model = useDetailsTitleActions(target, episodeTotal);
   const [showMenu, setShowMenu] = useState(false);
   const [showRating, setShowRating] = useState(false);
@@ -77,11 +76,11 @@ export default function DetailsWatchActions({
   const watched = model.isWatched === true;
   const icon: keyof typeof Ionicons.glyphMap = watched
     ? 'checkmark-circle'
-    : model.isInProgress
+    : model.isInProgress && isCollection
       ? 'contrast-outline'
       : 'checkmark-circle-outline';
 
-  const label = watched ? 'WATCHED' : model.isInProgress && isCollection ? 'PARTLY' : 'UNWATCHED';
+  const label = watched ? 'Watched' : model.isInProgress && isCollection ? 'In progress' : 'Mark watched';
 
   const menuActions = useMemo<DetailsAction[]>(() => {
     if (menuSeason) {
@@ -145,7 +144,7 @@ export default function DetailsWatchActions({
         accessibilityLabel={isCollection ? 'Watched status' : watched ? 'Mark as unwatched' : 'Mark as watched'}
         accessibilityValue={{ text: model.progressText ?? (watched ? 'Watched' : 'Not watched') }}
       >
-        <DetailsActionLabel icon={icon} label={label} tint={watched ? theme.accentBright : undefined} busy={model.isWorking} />
+        <DetailsActionLabel icon={icon} label={label} busy={model.isWorking} />
       </Pressable>
 
       {model.canRate ? (
@@ -158,8 +157,7 @@ export default function DetailsWatchActions({
         >
           <DetailsActionLabel
             icon={model.userRating ? 'star' : 'star-outline'}
-            label={model.userRating ? 'RATED' : 'RATE'}
-            tint={model.userRating ? theme.warning : undefined}
+            label={model.userRating ? 'Rated' : 'Rate'}
             busy={model.isRatingWorking}
             badge={model.userRating ? String(model.userRating) : undefined}
           />
@@ -196,32 +194,37 @@ export default function DetailsWatchActions({
 }
 
 const styles = StyleSheet.create({
+  // Round neutral buttons, as in the macOS Details hero: a 48 pt circle with a caption.
   action: {
     alignItems: 'center',
-    minWidth: 58,
+    minWidth: 64,
   },
-  iconBox: {
-    width: 28,
-    height: 24,
+  circle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255,255,255,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   label: {
-    marginTop: 4,
-    fontSize: 11,
-    fontWeight: '600',
+    marginTop: 6,
+    fontSize: 12,
+    fontWeight: '500',
   },
   badge: {
     position: 'absolute',
-    top: -6,
-    right: -8,
-    minWidth: 15,
+    top: 2,
+    right: 0,
+    minWidth: 16,
     paddingHorizontal: 3,
     borderRadius: 8,
     alignItems: 'center',
+    backgroundColor: '#fff',
   },
   badgeText: {
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '700',
+    color: '#000',
   },
 });

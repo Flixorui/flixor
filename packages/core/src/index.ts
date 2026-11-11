@@ -65,6 +65,7 @@ export type {
   TMDBResultsResponse,
   TMDBPerson,
   TMDBPersonCredits,
+  TMDBPersonExternalIds,
   TMDBPersonCreditItem,
 } from './models/tmdb';
 export { TMDBImageSize } from './models/tmdb';

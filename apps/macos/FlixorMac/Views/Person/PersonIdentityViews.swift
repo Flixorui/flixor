@@ -76,8 +76,9 @@ struct PersonAvatar: View {
 
     var body: some View {
         ZStack {
+            // Neutral ring: red is reserved for switches and progress
             Circle()
-                .fill(theme.accentSoft)
+                .fill(Color.white.opacity(0.12))
                 .frame(width: size, height: size)
             ZStack {
                 Circle().fill(theme.surfaceElevated)
@@ -278,7 +279,7 @@ struct ExpandableText: View {
                             .font(.flixorIcon(DS.Icon.xs, weight: .semibold))
                     }
                     .flixorFont(.callout, weight: .semibold)
-                    .foregroundStyle(theme.accent)
+                    .foregroundStyle(theme.textPrimary)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(isExpanded ? "Show less biography" : "Read full biography")

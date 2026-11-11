@@ -19,7 +19,8 @@ export default function Chip({
   disabled?: boolean;
 }) {
   const theme = useTheme();
-  const color = active ? theme.accentBright : theme.textPrimary;
+  // Neutral like macOS: white fill when selected, hairline outline otherwise
+  const color = active ? '#000' : theme.textPrimary;
   return (
     <Pressable
       disabled={disabled}
@@ -30,8 +31,8 @@ export default function Chip({
       style={[
         styles.chip,
         {
-          borderColor: active ? theme.accent : theme.separatorStrong,
-          backgroundColor: active ? theme.accentSoft : 'transparent',
+          borderColor: active ? '#fff' : theme.separatorStrong,
+          backgroundColor: active ? '#fff' : 'transparent',
           opacity: disabled ? 0.5 : 1,
         },
       ]}

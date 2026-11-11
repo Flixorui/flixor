@@ -148,7 +148,7 @@ export default function DetailsComments({ target }: { target: WatchStateTarget |
             onPress={() => setSort(option.value)}
             accessibilityRole="button"
             accessibilityState={{ selected: active }}
-            style={[styles.sortChip, active && { backgroundColor: theme.accentSoft }]}
+            style={[styles.sortChip, active && { backgroundColor: 'rgba(255,255,255,0.16)' }]}
           >
             <Text style={[styles.sortText, { color: active ? theme.textPrimary : theme.textSecondary }]}>
               {option.label}

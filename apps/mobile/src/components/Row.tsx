@@ -2,7 +2,6 @@ import React from 'react';
 import { View, Text, FlatList, Pressable, StyleSheet } from 'react-native';
 import Poster, { LANDSCAPE_CARD_SIZE, POSTER_GAP, POSTER_SIZES } from './Poster';
 import { useAppSettings } from '../hooks/useAppSettings';
-import { useTheme } from '../hooks/useTheme';
 import type { RowLayout } from '../core/SettingsData';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
@@ -30,7 +29,6 @@ function Row({ title, caption, titleIcon, badge, items, layout = 'poster', getIm
   keyPrefix?: string;
 }) {
   const { settings } = useAppSettings();
-  const theme = useTheme();
   const isLandscape = layout === 'landscape';
   const cardWidth = isLandscape
     ? LANDSCAPE_CARD_SIZE.width
@@ -57,13 +55,13 @@ function Row({ title, caption, titleIcon, badge, items, layout = 'poster', getIm
           {titleIcon && (
             <Ionicons name={titleIcon} size={16} color="#fff" style={styles.titleIcon} />
           )}
-          {badge && (
-            <View style={[styles.badge, { backgroundColor: badge.color || theme.accent }]}>
-              <Text style={styles.badgeText}>{badge.text}</Text>
-            </View>
-          )}
           <Text style={styles.title}>{title}</Text>
-          {caption ? <Text style={styles.caption} numberOfLines={1}>{caption}</Text> : null}
+          {/* Source (e.g. Trakt) as quiet grey text, not a colored pill */}
+          {badge || caption ? (
+            <Text style={styles.caption} numberOfLines={1}>
+              {[badge?.text, caption].filter(Boolean).join(' · ')}
+            </Text>
+          ) : null}
           {(onBrowsePress || onTitlePress) && (
             <Ionicons name="chevron-forward" size={18} color="#fff" style={styles.chevron} />
           )}
@@ -137,17 +135,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginLeft: 8,
     flexShrink: 1,
-  },
-  badge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    marginRight: 8,
-  },
-  badgeText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: '600',
   },
 });
 

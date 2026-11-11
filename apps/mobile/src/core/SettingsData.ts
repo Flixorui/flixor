@@ -560,7 +560,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   posterBorderRadius: 12,
   showLibraryTitles: true,
   heroLayout: 'carousel',
-  continueWatchingLayout: 'landscape',
+  continueWatchingLayout: 'poster',
   enabledLibraryKeys: undefined,
   // Library mapping defaults
   moviesLibraryKey: undefined, // Auto-select first movie library
@@ -632,12 +632,13 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   showRatingBadges: false,
 
   detailsSectionPreferences: [
+    // Same default order and visibility as macOS (DetailsSectionKey.defaultOrder)
     { key: 'episodes', enabled: true },
-    { key: 'suggested', enabled: true },
     { key: 'collection', enabled: true },
     { key: 'cast', enabled: true },
+    { key: 'suggested', enabled: true },
     { key: 'trailers', enabled: true },
-    { key: 'comments', enabled: false }, // macOS: true
+    { key: 'comments', enabled: true },
     { key: 'about', enabled: true },
   ],
   detailsHideEpisodeSpoilers: false,

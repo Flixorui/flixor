@@ -13,6 +13,7 @@ import type {
   TMDBResultsResponse,
   TMDBPerson,
   TMDBPersonCredits,
+  TMDBPersonExternalIds,
   TMDBCollectionDetails,
   TMDBCompanyDetails,
   TMDBCollection,
@@ -690,6 +691,17 @@ export class TMDBService {
   async getPersonDetails(personId: number): Promise<TMDBPerson> {
     return this.get<TMDBPerson>(
       `/person/${personId}`,
+      undefined,
+      CacheTTL.TRENDING
+    );
+  }
+
+  /**
+   * Get a person's external ids (IMDb, Instagram, Twitter...)
+   */
+  async getPersonExternalIds(personId: number): Promise<TMDBPersonExternalIds> {
+    return this.get<TMDBPersonExternalIds>(
+      `/person/${personId}/external_ids`,
       undefined,
       CacheTTL.TRENDING
     );

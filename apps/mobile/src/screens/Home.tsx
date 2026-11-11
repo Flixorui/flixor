@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { View, Text, ActivityIndicator, Animated, FlatList, Pressable, Dimensions, InteractionManager, Platform } from 'react-native';
 import PullToRefresh from '../components/PullToRefresh';
+import GlobalTopAppBar from '../components/GlobalTopAppBar';
 import FastImage from '@d11/react-native-fast-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -26,7 +27,9 @@ import { TopBarStore } from '../components/TopBarStore';
 import { TOP_BAR_EXPANDED_CONTENT_HEIGHT } from '../components/topBarMetrics';
 import HeroCard from '../components/HeroCard';
 import HeroCarousel from '../components/HeroCarousel';
+import AmbientTint from '../components/home/AmbientTint';
 import BrowseModal from '../components/BrowseModal';
+import type { CategoryPick } from '../components/CategoriesMenu';
 import { useFlixor } from '../core/FlixorContext';
 import { useAppSettings } from '../hooks/useAppSettings';
 import type { PlexMediaItem, BrowseContext } from '@flixor/core';
@@ -109,7 +112,27 @@ const NO_PLEX_CONTINUE = { items: [] as PlexMediaItem[], itemsWithMultipleVersio
 
 type HeroPick = { title: string; image?: string; subtitle?: string; tmdbId?: number; mediaType?: 'movie' | 'tv' };
 
-export default function Home({ onLogout }: HomeProps) {
+/** The Plex ratingKey of a hero item, if the title is in the library. */
+function heroPlexKey(item: { id?: string; plexRatingKey?: string }): string | null {
+  if (item.plexRatingKey) return item.plexRatingKey;
+  if (item.id?.startsWith('plex:')) return item.id.replace('plex:', '');
+  return null;
+}
+
+/**
+ * Home with its header inside the screen, so the header slides with Home when Details or
+ * Shows / Movies are pushed over it, instead of vanishing and popping back in.
+ */
+export default function Home(props: HomeProps) {
+  return (
+    <View style={{ flex: 1 }}>
+      <HomeContent {...props} />
+      <GlobalTopAppBar screenContext="HomeStack" embedded />
+    </View>
+  );
+}
+
+function HomeContent({ onLogout }: HomeProps) {
   const { flixor, isLoading: flixorLoading, isConnected } = useFlixor();
   const nav: any = useNavigation();
   const insets = useSafeAreaInsets();
@@ -389,7 +412,8 @@ export default function Home({ onLogout }: HomeProps) {
 
   // Stable handlers to avoid recreating on every render (prevents stale closures)
   const navigateToLibrary = useCallback((t: 'movies' | 'shows') => {
-    nav.navigate('Library', { tab: t === 'movies' ? 'movies' : 'tv' });
+    // Netflix-style page with its own billboard and rows; the poster grid is one tap from there
+    nav.navigate('LibraryHome', { type: t === 'movies' ? 'movie' : 'show' });
   }, [nav]);
 
   const closeHandler = useCallback(() => {
@@ -399,6 +423,17 @@ export default function Home({ onLogout }: HomeProps) {
   const browseHandler = useCallback(() => {
     setBrowseModalVisible(true);
   }, []);
+
+  // Native Categories menu on the Explore pill; "All Categories…" opens the full sheet
+  const selectCategory = useCallback((pick: CategoryPick) => {
+    if (pick.kind === 'all') {
+      setBrowseModalVisible(true);
+    } else if (pick.kind === 'genre') {
+      nav.navigate('LibraryHome', { type: pick.type === 'movie' ? 'movie' : 'show', genre: pick.genre.title });
+    } else {
+      nav.navigate('LibraryHome', { type: pick.library.type === 'movie' ? 'movie' : 'show', libraryKey: pick.library.key });
+    }
+  }, [nav]);
 
   // Set baseUsername once when user data loads (not on every focus)
   // This enables instant title display on navigation without jumpy updates
@@ -427,12 +462,13 @@ export default function Home({ onLogout }: HomeProps) {
         onClose: closeHandler,
         onBrowse: browseHandler,
         onClearGenre: undefined,
+        onSelectCategory: selectCategory,
       });
 
       return () => {
         isFocusedRef.current = false;
       };
-    }, [tab, navigateToLibrary, closeHandler, browseHandler, y])
+    }, [tab, navigateToLibrary, closeHandler, browseHandler, selectCategory, y])
   );
 
   // Also update when tab changes while focused (for pill selection on Home)
@@ -480,6 +516,10 @@ export default function Home({ onLogout }: HomeProps) {
   };
 
   // Navigate to Browse for a row
+  const openTop10Item = useCallback((item: { tmdbId?: number; mediaType?: 'movie' | 'tv' }) => {
+    if (item.tmdbId && item.mediaType) nav.navigate('Details', { type: 'tmdb', id: String(item.tmdbId), mediaType: item.mediaType });
+  }, [nav]);
+
   const openRowBrowse = useCallback((rowId: string) => {
     const row = displayRowsRef.current.find((candidate) => candidate.model.id === rowId);
     if (!row) return;
@@ -1256,48 +1296,13 @@ export default function Home({ onLogout }: HomeProps) {
     );
   }
 
-  // Convert hex color to rgba with opacity
-  const hexToRgba = (hex: string, opacity: number) => {
-    const r = parseInt(hex.slice(0, 2), 16);
-    const g = parseInt(hex.slice(2, 4), 16);
-    const b = parseInt(hex.slice(4, 6), 16);
-    return `rgba(${r},${g},${b},${opacity})`;
-  };
-
   const canShowHero = settings.showHeroSection && (heroPick || heroCarouselItems.length > 0);
 
-  // Get gradient colors from heroColors or use defaults
-  const bottomLeftColor = heroColors?.bottomLeft || '7a1612';
-  const topRightColor = heroColors?.topRight || '144c54';
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#1b0a10' }} edges={['left', 'right']}>
-      <LinearGradient
-        colors={['#1a1a1a', '#181818', '#151515']}
-        start={{ x: 0.5, y: 0 }}
-        end={{ x: 0.5, y: 1 }}
-        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
-      />
-      <LinearGradient
-        colors={[
-          hexToRgba(bottomLeftColor, 0.55),
-          hexToRgba(bottomLeftColor, 0.25),
-          hexToRgba(bottomLeftColor, 0.0),
-        ]}
-        start={{ x: 0.0, y: 1.0 }}
-        end={{ x: 0.45, y: 0.35 }}
-        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
-      />
-      <LinearGradient
-        colors={[
-          hexToRgba(topRightColor, 0.50),
-          hexToRgba(topRightColor, 0.20),
-          hexToRgba(topRightColor, 0.0),
-        ]}
-        start={{ x: 1.0, y: 0.0 }}
-        end={{ x: 0.55, y: 0.45 }}
-        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
-      />
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#0e0e10' }} edges={['left', 'right']}>
+      {/* Background takes the hero's colour and cross-fades as the hero changes */}
+      <AmbientTint color={heroColors?.topLeft || heroColors?.topRight || '2b3a3f'} />
 
       <PullToRefresh scrollY={y} refreshing={refreshing} onRefresh={handleRefresh} />
 
@@ -1315,6 +1320,20 @@ export default function Home({ onLogout }: HomeProps) {
           settings.heroLayout === 'carousel' ? (
             <HeroCarousel
               items={heroCarouselData}
+              // Plex movies play straight away; shows and titles outside the library open
+              // Details (which knows the next episode or the sources)
+              isPlayable={(item) => heroPlexKey(item) !== null && item.mediaType === 'movie'}
+              onPlay={(item) => {
+                const ratingKey = heroPlexKey(item);
+                if (ratingKey && item.mediaType === 'movie') {
+                  nav.navigate('Player', { type: 'plex', ratingKey });
+                } else if (ratingKey) {
+                  nav.navigate('Details', { type: 'plex', ratingKey });
+                } else {
+                  const ids = getRowWatchlistIds(item);
+                  if (ids) nav.navigate('Details', { type: 'tmdb', id: String(ids.tmdbId), mediaType: ids.mediaType });
+                }
+              }}
               onSelect={(item) => {
                 const ids = getRowWatchlistIds(item);
                 if (ids) {
@@ -1422,6 +1441,7 @@ export default function Home({ onLogout }: HomeProps) {
           onContinueBrowse={openContinueWatchingBrowse}
           onItemPress={onRowPress}
           onBrowseRow={openRowBrowse}
+          onTop10Press={openTop10Item}
         />
       </Animated.ScrollView>
 

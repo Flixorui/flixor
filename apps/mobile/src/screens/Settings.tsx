@@ -1,23 +1,18 @@
+/**
+ * Settings root: the same five groups and pages as the macOS Settings sidebar, as an iOS
+ * grouped list with search. Each row opens its page; values show on the right.
+ * macOS reference: Views/Settings/SettingsView.swift (SettingsCategory, SidebarSection)
+ */
+
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, Dimensions, Linking, Pressable, Animated, Platform, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Animated, TextInput, Dimensions } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFlixor } from '../core/FlixorContext';
 import ProfileAvatar from '../components/ProfileAvatar';
-import {
-  getTraktProfile,
-  getPlexUser,
-  getConnectedServerInfo,
-  getAppVersion,
-  setDiscoveryDisabled,
-  resetAllSettingsWithNotify,
-} from '../core/SettingsData';
+import { getTraktProfile, getPlexUser, getConnectedServerInfo } from '../core/SettingsData';
 import { useAppSettings } from '../hooks/useAppSettings';
-import { appLogger } from '../core/AppLogger';
-import { clearAllCaches } from '../core/MemoryManager';
-import SettingsCard from '../components/settings/SettingsCard';
-import SettingItem from '../components/settings/SettingItem';
 import SettingsHeader from '../components/settings/SettingsHeader';
 import MDBListIcon from '../components/icons/MDBListIcon';
 import TMDBIcon from '../components/icons/TMDBIcon';
@@ -26,39 +21,26 @@ import PlexIcon from '../components/icons/PlexIcon';
 import OverseerrIcon from '../components/icons/OverseerrIcon';
 import { useTheme } from '../hooks/useTheme';
 import { clearAppMode, useAppMode } from '../core/AppMode';
-import SettingsSwitch from '../components/settings/SettingsSwitch';
 
-const { width } = Dimensions.get('window');
-const isTablet = width >= 768;
+const isTablet = Dimensions.get('window').width >= 768;
 
-const ABOUT_LINKS = {
-  privacy: 'https://flixor.xyz/privacy',
-  reportIssue: 'https://github.com/Flixorui/flixor/issues',
-  contributors: 'https://github.com/Flixorui/flixor',
-  discord: 'https://discord.gg/flixor',
-  reddit: 'https://www.reddit.com/r/flixor/',
-};
+interface Row {
+  id: string;
+  title: string;
+  /** Shown on the right, iOS Settings style. */
+  value?: string;
+  /** Matched by search along with the title (macOS uses the same idea). */
+  keywords: string;
+  tile: string;
+  icon?: keyof typeof Ionicons.glyphMap;
+  renderIcon?: () => React.ReactNode;
+  onPress: () => void;
+}
 
-type CategoryId =
-  | 'account'
-  | 'content'
-  | 'appearance'
-  | 'androidPerformance'
-  | 'integrations'
-  | 'playback'
-  | 'advanced'
-  | 'about';
-
-const CATEGORIES: Array<{ id: CategoryId; title: string; icon: keyof typeof Ionicons.glyphMap; androidOnly?: boolean }> = [
-  { id: 'account', title: 'Account', icon: 'person-circle-outline' },
-  { id: 'content', title: 'Content & Discovery', icon: 'compass-outline' },
-  { id: 'appearance', title: 'Appearance', icon: 'color-palette-outline' },
-  { id: 'androidPerformance', title: 'Android Performance', icon: 'speedometer-outline', androidOnly: true },
-  { id: 'integrations', title: 'Integrations', icon: 'layers-outline' },
-  { id: 'playback', title: 'Playback', icon: 'play-circle-outline' },
-  { id: 'advanced', title: 'Advanced', icon: 'construct-outline' },
-  { id: 'about', title: 'About', icon: 'information-circle-outline' },
-];
+interface Group {
+  title: string;
+  rows: Row[];
+}
 
 interface SettingsProps {
   onLogout?: () => Promise<void>;
@@ -72,17 +54,16 @@ export default function Settings({ onBack }: SettingsProps) {
   const headerHeight = insets.top + 52;
   const scrollY = useRef(new Animated.Value(0)).current;
   const { isLoading: flixorLoading, isConnected, activeProfile, hasMultipleProfiles } = useFlixor();
-  const { settings, updateSetting } = useAppSettings();
+  const { settings } = useAppSettings();
   const { isStremioOnly } = useAppMode();
   const [traktProfile, setTraktProfile] = useState<any | null>(null);
   const [plexUser, setPlexUser] = useState<any | null>(null);
   const [serverInfo, setServerInfo] = useState<{ name: string; url: string } | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<CategoryId>('account');
+  const [query, setQuery] = useState('');
 
   useFocusEffect(
     useCallback(() => {
       if (flixorLoading || (!isConnected && !isStremioOnly)) return;
-
       (async () => {
         setTraktProfile(await getTraktProfile());
         if (isStremioOnly) return;
@@ -92,632 +73,312 @@ export default function Settings({ onBack }: SettingsProps) {
     }, [flixorLoading, isConnected, isStremioOnly])
   );
 
-  // Only create goBack if onBack was provided (from sub-screen navigation)
-  const goBack = onBack ? onBack : undefined;
+  const go = useCallback((route: string) => () => nav.navigate(route), [nav]);
+  const onOff = (on: boolean) => (on ? 'On' : 'Off');
 
-  const renderRightChevron = useCallback(
-    () => <Ionicons name="chevron-forward" size={18} color="#9ca3af" />,
-    []
-  );
-
-  const plexDescription = useMemo(() => {
-    if (!plexUser) return 'Not connected';
-    if (serverInfo) return `${plexUser?.username || plexUser?.title || 'Connected'} · ${serverInfo.name}`;
-    return plexUser?.username || plexUser?.title || 'Connected';
-  }, [plexUser, serverInfo]);
-
-  const profileDescription = useMemo(() => {
-    if (!hasMultipleProfiles) return 'Switch between Plex Home users';
-    if (activeProfile) return `${activeProfile.title}`;
-    return 'Main Account';
-  }, [activeProfile, hasMultipleProfiles]);
-
-  const renderAccount = () => isStremioOnly ? (
-    <SettingsCard title="ACCOUNT">
-      <SettingItem
-        title="Connect Plex"
-        description="Add your Plex libraries to Flixor"
-        renderIcon={() => <PlexIcon size={18} color="#e5e7eb" />}
-        renderRight={renderRightChevron}
-        onPress={() => clearAppMode()}
-        isLast={true}
-      />
-    </SettingsCard>
-  ) : (
-    <SettingsCard title="ACCOUNT">
-      {hasMultipleProfiles && (
-        <SettingItem
-          title="Switch Profile"
-          description={profileDescription}
-          renderIcon={() => (
-            <ProfileAvatar
-              thumb={activeProfile?.thumb}
-              title={activeProfile?.title || 'Main'}
-              size={24}
-            />
-          )}
-          renderRight={renderRightChevron}
-          onPress={() => nav.navigate('ProfileSelect')}
-          isLast={false}
-        />
-      )}
-      <SettingItem
-        title="Plex"
-        description={plexDescription}
-        renderIcon={() => <PlexIcon size={18} color="#e5e7eb" />}
-        renderRight={renderRightChevron}
-        onPress={() => nav.navigate('PlexSettings')}
-        isLast={true}
-      />
-    </SettingsCard>
-  );
-
-  const renderContent = () => (
-    <>
-      {!isStremioOnly && <SettingsCard title="DISCOVERY MODE">
-        <SettingItem
-          title="Library Only Mode"
-          description="Turn off all discovery features. Only show content from your Plex library."
-          icon="eye-off-outline"
-          renderRight={() => (
-            <SettingsSwitch
-              value={settings.discoveryDisabled}
-              onValueChange={async (value) => {
-                await setDiscoveryDisabled(value);
-                updateSetting('discoveryDisabled', value);
-                if (value) {
-                  updateSetting('showTrendingRows', false);
-                  updateSetting('showTraktRows', false);
-                  updateSetting('showPlexPopularRow', false);
-                  updateSetting('showNewHotTab', false);
-                  updateSetting('includeTmdbInSearch', false);
-                }
-              }}
-              trackColor={{ false: 'rgba(255,255,255,0.2)', true: '#FF6B6B' }}
-            />
-          )}
-          isLast={true}
-        />
-      </SettingsCard>}
-      <SettingsCard title="CONTENT & DISCOVERY">
-        {!isStremioOnly && (
-          <>
-            <SettingItem
-              title="Catalogs"
-              description="Choose which libraries appear"
-              icon="albums-outline"
-              renderRight={renderRightChevron}
-              onPress={() => nav.navigate('CatalogSettings')}
-              isLast={false}
-            />
-            <SettingItem
-              title="Library Mapping"
-              description="Choose libraries for Movies & TV Shows pills"
-              icon="layers-outline"
-              renderRight={renderRightChevron}
-              onPress={() => nav.navigate('LibraryMappingSettings')}
-              isLast={false}
-            />
-          </>
-        )}
-      <SettingItem
-        title="Home Screen"
-        description="Hero and row visibility"
-        icon="home-outline"
-        renderRight={renderRightChevron}
-        onPress={() => nav.navigate('HomeScreenSettings')}
-        isLast={false}
-      />
-      <SettingItem
-        title="Home Rows"
-        description="Reorder, rename and hide rows"
-        icon="reorder-three-outline"
-        renderRight={renderRightChevron}
-        onPress={() => nav.navigate('HomeRowsSettings')}
-        isLast={false}
-      />
-      <SettingItem
-        title="Details Screen"
-        description="Ratings and badges display"
-        icon="information-circle-outline"
-        renderRight={renderRightChevron}
-        onPress={() => nav.navigate('DetailsScreenSettings')}
-        isLast={false}
-      />
-      <SettingItem
-        title="Continue Watching"
-        description="Playback and cache behavior"
-        icon="play-outline"
-        renderRight={renderRightChevron}
-        onPress={() => nav.navigate('ContinueWatchingSettings')}
-        isLast={false}
-      />
-      <SettingItem
-        title="Bottom App Bar"
-        description="Tab visibility settings"
-        icon="apps-outline"
-        renderRight={renderRightChevron}
-        onPress={() => nav.navigate('BottomAppBarSettings')}
-        isLast={false}
-      />
-      <SettingItem
-        title="Search"
-        description="Search sources and behavior"
-        icon="search-outline"
-        renderRight={renderRightChevron}
-        onPress={() => nav.navigate('SearchSettings')}
-        isLast={true}
-      />
-    </SettingsCard>
-    <SettingsCard title="BROWSE & COLLECTIONS">
-      <SettingItem
-        title="Studios & Networks"
-        description="Browse titles by company or network"
-        icon="business-outline"
-        renderRight={renderRightChevron}
-        onPress={() => nav.navigate('EntityBrowse')}
-        isLast={false}
-      />
-      <SettingItem
-        title="Your Collections"
-        description="Collections you build"
-        icon="albums-outline"
-        renderRight={renderRightChevron}
-        onPress={() => nav.navigate('UserCollection')}
-        isLast={true}
-      />
-    </SettingsCard>
-    </>
-  );
-
-  const renderAppearance = () => (
-    <SettingsCard title="APPEARANCE">
-      <SettingItem
-        title="Theme"
-        description="Accent color and background"
-        icon="color-palette-outline"
-        renderRight={renderRightChevron}
-        onPress={() => nav.navigate('AppearanceSettings')}
-        isLast={false}
-      />
-      <SettingItem
-        title="Episode Layout"
-        description={settings.episodeLayoutStyle === 'horizontal' ? 'Horizontal' : 'Vertical'}
-        icon="grid-outline"
-        renderRight={() => (
-          <SettingsSwitch
-            value={settings.episodeLayoutStyle === 'horizontal'}
-            onValueChange={(value) =>
-              updateSetting('episodeLayoutStyle', value ? 'horizontal' : 'vertical')
-            }
-          />
-        )}
-        isLast={false}
-      />
-      <SettingItem
-        title="Streams Backdrop"
-        description="Show dimmed backdrop behind player settings"
-        icon="image-outline"
-        renderRight={() => (
-          <SettingsSwitch
-            value={settings.enableStreamsBackdrop}
-            onValueChange={(value) => updateSetting('enableStreamsBackdrop', value)}
-          />
-        )}
-        isLast={true}
-      />
-    </SettingsCard>
-  );
-
-  const renderAndroidPerformance = () => (
-    <SettingsCard title="ANDROID PERFORMANCE">
-      <SettingItem
-        title="Enable Blur Effects"
-        description="Enable blur view effects. May impact performance on some devices."
-        icon="sparkles-outline"
-        renderRight={() => (
-          <SettingsSwitch
-            value={settings.enableAndroidBlurView}
-            onValueChange={(value) => updateSetting('enableAndroidBlurView', value)}
-          />
-        )}
-        isLast={true}
-      />
-    </SettingsCard>
-  );
-
-  const renderIntegrations = () => (
-    <SettingsCard title="INTEGRATIONS">
-      <SettingItem
-        title="TMDB"
-        description="Metadata and language (always enabled)"
-        renderIcon={() => <TMDBIcon size={18} color="#e5e7eb" />}
-        renderRight={renderRightChevron}
-        onPress={() => nav.navigate('TMDBSettings')}
-        isLast={false}
-      />
-      <SettingItem
-        title="MDBList (Multi-source)"
-        description={settings.mdblistEnabled ? 'Enabled' : 'Disabled'}
-        renderIcon={() => <MDBListIcon size={18} color="#e5e7eb" />}
-        renderRight={renderRightChevron}
-        onPress={() => nav.navigate('MDBListSettings')}
-        isLast={false}
-      />
-      <SettingItem
-        title="Trakt"
-        description={traktProfile ? `@${traktProfile?.username || traktProfile?.ids?.slug}` : 'Sign in to sync'}
-        renderIcon={() => <TraktIcon size={18} color="#e5e7eb" />}
-        renderRight={renderRightChevron}
-        onPress={() => nav.navigate('TraktSettings')}
-        isLast={false}
-      />
-      <SettingItem
-        title="Overseerr"
-        description={settings.overseerrEnabled ? 'Enabled' : 'Disabled'}
-        renderIcon={() => <OverseerrIcon size={18} color="#e5e7eb" />}
-        renderRight={renderRightChevron}
-        onPress={() => nav.navigate('OverseerrSettings')}
-        isLast={false}
-      />
-      <SettingItem
-        title="Stremio"
-        description={settings.stremioPlaybackEnabled ? 'Addon sources, subtitles, and alternate playback' : 'Disabled'}
-        icon="layers-outline"
-        renderRight={renderRightChevron}
-        onPress={() => nav.navigate('StremioSettings')}
-        isLast={true}
-      />
-    </SettingsCard>
-  );
-
-  const renderPlayback = () => (
-    <SettingsCard title="PLAYBACK">
-      <SettingItem
-        title="Player Settings"
-        description="Skip intro, auto-play, seek durations"
-        icon="play-circle-outline"
-        renderRight={renderRightChevron}
-        onPress={() => nav.navigate('PlayerSettings')}
-        isLast={false}
-      />
-      <SettingItem
-        title="Skip Intro Automatically"
-        description="Auto-skip detected intro segments"
-        icon="play-skip-forward-outline"
-        renderRight={() => (
-          <SettingsSwitch
-            value={settings.skipIntroAutomatically}
-            onValueChange={(value) => updateSetting('skipIntroAutomatically', value)}
-          />
-        )}
-        isLast={false}
-      />
-      <SettingItem
-        title="Skip Credits Automatically"
-        description="Auto-skip detected credits segments"
-        icon="play-skip-forward-outline"
-        renderRight={() => (
-          <SettingsSwitch
-            value={settings.skipCreditsAutomatically}
-            onValueChange={(value) => updateSetting('skipCreditsAutomatically', value)}
-          />
-        )}
-        isLast={false}
-      />
-      <SettingItem
-        title="Auto-Play Next Episode"
-        description="Automatically play next episode"
-        icon="play-forward-outline"
-        renderRight={() => (
-          <SettingsSwitch
-            value={settings.autoPlayNext}
-            onValueChange={(value) => updateSetting('autoPlayNext', value)}
-          />
-        )}
-        isLast={true}
-      />
-    </SettingsCard>
-  );
-
-  const handleClearCache = useCallback(() => {
-    Alert.alert(
-      'Clear Cache',
-      'This will clear all cached images and data. This cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Clear',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await clearAllCaches();
-              Alert.alert('Success', 'Cache cleared successfully');
-            } catch (error) {
-              Alert.alert('Error', 'Failed to clear cache');
-            }
-          },
-        },
-      ]
-    );
-  }, []);
-
-  const handleResetSettings = useCallback(() => {
-    Alert.alert(
-      'Reset Settings',
-      'This will reset all settings to their default values. This cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Reset',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await resetAllSettingsWithNotify();
-              Alert.alert('Success', 'Settings reset to defaults');
-            } catch (error) {
-              Alert.alert('Error', 'Failed to reset settings');
-            }
-          },
-        },
-      ]
-    );
-  }, []);
-
-  const handleDebugLoggingToggle = useCallback((value: boolean) => {
-    updateSetting('enableDebugLogging', value);
-    appLogger.setDebugEnabled(value);
-  }, [updateSetting]);
-
-  const renderAdvanced = () => (
-    <SettingsCard title="ADVANCED">
-      <SettingItem
-        title="Debug Logging"
-        description="Enable verbose logging for troubleshooting"
-        icon="bug-outline"
-        renderRight={() => (
-          <SettingsSwitch
-            value={settings.enableDebugLogging}
-            onValueChange={handleDebugLoggingToggle}
-          />
-        )}
-        isLast={false}
-      />
-      <SettingItem
-        title="View Logs"
-        description="View app logs for debugging"
-        icon="document-text-outline"
-        renderRight={renderRightChevron}
-        onPress={() => nav.navigate('LogsScreen')}
-        isLast={false}
-      />
-      <SettingItem
-        title="Clear Cache"
-        description="Clear cached images and data"
-        icon="trash-outline"
-        onPress={handleClearCache}
-        isLast={false}
-      />
-      <SettingItem
-        title="Reset Settings"
-        description="Reset all settings to defaults"
-        icon="refresh-outline"
-        onPress={handleResetSettings}
-        isLast={true}
-      />
-    </SettingsCard>
-  );
-
-  const renderAbout = () => (
-    <SettingsCard title="ABOUT">
-      <SettingItem
-        title="Privacy Policy"
-        description="Review how data is handled"
-        icon="shield-outline"
-        renderRight={renderRightChevron}
-        onPress={() => Linking.openURL(ABOUT_LINKS.privacy)}
-        isLast={false}
-      />
-      <SettingItem
-        title="Report Issue"
-        description="Open a GitHub issue"
-        icon="bug-outline"
-        renderRight={renderRightChevron}
-        onPress={() => Linking.openURL(ABOUT_LINKS.reportIssue)}
-        isLast={false}
-      />
-      <SettingItem
-        title="Contributors"
-        description="Project contributors"
-        icon="people-outline"
-        renderRight={renderRightChevron}
-        onPress={() => Linking.openURL(ABOUT_LINKS.contributors)}
-        isLast={false}
-      />
-      <SettingItem
-        title="Version"
-        description={`${getAppVersion()}`}
-        icon="information-circle-outline"
-        isLast={false}
-      />
-      <SettingItem
-        title="App Updates"
-        description="Check for OTA updates"
-        icon="cloud-download-outline"
-        renderRight={renderRightChevron}
-        onPress={() => nav.navigate('UpdateSettings')}
-        isLast={false}
-      />
-      <SettingItem
-        title="Discord"
-        description="Join the community"
-        icon="chatbubbles-outline"
-        renderRight={renderRightChevron}
-        onPress={() => Linking.openURL(ABOUT_LINKS.discord)}
-        isLast={false}
-      />
-      <SettingItem
-        title="Reddit"
-        description="Follow updates"
-        icon="chatbox-ellipses-outline"
-        renderRight={renderRightChevron}
-        onPress={() => Linking.openURL(ABOUT_LINKS.reddit)}
-        isLast={true}
-      />
-    </SettingsCard>
-  );
-
-  const renderCategory = (category: CategoryId) => {
-    switch (category) {
-      case 'account':
-        return renderAccount();
-      case 'content':
-        return renderContent();
-      case 'appearance':
-        return renderAppearance();
-      case 'androidPerformance':
-        return renderAndroidPerformance();
-      case 'integrations':
-        return renderIntegrations();
-      case 'playback':
-        return renderPlayback();
-      case 'advanced':
-        return renderAdvanced();
-      case 'about':
-        return renderAbout();
-      default:
-        return null;
+  const groups: Group[] = useMemo(() => {
+    const plexValue = isStremioOnly
+      ? 'Not connected'
+      : serverInfo?.name || plexUser?.username || plexUser?.title || (isConnected ? 'Connected' : 'Not connected');
+    const sources: Row[] = [
+      {
+        id: 'plex',
+        title: 'Plex',
+        value: plexValue,
+        keywords: 'account servers sign out connect libraries',
+        tile: '#272A2D',
+        renderIcon: () => <PlexIcon size={17} color="#fff" />,
+        onPress: isStremioOnly ? () => clearAppMode() : go('PlexSettings'),
+      },
+    ];
+    if (!isStremioOnly && hasMultipleProfiles) {
+      sources.push({
+        id: 'profile',
+        title: 'Profile',
+        value: activeProfile?.title || 'Main',
+        keywords: 'switch profile plex home user',
+        tile: '#3A3A3C',
+        renderIcon: () => <ProfileAvatar thumb={activeProfile?.thumb} title={activeProfile?.title || 'Main'} size={22} />,
+        onPress: go('ProfileSelect'),
+      });
     }
-  };
+    sources.push({
+      id: 'stremio',
+      title: 'Stremio',
+      value: onOff(settings.stremioPlaybackEnabled),
+      keywords: 'addons subtitles alternate playback sources streams',
+      tile: '#6D4FD8',
+      icon: 'extension-puzzle',
+      onPress: go('StremioSettings'),
+    });
 
-  // Filter categories based on platform
-  const visibleCategories = useMemo(() =>
-    CATEGORIES.filter(cat => !cat.androidOnly || Platform.OS === 'android'),
-    []
-  );
+    return [
+      { title: 'Sources', rows: sources },
+      {
+        title: 'Playback & Content',
+        rows: [
+          {
+            id: 'player',
+            title: 'Player',
+            keywords: 'playback skip intro credits recap auto-play next subtitles audio tracks speed seek backdrop',
+            tile: '#0A84FF',
+            icon: 'play',
+            onPress: go('PlayerSettings'),
+          },
+          {
+            id: 'content',
+            title: 'Content',
+            value: settings.discoveryDisabled ? 'Library Only' : undefined,
+            keywords: 'catalogs libraries library mapping discovery library only search tmdb results addon catalogs',
+            tile: '#A64FD8',
+            icon: 'albums',
+            onPress: go('ContentSettings'),
+          },
+        ],
+      },
+      {
+        title: 'Screens',
+        rows: [
+          {
+            id: 'home',
+            title: 'Home',
+            keywords: 'home screen hero rows arrange continue watching posters titles rating badges cards',
+            tile: '#5E5CE6',
+            icon: 'home',
+            onPress: go('HomeScreenSettings'),
+          },
+          {
+            id: 'details',
+            title: 'Details',
+            keywords: 'details screen sections episodes layout season picker spoilers ratings trailer',
+            tile: '#2AA3BD',
+            icon: 'information-circle',
+            onPress: go('DetailsScreenSettings'),
+          },
+          {
+            id: 'navigation',
+            title: 'Navigation',
+            keywords: 'tabs bottom app bar tab bar new & hot downloads my list',
+            tile: '#3B9FD6',
+            icon: 'apps',
+            onPress: go('BottomAppBarSettings'),
+          },
+        ],
+      },
+      {
+        title: 'Integrations',
+        rows: [
+          {
+            id: 'tmdb',
+            title: 'TMDB',
+            keywords: 'artwork metadata language the movie database',
+            tile: '#042541',
+            renderIcon: () => <TMDBIcon size={17} color="#fff" />,
+            onPress: go('TMDBSettings'),
+          },
+          {
+            id: 'mdblist',
+            title: 'MDBList',
+            value: onOff(settings.mdblistEnabled),
+            keywords: 'ratings imdb rotten tomatoes letterboxd metacritic',
+            tile: '#4284CA',
+            renderIcon: () => <MDBListIcon size={17} color="#fff" />,
+            onPress: go('MDBListSettings'),
+          },
+          {
+            id: 'overseerr',
+            title: 'Overseerr',
+            value: onOff(settings.overseerrEnabled),
+            keywords: 'requests request movies shows',
+            tile: '#0B1223',
+            renderIcon: () => <OverseerrIcon size={17} color="#fff" />,
+            onPress: go('OverseerrSettings'),
+          },
+          {
+            id: 'trakt',
+            title: 'Trakt',
+            value: traktProfile ? `@${traktProfile?.username || traktProfile?.ids?.slug}` : 'Not signed in',
+            keywords: 'watch history scrobbling sync ratings watchlist lists',
+            tile: '#ED1C24',
+            renderIcon: () => <TraktIcon size={17} color="#fff" />,
+            onPress: go('TraktSettings'),
+          },
+        ],
+      },
+      {
+        title: 'Browse',
+        rows: [
+          {
+            id: 'entities',
+            title: 'Studios & Networks',
+            keywords: 'companies networks browse',
+            tile: '#8E8E93',
+            icon: 'business',
+            onPress: go('EntityBrowse'),
+          },
+          {
+            id: 'collections',
+            title: 'Your Collections',
+            keywords: 'collections lists custom',
+            tile: '#8E8E93',
+            icon: 'albums',
+            onPress: go('UserCollection'),
+          },
+        ],
+      },
+      {
+        title: 'General',
+        rows: [
+          {
+            id: 'appearance',
+            title: 'Appearance',
+            keywords: 'theme accent colour color background pure black tab glow',
+            tile: '#E0405F',
+            icon: 'color-palette',
+            onPress: go('AppearanceSettings'),
+          },
+          {
+            id: 'advanced',
+            title: 'Advanced',
+            keywords: 'debug logging logs clear cache reset settings blur',
+            tile: '#6E6E73',
+            icon: 'construct',
+            onPress: go('AdvancedSettings'),
+          },
+          {
+            id: 'about',
+            title: 'About',
+            keywords: 'version updates privacy discord reddit github report issue',
+            tile: '#55555A',
+            icon: 'information',
+            onPress: go('AboutSettings'),
+          },
+        ],
+      },
+    ];
+  }, [
+    isStremioOnly,
+    isConnected,
+    serverInfo,
+    plexUser,
+    hasMultipleProfiles,
+    activeProfile,
+    settings.stremioPlaybackEnabled,
+    settings.discoveryDisabled,
+    settings.mdblistEnabled,
+    settings.overseerrEnabled,
+    traktProfile,
+    go,
+  ]);
 
-  if (isTablet) {
-    return (
-      <View style={[styles.container, { backgroundColor: theme.settingsBackground }]}>
-        <SettingsHeader title="Settings" onBack={goBack} scrollY={scrollY} />
-        <View style={[styles.tabletLayout, { paddingTop: headerHeight }]}>
-          <View style={styles.sidebar}>
-            {visibleCategories.map((cat) => (
-              <Pressable
-                key={cat.id}
-                onPress={() => setSelectedCategory(cat.id)}
-                style={[
-                  styles.sidebarItem,
-                  selectedCategory === cat.id && styles.sidebarItemActive,
-                ]}
-              >
-                <Ionicons
-                  name={cat.icon}
-                  size={18}
-                  color={selectedCategory === cat.id ? '#fff' : '#9ca3af'}
-                />
-                <Text
-                  style={[
-                    styles.sidebarText,
-                    selectedCategory === cat.id && styles.sidebarTextActive,
-                  ]}
-                >
-                  {cat.title}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-          <Animated.ScrollView
-            contentContainerStyle={[
-              styles.tabletContent,
-              { paddingBottom: insets.bottom + 100 }
-            ]}
-            onScroll={Animated.event(
-              [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-              { useNativeDriver: false }
-            )}
-            scrollEventThrottle={16}
-          >
-            {renderCategory(selectedCategory)}
-          </Animated.ScrollView>
-        </View>
-      </View>
-    );
-  }
+  const visibleGroups = useMemo(() => {
+    const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    if (!terms.length) return groups;
+    return groups
+      .map((g) => ({
+        ...g,
+        rows: g.rows.filter((r) => {
+          const haystack = `${r.title} ${r.keywords} ${g.title}`.toLowerCase();
+          return terms.every((t) => haystack.includes(t));
+        }),
+      }))
+      .filter((g) => g.rows.length);
+  }, [groups, query]);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.settingsBackground }]}>
-      <SettingsHeader title="Settings" onBack={goBack} scrollY={scrollY} />
+      <SettingsHeader title="Settings" onBack={onBack} scrollY={scrollY} />
       <Animated.ScrollView
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         contentContainerStyle={[
           styles.content,
-          { paddingTop: headerHeight + 12, paddingBottom: insets.bottom + 100 }
+          isTablet && styles.contentTablet,
+          { paddingTop: headerHeight + 8, paddingBottom: insets.bottom + 100 },
         ]}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: false }
-        )}
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false })}
         scrollEventThrottle={16}
       >
-        {renderAccount()}
-        {renderContent()}
-        {renderAppearance()}
-        {Platform.OS === 'android' && renderAndroidPerformance()}
-        {renderIntegrations()}
-        {renderPlayback()}
-        {renderAdvanced()}
-        {renderAbout()}
+        <View style={styles.search}>
+          <Ionicons name="search" size={16} color="rgba(235,235,245,0.6)" />
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search"
+            placeholderTextColor="rgba(235,235,245,0.6)"
+            style={styles.searchInput}
+            autoCorrect={false}
+            autoCapitalize="none"
+            clearButtonMode="while-editing"
+            returnKeyType="search"
+            accessibilityLabel="Search settings"
+          />
+        </View>
+
+        {visibleGroups.map((group) => (
+          <View key={group.title} style={styles.group}>
+            <Text style={styles.groupTitle}>{group.title}</Text>
+            <View style={[styles.card, { backgroundColor: theme.surface }]}>
+              {group.rows.map((row, index) => (
+                <Pressable
+                  key={row.id}
+                  onPress={row.onPress}
+                  style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+                  accessibilityRole="button"
+                  accessibilityLabel={row.value ? `${row.title}, ${row.value}` : row.title}
+                >
+                  <View style={[styles.tile, { backgroundColor: row.tile }]}>
+                    {row.renderIcon ? row.renderIcon() : <Ionicons name={row.icon ?? 'settings'} size={17} color="#fff" />}
+                  </View>
+                  <View style={[styles.rowBody, index < group.rows.length - 1 && styles.rowDivider]}>
+                    <Text style={styles.rowTitle} numberOfLines={1}>{row.title}</Text>
+                    {row.value ? <Text style={styles.rowValue} numberOfLines={1}>{row.value}</Text> : null}
+                    <Ionicons name="chevron-forward" size={16} color="rgba(235,235,245,0.3)" />
+                  </View>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        ))}
+
+        {visibleGroups.length === 0 ? (
+          <Text style={styles.noResults}>No settings match "{query.trim()}"</Text>
+        ) : null}
       </Animated.ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0b0b0d',
-  },
-  content: {
-    paddingHorizontal: 16,
-  },
-  comingSoon: {
-    color: '#9ca3af',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  tabletLayout: {
-    flex: 1,
-    flexDirection: 'row',
-  },
-  sidebar: {
-    width: 260,
-    paddingHorizontal: 12,
-    paddingTop: 8,
-    borderRightWidth: 1,
-    borderRightColor: 'rgba(255,255,255,0.08)',
-  },
-  sidebarItem: {
+  container: { flex: 1 },
+  content: { paddingHorizontal: 16 },
+  contentTablet: { alignSelf: 'center', width: '100%', maxWidth: 640 },
+  search: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    marginBottom: 6,
+    gap: 6,
+    height: 38,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    backgroundColor: 'rgba(118,118,128,0.24)',
+    marginBottom: 20,
   },
-  sidebarItemActive: {
-    backgroundColor: 'rgba(255,255,255,0.08)',
+  searchInput: { flex: 1, color: '#fff', fontSize: 17, paddingVertical: 0 },
+  group: { marginBottom: 24 },
+  groupTitle: {
+    color: 'rgba(235,235,245,0.6)',
+    fontSize: 13,
+    fontWeight: '500',
+    marginLeft: 16,
+    marginBottom: 7,
   },
-  sidebarText: {
-    color: '#9ca3af',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  sidebarTextActive: {
-    color: '#fff',
-  },
-  tabletContent: {
-    paddingHorizontal: 20,
-    flexGrow: 1,
-  },
+  card: { borderRadius: 12, overflow: 'hidden' },
+  row: { flexDirection: 'row', alignItems: 'center', paddingLeft: 14, minHeight: 48 },
+  rowPressed: { backgroundColor: 'rgba(255,255,255,0.08)' },
+  tile: { width: 30, height: 30, borderRadius: 7, alignItems: 'center', justifyContent: 'center', marginRight: 14 },
+  rowBody: { flex: 1, flexDirection: 'row', alignItems: 'center', minHeight: 48, paddingRight: 12, gap: 8 },
+  rowDivider: { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(84,84,88,0.65)' },
+  rowTitle: { flex: 1, color: '#fff', fontSize: 17 },
+  rowValue: { color: 'rgba(235,235,245,0.6)', fontSize: 17, maxWidth: '50%' },
+  noResults: { color: 'rgba(235,235,245,0.6)', fontSize: 15, textAlign: 'center', marginTop: 40 },
 });
