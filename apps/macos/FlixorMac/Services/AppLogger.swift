@@ -9,6 +9,54 @@
 
 import Foundation
 import os.log
+import FlixorKit
+
+// MARK: - Print Gate
+
+/// Whether console output is wanted: always in DEBUG builds, in Release only while
+/// in-app debug logging is on. Readable from any thread.
+enum AppLogOutput {
+    private static let flag = LogOutputFlag()
+
+    static var isEnabled: Bool { flag.value }
+
+    static func setDebugLoggingEnabled(_ enabled: Bool) {
+        #if DEBUG
+        let wanted = true
+        #else
+        let wanted = enabled
+        #endif
+        flag.value = wanted
+        FlixorLogging.isEnabled = wanted
+    }
+}
+
+private final class LogOutputFlag: @unchecked Sendable {
+    private let lock: UnsafeMutablePointer<os_unfair_lock>
+    private var stored: Bool
+
+    init() {
+        lock = .allocate(capacity: 1)
+        lock.initialize(to: os_unfair_lock())
+        #if DEBUG
+        stored = true
+        #else
+        stored = UserDefaults.standard.debugLoggingEnabled
+        #endif
+    }
+
+    var value: Bool {
+        get { os_unfair_lock_lock(lock); defer { os_unfair_lock_unlock(lock) }; return stored }
+        set { os_unfair_lock_lock(lock); stored = newValue; os_unfair_lock_unlock(lock) }
+    }
+}
+
+/// Single-argument `print(...)` calls in this module resolve here, so their message is
+/// only built when output is wanted. Multi-argument calls still go to `Swift.print`.
+func print(_ item: @autoclosure () -> Any) {
+    guard AppLogOutput.isEnabled else { return }
+    Swift.print(item())
+}
 
 // MARK: - Log Types
 
@@ -36,7 +84,10 @@ final class AppLogger: ObservableObject {
 
     private let maxEntries = 1000
     private let queue = DispatchQueue(label: "com.flixor.logger", qos: .utility)
-    private var isLogging = false
+    // Entries waiting to be published; touched only on `queue`.
+    private var pendingEntries: [LogEntry] = []
+    private var flushScheduled = false
+    private let flushInterval: TimeInterval = 0.25
 
     // Stdout/stderr interception
     private var stdoutPipe: Pipe?
@@ -62,9 +113,13 @@ final class AppLogger: ObservableObject {
         return patterns.compactMap { try? NSRegularExpression(pattern: $0, options: .caseInsensitive) }
     }()
 
+    // Lowercased words that every sensitive pattern contains; lines without any skip the regexes.
+    private let sensitiveKeywords = ["token", "password", "apikey", "api_key", "secret", "authorization", "bearer"]
+
     private init() {
         // Load debug enabled state from UserDefaults
         debugEnabled = UserDefaults.standard.debugLoggingEnabled
+        AppLogOutput.setDebugLoggingEnabled(debugEnabled)
 
         // Only start intercepting if debug logging was previously enabled
         if debugEnabled {
@@ -77,6 +132,7 @@ final class AppLogger: ObservableObject {
     func setDebugEnabled(_ enabled: Bool) {
         debugEnabled = enabled
         UserDefaults.standard.debugLoggingEnabled = enabled
+        AppLogOutput.setDebugLoggingEnabled(enabled)
 
         if enabled {
             startIntercepting()
@@ -136,7 +192,7 @@ final class AppLogger: ObservableObject {
                 }
             }
 
-            // Capture the output
+            // Capture the output (already on `queue`)
             if let output = String(data: data, encoding: .utf8) {
                 self.captureOutput(output, isStderr: isStderr)
             }
@@ -186,7 +242,7 @@ final class AppLogger: ObservableObject {
                 continue
             }
 
-            addEntry(level, message: line)
+            enqueue(LogEntry(timestamp: Date(), level: level, message: redact(line), data: nil))
         }
     }
 
@@ -255,28 +311,53 @@ final class AppLogger: ObservableObject {
     // MARK: - Entry Management
 
     private func addEntry(_ level: LogLevel, message: String, data: Any? = nil) {
-        guard !isLogging else { return }
-        isLogging = true
-        defer { isLogging = false }
+        let timestamp = Date()
+        let rawData = stringifyData(data)
+        queue.async {
+            let entry = LogEntry(
+                timestamp: timestamp,
+                level: level,
+                message: self.redact(message),
+                data: rawData.map { self.redact($0) }
+            )
+            self.enqueue(entry)
+        }
+    }
 
-        let entry = LogEntry(
-            timestamp: Date(),
-            level: level,
-            message: redact(message),
-            data: stringifyData(data)
-        )
+    /// Must run on `queue`. Entries are published to `logs` in batches a few times a second.
+    private func enqueue(_ entry: LogEntry) {
+        pendingEntries.append(entry)
+        if pendingEntries.count > maxEntries {
+            pendingEntries.removeFirst(pendingEntries.count - maxEntries)
+        }
+        guard !flushScheduled else { return }
+        flushScheduled = true
+        queue.asyncAfter(deadline: .now() + flushInterval) { [weak self] in
+            self?.flushPending()
+        }
+    }
 
+    private func flushPending() {
+        flushScheduled = false
+        guard !pendingEntries.isEmpty else { return }
+        let batch = pendingEntries
+        pendingEntries.removeAll(keepingCapacity: true)
         DispatchQueue.main.async {
-            self.logs.append(entry)
-            if self.logs.count > self.maxEntries {
-                self.logs.removeFirst()
+            var updated = self.logs
+            updated.append(contentsOf: batch)
+            if updated.count > self.maxEntries {
+                updated.removeFirst(updated.count - self.maxEntries)
             }
+            self.logs = updated
         }
     }
 
     func clearLogs() {
-        DispatchQueue.main.async {
-            self.logs.removeAll()
+        queue.async {
+            self.pendingEntries.removeAll()
+            DispatchQueue.main.async {
+                self.logs.removeAll()
+            }
         }
     }
 
@@ -331,6 +412,8 @@ final class AppLogger: ObservableObject {
         for value in values where result.contains(value) {
             result = result.replacingOccurrences(of: value, with: "[REDACTED]")
         }
+        let lowered = result.lowercased()
+        guard sensitiveKeywords.contains(where: { lowered.contains($0) }) else { return result }
         for pattern in sensitivePatterns {
             let range = NSRange(result.startIndex..., in: result)
             result = pattern.stringByReplacingMatches(in: result, options: [], range: range, withTemplate: "[REDACTED]")
@@ -342,17 +425,16 @@ final class AppLogger: ObservableObject {
         guard let data = data else { return nil }
 
         if let string = data as? String {
-            return redact(string)
+            return string
         }
 
-        do {
-            let jsonData = try JSONSerialization.data(withJSONObject: data, options: .prettyPrinted)
-            if let string = String(data: jsonData, encoding: .utf8) {
-                return redact(string)
-            }
-        } catch {}
+        if JSONSerialization.isValidJSONObject(data),
+           let jsonData = try? JSONSerialization.data(withJSONObject: data, options: .prettyPrinted),
+           let string = String(data: jsonData, encoding: .utf8) {
+            return string
+        }
 
-        return redact(String(describing: data))
+        return String(describing: data)
     }
 
     deinit {

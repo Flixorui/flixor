@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import CryptoKit
 
 // MARK: - PlexServerService
 
@@ -15,10 +16,16 @@ public class PlexServerService {
     private let token: String
     private let clientId: String
     private let cache: CacheManager
+    /// Short hash of the token, for in-flight request keys (never the token itself).
+    private let tokenFingerprint: String
 
     public init(baseUrl: String, token: String, clientId: String, cache: CacheManager) {
         self.baseUrl = baseUrl.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         self.token = token
+        self.tokenFingerprint = SHA256.hash(data: Data(token.utf8))
+            .prefix(8)
+            .map { String(format: "%02x", $0) }
+            .joined()
         self.clientId = clientId
         self.cache = cache
     }
@@ -45,13 +52,22 @@ public class PlexServerService {
         params: [String: String]? = nil,
         ttl: TimeInterval = CacheTTL.dynamic
     ) async throws -> T {
-        var urlString = "\(baseUrl)\(path)"
-        if let params = params, !params.isEmpty {
-            let queryString = params.map { "\($0.key)=\($0.value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? $0.value)" }.joined(separator: "&")
-            urlString += "?\(queryString)"
+        // Sorted so the URL (and cache key) is the same on every launch
+        let sortedParams = (params ?? [:]).sorted { $0.key < $1.key }
+        func query(_ items: [(key: String, value: String)]) -> String {
+            items.map { "\($0.key)=\($0.value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? $0.value)" }.joined(separator: "&")
         }
 
-        let cacheKey = "plex:\(urlString)"
+        var urlString = "\(baseUrl)\(path)"
+        if !sortedParams.isEmpty {
+            urlString += "?\(query(sortedParams))"
+        }
+
+        // The token stays out of the cache key
+        let keyParams = sortedParams.filter { $0.key != "X-Plex-Token" }
+        let cacheKey = keyParams.isEmpty
+            ? "plex:\(baseUrl)\(path)"
+            : "plex:\(baseUrl)\(path)?\(query(keyParams))"
 
         // Check cache first
         if ttl > 0 {
@@ -64,49 +80,39 @@ public class PlexServerService {
             throw PlexServerError.invalidURL
         }
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
+        // Concurrent identical requests share one fetch. Cache-bypassing requests
+        // only share with each other, so they always get a fresh response. The token
+        // fingerprint keeps one profile from joining another profile's request.
+        let flightKey = "\(ttl > 0 ? "cached" : "fresh")|\(tokenFingerprint)|\(String(reflecting: T.self))|\(cacheKey)"
+        let headers = getHeaders()
+        let cache = self.cache
+        return try await cache.deduplicated(flightKey) { (epoch: Int) async throws -> T in
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
 
-        for (key, value) in getHeaders() {
-            request.setValue(value, forHTTPHeaderField: key)
-        }
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw PlexServerError.invalidResponse
-        }
-
-        guard httpResponse.statusCode == 200 else {
-            throw PlexServerError.httpError(statusCode: httpResponse.statusCode)
-        }
-
-        // Debug: log raw JSON for metadata requests to trace Rating array
-        if path.contains("/library/metadata/") && !path.contains("/children") {
-            if let jsonString = String(data: data, encoding: .utf8) {
-                // Check if Rating array exists in raw JSON
-                let hasRatingArray = jsonString.contains("\"Rating\"")
-                let hasRatingField = jsonString.contains("\"rating\"")
-                print("🔍 [FlixorKit] Metadata response for \(path):")
-                print("   - Has 'Rating' array: \(hasRatingArray)")
-                print("   - Has 'rating' field: \(hasRatingField)")
-                // Log a snippet around Rating if it exists
-                if hasRatingArray, let range = jsonString.range(of: "\"Rating\"") {
-                    let startIdx = jsonString.index(range.lowerBound, offsetBy: -20, limitedBy: jsonString.startIndex) ?? jsonString.startIndex
-                    let endIdx = jsonString.index(range.upperBound, offsetBy: 200, limitedBy: jsonString.endIndex) ?? jsonString.endIndex
-                    print("   - Rating snippet: ...\(jsonString[startIdx..<endIdx])...")
-                }
+            for (key, value) in headers {
+                request.setValue(value, forHTTPHeaderField: key)
             }
+
+            let (data, response) = try await URLSession.shared.data(for: request)
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw PlexServerError.invalidResponse
+            }
+
+            guard httpResponse.statusCode == 200 else {
+                throw PlexServerError.httpError(statusCode: httpResponse.statusCode)
+            }
+
+            let result = try JSONDecoder().decode(T.self, from: data)
+
+            // Cache the response
+            if ttl > 0 {
+                await cache.set(cacheKey, value: result, ttl: ttl, ifUnchangedSince: epoch)
+            }
+
+            return result
         }
-
-        let result = try JSONDecoder().decode(T.self, from: data)
-
-        // Cache the response
-        if ttl > 0 {
-            await cache.set(cacheKey, value: result, ttl: ttl)
-        }
-
-        return result
     }
 
     // MARK: - Libraries
@@ -191,11 +197,6 @@ public class PlexServerService {
         )
         guard let item = response.MediaContainer.Metadata?.first else {
             throw PlexServerError.notFound
-        }
-        // Debug: log decoded Rating array
-        print("📊 [FlixorKit] Decoded item '\(item.title ?? "unknown")' - Rating count: \(item.ratings.count), rating: \(item.rating ?? 0), audienceRating: \(item.audienceRating ?? 0)")
-        for r in item.ratings {
-            print("   🎬 Rating: image='\(r.image ?? "nil")', value=\(r.value ?? 0)")
         }
         return item
     }
@@ -538,6 +539,23 @@ public class PlexServerService {
         }
 
         return urlString
+    }
+
+    /// Get a server-resized image URL via Plex's photo transcoder.
+    /// Absolute http(s) URLs are returned unchanged.
+    public func getTranscodedImageUrl(path: String?, width: Int, height: Int) -> String? {
+        guard let path = path, !path.isEmpty else { return nil }
+
+        if path.hasPrefix("http://") || path.hasPrefix("https://") {
+            return path
+        }
+
+        // Unreserved characters only, so "/", "?", "&" and "=" in the path stay
+        // inside the single `url` parameter.
+        let allowed = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
+        let encodedPath = path.addingPercentEncoding(withAllowedCharacters: allowed) ?? path
+
+        return "\(baseUrl)/photo/:/transcode?width=\(width)&height=\(height)&minSize=1&upscale=1&url=\(encodedPath)&X-Plex-Token=\(token)"
     }
 
     // MARK: - UltraBlur Colors

@@ -156,6 +156,7 @@ struct RootView: View {
         // transparent. Off by default so the default look is unchanged.
         .background(theme.pureBlack ? Color.black.ignoresSafeArea() : nil)
         .environmentObject(watchlistController)
+        .environment(\.cardWatchlistController, watchlistController)
         .task {
             if UserDefaults.standard.playerBackend == .avplayer {
                 UserDefaults.standard.playerBackend = .mpv
@@ -181,6 +182,10 @@ struct MainView: View {
     @State private var showingProfileSelect = false
     @State private var showingSignOutConfirmation = false
     @State private var contentRefreshId = UUID()
+    /// Tabs whose stacks exist. Home and My List start built (My List's load
+    /// fills the WatchlistController); others are built when first selected or
+    /// warmed after launch, then stay alive.
+    @State private var builtTabs: Set<NavItem> = [.home, .myList]
     @EnvironmentObject var sessionManager: SessionManager
     @StateObject private var router = NavigationRouter()
     @StateObject private var mainViewState = MainViewState()
@@ -240,6 +245,31 @@ struct MainView: View {
         }
     }
 
+    private func isBuilt(_ tab: NavItem) -> Bool {
+        builtTabs.contains(tab) || mainViewState.selectedTab == tab
+    }
+
+    /// Delay before warming hidden tabs, and the gap between them, so Home's
+    /// first load gets the network and main thread first.
+    private static let warmUpDelay: UInt64 = 4_000_000_000
+    private static let warmUpGap: UInt64 = 1_500_000_000
+
+    /// Order hidden tabs are warmed in.
+    private static let warmUpOrder: [NavItem] = [.library, .newPopular, .search, .downloads]
+
+    /// Builds the remaining tabs one at a time in the background.
+    @MainActor
+    private func warmUpTabs() async {
+        try? await Task.sleep(nanoseconds: Self.warmUpDelay)
+        for tab in Self.warmUpOrder {
+            guard !Task.isCancelled else { return }
+            // Hidden tabs are skipped; they build when shown and selected.
+            guard visibleNavItems.contains(tab), !builtTabs.contains(tab) else { continue }
+            builtTabs.insert(tab)
+            try? await Task.sleep(nanoseconds: Self.warmUpGap)
+        }
+    }
+
     // Profile avatar colors
     private let avatarColors: [Color] = [
         Color(red: 0.91, green: 0.3, blue: 0.24),
@@ -290,18 +320,20 @@ struct MainView: View {
                 .zIndex(mainViewState.selectedTab == .home ? 1 : 0)
 
                 // Search Tab
-                NavigationStack(path: $router.searchPath) {
-                    SearchView()
-                        .floatingNavContentInset(!navigationStyle.usesSidebar)
-                        .navigationDestinations()
+                if isBuilt(.search) {
+                    NavigationStack(path: $router.searchPath) {
+                        SearchView()
+                            .floatingNavContentInset(!navigationStyle.usesSidebar)
+                            .navigationDestinations()
+                    }
+                    .pushAppearance(depth: router.searchPath.count)
+                    .opacity(mainViewState.selectedTab == .search ? 1 : 0)
+                    .zIndex(mainViewState.selectedTab == .search ? 1 : 0)
                 }
-                .pushAppearance(depth: router.searchPath.count)
-                .opacity(mainViewState.selectedTab == .search ? 1 : 0)
-                .zIndex(mainViewState.selectedTab == .search ? 1 : 0)
 
                 // Library Tab - not instantiated without Plex, otherwise its .task would
                 // still fire /api/plex/libraries while hidden.
-                if visibleNavItems.contains(.library) {
+                if visibleNavItems.contains(.library) && isBuilt(.library) {
                     NavigationStack(path: $router.libraryPath) {
                         LibraryView()
                             .floatingNavContentInset(!navigationStyle.usesSidebar)
@@ -313,17 +345,19 @@ struct MainView: View {
                 }
 
                 // My List Tab
-                NavigationStack(path: $router.myListPath) {
-                    MyListView()
-                        .floatingNavContentInset(!navigationStyle.usesSidebar)
-                        .navigationDestinations()
+                if isBuilt(.myList) {
+                    NavigationStack(path: $router.myListPath) {
+                        MyListView()
+                            .floatingNavContentInset(!navigationStyle.usesSidebar)
+                            .navigationDestinations()
+                    }
+                    .pushAppearance(depth: router.myListPath.count)
+                    .opacity(mainViewState.selectedTab == .myList ? 1 : 0)
+                    .zIndex(mainViewState.selectedTab == .myList ? 1 : 0)
                 }
-                .pushAppearance(depth: router.myListPath.count)
-                .opacity(mainViewState.selectedTab == .myList ? 1 : 0)
-                .zIndex(mainViewState.selectedTab == .myList ? 1 : 0)
 
                 // New & Popular Tab
-                if profileSettings.showNewPopularTab {
+                if profileSettings.showNewPopularTab && isBuilt(.newPopular) {
                     NavigationStack(path: $router.newPopularPath) {
                         NewPopularView()
                             .floatingNavContentInset(!navigationStyle.usesSidebar)
@@ -335,7 +369,7 @@ struct MainView: View {
                 }
 
                 // Downloads Tab
-                if visibleNavItems.contains(.downloads) {
+                if visibleNavItems.contains(.downloads) && isBuilt(.downloads) {
                     NavigationStack(path: $router.downloadsPath) {
                         DownloadsView()
                             .floatingNavContentInset(!navigationStyle.usesSidebar)
@@ -381,6 +415,7 @@ struct MainView: View {
         .animation(DS.Motion.standard, value: showsFloatingBar)
         .environmentObject(router)
         .environmentObject(mainViewState)
+        .environment(\.cardNavigationContext, CardNavigationContext(router: router, mainViewState: mainViewState))
         .sheet(isPresented: $showingSettings) {
             SettingsView(showsCloseButton: true)
         }
@@ -426,6 +461,11 @@ struct MainView: View {
         .onAppear {
             BackNavigationController.shared.register(router: router, mainViewState: mainViewState)
         }
+        // Whatever selects a tab, keep it built once shown.
+        .onChange(of: mainViewState.selectedTab) { tab in
+            builtTabs.insert(tab)
+        }
+        .task { await warmUpTabs() }
     }
 
     /// Tab bar / sidebar tap: switch tabs, or pop to root when the tab is
@@ -435,6 +475,7 @@ struct MainView: View {
             popToRoot(for: item)
         } else {
             // Instant tab switch - no animation needed
+            builtTabs.insert(item)
             mainViewState.selectedTab = item
         }
     }

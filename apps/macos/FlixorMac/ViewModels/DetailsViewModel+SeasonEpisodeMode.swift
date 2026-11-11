@@ -44,24 +44,31 @@ extension DetailsViewModel {
         playableId = "plex:\(ratingKey)"
         plexRatingKey = ratingKey
 
+        // Episodes directly (NO season picker), alongside the TMDB enhancement
+        seasons = []
+        selectedSeasonKey = nil  // Null = season-only mode
+
         // TMDB enhancement (optional)
         if let tm = meta.Guid?.compactMap({ $0.id }).first(where: { $0.contains("tmdb://") || $0.contains("themoviedb://") }),
            let tid = tm.components(separatedBy: "://").last {
             tmdbId = tid
             plexGuid = tm
+            markIdentityReady()
             print("📺 [loadSeasonDirect] Found TMDB GUID: \(tid), fetching enhancements")
+            async let episodes: Void = loadPlexEpisodes(seasonKey: ratingKey)
             do {
                 try await fetchTMDBSeasonEnhancements(tmdbId: tid, seasonNumber: meta.index)
             } catch {
                 print("⚠️ [loadSeasonDirect] TMDB enhancements failed: \(error)")
             }
+            // The title can change with the TMDB season name.
+            markTitleIdsReady()
+            _ = await episodes
+        } else {
+            markIdentityReady()
+            markTitleIdsReady()
+            await loadPlexEpisodes(seasonKey: ratingKey)
         }
-
-        // Load episodes directly (NO season picker)
-        seasons = []
-        selectedSeasonKey = nil  // Null = season-only mode
-        await loadPlexEpisodes(seasonKey: ratingKey)
-
 
         print("✅ [loadSeasonDirect] Season-only view loaded successfully")
     }
@@ -102,13 +109,10 @@ extension DetailsViewModel {
                   let u = ImageService.shared.plexImageURL(path: grandparentThumb, width: 600, height: 900) {
             posterURL = u
         }
-        if let art = meta.art,
-           let u = ImageService.shared.plexImageURL(path: art, width: 1920, height: 1080) {
-            backdropURL = u
-        } else if let grandparentArt = meta.grandparentArt,
-                  let u = ImageService.shared.plexImageURL(path: grandparentArt, width: 1920, height: 1080) {
-            backdropURL = u
-        }
+        // Backdrop: the show's TMDB backdrop when there is one, else Plex art
+        // (assigned once below, so the hero doesn't swap images).
+        let plexArt = meta.art.flatMap { ImageService.shared.plexImageURL(path: $0, width: 1920, height: 1080) }
+            ?? meta.grandparentArt.flatMap { ImageService.shared.plexImageURL(path: $0, width: 1920, height: 1080) }
 
         // Technical details from media
         if let media = meta.Media, !media.isEmpty {
@@ -172,14 +176,17 @@ extension DetailsViewModel {
             }
         }
 
-        // Fetch TMDB episode enhancements
-        if let tid = showTmdbId, let sNum = seasonNumber, let eNum = episodeNumber {
-            await fetchTMDBEpisodeEnhancements(showTmdbId: tid, seasonNumber: sNum, episodeNumber: eNum)
-        }
+        markIdentityReady()
+        markTitleIdsReady()
 
-        // Fetch TMDB TV series backdrop for hero section (overrides Plex art)
+        // TMDB episode enhancements and the series backdrop, side by side
         if let tid = showTmdbId {
-            await fetchTMDBSeriesBackdrop(showTmdbId: tid)
+            async let enhancements: Void = fetchTMDBEpisodeEnhancementsIfNumbered(showTmdbId: tid)
+            let seriesBackdrop = await fetchTMDBSeriesBackdrop(showTmdbId: tid)
+            setBackdrop(seriesBackdrop ?? plexArt)
+            _ = await enhancements
+        } else {
+            setBackdrop(plexArt)
         }
 
 
@@ -187,6 +194,11 @@ extension DetailsViewModel {
     }
 
     // MARK: - TMDB Episode Enhancements
+
+    private func fetchTMDBEpisodeEnhancementsIfNumbered(showTmdbId: String) async {
+        guard let sNum = seasonNumber, let eNum = episodeNumber else { return }
+        await fetchTMDBEpisodeEnhancements(showTmdbId: showTmdbId, seasonNumber: sNum, episodeNumber: eNum)
+    }
 
     private func fetchTMDBEpisodeEnhancements(showTmdbId: String, seasonNumber: Int, episodeNumber: Int) async {
         print("📡 [fetchTMDBEpisodeEnhancements] Fetching TMDB episode S\(seasonNumber)E\(episodeNumber) for show \(showTmdbId)")
@@ -281,31 +293,23 @@ extension DetailsViewModel {
 
     // MARK: - TMDB Series Backdrop (for Episodes)
 
-    /// Fetch TMDB TV series backdrop for episode details screen
-    /// This ensures the hero section uses the series backdrop instead of episode still
-    private func fetchTMDBSeriesBackdrop(showTmdbId: String) async {
-        print("📡 [fetchTMDBSeriesBackdrop] Fetching TV series backdrop for show \(showTmdbId)")
-
+    /// TMDB TV series backdrop for the episode details hero, so it shows the
+    /// series art instead of the episode still. Nil when there is none.
+    private func fetchTMDBSeriesBackdrop(showTmdbId: String) async -> URL? {
         struct TMDBTVShow: Codable {
             let backdrop_path: String?
         }
 
         do {
             let show: TMDBTVShow = try await api.get("/api/tmdb/tv/\(showTmdbId)")
-
-            if let backdropPath = show.backdrop_path {
-                let tmdbBackdropUrl = "https://image.tmdb.org/t/p/original\(backdropPath)"
-                if let url = URL(string: tmdbBackdropUrl) {
-                    backdropURL = url
-                    print("✅ [fetchTMDBSeriesBackdrop] Set TMDB series backdrop URL: \(url.absoluteString)")
-                } else {
-                    print("⚠️ [fetchTMDBSeriesBackdrop] Failed to create URL from: \(tmdbBackdropUrl)")
-                }
-            } else {
+            guard let backdropPath = show.backdrop_path else {
                 print("⚠️ [fetchTMDBSeriesBackdrop] No backdrop_path in TMDB response")
+                return nil
             }
+            return URL(string: "https://image.tmdb.org/t/p/original\(backdropPath)")
         } catch {
             print("⚠️ [fetchTMDBSeriesBackdrop] Failed to fetch TV series data: \(error)")
+            return nil
         }
     }
 

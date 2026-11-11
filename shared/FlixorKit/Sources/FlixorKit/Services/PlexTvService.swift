@@ -16,6 +16,7 @@ public class PlexTvService {
     private let productName: String
     private let productVersion: String
     private let platform: String
+    private let cache: CacheManager?
 
     private let plexTvMetadataUrl = "https://discover.provider.plex.tv"
 
@@ -24,13 +25,15 @@ public class PlexTvService {
         clientId: String,
         productName: String = "Flixor",
         productVersion: String = "1.0.0",
-        platform: String = "macOS"
+        platform: String = "macOS",
+        cache: CacheManager? = nil
     ) {
         self.token = token
         self.clientId = clientId
         self.productName = productName
         self.productVersion = productVersion
         self.platform = platform
+        self.cache = cache
     }
 
     /// Update token (e.g., after re-authentication)
@@ -81,9 +84,12 @@ public class PlexTvService {
     // MARK: - Watchlist
 
     /// Get user's watchlist
-    public func getWatchlist() async throws -> [PlexMediaItem] {
+    /// - Parameter includeGuids: Also return each item's external GUIDs (tmdb://, imdb://),
+    ///   which lets `getTMDBIdForWatchlistItem` skip the per-item metadata request.
+    public func getWatchlist(includeGuids: Bool = false) async throws -> [PlexMediaItem] {
+        let query = includeGuids ? "?includeGuids=1" : ""
         let data: PlexMediaContainerResponse<PlexMediaItem> = try await get(
-            url: "\(plexTvMetadataUrl)/library/sections/watchlist/all"
+            url: "\(plexTvMetadataUrl)/library/sections/watchlist/all\(query)"
         )
         return data.MediaContainer.Metadata ?? []
     }
@@ -96,30 +102,44 @@ public class PlexTvService {
         return data.MediaContainer.Metadata?.first
     }
 
-    /// Extract TMDB ID from a watchlist item by fetching its full metadata
+    /// TMDB id ("tmdb:movie:123" / "tmdb:tv:123") for a watchlist item. Uses the
+    /// item's own GUIDs when the list included them; otherwise fetches its full
+    /// metadata. Lookups are cached for 24 hours.
     public func getTMDBIdForWatchlistItem(_ item: PlexMediaItem) async -> String? {
+        let mediaType = item.type == "movie" ? "movie" : "tv"
+        if let tmdbId = Self.tmdbId(in: item.guids) {
+            return "tmdb:\(mediaType):\(tmdbId)"
+        }
+
         guard let key = item.key else { return nil }
+
+        // "" records that the item has no TMDB GUID
+        let cacheKey = "plextv:tmdbguid:\(key)"
+        if let cache, let cached: String = await cache.get(cacheKey) {
+            return cached.isEmpty ? nil : "tmdb:\(mediaType):\(cached)"
+        }
 
         do {
             guard let fullItem = try await getWatchlistItemMetadata(key: key) else { return nil }
-
-            // Look for TMDB guid in the Guid array
-            for guid in fullItem.guids {
-                if guid.hasPrefix("tmdb://") {
-                    let tmdbId = guid.replacingOccurrences(of: "tmdb://", with: "")
-                    let mediaType = item.type == "movie" ? "movie" : "tv"
-                    return "tmdb:\(mediaType):\(tmdbId)"
-                }
-                if guid.hasPrefix("themoviedb://") {
-                    let tmdbId = guid.replacingOccurrences(of: "themoviedb://", with: "")
-                    let mediaType = item.type == "movie" ? "movie" : "tv"
-                    return "tmdb:\(mediaType):\(tmdbId)"
-                }
-            }
+            let tmdbId = Self.tmdbId(in: fullItem.guids)
+            await cache?.set(cacheKey, value: tmdbId ?? "", ttl: CacheTTL.`static`)
+            return tmdbId.map { "tmdb:\(mediaType):\($0)" }
         } catch {
-            print("⚠️ [PlexTv] Failed to get metadata for \(item.title): \(error)")
+            print("⚠️ [PlexTv] Failed to get metadata for \(item.title ?? "unknown"): \(error)")
         }
 
+        return nil
+    }
+
+    private static func tmdbId(in guids: [String]) -> String? {
+        for guid in guids {
+            if guid.hasPrefix("tmdb://") {
+                return guid.replacingOccurrences(of: "tmdb://", with: "")
+            }
+            if guid.hasPrefix("themoviedb://") {
+                return guid.replacingOccurrences(of: "themoviedb://", with: "")
+            }
+        }
         return nil
     }
 

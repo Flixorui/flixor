@@ -19,7 +19,7 @@ struct NewPopularView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 // Hero Section
-                if let hero = viewModel.hero, !viewModel.isLoading {
+                if let hero = viewModel.hero {
                     NewPopularHero(
                         data: hero,
                         onPlay: {
@@ -54,7 +54,7 @@ struct NewPopularView: View {
                 }
 
                 // Content Area
-                if viewModel.isLoading {
+                if viewModel.isLoading && !activeTabHasContent {
                     loadingView
                         .padding(.horizontal, horizontalPadding)
                         .padding(.top, DS.Space.s32)
@@ -72,16 +72,29 @@ struct NewPopularView: View {
         .background(HomeBackground())
         .navigationTitle("")
         .task {
-            await viewModel.load()
+            await viewModel.loadIfNeeded()
         }
         .onChange(of: viewModel.activeTab) { _ in
-            Task { await viewModel.load() }
+            Task { await viewModel.loadIfNeeded() }
         }
-        .onChange(of: viewModel.contentType) { _ in
-            Task { await viewModel.load() }
-        }
+        // Content type only filters rows in this view, so it needs no reload.
         .onChange(of: viewModel.period) { _ in
             Task { await viewModel.load() }
+        }
+    }
+
+    /// Rows already on screen stay visible while the rest of the tab loads.
+    private var activeTabHasContent: Bool {
+        switch viewModel.activeTab {
+        case .trending:
+            return !viewModel.recentlyAdded.isEmpty || !viewModel.popularPlex.isEmpty
+                || !viewModel.trendingMovies.isEmpty || !viewModel.trendingShows.isEmpty
+        case .top10:
+            return !viewModel.top10.isEmpty
+        case .comingSoon:
+            return !viewModel.upcoming.isEmpty
+        case .worthWait:
+            return !viewModel.anticipated.isEmpty
         }
     }
 

@@ -37,6 +37,29 @@ class MPVPlayerController {
     private var cachedAudioDelay = 0.0
     private var cachedSubtitleDelay = 0.0
     private var cachedPath: String?
+    private var cachedTimePos: Double?
+    private var cachedDuration: Double?
+    private var subtitleCueHandler: ((MPVShownSubtitleCue) -> Void)?
+    private var cachedLoadOptions: MPVNetworkLoadOptions?
+    /// Playback has started (first playback-restart) since the current file began loading.
+    private var cachedPlaybackStarted = false
+    private var cachedPausedForCache = false
+    /// Until this time the stats overlay re-reads its per-file values on every poll:
+    /// after a file or track change mpv reports the new values a moment later.
+    private var staticStatsStaleUntil: CFAbsoluteTime = 0
+
+    /// `time-pos` changes every frame; it is forwarded to `onPropertyChange` at most
+    /// this often (always at once after a seek, a restart or a pause).
+    private static let timePosForwardInterval: CFAbsoluteTime = 0.25
+    // Event queue only.
+    private var lastTimePosForward: CFAbsoluteTime = 0
+    private var timePosForwardPending = false
+    private var forceNextTimePosForward = true
+
+    // apiQueue only: stats values that don't change during a file.
+    private var staticStats: PerformanceStats?
+    private var staticStatsPath: String?
+    private var staticStatsTime: CFAbsoluteTime = 0
 
     /// Run once mpv is destroyed (see `shutdown(completion:)`).
     private var shutdownCompletions: [() -> Void] = []
@@ -75,7 +98,11 @@ class MPVPlayerController {
 
     /// Called (main thread) when mpv starts showing a subtitle cue. Set by the
     /// view model to collect recent cues of embedded tracks for cue-based sync.
-    var onSubtitleCueShown: ((MPVShownSubtitleCue) -> Void)?
+    /// Leave it nil when cues aren't needed: each cue costs four blocking reads.
+    var onSubtitleCueShown: ((MPVShownSubtitleCue) -> Void)? {
+        get { withCache { subtitleCueHandler } }
+        set { withCache { subtitleCueHandler = newValue } }
+    }
 
     /// Callback for thumbnail info updates
     var onThumbnailInfo: ((ThumbnailInfo) -> Void)?
@@ -418,7 +445,14 @@ class MPVPlayerController {
         if let headers, !headers.isEmpty {
             print("📺 [MPV] HTTP headers set: \(headers.count) headers")
         }
-        withCache { cachedPath = nil }
+        let loadOptions = MPVNetworkLoadOptions(
+            url: url, headerFields: headerFields, verifyTLS: shouldVerify, reconnectOptions: reconnect
+        )
+        withCache {
+            cachedPath = nil
+            cachedLoadOptions = loadOptions
+            cachedPlaybackStarted = false
+        }
 
         print("📺 [MPV] Loading file: \(logLabel ?? url)")
         perform { mpv in
@@ -482,6 +516,22 @@ class MPVPlayerController {
 
     /// Path or URL of the loaded file, nil until it has loaded.
     var currentPath: String? { withCache { cachedPath } }
+
+    /// Latest `time-pos` from mpv, updated every frame (`onPropertyChange` is throttled).
+    var currentTimePosition: Double? { withCache { cachedTimePos } }
+
+    /// Latest `duration` from mpv, nil before the file reported one.
+    var currentDuration: Double? { withCache { cachedDuration } }
+
+    /// URL and network options of the last `loadFile`, so a second instance (seek-bar
+    /// thumbnails) can open the same source the same way.
+    var currentLoadOptions: MPVNetworkLoadOptions? { withCache { cachedLoadOptions } }
+
+    /// False while the file is still starting or playback waits for the network:
+    /// background loads (thumbnails) must not compete for bandwidth then.
+    var allowsBackgroundNetworkLoads: Bool {
+        withCache { cachedPlaybackStarted && !cachedPausedForCache && !isShuttingDown }
+    }
 
     func seek(to seconds: Double) {
         setProperty("time-pos", value: seconds)
@@ -822,7 +872,10 @@ class MPVPlayerController {
                     let node = ptr.assumingMemoryBound(to: mpv_node.self).pointee
                     if propertyName == "track-list" {
                         let tracks = Self.parseTracks(node)
-                        withCache { cachedTracks = tracks }
+                        withCache {
+                            cachedTracks = tracks
+                            staticStatsStaleUntil = CFAbsoluteTimeGetCurrent() + 2
+                        }
                     } else if propertyName == "chapter-list" {
                         let chapters = Self.parseChapters(node)
                         withCache { cachedChapters = chapters }
@@ -853,6 +906,12 @@ class MPVPlayerController {
             }()
 
             switch propertyName {
+            case "time-pos":
+                withCache { cachedTimePos = value as? Double }
+                forwardTimePos(value)
+                return
+            case "duration": withCache { cachedDuration = value as? Double }
+            case "paused-for-cache": withCache { cachedPausedForCache = value as? Bool ?? false }
             case "pause": if let paused = value as? Bool { withCache { cachedPaused = paused } }
             case "speed": if let speed = value as? Double { withCache { cachedSpeed = speed } }
             case "chapter": withCache { cachedChapter = (value as? Int64).map(Int.init) }
@@ -887,8 +946,9 @@ class MPVPlayerController {
                onSubtitleCueShown != nil {
                 let start: Double? = getPropertyIfAvailable("sub-start")
                 let end: Double? = getPropertyIfAvailable("sub-end")
+                // Live position: the cached one can still be the pre-seek value.
                 let playback: Double? = getPropertyIfAvailable("time-pos")
-                let delay: Double = getPropertyIfAvailable("sub-delay") ?? 0
+                let delay = withCache { cachedSubtitleDelay }
                 if let start, let playback {
                     let shown = MPVShownSubtitleCue(text: text, start: start, end: end, playbackTime: playback, subDelay: delay)
                     DispatchQueue.main.async { [weak self] in
@@ -902,12 +962,19 @@ class MPVPlayerController {
                 self.parseThumbnailInfo(jsonString)
             }
 
+            // Paused: the position must not be left a throttle interval behind.
+            if propertyName == "pause", value as? Bool == true {
+                forwardTimePos(withCache { cachedTimePos }, force: true)
+            }
+
             DispatchQueue.main.async { [weak self] in
                 self?.onPropertyChange?(propertyName, value)
             }
 
         case MPV_EVENT_START_FILE:
             print("📺 [MPV] File started")
+            withCache { cachedPlaybackStarted = false }
+            forceNextTimePosForward = true
             DispatchQueue.main.async { [weak self] in
                 self?.onEvent?("file-started")
             }
@@ -915,11 +982,16 @@ class MPVPlayerController {
         case MPV_EVENT_FILE_LOADED:
             print("✅ [MPV] File loaded")
             refreshCachesForLoadedFile()
+            forceNextTimePosForward = true
             DispatchQueue.main.async { [weak self] in
                 self?.onEvent?("file-loaded")
             }
 
         case MPV_EVENT_END_FILE:
+            // A pending throttled position must not arrive after the end event.
+            if timePosForwardPending {
+                forwardTimePos(withCache { cachedTimePos }, force: true)
+            }
             // Report why the file ended so only a real end of file counts as
             // "finished watching" (which scrobbles to Plex and auto-plays next):
             //   EOF   -> "file-ended"
@@ -947,14 +1019,21 @@ class MPVPlayerController {
             }
 
         case MPV_EVENT_PLAYBACK_RESTART:
+            withCache { cachedPlaybackStarted = true }
             print("▶️ [MPV] Playback restarted")
             let audioOutput: String? = getProperty("current-ao", type: .string)
             print("🔊 [MPV] Audio output: \(audioOutput ?? "none")")
+            // The position after a seek or restart goes out at once, ahead of the event.
+            if let time = withCache({ cachedTimePos }) {
+                forwardTimePos(time, force: true)
+            }
+            forceNextTimePosForward = true
             DispatchQueue.main.async { [weak self] in
                 self?.onEvent?("playback-restart")
             }
 
         case MPV_EVENT_SEEK:
+            forceNextTimePosForward = true
             DispatchQueue.main.async { [weak self] in
                 self?.onEvent?("seek")
             }
@@ -984,6 +1063,34 @@ class MPVPlayerController {
         }
     }
 
+    /// Forwards `time-pos` to the main thread at most every `timePosForwardInterval`.
+    /// A skipped value is sent later by a trailing flush, so the last position always
+    /// arrives. Event queue only.
+    private func forwardTimePos(_ value: Any?, force: Bool = false) {
+        let now = CFAbsoluteTimeGetCurrent()
+        let elapsed = now - lastTimePosForward
+        if force || forceNextTimePosForward || elapsed >= Self.timePosForwardInterval {
+            forceNextTimePosForward = false
+            timePosForwardPending = false
+            lastTimePosForward = now
+            DispatchQueue.main.async { [weak self] in
+                self?.onPropertyChange?("time-pos", value)
+            }
+            return
+        }
+        guard !timePosForwardPending else { return }
+        timePosForwardPending = true
+        queue.asyncAfter(deadline: .now() + (Self.timePosForwardInterval - elapsed)) { [weak self] in
+            guard let self, self.timePosForwardPending else { return }
+            self.timePosForwardPending = false
+            self.lastTimePosForward = CFAbsoluteTimeGetCurrent()
+            let latest = self.withCache { self.cachedTimePos }
+            DispatchQueue.main.async { [weak self] in
+                self?.onPropertyChange?("time-pos", latest)
+            }
+        }
+    }
+
     /// Reads the new file's tracks, chapters and path here on the event queue (never
     /// the main thread), so the "file-loaded" handlers see them at once.
     private func refreshCachesForLoadedFile() {
@@ -994,6 +1101,7 @@ class MPVPlayerController {
             mpv_free_node_contents(&trackNode)
             withCache { cachedTracks = tracks }
         }
+        withCache { staticStatsStaleUntil = CFAbsoluteTimeGetCurrent() + 2 }
         var chapterNode = mpv_node()
         if mpv_get_property(mpv, "chapter-list", MPV_FORMAT_NODE, &chapterNode) >= 0 {
             let chapters = Self.parseChapters(chapterNode)
@@ -1133,7 +1241,47 @@ class MPVPlayerController {
         }
     }
 
+    /// apiQueue only. Per-file values are re-read for 2 s after the file or its tracks
+    /// change, while the video or audio codec is unknown, and every 5 s; the rest on
+    /// every call.
     private func collectPerformanceStats() -> PerformanceStats {
+        let now = CFAbsoluteTimeGetCurrent()
+        let (path, staleUntil) = withCache { (cachedPath, staticStatsStaleUntil) }
+        if path != staticStatsPath {
+            withCache { staticStatsStaleUntil = max(staticStatsStaleUntil, now + 2) }
+        }
+        if staticStats == nil || now < staleUntil || path != staticStatsPath
+            || staticStats?.videoCodec == nil || staticStats?.videoWidth == nil
+            || staticStats?.audioCodec == nil
+            || now - staticStatsTime >= 5 {
+            staticStats = collectStaticPerformanceStats()
+            staticStatsPath = path
+            staticStatsTime = now
+        }
+        var stats = staticStats ?? PerformanceStats()
+
+        stats.videoBitrate = getPropertyDouble("video-bitrate")
+        stats.audioBitrate = getPropertyDouble("audio-bitrate")
+
+        // Playback properties
+        stats.decoderFrameDropCount = getPropertyAsInt("decoder-frame-drop-count")
+        stats.frameDropCount = getPropertyAsInt("frame-drop-count")
+        stats.avsync = getPropertyDouble("avsync")
+        stats.estimatedVfFps = getPropertyDouble("estimated-vf-fps")
+        stats.displayFps = getPropertyDouble("display-fps")
+
+        // Cache properties
+        stats.cacheUsed = getPropertyAsInt("cache-used")
+        stats.cacheSpeed = getPropertyDouble("cache-speed")
+        stats.demuxerCacheDuration = getPropertyDouble("demuxer-cache-duration")
+
+        // App metrics (memory usage)
+        stats.appMemoryBytes = getAppMemoryUsage()
+
+        return stats
+    }
+
+    private func collectStaticPerformanceStats() -> PerformanceStats {
         var stats = PerformanceStats()
 
         // Video properties
@@ -1142,7 +1290,6 @@ class MPVPlayerController {
         stats.videoWidth = getPropertyAsInt("video-params/w")
         stats.videoHeight = getPropertyAsInt("video-params/h")
         stats.videoFps = getPropertyDouble("container-fps")
-        stats.videoBitrate = getPropertyDouble("video-bitrate")
         stats.hwdecCurrent = getPropertyString("hwdec-current")
 
         // Color/Format properties
@@ -1163,22 +1310,6 @@ class MPVPlayerController {
         stats.audioCodec = getPropertyString("audio-codec-name")
         stats.audioChannels = getPropertyAsInt("audio-params/channel-count")
         stats.audioSampleRate = getPropertyAsInt("audio-params/samplerate")
-        stats.audioBitrate = getPropertyDouble("audio-bitrate")
-
-        // Playback properties
-        stats.decoderFrameDropCount = getPropertyAsInt("decoder-frame-drop-count")
-        stats.frameDropCount = getPropertyAsInt("frame-drop-count")
-        stats.avsync = getPropertyDouble("avsync")
-        stats.estimatedVfFps = getPropertyDouble("estimated-vf-fps")
-        stats.displayFps = getPropertyDouble("display-fps")
-
-        // Cache properties
-        stats.cacheUsed = getPropertyAsInt("cache-used")
-        stats.cacheSpeed = getPropertyDouble("cache-speed")
-        stats.demuxerCacheDuration = getPropertyDouble("demuxer-cache-duration")
-
-        // App metrics (memory usage)
-        stats.appMemoryBytes = getAppMemoryUsage()
 
         return stats
     }
@@ -1447,6 +1578,19 @@ struct ThumbnailInfo: Codable {
         case thumbnail
         case overlay_id
     }
+}
+
+/// How a file was opened (see `MPVPlayerController.loadFile`).
+struct MPVNetworkLoadOptions {
+    let url: String
+    /// `http-header-fields` value ("" for none).
+    let headerFields: String
+    let verifyTLS: Bool
+    /// `stream-lavf-o` reconnect options.
+    let reconnectOptions: String
+
+    /// Entries of the user's custom MPV config that affect how files are fetched.
+    static let networkConfigKeys: Set<String> = ["user-agent", "referrer", "cookies", "cookies-file", "http-proxy", "network-timeout"]
 }
 
 /// MPV track information (audio, subtitle, video)

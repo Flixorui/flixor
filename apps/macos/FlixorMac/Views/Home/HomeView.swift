@@ -5,6 +5,7 @@
 //  Home screen with Billboard, Continue Watching, etc.
 //
 
+import Combine
 import SwiftUI
 import FlixorKit
 
@@ -31,7 +32,7 @@ struct HomeView: View {
         if heroIsFullBleed {
             theme.background.ignoresSafeArea()
         } else {
-            HomeBackground(heroColors: viewModel.heroColors)
+            HomeHeroBackground(hero: viewModel.hero)
         }
     }
 
@@ -79,17 +80,14 @@ struct HomeView: View {
             }
         }
         .onAppear {
-            // Back from a pushed page. The first load starts these itself.
-            guard !viewModel.billboardItems.isEmpty else { return }
-            viewModel.resumeBillboardRotation()
-            Task { await viewModel.refreshContinueWatchingIfStale() }
+            // Back from a pushed page: resumes rotation and polling, refreshes if stale.
+            viewModel.setHomeOnScreen(true)
         }
         .onDisappear {
-            viewModel.stopBillboardRotation()
+            viewModel.setHomeOnScreen(false)
         }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            Task { await viewModel.refreshContinueWatchingIfStale() }
-        }
+        // Tab, app activity and player changes, observed outside this body.
+        .background(HomeVisibilityObserver(viewModel: viewModel))
         .onChange(of: viewModel.pendingAction) { action in
             guard let action = action else { return }
             switch action {
@@ -133,9 +131,12 @@ struct HomeView: View {
             Task { await viewModel.refreshContinueWatching() }
         }
         .onReceive(NotificationCenter.default.publisher(for: .localWatchHistoryDidChange)) { _ in
-            // Stream playback just wrote progress; pick it up when returning to Home.
-            guard AppModeStore.shared.isStremioOnly else { return }
-            Task { await viewModel.loadLocalContinueWatching() }
+            // Stream playback wrote progress; reloaded once the player closes.
+            viewModel.localWatchHistoryChanged()
+        }
+        .onChange(of: profileSettings.heroLayout) { _ in
+            // The carousel doesn't show hero colors, so they may not be loaded yet.
+            viewModel.updateHeroColorsForCurrentItem()
         }
     }
 
@@ -172,20 +173,81 @@ struct HomeView: View {
             .task(id: rows.map(\.id)) { await preheatArtwork(for: rows) }
             .animation(DS.Motion.emphasized, value: viewModel.extraSectionsState)
             .animation(DS.Motion.emphasized, value: viewModel.recentlyAddedPerLibraryState)
+            .animation(DS.Motion.emphasized, value: viewModel.extraSlots.count)
         }
     }
 
-    /// Loads the first posters of every row, so rows are ready before they scroll in.
+    /// Loads the first images of the first three rows, so the top of the page
+    /// is ready before it scrolls in. Rows further down load as they appear.
+    /// Warms exactly the URL and size each row's card asks for first.
     private func preheatArtwork(for rows: [HomeDisplayRow]) async {
-        let urls = rows.flatMap { row -> [URL] in
-            guard case .section(let section) = row.content else { return [] }
-            return section.items.prefix(12).compactMap { item in
-                guard let thumb = item.thumb, thumb.hasPrefix("http") else { return nil }
-                return URL(string: thumb)
+        let sections = rows.lazy.compactMap { row -> LibrarySection? in
+            guard case .section(let section) = row.content, !section.items.isEmpty else { return nil }
+            return section
+        }.prefix(3)
+
+        var urlsBySize: [Int: [URL]] = [:]
+        for section in sections {
+            // Top 10 rows and poster-layout collections use other cards; skip them.
+            if section.id.hasPrefix("\(StreamingAvailabilityStore.rowIdPrefix)top-") { continue }
+            let isPoster = profileSettings.rowLayout == "poster"
+            if isPoster && section.isCollection { continue }
+
+            let size = isPoster
+                ? ImageCache.fillPixelSize(width: sectionPosterWidth, height: sectionPosterWidth * 1.5)
+                : ImageCache.fillPixelSize(width: Self.landscapeCardWidth, height: Self.landscapeCardWidth * 0.5)
+            for item in section.items.prefix(12) {
+                let url = isPoster
+                    ? posterCardFirstURL(for: item, width: sectionPosterWidth)
+                    : landscapeCardFirstURL(for: item, width: Self.landscapeCardWidth)
+                if let url { urlsBySize[size, default: []].append(url) }
             }
         }
-        await ImageCache.shared.preheat(urls: Array(urls.prefix(360)))
+        for (size, urls) in urlsBySize {
+            await ImageCache.shared.preheat(urls: urls, maxPixelSize: size)
+        }
     }
+
+    /// Card width of `LandscapeSectionView` and landscape collection rows.
+    private static let landscapeCardWidth: CGFloat = 420
+
+    /// Card width of `PosterSectionRow`.
+    private var sectionPosterWidth: CGFloat {
+        metrics.posterWidth(base: CardPosterSize(stored: profileSettings.posterSize).baseWidth)
+    }
+
+    /// Mirrors `PosterSectionCard.imageURL` before its own lookup has run.
+    /// Keep in step with PosterSectionRow.swift.
+    private func posterCardFirstURL(for item: MediaItem, width: CGFloat) -> URL? {
+        let height = width * 1.5
+        if item.thumb?.hasPrefix("http") != true,
+           let resolved = ArtworkLookup.cachedURL(.poster, for: item) {
+            return ImageService.tmdbImageURL(resolved, size: ImageService.tmdbPosterSize(forPointWidth: width))
+        }
+        let base: URL?
+        if item.type == "episode", let grandparentThumb = item.grandparentThumb {
+            base = ImageService.shared.plexImageURL(path: grandparentThumb, width: Int(width * 2), height: Int(height * 2))
+        } else {
+            base = ImageService.shared.thumbURL(for: item, width: Int(width * 2), height: Int(height * 2))
+        }
+        return ImageService.tmdbImageURL(base, downsizingOriginalTo: "w780")
+    }
+
+    /// Mirrors `LandscapeCard.imageURL` before its own lookup has run.
+    /// Keep in step with LandscapeCard.swift.
+    private func landscapeCardFirstURL(for item: MediaItem, width: CGFloat) -> URL? {
+        let height = width * 0.5
+        let url: URL?
+        if let resolved = ArtworkLookup.cachedURL(.backdrop, for: item) {
+            url = resolved
+        } else if ImageService.isTMDBImageURL(item.art), let art = item.art {
+            url = URL(string: art)
+        } else {
+            url = ImageService.shared.continueWatchingURL(for: item, width: Int(width * 2), height: Int(height * 2))
+        }
+        return ImageService.tmdbImageURL(url, size: ImageService.tmdbBackdropSize(forPointWidth: width))
+    }
+
 
     /// Hero Section (Billboard or Carousel based on settings)
     @ViewBuilder
@@ -195,12 +257,7 @@ struct HomeView: View {
                 if !viewModel.billboardItems.isEmpty {
                     switch profileSettings.heroLayout {
                     case "carousel":
-                        HeroCarousel(
-                            items: viewModel.billboardItems,
-                            currentIndex: $viewModel.currentBillboardIndex,
-                            onInfo: { item in viewModel.showItemDetails(item) },
-                            onUserNavigate: { viewModel.resumeBillboardRotation() }
-                        )
+                        HomeHeroCarousel(viewModel: viewModel, hero: viewModel.hero)
                     default: // "billboard"
                         BillboardSection(viewModel: viewModel)
                     }
@@ -371,15 +428,22 @@ struct HomeView: View {
 
 struct BillboardSection: View {
     @ObservedObject var viewModel: HomeViewModel
+    /// The rotating index lives here, so a page turn doesn't re-render all of Home.
+    @ObservedObject private var hero: HomeHeroState
     @ObservedObject private var profileSettings = ProfileSettings.shared
 
     @State private var isHovered = false
 
+    init(viewModel: HomeViewModel) {
+        self.viewModel = viewModel
+        self._hero = ObservedObject(wrappedValue: viewModel.hero)
+    }
+
     var currentItem: MediaItem? {
-        guard viewModel.currentBillboardIndex < viewModel.billboardItems.count else {
+        guard hero.currentIndex < viewModel.billboardItems.count else {
             return nil
         }
-        return viewModel.billboardItems[viewModel.currentBillboardIndex]
+        return viewModel.billboardItems[hero.currentIndex]
     }
 
     var body: some View {
@@ -444,7 +508,7 @@ struct BillboardSection: View {
 
                     HeroPageIndicator(
                         count: viewModel.billboardItems.count,
-                        currentIndex: viewModel.currentBillboardIndex,
+                        currentIndex: hero.currentIndex,
                         style: .dots,
                         onSelect: { goToIndex($0) }
                     )
@@ -465,7 +529,7 @@ struct BillboardSection: View {
                 }
             }
         }
-        .animation(DS.Motion.slow, value: viewModel.currentBillboardIndex)
+        .animation(DS.Motion.slow, value: hero.currentIndex)
         .onChange(of: profileSettings.heroAutoRotate) { newValue in
             if newValue {
                 viewModel.resumeBillboardRotation()
@@ -479,10 +543,10 @@ struct BillboardSection: View {
 
     private func previousItem() {
         withAnimation(DS.Motion.slow) {
-            if viewModel.currentBillboardIndex > 0 {
-                viewModel.currentBillboardIndex -= 1
+            if hero.currentIndex > 0 {
+                hero.currentIndex -= 1
             } else {
-                viewModel.currentBillboardIndex = viewModel.billboardItems.count - 1
+                hero.currentIndex = viewModel.billboardItems.count - 1
             }
         }
         viewModel.updateHeroColorsForCurrentItem()
@@ -490,10 +554,10 @@ struct BillboardSection: View {
 
     private func nextItem() {
         withAnimation(DS.Motion.slow) {
-            if viewModel.currentBillboardIndex < viewModel.billboardItems.count - 1 {
-                viewModel.currentBillboardIndex += 1
+            if hero.currentIndex < viewModel.billboardItems.count - 1 {
+                hero.currentIndex += 1
             } else {
-                viewModel.currentBillboardIndex = 0
+                hero.currentIndex = 0
             }
         }
         viewModel.updateHeroColorsForCurrentItem()
@@ -501,9 +565,72 @@ struct BillboardSection: View {
 
     private func goToIndex(_ index: Int) {
         withAnimation(DS.Motion.slow) {
-            viewModel.currentBillboardIndex = index
+            hero.currentIndex = index
         }
         viewModel.updateHeroColorsForCurrentItem()
+    }
+}
+
+// MARK: - Hero Hosts
+
+/// The carousel, observing only the hero's rotating state.
+private struct HomeHeroCarousel: View {
+    let viewModel: HomeViewModel
+    @ObservedObject var hero: HomeHeroState
+
+    var body: some View {
+        HeroCarousel(
+            items: viewModel.billboardItems,
+            currentIndex: $hero.currentIndex,
+            onInfo: { item in viewModel.showItemDetails(item) },
+            onUserNavigate: { viewModel.resumeBillboardRotation() }
+        )
+    }
+}
+
+/// The page background tinted by the hero colors, observing only the hero state.
+private struct HomeHeroBackground: View {
+    @ObservedObject var hero: HomeHeroState
+
+    var body: some View {
+        HomeBackground(heroColors: hero.colors)
+    }
+}
+
+/// Tells the view model when Home is the selected tab, when the app is active
+/// and when a player opens or closes. Kept out of HomeView so tab switches
+/// don't re-render the page.
+private struct HomeVisibilityObserver: View {
+    let viewModel: HomeViewModel
+    @EnvironmentObject private var mainViewState: MainViewState
+
+    var body: some View {
+        Color.clear
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+            .onAppear { viewModel.setAppActive(Self.isAppVisible) }
+            .onReceive(mainViewState.$selectedTab.removeDuplicates()) { tab in
+                viewModel.setHomeTabSelected(tab == .home)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+                viewModel.setAppActive(Self.isAppVisible)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in
+                viewModel.setAppActive(false)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSApplication.didChangeOcclusionStateNotification)) { _ in
+                viewModel.setAppActive(Self.isAppVisible)
+            }
+            // No dropFirst: if this view is rebuilt while a player is open, the
+            // first value is `true` and the close still arrives.
+            .onReceive(PlaybackCommandState.shared.$isPlayerActive.removeDuplicates()) { isActive in
+                viewModel.playerActivityChanged(isActive: isActive)
+            }
+    }
+
+    /// Active and with a window on screen (not hidden or minimised).
+    private static var isAppVisible: Bool {
+        NSApp.isActive && NSApp.occlusionState.contains(.visible)
     }
 }
 

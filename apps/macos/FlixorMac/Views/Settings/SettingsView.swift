@@ -50,7 +50,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         case .mdblist: return "MDBList"
         case .overseerr: return "Overseerr"
         case .trakt: return "Trakt"
-        case .streamingAvailability: return String(localized: "Streaming Availability")
+        case .streamingAvailability: return String(localized: "Top 10 Lists")
         case .appearance: return String(localized: "Appearance")
         case .advanced: return String(localized: "Advanced")
         case .about: return String(localized: "About")
@@ -74,7 +74,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         case .mdblist: return String(localized: "Ratings from IMDb, Rotten Tomatoes, Letterboxd and more")
         case .overseerr: return String(localized: "Request movies and shows you don't have yet")
         case .trakt: return String(localized: "Watch history, ratings and scrobbling")
-        case .streamingAvailability: return String(localized: "Top 10 and new arrivals on Netflix, Prime Video, Disney+, Apple TV+ and Max")
+        case .streamingAvailability: return String(localized: "Top 10 and new arrivals from FlixPatrol and Streaming Availability")
         case .appearance: return String(localized: "Accent colour and background")
         case .advanced: return String(localized: "Debug logging and diagnostics")
         case .about: return String(localized: "App information and credits")
@@ -90,7 +90,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         case .libraryScreen: return "library screen grid tabs"
         case .detailsScreen: return "details screen episodes"
         case .sidebar: return "navbar navigation tabs new & popular"
-        case .streamingAvailability: return "movie of the night top 10 netflix prime disney apple max api key"
+        case .streamingAvailability: return "flixpatrol streaming availability movie of the night top 10 netflix prime disney apple max paramount hulu starz hotstar api key"
         default: return ""
         }
     }

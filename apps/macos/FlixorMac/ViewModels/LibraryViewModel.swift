@@ -131,7 +131,7 @@ final class LibraryViewModel: ObservableObject {
                 if contentTab == .library { settings.lastTab = LibraryScreenSettings.sectionTab(id) }
                 restoreSort(for: id)
             }
-            Task { await reloadCurrentSection() }
+            startReload()
         }
     }
 
@@ -144,9 +144,15 @@ final class LibraryViewModel: ObservableObject {
 
     @Published var sort: SortOption = .dateAddedDesc {
         didSet {
+            guard oldValue != sort else { return }
             applyFilters()
             if !isRestoringSort, settings.rememberSort, let id = activeSection?.id {
                 settings.setRememberedSort(sort.rawValue, section: id)
+            }
+            // The server pages in sort order, so with pages still to come start again
+            // from the first one. What is loaded stays on screen until it arrives.
+            if !isRestoringSort, let id = activeSection?.id, hasMore || isLoading {
+                startReload(refreshFacets: facetsSectionId != id, keepItems: true)
             }
         }
     }
@@ -167,7 +173,10 @@ final class LibraryViewModel: ObservableObject {
     }
 
     @Published var searchQuery: String = "" {
-        didSet { applyFilters() }
+        didSet {
+            guard oldValue != searchQuery else { return }
+            scheduleSearchFilter()
+        }
     }
 
     @Published private(set) var items: [LibraryEntry] = []
@@ -197,6 +206,21 @@ final class LibraryViewModel: ObservableObject {
     private var totals: [String: Int] = [:]
     private var sectionsLoaded = false
     private var collectionsCache: [String: [CollectionEntry]] = [:]
+
+    /// Lowercased title and summary for each entry in `items`, same order.
+    private struct SearchKey {
+        let title: String
+        let summary: String?
+    }
+    private var itemSearchKeys: [SearchKey] = []
+    /// The sort `items` arrived in from the server; nil until the first page.
+    private var itemsSort: SortOption?
+    /// Section whose genre and year lists are loaded.
+    private var facetsSectionId: String?
+    private var loadTask: Task<Void, Never>?
+    /// Bumped by each reload; responses for an older one are dropped.
+    private var loadGeneration = 0
+    private var searchTask: Task<Void, Never>?
 
     // MARK: - Public API
 
@@ -230,7 +254,7 @@ final class LibraryViewModel: ObservableObject {
         guard selectedGenre?.id != option?.id else { return }
         selectedGenre = option
         saveFilters()
-        Task { await reloadCurrentSection(refreshFacets: false) }
+        startReload(refreshFacets: false)
     }
 
     func updateYear(_ option: FilterOption?) {
@@ -238,7 +262,7 @@ final class LibraryViewModel: ObservableObject {
         selectedYear = option
         selectedDecade = nil
         saveFilters()
-        Task { await reloadCurrentSection(refreshFacets: false) }
+        startReload(refreshFacets: false)
     }
 
     // MARK: Remembered sort and filters (Settings > Library Screen)
@@ -278,7 +302,7 @@ final class LibraryViewModel: ObservableObject {
         selectedDecade = decade
         selectedYear = nil
         saveFilters()
-        Task { await reloadCurrentSection(refreshFacets: false) }
+        startReload(refreshFacets: false)
     }
 
     /// Decades that have at least one title, newest first.
@@ -319,7 +343,13 @@ final class LibraryViewModel: ObservableObject {
     func retry() async {
         errorMessage = nil
         sectionsLoaded = false
+        let hadSection = activeSection != nil
         await loadIfNeeded()
+        // loadIfNeeded only loads items when it picks a section, so reload the one
+        // already showing. Keeps the current filters and sort.
+        if hadSection, errorMessage == nil, activeSection != nil {
+            startReload(refreshFacets: false)
+        }
     }
 
     // MARK: - Data Loading
@@ -376,35 +406,73 @@ final class LibraryViewModel: ObservableObject {
         }
     }
 
+    /// Cancels any load in progress and starts a new one for the active section.
+    private func startReload(refreshFacets: Bool = true, keepItems: Bool = false) {
+        loadTask?.cancel()
+        loadGeneration &+= 1
+        let generation = loadGeneration
+        loadTask = Task { [weak self] in
+            await self?.reloadCurrentSection(refreshFacets: refreshFacets, keepItems: keepItems, generation: generation)
+        }
+    }
+
     /// - Parameter refreshFacets: Reload the genre/year lists (a new section).
     ///   Filter changes pass false: reloading the lists resets the selected
     ///   genre and year, which used to undo the filter before the fetch.
-    private func reloadCurrentSection(refreshFacets: Bool = true) async {
-        guard let section = activeSection else { return }
+    /// - Parameter keepItems: Leave the current items on screen until the first page arrives.
+    private func reloadCurrentSection(refreshFacets: Bool, keepItems: Bool, generation: Int) async {
+        guard let section = activeSection, generation == loadGeneration else { return }
         isLoading = true
-        items = []
-        visibleItems = []
+        if !keepItems {
+            items = []
+            itemSearchKeys = []
+            visibleItems = []
+        }
         offsets[section.id] = 0
         totals[section.id] = nil
         clearCollectionCacheIfNeeded(for: section)
+
+        let needsFacets = refreshFacets || facetsSectionId != section.id
         if refreshFacets {
-            await fetchFacets(for: section)
-            restoreFilters(for: section.id)
+            selectedGenre = nil
+            selectedYear = nil
+            selectedDecade = nil
         }
-        await fetchItems(reset: true)
+        let restoresFilters = refreshFacets
+            && settings.rememberFilters
+            && !settings.rememberedFilters(section: section.id).isEmpty
+
+        if needsFacets && restoresFilters {
+            // Saved filters need the genre/year lists before the first page.
+            await fetchFacets(for: section, generation: generation)
+            guard generation == loadGeneration else { return }
+            restoreFilters(for: section.id)
+            await fetchItems(reset: true)
+        } else if needsFacets {
+            async let facets: Void = fetchFacets(for: section, generation: generation)
+            await fetchItems(reset: true)
+            await facets
+        } else {
+            await fetchItems(reset: true)
+        }
+
+        guard generation == loadGeneration else { return }
         if contentTab == .collections {
             await loadCollectionsIfNeeded()
         }
     }
 
-    private func fetchFacets(for section: LibrarySectionSummary) async {
+    private func fetchFacets(for section: LibrarySectionSummary, generation: Int) async {
         await withTaskGroup(of: Void.self) { group in
-            group.addTask { await self.fetchGenres(for: section) }
-            group.addTask { await self.fetchYears(for: section) }
+            group.addTask { await self.fetchGenres(for: section, generation: generation) }
+            group.addTask { await self.fetchYears(for: section, generation: generation) }
+        }
+        if generation == loadGeneration, !Task.isCancelled {
+            facetsSectionId = section.id
         }
     }
 
-    private func fetchGenres(for section: LibrarySectionSummary) async {
+    private func fetchGenres(for section: LibrarySectionSummary, generation: Int) async {
         struct DirectoryEntry: Codable {
             let key: String?
             let title: String?
@@ -419,18 +487,19 @@ final class LibraryViewModel: ObservableObject {
 
         do {
             let response: DirectoryResponse = try await api.get("/api/plex/library/\(section.id)/genre")
+            guard generation == loadGeneration else { return }
             let dirs = response.MediaContainer?.Directory ?? response.Directory ?? []
             genres = dirs.compactMap {
                 guard let key = $0.key, let title = $0.title else { return nil }
                 return FilterOption(id: key, label: title, value: key)
             }.sorted { $0.label < $1.label }
-            selectedGenre = nil
         } catch {
+            guard generation == loadGeneration else { return }
             genres = []
         }
     }
 
-    private func fetchYears(for section: LibrarySectionSummary) async {
+    private func fetchYears(for section: LibrarySectionSummary, generation: Int) async {
         struct DirectoryEntry: Codable {
             let key: String?
             let title: String?
@@ -445,21 +514,23 @@ final class LibraryViewModel: ObservableObject {
 
         do {
             let response: DirectoryResponse = try await api.get("/api/plex/library/\(section.id)/year")
+            guard generation == loadGeneration else { return }
             let dirs = response.MediaContainer?.Directory ?? response.Directory ?? []
             years = dirs.compactMap {
                 guard let key = $0.key, let title = $0.title else { return nil }
                 return FilterOption(id: key, label: title, value: key)
             }
             .sorted { ($0.value) > ($1.value) }
-            selectedYear = nil
-            selectedDecade = nil
         } catch {
+            guard generation == loadGeneration else { return }
             years = []
         }
     }
 
     func fetchItems(reset: Bool) async {
         guard let section = activeSection else { return }
+        let generation = loadGeneration
+        let requestedSort = sort
 
         if reset {
             isLoading = true
@@ -480,7 +551,7 @@ final class LibraryViewModel: ObservableObject {
         var queryItems: [URLQueryItem] = [
             URLQueryItem(name: "offset", value: "\(offset)"),
             URLQueryItem(name: "limit", value: "\(pageSize)"),
-            URLQueryItem(name: "sort", value: sort.apiParameter)
+            URLQueryItem(name: "sort", value: requestedSort.apiParameter)
         ]
         if let genre = selectedGenre?.value {
             queryItems.append(URLQueryItem(name: "genre", value: genre))
@@ -493,22 +564,48 @@ final class LibraryViewModel: ObservableObject {
 
         do {
             let response: Response = try await api.get("/api/plex/library/\(section.id)/all", queryItems: queryItems)
+            // A newer reload replaced this request: keep its results off the grid.
+            guard generation == loadGeneration, activeSection?.id == section.id else {
+                if !reset { isLoadingMore = false }
+                return
+            }
             let metadata = response.Metadata ?? []
             let mapped = metadata.map { mapMedia($0) }
+            let keys = mapped.map(Self.searchKey(for:))
 
             if reset {
                 items = mapped
+                itemSearchKeys = keys
+                itemsSort = requestedSort
                 offsets[section.id] = mapped.count
             } else {
                 items.append(contentsOf: mapped)
+                itemSearchKeys.append(contentsOf: keys)
                 offsets[section.id] = (offsets[section.id] ?? 0) + mapped.count
             }
 
             let total = response.totalSize ?? response.size ?? ((offsets[section.id] ?? 0) + max(0, mapped.count))
             totals[section.id] = total
             hasMore = (offsets[section.id] ?? 0) < total
-            applyFilters()
+            if !reset, itemsSort == sort {
+                // Already in order: add the new page's matches at the end.
+                visibleItems.append(contentsOf: filtered(mapped, keys: keys))
+            } else {
+                applyFilters()
+            }
         } catch {
+            guard generation == loadGeneration, !Task.isCancelled else {
+                if !reset { isLoadingMore = false }
+                return
+            }
+            if reset {
+                // A failed first page leaves nothing to page from: drop any items
+                // kept on screen so a later load-more can't append a duplicate page.
+                items = []
+                itemSearchKeys = []
+                visibleItems = []
+                hasMore = false
+            }
             errorMessage = error.localizedDescription
         }
 
@@ -562,35 +659,60 @@ final class LibraryViewModel: ObservableObject {
         )
     }
 
-    private func applyFilters() {
-        var output = items
+    private static func searchKey(for entry: LibraryEntry) -> SearchKey {
+        SearchKey(title: entry.media.title.lowercased(), summary: entry.media.summary?.lowercased())
+    }
 
-        if !searchQuery.trimmingCharacters(in: .whitespaces).isEmpty {
-            let term = searchQuery.lowercased()
-            output = output.filter { entry in
-                entry.media.title.lowercased().contains(term)
-                || entry.media.summary?.lowercased().contains(term) == true
-            }
+    /// Applies the search text after a short pause in typing; clearing it applies at once.
+    private func scheduleSearchFilter() {
+        searchTask?.cancel()
+        if searchQuery.trimmingCharacters(in: .whitespaces).isEmpty {
+            applyFilters()
+            return
         }
+        searchTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 200_000_000)
+            guard !Task.isCancelled else { return }
+            self?.applyFilters()
+        }
+    }
 
-        output.sort { lhs, rhs in
-            switch sort {
-            case .dateAddedDesc:
-                return (lhs.addedAt ?? .distantPast) > (rhs.addedAt ?? .distantPast)
-            case .dateAddedAsc:
-                return (lhs.addedAt ?? .distantPast) < (rhs.addedAt ?? .distantPast)
-            case .titleAsc:
-                return lhs.media.title.localizedCaseInsensitiveCompare(rhs.media.title) == .orderedAscending
-            case .titleDesc:
-                return lhs.media.title.localizedCaseInsensitiveCompare(rhs.media.title) == .orderedDescending
-            case .yearDesc:
-                return (lhs.year ?? 0) > (rhs.year ?? 0)
-            case .yearAsc:
-                return (lhs.year ?? 0) < (rhs.year ?? 0)
-            case .ratingDesc:
-                return (lhs.rating ?? -Double.infinity) > (rhs.rating ?? -Double.infinity)
-            case .ratingAsc:
-                return (lhs.rating ?? Double.infinity) < (rhs.rating ?? Double.infinity)
+    private func filtered(_ entries: [LibraryEntry], keys: [SearchKey]) -> [LibraryEntry] {
+        guard !searchQuery.trimmingCharacters(in: .whitespaces).isEmpty else { return entries }
+        let term = searchQuery.lowercased()
+        var output: [LibraryEntry] = []
+        for (entry, key) in zip(entries, keys)
+        where key.title.contains(term) || key.summary?.contains(term) == true {
+            output.append(entry)
+        }
+        return output
+    }
+
+    private func applyFilters() {
+        var output = filtered(items, keys: itemSearchKeys)
+
+        // Items keep the server's order for the sort they were fetched with; a sort
+        // chosen since then is applied locally.
+        if itemsSort != sort {
+            output.sort { lhs, rhs in
+                switch sort {
+                case .dateAddedDesc:
+                    return (lhs.addedAt ?? .distantPast) > (rhs.addedAt ?? .distantPast)
+                case .dateAddedAsc:
+                    return (lhs.addedAt ?? .distantPast) < (rhs.addedAt ?? .distantPast)
+                case .titleAsc:
+                    return lhs.media.title.localizedCaseInsensitiveCompare(rhs.media.title) == .orderedAscending
+                case .titleDesc:
+                    return lhs.media.title.localizedCaseInsensitiveCompare(rhs.media.title) == .orderedDescending
+                case .yearDesc:
+                    return (lhs.year ?? 0) > (rhs.year ?? 0)
+                case .yearAsc:
+                    return (lhs.year ?? 0) < (rhs.year ?? 0)
+                case .ratingDesc:
+                    return (lhs.rating ?? -Double.infinity) > (rhs.rating ?? -Double.infinity)
+                case .ratingAsc:
+                    return (lhs.rating ?? Double.infinity) < (rhs.rating ?? Double.infinity)
+                }
             }
         }
 

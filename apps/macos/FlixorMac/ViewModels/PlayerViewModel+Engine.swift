@@ -137,13 +137,9 @@ extension PlayerViewModel {
             playbackSpeed = Float(speed)
         }
 
-        mpvController?.onSubtitleCueShown = { [weak self] shown in
-            Task { @MainActor [weak self] in
-                self?.recordShownSubtitleCue(shown)
-            }
-        }
-        recentSubtitleCues = []
+        resetObservedSubtitleCues()
         refreshSubtitleCues()
+        updateSubtitleCueObservation()
         startSubtitleHashLookupIfNeeded()
     }
 

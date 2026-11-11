@@ -24,8 +24,8 @@ struct SearchView: View {
             ScrollView {
                 VStack(spacing: 0) {
                     // Search Input Field
-                    SearchInputField(
-                        query: $viewModel.query,
+                    SearchQueryInputField(
+                        state: viewModel.queryState,
                         isFocused: $isSearchFieldFocused,
                         onSubmit: { viewModel.submitSearch() }
                     )
@@ -49,7 +49,7 @@ struct SearchView: View {
                                     onPersonTap: { person in navigateToPerson(person) }
                                 )
                             } else {
-                                EmptyStateView(query: viewModel.query)
+                                SearchQueryEmptyState(state: viewModel.queryState)
                             }
                         }
                     }
@@ -193,6 +193,26 @@ struct SearchView: View {
 }
 
 // MARK: - Search Input Field
+
+/// Only these small views follow the query text, so a keystroke doesn't
+/// re-render the whole Search screen.
+private struct SearchQueryInputField: View {
+    @ObservedObject var state: SearchQueryState
+    var isFocused: FocusState<Bool>.Binding
+    var onSubmit: () -> Void
+
+    var body: some View {
+        SearchInputField(query: $state.text, isFocused: isFocused, onSubmit: onSubmit)
+    }
+}
+
+private struct SearchQueryEmptyState: View {
+    @ObservedObject var state: SearchQueryState
+
+    var body: some View {
+        EmptyStateView(query: state.text)
+    }
+}
 
 struct SearchInputField: View {
     @Binding var query: String

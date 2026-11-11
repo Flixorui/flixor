@@ -22,10 +22,10 @@ struct CardInteractionsModifier: ViewModifier {
     var previewEnabled: Bool = true
     var extraMenuActions: [CardMenuAction] = []
 
-    // Cards always live under MainView, which injects these.
-    @EnvironmentObject private var watchlistController: WatchlistController
-    @EnvironmentObject private var router: NavigationRouter
-    @EnvironmentObject private var mainViewState: MainViewState
+    // Plain references (see CardNavigationContext): cards must not re-render on
+    // every push, pop, tab switch or watchlist change.
+    @Environment(\.cardWatchlistController) private var watchlistController
+    @Environment(\.cardNavigationContext) private var navigation
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.cardFocusContext) private var focusContext
@@ -77,9 +77,9 @@ struct CardInteractionsModifier: ViewModifier {
     }
 
     private var playAction: (() -> Void)? {
-        guard let destination = CardActions.playDestination(for: item) else { return nil }
-        let router = self.router
-        let mainViewState = self.mainViewState
+        guard let navigation, let destination = CardActions.playDestination(for: item) else { return nil }
+        let router = navigation.router
+        let mainViewState = navigation.mainViewState
         return {
             HoverPreviewController.shared.dismiss(animated: false)
             router.push(destination, on: mainViewState.selectedTab)
@@ -118,6 +118,42 @@ extension View {
             previewEnabled: previewEnabled,
             extraMenuActions: extraMenuActions
         ))
+    }
+}
+
+// MARK: - Non-observing environment
+
+/// MainView's router and tab state, for views that only need them inside
+/// actions. Reading this never subscribes to their changes, unlike
+/// `@EnvironmentObject`. Equal by identity, so re-injecting it is free.
+struct CardNavigationContext: Equatable {
+    let router: NavigationRouter
+    let mainViewState: MainViewState
+
+    static func == (lhs: CardNavigationContext, rhs: CardNavigationContext) -> Bool {
+        lhs.router === rhs.router && lhs.mainViewState === rhs.mainViewState
+    }
+}
+
+private struct CardNavigationContextKey: EnvironmentKey {
+    static let defaultValue: CardNavigationContext? = nil
+}
+
+private struct CardWatchlistControllerKey: EnvironmentKey {
+    static let defaultValue: WatchlistController? = nil
+}
+
+extension EnvironmentValues {
+    /// Set by MainView. Nil outside it (previews), where cards offer no Play.
+    var cardNavigationContext: CardNavigationContext? {
+        get { self[CardNavigationContextKey.self] }
+        set { self[CardNavigationContextKey.self] = newValue }
+    }
+
+    /// The app's WatchlistController without observing it. Set by RootView.
+    var cardWatchlistController: WatchlistController? {
+        get { self[CardWatchlistControllerKey.self] }
+        set { self[CardWatchlistControllerKey.self] = newValue }
     }
 }
 

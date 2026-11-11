@@ -81,86 +81,208 @@ class NewPopularViewModel: ObservableObject {
     private let apiClient = APIClient.shared
     private let imageBaseURL = "https://image.tmdb.org/t/p/"
 
+    private var loadTask: Task<Void, Never>?
+    private var loadGeneration = 0
+    /// When each sub-tab (with the period it was loaded for) last loaded successfully.
+    private var loadedAt: [String: Date] = [:]
+    /// Older content is refetched by loadIfNeeded, keeping it on screen meanwhile.
+    private let freshnessWindow: TimeInterval = 15 * 60
+    /// Concurrent TMDB detail requests for the Top 10 and Worth the Wait posters.
+    private let detailsBatchSize = 10
+
+    private func loadKey(for tab: Tab) -> String {
+        switch tab {
+        case .trending, .top10: return "\(tab.rawValue)|\(period.rawValue)"
+        case .comingSoon, .worthWait: return tab.rawValue
+        }
+    }
+
     // MARK: - Public Methods
 
+    /// Loads the active sub-tab unless it loaded for the current period within
+    /// the freshness window.
+    func loadIfNeeded() async {
+        if let loaded = loadedAt[loadKey(for: activeTab)],
+           Date().timeIntervalSince(loaded) < freshnessWindow {
+            // Drop a load still running for another sub-tab.
+            loadTask?.cancel()
+            loadGeneration += 1
+            isLoading = false
+            errorMessage = nil
+            return
+        }
+        await load()
+    }
+
+    /// Always refetches the active sub-tab. A newer load supersedes this one.
     func load() async {
+        loadTask?.cancel()
+        loadGeneration += 1
+        let generation = loadGeneration
+        let tab = activeTab
+        let key = loadKey(for: tab)
+
+        // A new period: don't show the previous period's rows meanwhile.
+        // A refresh of loaded content keeps it on screen.
+        if loadedAt[key] == nil {
+            switch tab {
+            case .trending:
+                trendingMovies = []
+                trendingShows = []
+            case .top10:
+                top10 = []
+            case .comingSoon, .worthWait:
+                break
+            }
+        }
+
         isLoading = true
         errorMessage = nil
 
-        do {
-            switch activeTab {
+        let task = Task { [weak self] in
+            guard let self else { return }
+            let succeeded: Bool
+            switch tab {
             case .trending:
-                await loadTrendingContent()
+                succeeded = await self.loadTrendingContent(generation: generation)
             case .top10:
-                await loadTop10Content()
+                succeeded = await self.loadTop10Content(generation: generation)
             case .comingSoon:
-                await loadComingSoonContent()
+                succeeded = await self.loadComingSoonContent(generation: generation)
             case .worthWait:
-                await loadWorthWaitContent()
+                succeeded = await self.loadWorthWaitContent(generation: generation)
             }
-        } catch {
-            print("❌ [NewPopular] Error loading content: \(error)")
-            errorMessage = String(localized: "Failed to load content. Please try again.")
+            guard self.isCurrent(generation) else { return }
+            if succeeded {
+                self.loadedAt[key] = Date()
+            }
+            self.isLoading = false
         }
+        loadTask = task
+        await task.value
+    }
 
-        isLoading = false
+    private func isCurrent(_ generation: Int) -> Bool {
+        !Task.isCancelled && generation == loadGeneration
     }
 
     // MARK: - Private Loading Methods
 
-    private func loadTrendingContent() async {
-        do {
-            // Fetch all data in parallel
-            async let moviesTask = apiClient.getTMDBTrending(mediaType: "movie", timeWindow: period.timeWindow)
-            async let showsTask = apiClient.getTMDBTrending(mediaType: "tv", timeWindow: period.timeWindow)
-            async let recentTask = fetchPlexRecentlyAdded()
-            async let popularTask = fetchPlexPopular()
+    private enum TrendingPart {
+        case movies(TMDBTrendingResponse)
+        case shows(TMDBTrendingResponse)
+        case recent([DisplayMediaItem])
+        case popular([DisplayMediaItem])
+        case failed(Error)
+        case hero
+    }
 
-            let (moviesRes, showsRes, recentRes, popularRes) = try await (moviesTask, showsTask, recentTask, popularTask)
-
-            // Map trending movies
-            trendingMovies = moviesRes.results.prefix(20).map { item in
-                DisplayMediaItem(
-                    id: "tmdb:movie:\(item.id)",
-                    title: item.title ?? String(localized: "Unknown"),
-                    imageURL: item.poster_path != nil ? URL(string: "\(imageBaseURL)w342\(item.poster_path!)") : nil,
-                    subtitle: item.release_date?.split(separator: "-").first.map(String.init),
-                    badge: item.vote_average.map { "⭐ \(String(format: "%.1f", $0))" },
-                    rank: nil,
-                    mediaType: "movie",
-                    artPath: nil  // TMDB items use API for backdrop
-                )
+    /// Each row is shown as soon as its request returns; the hero loads alongside.
+    private func loadTrendingContent(generation: Int) async -> Bool {
+        let timeWindow = period.timeWindow
+        let api = apiClient
+        return await withTaskGroup(of: TrendingPart.self) { group -> Bool in
+            group.addTask {
+                do { return .movies(try await api.getTMDBTrending(mediaType: "movie", timeWindow: timeWindow)) } catch { return .failed(error) }
+            }
+            group.addTask {
+                do { return .shows(try await api.getTMDBTrending(mediaType: "tv", timeWindow: timeWindow)) } catch { return .failed(error) }
+            }
+            group.addTask { [weak self] in
+                .recent((try? await self?.fetchPlexRecentlyAdded()) ?? [])
+            }
+            group.addTask { [weak self] in
+                .popular((try? await self?.fetchPlexPopular()) ?? [])
             }
 
-            // Map trending shows
-            trendingShows = showsRes.results.prefix(20).map { item in
-                DisplayMediaItem(
-                    id: "tmdb:tv:\(item.id)",
-                    title: item.name ?? String(localized: "Unknown"),
-                    imageURL: item.poster_path != nil ? URL(string: "\(imageBaseURL)w342\(item.poster_path!)") : nil,
-                    subtitle: item.first_air_date?.split(separator: "-").first.map(String.init),
-                    badge: item.vote_average.map { "⭐ \(String(format: "%.1f", $0))" },
-                    rank: nil,
-                    mediaType: "tv",
-                    artPath: nil  // TMDB items use API for backdrop
-                )
+            var failed = false
+            while let part = await group.next() {
+                guard isCurrent(generation) else { continue }
+                switch part {
+                case .movies(let moviesRes):
+                    trendingMovies = moviesRes.results.prefix(20).map { item in
+                        DisplayMediaItem(
+                            id: "tmdb:movie:\(item.id)",
+                            title: item.title ?? String(localized: "Unknown"),
+                            imageURL: item.poster_path != nil ? URL(string: "\(imageBaseURL)w342\(item.poster_path!)") : nil,
+                            subtitle: item.release_date?.split(separator: "-").first.map(String.init),
+                            badge: item.vote_average.map { "⭐ \(String(format: "%.1f", $0))" },
+                            rank: nil,
+                            mediaType: "movie",
+                            artPath: nil  // TMDB items use API for backdrop
+                        )
+                    }
+                    // Load hero from top trending movie
+                    if let topItem = moviesRes.results.first {
+                        group.addTask { [weak self] in
+                            await self?.loadHero(tmdbId: topItem.id, mediaType: "movie", topItem: topItem, generation: generation)
+                            return .hero
+                        }
+                    }
+                case .shows(let showsRes):
+                    trendingShows = showsRes.results.prefix(20).map { item in
+                        DisplayMediaItem(
+                            id: "tmdb:tv:\(item.id)",
+                            title: item.name ?? String(localized: "Unknown"),
+                            imageURL: item.poster_path != nil ? URL(string: "\(imageBaseURL)w342\(item.poster_path!)") : nil,
+                            subtitle: item.first_air_date?.split(separator: "-").first.map(String.init),
+                            badge: item.vote_average.map { "⭐ \(String(format: "%.1f", $0))" },
+                            rank: nil,
+                            mediaType: "tv",
+                            artPath: nil  // TMDB items use API for backdrop
+                        )
+                    }
+                case .recent(let items):
+                    recentlyAdded = items
+                case .popular(let items):
+                    popularPlex = items
+                case .failed(let error):
+                    guard !(error is CancellationError) else { continue }
+                    failed = true
+                    print("❌ [NewPopular] Error loading trending content: \(error)")
+                    errorMessage = String(localized: "Failed to load trending content")
+                case .hero:
+                    continue
+                }
             }
-
-            recentlyAdded = recentRes
-            popularPlex = popularRes
-
-            // Load hero from top trending movie
-            if let topItem = moviesRes.results.first {
-                await loadHero(tmdbId: topItem.id, mediaType: "movie", topItem: topItem)
-            }
-
-        } catch {
-            print("❌ [NewPopular] Error loading trending content: \(error)")
-            errorMessage = String(localized: "Failed to load trending content")
+            return !failed
         }
     }
 
-    private func loadTop10Content() async {
+    /// TMDB poster URLs for the given ids, fetched in bounded parallel batches.
+    private func fetchPosters(ids: [Int], isMovie: Bool) async -> [Int: URL] {
+        let api = apiClient
+        let base = imageBaseURL
+        var posters: [Int: URL] = [:]
+        for start in stride(from: 0, to: ids.count, by: detailsBatchSize) {
+            if Task.isCancelled { break }
+            let batch = ids[start..<min(start + detailsBatchSize, ids.count)]
+            await withTaskGroup(of: (Int, URL?).self) { group in
+                for id in Set(batch) {
+                    group.addTask {
+                        do {
+                            let posterPath: String?
+                            if isMovie {
+                                posterPath = try await api.getTMDBMovieDetails(id: String(id)).poster_path
+                            } else {
+                                posterPath = try await api.getTMDBTVDetails(id: String(id)).poster_path
+                            }
+                            return (id, posterPath.flatMap { URL(string: "\(base)w342\($0)") })
+                        } catch {
+                            print("⚠️ [NewPopular] Failed to fetch \(isMovie ? "movie" : "TV") details for \(id)")
+                            return (id, nil)
+                        }
+                    }
+                }
+                for await (id, url) in group {
+                    if let url { posters[id] = url }
+                }
+            }
+        }
+        return posters
+    }
+
+    private func loadTop10Content(generation: Int) async -> Bool {
         do {
             // Fetch top 10 from Trakt
             let traktPeriod = period.traktPeriod
@@ -170,26 +292,20 @@ class NewPopularViewModel: ObservableObject {
             let (moviesRes, showsRes) = try await (moviesTask, showsTask)
 
             // Fetch TMDB details for images
+            async let moviePostersTask = fetchPosters(ids: moviesRes.prefix(10).compactMap { $0.movie?.ids.tmdb }, isMovie: true)
+            async let showPostersTask = fetchPosters(ids: showsRes.prefix(10).compactMap { $0.show?.ids.tmdb }, isMovie: false)
+            let (moviePosters, showPosters) = await (moviePostersTask, showPostersTask)
+            guard isCurrent(generation) else { return false }
+
             var items: [DisplayMediaItem] = []
 
             // Process movies
             for (index, item) in moviesRes.prefix(10).enumerated() {
                 guard let movie = item.movie, let tmdbId = movie.ids.tmdb else { continue }
-
-                var imageURL: URL?
-                do {
-                    let details = try await apiClient.getTMDBMovieDetails(id: String(tmdbId))
-                    if let posterPath = details.poster_path {
-                        imageURL = URL(string: "\(imageBaseURL)w342\(posterPath)")
-                    }
-                } catch {
-                    print("⚠️ [NewPopular] Failed to fetch movie details for \(movie.title)")
-                }
-
                 items.append(DisplayMediaItem(
                     id: "tmdb:movie:\(tmdbId)",
                     title: movie.title,
-                    imageURL: imageURL,
+                    imageURL: moviePosters[tmdbId],
                     subtitle: movie.year.map(String.init),
                     badge: "#\(index + 1)",
                     rank: index + 1,
@@ -201,21 +317,10 @@ class NewPopularViewModel: ObservableObject {
             // Process shows
             for (index, item) in showsRes.prefix(10).enumerated() {
                 guard let show = item.show, let tmdbId = show.ids.tmdb else { continue }
-
-                var imageURL: URL?
-                do {
-                    let details = try await apiClient.getTMDBTVDetails(id: String(tmdbId))
-                    if let posterPath = details.poster_path {
-                        imageURL = URL(string: "\(imageBaseURL)w342\(posterPath)")
-                    }
-                } catch {
-                    print("⚠️ [NewPopular] Failed to fetch TV details for \(show.title)")
-                }
-
                 items.append(DisplayMediaItem(
                     id: "tmdb:tv:\(tmdbId)",
                     title: show.title,
-                    imageURL: imageURL,
+                    imageURL: showPosters[tmdbId],
                     subtitle: show.year.map(String.init),
                     badge: "#\(index + 1 + items.count)",
                     rank: index + 1 + items.count,
@@ -226,16 +331,20 @@ class NewPopularViewModel: ObservableObject {
 
             // Combine and sort by rank
             top10 = items.sorted { ($0.rank ?? 0) < ($1.rank ?? 0) }.prefix(10).map { $0 }
+            return true
 
         } catch {
+            guard isCurrent(generation), !(error is CancellationError) else { return false }
             print("❌ [NewPopular] Error loading top 10 content: \(error)")
             errorMessage = String(localized: "Failed to load top 10 content")
+            return false
         }
     }
 
-    private func loadComingSoonContent() async {
+    private func loadComingSoonContent(generation: Int) async -> Bool {
         do {
             let upcomingRes = try await apiClient.getTMDBUpcoming(region: "US", page: 1)
+            guard isCurrent(generation) else { return false }
 
             upcoming = upcomingRes.results.map { item in
                 DisplayMediaItem(
@@ -249,37 +358,31 @@ class NewPopularViewModel: ObservableObject {
                     artPath: nil
                 )
             }
+            return true
 
         } catch {
+            guard isCurrent(generation), !(error is CancellationError) else { return false }
             print("❌ [NewPopular] Error loading upcoming content: \(error)")
             errorMessage = String(localized: "Failed to load upcoming content")
+            return false
         }
     }
 
-    private func loadWorthWaitContent() async {
+    private func loadWorthWaitContent(generation: Int) async -> Bool {
         do {
             let anticipatedRes = try await apiClient.getTraktAnticipated(media: "movies", limit: 20)
 
             // Fetch TMDB details for images
-            var items: [DisplayMediaItem] = []
+            let posters = await fetchPosters(ids: anticipatedRes.compactMap { $0.movie?.ids.tmdb }, isMovie: true)
+            guard isCurrent(generation) else { return false }
 
+            var items: [DisplayMediaItem] = []
             for item in anticipatedRes {
                 guard let movie = item.movie, let tmdbId = movie.ids.tmdb else { continue }
-
-                var imageURL: URL?
-                do {
-                    let details = try await apiClient.getTMDBMovieDetails(id: String(tmdbId))
-                    if let posterPath = details.poster_path {
-                        imageURL = URL(string: "\(imageBaseURL)w342\(posterPath)")
-                    }
-                } catch {
-                    print("⚠️ [NewPopular] Failed to fetch movie details for \(movie.title)")
-                }
-
                 items.append(DisplayMediaItem(
                     id: "tmdb:movie:\(tmdbId)",
                     title: movie.title,
-                    imageURL: imageURL,
+                    imageURL: posters[tmdbId],
                     subtitle: movie.year.map(String.init),
                     badge: String(localized: "\(item.list_count) lists"),
                     rank: nil,
@@ -289,20 +392,35 @@ class NewPopularViewModel: ObservableObject {
             }
 
             anticipated = items
+            return true
 
         } catch {
+            guard isCurrent(generation), !(error is CancellationError) else { return false }
             print("❌ [NewPopular] Error loading anticipated content: \(error)")
             errorMessage = String(localized: "Failed to load anticipated content")
+            return false
         }
     }
 
-    private func loadHero(tmdbId: Int, mediaType: String, topItem: TMDBMediaItem) async {
+    private func fetchHeroDetails(mediaType: String, tmdbId: Int) async throws -> (runtime: Int?, genres: [String]) {
+        if mediaType == "movie" {
+            let details = try await apiClient.getTMDBMovieDetails(id: String(tmdbId))
+            return (details.runtime, details.genres?.map { $0.name } ?? [])
+        } else {
+            let details = try await apiClient.getTMDBTVDetails(id: String(tmdbId))
+            return (details.episode_run_time?.first, details.genres?.map { $0.name } ?? [])
+        }
+    }
+
+    private func loadHero(tmdbId: Int, mediaType: String, topItem: TMDBMediaItem, generation: Int) async {
         do {
             // Fetch details, videos, and images in parallel
             async let videosTask = apiClient.getTMDBVideos(mediaType: mediaType, id: String(tmdbId))
             async let imagesTask = apiClient.getTMDBImages(mediaType: mediaType, id: String(tmdbId))
+            async let detailsTask = fetchHeroDetails(mediaType: mediaType, tmdbId: tmdbId)
 
-            let (videos, images) = try await (videosTask, imagesTask)
+            let (videos, images, details) = try await (videosTask, imagesTask, detailsTask)
+            guard isCurrent(generation) else { return }
 
             // Find trailer
             let trailer = videos.results.first { $0.type == "Trailer" && $0.site == "YouTube" }
@@ -322,18 +440,8 @@ class NewPopularViewModel: ObservableObject {
                 ?? pickBestBackdrop(backdrops)
 
             // Get detailed info
-            var runtime: Int?
-            var genres: [String] = []
-
-            if mediaType == "movie" {
-                let details = try await apiClient.getTMDBMovieDetails(id: String(tmdbId))
-                runtime = details.runtime
-                genres = details.genres?.map { $0.name } ?? []
-            } else {
-                let details = try await apiClient.getTMDBTVDetails(id: String(tmdbId))
-                runtime = details.episode_run_time?.first
-                genres = details.genres?.map { $0.name } ?? []
-            }
+            let runtime = details.runtime
+            let genres = details.genres
 
             // Check if available on Plex
             let heroId = "tmdb:\(mediaType):\(tmdbId)"
@@ -410,43 +518,46 @@ class NewPopularViewModel: ObservableObject {
             }
             let dirs = libraries
 
-            var allItems: [PlexMediaItem] = []
-
-            // Fetch from each movie/show library
-            for library in dirs where library.type == "movie" || library.type == "show" {
-                print("📁 [NewPopular] Processing library: \(library.title ?? library.key) (type: \(library.type))")
-                let typeNum = library.type == "movie" ? 1 : 2
-
-                // Try lastViewedAt first
-                var response: PlexLibraryResponse? = nil
-                do {
-                    response = try await apiClient.getPlexLibraryAll(
-                        sectionKey: library.key,
-                        type: typeNum,
-                        sort: "lastViewedAt:desc",
-                        limit: 50
-                    )
-                    print("✅ [NewPopular] Got lastViewedAt response with \(response?.Metadata?.count ?? 0) items")
-                } catch {
-                    print("⚠️ [NewPopular] lastViewedAt failed for \(library.key): \(error), trying viewCount")
-                    do {
-                        response = try await apiClient.getPlexLibraryAll(
-                            sectionKey: library.key,
-                            type: typeNum,
-                            sort: "viewCount:desc",
-                            limit: 50
-                        )
-                        print("✅ [NewPopular] Got viewCount response with \(response?.Metadata?.count ?? 0) items")
-                    } catch {
-                        print("❌ [NewPopular] viewCount also failed for \(library.key): \(error)")
+            // Fetch from each movie/show library in parallel, keeping library order
+            let mediaLibraries = dirs.filter { $0.type == "movie" || $0.type == "show" }
+            let api = apiClient
+            let perLibrary = await withTaskGroup(of: (Int, [PlexMediaItem]).self) { group -> [[PlexMediaItem]] in
+                for (index, library) in mediaLibraries.enumerated() {
+                    let key = library.key
+                    let typeNum = library.type == "movie" ? 1 : 2
+                    group.addTask {
+                        // Try lastViewedAt first
+                        var response: PlexLibraryResponse? = nil
+                        do {
+                            response = try await api.getPlexLibraryAll(
+                                sectionKey: key,
+                                type: typeNum,
+                                sort: "lastViewedAt:desc",
+                                limit: 50
+                            )
+                        } catch {
+                            print("⚠️ [NewPopular] lastViewedAt failed for \(key): \(error), trying viewCount")
+                            do {
+                                response = try await api.getPlexLibraryAll(
+                                    sectionKey: key,
+                                    type: typeNum,
+                                    sort: "viewCount:desc",
+                                    limit: 50
+                                )
+                            } catch {
+                                print("❌ [NewPopular] viewCount also failed for \(key): \(error)")
+                            }
+                        }
+                        return (index, response?.Metadata ?? [])
                     }
                 }
-
-                if let items = response?.Metadata {
-                    print("📊 [NewPopular] Adding \(items.count) items from library \(library.key)")
-                    allItems.append(contentsOf: items)
+                var results = Array(repeating: [PlexMediaItem](), count: mediaLibraries.count)
+                for await (index, items) in group {
+                    results[index] = items
                 }
+                return results
             }
+            let allItems = perLibrary.flatMap { $0 }
 
             print("📊 [NewPopular] Total items collected: \(allItems.count)")
 

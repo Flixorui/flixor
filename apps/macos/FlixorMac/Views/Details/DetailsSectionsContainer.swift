@@ -119,11 +119,18 @@ struct DetailsSectionsContainer: View {
                 )
             }
         case .cast:
-            DetailsCastSection(vm: vm, onPersonTap: onPersonTap)
+            DetailsCastSection(
+                people: DetailsCastSection.people(for: vm),
+                showsGuestStars: vm.isEpisode && !vm.guestStars.isEmpty,
+                onPersonTap: onPersonTap
+            )
+            .equatable()
         case .trailers:
             DetailsTrailersSection(trailers: vm.trailers, onPlay: { selectedTrailer = $0 })
         case .comments:
-            DetailsCommentsSection(model: commentsModel, target: vm.titleWatchTarget)
+            // The settled target: titleWatchTarget fills in over several load
+            // steps and would restart the Trakt request each time.
+            DetailsCommentsSection(model: commentsModel, target: vm.commentsTarget)
         case .about:
             DetailsTabContent(vm: vm, layout: layout, onEntityTap: openEntity)
         }

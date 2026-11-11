@@ -19,24 +19,32 @@ class DownloadManager: NSObject, ObservableObject {
 
     // MARK: - Published State
 
-    @Published private(set) var activeTasks: [DownloadTask] = []
-    @Published private(set) var downloadedItems: [DownloadedItem] = []
-
-    // MARK: - Computed Properties
-
-    /// All downloaded movies sorted by download date (newest first)
-    var downloadedMovies: [DownloadedItem] {
-        downloadedItems
-            .filter { $0.type == .movie }
-            .sorted { $0.downloadedAt > $1.downloadedAt }
+    @Published private(set) var activeTasks: [DownloadTask] = [] {
+        didSet { rebuildActiveTaskIndex() }
+    }
+    @Published private(set) var downloadedItems: [DownloadedItem] = [] {
+        didSet { rebuildDownloadedState() }
     }
 
-    /// All downloaded TV shows grouped by show
-    var downloadedShows: [DownloadedShow] {
-        let episodes = downloadedItems.filter { $0.type == .episode }
-        var showsMap: [String: DownloadedShow] = [:]
+    // MARK: - Derived State
 
-        for ep in episodes {
+    /// All downloaded movies sorted by download date (newest first)
+    private(set) var downloadedMovies: [DownloadedItem] = []
+
+    /// All downloaded TV shows grouped by show
+    private(set) var downloadedShows: [DownloadedShow] = []
+
+    private var downloadedKeys: Set<String> = []
+    private var activeTaskIndex: [String: Int] = [:]
+
+    private func rebuildDownloadedState() {
+        downloadedKeys = Set(downloadedItems.map(\.id))
+        downloadedMovies = downloadedItems
+            .filter { $0.type == .movie }
+            .sorted { $0.downloadedAt > $1.downloadedAt }
+
+        var showsMap: [String: DownloadedShow] = [:]
+        for ep in downloadedItems where ep.type == .episode {
             guard let showKey = ep.grandparentRatingKey else { continue }
             let key = "\(ep.serverId):\(showKey)"
 
@@ -52,9 +60,17 @@ class DownloadManager: NSObject, ObservableObject {
             }
             showsMap[key]?.episodes.append(ep)
         }
-
-        return showsMap.values
+        downloadedShows = showsMap.values
             .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+    }
+
+    private func rebuildActiveTaskIndex() {
+        var index: [String: Int] = [:]
+        index.reserveCapacity(activeTasks.count)
+        for (i, task) in activeTasks.enumerated() where index[task.id] == nil {
+            index[task.id] = i
+        }
+        activeTaskIndex = index
     }
 
     /// Check if there are any active downloads
@@ -66,7 +82,7 @@ class DownloadManager: NSObject, ObservableObject {
 
     private var urlSession: URLSession!
     private var activeDownloadTasks: [String: URLSessionDownloadTask] = [:]
-    private var downloadProgressObservers: [String: NSKeyValueObservation] = [:]
+    private let progressThrottle = DownloadProgressThrottle()
     private var taskToGlobalKey: [Int: String] = [:]  // Maps taskIdentifier to globalKey
 
     // Resume data for interrupted downloads
@@ -182,17 +198,19 @@ class DownloadManager: NSObject, ObservableObject {
 
     /// Check if an item is downloaded
     func isDownloaded(_ globalKey: String) -> Bool {
-        downloadedItems.contains { $0.id == globalKey }
+        downloadedKeys.contains(globalKey)
     }
 
     /// Check if an item is currently downloading or queued
     func isDownloading(_ globalKey: String) -> Bool {
-        activeTasks.contains { $0.id == globalKey && ($0.status == .downloading || $0.status == .queued) }
+        guard let task = getProgress(globalKey) else { return false }
+        return task.status == .downloading || task.status == .queued
     }
 
     /// Get the current progress for a download
     func getProgress(_ globalKey: String) -> DownloadTask? {
-        activeTasks.first { $0.id == globalKey }
+        guard let index = activeTaskIndex[globalKey], activeTasks.indices.contains(index) else { return nil }
+        return activeTasks[index]
     }
 
     /// Get a downloaded item by global key
@@ -237,10 +255,6 @@ class DownloadManager: NSObject, ObservableObject {
             downloadTask.cancel()
             activeDownloadTasks.removeValue(forKey: globalKey)
         }
-
-        // Remove progress observer
-        downloadProgressObservers[globalKey]?.invalidate()
-        downloadProgressObservers.removeValue(forKey: globalKey)
 
         // Remove from active tasks
         activeTasks.removeAll { $0.id == globalKey }
@@ -401,23 +415,7 @@ class DownloadManager: NSObject, ObservableObject {
             // Store the relative path for later use
             UserDefaults.standard.set(relativePath, forKey: "download.path.\(task.id)")
 
-            // 8. Observe progress
-            let observation = downloadTask.progress.observe(
-                \Progress.fractionCompleted,
-                options: [.new]
-            ) { [weak self] (progress: Progress, _) in
-                Task { @MainActor [weak self] in
-                    self?.handleProgressUpdate(
-                        taskId: task.id,
-                        progress: progress.fractionCompleted,
-                        bytes: progress.completedUnitCount,
-                        total: progress.totalUnitCount
-                    )
-                }
-            }
-            downloadProgressObservers[task.id] = observation
-
-            // 9. Start the download
+            // 8. Start the download (progress arrives through didWriteData)
             downloadTask.resume()
 
             print("[DownloadManager] Started download: \(task.id)")
@@ -434,11 +432,14 @@ class DownloadManager: NSObject, ObservableObject {
     // MARK: - Progress Updates
 
     private func handleProgressUpdate(taskId: String, progress: Double, bytes: Int64, total: Int64) {
-        guard let index = activeTasks.firstIndex(where: { $0.id == taskId }) else { return }
+        guard let index = activeTaskIndex[taskId], activeTasks.indices.contains(index) else { return }
 
-        activeTasks[index].progress = progress
-        activeTasks[index].downloadedBytes = bytes
-        activeTasks[index].totalBytes = total
+        var task = activeTasks[index]
+        guard task.progress != progress || task.downloadedBytes != bytes || task.totalBytes != total else { return }
+        task.progress = progress
+        task.downloadedBytes = bytes
+        task.totalBytes = total
+        activeTasks[index] = task
 
         // Don't save to disk on every update (too slow), just update memory
         // Storage is saved on completion/failure
@@ -604,22 +605,6 @@ class DownloadManager: NSObject, ObservableObject {
             activeDownloadTasks[taskId] = downloadTask
             taskToGlobalKey[downloadTask.taskIdentifier] = taskId
 
-            // Observe progress
-            let observation = downloadTask.progress.observe(
-                \Progress.fractionCompleted,
-                options: [.new]
-            ) { [weak self] (progress: Progress, _) in
-                Task { @MainActor [weak self] in
-                    self?.handleProgressUpdate(
-                        taskId: taskId,
-                        progress: progress.fractionCompleted,
-                        bytes: progress.completedUnitCount,
-                        total: progress.totalUnitCount
-                    )
-                }
-            }
-            downloadProgressObservers[taskId] = observation
-
             downloadTask.resume()
         } else {
             // No resume data, restart from beginning
@@ -634,8 +619,6 @@ class DownloadManager: NSObject, ObservableObject {
 
     private func cleanupDownloadState(taskId: String) {
         activeDownloadTasks.removeValue(forKey: taskId)
-        downloadProgressObservers[taskId]?.invalidate()
-        downloadProgressObservers.removeValue(forKey: taskId)
     }
 
     // MARK: - Artwork Download
@@ -725,9 +708,10 @@ extension DownloadManager: URLSessionDownloadDelegate {
     }
 
     nonisolated func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-        guard let error = error else { return }
-
         let taskIdentifier = task.taskIdentifier
+        progressThrottle.reset(taskIdentifier)
+
+        guard let error = error else { return }
 
         Task { @MainActor in
             guard let globalKey = self.taskToGlobalKey[taskIdentifier] else { return }
@@ -744,6 +728,8 @@ extension DownloadManager: URLSessionDownloadDelegate {
         totalBytesExpectedToWrite: Int64
     ) {
         let taskIdentifier = downloadTask.taskIdentifier
+        let finished = totalBytesExpectedToWrite > 0 && totalBytesWritten >= totalBytesExpectedToWrite
+        guard progressThrottle.shouldPublish(taskIdentifier, finished: finished) else { return }
 
         Task { @MainActor in
             guard let globalKey = self.taskToGlobalKey[taskIdentifier] else { return }
@@ -759,5 +745,32 @@ extension DownloadManager: URLSessionDownloadDelegate {
                 total: totalBytesExpectedToWrite
             )
         }
+    }
+}
+
+// MARK: - Progress Throttle
+
+/// Limits progress hops to the main actor to about 4 per second per task.
+/// Called from the URLSession delegate queue.
+private final class DownloadProgressThrottle: @unchecked Sendable {
+    private let interval: TimeInterval = 0.25
+    private let lock = NSLock()
+    private var lastPublished: [Int: TimeInterval] = [:]
+
+    func shouldPublish(_ taskIdentifier: Int, finished: Bool) -> Bool {
+        let now = ProcessInfo.processInfo.systemUptime
+        lock.lock()
+        defer { lock.unlock() }
+        if !finished, let last = lastPublished[taskIdentifier], now - last < interval {
+            return false
+        }
+        lastPublished[taskIdentifier] = now
+        return true
+    }
+
+    func reset(_ taskIdentifier: Int) {
+        lock.lock()
+        lastPublished.removeValue(forKey: taskIdentifier)
+        lock.unlock()
     }
 }

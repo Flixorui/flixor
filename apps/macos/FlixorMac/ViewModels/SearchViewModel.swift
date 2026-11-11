@@ -15,11 +15,23 @@ import SwiftUI
 import Combine
 import FlixorKit
 
+/// The search field's text, kept apart from the results so typing doesn't
+/// re-render every result row.
+@MainActor
+final class SearchQueryState: ObservableObject {
+    @Published var text: String = ""
+}
+
 @MainActor
 class SearchViewModel: ObservableObject {
     // MARK: - Published Properties
 
-    @Published var query: String = ""
+    let queryState = SearchQueryState()
+    /// Observe `queryState` to follow edits; changes don't publish on this object.
+    var query: String {
+        get { queryState.text }
+        set { queryState.text = newValue }
+    }
     @Published var plexResults: [SearchResult] = []
     /// Matches from the installed Stremio addons' searchable catalogs.
     @Published var stremioResults: [SearchResult] = []
@@ -132,6 +144,12 @@ class SearchViewModel: ObservableObject {
 
     private let api = APIClient.shared
     private var searchTask: Task<Void, Never>?
+    /// Fills TMDB backdrops into the Plex row after it is shown.
+    private var plexArtTask: Task<Void, Never>?
+    /// TMDB backdrops by Plex ratingKey; misses are ratingKeys TMDB had no backdrop for.
+    private var plexBackdropCache: [String: URL] = [:]
+    private var plexBackdropMisses = Set<String>()
+    private let plexArtBatchSize = 8
     private var saveRecentTask: Task<Void, Never>?
     private var cancellables = Set<AnyCancellable>()
 
@@ -160,7 +178,7 @@ class SearchViewModel: ObservableObject {
 
     private func setupSearchDebouncing() {
         // Every edit: cancel a search that no longer matches the text right away.
-        $query
+        queryState.$text
             .removeDuplicates()
             .dropFirst()
             .sink { [weak self] newQuery in
@@ -169,7 +187,7 @@ class SearchViewModel: ObservableObject {
             .store(in: &cancellables)
 
         // Debounced (300ms): start the search for the settled text.
-        $query
+        queryState.$text
             .debounce(for: .milliseconds(300), scheduler: DispatchQueue.main)
             .sink { [weak self] newQuery in
                 Task { @MainActor in self?.handleDebouncedQuery(newQuery) }
@@ -466,17 +484,17 @@ class SearchViewModel: ObservableObject {
 
         // Priority 1: English backdrops (with title text burned in)
         if let en = pick(backdrops.filter { $0.iso_639_1 == "en" }), let path = en.file_path {
-            return ImageService.shared.proxyImageURL(url: "https://image.tmdb.org/t/p/original\(path)", width: width, height: height)
+            return ImageService.shared.proxyImageURL(url: "https://image.tmdb.org/t/p/w780\(path)", width: width, height: height)
         }
 
         // Priority 2: Any language with title (iso_639_1 is not null)
         if let withLang = pick(backdrops.filter { $0.iso_639_1 != nil }), let path = withLang.file_path {
-            return ImageService.shared.proxyImageURL(url: "https://image.tmdb.org/t/p/original\(path)", width: width, height: height)
+            return ImageService.shared.proxyImageURL(url: "https://image.tmdb.org/t/p/w780\(path)", width: width, height: height)
         }
 
         // Priority 3: Fallback to any backdrop (including textless)
         guard let any = pick(backdrops), let path = any.file_path else { return nil }
-        return ImageService.shared.proxyImageURL(url: "https://image.tmdb.org/t/p/original\(path)", width: width, height: height)
+        return ImageService.shared.proxyImageURL(url: "https://image.tmdb.org/t/p/w780\(path)", width: width, height: height)
     }
 
     // MARK: - Search
@@ -521,7 +539,10 @@ class SearchViewModel: ObservableObject {
         searchTask?.cancel()
         searchTask = nil
         activeQuery = nil
-        isLoading = false
+        plexArtTask?.cancel()
+        plexArtTask = nil
+        // Runs on every keystroke; only publish a real change.
+        if isLoading { isLoading = false }
     }
 
     private func resetResults() {
@@ -537,6 +558,7 @@ class SearchViewModel: ObservableObject {
 
     private func startSearch(_ query: String) {
         searchTask?.cancel()
+        plexArtTask?.cancel()
         saveRecentTask?.cancel()
         activeQuery = query
         searchGeneration += 1
@@ -631,6 +653,7 @@ class SearchViewModel: ObservableObject {
             case .success(let items):
                 plexResults = items
                 sectionStatus[.plex] = .loaded
+                fillPlexBackdrops()
             case .failure(let error):
                 print("❌ [Search] Plex search failed: \(error)")
                 sectionStatus[.plex] = .failed(SearchSection.plex.failureMessage)
@@ -727,69 +750,98 @@ class SearchViewModel: ObservableObject {
                 ]
             )
 
-            // Fetch TMDB images for all items in parallel
-            let items = response.prefix(20)
-            return await withTaskGroup(of: (String, SearchResult).self) { group in
-                for item in items {
-                    // Extract edition before entering task group (since extractEditionTitle is on self)
-                    let edition = self.extractEditionTitle(from: item.Media)
-                    group.addTask {
-                        let ratingKey = item.ratingKey
-
-                        // Try to get TMDB backdrop
-                        var imageURL: URL? = nil
-                        do {
-                            struct TMDBMatchResponse: Codable {
-                                let tmdbId: String?
-                                let backdropUrl: String?
-                            }
-
-                            let tmdbMatch: TMDBMatchResponse = try await self.api.get(
-                                "/api/plex/tmdb-match",
-                                queryItems: [URLQueryItem(name: "ratingKey", value: ratingKey)]
-                            )
-
-                            if let backdropUrl = tmdbMatch.backdropUrl {
-                                imageURL = await ImageService.shared.proxyImageURL(url: backdropUrl)
-                            }
-                        } catch {
-                            // Silently fail - will use Plex image
-                        }
-
-                        // Fallback to Plex image if no TMDB image
-                        if imageURL == nil {
-                            let fallbackPath = item.art ?? item.thumb ?? item.parentThumb ?? item.grandparentThumb ?? ""
-                            imageURL = await ImageService.shared.plexImageURL(path: fallbackPath, width: 780, height: 439)
-                        }
-
-                        let result = SearchResult(
-                            id: "plex:\(ratingKey)",
-                            title: item.title ?? "",
-                            type: type == 1 ? .movie : .tv,
-                            imageURL: imageURL,
-                            year: item.year.map(String.init),
-                            overview: item.summary,
-                            available: true,
-                            genreIds: [],
-                            editionTitle: edition
-                        )
-
-                        return (ratingKey, result)
-                    }
-                }
-
-                var results: [(String, SearchResult)] = []
-                for await result in group {
-                    results.append(result)
-                }
-
-                // Preserve original order
-                let resultMap = Dictionary(results, uniquingKeysWith: { first, _ in first })
-                return items.compactMap { resultMap[$0.ratingKey] }
+            // Plex art right away (or a TMDB backdrop seen before);
+            // fillPlexBackdrops swaps in the rest afterwards.
+            return response.prefix(20).map { item in
+                let ratingKey = item.ratingKey
+                let fallbackPath = item.art ?? item.thumb ?? item.parentThumb ?? item.grandparentThumb ?? ""
+                let imageURL = plexBackdropCache[ratingKey]
+                    ?? ImageService.shared.plexImageURL(path: fallbackPath, width: 780, height: 439)
+                return SearchResult(
+                    id: "plex:\(ratingKey)",
+                    title: item.title ?? "",
+                    type: type == 1 ? .movie : .tv,
+                    imageURL: imageURL,
+                    year: item.year.map(String.init),
+                    overview: item.summary,
+                    available: true,
+                    genreIds: [],
+                    editionTitle: extractEditionTitle(from: item.Media)
+                )
             }
         } catch {
             print("❌ [Search] Plex search failed (type=\(type)): \(error)")
             throw error
+        }
+    }
+
+    /// Looks up TMDB backdrops for the Plex row in bounded parallel batches and
+    /// swaps each one in place, without blocking or reordering the row.
+    private func fillPlexBackdrops() {
+        plexArtTask?.cancel()
+        let generation = searchGeneration
+        var seen = Set<String>()
+        let ratingKeys: [String] = plexResults.compactMap { result in
+            guard result.id.hasPrefix("plex:") else { return nil }
+            let key = String(result.id.dropFirst("plex:".count))
+            guard plexBackdropCache[key] == nil, !plexBackdropMisses.contains(key),
+                  seen.insert(key).inserted else { return nil }
+            return key
+        }
+        guard !ratingKeys.isEmpty else { return }
+
+        let api = self.api
+        let batchSize = plexArtBatchSize
+        plexArtTask = Task { [weak self] in
+            struct TMDBMatchResponse: Codable {
+                let tmdbId: String?
+                let backdropUrl: String?
+            }
+            for start in stride(from: 0, to: ratingKeys.count, by: batchSize) {
+                let batch = ratingKeys[start..<min(start + batchSize, ratingKeys.count)]
+                let results = await withTaskGroup(of: (String, String?, Bool).self) { group -> [(String, String?, Bool)] in
+                    for key in batch {
+                        group.addTask {
+                            do {
+                                let match: TMDBMatchResponse = try await api.get(
+                                    "/api/plex/tmdb-match",
+                                    queryItems: [URLQueryItem(name: "ratingKey", value: key)]
+                                )
+                                return (key, match.backdropUrl, true)
+                            } catch {
+                                // Keep the Plex image
+                                return (key, nil, false)
+                            }
+                        }
+                    }
+                    var collected: [(String, String?, Bool)] = []
+                    for await result in group {
+                        collected.append(result)
+                    }
+                    return collected
+                }
+                guard let self, !Task.isCancelled, generation == self.searchGeneration else { return }
+
+                var found: [String: URL] = [:]
+                for (key, backdrop, succeeded) in results {
+                    if let backdrop, let url = ImageService.shared.proxyImageURL(url: backdrop) {
+                        found[key] = url
+                        self.plexBackdropCache[key] = url
+                    } else if succeeded {
+                        self.plexBackdropMisses.insert(key)
+                    }
+                }
+                guard !found.isEmpty else { continue }
+                self.plexResults = self.plexResults.map { result in
+                    guard result.id.hasPrefix("plex:"),
+                          let url = found[String(result.id.dropFirst("plex:".count))] else { return result }
+                    return SearchResult(
+                        id: result.id, title: result.title, type: result.type, imageURL: url,
+                        year: result.year, overview: result.overview, available: result.available,
+                        genreIds: result.genreIds, editionTitle: result.editionTitle
+                    )
+                }
+            }
         }
     }
 
@@ -853,98 +905,107 @@ class SearchViewModel: ObservableObject {
         }
     }
 
+    /// One row per genre, loaded in parallel and returned in the given genre order.
     private func loadGenreRecommendations(genreIds: ArraySlice<Int>) async -> [GenreRow] {
-        var genreRowsData: [GenreRow] = []
-
-        for genreId in genreIds {
-            guard let genreName = Self.genreMap[genreId] else { continue }
-
-            do {
-                // Fetch movies and TV shows for this genre in parallel
-                struct DiscoverResponse: Codable {
-                    let results: [DiscoverItem]
+        let genres = genreIds.compactMap { id in Self.genreMap[id].map { (id, $0) } }
+        let rows = await withTaskGroup(of: (Int, GenreRow?).self) { group -> [GenreRow?] in
+            for (index, genre) in genres.enumerated() {
+                group.addTask { [weak self] in
+                    (index, await self?.loadGenreRow(genreId: genre.0, genreName: genre.1))
                 }
-                struct DiscoverItem: Codable {
-                    let id: Int
-                    let title: String?
-                    let name: String?
-                    let poster_path: String?
-                    let release_date: String?
-                    let first_air_date: String?
-                }
-
-                async let movieRes: DiscoverResponse = api.get(
-                    "/api/tmdb/discover/movie",
-                    queryItems: [
-                        URLQueryItem(name: "with_genres", value: String(genreId)),
-                        URLQueryItem(name: "sort_by", value: "popularity.desc"),
-                        URLQueryItem(name: "page", value: "1")
-                    ]
-                )
-
-                async let tvRes: DiscoverResponse = api.get(
-                    "/api/tmdb/discover/tv",
-                    queryItems: [
-                        URLQueryItem(name: "with_genres", value: String(genreId)),
-                        URLQueryItem(name: "sort_by", value: "popularity.desc"),
-                        URLQueryItem(name: "page", value: "1")
-                    ]
-                )
-
-                let (movieResults, tvResults) = try await (movieRes, tvRes)
-
-                let movies: [SearchResult] = movieResults.results.prefix(10).map { item in
-                    let imageURL = ImageService.shared.proxyImageURL(
-                        url: item.poster_path.flatMap { "https://image.tmdb.org/t/p/w500\($0)" }
-                    )
-                    return SearchResult(
-                        id: "tmdb:movie:\(item.id)",
-                        title: item.title ?? "",
-                        type: .movie,
-                        imageURL: imageURL,
-                        year: item.release_date?.prefix(4).description,
-                        overview: nil,
-                        available: false,
-                        genreIds: [genreId],
-                        editionTitle: nil
-                    )
-                }
-
-                let shows: [SearchResult] = tvResults.results.prefix(10).map { item in
-                    let imageURL = ImageService.shared.proxyImageURL(
-                        url: item.poster_path.flatMap { "https://image.tmdb.org/t/p/w500\($0)" }
-                    )
-                    return SearchResult(
-                        id: "tmdb:tv:\(item.id)",
-                        title: item.name ?? "",
-                        type: .tv,
-                        imageURL: imageURL,
-                        year: item.first_air_date?.prefix(4).description,
-                        overview: nil,
-                        available: false,
-                        genreIds: [genreId],
-                        editionTitle: nil
-                    )
-                }
-
-                // Combine movies and shows (up to 15 items)
-                let combined = Array((movies + shows).prefix(15))
-
-                if !combined.isEmpty {
-                    genreRowsData.append(GenreRow(
-                        id: "genre:\(genreId)",
-                        title: genreName,
-                        items: combined
-                    ))
-                }
-
-                print("🎬 [Search] Loaded \(combined.count) items for genre '\(genreName)'")
-            } catch {
-                print("❌ [Search] Failed to fetch genre '\(genreName)': \(error)")
             }
+            var ordered = [GenreRow?](repeating: nil, count: genres.count)
+            for await (index, row) in group {
+                ordered[index] = row
+            }
+            return ordered
         }
+        return rows.compactMap { $0 }
+    }
 
-        return genreRowsData
+    private func loadGenreRow(genreId: Int, genreName: String) async -> GenreRow? {
+        do {
+            // Fetch movies and TV shows for this genre in parallel
+            struct DiscoverResponse: Codable {
+                let results: [DiscoverItem]
+            }
+            struct DiscoverItem: Codable {
+                let id: Int
+                let title: String?
+                let name: String?
+                let poster_path: String?
+                let release_date: String?
+                let first_air_date: String?
+            }
+
+            async let movieRes: DiscoverResponse = api.get(
+                "/api/tmdb/discover/movie",
+                queryItems: [
+                    URLQueryItem(name: "with_genres", value: String(genreId)),
+                    URLQueryItem(name: "sort_by", value: "popularity.desc"),
+                    URLQueryItem(name: "page", value: "1")
+                ]
+            )
+
+            async let tvRes: DiscoverResponse = api.get(
+                "/api/tmdb/discover/tv",
+                queryItems: [
+                    URLQueryItem(name: "with_genres", value: String(genreId)),
+                    URLQueryItem(name: "sort_by", value: "popularity.desc"),
+                    URLQueryItem(name: "page", value: "1")
+                ]
+            )
+
+            let (movieResults, tvResults) = try await (movieRes, tvRes)
+
+            let movies: [SearchResult] = movieResults.results.prefix(10).map { item in
+                let imageURL = ImageService.shared.proxyImageURL(
+                    url: item.poster_path.flatMap { "https://image.tmdb.org/t/p/w500\($0)" }
+                )
+                return SearchResult(
+                    id: "tmdb:movie:\(item.id)",
+                    title: item.title ?? "",
+                    type: .movie,
+                    imageURL: imageURL,
+                    year: item.release_date?.prefix(4).description,
+                    overview: nil,
+                    available: false,
+                    genreIds: [genreId],
+                    editionTitle: nil
+                )
+            }
+
+            let shows: [SearchResult] = tvResults.results.prefix(10).map { item in
+                let imageURL = ImageService.shared.proxyImageURL(
+                    url: item.poster_path.flatMap { "https://image.tmdb.org/t/p/w500\($0)" }
+                )
+                return SearchResult(
+                    id: "tmdb:tv:\(item.id)",
+                    title: item.name ?? "",
+                    type: .tv,
+                    imageURL: imageURL,
+                    year: item.first_air_date?.prefix(4).description,
+                    overview: nil,
+                    available: false,
+                    genreIds: [genreId],
+                    editionTitle: nil
+                )
+            }
+
+            // Combine movies and shows (up to 15 items)
+            let combined = Array((movies + shows).prefix(15))
+
+            print("🎬 [Search] Loaded \(combined.count) items for genre '\(genreName)'")
+            guard !combined.isEmpty else { return nil }
+            return GenreRow(
+                id: "genre:\(genreId)",
+                title: genreName,
+                items: combined
+            )
+        } catch {
+            print("❌ [Search] Failed to fetch genre '\(genreName)': \(error)")
+            return nil
+        }
     }
 
     // MARK: - Helper Structs

@@ -8,6 +8,26 @@
 
 import SwiftUI
 
+/// Places the stats overlay in the top-left corner. Observes only the stats model,
+/// so a stats update redraws just this.
+struct PerformanceOverlayContainer: View {
+    @ObservedObject var model: PlaybackStatsModel
+
+    var body: some View {
+        if let stats = model.stats {
+            VStack {
+                HStack {
+                    PerformanceOverlayView(stats: stats)
+                        .padding(.leading, DS.Space.s20)
+                        .padding(.top, DS.Space.s60)
+                    Spacer()
+                }
+                Spacer()
+            }
+        }
+    }
+}
+
 struct PerformanceOverlayView: View {
     let stats: PerformanceStats
 

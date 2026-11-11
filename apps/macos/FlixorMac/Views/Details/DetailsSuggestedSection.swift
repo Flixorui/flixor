@@ -20,7 +20,7 @@ struct SuggestedSections: View {
     var body: some View {
         // One "More Like This" row: Related first, then Similar titles not
         // already in it (TMDB's Similar list is the weaker of the two).
-        let items = moreLikeThis
+        let items = vm.moreLikeThis
         if profileSettings.showRelatedContent && !items.isEmpty {
             suggestedRow(
                 section: LibrarySection(
@@ -33,11 +33,6 @@ struct SuggestedSections: View {
                 )
             )
         }
-    }
-
-    private var moreLikeThis: [MediaItem] {
-        var seen = Set<String>()
-        return (vm.related + vm.similar).filter { seen.insert($0.id).inserted }
     }
 
     @ViewBuilder

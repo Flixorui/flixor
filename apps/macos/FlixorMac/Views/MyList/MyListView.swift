@@ -51,7 +51,7 @@ struct MyListView: View {
             await viewModel.load()
         }
         .onReceive(NotificationCenter.default.publisher(for: .watchlistDidChange)) { _ in
-            Task { await viewModel.reload() }
+            Task { await viewModel.handleWatchlistDidChange() }
         }
         .onChange(of: mainViewState.selectedTab) { _ in
             traktLists.refreshConnection()

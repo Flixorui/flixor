@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Combine
 
 // MARK: - Playback Quality
 
@@ -89,6 +90,26 @@ enum PlaybackQuality: String, CaseIterable, Identifiable, Codable {
 
         return available
     }
+}
+
+// MARK: - Playback clock and stats
+
+/// Playback position for the views that show it (seek bar, time labels, panels).
+/// Kept apart from PlayerViewModel so position updates don't redraw the whole player.
+final class PlaybackClock: ObservableObject {
+    @Published var time: TimeInterval = 0
+}
+
+/// Stats overlay values, apart from PlayerViewModel so only the overlay redraws.
+final class PlaybackStatsModel: ObservableObject {
+    @Published var stats: PerformanceStats?
+}
+
+/// When the next-episode countdown starts, worked out from markers, chapters and duration.
+struct NextEpisodeTriggerPoint {
+    let start: TimeInterval
+    let source: String
+    let fallbackSeconds: TimeInterval
 }
 
 // MARK: - Helper Response Types

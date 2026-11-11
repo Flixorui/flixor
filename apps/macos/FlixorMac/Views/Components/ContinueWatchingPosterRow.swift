@@ -101,7 +101,7 @@ struct ContinueWatchingPosterCard: View {
         Button(action: { onTap?() }) {
             ZStack(alignment: .bottom) {
                 // Poster Image (show poster for episodes, movie poster for movies)
-                CachedAsyncImage(url: posterURL ?? defaultPosterURL)
+                CachedAsyncImage(url: imageURL, maxPixelSize: ImageCache.fillPixelSize(width: width, height: height))
                 .aspectRatio(contentMode: .fill)
                 .frame(width: width, height: height)
                 .clipped()
@@ -180,85 +180,26 @@ struct ContinueWatchingPosterCard: View {
         }
     }
 
+    /// Path of the item's own poster (the show's for episodes).
+    private var ownPosterPath: String? {
+        if item.type == "episode", let grandparentThumb = item.grandparentThumb { return grandparentThumb }
+        return item.thumb
+    }
+
+    /// The item's own TMDB poster, else the looked-up one, else the Plex poster.
+    private var imageURL: URL? {
+        if !ImageService.isTMDBImageURL(ownPosterPath),
+           let resolved = posterURL ?? ArtworkLookup.cachedURL(.imagesPoster, for: item) {
+            return ImageService.tmdbImageURL(resolved, size: ImageService.tmdbPosterSize(forPointWidth: width))
+        }
+        return ImageService.tmdbImageURL(defaultPosterURL, downsizingOriginalTo: "w780")
+    }
+
     private func loadPoster() async {
-        // Try to get TMDB poster
-        do {
-            if let url = try await resolveTMDBPoster() {
-                await MainActor.run {
-                    self.posterURL = url
-                }
-            }
-        } catch {
-            // Silent fallback to Plex image
-        }
-    }
-
-    private func resolveTMDBPoster() async throws -> URL? {
-        // Handle tmdb: prefix
-        if item.id.hasPrefix("tmdb:") {
-            let parts = item.id.split(separator: ":")
-            if parts.count == 3 {
-                let media = (parts[1] == "movie") ? "movie" : "tv"
-                let id = String(parts[2])
-                return try await fetchTMDBPoster(mediaType: media, id: id)
-            }
-            return nil
-        }
-
-        // Handle plex: prefix
-        if item.id.hasPrefix("plex:") {
-            let rk = String(item.id.dropFirst(5))
-            return try await fetchPlexTMDBPoster(ratingKey: rk)
-        }
-
-        // Handle raw numeric ID
-        if item.id.allSatisfy({ $0.isNumber }) {
-            return try await fetchPlexTMDBPoster(ratingKey: item.id)
-        }
-
-        return nil
-    }
-
-    private func fetchPlexTMDBPoster(ratingKey: String) async throws -> URL? {
-        struct PlexMeta: Codable {
-            let type: String?
-            let Guid: [PlexGuid]?
-            let grandparentRatingKey: String?
-        }
-        struct PlexGuid: Codable { let id: String? }
-
-        let meta: PlexMeta = try await APIClient.shared.get("/api/plex/metadata/\(ratingKey)")
-
-        // For episodes, fetch the show's poster instead
-        if meta.type == "episode", let parentKey = meta.grandparentRatingKey {
-            return try await fetchPlexTMDBPoster(ratingKey: parentKey)
-        }
-
-        let mediaType = (meta.type == "movie") ? "movie" : "tv"
-
-        if let guid = meta.Guid?.compactMap({ $0.id }).first(where: { $0.contains("tmdb://") || $0.contains("themoviedb://") }),
-           let tid = guid.components(separatedBy: "://").last {
-            return try await fetchTMDBPoster(mediaType: mediaType, id: tid)
-        }
-        return nil
-    }
-
-    private func fetchTMDBPoster(mediaType: String, id: String) async throws -> URL? {
-        struct TMDBImages: Codable { let posters: [TMDBImage]? }
-        struct TMDBImage: Codable { let file_path: String?; let iso_639_1: String?; let vote_average: Double? }
-
-        let imgs: TMDBImages = try await APIClient.shared.get(
-            "/api/tmdb/\(mediaType)/\(id)/images",
-            queryItems: [URLQueryItem(name: "language", value: "en,null")]
-        )
-
-        let posters = imgs.posters ?? []
-        // Prefer English posters
-        let english = posters.filter { $0.iso_639_1 == "en" }
-        let sorted = (english.isEmpty ? posters : english).sorted { ($0.vote_average ?? 0) > ($1.vote_average ?? 0) }
-
-        guard let path = sorted.first?.file_path else { return nil }
-        return URL(string: "https://image.tmdb.org/t/p/w500\(path)")
+        guard !ImageService.isTMDBImageURL(ownPosterPath) else { return }
+        let url = await ArtworkLookup.resolve(.imagesPoster, for: item)
+        guard !Task.isCancelled, let url, url != posterURL else { return }
+        posterURL = url
     }
 }
 

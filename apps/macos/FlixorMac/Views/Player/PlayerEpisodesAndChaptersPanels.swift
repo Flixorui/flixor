@@ -252,6 +252,14 @@ struct ChaptersPanel: View {
     @Environment(\.flixorTheme) private var theme
     @ObservedObject var viewModel: PlayerViewModel
     let onClose: () -> Void
+    /// The current chapter's progress ring follows the playback position.
+    @ObservedObject private var clock: PlaybackClock
+
+    init(viewModel: PlayerViewModel, onClose: @escaping () -> Void) {
+        _viewModel = ObservedObject(wrappedValue: viewModel)
+        self.onClose = onClose
+        _clock = ObservedObject(wrappedValue: viewModel.playbackClock)
+    }
 
     var body: some View {
         ZStack {
@@ -334,7 +342,7 @@ struct ChaptersPanel: View {
                 : viewModel.duration
             let chapterDuration = nextChapterStart - chapterStart
             guard chapterDuration > 0 else { return 0 }
-            return min(1.0, max(0, (viewModel.currentTime - chapterStart) / chapterDuration))
+            return min(1.0, max(0, (clock.time - chapterStart) / chapterDuration))
         }
         return nil
     }

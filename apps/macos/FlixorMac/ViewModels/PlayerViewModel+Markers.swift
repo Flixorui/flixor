@@ -200,33 +200,18 @@ extension PlayerViewModel {
         }
     }
 
-    func updateNextEpisodeCountdown() {
-        // Debug: Log when guard fails
-        if item.type != "episode" {
-            if nextEpisodeCountdown != nil { nextEpisodeCountdown = nil }
-            return
-        }
-        if nextEpisode == nil {
-            if nextEpisodeCountdown != nil { nextEpisodeCountdown = nil }
-            return
-        }
-        if duration <= 0 {
-            if nextEpisodeCountdown != nil { nextEpisodeCountdown = nil }
-            return
-        }
-        // "Auto-Play Next" off: no automatic countdown. The Next Episode
-        // button in the controls stays available for manual use.
-        if !UserDefaults.standard.autoPlayNext {
-            if nextEpisodeCountdown != nil || nextEpisodeCountdownTimer != nil { cancelCountdown() }
-            return
-        }
+    /// Markers, chapters, duration or the next episode changed: rebuild the trigger
+    /// point and check again on the next position update.
+    func invalidateNextEpisodeTrigger() {
+        nextEpisodeTrigger = nil
+        lastNextEpisodeCheckTime = nil
+    }
 
-        // Priority: 1. Credits marker, 2. Credits chapter, 3. Time-based fallback
+    /// Priority: 1. Credits marker, 2. Credits chapter, 3. Time-based fallback.
+    private func makeNextEpisodeTrigger(fallbackSeconds: TimeInterval) -> NextEpisodeTriggerPoint {
         let creditsMarker = markers.first { $0.type == "credits" }
-        let creditsChapter = findCreditsChapter()
-        let fallbackSeconds = TimeInterval(UserDefaults.standard.creditsCountdownFallback)
         let bufferSeconds: TimeInterval = 3.0  // Show overlay 3 seconds before trigger point
-        var triggerStart: TimeInterval
+        let triggerStart: TimeInterval
         let triggerSource: String
 
         if let marker = creditsMarker, let scene = markers.first(where: {
@@ -239,7 +224,7 @@ extension PlayerViewModel {
             // Priority 1: Use credits marker (convert ms to seconds, minus buffer)
             triggerStart = max(0, TimeInterval(marker.startTimeOffset) / 1000.0 - bufferSeconds)
             triggerSource = "CREDITS marker (3s early) at \(triggerStart)s"
-        } else if let chapter = creditsChapter {
+        } else if let chapter = findCreditsChapter() {
             // Priority 2: Use credits chapter start time (minus buffer)
             triggerStart = max(0, chapter.time - bufferSeconds)
             triggerSource = "CREDITS chapter '\(chapter.title ?? "Credits")' (3s early) at \(triggerStart)s"
@@ -248,6 +233,43 @@ extension PlayerViewModel {
             triggerStart = max(0, duration - fallbackSeconds)
             triggerSource = "FALLBACK (\(Int(fallbackSeconds))s before end) at \(triggerStart)s"
         }
+        return NextEpisodeTriggerPoint(start: triggerStart, source: triggerSource, fallbackSeconds: fallbackSeconds)
+    }
+
+    func updateNextEpisodeCountdown() {
+        if item.type != "episode" {
+            if nextEpisodeCountdown != nil { nextEpisodeCountdown = nil }
+            return
+        }
+        if nextEpisode == nil {
+            if nextEpisodeCountdown != nil { nextEpisodeCountdown = nil }
+            return
+        }
+        if duration <= 0 {
+            if nextEpisodeCountdown != nil { nextEpisodeCountdown = nil }
+            return
+        }
+        // About once a second of playback; a seek or a changed input checks at once.
+        if let last = lastNextEpisodeCheckTime, abs(currentTime - last) < 1.0 { return }
+        lastNextEpisodeCheckTime = currentTime
+
+        let defaults = UserDefaults.standard
+        // "Auto-Play Next" off: no automatic countdown. The Next Episode
+        // button in the controls stays available for manual use.
+        if !defaults.autoPlayNext {
+            if nextEpisodeCountdown != nil || nextEpisodeCountdownTimer != nil { cancelCountdown() }
+            return
+        }
+
+        let fallbackSeconds = TimeInterval(defaults.creditsCountdownFallback)
+        let trigger: NextEpisodeTriggerPoint
+        if let cached = nextEpisodeTrigger, cached.fallbackSeconds == fallbackSeconds {
+            trigger = cached
+        } else {
+            trigger = makeNextEpisodeTrigger(fallbackSeconds: fallbackSeconds)
+            nextEpisodeTrigger = trigger
+        }
+        let triggerStart = trigger.start
 
         // Addon streams: look up the next episode's source a minute ahead.
         if sourceKind == .stream && currentTime >= triggerStart - 60 {
@@ -260,7 +282,7 @@ extension PlayerViewModel {
             if nextEpisodeCountdown == nil && nextEpisodeCountdownTimer == nil,
                !nextEpisodeCountdownDismissed, !isResolvingNextEpisode,
                mpvController?.isShutDown == false {
-                print("🎬 [Countdown] TRIGGERED via \(triggerSource)! Starting 5s countdown")
+                print("🎬 [Countdown] TRIGGERED via \(trigger.source)! Starting 5s countdown")
                 startNextEpisodeCountdown()
             }
         } else {

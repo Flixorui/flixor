@@ -71,8 +71,8 @@ final class DetailsTitleActionsModel: ObservableObject {
 
     // MARK: - Configuration
 
-    /// Rebuilds the target from the loaded details and refreshes state. Call after
-    /// every `DetailsViewModel.load(for:)`.
+    /// Rebuilds the target from the loaded details and refreshes state. Call once
+    /// the title's ids are known (`DetailsViewModel.titleIdsGeneration`).
     func configure(with vm: DetailsViewModel) {
         refreshTask?.cancel()
         ratingTask?.cancel()
@@ -91,6 +91,15 @@ final class DetailsTitleActionsModel: ObservableObject {
         guard built != nil else { return }
         scheduleRefresh()
         loadRating()
+    }
+
+    /// The seasons can arrive after `configure(with:)`; rebuilds the season menu.
+    func updateSeasonOptions(with vm: DetailsViewModel) {
+        guard kind == .show else {
+            if !seasonOptions.isEmpty { seasonOptions = [] }
+            return
+        }
+        seasonOptions = Self.makeSeasonOptions(vm: vm, showTarget: target)
     }
 
     // MARK: - Watched

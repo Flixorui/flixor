@@ -2,16 +2,26 @@
 //  StreamingAvailabilityModels.swift
 //  FlixorMac
 //
-//  Movie of the Night "Streaming Availability" API (v4): the parts Flixor
-//  reads. Unknown fields are ignored, missing ones are optional.
+//  Movie of the Night "Streaming Availability" API (v4) and FlixPatrol JSON
+//  API (v2): the parts Flixor reads. Both send the same show shape; unknown
+//  fields are ignored, missing ones are optional.
 //
 
 import Foundation
 
-/// A service Flixor can show a Top 10 list for (the API's /shows/top supports these).
+/// A service Flixor can show a Top 10 list for. Streaming Availability's
+/// /shows/top has the first five; FlixPatrol also has the rest.
 enum StreamingService: String, CaseIterable, Identifiable, Codable {
-    case netflix, prime, disney, apple, hbo
+    case netflix, prime, disney, apple, hbo, paramount, hulu, starz, hotstar
     var id: String { rawValue }
+
+    /// Top 10 rows that were on before FlixPatrol added more services.
+    static let defaultTopServices: [StreamingService] = [.netflix, .prime, .disney, .apple, .hbo]
+
+    /// Movie of the Night has Top 10 and "New on" data for this service.
+    var hasStreamingAvailability: Bool {
+        Self.defaultTopServices.contains(self)
+    }
 
     var displayName: String {
         switch self {
@@ -20,6 +30,10 @@ enum StreamingService: String, CaseIterable, Identifiable, Codable {
         case .disney: return "Disney+"
         case .apple: return "Apple TV+"
         case .hbo: return "Max"
+        case .paramount: return "Paramount+"
+        case .hulu: return "Hulu"
+        case .starz: return "Starz"
+        case .hotstar: return "JioHotstar"
         }
     }
 
@@ -31,16 +45,33 @@ enum StreamingService: String, CaseIterable, Identifiable, Codable {
         case .disney: return "113CCF"
         case .apple: return "1C1C1E"
         case .hbo: return "002BE7"
+        case .paramount: return "0064FF"
+        case .hulu: return "1CE783"
+        case .starz: return "000000"
+        case .hotstar: return "0F1014"
         }
     }
 }
 
+/// Image URLs by width. Movie of the Night sends w240…w720; FlixPatrol sends
+/// TMDB sizes (w92…w780, w1280, original).
 struct SAImage: Codable, Hashable {
     let w240: String?
     let w360: String?
     let w480: String?
     let w600: String?
     let w720: String?
+    let w342: String?
+    let w500: String?
+    let w780: String?
+    let w1280: String?
+    let original: String?
+}
+
+/// A chart position (FlixPatrol): "movies" or "tv-shows", and the rank in it.
+struct SARanking: Codable, Hashable {
+    let category: String
+    let rank: Int
 }
 
 struct SAImageSet: Codable, Hashable {
@@ -78,6 +109,8 @@ struct SAShow: Codable, Hashable, Identifiable {
     let imageSet: SAImageSet?
     /// Options per country code.
     let streamingOptions: [String: [SAStreamingOption]]?
+    /// Chart positions (FlixPatrol only).
+    let rankings: [SARanking]?
 
     var year: Int? { releaseYear ?? firstAirYear }
     var isSeries: Bool { showType == "series" }
@@ -89,16 +122,12 @@ struct SAShow: Codable, Hashable, Identifiable {
         return "tmdb:\(kind):\(tmdbId[tmdbId.index(after: slash)...])"
     }
 
-    func link(service: StreamingService, country: String) -> URL? {
-        streamingOptions?[country]?.first { $0.service.id == service.rawValue }?.link.flatMap(URL.init(string:))
-    }
-
     var posterURL: String? {
-        imageSet?.verticalPoster.flatMap { $0.w480 ?? $0.w360 ?? $0.w600 ?? $0.w240 }
+        imageSet?.verticalPoster.flatMap { $0.w480 ?? $0.w500 ?? $0.w360 ?? $0.w342 ?? $0.w600 ?? $0.w780 ?? $0.w240 }
     }
 
     var backdropURL: String? {
-        imageSet?.horizontalBackdrop.flatMap { $0.w720 ?? $0.w600 ?? $0.w480 }
+        imageSet?.horizontalBackdrop.flatMap { $0.w720 ?? $0.w780 ?? $0.w600 ?? $0.w1280 ?? $0.w480 }
     }
 }
 

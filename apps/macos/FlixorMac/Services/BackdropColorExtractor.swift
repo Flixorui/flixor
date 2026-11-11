@@ -67,10 +67,9 @@ enum BackdropColorExtractor {
         return result
     }
 
+    /// Through ImageCache, so it shares the download the backdrop view starts.
     private static func loadImage(_ url: URL) async -> NSImage? {
-        if let cached = ImageCache.shared.get(url: url) { return cached }
-        guard let (data, _) = try? await URLSession.shared.data(from: url) else { return nil }
-        return NSImage(data: data)
+        try? await ImageCache.shared.load(url: url).image
     }
 
     /// Groups the pixels of a tiny copy of the image into color buckets, counting

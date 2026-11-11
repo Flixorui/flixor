@@ -257,7 +257,6 @@ private struct LocalArtwork: View {
 
 struct DownloadProgressRow: View {
     let task: DownloadTask
-    @StateObject private var downloadManager = DownloadManager.shared
     @Environment(\.flixorTheme) private var theme
 
     var body: some View {
@@ -311,16 +310,16 @@ struct DownloadProgressRow: View {
         HStack(spacing: DS.Space.s8) {
             switch task.status {
             case .downloading:
-                DownloadsIconButton(systemImage: "pause.fill", help: String(localized: "Pause")) { downloadManager.pauseDownload(task.id) }
+                DownloadsIconButton(systemImage: "pause.fill", help: String(localized: "Pause")) { DownloadManager.shared.pauseDownload(task.id) }
             case .paused:
-                DownloadsIconButton(systemImage: "play.fill", help: String(localized: "Resume")) { downloadManager.resumeDownload(task.id) }
+                DownloadsIconButton(systemImage: "play.fill", help: String(localized: "Resume")) { DownloadManager.shared.resumeDownload(task.id) }
             case .failed:
-                DownloadsIconButton(systemImage: "arrow.clockwise", help: String(localized: "Retry")) { downloadManager.retryDownload(task.id) }
+                DownloadsIconButton(systemImage: "arrow.clockwise", help: String(localized: "Retry")) { DownloadManager.shared.retryDownload(task.id) }
             case .queued, .completed:
                 EmptyView()
             }
             if task.status != .completed {
-                DownloadsIconButton(systemImage: "xmark", help: String(localized: "Cancel download")) { downloadManager.cancelDownload(task.id) }
+                DownloadsIconButton(systemImage: "xmark", help: String(localized: "Cancel download")) { DownloadManager.shared.cancelDownload(task.id) }
             }
         }
     }
@@ -334,7 +333,6 @@ private struct DownloadedMovieCard: View {
     let width: CGFloat
     let showTitle: Bool
 
-    @StateObject private var downloadManager = DownloadManager.shared
     @EnvironmentObject private var router: NavigationRouter
     @ObservedObject private var cardStyle = CardStyleStore.shared
     @State private var hovering = false
@@ -398,7 +396,7 @@ private struct DownloadedMovieCard: View {
         .onHover { hovering = $0 }
         .animation(DS.Motion.quick, value: hovering)
         .confirmationDialog("Delete Download?", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
-            Button("Delete", role: .destructive) { downloadManager.deleteDownload(item.id) }
+            Button("Delete", role: .destructive) { DownloadManager.shared.deleteDownload(item.id) }
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This removes \"\(item.title)\" from this Mac.")
@@ -461,10 +459,11 @@ struct DownloadedShowSection: View {
             .accessibilityHint(isExpanded ? "Collapse" : "Expand")
 
             if isExpanded {
+                let episodes = show.sortedEpisodes
                 DownloadsGroup {
-                    ForEach(Array(show.sortedEpisodes.enumerated()), id: \.element.id) { index, episode in
+                    ForEach(Array(episodes.enumerated()), id: \.element.id) { index, episode in
                         EpisodeRow(episode: episode)
-                        if index < show.sortedEpisodes.count - 1 { DownloadsDivider() }
+                        if index < episodes.count - 1 { DownloadsDivider() }
                     }
                 }
             }
@@ -476,7 +475,6 @@ struct DownloadedShowSection: View {
 
 struct EpisodeRow: View {
     let episode: DownloadedItem
-    @StateObject private var downloadManager = DownloadManager.shared
     @EnvironmentObject private var router: NavigationRouter
     @Environment(\.flixorTheme) private var theme
     @State private var showDeleteConfirmation = false
@@ -521,7 +519,7 @@ struct EpisodeRow: View {
             Button("Delete Episode", role: .destructive) { showDeleteConfirmation = true }
         }
         .confirmationDialog("Delete Episode?", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
-            Button("Delete", role: .destructive) { downloadManager.deleteDownload(episode.id) }
+            Button("Delete", role: .destructive) { DownloadManager.shared.deleteDownload(episode.id) }
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This removes this episode from this Mac.")

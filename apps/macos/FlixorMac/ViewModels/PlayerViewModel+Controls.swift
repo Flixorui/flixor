@@ -38,14 +38,20 @@ extension PlayerViewModel {
         guard let mpv = mpvController else { return }
         mpv.seek(to: time)
         print("✅ [MPV] Seeked to \(time)s")
-        Task { @MainActor [weak self] in
-            await self?.reportProgress()
-            self?.updateNowPlayingInfo()
+        // One report once seeking settles: held arrow keys seek many times a second.
+        // Now Playing is updated on the playback-restart that ends the seek.
+        seekProgressReportTask?.cancel()
+        seekProgressReportTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            guard !Task.isCancelled, let self else { return }
+            self.seekProgressReportTask = nil
+            await self.reportProgress()
         }
     }
 
     func skip(seconds: TimeInterval) {
-        let newTime = max(0, min(duration, currentTime + seconds))
+        let position = mpvController?.currentTimePosition ?? currentTime
+        let newTime = max(0, min(duration, position + seconds))
         seek(to: newTime)
     }
 
@@ -124,8 +130,8 @@ extension PlayerViewModel {
         // Initial fetch
         updatePerformanceStats()
 
-        // Poll every 500ms
-        performanceStatsTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+        performanceStatsTimer?.invalidate()
+        performanceStatsTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.updatePerformanceStats()
             }

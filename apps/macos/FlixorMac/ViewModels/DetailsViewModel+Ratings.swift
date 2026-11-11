@@ -114,7 +114,9 @@ extension DetailsViewModel {
         guard let imdb = imdbId, !imdb.isEmpty else {
             // Try to get IMDB ID from TMDB external_ids if we have tmdbId
             if let tid = tmdbId, let media = mediaKind {
+                let token = loadToken
                 await fetchImdbIdFromTMDB(tmdbId: tid, mediaType: media)
+                if token == loadToken { releaseTitleIds() }
             }
             guard let imdb = imdbId, !imdb.isEmpty else {
                 print("⚠️ [Details] No IMDB ID available for MDBList lookup")
@@ -130,7 +132,7 @@ extension DetailsViewModel {
         struct ExtIds: Codable { let imdb_id: String? }
         do {
             let ext: ExtIds = try await api.get("/api/tmdb/\(mediaType)/\(tmdbId)/external_ids")
-            if let imdb = ext.imdb_id, !imdb.isEmpty {
+            if let imdb = ext.imdb_id, !imdb.isEmpty, self.tmdbId == tmdbId {
                 self.imdbId = imdb
                 print("🎬 [Details] Got IMDB ID from TMDB: \(imdb)")
             }

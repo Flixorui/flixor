@@ -284,6 +284,14 @@ private struct SubtitleColorRow: View {
 struct SubtitleSyncByLinePanel: View {
     @ObservedObject var viewModel: PlayerViewModel
     let onBack: () -> Void
+    /// The list follows the playback position.
+    @ObservedObject private var clock: PlaybackClock
+
+    init(viewModel: PlayerViewModel, onBack: @escaping () -> Void) {
+        _viewModel = ObservedObject(wrappedValue: viewModel)
+        self.onBack = onBack
+        _clock = ObservedObject(wrappedValue: viewModel.playbackClock)
+    }
 
     @Environment(\.flixorTheme) private var theme
 
@@ -324,6 +332,9 @@ struct SubtitleSyncByLinePanel: View {
             }
         }
         .frame(height: SubtitlePanelLayout.pageHeight)
+        // Shown cues are only published while this panel is open.
+        .onAppear { viewModel.isSubtitleSyncPanelOpen = true }
+        .onDisappear { viewModel.isSubtitleSyncPanelOpen = false }
     }
 
     private var explanation: String {

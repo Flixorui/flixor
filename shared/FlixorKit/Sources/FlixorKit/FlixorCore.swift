@@ -266,7 +266,8 @@ public class FlixorCore: ObservableObject {
             clientId: config.clientId,
             productName: config.productName,
             productVersion: config.productVersion,
-            platform: config.platform
+            platform: config.platform,
+            cache: cache
         )
 
         print("✅ [FlixorCore] Plex authentication completed")
@@ -324,7 +325,8 @@ public class FlixorCore: ObservableObject {
                 clientId: config.clientId,
                 productName: config.productName,
                 productVersion: config.productVersion,
-                platform: config.platform
+                platform: config.platform,
+                cache: cache
             )
 
             // PlexServer needs the server-specific access token
@@ -429,7 +431,8 @@ public class FlixorCore: ObservableObject {
             clientId: config.clientId,
             productName: config.productName,
             productVersion: config.productVersion,
-            platform: config.platform
+            platform: config.platform,
+            cache: cache
         )
 
         return token
@@ -628,7 +631,8 @@ public class FlixorCore: ObservableObject {
             clientId: config.clientId,
             productName: config.productName,
             productVersion: config.productVersion,
-            platform: config.platform
+            platform: config.platform,
+            cache: cache
         )
 
         // Re-fetch server resources with profile token to get profile-specific server access token
@@ -703,7 +707,8 @@ public class FlixorCore: ObservableObject {
             clientId: config.clientId,
             productName: config.productName,
             productVersion: config.productVersion,
-            platform: config.platform
+            platform: config.platform,
+            cache: cache
         )
 
         // Re-fetch server resources with main account token
@@ -898,5 +903,24 @@ public enum FlixorCoreError: Error, LocalizedError {
         case .pinRequired:
             return "PIN required for this profile"
         }
+    }
+}
+
+// MARK: - Logging
+
+/// Switch for FlixorKit's console logging. The app sets this at launch.
+public enum FlixorLogging {
+    #if DEBUG
+    public static var isEnabled: Bool = true
+    #else
+    public static var isEnabled: Bool = false
+    #endif
+}
+
+/// Shadows `Swift.print` for single-argument calls inside FlixorKit, so the message
+/// isn't even built while logging is off. Multi-argument calls still use `Swift.print`.
+func print(_ item: @autoclosure () -> Any) {
+    if FlixorLogging.isEnabled {
+        Swift.print(item())
     }
 }

@@ -21,8 +21,18 @@ class PlayerViewModel: ObservableObject {
     // MARK: - Published Properties
 
     @Published var isPlaying = false
-    @Published var currentTime: TimeInterval = 0
-    @Published var duration: TimeInterval = 0
+    /// Playback position, updated about 4 times a second. Not published: views that
+    /// show it observe `playbackClock`. For the exact position use
+    /// `mpvController?.currentTimePosition`.
+    var currentTime: TimeInterval = 0 {
+        didSet {
+            if playbackClock.time != currentTime { playbackClock.time = currentTime }
+        }
+    }
+    let playbackClock = PlaybackClock()
+    @Published var duration: TimeInterval = 0 {
+        didSet { invalidateNextEpisodeTrigger() }
+    }
     @Published var isLoading = true
     @Published var isChangingQuality = false
     @Published var error: String?
@@ -63,11 +73,18 @@ class PlayerViewModel: ObservableObject {
 
     // Performance overlay
     @Published var showPerformanceOverlay = false
-    @Published var performanceStats: PerformanceStats?
+    /// Held by `statsModel`, which only the stats overlay observes.
+    var performanceStats: PerformanceStats? {
+        get { statsModel.stats }
+        set { statsModel.stats = newValue }
+    }
+    let statsModel = PlaybackStatsModel()
     var performanceStatsTimer: Timer?
 
     // Chapter navigation
-    @Published var chapters: [MPVChapter] = []
+    @Published var chapters: [MPVChapter] = [] {
+        didSet { invalidateNextEpisodeTrigger() }
+    }
     @Published var currentChapterIndex: Int?
 
     // Subtitle styling (persisted)
@@ -80,7 +97,9 @@ class PlayerViewModel: ObservableObject {
     @Published var subtitleDelay: Double = 0.0
 
     // Markers (intro/credits) - no high-frequency updates
-    @Published var markers: [PlayerMarker] = []
+    @Published var markers: [PlayerMarker] = [] {
+        didSet { invalidateNextEpisodeTrigger() }
+    }
     @Published var currentMarker: PlayerMarker? = nil
 
     // Auto-skip state
@@ -89,7 +108,9 @@ class PlayerViewModel: ObservableObject {
     @Published var autoSkipCountdown: Int? = nil  // Countdown seconds shown to user
 
     // Next episode & season episodes
-    @Published var nextEpisode: EpisodeMetadata? = nil
+    @Published var nextEpisode: EpisodeMetadata? = nil {
+        didSet { invalidateNextEpisodeTrigger() }
+    }
     @Published var seasonEpisodes: [EpisodeMetadata] = []
     @Published var nextEpisodeCountdown: Int? = nil
     var nextEpisodeCountdownTimer: Timer?
@@ -98,6 +119,14 @@ class PlayerViewModel: ObservableObject {
     var nextEpisodeCountdownDismissed = false
     /// One-shot: this player has already navigated to another Plex episode.
     var didNavigateToEpisode = false
+    /// Cached countdown trigger point, rebuilt when markers, chapters or duration change.
+    var nextEpisodeTrigger: NextEpisodeTriggerPoint?
+    /// Playback position of the last countdown check (checked about once a second).
+    var lastNextEpisodeCheckTime: TimeInterval?
+    /// `start()` ran.
+    private(set) var hasStarted = false
+    /// Trailing progress report after seeks (see `seek(to:)`).
+    var seekProgressReportTask: Task<Void, Never>?
 
     // MARK: - Stream engine state (skip segments, stream next-episode, source recovery)
     // New stored properties for that work go directly below this line.
@@ -221,10 +250,22 @@ class PlayerViewModel: ObservableObject {
     // Subtitle cues for cue-based sync (see PlayerViewModel+SubtitleEngine.swift)
     @Published var subtitleCues: [SubtitleCue] = []
     @Published var recentSubtitleCues: [SubtitleCue] = []
-    @Published var subtitleCueSource: SubtitleCueSource = .none
+    /// Cues collected from embedded tracks; copied to `recentSubtitleCues` only while
+    /// the sync panel is open, so a shown cue doesn't redraw the player.
+    var observedSubtitleCues: [SubtitleCue] = []
+    var isSubtitleSyncPanelOpen = false {
+        didSet {
+            if isSubtitleSyncPanelOpen { recentSubtitleCues = observedSubtitleCues }
+        }
+    }
+    @Published var subtitleCueSource: SubtitleCueSource = .none {
+        didSet { updateSubtitleCueObservation() }
+    }
     @Published var subtitleFilterSDH: Bool = UserDefaults.standard.subtitleFilterSDH
     @Published var subtitleAppearance: SubtitleAppearance = SubtitleAppearance.fromDefaults()
     var subtitleCueLoadTask: Task<Void, Never>?
+    /// An external subtitle file is being loaded; cues are observed meanwhile in case it fails.
+    var isLoadingSubtitleCueFile = false
     var subtitleCueFilePath: String?
     var subtitleCueTrackId: Int?
     var subtitleHashTask: Task<Void, Never>?
@@ -235,6 +276,14 @@ class PlayerViewModel: ObservableObject {
 
     init(item: MediaItem) {
         self.item = item
+    }
+
+    /// Starts loading and registers Now Playing. Called once by the player view when
+    /// it appears; the initializers do no work, so a view model SwiftUI builds and
+    /// throws away never starts a load.
+    func start() {
+        guard !hasStarted else { return }
+        hasStarted = true
         setupPlayer()
         setupNowPlayingInfo()
     }
@@ -266,8 +315,6 @@ class PlayerViewModel: ObservableObject {
         )
 
         self.offlineFilePath = offlineFilePath
-        setupPlayer()
-        setupNowPlayingInfo()
     }
 
     init(streamItem: StreamPlaybackItem) {
@@ -298,8 +345,6 @@ class PlayerViewModel: ObservableObject {
         self.availableStremioSources = streamItem.availableStreams
         self.currentStremioSourceId = streamItem.availableStreams.first(where: { $0.url == streamItem.uri && $0.addonId == streamItem.addonId })?.id
         self.forcedResumeSeconds = TimeInterval(streamItem.resumePositionMs ?? 0) / 1000.0
-        setupPlayer()
-        setupNowPlayingInfo()
     }
 
     /// Setup player for offline file playback
@@ -396,14 +441,15 @@ class PlayerViewModel: ObservableObject {
         let controller = MPVPlayerController()
 
         // Setup property change callback
+        // The controller calls back on the main thread (time-pos about 4 times a second).
         controller.onPropertyChange = { [weak self] property, value in
-            Task { @MainActor [weak self] in
+            Self.runOnMain { [weak self] in
                 guard let self = self else { return }
                 switch property {
                 case "time-pos":
                     if let time = value as? Double {
                         self.currentTime = time
-                        // Check for markers whenever time updates (matches web/mobile frequency)
+                        // Check for markers whenever time updates
                         self.updateCurrentMarker()
                         // Update next episode countdown
                         self.updateNextEpisodeCountdown()
@@ -441,7 +487,7 @@ class PlayerViewModel: ObservableObject {
 
         // Setup event callback
         controller.onEvent = { [weak self] event in
-            Task { @MainActor [weak self] in
+            Self.runOnMain { [weak self] in
                 guard let self = self else { return }
                 print("🎯 [Player] MPV event: \(event)")
                 switch event {
@@ -481,6 +527,8 @@ class PlayerViewModel: ObservableObject {
                     self.enableDisplaySleep()
                     // Start Trakt scrobbling
                     self.startTraktScrobble()
+                    // Also follows every seek: the position is current again.
+                    self.updateNowPlayingInfo()
                 case "file-ended", "file-error":
                     // "file-error" = mpv reported MPV_END_FILE_REASON_ERROR.
                     // An end within 3s of start is also treated as a load failure,
@@ -525,6 +573,16 @@ class PlayerViewModel: ObservableObject {
         print("✅ [Player] MPV controller initialized with thumbnail support")
     }
 
+    /// Runs `body` at once when called on the main thread (MPVPlayerController's
+    /// callbacks are), otherwise in a main-actor task.
+    nonisolated static func runOnMain(_ body: @escaping @MainActor () -> Void) {
+        if Thread.isMainThread {
+            MainActor.assumeIsolated { body() }
+        } else {
+            Task { @MainActor in body() }
+        }
+    }
+
     // MARK: - Stop Playback
 
     func stopPlayback() {
@@ -532,6 +590,8 @@ class PlayerViewModel: ObservableObject {
 
         // Stop progress tracking immediately
         stopProgressTracking()
+        seekProgressReportTask?.cancel()
+        seekProgressReportTask = nil
 
         // Cancel next episode countdown
         nextEpisodeCountdownTimer?.invalidate()
@@ -546,6 +606,8 @@ class PlayerViewModel: ObservableObject {
 
         // Shutdown MPV completely to stop rendering
         mpvController?.shutdown()
+        // And the seek-bar thumbnail instance with its connection
+        thumbnailGenerator?.shutdown()
 
         cleanupExternalSubtitleFiles()
     }
@@ -553,6 +615,13 @@ class PlayerViewModel: ObservableObject {
     func onDisappear() {
         // Stop performance stats polling
         stopPerformanceStatsPolling()
+        // The final report below covers a pending seek report.
+        seekProgressReportTask?.cancel()
+        seekProgressReportTask = nil
+        thumbnailGenerator?.shutdown()
+        // Closed without stopPlayback() (which already did this): drop the remote-command
+        // targets, whose handlers would otherwise outlive the player.
+        if !remoteCommandTargets.isEmpty { clearNowPlayingInfo() }
 
         Task { @MainActor [weak self] in
             guard let self = self else { return }
@@ -573,6 +642,7 @@ class PlayerViewModel: ObservableObject {
                 controller.shutdown()
             }
             self.mpvController = nil
+            self.thumbnailGenerator = nil
 
             self.stopProgressTracking()
             self.cleanupExternalSubtitleFiles()
@@ -581,6 +651,7 @@ class PlayerViewModel: ObservableObject {
 
     func retry() {
         print("🔄 [Player] Retrying playback")
+        guard hasStarted else { start(); return }
         error = nil
         isLoading = true
         initialSeekApplied = false

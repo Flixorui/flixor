@@ -2,10 +2,15 @@
 //  StreamingAvailabilityStore.swift
 //  FlixorMac
 //
-//  Settings and data for the Streaming Availability integration: Top 10 rows
-//  per service (movies and shows, or mixed) and "New on" rows. Everything is
-//  read from the disk cache first; an entry is fetched again only when it is
-//  older than its refresh interval and the call budget allows.
+//  Settings and data for the Top 10 and "New on" rows. Two kinds of source,
+//  both supplied by the user:
+//  - FlixPatrol JSON APIs (URL + key): tried first for Top 10 rows, in the
+//    order added. No call limit, so no budget.
+//  - Streaming Availability (Movie of the Night) keys: "New on" rows, and the
+//    Top 10 fallback when no FlixPatrol source has the list. Budgeted.
+//  Everything is read from the disk cache first; an entry is fetched again
+//  only when it is older than its refresh interval (and, for Streaming
+//  Availability, when the call budget allows).
 //
 
 import Foundation
@@ -29,7 +34,12 @@ final class StreamingAvailabilityStore: ObservableObject {
         static let splitByType = "streamingAvailability.splitByType"
         static let newServices = "streamingAvailability.newServices"
         static let refreshHours = "streamingAvailability.refreshHours"
+        /// JSON array of FlixPatrolSource (URL + key), in the Keychain.
+        static let flixPatrolSources = "flixPatrol.sources"
     }
+
+    /// FlixPatrol charts update about once a day and calls are free: check every 6 hours.
+    static let flixPatrolMaxAge: TimeInterval = 6 * 3600
 
     private let defaults = UserDefaults.standard
     private let cache = StreamingAvailabilityCache.shared
@@ -41,43 +51,69 @@ final class StreamingAvailabilityStore: ObservableObject {
 
     @Published private(set) var hasKey = false
     @Published var enabled = true { didSet { save(enabled, Keys.enabled) } }
-    @Published var region = "us" { didSet { save(region, Keys.region) } }
-    @Published var topServices: [String] = StreamingService.allCases.map(\.rawValue) { didSet { save(topServices, Keys.topServices) } }
+    @Published var region = "us" {
+        didSet {
+            save(region, Keys.region)
+            guard !loadingSettings, region != oldValue else { return }
+            regionServices = cachedCountry(region).map { Set($0.services.map(\.id)) }
+            flixPatrolServices = cachedFlixPatrolCountry(region).map { Set($0.services.map(\.id)) }
+        }
+    }
+    @Published var topServices: [String] = StreamingService.defaultTopServices.map(\.rawValue) { didSet { save(topServices, Keys.topServices) } }
     @Published var splitByType = true { didSet { save(splitByType, Keys.splitByType) } }
     @Published var newServices: [String] = [] { didSet { save(newServices, Keys.newServices) } }
     @Published var refreshHours = 24 { didSet { save(refreshHours, Keys.refreshHours) } }
 
-    /// Services the region has (from /countries), or nil before it is known.
+    /// Services the region has on Streaming Availability (from /countries), or nil before it is known.
     @Published private(set) var regionServices: Set<String>?
+    /// FlixPatrol sources, tried in this order.
+    @Published private(set) var flixPatrolSources: [FlixPatrolSource] = []
+    /// Services with FlixPatrol charts in the region, or nil before it is known.
+    @Published private(set) var flixPatrolServices: Set<String>?
+    @Published private(set) var flixPatrolError: String?
     @Published private(set) var lastError: String?
     @Published private(set) var lastRefresh: Date?
-    /// Deep links ("Open in Netflix") by Flixor item id.
-    private(set) var links: [String: (service: StreamingService, url: URL)] = [:]
 
-    var isActive: Bool { hasKey && enabled }
+    var hasFlixPatrol: Bool { !flixPatrolSources.isEmpty }
+    /// At least one source of either kind.
+    var hasAnySource: Bool { hasKey || hasFlixPatrol }
+    var isActive: Bool { hasAnySource && enabled }
 
     private init() {
         reload()
         profileObserver = ProfileSettings.shared.objectWillChange
-            .debounce(for: .milliseconds(50), scheduler: RunLoop.main)
+            .debounce(for: .milliseconds(300), scheduler: RunLoop.main)
             .sink { [weak self] _ in Task { @MainActor [weak self] in self?.reload() } }
     }
 
     private var loadingSettings = false
 
+    /// Runs on every ProfileSettings change, so it only assigns what changed (no needless redraws).
     func reload() {
         loadingSettings = true
         defer { loadingSettings = false }
         migrateSingleKey()
-        hasKey = !storedKeys.isEmpty
-        enabled = defaults.object(forKey: defaults.profileKey(Keys.enabled)) as? Bool ?? true
-        region = defaults.string(forKey: defaults.profileKey(Keys.region)) ?? Self.defaultRegion
-        topServices = defaults.stringArray(forKey: defaults.profileKey(Keys.topServices)) ?? StreamingService.allCases.map(\.rawValue)
-        splitByType = defaults.object(forKey: defaults.profileKey(Keys.splitByType)) as? Bool ?? true
-        newServices = defaults.stringArray(forKey: defaults.profileKey(Keys.newServices)) ?? []
+        let newHasKey = !storedKeys.isEmpty
+        if hasKey != newHasKey { hasKey = newHasKey }
+        let sources = storedFlixPatrolSources
+        if flixPatrolSources != sources { flixPatrolSources = sources }
+        let newEnabled = defaults.object(forKey: defaults.profileKey(Keys.enabled)) as? Bool ?? true
+        if enabled != newEnabled { enabled = newEnabled }
+        let newRegion = defaults.string(forKey: defaults.profileKey(Keys.region)) ?? Self.defaultRegion
+        if region != newRegion { region = newRegion }
+        let newTop = defaults.stringArray(forKey: defaults.profileKey(Keys.topServices)) ?? StreamingService.defaultTopServices.map(\.rawValue)
+        if topServices != newTop { topServices = newTop }
+        let newSplit = defaults.object(forKey: defaults.profileKey(Keys.splitByType)) as? Bool ?? true
+        if splitByType != newSplit { splitByType = newSplit }
+        let newNew = defaults.stringArray(forKey: defaults.profileKey(Keys.newServices)) ?? []
+        if newServices != newNew { newServices = newNew }
         let hours = defaults.integer(forKey: defaults.profileKey(Keys.refreshHours))
-        refreshHours = [12, 24, 48].contains(hours) ? hours : 24
-        regionServices = cachedCountry(region).map { Set($0.services.map(\.id)) }
+        let newHours = [12, 24, 48].contains(hours) ? hours : 24
+        if refreshHours != newHours { refreshHours = newHours }
+        let newRegionServices = cachedCountry(region).map { Set($0.services.map(\.id)) }
+        if regionServices != newRegionServices { regionServices = newRegionServices }
+        let newFlixPatrolServices = cachedFlixPatrolCountry(region).map { Set($0.services.map(\.id)) }
+        if flixPatrolServices != newFlixPatrolServices { flixPatrolServices = newFlixPatrolServices }
     }
 
     private func save(_ value: Any, _ key: String) {
@@ -173,6 +209,130 @@ final class StreamingAvailabilityStore: ObservableObject {
     /// Calls left today across every key.
     var allowanceToday: Int { budget.totalAllowance(keyFingerprints) }
 
+    // MARK: FlixPatrol sources (tried in order; the next one is the fallback)
+
+    private var storedFlixPatrolSources: [FlixPatrolSource] {
+        guard let json = SecretStore.string(Keys.flixPatrolSources), let data = json.data(using: .utf8),
+              let sources = try? JSONDecoder().decode([FlixPatrolSource].self, from: data) else { return [] }
+        sources.forEach { AppLogger.shared.registerSensitiveValue($0.key) }
+        return sources
+    }
+
+    private func saveFlixPatrolSources(_ sources: [FlixPatrolSource]) {
+        let json = (try? JSONEncoder().encode(sources)).flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
+        SecretStore.set(sources.isEmpty ? "" : json, for: Keys.flixPatrolSources)
+        sources.forEach { AppLogger.shared.registerSensitiveValue($0.key) }
+        flixPatrolSources = sources
+    }
+
+    /// Adds a FlixPatrol API after checking it with one call. Returns an error message, or nil.
+    func addFlixPatrolSource(url rawURL: String, key rawKey: String) async -> String? {
+        let url = FlixPatrolSource.normalizedURL(rawURL)
+        let key = rawKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !url.isEmpty, !key.isEmpty else { return String(localized: "Enter both the URL and the API key.") }
+        guard let parsed = URL(string: url), parsed.host != nil, parsed.scheme?.hasPrefix("http") == true else {
+            return FlixPatrolError.invalidURL.errorDescription
+        }
+        AppLogger.shared.registerSensitiveValue(key)
+        let source = FlixPatrolSource(url: url, key: key)
+        if flixPatrolSources.contains(where: { $0.id == source.id }) { return String(localized: "That API is already added.") }
+        do {
+            let data = try await FlixPatrolClient(source: source).get("countries/\(region)", query: [])
+            guard let country = try? JSONDecoder().decode(SACountry.self, from: data) else {
+                return FlixPatrolError.invalidResponse.errorDescription
+            }
+            cache.write(data, for: flixPatrolCountryKey(region))
+            flixPatrolServices = Set(country.services.map(\.id))
+            saveFlixPatrolSources(flixPatrolSources + [source])
+            flixPatrolError = nil
+            listVersion += 1
+            return nil
+        } catch FlixPatrolError.http(404, _) {
+            // The API works but has no charts for this region: keep it for other regions.
+            saveFlixPatrolSources(flixPatrolSources + [source])
+            flixPatrolServices = []
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
+    func removeFlixPatrolSource(_ id: String) {
+        saveFlixPatrolSources(flixPatrolSources.filter { $0.id != id })
+        if flixPatrolSources.isEmpty { flixPatrolServices = nil; flixPatrolError = nil }
+        listVersion += 1
+    }
+
+    /// Moves a source to the top, so it's tried first.
+    func preferFlixPatrolSource(_ id: String) {
+        guard let source = flixPatrolSources.first(where: { $0.id == id }) else { return }
+        saveFlixPatrolSources([source] + flixPatrolSources.filter { $0.id != id })
+    }
+
+    /// Cached FlixPatrol data for `key`, refreshed first when older than `maxAge`.
+    /// Sources are tried in order; if all fail, the saved copy is returned.
+    private func flixPatrolData(_ key: String, path: String, query: [URLQueryItem], maxAge: TimeInterval, force: Bool = false) async -> Data? {
+        let cached = cache.read(key)
+        let due = force || cached.map { Date().timeIntervalSince($0.fetchedAt) > maxAge } ?? true
+        guard due, hasFlixPatrol else { return cached?.data }
+        var failure: Error?
+        for source in flixPatrolSources {
+            do {
+                let data = try await FlixPatrolClient(source: source).get(path, query: query)
+                cache.write(data, for: key)
+                flixPatrolError = nil
+                AppLogger.shared.info("[FlixPatrol] Fetched \(path)", data: ["host": source.host])
+                return data
+            } catch {
+                failure = error
+            }
+        }
+        flixPatrolError = failure?.localizedDescription
+        return cached?.data
+    }
+
+    private func flixPatrolCountryKey(_ code: String) -> String { "fp-country|\(code)" }
+
+    private func cachedFlixPatrolCountry(_ code: String) -> SACountry? {
+        decodedCountry(flixPatrolCountryKey(code))
+    }
+
+    /// Decoded /countries entries, reused while the cached entry is unchanged.
+    private var decodedCountries: [String: (fetchedAt: Date, country: SACountry?)] = [:]
+
+    private func decodedCountry(_ key: String) -> SACountry? {
+        guard let entry = cache.read(key) else { return nil }
+        if let memo = decodedCountries[key], memo.fetchedAt == entry.fetchedAt { return memo.country }
+        let country = try? JSONDecoder().decode(SACountry.self, from: entry.data)
+        decodedCountries[key] = (entry.fetchedAt, country)
+        return country
+    }
+
+    /// The region's FlixPatrol services: saved for a week, then asked again.
+    private func loadFlixPatrolCountry(force: Bool = false) async {
+        let key = flixPatrolCountryKey(region)
+        if !force, let cached = cache.read(key), Date().timeIntervalSince(cached.fetchedAt) < 7 * 86_400,
+           let country = try? JSONDecoder().decode(SACountry.self, from: cached.data) {
+            flixPatrolServices = Set(country.services.map(\.id))
+            return
+        }
+        for source in flixPatrolSources {
+            do {
+                let data = try await FlixPatrolClient(source: source).get("countries/\(region)", query: [])
+                guard let country = try? JSONDecoder().decode(SACountry.self, from: data) else { continue }
+                cache.write(data, for: key)
+                flixPatrolServices = Set(country.services.map(\.id))
+                return
+            } catch FlixPatrolError.http(404, _) {
+                // FlixPatrol doesn't cover this region.
+                flixPatrolServices = []
+                return
+            } catch {
+                flixPatrolError = error.localizedDescription
+            }
+        }
+    }
+
     // MARK: Fetching (cache first, within budget)
 
     /// Cached data for `key`, refreshed first when it is older than `maxAge`
@@ -200,7 +360,7 @@ final class StreamingAvailabilityStore: ObservableObject {
     }
 
     private func cachedCountry(_ code: String) -> SACountry? {
-        cache.read("country|\(code)").flatMap { try? JSONDecoder().decode(SACountry.self, from: $0.data) }
+        decodedCountry("country|\(code)")
     }
 
     private func loadCountry() async {
@@ -209,9 +369,24 @@ final class StreamingAvailabilityStore: ObservableObject {
         regionServices = Set(country.services.map(\.id))
     }
 
-    /// Services shown in Settings: supported ones the region has (all of them until known).
+    /// A FlixPatrol source has charts for the service in the region (assumed until known).
+    func flixPatrolCovers(_ service: StreamingService) -> Bool {
+        hasFlixPatrol && (flixPatrolServices?.contains(service.rawValue) ?? true)
+    }
+
+    /// A Streaming Availability key can fetch the service's lists in the region (assumed until known).
+    func streamingAvailabilityCovers(_ service: StreamingService) -> Bool {
+        hasKey && service.hasStreamingAvailability && (regionServices?.contains(service.rawValue) ?? true)
+    }
+
+    /// Services with a Top 10 list from any source.
     var availableServices: [StreamingService] {
-        StreamingService.allCases.filter { regionServices?.contains($0.rawValue) ?? true }
+        StreamingService.allCases.filter { flixPatrolCovers($0) || streamingAvailabilityCovers($0) }
+    }
+
+    /// Services with "New on" rows (Streaming Availability only).
+    var newRowServices: [StreamingService] {
+        StreamingService.allCases.filter(streamingAvailabilityCovers)
     }
 
     // MARK: Rows
@@ -234,7 +409,7 @@ final class StreamingAvailabilityStore: ObservableObject {
                 specs.append(RowSpec(id: "\(Self.rowIdPrefix)top-\(service.rawValue)", title: String(localized: "Top 10 on \(service.displayName)"), service: service))
             }
         }
-        for service in availableServices where newServices.contains(service.rawValue) {
+        for service in newRowServices where newServices.contains(service.rawValue) {
             specs.append(RowSpec(id: "\(Self.rowIdPrefix)new-\(service.rawValue)", title: String(localized: "New on \(service.displayName)"), service: service))
         }
         return specs
@@ -244,17 +419,35 @@ final class StreamingAvailabilityStore: ObservableObject {
     func sections(force: Bool = false) async -> [LibrarySection] {
         // The first Keychain read can fail (e.g. while macOS asks for access); try again.
         if !hasKey { migrateSingleKey(); hasKey = !storedKeys.isEmpty }
+        if flixPatrolSources.isEmpty { flixPatrolSources = storedFlixPatrolSources }
         guard isActive, !isLoading else { return isActive ? cachedSections() : [] }
         isLoading = true
         defer { isLoading = false }
 
-        if regionServices == nil || force { await loadCountry() }
+        if hasFlixPatrol, flixPatrolServices == nil || force { await loadFlixPatrolCountry(force: force) }
+        if hasKey, regionServices == nil || force { await loadCountry() }
         let maxAge = TimeInterval(refreshHours) * 3600
         var sections: [LibrarySection] = []
 
-        for spec in rowSpecs {
-            if let section = await fetchList(spec, maxAge: maxAge, force: force) { sections.append(section) }
+        // A few lists at a time. Each Streaming Availability call reserves its budget
+        // before it awaits, so the budget holds with several in flight.
+        let specs = rowSpecs
+        var results = [LibrarySection?](repeating: nil, count: specs.count)
+        await withTaskGroup(of: (Int, LibrarySection?).self) { group in
+            var next = 0
+            func addNext() {
+                guard next < specs.count else { return }
+                let index = next
+                next += 1
+                group.addTask { (index, await self.fetchList(specs[index], maxAge: maxAge, force: force)) }
+            }
+            for _ in 0..<3 { addNext() }
+            while let (index, section) = await group.next() {
+                results[index] = section
+                addNext()
+            }
         }
+        sections = results.compactMap { $0 }
         lastRefresh = Date()
         return sections
     }
@@ -263,6 +456,18 @@ final class StreamingAvailabilityStore: ObservableObject {
     private func fetchList(_ spec: RowSpec, maxAge: TimeInterval, force: Bool) async -> LibrarySection? {
         if spec.id.hasPrefix("\(Self.rowIdPrefix)top-") {
             let type: String? = spec.id.hasSuffix("-movie") ? "movie" : (spec.id.hasSuffix("-series") ? "series" : nil)
+            if flixPatrolCovers(spec.service) {
+                var query = [URLQueryItem(name: "country", value: region), URLQueryItem(name: "service", value: spec.service.rawValue)]
+                if let type { query.append(URLQueryItem(name: "show_type", value: type)) }
+                if let data = await flixPatrolData(flixPatrolCacheKey(for: spec), path: "shows/top", query: query,
+                                                  maxAge: min(maxAge, Self.flixPatrolMaxAge), force: force),
+                   let shows = try? JSONDecoder().decode([SAShow].self, from: data),
+                   let section = section(spec, shows: Self.flixPatrolRanked(shows, type: type)) {
+                    return section
+                }
+            }
+            // Fallback: Streaming Availability, within its budget.
+            guard streamingAvailabilityCovers(spec.service) else { return nil }
             var query = [URLQueryItem(name: "country", value: region), URLQueryItem(name: "service", value: spec.service.rawValue)]
             if let type { query.append(URLQueryItem(name: "show_type", value: type)) }
             guard let data = await data(cacheKey(for: spec), path: "shows/top", query: query, maxAge: maxAge, force: force),
@@ -285,6 +490,28 @@ final class StreamingAvailabilityStore: ObservableObject {
         return section(spec, shows: Array(Self.newShows(in: result).prefix(20)))
     }
 
+    /// FlixPatrol's top 10 in chart order. Asked without a type it sends the
+    /// movie and show charts separately; a mixed row alternates them by rank.
+    static func flixPatrolRanked(_ shows: [SAShow], type: String?) -> [SAShow] {
+        // A title can be ranked in several charts: use the movie or TV chart that
+        // matches, else its best rank (some services only have "overall").
+        func rank(_ show: SAShow) -> Int {
+            let rankings = show.rankings ?? []
+            let chart = show.isSeries ? "tv-shows" : "movies"
+            return (rankings.first { $0.category == chart } ?? rankings.min { $0.rank < $1.rank })?.rank ?? .max
+        }
+        let ordered = shows.enumerated().sorted { (rank($0.element), $0.offset) < (rank($1.element), $1.offset) }.map(\.element)
+        guard type == nil else { return Array(ordered.prefix(10)) }
+        let movies = ordered.filter { !$0.isSeries }
+        let series = ordered.filter(\.isSeries)
+        var mixed: [SAShow] = []
+        for index in 0..<max(movies.count, series.count) {
+            if index < movies.count { mixed.append(movies[index]) }
+            if index < series.count { mixed.append(series[index]) }
+        }
+        return Array(mixed.prefix(10))
+    }
+
     /// Titles new on the service's own subscription, once each, newest first.
     static func newShows(in result: SAChangesResult) -> [SAShow] {
         var seen = Set<String>()
@@ -300,7 +527,13 @@ final class StreamingAvailabilityStore: ObservableObject {
         rowSpecs.compactMap { spec in
             let type = spec.id.hasSuffix("-movie") ? "movie" : (spec.id.hasSuffix("-series") ? "series" : "all")
             if spec.id.hasPrefix("\(Self.rowIdPrefix)top-") {
-                guard let data = cache.read("top|\(region)|\(spec.service.rawValue)|\(type)")?.data,
+                if flixPatrolCovers(spec.service), let data = cache.read(flixPatrolCacheKey(for: spec))?.data,
+                   let shows = try? JSONDecoder().decode([SAShow].self, from: data),
+                   let section = section(spec, shows: Self.flixPatrolRanked(shows, type: type == "all" ? nil : type)) {
+                    return section
+                }
+                guard streamingAvailabilityCovers(spec.service),
+                      let data = cache.read("top|\(region)|\(spec.service.rawValue)|\(type)")?.data,
                       let shows = try? JSONDecoder().decode([SAShow].self, from: data) else { return nil }
                 return section(spec, shows: Array(shows.prefix(10)))
             }
@@ -313,7 +546,6 @@ final class StreamingAvailabilityStore: ObservableObject {
     private func section(_ spec: RowSpec, shows: [SAShow]) -> LibrarySection? {
         let items = shows.compactMap { show -> MediaItem? in
             guard let id = show.flixorId else { return nil }
-            if let url = show.link(service: spec.service, country: region) { links[id] = (spec.service, url) }
             return MediaItem(
                 id: id, title: show.title, type: show.isSeries ? "show" : "movie",
                 thumb: show.posterURL, art: show.backdropURL, year: show.year,
@@ -356,6 +588,20 @@ final class StreamingAvailabilityStore: ObservableObject {
         let title: String
         let fetchedAt: Date?
         let count: Int
+        /// "FlixPatrol" or "Streaming Availability".
+        let source: String
+        /// Refetching it costs a Streaming Availability call.
+        let usesBudget: Bool
+    }
+
+    private func flixPatrolCacheKey(for spec: RowSpec) -> String {
+        let type = spec.id.hasSuffix("-movie") ? "movie" : (spec.id.hasSuffix("-series") ? "series" : "all")
+        return "fp|top|\(region)|\(spec.service.rawValue)|\(type)"
+    }
+
+    /// Top 10 rows a FlixPatrol source serves; everything else uses Streaming Availability.
+    private func servedByFlixPatrol(_ spec: RowSpec) -> Bool {
+        spec.id.hasPrefix("\(Self.rowIdPrefix)top-") && flixPatrolCovers(spec.service)
     }
 
     private func cacheKey(for spec: RowSpec) -> String {
@@ -364,18 +610,36 @@ final class StreamingAvailabilityStore: ObservableObject {
         return "top|\(region)|\(spec.service.rawValue)|\(type)"
     }
 
+    private var savedListsMemo: (key: String, lists: [SavedList])?
+
+    /// Memoised: Settings reads this several times per redraw, and building it decodes every cached list.
     var savedLists: [SavedList] {
-        _ = listVersion
+        let specs = rowSpecs
+        let memoKey = "\(listVersion)|\(cache.generation)|\(region)|" + specs.map {
+            "\($0.id):\(flixPatrolCovers($0.service)):\(streamingAvailabilityCovers($0.service))"
+        }.joined(separator: ",")
+        if let memo = savedListsMemo, memo.key == memoKey { return memo.lists }
+        let lists = buildSavedLists(specs)
+        savedListsMemo = (memoKey, lists)
+        return lists
+    }
+
+    private func buildSavedLists(_ specs: [RowSpec]) -> [SavedList] {
         let sections = Dictionary(cachedSections().map { ($0.id, $0.items.count) }, uniquingKeysWith: { a, _ in a })
-        return rowSpecs.map { spec in
-            SavedList(id: spec.id, title: spec.title, fetchedAt: cache.read(cacheKey(for: spec))?.fetchedAt, count: sections[spec.id] ?? 0)
+        return specs.map { spec in
+            let flixPatrolEntry = servedByFlixPatrol(spec) ? cache.read(flixPatrolCacheKey(for: spec)) : nil
+            let entry = flixPatrolEntry ?? cache.read(cacheKey(for: spec))
+            return SavedList(id: spec.id, title: spec.title, fetchedAt: entry?.fetchedAt, count: sections[spec.id] ?? 0,
+                             source: flixPatrolEntry != nil || (entry == nil && servedByFlixPatrol(spec))
+                                 ? "FlixPatrol" : "Streaming Availability",
+                             usesBudget: !servedByFlixPatrol(spec))
         }
     }
 
     /// Bumps after a refetch, so Settings shows new ages.
     @Published private(set) var listVersion = 0
 
-    /// Fetches one list now (1 call), then asks Home to reload.
+    /// Fetches one list now (free from FlixPatrol, else 1 call), then asks Home to reload.
     func refetch(_ rowId: String) async {
         guard let spec = rowSpecs.first(where: { $0.id == rowId }) else { return }
         _ = await fetchList(spec, maxAge: 0, force: true)
@@ -393,14 +657,14 @@ final class StreamingAvailabilityStore: ObservableObject {
     func clearCache() {
         cache.clear()
         listVersion += 1
-        links = [:]
         regionServices = nil
+        flixPatrolServices = nil
         NotificationCenter.default.post(name: Self.didUpdateNotification, object: nil)
     }
 
-    /// Calls a full refresh of the current settings costs.
+    /// Streaming Availability calls a full refresh costs (FlixPatrol lists are free).
     var callsPerRefresh: Int {
         guard isActive else { return 0 }
-        return rowSpecs.count
+        return rowSpecs.filter { !servedByFlixPatrol($0) }.count
     }
 }

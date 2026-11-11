@@ -49,7 +49,9 @@ final class StremioSourcesViewModel: ObservableObject {
     }
 
     @Published var isLoading = false
-    @Published var groupedResults: [StremioAddonStreamResult] = []
+    @Published var groupedResults: [StremioAddonStreamResult] = [] {
+        didSet { resultsVersion &+= 1 }
+    }
     @Published var selectedProviderFilter = "all"
     @Published var emptyState: EmptyState = .none
     @Published var cachedSource: CachedPlaybackSource?
@@ -61,6 +63,11 @@ final class StremioSourcesViewModel: ObservableObject {
     private let service = StremioService.shared
     private let streamCache = StremioStreamCache.shared
     private let resumeStore = StremioResumeStore.shared
+
+    /// Changes whenever `groupedResults` is assigned, so views can cache work derived from it.
+    private(set) var resultsVersion = 0
+    private var hasLoaded = false
+    private var loadGeneration = 0
 
     init(destination: StremioSourcesDestination) {
         self.destination = destination
@@ -109,7 +116,23 @@ final class StremioSourcesViewModel: ObservableObject {
             .filter { !$0.streams.isEmpty }
     }
 
+    /// True once any addon has returned a playable stream.
+    var hasPlayableResults: Bool {
+        groupedResults.contains { $0.streams.contains(where: \.playable) }
+    }
+
+    /// Loads once per page; returning from the player keeps the list.
+    func loadIfNeeded() async {
+        guard !hasLoaded else { return }
+        await load()
+        if !Task.isCancelled {
+            hasLoaded = true
+        }
+    }
+
     func load() async {
+        loadGeneration &+= 1
+        let generation = loadGeneration
         isLoading = true
         emptyState = .none
 
@@ -130,8 +153,13 @@ final class StremioSourcesViewModel: ObservableObject {
             ? await streamCache.get(contentKey: contentKey)
             : nil
 
-        let results = await service.getStreams(identity: destination.identity)
-        groupedResults = results
+        let results = await service.getStreamsProgressively(identity: destination.identity) { [weak self] partial in
+            await self?.applyPartialResults(partial, generation: generation)
+        }
+        guard generation == loadGeneration else { return }
+        if groupedResults != results {
+            groupedResults = results
+        }
         isLoading = false
 
         let allStreams = results.flatMap(\.streams)
@@ -149,6 +177,11 @@ final class StremioSourcesViewModel: ObservableObject {
         }
 
         emptyState = .none
+    }
+
+    private func applyPartialResults(_ partial: [StremioAddonStreamResult], generation: Int) {
+        guard generation == loadGeneration, isLoading else { return }
+        groupedResults = partial
     }
 
     // MARK: - Automatic selection

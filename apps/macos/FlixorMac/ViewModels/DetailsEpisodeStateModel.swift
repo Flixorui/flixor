@@ -200,7 +200,7 @@ final class DetailsEpisodeStateModel: ObservableObject {
             withAnimation(DS.Motion.quick) { self.overrides = [:] }
             if self.seasonArtKey != nil {
                 self.seasonArtKey = nil
-                await self.loadSeasonArt(vm: vm)
+                await self.loadSeasonArt(vm: vm, fresh: true)
             }
         }
     }
@@ -216,7 +216,9 @@ final class DetailsEpisodeStateModel: ObservableObject {
 
     /// Loads season posters and episode counts: Plex season children for Plex
     /// shows, TMDB season summaries otherwise (and for missing Plex posters).
-    func loadSeasonArt(vm: DetailsViewModel) async {
+    /// Uses the summaries the details load already fetched unless `fresh` (after
+    /// a watch-state change, for new watched counts).
+    func loadSeasonArt(vm: DetailsViewModel, fresh: Bool = false) async {
         let seasons = vm.seasons
         guard !seasons.isEmpty else { return }
         let key = seasons.map(\.id).joined(separator: ",")
@@ -227,26 +229,39 @@ final class DetailsEpisodeStateModel: ObservableObject {
 
         // Plex: one request for all seasons of the show.
         if seasons.contains(where: { $0.source == "plex" }), let showKey = vm.showPlexKeyForEpisodes {
-            struct MC: Decodable { let Metadata: [M]? }
-            struct M: Decodable { let ratingKey: String; let thumb: String?; let leafCount: Int?; let viewedLeafCount: Int? }
-            if let container: MC = try? await vm.api.get("/api/plex/dir/library/metadata/\(showKey)/children", bypassCache: true) {
-                for m in container.Metadata ?? [] {
-                    art[m.ratingKey] = SeasonArt(
-                        posterURL: ImageService.shared.plexImageURL(path: m.thumb, width: 300, height: 450),
-                        episodeCount: m.leafCount,
-                        watchedCount: m.viewedLeafCount
+            if !fresh, let loaded = vm.plexSeasonInfo {
+                for (ratingKey, info) in loaded {
+                    art[ratingKey] = SeasonArt(
+                        posterURL: ImageService.shared.plexImageURL(path: info.thumb, width: 300, height: 450),
+                        episodeCount: info.leafCount,
+                        watchedCount: info.viewedLeafCount
                     )
+                }
+            } else {
+                struct MC: Decodable { let Metadata: [M]? }
+                struct M: Decodable { let ratingKey: String; let thumb: String?; let leafCount: Int?; let viewedLeafCount: Int? }
+                if let container: MC = try? await vm.api.get("/api/plex/dir/library/metadata/\(showKey)/children", bypassCache: true) {
+                    for m in container.Metadata ?? [] {
+                        art[m.ratingKey] = SeasonArt(
+                            posterURL: ImageService.shared.plexImageURL(path: m.thumb, width: 300, height: 450),
+                            episodeCount: m.leafCount,
+                            watchedCount: m.viewedLeafCount
+                        )
+                    }
                 }
             }
         }
 
         // TMDB: fill seasons without art (and every season for TMDB-sourced lists).
         let missing = seasons.filter { art[$0.id]?.posterURL == nil }
-        if !missing.isEmpty, let tmdb = vm.tmdbId.flatMap({ Int($0) }), !vm.isSeason,
-           let details = try? await FlixorCore.shared.tmdb.getTVDetails(id: tmdb) {
-            var byNumber: [Int: TMDBSeasonSummary] = [:]
-            for summary in details.seasons {
-                if let n = summary.seasonNumber { byNumber[n] = summary }
+        if !missing.isEmpty, let tmdb = vm.tmdbId.flatMap({ Int($0) }), !vm.isSeason {
+            var byNumber: [Int: (posterPath: String?, episodeCount: Int?)] = [:]
+            if let loaded = vm.tmdbSeasonInfo {
+                for info in loaded { byNumber[info.number] = (info.posterPath, info.episodeCount) }
+            } else if let details = try? await FlixorCore.shared.tmdb.getTVDetails(id: tmdb) {
+                for summary in details.seasons {
+                    if let n = summary.seasonNumber { byNumber[n] = (summary.posterPath, summary.episodeCount) }
+                }
             }
             for season in missing {
                 guard let n = season.number, let summary = byNumber[n] else { continue }

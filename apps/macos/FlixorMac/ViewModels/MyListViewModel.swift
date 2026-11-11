@@ -100,6 +100,15 @@ final class MyListViewModel: ObservableObject {
                 viewedLeafCount: nil
             )
         }
+
+        fileprivate func withImageURL(_ url: URL?) -> WatchlistItem {
+            WatchlistItem(
+                id: id, title: title, year: year, imageURL: url, plexThumb: plexThumb,
+                overview: overview, ratingText: ratingText, mediaType: mediaType, source: source,
+                dateAdded: dateAdded, runtimeMinutes: runtimeMinutes, genres: genres,
+                plexRatingKey: plexRatingKey, plexGuid: plexGuid, tmdbId: tmdbId, imdbId: imdbId
+            )
+        }
     }
 
     @Published private(set) var isLoading = false
@@ -131,6 +140,26 @@ final class MyListViewModel: ObservableObject {
     private let api = APIClient.shared
     private weak var watchlistController: WatchlistController?
     private var loadTask: Task<Void, Never>?
+    private var loadGeneration = 0
+    /// Last result from each source. A source that hasn't answered yet (or failed)
+    /// keeps its previous items, so a reload never empties the grid.
+    private var plexSource: [WatchlistItem] = []
+    private var traktSource: [WatchlistItem] = []
+    private var localSource: [WatchlistItem] = []
+    /// TMDB poster URLs for Trakt items, keyed by "movie:123" / "show:123".
+    private var traktPosterCache: [String: URL] = [:]
+    private let posterBatchSize = 12
+    /// watchlistDidChange notifications posted by this screen's own removals.
+    private var pendingOwnChangeNotifications = 0
+    private static let listedAtFormatter = ISO8601DateFormatter()
+
+    private enum SourceResult {
+        case plex([WatchlistItem])
+        case trakt([WatchlistItem])
+        case local([WatchlistItem])
+        case failed(Error)
+        case postersResolved
+    }
 
     // MARK: - Trakt Types
     private struct TraktWatchlistEntry: Codable {
@@ -181,46 +210,66 @@ final class MyListViewModel: ObservableObject {
 
         isLoading = true
         errorMessage = nil
+        loadGeneration += 1
+        let generation = loadGeneration
 
-        loadTask = Task {
-            do {
-                async let plexItems = fetchPlexWatchlist()
-                async let traktItems = fetchTraktWatchlist()
-                async let localItems = fetchLocalWatchlist()
-
-                let (plex, trakt, local) = try await (plexItems, traktItems, localItems)
-
-                var merged: [String: WatchlistItem] = [:]
-                for item in plex {
-                    merged[item.id] = item
+        // Each source is shown as soon as it answers; Trakt posters fill in afterwards.
+        loadTask = Task { [weak self] in
+            guard let self else { return }
+            await withTaskGroup(of: SourceResult.self) { group in
+                group.addTask {
+                    do { return .plex(try await self.fetchPlexWatchlist()) } catch { return .failed(error) }
                 }
-                for item in trakt {
-                    if var existing = merged[item.id] {
-                        existing.source = .both
-                        merged[item.id] = existing
-                    } else {
-                        merged[item.id] = item
+                group.addTask {
+                    do { return .trakt(try await self.fetchTraktWatchlist()) } catch { return .failed(error) }
+                }
+                group.addTask {
+                    .local(await self.fetchLocalWatchlist())
+                }
+
+                var pendingSources = 3
+                var failed = false
+                while let result = await group.next() {
+                    guard !Task.isCancelled, generation == self.loadGeneration else { continue }
+                    switch result {
+                    case .plex(let items):
+                        pendingSources -= 1
+                        self.plexSource = items
+                        self.publishMerged()
+                    case .trakt(let items):
+                        pendingSources -= 1
+                        self.traktSource = items
+                        self.publishMerged()
+                        group.addTask {
+                            await self.resolveTraktPosters(generation: generation)
+                            return .postersResolved
+                        }
+                    case .local(let items):
+                        pendingSources -= 1
+                        self.localSource = items
+                        self.publishMerged()
+                    case .failed(let error):
+                        pendingSources -= 1
+                        if !(error is CancellationError) {
+                            failed = true
+                            if self.errorMessage == nil {
+                                self.errorMessage = error.localizedDescription
+                            }
+                        }
+                    case .postersResolved:
+                        continue
+                    }
+                    if pendingSources == 0 {
+                        if !failed {
+                            self.watchlistController?.synchronize(with: self.items)
+                        }
+                        self.isLoading = false
                     }
                 }
-                // Local entries only fill gaps - a remote source is authoritative when
-                // it already has the title.
-                for item in local where merged[item.id] == nil {
-                    merged[item.id] = item
-                }
-
-                items = merged.values.sorted { lhs, rhs in
-                    (lhs.dateAdded ?? .distantPast) > (rhs.dateAdded ?? .distantPast)
-                }
-
-                watchlistController?.synchronize(with: items)
-                applyFilters()
-            } catch is CancellationError {
-                // Ignore
-            } catch {
-                errorMessage = error.localizedDescription
             }
-
-            isLoading = false
+            if generation == self.loadGeneration {
+                self.isLoading = false
+            }
         }
 
         await loadTask?.value
@@ -228,6 +277,93 @@ final class MyListViewModel: ObservableObject {
 
     func reload() async {
         await load()
+    }
+
+    /// Called for every watchlistDidChange. Skips the ones this screen posted
+    /// itself (its own removals already updated the grid); other screens'
+    /// changes still trigger a refetch.
+    func handleWatchlistDidChange() async {
+        if pendingOwnChangeNotifications > 0 {
+            pendingOwnChangeNotifications -= 1
+            return
+        }
+        await reload()
+    }
+
+    private func publishMerged() {
+        var merged: [String: WatchlistItem] = [:]
+        for item in plexSource {
+            merged[item.id] = item
+        }
+        for item in traktSource {
+            if var existing = merged[item.id] {
+                existing.source = .both
+                merged[item.id] = existing
+            } else {
+                merged[item.id] = item
+            }
+        }
+        // Local entries only fill gaps - a remote source is authoritative when
+        // it already has the title.
+        for item in localSource where merged[item.id] == nil {
+            merged[item.id] = item
+        }
+
+        // Ties broken by id so repeated publishes don't shuffle the grid.
+        items = merged.values.sorted { lhs, rhs in
+            let l = lhs.dateAdded ?? .distantPast
+            let r = rhs.dateAdded ?? .distantPast
+            return l == r ? lhs.id < rhs.id : l > r
+        }
+        applyFilters()
+    }
+
+    private func posterKey(_ mediaType: MediaType, _ tmdbId: String) -> String {
+        "\(mediaType.rawValue):\(tmdbId)"
+    }
+
+    private func resolveTraktPosters(generation: Int) async {
+        // Items Plex also has show the Plex poster, so they don't need one.
+        let plexIds = Set(plexSource.map(\.id))
+        var seen = Set<String>()
+        var pending: [(key: String, mediaType: MediaType, tmdbId: String)] = []
+        for item in traktSource where item.imageURL == nil && !plexIds.contains(item.id) {
+            guard let tmdbId = item.tmdbId else { continue }
+            let key = posterKey(item.mediaType, tmdbId)
+            guard traktPosterCache[key] == nil, seen.insert(key).inserted else { continue }
+            pending.append((key, item.mediaType, tmdbId))
+        }
+        guard !pending.isEmpty else { return }
+
+        for start in stride(from: 0, to: pending.count, by: posterBatchSize) {
+            let batch = pending[start..<min(start + posterBatchSize, pending.count)]
+            let results = await withTaskGroup(of: (String, URL?).self) { group -> [(String, URL?)] in
+                for entry in batch {
+                    group.addTask { [weak self] in
+                        (entry.key, await self?.tmdbPoster(for: entry.mediaType, tmdbId: entry.tmdbId))
+                    }
+                }
+                var collected: [(String, URL?)] = []
+                for await result in group {
+                    collected.append(result)
+                }
+                return collected
+            }
+            guard !Task.isCancelled, generation == loadGeneration else { return }
+
+            var found = false
+            for case let (key, url?) in results {
+                traktPosterCache[key] = url
+                found = true
+            }
+            guard found else { continue }
+            traktSource = traktSource.map { item in
+                guard item.imageURL == nil, let tmdbId = item.tmdbId,
+                      let url = traktPosterCache[posterKey(item.mediaType, tmdbId)] else { return item }
+                return item.withImageURL(url)
+            }
+            publishMerged()
+        }
     }
 
     func toggleSelection(for item: WatchlistItem) {
@@ -260,7 +396,11 @@ final class MyListViewModel: ObservableObject {
             guard let item = items.first(where: { $0.id == id }) else { continue }
             await removeSingle(item: item)
         }
-        items.removeAll { ids.contains($0.id) }
+        let removed = Set(ids)
+        items.removeAll { removed.contains($0.id) }
+        plexSource.removeAll { removed.contains($0.id) }
+        traktSource.removeAll { removed.contains($0.id) }
+        localSource.removeAll { removed.contains($0.id) }
         applyFilters()
         watchlistController?.synchronize(with: items)
     }
@@ -292,7 +432,10 @@ final class MyListViewModel: ObservableObject {
                 let _: Response = try await api.post("/api/trakt/watchlist/remove", body: payload)
             }
 
-            watchlistController?.registerRemove(id: item.id)
+            if let controller = watchlistController {
+                pendingOwnChangeNotifications += 1
+                controller.registerRemove(id: item.id)
+            }
         } catch {
             print("⚠️ Failed to remove \(item.title) from watchlist: \(error)")
         }
@@ -391,12 +534,11 @@ final class MyListViewModel: ObservableObject {
 
     private func fetchTraktWatchlist() async throws -> [WatchlistItem] {
         do {
-            let movies: [TraktWatchlistEntry] = try await api.get("/api/trakt/users/me/watchlist/movies")
-            let shows: [TraktWatchlistEntry] = try await api.get("/api/trakt/users/me/watchlist/shows")
+            async let moviesRequest: [TraktWatchlistEntry] = api.get("/api/trakt/users/me/watchlist/movies")
+            async let showsRequest: [TraktWatchlistEntry] = api.get("/api/trakt/users/me/watchlist/shows")
+            let (movies, shows) = try await (moviesRequest, showsRequest)
             traktAvailable = true
-            let movieItems = try await mapTraktEntries(movies, mediaType: .movie)
-            let showItems = try await mapTraktEntries(shows, mediaType: .show)
-            return movieItems + showItems
+            return mapTraktEntries(movies, mediaType: .movie) + mapTraktEntries(shows, mediaType: .show)
         } catch APIError.httpError(let status, _) where status == 401 || status == 403 {
             traktAvailable = false
             return []
@@ -409,16 +551,16 @@ final class MyListViewModel: ObservableObject {
         }
     }
 
-    private func mapTraktEntries(_ entries: [TraktWatchlistEntry], mediaType: MediaType) async throws -> [WatchlistItem] {
+    private func mapTraktEntries(_ entries: [TraktWatchlistEntry], mediaType: MediaType) -> [WatchlistItem] {
         var results: [WatchlistItem] = []
 
         for entry in entries {
             if mediaType == .movie, let movie = entry.movie {
-                if let item = try await createTraktItem(movie: movie, listedAt: entry.listedAt, mediaType: .movie) {
+                if let item = createTraktItem(movie: movie, listedAt: entry.listedAt, mediaType: .movie) {
                     results.append(item)
                 }
             } else if mediaType == .show, let show = entry.show {
-                if let item = try await createTraktItem(show: show, listedAt: entry.listedAt, mediaType: .show) {
+                if let item = createTraktItem(show: show, listedAt: entry.listedAt, mediaType: .show) {
                     results.append(item)
                 }
             }
@@ -427,7 +569,7 @@ final class MyListViewModel: ObservableObject {
         return results
     }
 
-    private func createTraktItem(movie: TraktMovie, listedAt: String?, mediaType: MediaType) async throws -> WatchlistItem? {
+    private func createTraktItem(movie: TraktMovie, listedAt: String?, mediaType: MediaType) -> WatchlistItem? {
         guard let title = movie.title else { return nil }
         let tmdbId = movie.ids?.tmdb.map { String($0) }
         let imdbId = movie.ids?.imdb
@@ -445,9 +587,10 @@ final class MyListViewModel: ObservableObject {
         }
 
         // Parse ISO 8601 date string
-        let dateAdded = listedAt.flatMap { ISO8601DateFormatter().date(from: $0) }
+        let dateAdded = listedAt.flatMap { Self.listedAtFormatter.date(from: $0) }
 
-        let posterURL = try await tmdbPoster(for: mediaType, tmdbId: tmdbId)
+        // Poster comes from the cache, or is filled in later by resolveTraktPosters.
+        let posterURL = tmdbId.flatMap { traktPosterCache[posterKey(mediaType, $0)] }
 
         return WatchlistItem(
             id: canonicalId,
@@ -469,7 +612,7 @@ final class MyListViewModel: ObservableObject {
         )
     }
 
-    private func createTraktItem(show: TraktShow, listedAt: String?, mediaType: MediaType) async throws -> WatchlistItem? {
+    private func createTraktItem(show: TraktShow, listedAt: String?, mediaType: MediaType) -> WatchlistItem? {
         guard let title = show.title else { return nil }
         let tmdbId = show.ids?.tmdb.map { String($0) }
         let imdbId = show.ids?.imdb
@@ -487,9 +630,10 @@ final class MyListViewModel: ObservableObject {
         }
 
         // Parse ISO 8601 date string
-        let dateAdded = listedAt.flatMap { ISO8601DateFormatter().date(from: $0) }
+        let dateAdded = listedAt.flatMap { Self.listedAtFormatter.date(from: $0) }
 
-        let posterURL = try await tmdbPoster(for: mediaType, tmdbId: tmdbId)
+        // Poster comes from the cache, or is filled in later by resolveTraktPosters.
+        let posterURL = tmdbId.flatMap { traktPosterCache[posterKey(mediaType, $0)] }
 
         return WatchlistItem(
             id: canonicalId,
@@ -511,7 +655,7 @@ final class MyListViewModel: ObservableObject {
         )
     }
 
-    private func tmdbPoster(for mediaType: MediaType, tmdbId: String?) async throws -> URL? {
+    private func tmdbPoster(for mediaType: MediaType, tmdbId: String?) async -> URL? {
         guard let tmdbId = tmdbId else { return nil }
         struct TMDBDetails: Codable { let poster_path: String? }
         let path: String

@@ -103,6 +103,12 @@ struct EpisodesTabContent: View {
         sectionsStore.hideEpisodeSpoilers && !episodeState.isWatched(episode) && !episodeState.isRevealed(episode)
     }
 
+    /// Builds the episode's target only while some watch action is running.
+    private func isWatchActionInFlight(_ episode: DetailsViewModel.Episode) -> Bool {
+        let inFlight = watchState.inFlight
+        return !inFlight.isEmpty && inFlight.contains(vm.watchTarget(for: episode).actionKey)
+    }
+
     private func toggleWatched(_ episode: DetailsViewModel.Episode) {
         let watched = episodeState.isWatched(episode)
         Task { await episodeState.setWatched(episode, watched: !watched, vm: vm) }
@@ -111,7 +117,7 @@ struct EpisodesTabContent: View {
     @ViewBuilder
     private func episodeMenu(for episode: DetailsViewModel.Episode) -> some View {
         let watched = episodeState.isWatched(episode)
-        let busy = watchState.inFlight.contains(vm.watchTarget(for: episode).actionKey)
+        let busy = isWatchActionInFlight(episode)
         Button {
             Task { await episodeState.setWatched(episode, watched: !watched, vm: vm) }
         } label: {
@@ -267,7 +273,7 @@ struct EpisodesTabContent: View {
                                 isWatched: episodeState.isWatched(episode),
                                 rating: rating(for: episode),
                                 hidesSpoilers: hidesSpoilers(for: episode),
-                                isWatchActionDisabled: watchState.inFlight.contains(vm.watchTarget(for: episode).actionKey),
+                                isWatchActionDisabled: isWatchActionInFlight(episode),
                                 onPlay: { handleEpisodeSelection(episode) },
                                 onStremio: { onStremioEpisode(episode) },
                                 onToggleWatched: { toggleWatched(episode) }
@@ -293,7 +299,7 @@ struct EpisodesTabContent: View {
                             isWatched: episodeState.isWatched(episode),
                             rating: rating(for: episode),
                             hidesSpoilers: hidesSpoilers(for: episode),
-                            isWatchActionDisabled: watchState.inFlight.contains(vm.watchTarget(for: episode).actionKey),
+                            isWatchActionDisabled: isWatchActionInFlight(episode),
                             onPlay: { handleEpisodeSelection(episode) },
                             onStremio: { onStremioEpisode(episode) },
                             onToggleWatched: { toggleWatched(episode) }
@@ -365,7 +371,6 @@ private struct HorizontalEpisodeCard: View {
     var onToggleWatched: () -> Void = {}
 
     @State private var isHovered = false
-    @StateObject private var downloadManager = DownloadManager.shared
 
     private var progressPct: Double {
         Double(episode.progressPct ?? 0)
@@ -581,7 +586,6 @@ private struct VerticalEpisodeRow: View {
     var onToggleWatched: () -> Void = {}
 
     @State private var isHovered = false
-    @StateObject private var downloadManager = DownloadManager.shared
 
     private var progressPct: Double {
         Double(episode.progressPct ?? 0)

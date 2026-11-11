@@ -9,7 +9,7 @@ import SwiftUI
 import FlixorKit
 
 struct CastCrewCard: View, Identifiable {
-    struct Person: Identifiable {
+    struct Person: Identifiable, Equatable {
         let id: String
         let name: String
         let role: String?
@@ -88,16 +88,28 @@ struct CastCrewCard: View, Identifiable {
 
 /// Horizontal row of cast/crew (guest stars for episodes). Tapping a person
 /// calls `onPersonTap`.
-struct DetailsCastSection: View {
-    @ObservedObject var vm: DetailsViewModel
+struct DetailsCastSection: View, Equatable {
+    /// Cast (or guest stars) then key crew, each with a row key: a person can be
+    /// both cast and crew, so the key adds the group and position.
+    struct Row: Equatable {
+        let key: String
+        let person: CastCrewCard.Person
+    }
+
+    let people: [Row]
+    let showsGuestStars: Bool
     var onPersonTap: (CastCrewCard.Person) -> Void
 
     @Environment(\.flixorTheme) private var theme
 
+    static func == (lhs: DetailsCastSection, rhs: DetailsCastSection) -> Bool {
+        lhs.people == rhs.people && lhs.showsGuestStars == rhs.showsGuestStars
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: DetailsSectionStyle.headingGap) {
             HStack(spacing: DS.Space.controlGap) {
-                DetailsSectionHeading(vm.isEpisode && !vm.guestStars.isEmpty ? "Guest Stars" : "Cast & Crew")
+                DetailsSectionHeading(showsGuestStars ? "Guest Stars" : "Cast & Crew")
                 Image(systemName: "chevron.right")
                     .font(.flixorIcon(DS.Icon.sm, weight: .semibold))
                     .foregroundStyle(theme.textTertiary)
@@ -105,9 +117,8 @@ struct DetailsCastSection: View {
 
             DetailsHorizontalRow {
                 LazyHStack(alignment: .top, spacing: DS.Space.s20) {
-                    // Offsets as ids: a person can be both cast and crew.
-                    ForEach(Array(people.enumerated()), id: \.offset) { _, person in
-                        CastCrewCircleCard(person: person, onTap: { onPersonTap(person) })
+                    ForEach(people, id: \.key) { row in
+                        CastCrewCircleCard(person: row.person, onTap: { onPersonTap(row.person) })
                     }
                 }
             }
@@ -115,21 +126,24 @@ struct DetailsCastSection: View {
     }
 
     /// Cast (or guest stars for episodes) followed by key crew.
-    private var people: [CastCrewCard.Person] {
-        var people: [CastCrewCard.Person] = []
+    static func people(for vm: DetailsViewModel) -> [Row] {
+        var rows: [Row] = []
+        func add(_ group: String, _ person: CastCrewCard.Person) {
+            rows.append(Row(key: "\(group)-\(rows.count)-\(person.id)", person: person))
+        }
         if vm.isEpisode && !vm.guestStars.isEmpty {
             for g in vm.guestStars.prefix(12) {
-                people.append(CastCrewCard.Person(id: g.id, name: g.name, role: g.role, image: g.profile))
+                add("guest", CastCrewCard.Person(id: g.id, name: g.name, role: g.role, image: g.profile))
             }
         } else {
             for c in vm.cast.prefix(12) {
-                people.append(CastCrewCard.Person(id: c.id, name: c.name, role: c.role, image: c.profile))
+                add("cast", CastCrewCard.Person(id: c.id, name: c.name, role: c.role, image: c.profile))
             }
         }
         for c in vm.crew.prefix(4) {
-            people.append(CastCrewCard.Person(id: c.id, name: c.name, role: c.job, image: c.profile))
+            add("crew", CastCrewCard.Person(id: c.id, name: c.name, role: c.job, image: c.profile))
         }
-        return people
+        return rows
     }
 }
 

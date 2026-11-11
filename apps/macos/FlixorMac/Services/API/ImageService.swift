@@ -17,23 +17,85 @@ class ImageService {
 
     // MARK: - Plex Images
 
+    /// With a width, the server resizes the artwork (Plex's raw artwork URL returns the
+    /// stored original, often 4K). Sizes round up to a few steps so the URL, which is
+    /// also the image cache key, stays the same across slightly different card sizes.
     func plexImageURL(path: String?, width: Int? = nil, height: Int? = nil, format: String = "webp", quality: Int? = nil) -> URL? {
         guard let path = path, !path.isEmpty else { return nil }
+
+        // Absolute URLs (TMDB) work without a Plex server (Stremio-only setups).
+        if path.hasPrefix("http://") || path.hasPrefix("https://") { return URL(string: path) }
 
         // Use FlixorCore's PlexServerService for image URLs
         guard let plexServer = FlixorCore.shared.plexServer else { return nil }
 
-        let urlString = plexServer.getImageUrl(path: path, width: width)
+        // Hero-sized requests keep the stored original, which stays sharp on wide windows.
+        guard let width, width > 0, width < 1920 else {
+            return plexServer.getImageUrl(path: path, width: width).flatMap { URL(string: $0) }
+        }
+        let roundedWidth = Self.plexImageWidth(width)
+        // No height: a square box, which fits a poster exactly at this width.
+        let requestedHeight = height.flatMap { $0 > 0 ? $0 : nil } ?? width
+        let roundedHeight = max(1, Int((Double(requestedHeight) * Double(roundedWidth) / Double(width)).rounded()))
+        let urlString = plexServer.getTranscodedImageUrl(path: path, width: roundedWidth, height: roundedHeight)
         return urlString.flatMap { URL(string: $0) }
+    }
+
+    private static let plexImageWidths = [160, 240, 320, 480, 640, 960, 1280, 1920, 2560]
+
+    private static func plexImageWidth(_ width: Int) -> Int {
+        if let step = plexImageWidths.first(where: { $0 >= width }) { return step }
+        return (width + 639) / 640 * 640
     }
 
     // MARK: - Generic External Proxy (TMDB)
 
     /// For external images (TMDB), return the URL directly without proxy
-    /// Since we're standalone, we don't need to proxy through backend
+    /// Since we're standalone, we don't need to proxy through backend.
+    /// A TMDB `original` URL with a width of 1280 or less gets a resized TMDB size instead.
     func proxyImageURL(url: String?, width: Int? = nil, height: Int? = nil, format: String = "webp", quality: Int = 70) -> URL? {
         guard let url = url, !url.isEmpty else { return nil }
-        return URL(string: url)
+        let parsed = URL(string: url)
+        guard let width, width > 0, width <= 1280 else { return parsed }
+        return Self.tmdbImageURL(parsed, downsizingOriginalTo: width <= 780 ? "w780" : "w1280")
+    }
+
+    // MARK: - TMDB Image Sizes
+
+    /// TMDB size for a backdrop shown `pointWidth` wide (at 2x).
+    nonisolated static func tmdbBackdropSize(forPointWidth pointWidth: CGFloat) -> String {
+        pointWidth * 2 <= 900 ? "w780" : "w1280"
+    }
+
+    /// TMDB size for a poster shown `pointWidth` wide (at 2x).
+    nonisolated static func tmdbPosterSize(forPointWidth pointWidth: CGFloat) -> String {
+        let pixels = pointWidth * 2
+        if pixels <= 342 { return "w342" }
+        if pixels <= 500 { return "w500" }
+        return "w780"
+    }
+
+    nonisolated static func isTMDBImageURL(_ string: String?) -> Bool {
+        string?.hasPrefix("https://image.tmdb.org/") == true || string?.hasPrefix("http://image.tmdb.org/") == true
+    }
+
+    /// The same TMDB image at `size` (for example "w780"). Other URLs come back unchanged.
+    nonisolated static func tmdbImageURL(_ url: URL?, size: String) -> URL? {
+        guard let url, url.host == "image.tmdb.org" else { return url }
+        let parts = url.path.split(separator: "/", omittingEmptySubsequences: false)
+        // "/t/p/<size>/<file>"
+        guard parts.count >= 5, parts[1] == "t", parts[2] == "p", parts[3] != Substring(size) else { return url }
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        var newParts = parts
+        newParts[3] = Substring(size)
+        components?.path = newParts.joined(separator: "/")
+        return components?.url ?? url
+    }
+
+    /// Swaps a TMDB `original` (full-resolution) URL for `size`; other URLs come back unchanged.
+    nonisolated static func tmdbImageURL(_ url: URL?, downsizingOriginalTo size: String) -> URL? {
+        guard let url, url.host == "image.tmdb.org", url.path.hasPrefix("/t/p/original/") else { return url }
+        return tmdbImageURL(url, size: size)
     }
 
     // MARK: - TMDB Images

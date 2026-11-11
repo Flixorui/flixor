@@ -79,6 +79,47 @@ extension UserDefaults {
     }
 }
 
+// MARK: - Decoded Blob Cache
+
+/// Decoded copies of the JSON blobs that are read and rewritten often (watch history,
+/// resume states, stream cache), by their full profile-scoped key, so each read skips
+/// the decode. Writes go to UserDefaults and replace the copy under the same lock.
+/// Only used for `UserDefaults.standard`, whose blob keys are written only through here.
+private final class DecodedBlobCache: @unchecked Sendable {
+    static let shared = DecodedBlobCache()
+    let lock = NSLock()
+    var values: [String: Any] = [:]
+}
+
+extension UserDefaults {
+    /// Decodes the JSON blob at `key` (a full, already profile-scoped key), from memory when possible.
+    func decodedBlob<T: Decodable>(_ type: T.Type, forKey key: String) -> T? {
+        guard self === UserDefaults.standard else {
+            guard let data = data(forKey: key) else { return nil }
+            return try? JSONDecoder().decode(T.self, from: data)
+        }
+        let cache = DecodedBlobCache.shared
+        cache.lock.lock(); defer { cache.lock.unlock() }
+        if let cached = cache.values[key] as? T { return cached }
+        guard let data = data(forKey: key), let decoded = try? JSONDecoder().decode(T.self, from: data) else { return nil }
+        cache.values[key] = decoded
+        return decoded
+    }
+
+    /// Encodes `value` to `key` and keeps the decoded copy for later reads.
+    func storeBlob<T: Encodable>(_ value: T, forKey key: String) {
+        guard let data = try? JSONEncoder().encode(value) else { return }
+        guard self === UserDefaults.standard else {
+            set(data, forKey: key)
+            return
+        }
+        let cache = DecodedBlobCache.shared
+        cache.lock.lock(); defer { cache.lock.unlock() }
+        set(data, forKey: key)
+        cache.values[key] = value
+    }
+}
+
 extension UserDefaults {
     // MARK: - Profile-Scoped Key Helper
 
@@ -433,7 +474,8 @@ extension UserDefaults {
     }
 
     var detailsScreenLayout: String {
-        get { string(forKey: profileKey(DetailsKeys.detailsScreenLayout)) ?? "tabbed" }
+        // One long page by default, same as the iPhone app
+        get { string(forKey: profileKey(DetailsKeys.detailsScreenLayout)) ?? "unified" }
         set { set(newValue, forKey: profileKey(DetailsKeys.detailsScreenLayout)) }
     }
 
@@ -599,23 +641,19 @@ extension UserDefaults {
     }
 
     func getStremioStreamCache() -> [String: CachedPlaybackSource] {
-        guard let data = data(forKey: profileKey(StremioKeys.stremioStreamCache)) else { return [:] }
-        return (try? JSONDecoder().decode([String: CachedPlaybackSource].self, from: data)) ?? [:]
+        decodedBlob([String: CachedPlaybackSource].self, forKey: profileKey(StremioKeys.stremioStreamCache)) ?? [:]
     }
 
     func setStremioStreamCache(_ cache: [String: CachedPlaybackSource]) {
-        guard let data = try? JSONEncoder().encode(cache) else { return }
-        set(data, forKey: profileKey(StremioKeys.stremioStreamCache))
+        storeBlob(cache, forKey: profileKey(StremioKeys.stremioStreamCache))
     }
 
     func getStremioResumeStates() -> [String: ResumeState] {
-        guard let data = data(forKey: profileKey(StremioKeys.stremioResumeStates)) else { return [:] }
-        return (try? JSONDecoder().decode([String: ResumeState].self, from: data)) ?? [:]
+        decodedBlob([String: ResumeState].self, forKey: profileKey(StremioKeys.stremioResumeStates)) ?? [:]
     }
 
     func setStremioResumeStates(_ states: [String: ResumeState]) {
-        guard let data = try? JSONEncoder().encode(states) else { return }
-        set(data, forKey: profileKey(StremioKeys.stremioResumeStates))
+        storeBlob(states, forKey: profileKey(StremioKeys.stremioResumeStates))
     }
 
     func getRemovedStremioDefaultAddons() -> [String] {
@@ -640,13 +678,11 @@ extension UserDefaults {
     }
 
     func getLocalWatchHistory() -> [String: WatchHistoryEntry] {
-        guard let data = data(forKey: profileKey(LocalLibraryKeys.watchHistory)) else { return [:] }
-        return (try? JSONDecoder().decode([String: WatchHistoryEntry].self, from: data)) ?? [:]
+        decodedBlob([String: WatchHistoryEntry].self, forKey: profileKey(LocalLibraryKeys.watchHistory)) ?? [:]
     }
 
     func setLocalWatchHistory(_ entries: [String: WatchHistoryEntry]) {
-        guard let data = try? JSONEncoder().encode(entries) else { return }
-        set(data, forKey: profileKey(LocalLibraryKeys.watchHistory))
+        storeBlob(entries, forKey: profileKey(LocalLibraryKeys.watchHistory))
     }
 
     func getLocalWatchlist() -> [String: LocalWatchlistEntry] {

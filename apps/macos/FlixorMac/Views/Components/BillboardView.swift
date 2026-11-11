@@ -14,6 +14,16 @@ class BillboardImageCache {
 
     private var cache: [String: (backdrop: URL?, logo: URL?)] = [:]
 
+    /// Plex metadata of a series shown for an episode or season, by series rating key.
+    struct SeriesInfo {
+        let title: String?
+        let summary: String?
+        let year: Int?
+        let type: String?
+        let guids: [String]
+    }
+    private var series: [String: SeriesInfo] = [:]
+
     func get(itemId: String) -> (URL?, URL?)? {
         return cache[itemId]
     }
@@ -22,8 +32,17 @@ class BillboardImageCache {
         cache[itemId] = (backdrop, logo)
     }
 
+    func series(for key: String) -> SeriesInfo? {
+        series[key]
+    }
+
+    func setSeries(_ info: SeriesInfo, for key: String) {
+        series[key] = info
+    }
+
     func clear() {
         cache.removeAll()
+        series.removeAll()
     }
 
     private init() {}
@@ -318,12 +337,7 @@ extension BillboardView {
         guard let seriesKey = seriesRatingKey else { return }
 
         do {
-            struct PlexMeta: Codable {
-                let title: String?
-                let summary: String?
-                let year: Int?
-            }
-            let meta: PlexMeta = try await APIClient.shared.get("/api/plex/metadata/\(seriesKey)")
+            let meta = try await seriesInfo(for: seriesKey)
             await MainActor.run {
                 self.seriesData = SeriesMetadata(
                     title: meta.title ?? fallbackSeriesTitle ?? item.title,
@@ -344,6 +358,34 @@ extension BillboardView {
     }
 }
 
+// MARK: - Series Metadata
+
+extension BillboardView {
+    /// The series' Plex metadata, fetched once per series and shared by the
+    /// title and artwork lookups.
+    fileprivate func seriesInfo(for seriesKey: String) async throws -> BillboardImageCache.SeriesInfo {
+        if let cached = BillboardImageCache.shared.series(for: seriesKey) { return cached }
+        struct PlexGuid: Codable { let id: String? }
+        struct PlexMeta: Codable {
+            let title: String?
+            let summary: String?
+            let year: Int?
+            let type: String?
+            let Guid: [PlexGuid]?
+        }
+        let meta: PlexMeta = try await APIClient.shared.get("/api/plex/metadata/\(seriesKey)")
+        let info = BillboardImageCache.SeriesInfo(
+            title: meta.title,
+            summary: meta.summary,
+            year: meta.year,
+            type: meta.type,
+            guids: meta.Guid?.compactMap(\.id) ?? []
+        )
+        BillboardImageCache.shared.setSeries(info, for: seriesKey)
+        return info
+    }
+}
+
 // MARK: - TMDB Title Backdrop Resolution
 
 extension BillboardView {
@@ -356,6 +398,9 @@ extension BillboardView {
                     // Cache the result
                     BillboardImageCache.shared.set(itemId: cacheKey, backdrop: backdrop, logo: logo)
                 }
+            } else {
+                // No TMDB match: remember that, so the next appearance doesn't ask again.
+                BillboardImageCache.shared.set(itemId: cacheKey, backdrop: nil, logo: nil)
             }
         } catch {
             // Silent fallback to Plex art - cache empty result to avoid retrying
@@ -366,10 +411,8 @@ extension BillboardView {
     private func resolveTMDBSelectedImages(for item: MediaItem) async throws -> (URL?, URL?)? {
         // For episodes/seasons, use seriesRatingKey to get series images
         if isEpisodeOrSeason, let seriesKey = seriesRatingKey {
-            struct PlexMeta: Codable { let type: String?; let Guid: [PlexGuid]? }
-            struct PlexGuid: Codable { let id: String? }
-            let meta: PlexMeta = try await APIClient.shared.get("/api/plex/metadata/\(seriesKey)")
-            if let guid = meta.Guid?.compactMap({ $0.id }).first(where: { $0.contains("tmdb://") || $0.contains("themoviedb://") }),
+            let meta = try await seriesInfo(for: seriesKey)
+            if let guid = meta.guids.first(where: { $0.contains("tmdb://") || $0.contains("themoviedb://") }),
                let tid = guid.components(separatedBy: "://").last {
                 return try await fetchTMDBBackdropAndLogo(mediaType: "tv", id: tid)
             }

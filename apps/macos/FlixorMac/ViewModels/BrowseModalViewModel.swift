@@ -23,7 +23,14 @@ class BrowseModalViewModel: ObservableObject {
     }
 
     @Published var state: ViewState = .idle
-    @Published var items: [MediaItem] = []
+    /// Unique by id (sources sometimes repeat a title on a later page, and a
+    /// repeated id leaves an empty cell in a lazy grid).
+    @Published var items: [MediaItem] = [] {
+        didSet { recount() }
+    }
+    /// Movies and shows in `items`, kept in step with it.
+    private(set) var movieCount = 0
+    private(set) var showCount = 0
     @Published var title: String = ""
     @Published var subtitle: String?
     @Published var isLoadingMore = false
@@ -40,6 +47,22 @@ class BrowseModalViewModel: ObservableObject {
     /// Next `skip` value for an addon catalog, and what it has returned so far.
     private var stremioSkip = 0
     private var stremioSeenIds: Set<String> = []
+    private var itemIds: Set<String> = []
+
+    nonisolated static func isShow(_ item: MediaItem) -> Bool {
+        item.type == "show" || item.type == "tv" || item.type == "episode"
+    }
+
+    private func recount() {
+        let shows = items.reduce(0) { $0 + (Self.isShow($1) ? 1 : 0) }
+        showCount = shows
+        movieCount = items.count - shows
+    }
+
+    /// Keeps the first of each id, across pages.
+    private func uniqueNewItems(_ incoming: [MediaItem]) -> [MediaItem] {
+        incoming.filter { itemIds.insert($0.id).inserted }
+    }
 
     // Reset state when modal is dismissed
     func reset() {
@@ -55,6 +78,21 @@ class BrowseModalViewModel: ObservableObject {
         traktPage = 1
         stremioSkip = 0
         stremioSeenIds = []
+        itemIds = []
+    }
+
+    /// Loads once per context: coming back to the page keeps the loaded pages
+    /// (and the scroll position). A failed or interrupted load runs again.
+    func loadIfNeeded(context: BrowseContext) async {
+        if self.context == context {
+            switch state {
+            case .loading, .loaded, .empty:
+                return
+            case .idle, .error:
+                break
+            }
+        }
+        await load(context: context)
     }
 
     func load(context: BrowseContext) async {
@@ -72,13 +110,23 @@ class BrowseModalViewModel: ObservableObject {
         subtitle = header.subtitle
 
         state = .loading
+        itemIds = []
         items = []
 
         do {
-            let data = try await fetchItems(for: context, page: 1, append: false)
+            let data = uniqueNewItems(try await fetchItems(for: context, page: 1, append: false))
+            if Task.isCancelled {
+                // Left before it finished (lookups may have been cut short); load again on return.
+                state = .idle
+                return
+            }
             items = data
             state = data.isEmpty ? .empty : .loaded
         } catch {
+            if Task.isCancelled {
+                state = .idle
+                return
+            }
             state = .error(error.localizedDescription)
         }
     }
@@ -103,7 +151,7 @@ class BrowseModalViewModel: ObservableObject {
                 nextPage = 1
             }
 
-            let more = try await fetchItems(for: context, page: nextPage, append: true)
+            let more = uniqueNewItems(try await fetchItems(for: context, page: nextPage, append: true))
             items.append(contentsOf: more)
             if items.isEmpty {
                 state = .empty
@@ -495,27 +543,24 @@ class BrowseModalViewModel: ObservableObject {
         return await mapTraktMedia(arr, mediaType: "movie")
     }
 
+    /// One TMDB request per title for both poster and backdrop. Keeps the list's order.
     private func mapTraktMedia(_ list: [TraktMedia], mediaType: String?) async -> [MediaItem] {
         guard !list.isEmpty else { return [] }
-        var results: [MediaItem] = []
-        await withTaskGroup(of: MediaItem?.self) { group in
-            for media in list {
+        let mapped = await withTaskGroup(of: (Int, MediaItem?).self) { group -> [MediaItem?] in
+            for (index, media) in list.enumerated() {
                 group.addTask {
-                    guard let tmdb = media.ids.tmdb else { return nil }
+                    guard let tmdb = media.ids.tmdb else { return (index, nil) }
                     let type = mediaType ?? (media.ids.tmdb != nil ? self.inferType(from: media) : "movie")
                     let title = media.title ?? ""
                     do {
-                        // Fetch both poster and backdrop in parallel
-                        async let posterTask = self.fetchTMDBPoster(mediaType: type, id: tmdb)
-                        async let backdropTask = self.fetchTMDBBackdrop(mediaType: type, id: tmdb)
-                        let (poster, backdrop) = try await (posterTask, backdropTask)
+                        let art = try await self.fetchTMDBArt(mediaType: type, id: tmdb)
 
-                        return MediaItem(
+                        return (index, MediaItem(
                             id: "tmdb:\(type == "movie" ? "movie" : "tv"):\(tmdb)",
                             title: title,
                             type: type == "movie" ? "movie" : "show",
-                            thumb: poster,
-                            art: backdrop,
+                            thumb: art.poster,
+                            art: art.backdrop,
                             year: media.year,
                             rating: nil,
                             duration: nil,
@@ -531,17 +576,19 @@ class BrowseModalViewModel: ObservableObject {
                             parentTitle: nil,
                             leafCount: nil,
                             viewedLeafCount: nil
-                        )
+                        ))
                     } catch {
-                        return nil
+                        return (index, nil)
                     }
                 }
             }
-            for await item in group {
-                if let item { results.append(item) }
+            var ordered = [MediaItem?](repeating: nil, count: list.count)
+            for await (index, item) in group {
+                ordered[index] = item
             }
+            return ordered
         }
-        return results
+        return mapped.compactMap { $0 }
     }
 
     private nonisolated func inferType(from media: TraktMedia) -> String {
@@ -552,22 +599,12 @@ class BrowseModalViewModel: ObservableObject {
         return "movie"
     }
 
-    private func fetchTMDBBackdrop(mediaType: String, id: Int) async throws -> String? {
-        struct TMDBTitle: Codable { let backdrop_path: String? }
+    private func fetchTMDBArt(mediaType: String, id: Int) async throws -> (poster: String?, backdrop: String?) {
+        struct TMDBTitle: Codable { let poster_path: String?; let backdrop_path: String? }
         let detail: TMDBTitle = try await api.get("/api/tmdb/\(mediaType)/\(id)")
-        if let path = detail.backdrop_path {
-            return imageService.tmdbImageURL(path: path, size: .w780)?.absoluteString
-        }
-        return nil
-    }
-
-    private func fetchTMDBPoster(mediaType: String, id: Int) async throws -> String? {
-        struct TMDBTitle: Codable { let poster_path: String? }
-        let detail: TMDBTitle = try await api.get("/api/tmdb/\(mediaType)/\(id)")
-        if let path = detail.poster_path {
-            return imageService.tmdbImageURL(path: path, size: .w500)?.absoluteString
-        }
-        return nil
+        let poster = detail.poster_path.flatMap { imageService.tmdbImageURL(path: $0, size: .w500)?.absoluteString }
+        let backdrop = detail.backdrop_path.flatMap { imageService.tmdbImageURL(path: $0, size: .w780)?.absoluteString }
+        return (poster, backdrop)
     }
 
     // MARK: - Helpers

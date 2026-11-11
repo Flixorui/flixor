@@ -69,14 +69,22 @@ final class StreamingAvailabilityBudget: ObservableObject {
         persist()
     }
 
+    private static let dayFormatter: DateFormatter = {
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; f.timeZone = .autoupdatingCurrent
+        return f
+    }()
+
+    private static let monthFormatter: DateFormatter = {
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM"; f.timeZone = TimeZone(identifier: "UTC")
+        return f
+    }()
+
     private static func dayString(_ date: Date = Date()) -> String {
-        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; f.timeZone = .current
-        return f.string(from: date)
+        dayFormatter.string(from: date)
     }
 
     private static func monthString(_ date: Date = Date()) -> String {
-        let f = DateFormatter(); f.dateFormat = "yyyy-MM"; f.timeZone = TimeZone(identifier: "UTC")
-        return f.string(from: date)
+        monthFormatter.string(from: date)
     }
 
     /// Clears the counters when the day or month changed. Only called before

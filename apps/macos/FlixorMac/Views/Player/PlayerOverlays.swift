@@ -238,7 +238,6 @@ struct NextEpisodeOverlay: View {
 struct NextEpisodeHoverCard: View {
     @Environment(\.flixorTheme) private var theme
     let episode: EpisodeMetadata
-    @ObservedObject var viewModel: PlayerViewModel
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {

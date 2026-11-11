@@ -13,12 +13,10 @@ extension UserDefaults {
     }
 
     func getLocalWatched() -> [String: LocalWatchedEntry] {
-        guard let data = data(forKey: profileKey(WatchStateKeys.localWatched)) else { return [:] }
-        return (try? JSONDecoder().decode([String: LocalWatchedEntry].self, from: data)) ?? [:]
+        decodedBlob([String: LocalWatchedEntry].self, forKey: profileKey(WatchStateKeys.localWatched)) ?? [:]
     }
 
     func setLocalWatched(_ entries: [String: LocalWatchedEntry]) {
-        guard let data = try? JSONEncoder().encode(entries) else { return }
-        set(data, forKey: profileKey(WatchStateKeys.localWatched))
+        storeBlob(entries, forKey: profileKey(WatchStateKeys.localWatched))
     }
 }

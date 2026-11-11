@@ -111,14 +111,16 @@ struct ContinueWatchingWideCard: View {
             path = item.art ?? item.thumb
         }
         guard let path else { return nil }
-        if path.hasPrefix("http") { return URL(string: path) }
+        if path.hasPrefix("http") {
+            return ImageService.tmdbImageURL(URL(string: path), downsizingOriginalTo: ImageService.tmdbBackdropSize(forPointWidth: width))
+        }
         return ImageService.shared.plexImageURL(path: path, width: Int(width * 2), height: Int(height * 2), quality: 70)
     }
 
     var body: some View {
         Button(action: { onTap?() }) {
             ZStack(alignment: .bottomLeading) {
-                CachedAsyncImage(url: imageURL)
+                CachedAsyncImage(url: imageURL, maxPixelSize: ImageCache.fillPixelSize(width: width, height: height))
                     .aspectRatio(contentMode: .fill)
                     .frame(width: width, height: height)
                     .blur(radius: blurStill ? 24 : 0, opaque: true)

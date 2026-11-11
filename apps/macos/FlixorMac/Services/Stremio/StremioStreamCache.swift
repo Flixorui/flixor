@@ -13,7 +13,9 @@ actor StremioStreamCache {
     private let storage = StremioStorage.shared
 
     func save(_ source: CachedPlaybackSource) async {
-        var index = await storage.streamCacheIndex()
+        let now = Date()
+        // Expired sources are never returned, so drop them while writing.
+        var index = await storage.streamCacheIndex().filter { $0.value.expiresAt >= now }
         index[source.contentKey] = source
         await storage.setStreamCacheIndex(index)
     }

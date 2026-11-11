@@ -63,7 +63,11 @@ struct PosterCard: View {
             }) {
                 ZStack(alignment: .bottom) {
                     CachedAsyncImage(
-                        url: customImageURL ?? ImageService.shared.thumbURL(for: item, width: Int(width * 2), height: Int(height * 2))
+                        url: customImageURL ?? ImageService.tmdbImageURL(
+                            ImageService.shared.thumbURL(for: item, width: Int(width * 2), height: Int(height * 2)),
+                            downsizingOriginalTo: "w780"
+                        ),
+                        maxPixelSize: ImageCache.fillPixelSize(width: width, height: height)
                     )
                     .aspectRatio(contentMode: .fill)
                     .frame(width: width, height: height)

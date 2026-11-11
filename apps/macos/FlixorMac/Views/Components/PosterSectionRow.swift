@@ -148,9 +148,7 @@ struct PosterSectionCard: View {
         Button(action: { onTap?() }) {
             ZStack(alignment: .bottom) {
                 // Poster Image - for episodes, use series poster (grandparentThumb)
-                CachedAsyncImage(
-                    url: posterURL ?? ResolvedArtworkCache.shared.url(for: artworkCacheKey) ?? resolveDefaultPosterURL()
-                )
+                CachedAsyncImage(url: imageURL, maxPixelSize: ImageCache.fillPixelSize(width: width, height: height))
                 .aspectRatio(contentMode: .fill)
                 .frame(width: width, height: height)
                 .clipped()
@@ -248,6 +246,15 @@ struct PosterSectionCard: View {
         .cardInteractions(item: item, cornerRadius: cornerRadius, isHovered: $isHovered, onOpen: onTap)
     }
 
+    /// The looked-up TMDB poster, else the item's own artwork.
+    private var imageURL: URL? {
+        if item.thumb?.hasPrefix("http") != true,
+           let resolved = posterURL ?? ArtworkLookup.cachedURL(.poster, for: item) {
+            return ImageService.tmdbImageURL(resolved, size: ImageService.tmdbPosterSize(forPointWidth: width))
+        }
+        return ImageService.tmdbImageURL(resolveDefaultPosterURL(), downsizingOriginalTo: "w780")
+    }
+
     /// Resolve default poster URL - for episodes use series poster
     private func resolveDefaultPosterURL() -> URL? {
         if item.type == "episode", let grandparentThumb = item.grandparentThumb {
@@ -261,69 +268,11 @@ struct PosterSectionCard: View {
         )
     }
 
-    private var artworkCacheKey: String { "poster:\(item.id)" }
-
     private func loadPoster() async {
         // TMDB titles already carry their poster; only Plex items need a lookup.
         if item.thumb?.hasPrefix("http") == true { return }
-        guard !ResolvedArtworkCache.shared.isResolved(artworkCacheKey) else { return }
-        let url = try? await resolveTMDBPoster()
-        guard !Task.isCancelled else { return }
-        ResolvedArtworkCache.shared.store(url, for: artworkCacheKey)
-        if let url { posterURL = url }
-    }
-
-    private func resolveTMDBPoster() async throws -> URL? {
-        // Handle tmdb: prefix
-        if item.id.hasPrefix("tmdb:") {
-            let parts = item.id.split(separator: ":")
-            if parts.count == 3 {
-                let media = (parts[1] == "movie") ? "movie" : "tv"
-                let id = String(parts[2])
-                return try await fetchTMDBPoster(mediaType: media, id: id)
-            }
-            return nil
-        }
-
-        // For episodes, try to get series poster via grandparentRatingKey
-        if item.type == "episode", let seriesKey = item.grandparentRatingKey {
-            return try await fetchPlexTMDBPoster(ratingKey: seriesKey, mediaType: "tv")
-        }
-
-        // Handle plex: prefix
-        if item.id.hasPrefix("plex:") {
-            let rk = String(item.id.dropFirst(5))
-            return try await fetchPlexTMDBPoster(ratingKey: rk)
-        }
-
-        // Handle raw numeric ID
-        if item.id.allSatisfy({ $0.isNumber }) {
-            return try await fetchPlexTMDBPoster(ratingKey: item.id)
-        }
-
-        return nil
-    }
-
-    private func fetchPlexTMDBPoster(ratingKey: String, mediaType: String? = nil) async throws -> URL? {
-        struct PlexMeta: Codable { let type: String?; let Guid: [PlexGuid]? }
-        struct PlexGuid: Codable { let id: String? }
-
-        let meta: PlexMeta = try await APIClient.shared.get("/api/plex/metadata/\(ratingKey)")
-        let resolvedType = mediaType ?? ((meta.type == "movie") ? "movie" : "tv")
-
-        if let guid = meta.Guid?.compactMap({ $0.id }).first(where: { $0.contains("tmdb://") || $0.contains("themoviedb://") }),
-           let tid = guid.components(separatedBy: "://").last {
-            return try await fetchTMDBPoster(mediaType: resolvedType, id: tid)
-        }
-        return nil
-    }
-
-    private func fetchTMDBPoster(mediaType: String, id: String) async throws -> URL? {
-        struct TMDBDetails: Codable { let poster_path: String? }
-
-        let details: TMDBDetails = try await APIClient.shared.get("/api/tmdb/\(mediaType)/\(id)")
-
-        guard let path = details.poster_path else { return nil }
-        return URL(string: "https://image.tmdb.org/t/p/w500\(path)")
+        let url = await ArtworkLookup.resolve(.poster, for: item)
+        guard !Task.isCancelled, let url, url != posterURL else { return }
+        posterURL = url
     }
 }

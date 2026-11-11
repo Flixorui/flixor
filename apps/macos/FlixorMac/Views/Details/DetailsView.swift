@@ -46,6 +46,7 @@ struct DetailsView: View {
 
     // Loading skeleton
     @State private var initialLoadFinished = false
+    @State private var initialTabApplied = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// Hero skeleton until the title's core metadata is in (or the load ends).
@@ -178,22 +179,26 @@ struct DetailsView: View {
         )
         .navigationTitle("")
         .task {
+            // Coming back from the player or a pushed page only refreshes.
+            let refreshing = vm.hasLoadedContent(for: item)
             await vm.load(for: item)
             initialLoadFinished = true
-            // Set initial tab - DETAILS for episodes, EPISODES for TV shows/seasons
-            if vm.isEpisode {
-                activeTab = "DETAILS"
-            } else if vm.mediaKind == "tv" || vm.isSeason {
-                activeTab = "EPISODES"
-            }
-        }
-        .onChange(of: vm.isLoading) { loading in
-            if loading {
-                heroTrailer.configure(tmdbId: nil, mediaKind: nil)
-            } else {
-                titleActions.configure(with: vm)
+            if refreshing {
+                titleActions.scheduleRefresh()
                 heroTrailer.configure(tmdbId: vm.tmdbId, mediaKind: vm.mediaKind)
             }
+        }
+        // Both counters move when a load starts (ids cleared) and again once the
+        // ids are known, well before the whole load ends.
+        .onChange(of: vm.identityGeneration) { _ in
+            heroTrailer.configure(tmdbId: vm.tmdbId, mediaKind: vm.mediaKind)
+            applyInitialTabIfNeeded()
+        }
+        .onChange(of: vm.titleIdsGeneration) { _ in
+            if vm.titleIdsReady { titleActions.configure(with: vm) }
+        }
+        .onChange(of: vm.seasons.map(\.id)) { _ in
+            titleActions.updateSeasonOptions(with: vm)
         }
         .sheet(isPresented: $showVersionPicker) {
             VersionPickerSheet(
@@ -225,8 +230,39 @@ struct DetailsView: View {
         // Destination for PlayerView is handled at root via NavigationStack(path:)
     }
 
+    /// Initial tab for the page's own item: DETAILS for episodes, EPISODES for
+    /// TV shows/seasons. Titles opened in place keep the current tab.
+    private func applyInitialTabIfNeeded() {
+        // A failed load also signals identity; wait until the kind is known.
+        guard !initialTabApplied, vm.identityReady,
+              vm.isEpisode || vm.isSeason || vm.mediaKind != nil else { return }
+        initialTabApplied = true
+        if vm.isEpisode {
+            activeTab = "DETAILS"
+        } else if vm.mediaKind == "tv" || vm.isSeason {
+            activeTab = "EPISODES"
+        }
+    }
+
+    /// The episode the hero Play button starts on a show or season page: On Deck,
+    /// else one in progress, else the first one listed.
+    private var heroPlayEpisode: DetailsViewModel.Episode? {
+        let plexEpisodes = vm.episodes.filter { $0.id.hasPrefix("plex:") }
+        if let onDeck = vm.onDeck, onDeck.id.hasPrefix("plex:") {
+            if let listed = plexEpisodes.first(where: { $0.id == onDeck.id }) { return listed }
+            if !vm.isSeason { return onDeck }
+        }
+        return plexEpisodes.first { ($0.viewOffset ?? 0) > 0 } ?? plexEpisodes.first
+    }
+
     func playContent() {
         guard hasResolvedPlexSource, let playableId = resolvedPlexPlayableId else { return }
+
+        // A show or season is not playable itself; start its next episode.
+        if !vm.isEpisode, item.type != "episode", vm.mediaKind == "tv" {
+            if let episode = heroPlayEpisode { playEpisode(episode) }
+            return
+        }
 
         // CRITICAL: Preserve episode type from original item
         // vm.mediaKind only stores "movie" or "tv", but episodes need type="episode"

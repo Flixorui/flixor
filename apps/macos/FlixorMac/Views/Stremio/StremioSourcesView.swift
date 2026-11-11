@@ -14,6 +14,7 @@ struct StremioSourcesView: View {
     @StateObject private var viewModel: StremioSourcesViewModel
     @State private var qualityFilter: String?
     @State private var sort: SourceSort = .best
+    @State private var cache = EntryCache()
 
     enum SourceSort: CaseIterable, Identifiable {
         case best, size, addonOrder
@@ -40,7 +41,10 @@ struct StremioSourcesView: View {
                     autoSelectNoticeBanner(notice)
                 }
 
-                if !viewModel.isLoading, case .none = viewModel.emptyState {
+                // Sources show as each addon answers; the spinner stays only until the first playable one.
+                let waitingForFirst = viewModel.isLoading && !viewModel.hasPlayableResults
+
+                if !waitingForFirst, case .none = viewModel.emptyState {
                     filterBar
                 }
 
@@ -48,7 +52,7 @@ struct StremioSourcesView: View {
                     cachedResumeCard(cached)
                 }
 
-                if viewModel.isLoading {
+                if waitingForFirst {
                     ProgressView("Loading sources…")
                         .progressViewStyle(.circular)
                         .frame(maxWidth: .infinity, alignment: .center)
@@ -56,6 +60,14 @@ struct StremioSourcesView: View {
                 } else if case .none = viewModel.emptyState {
                     if let recommended = recommendedEntry { recommendedCard(recommended) }
                     playableList
+                    if viewModel.isLoading {
+                        HStack(spacing: DS.Space.s8) {
+                            ProgressView().controlSize(.small)
+                            Text("Loading more sources…")
+                                .font(.flixor(.caption))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                     addonErrors
                     unsupportedSections
                 } else {
@@ -69,7 +81,7 @@ struct StremioSourcesView: View {
         .background(Color.black)
         .navigationTitle("Sources")
         .task {
-            await viewModel.load()
+            await viewModel.loadIfNeeded()
         }
         .alert("Stremio", isPresented: Binding(get: { viewModel.alertMessage != nil }, set: { if !$0 { viewModel.alertMessage = nil } })) {
             Button("OK", role: .cancel) {}
@@ -129,10 +141,47 @@ struct StremioSourcesView: View {
         var primary: StremioPlayableStream { streams[0] }
     }
 
-    private var addonResults: [StremioAddonStreamResult] { viewModel.playableGroups }
+    /// Remembers the derived entries so a body pass doesn't rank every stream again.
+    /// Not observed: it only caches values computed from observed state.
+    private final class EntryCache {
+        struct AllKey: Equatable {
+            let version: Int
+            let providerFilter: String
+        }
+        struct VisibleKey: Equatable {
+            let all: AllKey
+            let quality: String?
+            let sort: SourceSort
+        }
+        struct RecommendedKey: Equatable {
+            let all: AllKey
+            let rules: StreamSelectionRules?
+        }
+
+        var allKey: AllKey?
+        var all: [SourceEntry] = []
+        var visibleKey: VisibleKey?
+        var visible: [SourceEntry] = []
+        var recommendedKey: RecommendedKey?
+        var recommended: SourceEntry?
+    }
+
+    private var allEntriesKey: EntryCache.AllKey {
+        EntryCache.AllKey(version: viewModel.resultsVersion, providerFilter: viewModel.selectedProviderFilter)
+    }
 
     /// Every playable stream, grouped and ranked, before the quality filter.
     private var allEntries: [SourceEntry] {
+        let key = allEntriesKey
+        if cache.allKey != key {
+            cache.all = buildAllEntries()
+            cache.allKey = key
+        }
+        return cache.all
+    }
+
+    private func buildAllEntries() -> [SourceEntry] {
+        let addonResults = viewModel.playableGroups
         let ranked = StremioSourceRanking.rankedPlayable(in: viewModel.groupedResults)
         let rankIndex = Dictionary(ranked.enumerated().map { ($1.id + ($1.addonInstallationId ?? ""), $0) }, uniquingKeysWith: { a, _ in a })
         var entries: [SourceEntry] = []
@@ -155,6 +204,15 @@ struct StremioSourcesView: View {
     }
 
     private var visibleEntries: [SourceEntry] {
+        let key = EntryCache.VisibleKey(all: allEntriesKey, quality: qualityFilter, sort: sort)
+        if cache.visibleKey != key {
+            cache.visible = buildVisibleEntries()
+            cache.visibleKey = key
+        }
+        return cache.visible
+    }
+
+    private func buildVisibleEntries() -> [SourceEntry] {
         var entries = allEntries
         if let qualityFilter { entries = entries.filter { $0.facts.resolution == qualityFilter } }
         switch sort {
@@ -169,6 +227,15 @@ struct StremioSourcesView: View {
     private var recommendedEntry: SourceEntry? {
         let defaults = UserDefaults.standard
         let rules = defaults.stremioPlayAction == .matchRules ? defaults.stremioStreamRules : nil
+        let key = EntryCache.RecommendedKey(all: allEntriesKey, rules: rules)
+        if cache.recommendedKey != key {
+            cache.recommended = buildRecommendedEntry(rules: rules)
+            cache.recommendedKey = key
+        }
+        return cache.recommended
+    }
+
+    private func buildRecommendedEntry(rules: StreamSelectionRules?) -> SourceEntry? {
         let picked = (try? StreamAutoSelector(rules: rules))?.pick(in: viewModel.groupedResults)
             ?? StremioSourceRanking.rankedPlayable(in: viewModel.groupedResults).first
         guard let picked else { return nil }
@@ -294,7 +361,9 @@ struct StremioSourcesView: View {
 
     private func play(_ stream: StremioPlayableStream) {
         Task {
-            if let destination = await viewModel.select(stream: stream) {
+            // Same subtitle-addon wait as automatic Play; the player asks again once playback starts.
+            let deadline = Date().addingTimeInterval(TimeInterval(UserDefaults.standard.stremioAutoPickTimeLimit))
+            if let destination = await viewModel.select(stream: stream, subtitleDeadline: deadline) {
                 appendToCurrentTabPath(destination)
             }
         }
@@ -302,10 +371,11 @@ struct StremioSourcesView: View {
 
     private var unsupportedSections: some View {
         Group {
-            if !viewModel.unsupportedGroups.isEmpty {
+            let groups = viewModel.unsupportedGroups
+            if !groups.isEmpty {
                 VStack(alignment: .leading, spacing: DS.Space.s18) {
                     sectionHeader(title: String(localized: "Alternate Platforms"), subtitle: String(localized: "Returned by addons but not currently playable in-app"))
-                    ForEach(viewModel.unsupportedGroups) { group in
+                    ForEach(groups) { group in
                         VStack(alignment: .leading, spacing: DS.Space.s12) {
                             Text(group.addonName)
                                 .font(.flixor(.body, weight: .semibold))

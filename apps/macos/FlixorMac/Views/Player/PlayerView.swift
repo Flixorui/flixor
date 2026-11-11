@@ -36,13 +36,15 @@ struct PlayerView: View {
     @State var keyboardFeedbackTask: Task<Void, Never>?
     @State var showShortcutsOverlay = false
 
-    private init(resolvedItem: MediaItem, viewModel: PlayerViewModel) {
+    /// `makeViewModel` runs inside StateObject's autoclosure, so only the instance
+    /// SwiftUI keeps is built; SwiftUI may call `init` many times.
+    private init(resolvedItem: MediaItem, makeViewModel: @escaping () -> PlayerViewModel) {
         self.item = resolvedItem
-        _viewModel = StateObject(wrappedValue: viewModel)
+        _viewModel = StateObject(wrappedValue: makeViewModel())
     }
 
     init(item: MediaItem) {
-        self.init(resolvedItem: item, viewModel: PlayerViewModel(item: item))
+        self.init(resolvedItem: item, makeViewModel: { PlayerViewModel(item: item) })
     }
 
     /// Initialize with an offline (downloaded) media item
@@ -70,9 +72,11 @@ struct PlayerView: View {
             leafCount: nil,
             viewedLeafCount: nil
         )
+        let filePath = offlineItem.filePath
+        let title = offlineItem.displayTitle
         self.init(
             resolvedItem: item,
-            viewModel: PlayerViewModel(offlineFilePath: offlineItem.filePath, title: offlineItem.displayTitle)
+            makeViewModel: { PlayerViewModel(offlineFilePath: filePath, title: title) }
         )
     }
 
@@ -105,7 +109,7 @@ struct PlayerView: View {
                 leafCount: nil,
                 viewedLeafCount: nil
             )
-            self.init(resolvedItem: item, viewModel: PlayerViewModel(streamItem: streamItem))
+            self.init(resolvedItem: item, makeViewModel: { PlayerViewModel(streamItem: streamItem) })
         }
     }
 
@@ -204,18 +208,10 @@ struct PlayerView: View {
             }
 
             // Performance Overlay (top-left corner)
-            if viewModel.showPerformanceOverlay, let stats = viewModel.performanceStats {
-                VStack {
-                    HStack {
-                        PerformanceOverlayView(stats: stats)
-                            .padding(.leading, DS.Space.s20)
-                            .padding(.top, DS.Space.s60)
-                        Spacer()
-                    }
-                    Spacer()
-                }
-                .transition(.opacity)
-                .allowsHitTesting(false)
+            if viewModel.showPerformanceOverlay {
+                PerformanceOverlayContainer(model: viewModel.statsModel)
+                    .transition(.opacity)
+                    .allowsHitTesting(false)
             }
 
             // Skip button for the current marker (intro, recap, credits, preview).
@@ -260,6 +256,9 @@ struct PlayerView: View {
             hideControlsTask = nil
 
             viewModel.onDisappear()
+            // These closures hold the navigation state; drop them with the player.
+            viewModel.onPlayNext = nil
+            viewModel.onOpenStremioSources = nil
             stopMouseTracking()
             stopKeyboardMonitoring()
             PlaybackCommandState.shared.isPlayerActive = false
@@ -271,6 +270,8 @@ struct PlayerView: View {
             }
         }
         .onAppear {
+            // Loading starts here, once (see PlayerViewModel.start()).
+            viewModel.start()
             viewModel.isLeavingPlayer = false
             showControls = true
             scheduleHideControls()
@@ -278,12 +279,17 @@ struct PlayerView: View {
             startKeyboardMonitoring()
             PlaybackCommandState.shared.isPlayerActive = true
 
-            // Setup navigation callbacks (next episode, sources picker)
+            // Setup navigation callbacks (next episode, sources picker). They capture
+            // only dismiss, the router and the tab: capturing this view would capture
+            // its StateObject storage and keep the view model alive.
+            let dismiss = dismiss
+            let router = router
+            let mainViewState = mainViewState
             viewModel.onPlayNext = { nextItem in
-                leavePlayerAndNavigate(to: nextItem)
+                Self.leavePlayerAndNavigate(to: nextItem, dismiss: dismiss, router: router, selectedTab: mainViewState.selectedTab)
             }
             viewModel.onOpenStremioSources = { destination in
-                leavePlayerAndNavigate(to: destination)
+                Self.leavePlayerAndNavigate(to: destination, dismiss: dismiss, router: router, selectedTab: mainViewState.selectedTab)
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .mpvPiPDidClose)) { _ in
@@ -310,8 +316,12 @@ struct PlayerView: View {
             releaseSpaceHold()
             // The pointer now belongs to another app (PlayerCursor also does this app-wide).
             PlayerCursor.show()
+            // No key window while inactive, so the mouse poll had nothing to do.
+            pauseMouseTracking()
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            guard !viewModel.isLeavingPlayer else { return }
+            startMouseTracking()
             // Back in front with the pointer left visible on the way out: resume idle auto-hide.
             scheduleHideControls()
         }
@@ -331,11 +341,14 @@ struct PlayerView: View {
     }
 
     /// Dismisses the player, then pushes `destination` on the current tab's path.
-    private func leavePlayerAndNavigate<Destination: Hashable>(to destination: Destination) {
+    private static func leavePlayerAndNavigate<Destination: Hashable>(
+        to destination: Destination,
+        dismiss: DismissAction,
+        router: NavigationRouter,
+        selectedTab: NavItem
+    ) {
         dismiss()
         // Small delay to ensure dismiss completes
-        let router = router
-        let selectedTab = mainViewState.selectedTab
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
             switch selectedTab {
             case .home: router.homePath.append(destination)
@@ -377,8 +390,9 @@ struct PlayerView: View {
 
     private func startMouseTracking() {
         #if os(macOS)
+        mouseMovementTimer?.invalidate()
         // Start a timer that checks mouse position periodically
-        mouseMovementTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [self] _ in
+        let timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [self] _ in
             if let window = NSApp.keyWindow,
                let contentView = window.contentView {
                 let mouseLocation = NSEvent.mouseLocation
@@ -392,12 +406,19 @@ struct PlayerView: View {
                 }
             }
         }
+        timer.tolerance = 0.02
+        mouseMovementTimer = timer
         #endif
     }
 
-    private func stopMouseTracking() {
+    /// Stops the mouse poll while the app is inactive (restarted on activation).
+    private func pauseMouseTracking() {
         mouseMovementTimer?.invalidate()
         mouseMovementTimer = nil
+    }
+
+    private func stopMouseTracking() {
+        pauseMouseTracking()
         forceShowCursor() // Force show cursor when stopping tracking
     }
 

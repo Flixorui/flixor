@@ -51,9 +51,16 @@ public class TMDBService {
             }
         }
 
-        let queryString = queryParams.map { "\($0.key)=\($0.value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? $0.value)" }.joined(separator: "&")
-        let urlString = "\(baseUrl)\(path)?\(queryString)"
-        let cacheKey = cacheTag.map { "tmdb:\($0):\(urlString)" } ?? "tmdb:\(urlString)"
+        // Sorted so the URL (and cache key) is the same on every launch
+        let sortedParams = queryParams.sorted { $0.key < $1.key }
+        func query(_ items: [(key: String, value: String)]) -> String {
+            items.map { "\($0.key)=\($0.value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? $0.value)" }.joined(separator: "&")
+        }
+        let urlString = "\(baseUrl)\(path)?\(query(sortedParams))"
+
+        // The API key stays out of the cache key
+        let keyUrl = "\(baseUrl)\(path)?\(query(sortedParams.filter { $0.key != "api_key" }))"
+        let cacheKey = cacheTag.map { "tmdb:\($0):\(keyUrl)" } ?? "tmdb:\(keyUrl)"
 
         // Check cache first
         if ttl > 0 {
@@ -66,28 +73,33 @@ public class TMDBService {
             throw TMDBError.invalidURL
         }
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        // Concurrent identical requests share one fetch
+        let flightKey = "\(ttl > 0 ? "cached" : "fresh")|\(String(reflecting: T.self))|\(cacheKey)"
+        let cache = self.cache
+        return try await cache.deduplicated(flightKey) { (epoch: Int) async throws -> T in
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            request.setValue("application/json", forHTTPHeaderField: "Accept")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await URLSession.shared.data(for: request)
 
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw TMDBError.invalidResponse
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw TMDBError.invalidResponse
+            }
+
+            guard httpResponse.statusCode == 200 else {
+                throw TMDBError.httpError(statusCode: httpResponse.statusCode)
+            }
+
+            let result = try JSONDecoder().decode(T.self, from: data)
+
+            // Cache the response
+            if ttl > 0 {
+                await cache.set(cacheKey, value: result, ttl: ttl, ifUnchangedSince: epoch)
+            }
+
+            return result
         }
-
-        guard httpResponse.statusCode == 200 else {
-            throw TMDBError.httpError(statusCode: httpResponse.statusCode)
-        }
-
-        let result = try JSONDecoder().decode(T.self, from: data)
-
-        // Cache the response
-        if ttl > 0 {
-            await cache.set(cacheKey, value: result, ttl: ttl)
-        }
-
-        return result
     }
 
     // MARK: - Image URLs

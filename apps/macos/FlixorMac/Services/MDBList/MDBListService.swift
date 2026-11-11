@@ -35,6 +35,9 @@ class MDBListService: ObservableObject {
     // MARK: - Cache
 
     private var cache: [String: (ratings: MDBListRatings?, timestamp: Date)] = [:]
+    private let maxCacheEntries = 500
+    /// One request set per title at a time; later callers wait for it.
+    private var inFlight: [String: Task<MDBListRatings?, Never>] = [:]
 
     // MARK: - Computed Properties
 
@@ -91,6 +94,22 @@ class MDBListService: ObservableObject {
             return cached.ratings
         }
 
+        if let pending = inFlight[cacheKey] {
+            return await pending.value
+        }
+
+        let task = Task { await self.loadRatings(imdbId: formattedImdbId, mediaType: mediaType, apiKey: apiKey) }
+        inFlight[cacheKey] = task
+        let finalResult = await task.value
+        if inFlight[cacheKey] == task {
+            inFlight[cacheKey] = nil
+            // Cache the result (even if empty to avoid repeated failed requests)
+            storeInCache(finalResult, for: cacheKey)
+        }
+        return finalResult
+    }
+
+    private func loadRatings(imdbId formattedImdbId: String, mediaType: String, apiKey: String) async -> MDBListRatings? {
         print("[MDBListService] Fetching ratings for \(mediaType): \(formattedImdbId)")
 
         var ratings = MDBListRatings()
@@ -126,22 +145,32 @@ class MDBListService: ObservableObject {
         let hasAnyRating = ratings.hasAnyRating
         print("[MDBListService] Fetched ratings - hasAny: \(hasAnyRating)")
 
-        // Cache the result (even if empty to avoid repeated failed requests)
-        let finalResult = hasAnyRating ? ratings : nil
-        cache[cacheKey] = (ratings: finalResult, timestamp: Date())
+        return hasAnyRating ? ratings : nil
+    }
 
-        return finalResult
+    private func storeInCache(_ ratings: MDBListRatings?, for key: String) {
+        if cache[key] == nil, cache.count >= maxCacheEntries {
+            let now = Date()
+            cache = cache.filter { now.timeIntervalSince($0.value.timestamp) < cacheTTL }
+            if cache.count >= maxCacheEntries {
+                // Still full: drop the oldest quarter.
+                let oldest = cache.sorted { $0.value.timestamp < $1.value.timestamp }.prefix(maxCacheEntries / 4)
+                oldest.forEach { cache[$0.key] = nil }
+            }
+        }
+        cache[key] = (ratings: ratings, timestamp: Date())
     }
 
     /// Clear the ratings cache
     func clearCache() {
         cache.removeAll()
+        inFlight.removeAll()
         print("[MDBListService] Cache cleared")
     }
 
     // MARK: - Private Helpers
 
-    private func fetchSingleRating(
+    nonisolated private func fetchSingleRating(
         mediaType: String,
         ratingType: String,
         imdbId: String,

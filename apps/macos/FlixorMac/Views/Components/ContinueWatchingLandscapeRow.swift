@@ -130,13 +130,7 @@ struct ContinueWatchingLandscapeCard: View {
         Button(action: { onTap?() }) {
             ZStack(alignment: .bottom) {
                 // Background Image
-                CachedAsyncImage(
-                    url: backdropURL ?? ImageService.shared.continueWatchingURL(
-                        for: item,
-                        width: Int(width * 2),
-                        height: Int(height * 2)
-                    )
-                )
+                CachedAsyncImage(url: imageURL, maxPixelSize: ImageCache.fillPixelSize(width: width, height: height))
                 .aspectRatio(contentMode: .fill)
                 .frame(width: width, height: height)
                 .clipped()
@@ -240,98 +234,33 @@ struct ContinueWatchingLandscapeCard: View {
         }
     }
 
-    private func loadBackdrop() async {
-        // Try to get TMDB backdrop
-        do {
-            if let url = try await resolveTMDBBackdrop() {
-                await MainActor.run {
-                    self.backdropURL = url
-                }
-            }
-        } catch {
-            // Silent fallback to Plex image
-        }
+    /// Plex items that the Home view model already gave a TMDB backdrop (Continue
+    /// Watching), picked by the same English-first rule, need no lookup.
+    private var hasResolvedArt: Bool {
+        !item.id.hasPrefix("tmdb:") && ImageService.isTMDBImageURL(item.art)
     }
 
-    private func resolveTMDBBackdrop() async throws -> URL? {
-        // For episodes, use the parent show's backdrop (grandparentRatingKey)
-        if item.type == "episode", let showKey = item.grandparentRatingKey {
-            return try await fetchPlexTMDBBackdrop(ratingKey: showKey, forceMediaType: "tv")
+    /// The looked-up TMDB backdrop (English, with title text, first), else the
+    /// item's own artwork.
+    private var imageURL: URL? {
+        let size = ImageService.tmdbBackdropSize(forPointWidth: width)
+        if hasResolvedArt, let art = item.art {
+            return ImageService.tmdbImageURL(URL(string: art), downsizingOriginalTo: size)
         }
-
-        // For seasons, use the parent show's backdrop (parentRatingKey)
-        if item.type == "season", let showKey = item.parentRatingKey {
-            return try await fetchPlexTMDBBackdrop(ratingKey: showKey, forceMediaType: "tv")
+        if let resolved = backdropURL ?? ArtworkLookup.cachedURL(.backdrop, for: item) {
+            return ImageService.tmdbImageURL(resolved, size: size)
         }
-
-        // Handle tmdb: prefix
-        if item.id.hasPrefix("tmdb:") {
-            let parts = item.id.split(separator: ":")
-            if parts.count == 3 {
-                let media = (parts[1] == "movie") ? "movie" : "tv"
-                let id = String(parts[2])
-                return try await fetchTMDBBackdrop(mediaType: media, id: id)
-            }
-            return nil
-        }
-
-        // Handle plex: prefix
-        if item.id.hasPrefix("plex:") {
-            let rk = String(item.id.dropFirst(5))
-            return try await fetchPlexTMDBBackdrop(ratingKey: rk)
-        }
-
-        // Handle raw numeric ID
-        if item.id.allSatisfy({ $0.isNumber }) {
-            return try await fetchPlexTMDBBackdrop(ratingKey: item.id)
-        }
-
-        return nil
-    }
-
-    private func fetchPlexTMDBBackdrop(ratingKey: String, forceMediaType: String? = nil) async throws -> URL? {
-        struct PlexMeta: Codable { let type: String?; let Guid: [PlexGuid]? }
-        struct PlexGuid: Codable { let id: String? }
-
-        let meta: PlexMeta = try await APIClient.shared.get("/api/plex/metadata/\(ratingKey)")
-        let mediaType = forceMediaType ?? ((meta.type == "movie") ? "movie" : "tv")
-
-        if let guid = meta.Guid?.compactMap({ $0.id }).first(where: { $0.contains("tmdb://") || $0.contains("themoviedb://") }),
-           let tid = guid.components(separatedBy: "://").last {
-            return try await fetchTMDBBackdrop(mediaType: mediaType, id: tid)
-        }
-        return nil
-    }
-
-    private func fetchTMDBBackdrop(mediaType: String, id: String) async throws -> URL? {
-        struct TMDBImages: Codable { let backdrops: [TMDBImage]? }
-        struct TMDBImage: Codable { let file_path: String?; let vote_average: Double?; let iso_639_1: String? }
-
-        let imgs: TMDBImages = try await APIClient.shared.get(
-            "/api/tmdb/\(mediaType)/\(id)/images",
-            queryItems: [URLQueryItem(name: "include_image_language", value: "en,null")]
+        return ImageService.tmdbImageURL(
+            ImageService.shared.continueWatchingURL(for: item, width: Int(width * 2), height: Int(height * 2)),
+            downsizingOriginalTo: size
         )
+    }
 
-        let backs = imgs.backdrops ?? []
-
-        // Priority 1: English backdrops (with title text burned in)
-        let englishBackdrops = backs.filter { $0.iso_639_1 == "en" }
-            .sorted { ($0.vote_average ?? 0) > ($1.vote_average ?? 0) }
-        if let path = englishBackdrops.first?.file_path {
-            return URL(string: "https://image.tmdb.org/t/p/original\(path)")
-        }
-
-        // Priority 2: Any language with title (iso_639_1 is not null)
-        let withLanguage = backs.filter { $0.iso_639_1 != nil }
-            .sorted { ($0.vote_average ?? 0) > ($1.vote_average ?? 0) }
-        if let path = withLanguage.first?.file_path {
-            return URL(string: "https://image.tmdb.org/t/p/original\(path)")
-        }
-
-        // Priority 3: Fallback to any backdrop (including textless)
-        let sorted = backs.sorted { ($0.vote_average ?? 0) > ($1.vote_average ?? 0) }
-        guard let path = sorted.first?.file_path else { return nil }
-        return URL(string: "https://image.tmdb.org/t/p/original\(path)")
+    private func loadBackdrop() async {
+        guard !hasResolvedArt else { return }
+        let url = await ArtworkLookup.resolve(.backdrop, for: item)
+        guard !Task.isCancelled, let url, url != backdropURL else { return }
+        backdropURL = url
     }
 }
 

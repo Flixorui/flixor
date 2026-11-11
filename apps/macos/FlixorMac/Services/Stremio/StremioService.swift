@@ -60,12 +60,14 @@ actor StremioService {
             let missingOrder = persistedAddons.map(\.installationId).filter { !order.contains($0) }
             order.append(contentsOf: missingOrder)
             initialized = true
+            // Only write back when the stored order needed repairing.
+            if order != persistedOrder {
+                await persist()
+            }
         }
 
         if installDefaults {
             await ensureDefaultAddons()
-        } else {
-            await persist()
         }
     }
 
@@ -401,6 +403,34 @@ actor StremioService {
         }
     }
 
+    /// Same results as `getStreams(identity:)`, but `onUpdate` gets the results so far,
+    /// in addon order, each time an addon answers.
+    func getStreamsProgressively(
+        identity: StremioContentIdentity,
+        onUpdate: @escaping @Sendable ([StremioAddonStreamResult]) async -> Void
+    ) async -> [StremioAddonStreamResult] {
+        await ensureInitialized()
+        let requestType = StremioRequestType(rawValue: identity.requestType) ?? .movie
+        let streamAddons = await getInstalledAddons().filter {
+            addonSupportsResource($0, resourceName: "stream", requestType: requestType, contentId: identity.requestId)
+        }
+        guard !streamAddons.isEmpty else { return [] }
+
+        return await withTaskGroup(of: StremioAddonStreamResult.self) { group in
+            for addon in streamAddons {
+                group.addTask { await self.fetchStreams(for: addon, identity: identity) }
+            }
+
+            var results: [StremioAddonStreamResult] = []
+            for await result in group {
+                results.append(result)
+                results.sort { self.order.firstIndex(of: $0.installationId) ?? .max < self.order.firstIndex(of: $1.installationId) ?? .max }
+                await onUpdate(results)
+            }
+            return results
+        }
+    }
+
     /// Like `getStreams`, but stops as soon as `shouldStop` says so or `timeLimit` seconds
     /// pass; addons that have not answered by then are left out and their requests cancelled.
     /// `shouldStop` gets the results so far in addon order and the installation ids still pending.
@@ -509,12 +539,10 @@ actor StremioService {
     private func ensureDefaultAddons() async {
         let removedDefaults = await storage.removedDefaultAddons()
         if removedDefaults.contains(STREMIO_DEFAULT_OPEN_SUBTITLES_ID) {
-            await persist()
             return
         }
 
         if addons.values.contains(where: { $0.id == STREMIO_DEFAULT_OPEN_SUBTITLES_ID }) {
-            await persist()
             return
         }
 

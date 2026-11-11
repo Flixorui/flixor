@@ -13,6 +13,8 @@ struct CarouselView<Item: Identifiable, Content: View>: View {
     let itemWidth: CGFloat
     let spacing: CGFloat
     let rowHeight: CGFloat?
+    /// A wider cell for particular items (the Top 10 row's "10"); others use itemWidth.
+    let widthForItem: ((Item) -> CGFloat?)?
     let content: (Item) -> Content
 
     @State private var currentIndex: Int = 0
@@ -20,24 +22,25 @@ struct CarouselView<Item: Identifiable, Content: View>: View {
     @State private var showLeftArrow = false
     @State private var showRightArrow = true
     @State private var scrollProxy: ScrollViewProxy?
-    @State private var hoveredIndex: Int?
     @FocusState private var focusedIndex: Int?
     @StateObject private var focusHandle = CardRowFocusHandle()
     @ObservedObject private var keyboardMode = CardKeyboardModeTracker.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @EnvironmentObject private var mainViewState: MainViewState
+    @Environment(\.cardNavigationContext) private var navigation
 
     init(
         items: [Item],
         itemWidth: CGFloat = 150,
         spacing: CGFloat = 12,
         rowHeight: CGFloat? = nil,
+        widthForItem: ((Item) -> CGFloat?)? = nil,
         @ViewBuilder content: @escaping (Item) -> Content
     ) {
         self.items = items
         self.itemWidth = itemWidth
         self.spacing = spacing
         self.rowHeight = rowHeight
+        self.widthForItem = widthForItem
         self.content = content
     }
 
@@ -110,7 +113,8 @@ struct CarouselView<Item: Identifiable, Content: View>: View {
             CardRowFocusRegistry.shared.unregister(focusHandle)
         }
         // Hidden tabs stay alive; a card left focused there must not take keys.
-        .onChange(of: mainViewState.selectedTab) { _ in focusedIndex = nil }
+        // Received rather than observed, so a tab switch doesn't re-render the row.
+        .onReceive(tabChanges) { _ in focusedIndex = nil }
         .onChange(of: items.count) { _ in syncFocusHandle() }
         .onChange(of: itemWidth) { _ in syncFocusHandle() }
         .onChange(of: focusedIndex) { index in
@@ -131,7 +135,7 @@ struct CarouselView<Item: Identifiable, Content: View>: View {
         let handle = focusHandle
         let itemId = AnyHashable(item.id)
         return content(item)
-            .frame(width: itemWidth)
+            .frame(width: widthForItem?(item) ?? itemWidth)
             .environment(\.cardFocusContext, CardFocusContext(
                 isFocusRingVisible: isFocused && keyboardMode.isKeyboardActive,
                 registerOpenAction: { action in handle.registerOpenAction(action, for: itemId) }
@@ -141,13 +145,6 @@ struct CarouselView<Item: Identifiable, Content: View>: View {
             .flixorSystemFocusEffectDisabled()
             .onMoveCommand { moveFocus($0, from: index) }
             .onCommand(#selector(NSResponder.insertNewline(_:))) { handle.open(id: itemId) }
-            .onHover { hovering in
-                if hovering {
-                    hoveredIndex = index
-                } else if hoveredIndex == index {
-                    hoveredIndex = nil
-                }
-            }
             .id(index)
             .background(
                 GeometryReader { itemGeometry in
@@ -161,7 +158,16 @@ struct CarouselView<Item: Identifiable, Content: View>: View {
                         )
                 }
             )
-            .zIndex(hoveredIndex == index || isFocused ? 1 : 0)
+            .modifier(CarouselCellRaise(isFocused: isFocused))
+    }
+
+    /// Later tab changes only: the subscription may be renewed on any update, and
+    /// `$selectedTab` replays its current value to each new subscriber.
+    private var tabChanges: AnyPublisher<NavItem, Never> {
+        guard let state = navigation?.mainViewState else {
+            return Empty().eraseToAnyPublisher()
+        }
+        return state.$selectedTab.removeDuplicates().dropFirst().eraseToAnyPublisher()
     }
 
     // MARK: - Keyboard
@@ -271,6 +277,25 @@ struct CarouselView<Item: Identifiable, Content: View>: View {
     }
 }
 
+// MARK: - Cell z-order
+
+/// Draws a hovered or focused cell above its neighbours. Hover lives here, per
+/// cell, so moving the pointer along a row only updates the cells it crosses.
+private struct CarouselCellRaise: ViewModifier {
+    let isFocused: Bool
+    @State private var isHovered = false
+
+    init(isFocused: Bool) {
+        self.isFocused = isFocused
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .onHover { isHovered = $0 }
+            .zIndex(isHovered || isFocused ? 1 : 0)
+    }
+}
+
 // MARK: - First Visible Item Preference Key
 
 struct FirstVisibleItem: Equatable {
@@ -311,6 +336,7 @@ struct CarouselRow<Item: Identifiable, Content: View>: View {
     let itemWidth: CGFloat
     let spacing: CGFloat
     let rowHeight: CGFloat?
+    let widthForItem: ((Item) -> CGFloat?)?
     let content: (Item) -> Content
     let browseAction: (() -> Void)?
     let browseLabel: String
@@ -326,6 +352,7 @@ struct CarouselRow<Item: Identifiable, Content: View>: View {
         itemWidth: CGFloat = 150,
         spacing: CGFloat = 12,
         rowHeight: CGFloat? = nil,
+        widthForItem: ((Item) -> CGFloat?)? = nil,
         browseAction: (() -> Void)? = nil,
         browseLabel: String = String(localized: "Browse"),
         @ViewBuilder content: @escaping (Item) -> Content,
@@ -335,6 +362,7 @@ struct CarouselRow<Item: Identifiable, Content: View>: View {
         self.itemWidth = itemWidth
         self.spacing = spacing
         self.rowHeight = rowHeight
+        self.widthForItem = widthForItem
         self.content = content
         self.browseAction = browseAction
         self.browseLabel = browseLabel
@@ -400,6 +428,7 @@ struct CarouselRow<Item: Identifiable, Content: View>: View {
                 itemWidth: itemWidth,
                 spacing: spacing,
                 rowHeight: rowHeight,
+                widthForItem: widthForItem,
                 content: content
             )
             .frame(height: rowHeight ?? (itemWidth * 1.8)) // Approximate fallback for poster cards

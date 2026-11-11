@@ -52,20 +52,15 @@ struct BrowsePageView: View {
 
     // MARK: Items
 
-    private func isShow(_ item: MediaItem) -> Bool { item.type == "show" || item.type == "tv" || item.type == "episode" }
-    private var movieCount: Int { uniqueItems.filter { !isShow($0) }.count }
-    private var showCount: Int { uniqueItems.filter { isShow($0) }.count }
+    private func isShow(_ item: MediaItem) -> Bool { BrowseModalViewModel.isShow(item) }
+    // The view model keeps items unique by id and counts them as they arrive.
+    private var movieCount: Int { viewModel.movieCount }
+    private var showCount: Int { viewModel.showCount }
     private var mixesTypes: Bool { movieCount > 0 && showCount > 0 }
 
-    /// Sources sometimes repeat a title on a later page; a repeated id leaves an
-    /// empty cell in a lazy grid, so keep the first of each.
-    private var uniqueItems: [MediaItem] {
-        var seen = Set<String>()
-        return viewModel.items.filter { seen.insert($0.id).inserted }
-    }
-
+    /// Built once per body pass, by whichever of grid or list is shown.
     private var visibleItems: [MediaItem] {
-        var items = uniqueItems
+        var items = viewModel.items
         switch typeFilter {
         case .all: break
         case .movies: items = items.filter { !isShow($0) }
@@ -106,7 +101,7 @@ struct BrowsePageView: View {
             .safeAreaInset(edge: .top, spacing: 0) { header }
             .background(HomeBackground())
             .navigationTitle("")
-            .task { await viewModel.load(context: route.context) }
+            .task { await viewModel.loadIfNeeded(context: route.context) }
     }
 
     private var header: some View {
@@ -164,7 +159,12 @@ struct BrowsePageView: View {
     }
 
     private var countText: String {
-        let count = visibleItems.count
+        let count: Int
+        switch typeFilter {
+        case .all: count = viewModel.items.count
+        case .movies: count = movieCount
+        case .shows: count = showCount
+        }
         return viewModel.canLoadMore ? "\(count)+" : "\(count)"
     }
 

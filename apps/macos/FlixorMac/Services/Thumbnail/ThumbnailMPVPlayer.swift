@@ -11,7 +11,9 @@ import OpenGL.GL
 import OpenGL.GL3
 import Libmpv
 
-/// Lightweight MPV instance dedicated to thumbnail generation
+/// Lightweight MPV instance dedicated to thumbnail generation.
+/// Created, used and shut down on MPVThumbnailGenerator's work queue, never on main:
+/// `mpv_terminate_destroy` can block.
 class ThumbnailMPVPlayer {
     // MARK: - Properties
 
@@ -25,10 +27,18 @@ class ThumbnailMPVPlayer {
     private let thumbnailHeight: Int = 200
 
     private var currentVideoURL: String?
-    private var isReady = false
+    private var isShutDown = false
 
     // Synchronization
     private let lock = NSLock()
+    /// Set from any thread to end a load or seek wait early (player closing).
+    private let abortLock = NSLock()
+    private var abortRequested = false
+    private var isAborted: Bool {
+        abortLock.lock()
+        defer { abortLock.unlock() }
+        return abortRequested
+    }
 
     // MARK: - Initialization
 
@@ -38,6 +48,7 @@ class ThumbnailMPVPlayer {
     }
 
     deinit {
+        // Normally already done by shutdown() on the work queue.
         cleanup()
     }
 
@@ -69,8 +80,13 @@ class ThumbnailMPVPlayer {
         setOption("audio", value: "no") // No audio needed
         setOption("vid", value: "1") // Only first video track
         setOption("sub", value: "no") // No subtitles
-        setOption("cache", value: "yes")
-        setOption("demuxer-readahead-secs", value: "5")
+        // Small network footprint: playback has priority over previews. Seeks still
+        // work over HTTP without the cache; mpv reads only what the next frame needs.
+        setOption("cache", value: "no")
+        setOption("demuxer-max-bytes", value: "8MiB")
+        setOption("demuxer-max-back-bytes", value: "0")
+        setOption("demuxer-readahead-secs", value: "0")
+        setOption("network-timeout", value: "30")
 
         // Fast seeking for thumbnails
         setOption("hr-seek", value: "yes")
@@ -207,32 +223,66 @@ class ThumbnailMPVPlayer {
 
     // MARK: - Public Methods
 
-    /// Load a video file for thumbnail generation
-    func loadVideo(url: String) {
-        guard let mpv = mpv else { return }
-
+    /// The URL loaded by the last successful `loadVideo`.
+    var loadedURL: String? {
         lock.lock()
         defer { lock.unlock() }
+        return currentVideoURL
+    }
 
-        if currentVideoURL == url {
+    /// Opens the file with the main player's network options (headers, TLS, reconnect)
+    /// and waits until it has loaded. Blocking; returns false on failure or timeout.
+    func loadVideo(options: MPVNetworkLoadOptions) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let mpv = mpv, !isShutDown else { return false }
+
+        if currentVideoURL == options.url {
             // Already loaded
-            return
+            return true
         }
+        currentVideoURL = nil
 
-        print("📸 [ThumbnailMPV] Loading video: \(url)")
+        print("📸 [ThumbnailMPV] Loading video")
+        for entry in UserDefaults.standard.getEnabledMpvConfigEntries()
+        where MPVNetworkLoadOptions.networkConfigKeys.contains(entry.key) {
+            mpv_set_property_string(mpv, entry.key, entry.value)
+        }
+        mpv_set_property_string(mpv, "tls-verify", options.verifyTLS ? "yes" : "no")
+        if let caFile = MPVPlayerController.systemCAFile {
+            mpv_set_property_string(mpv, "tls-ca-file", caFile)
+        }
+        if mpv_set_property_string(mpv, "stream-lavf-o", options.reconnectOptions) < 0 {
+            mpv_set_property_string(mpv, "stream-lavf-o", MPVPlayerController.basicReconnectOptions)
+        }
+        mpv_set_property_string(mpv, "http-header-fields", options.headerFields)
 
-        let commandString = "loadfile \"\(url)\" replace"
-        let status = mpv_command_string(mpv, commandString)
-
+        drainEvents(mpv)
+        let status = mpv_command_string(mpv, "loadfile \"\(options.url)\" replace")
         if status < 0 {
             print("❌ [ThumbnailMPV] Failed to load file: \(String(cString: mpv_error_string(status)))")
-            return
+            return false
         }
 
-        currentVideoURL = url
+        guard waitForFileLoaded(mpv, timeout: 20) else {
+            print("⚠️ [ThumbnailMPV] Timeout or error waiting for file load")
+            return false
+        }
+        currentVideoURL = options.url
+        print("✅ [ThumbnailMPV] File loaded")
+        return true
+    }
 
-        // Wait for file to load
-        waitForFileLoaded()
+    /// Ends a running load or seek wait soon. Any thread.
+    func abort() {
+        abortLock.lock()
+        abortRequested = true
+        abortLock.unlock()
+    }
+
+    /// Destroys mpv and the GL context. Call off the main thread. Idempotent.
+    func shutdown() {
+        cleanup()
     }
 
     /// Generate a thumbnail at a specific timestamp
@@ -250,18 +300,112 @@ class ThumbnailMPVPlayer {
         lock.lock()
         defer { lock.unlock() }
 
-        // Seek to timestamp
-        print("📸 [ThumbnailMPV] Seeking to \(time)s")
-        var timeValue = time
-        mpv_set_property(mpv, "time-pos", MPV_FORMAT_DOUBLE, &timeValue)
-
-        // Wait for seek to complete
-        Thread.sleep(forTimeInterval: 0.1)
-
-        // Render frame to our offscreen FBO
         CGLLockContext(glContext)
         CGLSetCurrentContext(glContext)
+        defer {
+            CGLSetCurrentContext(nil)
+            CGLUnlockContext(glContext)
+        }
 
+        // Hand over a frame mpv may still be holding, so it can't count as the new one.
+        drainEvents(mpv)
+        if hasNewFrame(renderContext) { renderFrame(renderContext) }
+
+        // Keyframe seek: much faster than an exact one, and close enough for a preview.
+        let status = mpv_command_string(mpv, "seek \(String(format: "%.3f", time)) absolute+keyframes")
+        if status < 0 {
+            print("❌ [ThumbnailMPV] Seek failed: \(String(cString: mpv_error_string(status)))")
+            return nil
+        }
+
+        // Wait for the seek to finish and its frame to arrive, instead of a fixed sleep
+        // that could capture the previous position's frame on a slow (network) seek.
+        // mpv waits for each frame to be rendered, so frames are rendered as they come.
+        let deadline = Date().addingTimeInterval(2.5)
+        var seekStarted = false
+        var restarted = false
+        var renderedNewFrame = false
+        while !(restarted && renderedNewFrame) {
+            let remaining = deadline.timeIntervalSinceNow
+            guard remaining > 0, !isAborted else {
+                print("⚠️ [ThumbnailMPV] Seek to \(time)s timed out")
+                return nil
+            }
+            if let event = mpv_wait_event(mpv, min(0.01, remaining)) {
+                switch event.pointee.event_id {
+                case MPV_EVENT_SEEK:
+                    seekStarted = true
+                case MPV_EVENT_PLAYBACK_RESTART:
+                    restarted = true
+                case MPV_EVENT_END_FILE, MPV_EVENT_SHUTDOWN:
+                    return nil
+                default:
+                    break
+                }
+            }
+            if hasNewFrame(renderContext) {
+                // Frames before the seek started are rendered too, so mpv isn't held up,
+                // but only a later one counts as the new position.
+                renderFrame(renderContext)
+                if seekStarted { renderedNewFrame = true }
+            }
+            if restarted && !renderedNewFrame {
+                // mpv sends playback-restart only once the new frame has been shown, so
+                // the current frame is the new one even if it was rendered just before.
+                renderFrame(renderContext)
+                renderedNewFrame = true
+            }
+        }
+
+        // Read pixels from framebuffer
+        let image = readFramebuffer()
+
+        if image != nil {
+            print("✅ [ThumbnailMPV] Generated thumbnail at \(time)s")
+        } else {
+            print("❌ [ThumbnailMPV] Failed to read framebuffer")
+        }
+
+        return image
+    }
+
+    // MARK: - Private Methods
+
+    /// Waits for the new file's file-loaded event. The previous file's end comes
+    /// before the new start, so an end only counts once the new file has started.
+    /// Call with `lock` held.
+    private func waitForFileLoaded(_ mpv: OpaquePointer, timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        var started = false
+        while true {
+            let remaining = deadline.timeIntervalSinceNow
+            guard remaining > 0, !isShutDown, !isAborted else { return false }
+            guard let event = mpv_wait_event(mpv, min(0.25, remaining)) else { return false }
+            switch event.pointee.event_id {
+            case MPV_EVENT_START_FILE:
+                started = true
+            case MPV_EVENT_FILE_LOADED:
+                return true
+            case MPV_EVENT_END_FILE where started, MPV_EVENT_SHUTDOWN:
+                return false
+            default:
+                continue
+            }
+        }
+    }
+
+    /// Discards queued events. Nothing else reads this instance's events; call with `lock` held.
+    private func drainEvents(_ mpv: OpaquePointer) {
+        while let event = mpv_wait_event(mpv, 0), event.pointee.event_id != MPV_EVENT_NONE {}
+    }
+
+    /// True when mpv has a frame waiting to be rendered. GL context current, `lock` held.
+    private func hasNewFrame(_ renderContext: OpaquePointer) -> Bool {
+        mpv_render_context_update(renderContext) & UInt64(MPV_RENDER_UPDATE_FRAME.rawValue) != 0
+    }
+
+    /// Renders mpv's current frame into the thumbnail FBO. GL context current, `lock` held.
+    private func renderFrame(_ renderContext: OpaquePointer) {
         // MPV requires mpv_opengl_fbo struct, not just the FBO ID
         var fboData = mpv_opengl_fbo(
             fbo: Int32(thumbnailFBO),
@@ -282,44 +426,6 @@ class ThumbnailMPVPlayer {
                 mpv_render_context_render(renderContext, &params)
             }
         }
-
-        // Read pixels from framebuffer
-        let image = readFramebuffer()
-
-        CGLSetCurrentContext(nil)
-        CGLUnlockContext(glContext)
-
-        if image != nil {
-            print("✅ [ThumbnailMPV] Generated thumbnail at \(time)s")
-        } else {
-            print("❌ [ThumbnailMPV] Failed to read framebuffer")
-        }
-
-        return image
-    }
-
-    // MARK: - Private Methods
-
-    private func waitForFileLoaded() {
-        guard let mpv = mpv else { return }
-
-        // Simple polling for file loaded
-        for _ in 0..<50 { // 500ms max wait
-            var paused: Int64 = 0
-            mpv_get_property(mpv, "pause", MPV_FORMAT_FLAG, &paused)
-
-            let cstr = mpv_get_property_string(mpv, "path")
-            if cstr != nil {
-                mpv_free(cstr)
-                isReady = true
-                print("✅ [ThumbnailMPV] File loaded")
-                return
-            }
-
-            Thread.sleep(forTimeInterval: 0.01)
-        }
-
-        print("⚠️ [ThumbnailMPV] Timeout waiting for file load")
     }
 
     private func readFramebuffer() -> NSImage? {
@@ -377,6 +483,9 @@ class ThumbnailMPVPlayer {
     private func cleanup() {
         lock.lock()
         defer { lock.unlock() }
+        guard !isShutDown else { return }
+        isShutDown = true
+        currentVideoURL = nil
 
         if let glContext = openGLContext {
             CGLLockContext(glContext)
@@ -384,9 +493,11 @@ class ThumbnailMPVPlayer {
 
             if thumbnailFBO != 0 {
                 glDeleteFramebuffers(1, &thumbnailFBO)
+                thumbnailFBO = 0
             }
             if thumbnailTexture != 0 {
                 glDeleteTextures(1, &thumbnailTexture)
+                thumbnailTexture = 0
             }
 
             CGLSetCurrentContext(nil)

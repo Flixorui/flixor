@@ -26,8 +26,6 @@ struct PlayerControlsView: View {
     @Environment(\.flixorTheme) private var theme
     @Environment(\.windowMetrics) private var metrics
 
-    @State private var isDraggingTimeline = false
-    @State private var draggedTime: TimeInterval = 0
     @State private var showEpisodesList = false
     @State private var showPlaybackSpeed = false
     @State private var showVolumeSlider = false
@@ -37,15 +35,10 @@ struct PlayerControlsView: View {
     @State private var showSourcesPanel = false
     @State private var settingsMenuAnchor = MenuAnchor()
     @State private var isSettingsHovered = false
-    /// Right-hand time label: remaining ("−3:20") or the total. Click to switch.
-    @AppStorage("playerShowsRemainingTime") private var showsRemainingTime = true
 
-    // Thumbnail preview states
-    @State private var showThumbnailPreview = false
-    @State private var thumbnailHoverTime: TimeInterval = 0
-    @State private var thumbnailHoverPosition: CGFloat = 0
-    @State private var thumbnailImage: NSImage? = nil
-    @State private var isThumbnailLoading = false
+    /// Seek-bar hover preview. Held, not observed: mouse moves over the seek bar
+    /// redraw only the preview, not these controls.
+    @State private var seekHover = SeekBarHoverModel()
 
     // Hover states for all control buttons
     @State private var isBackHovered = false
@@ -98,93 +91,16 @@ struct PlayerControlsView: View {
             // Bottom Controls
             VStack(spacing: DS.Space.s12) {
                 // Timeline
-                VStack(spacing: DS.Space.s4) {
-                    GeometryReader { geometry in
-                        ZStack(alignment: .leading) {
-                            // Background
-                            Rectangle()
-                                .fill(Color.white.opacity(0.3))
-                                .frame(height: 4)
-
-                            // Progress
-                            Rectangle()
-                                .fill(theme.accent)
-                                .frame(width: geometry.size.width * CGFloat(currentProgress), height: 4)
-
-                            // Chapter ticks and intro/recap/credits ranges
-                            SeekBarMarksView(model: seekBarMarks, segmentColor: theme.warning.opacity(DS.Opacity.strong))
-                                .equatable()
-
-                            // Scrubber
-                            Circle()
-                                .fill(theme.accent)
-                                .frame(width: 12, height: 12)
-                                .offset(x: geometry.size.width * CGFloat(currentProgress) - 6)
-                        }
-                        .contentShape(Rectangle())
-                        .gesture(
-                            DragGesture(minimumDistance: 0)
-                                .onChanged { value in
-                                    isDraggingTimeline = true
-                                    let progress = min(max(0, value.location.x / geometry.size.width), 1)
-                                    draggedTime = viewModel.duration * progress
-
-                                    // Update thumbnail preview during drag
-                                    thumbnailHoverTime = draggedTime
-                                    thumbnailHoverPosition = value.location.x
-                                    showThumbnailPreview = true
-                                    requestThumbnail(at: draggedTime)
-                                }
-                                .onEnded { value in
-                                    isDraggingTimeline = false
-                                    viewModel.seek(to: draggedTime)
-                                    showThumbnailPreview = false
-                                }
-                        )
-                        .onContinuousHover { phase in
-                            switch phase {
-                            case .active(let location):
-                                // Calculate time from hover position
-                                let progress = min(max(0, location.x / geometry.size.width), 1)
-                                thumbnailHoverTime = viewModel.duration * progress
-                                thumbnailHoverPosition = location.x
-
-                                // Show preview and request thumbnail
-                                if !isDraggingTimeline {
-                                    showThumbnailPreview = true
-                                    requestThumbnail(at: thumbnailHoverTime)
-                                }
-                            case .ended:
-                                // Hide preview when hover ends
-                                if !isDraggingTimeline {
-                                    showThumbnailPreview = false
-                                    thumbnailImage = nil // Clear cached image
-                                }
-                            }
-                        }
-                    }
-                    .frame(height: 12)
-
-                    // Time Labels
-                    HStack {
-                        Text(formatTime(isDraggingTimeline ? draggedTime : viewModel.currentTime))
-                            .font(.caption)
-                            .foregroundStyle(.white)
-                        Spacer()
-                        Button {
-                            showsRemainingTime.toggle()
-                        } label: {
-                            Text(showsRemainingTime
-                                 ? "−" + formatTime(max(0, viewModel.duration - (isDraggingTimeline ? draggedTime : viewModel.currentTime)))
-                                 : formatTime(viewModel.duration))
-                                .font(.caption)
-                                .monospacedDigit()
-                                .foregroundStyle(.white)
-                        }
-                        .buttonStyle(.plain)
-                        .help(showsRemainingTime ? "Time remaining. Click to show the total." : "Total time. Click to show time remaining.")
-                    }
-                }
+                PlayerSeekBar(
+                    clock: viewModel.playbackClock,
+                    hover: seekHover,
+                    duration: viewModel.duration,
+                    marks: seekBarMarks,
+                    accent: theme.accent,
+                    segmentColor: theme.warning.opacity(DS.Opacity.strong),
+                    onSeek: { viewModel.seek(to: $0) },
+                    requestThumbnail: { requestThumbnail(at: $0) }
+                )
                 .padding(.horizontal, DS.Space.s20)
 
                 // Play/Pause & Volume
@@ -483,7 +399,7 @@ struct PlayerControlsView: View {
         .overlay(alignment: .bottomTrailing) {
             // Next Episode Hover Card - positioned independently
             if showNextEpisodeHover, let nextEp = viewModel.nextEpisode {
-                NextEpisodeHoverCard(episode: nextEp, viewModel: viewModel)
+                NextEpisodeHoverCard(episode: nextEp)
                     .padding(.trailing, 120)
                     .padding(.bottom, DS.Space.s80)
                     .transition(.opacity.combined(with: .scale(scale: 0.95)))
@@ -491,18 +407,7 @@ struct PlayerControlsView: View {
         }
         .overlay(alignment: .bottomLeading) {
             // Thumbnail preview - positioned completely independently
-            if showThumbnailPreview {
-                ThumbnailPreviewView(
-                    time: thumbnailHoverTime,
-                    label: seekBarLabel(at: thumbnailHoverTime),
-                    image: thumbnailImage,
-                    isLoading: isThumbnailLoading
-                )
-                .offset(x: thumbnailHoverPosition + 20 - 100) // 20px is the horizontal padding, center 200px wide preview
-                .offset(y: -140) // Position above timeline
-                .allowsHitTesting(false)
-                .transition(.opacity.combined(with: .scale(scale: 0.95)))
-            }
+            SeekBarPreviewOverlay(hover: seekHover, label: { seekBarLabel(at: $0) })
         }
         .onChange(of: isAnyPanelOpen) { onPanelOpenChanged($0) }
         .onChange(of: closePanelsRequest) { _ in closeAllPanels() }
@@ -652,10 +557,148 @@ struct PlayerControlsView: View {
         return names.isEmpty ? nil : names.joined(separator: " · ")
     }
 
+    private func requestThumbnail(at time: TimeInterval) {
+        guard let generator = viewModel.thumbnailGenerator else { return }
+        let hover = seekHover
+        hover.requestID &+= 1
+        let requestID = hover.requestID
+        if !hover.isLoading { hover.isLoading = true }
+
+        generator.generateThumbnail(at: time) { image in
+            // Called on the main thread. An older request finishing late is ignored.
+            guard hover.requestID == requestID else { return }
+            hover.image = image
+            hover.isLoading = false
+        }
+    }
+}
+
+// MARK: - Seek Bar
+
+/// Seek-bar hover preview state (see `PlayerControlsView.seekHover`).
+final class SeekBarHoverModel: ObservableObject {
+    @Published var isVisible = false
+    @Published var time: TimeInterval = 0
+    @Published var position: CGFloat = 0
+    @Published var image: NSImage?
+    @Published var isLoading = false
+    /// Newest thumbnail request; completions of older ones are dropped.
+    var requestID = 0
+}
+
+/// Seek bar and time labels. Observes the playback clock, so position updates
+/// redraw only this.
+private struct PlayerSeekBar: View {
+    @ObservedObject var clock: PlaybackClock
+    let hover: SeekBarHoverModel
+    let duration: TimeInterval
+    let marks: SeekBarMarksModel
+    let accent: Color
+    let segmentColor: Color
+    let onSeek: (TimeInterval) -> Void
+    let requestThumbnail: (TimeInterval) -> Void
+
+    @State private var isDraggingTimeline = false
+    @State private var draggedTime: TimeInterval = 0
+    /// Right-hand time label: remaining ("−3:20") or the total. Click to switch.
+    @AppStorage("playerShowsRemainingTime") private var showsRemainingTime = true
+
+    var body: some View {
+        VStack(spacing: DS.Space.s4) {
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    // Background
+                    Rectangle()
+                        .fill(Color.white.opacity(0.3))
+                        .frame(height: 4)
+
+                    // Progress
+                    Rectangle()
+                        .fill(accent)
+                        .frame(width: geometry.size.width * CGFloat(currentProgress), height: 4)
+
+                    // Chapter ticks and intro/recap/credits ranges
+                    SeekBarMarksView(model: marks, segmentColor: segmentColor)
+                        .equatable()
+
+                    // Scrubber
+                    Circle()
+                        .fill(accent)
+                        .frame(width: 12, height: 12)
+                        .offset(x: geometry.size.width * CGFloat(currentProgress) - 6)
+                }
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { value in
+                            isDraggingTimeline = true
+                            let progress = min(max(0, value.location.x / geometry.size.width), 1)
+                            draggedTime = duration * progress
+
+                            // Update thumbnail preview during drag
+                            showPreview(at: draggedTime, x: value.location.x)
+                        }
+                        .onEnded { _ in
+                            isDraggingTimeline = false
+                            onSeek(draggedTime)
+                            if hover.isVisible { hover.isVisible = false }
+                        }
+                )
+                .onContinuousHover { phase in
+                    switch phase {
+                    case .active(let location):
+                        // Show preview and request thumbnail
+                        if !isDraggingTimeline {
+                            let progress = min(max(0, location.x / geometry.size.width), 1)
+                            showPreview(at: duration * progress, x: location.x)
+                        }
+                    case .ended:
+                        // Hide preview when hover ends
+                        if !isDraggingTimeline {
+                            if hover.isVisible { hover.isVisible = false }
+                            if hover.image != nil { hover.image = nil }
+                        }
+                    }
+                }
+            }
+            .frame(height: 12)
+
+            // Time Labels
+            HStack {
+                Text(formatTime(displayedTime))
+                    .font(.caption)
+                    .foregroundStyle(.white)
+                Spacer()
+                Button {
+                    showsRemainingTime.toggle()
+                } label: {
+                    Text(showsRemainingTime
+                         ? "−" + formatTime(max(0, duration - displayedTime))
+                         : formatTime(duration))
+                        .font(.caption)
+                        .monospacedDigit()
+                        .foregroundStyle(.white)
+                }
+                .buttonStyle(.plain)
+                .help(showsRemainingTime ? "Time remaining. Click to show the total." : "Total time. Click to show time remaining.")
+            }
+        }
+    }
+
+    private func showPreview(at time: TimeInterval, x: CGFloat) {
+        hover.time = time
+        hover.position = x
+        if !hover.isVisible { hover.isVisible = true }
+        requestThumbnail(time)
+    }
+
+    private var displayedTime: TimeInterval {
+        isDraggingTimeline ? draggedTime : clock.time
+    }
+
     private var currentProgress: Double {
-        guard viewModel.duration > 0 else { return 0 }
-        let time = isDraggingTimeline ? draggedTime : viewModel.currentTime
-        return time / viewModel.duration
+        guard duration > 0 else { return 0 }
+        return displayedTime / duration
     }
 
     private func formatTime(_ seconds: TimeInterval) -> String {
@@ -671,17 +714,25 @@ struct PlayerControlsView: View {
             return String(format: "%d:%02d", minutes, secs)
         }
     }
+}
 
-    private func requestThumbnail(at time: TimeInterval) {
-        guard let generator = viewModel.thumbnailGenerator else { return }
+/// The hover thumbnail above the seek bar. Only this observes the hover model.
+private struct SeekBarPreviewOverlay: View {
+    @ObservedObject var hover: SeekBarHoverModel
+    let label: (TimeInterval) -> String?
 
-        isThumbnailLoading = true
-
-        generator.generateThumbnail(at: time) { image in
-            Task { @MainActor in
-                self.thumbnailImage = image
-                self.isThumbnailLoading = false
-            }
+    var body: some View {
+        if hover.isVisible {
+            ThumbnailPreviewView(
+                time: hover.time,
+                label: label(hover.time),
+                image: hover.image,
+                isLoading: hover.isLoading
+            )
+            .offset(x: hover.position + 20 - 100) // 20px is the horizontal padding, center 200px wide preview
+            .offset(y: -140) // Position above timeline
+            .allowsHitTesting(false)
+            .transition(.opacity.combined(with: .scale(scale: 0.95)))
         }
     }
 }

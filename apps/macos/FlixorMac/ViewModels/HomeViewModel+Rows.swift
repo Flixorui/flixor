@@ -178,16 +178,15 @@ extension HomeViewModel {
         }
 
         // Discovery, watchlist, Trakt and Stremio catalogs
-        switch extraSectionsState {
-        case .idle, .loading:
-            skeletons("extra", count: expectedExtraSectionCountForMode)
-        default:
-            for slot in extraSlots {
-                switch slot {
-                case .section(let section): add(section)
-                case .failure(let failure): add(failure)
-                }
+        for slot in extraSlots {
+            switch slot {
+            case .section(let section): add(section)
+            case .failure(let failure): add(failure)
             }
+        }
+        if extraSectionsState == .idle || extraSectionsState.isLoading {
+            // Rows already back show in their place; placeholders follow for the rest.
+            skeletons("extra", count: max(1, expectedExtraSectionCountForMode - extraSlots.count))
         }
 
         var visible = rows.filter { row in

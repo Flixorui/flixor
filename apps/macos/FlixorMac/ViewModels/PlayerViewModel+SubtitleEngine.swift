@@ -36,12 +36,13 @@ extension PlayerViewModel {
 
         if subtitleCueTrackId != track?.id {
             // Cues shown by the previous track don't belong to this one
-            recentSubtitleCues = []
+            resetObservedSubtitleCues()
             subtitleCueTrackId = track?.id
         }
 
         guard let track else {
             subtitleCueLoadTask?.cancel()
+            isLoadingSubtitleCueFile = false
             subtitleCueFilePath = nil
             subtitleCues = []
             subtitleCueSource = .none
@@ -50,6 +51,7 @@ extension PlayerViewModel {
 
         guard track.external, let file = track.externalFilename, !file.isEmpty else {
             subtitleCueLoadTask?.cancel()
+            isLoadingSubtitleCueFile = false
             subtitleCueFilePath = nil
             subtitleCues = []
             subtitleCueSource = .observedOnly
@@ -57,14 +59,19 @@ extension PlayerViewModel {
         }
 
         if file == subtitleCueFilePath, !subtitleCues.isEmpty {
+            isLoadingSubtitleCueFile = false
             subtitleCueSource = .fullFile
             return
         }
         subtitleCueFilePath = file
         subtitleCueLoadTask?.cancel()
+        // Collect shown cues while the file loads: they are the fallback if it fails.
+        isLoadingSubtitleCueFile = true
+        updateSubtitleCueObservation()
         subtitleCueLoadTask = Task { [weak self] in
             let cues = await Self.loadCues(from: file)
             guard let self, !Task.isCancelled, self.subtitleCueFilePath == file else { return }
+            self.isLoadingSubtitleCueFile = false
             self.subtitleCues = cues
             self.subtitleCueSource = cues.isEmpty ? .observedOnly : .fullFile
         }
@@ -94,6 +101,27 @@ extension PlayerViewModel {
         }.value
     }
 
+    /// Cues are only collected for embedded tracks (`.observedOnly`): full-file
+    /// sources already know every cue, and each shown cue costs mpv reads.
+    func updateSubtitleCueObservation() {
+        guard let mpv = mpvController else { return }
+        guard subtitleCueSource == .observedOnly || isLoadingSubtitleCueFile else {
+            mpv.onSubtitleCueShown = nil
+            return
+        }
+        guard mpv.onSubtitleCueShown == nil else { return }
+        mpv.onSubtitleCueShown = { [weak self] shown in
+            Self.runOnMain { [weak self] in
+                self?.recordShownSubtitleCue(shown)
+            }
+        }
+    }
+
+    func resetObservedSubtitleCues() {
+        observedSubtitleCues = []
+        if !recentSubtitleCues.isEmpty { recentSubtitleCues = [] }
+    }
+
     /// Records a cue mpv just showed (embedded tracks expose no cue list).
     func recordShownSubtitleCue(_ shown: MPVShownSubtitleCue) {
         // mpv's sub-start may be in the subtitle timeline or already shifted by
@@ -107,11 +135,12 @@ extension PlayerViewModel {
         let text = SubtitleCueParser.cleanMarkup(shown.text)
         guard !text.isEmpty else { return }
 
-        if let last = recentSubtitleCues.last, last.text == text, abs(last.start - start) < 0.05 { return }
-        var cues = recentSubtitleCues.filter { !(abs($0.start - start) < 0.05 && $0.text == text) }
+        if let last = observedSubtitleCues.last, last.text == text, abs(last.start - start) < 0.05 { return }
+        var cues = observedSubtitleCues.filter { !(abs($0.start - start) < 0.05 && $0.text == text) }
         cues.append(SubtitleCue(start: start, end: end, text: text))
         cues.sort { $0.start < $1.start }
-        recentSubtitleCues = Array(cues.suffix(Self.recentCueLimit))
+        observedSubtitleCues = Array(cues.suffix(Self.recentCueLimit))
+        if isSubtitleSyncPanelOpen { recentSubtitleCues = observedSubtitleCues }
     }
 
     /// Position in the subtitle's own timeline that is on screen now.
@@ -148,7 +177,9 @@ extension PlayerViewModel {
     /// timeline, i.e. `SubtitleCue.start`) appears at the current playback position.
     /// Pick the line that is being spoken right now.
     func syncSubtitle(cueStart: TimeInterval) {
-        let delay = min(3600, max(-3600, currentTime - cueStart))
+        // Exact position: the throttled `currentTime` can be a quarter second behind.
+        let position = mpvController?.currentTimePosition ?? currentTime
+        let delay = min(3600, max(-3600, position - cueStart))
         setSubtitleDelay((delay * 1000).rounded() / 1000)
     }
 

@@ -80,7 +80,7 @@ extension PlayerViewModel {
         guard var info = MPNowPlayingInfoCenter.default().nowPlayingInfo else { return }
 
         // Update time and playback state
-        info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = currentTime
+        info[MPNowPlayingInfoPropertyElapsedPlaybackTime] = mpvController?.currentTimePosition ?? currentTime
         info[MPNowPlayingInfoPropertyPlaybackRate] = isPlaying ? playbackSpeed : 0.0
 
         if duration > 0 {

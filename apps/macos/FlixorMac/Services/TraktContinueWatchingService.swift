@@ -25,7 +25,8 @@ struct TraktContinueWatchingEntry {
 actor TraktContinueWatchingService {
     static let shared = TraktContinueWatchingService()
 
-    private static let cacheLifetime: TimeInterval = 60
+    /// Home's poll reuses the cache; explicit refreshes call `invalidate()` first.
+    private static let cacheLifetime: TimeInterval = 5 * 60
     /// Shows watched longer ago than this don't get a next-episode card.
     private static let nextUpWindow: TimeInterval = 90 * 24 * 60 * 60
     private static let maxNextUpShows = 20
@@ -259,13 +260,21 @@ actor TraktContinueWatchingService {
         )
     }
 
-    private static func parseDate(_ value: String?) -> Date? {
-        guard let value else { return nil }
+    private static let fractionalDateFormatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: value) { return date }
+        return formatter
+    }()
+
+    private static let plainDateFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
-        return formatter.date(from: value)
+        return formatter
+    }()
+
+    private static func parseDate(_ value: String?) -> Date? {
+        guard let value else { return nil }
+        return fractionalDateFormatter.date(from: value) ?? plainDateFormatter.date(from: value)
     }
 }
 

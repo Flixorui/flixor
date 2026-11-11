@@ -56,17 +56,10 @@ struct CardContextMenu: View {
         Divider()
 
         if CardActions.supportsWatchlist(item) {
-            let inList = CardActions.isInWatchlist(item, controller: watchlistController)
-            Button {
-                let item = item
-                let controller = watchlistController
-                Task { await CardActions.toggleWatchlist(item, controller: controller) }
-            } label: {
-                if inList {
-                    Label("Remove from My List", systemImage: "minus.circle")
-                } else {
-                    Label("Add to My List", systemImage: "plus.circle")
-                }
+            if let watchlistController {
+                CardWatchlistMenuButton(item: item, controller: watchlistController)
+            } else {
+                CardWatchlistMenuButton.button(item: item, controller: nil)
             }
         }
 
@@ -138,6 +131,31 @@ struct CardContextMenu: View {
         case .idle, .loading:
             Text("Loading lists…")
                 .onAppear { traktLists.loadIfNeeded() }
+        }
+    }
+}
+
+/// Add to / Remove from My List. Observes the controller itself so the card
+/// hosting the menu doesn't have to.
+private struct CardWatchlistMenuButton: View {
+    let item: MediaItem
+    @ObservedObject var controller: WatchlistController
+
+    var body: some View {
+        Self.button(item: item, controller: controller)
+    }
+
+    @MainActor
+    static func button(item: MediaItem, controller: WatchlistController?) -> some View {
+        let inList = CardActions.isInWatchlist(item, controller: controller)
+        return Button {
+            Task { await CardActions.toggleWatchlist(item, controller: controller) }
+        } label: {
+            if inList {
+                Label("Remove from My List", systemImage: "minus.circle")
+            } else {
+                Label("Add to My List", systemImage: "plus.circle")
+            }
         }
     }
 }

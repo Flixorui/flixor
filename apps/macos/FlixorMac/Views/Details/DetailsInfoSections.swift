@@ -367,12 +367,16 @@ struct DetailsTabContent: View {
         return String(localized: "\(minutes) min")
     }
 
-    private func formatCurrency(_ amount: Int) -> String {
+    private static let currencyFormatter: NumberFormatter = {
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
         formatter.currencyCode = "USD"
         formatter.maximumFractionDigits = 0
-        return formatter.string(from: NSNumber(value: amount)) ?? "$\(amount)"
+        return formatter
+    }()
+
+    private func formatCurrency(_ amount: Int) -> String {
+        Self.currencyFormatter.string(from: NSNumber(value: amount)) ?? "$\(amount)"
     }
 
     private func languageName(for code: String) -> String {
@@ -380,17 +384,23 @@ struct DetailsTabContent: View {
         return locale.localizedString(forLanguageCode: code)?.capitalized ?? code.uppercased()
     }
 
+    // Input format: "2026-01-08" (TMDB format)
+    private static let airDateInputFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
+
+    private static let airDateOutputFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .long
+        formatter.timeStyle = .none
+        return formatter
+    }()
+
     private func formatAirDate(_ dateString: String) -> String {
-        // Input format: "2026-01-08" (TMDB format)
-        let inputFormatter = DateFormatter()
-        inputFormatter.dateFormat = "yyyy-MM-dd"
-
-        let outputFormatter = DateFormatter()
-        outputFormatter.dateStyle = .long
-        outputFormatter.timeStyle = .none
-
-        if let date = inputFormatter.date(from: dateString) {
-            return outputFormatter.string(from: date)
+        if let date = Self.airDateInputFormatter.date(from: dateString) {
+            return Self.airDateOutputFormatter.string(from: date)
         }
         return dateString // Return as-is if parsing fails
     }

@@ -494,6 +494,18 @@ public class TraktService {
 
     private let traktApiUrl = "https://api.trakt.tv"
 
+    /// In-memory cache for the public, non-user lists (trending, popular, most
+    /// watched, anticipated). User endpoints are never cached.
+    private var publicListCache: [String: (value: Any, expiresAt: Date)] = [:]
+    private let publicListCacheLock = NSLock()
+    private let publicListCacheTTL: TimeInterval = 20 * 60
+    private static let publicListPaths: [String] = [
+        "/movies/trending", "/shows/trending",
+        "/movies/popular", "/shows/popular",
+        "/movies/anticipated", "/shows/anticipated",
+        "/movies/watched/", "/shows/watched/",
+    ]
+
     public init(clientId: String, clientSecret: String) {
         self.clientId = clientId
         self.clientSecret = clientSecret
@@ -524,11 +536,20 @@ public class TraktService {
     ) async throws -> T {
         var components = URLComponents(string: "\(traktApiUrl)\(path)")
         if let params = params {
-            components?.queryItems = params.map { URLQueryItem(name: $0.key, value: $0.value) }
+            components?.queryItems = params
+                .sorted { $0.key < $1.key }
+                .map { URLQueryItem(name: $0.key, value: $0.value) }
         }
 
         guard let url = components?.url else {
             throw TraktError.invalidURL
+        }
+
+        let cacheKey: String? = !auth && Self.publicListPaths.contains(where: { path.hasPrefix($0) })
+            ? "\(String(reflecting: T.self))|\(url.absoluteString)"
+            : nil
+        if let cacheKey, let value = cachedPublicList(cacheKey) as? T {
+            return value
         }
 
         var request = URLRequest(url: url)
@@ -556,7 +577,24 @@ public class TraktService {
             throw TraktError.httpError(statusCode: httpResponse.statusCode)
         }
 
-        return try JSONDecoder().decode(T.self, from: data)
+        let result = try JSONDecoder().decode(T.self, from: data)
+        if let cacheKey {
+            storePublicList(result, for: cacheKey)
+        }
+        return result
+    }
+
+    private func cachedPublicList(_ key: String) -> Any? {
+        publicListCacheLock.lock()
+        defer { publicListCacheLock.unlock() }
+        guard let entry = publicListCache[key], entry.expiresAt > Date() else { return nil }
+        return entry.value
+    }
+
+    private func storePublicList(_ value: Any, for key: String) {
+        publicListCacheLock.lock()
+        defer { publicListCacheLock.unlock() }
+        publicListCache[key] = (value, Date().addingTimeInterval(publicListCacheTTL))
     }
 
     private func post<T: Decodable>(

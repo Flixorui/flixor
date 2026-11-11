@@ -52,8 +52,6 @@ class APIClient: ObservableObject {
     // MARK: - FlixorCore Router
 
     private func routeRequest<T: Decodable>(path: String, queryItems: [URLQueryItem]?, bypassCache: Bool = false) async throws -> T {
-        print("🔀 [APIClient] Routing: \(path)\(bypassCache ? " (bypassCache)" : "")")
-
         // Parse query items into dictionary
         var params: [String: String] = [:]
         for item in queryItems ?? [] {
@@ -90,14 +88,14 @@ class APIClient: ObservableObject {
         if subpath.hasPrefix("metadata/") {
             let ratingKey = String(subpath.dropFirst("metadata/".count))
             let item = try await plexServer.getMetadata(ratingKey: ratingKey, bypassCache: bypassCache)
-            return try encodeAndDecode(item)
+            return try await encodeAndDecode(item)
         }
 
         // /api/plex/markers/{ratingKey} - fetch intro/credits markers
         if subpath.hasPrefix("markers/") {
             let ratingKey = String(subpath.dropFirst("markers/".count))
             let markers = try await plexServer.getMarkers(ratingKey: ratingKey)
-            return try encodeAndDecode(markers)
+            return try await encodeAndDecode(markers)
         }
 
         // /api/plex/dir/library/metadata/{key}/children
@@ -106,7 +104,7 @@ class APIClient: ObservableObject {
             if let key = parts.first {
                 let items = try await plexServer.getChildren(ratingKey: String(key))
                 let response = PlexChildrenResponse(Metadata: items, size: items.count)
-                return try encodeAndDecode(response)
+                return try await encodeAndDecode(response)
             }
         }
 
@@ -118,7 +116,7 @@ class APIClient: ObservableObject {
                 let items = try await plexServer.getOnDeck()
                 let filtered = items.filter { $0.grandparentRatingKey == String(key) }
                 let response = PlexChildrenResponse(Metadata: filtered, size: filtered.count)
-                return try encodeAndDecode(response)
+                return try await encodeAndDecode(response)
             }
         }
 
@@ -138,7 +136,7 @@ class APIClient: ObservableObject {
                 let genre = params["genre"]
                 let result = try await plexServer.getLibraryItemsWithPagination(key: key, type: type, sort: sort, limit: limit, offset: offset, genre: genre)
                 let response = PlexDirResponse(MediaContainer: PlexDirContainer(Metadata: result.items))
-                return try encodeAndDecode(response)
+                return try await encodeAndDecode(response)
             }
 
             // dir/library/sections/{key}/recentlyAdded - recently added items for a library
@@ -148,7 +146,7 @@ class APIClient: ObservableObject {
                 let key = String(afterSections.prefix(while: { $0 != "/" }))
                 let items = try await plexServer.getRecentlyAdded(libraryKey: key)
                 let response = PlexDirResponse(MediaContainer: PlexDirContainer(Metadata: items))
-                return try encodeAndDecode(response)
+                return try await encodeAndDecode(response)
             }
 
             // Generic directory fetch - use children or library items
@@ -156,7 +154,7 @@ class APIClient: ObservableObject {
                 let key = String(dirPath.dropFirst("library/metadata/".count).prefix(while: { $0 != "/" }))
                 let items = try await plexServer.getChildren(ratingKey: key)
                 let response = PlexDirResponse(MediaContainer: PlexDirContainer(Metadata: items))
-                return try encodeAndDecode(response)
+                return try await encodeAndDecode(response)
             }
         }
 
@@ -166,7 +164,7 @@ class APIClient: ObservableObject {
             let type = params["type"].flatMap { Int($0) }
             let items = try await plexServer.search(query: query, type: type)
             // Return items array directly (not wrapped) - SearchViewModel expects [PlexSearchItem]
-            return try encodeAndDecode(items)
+            return try await encodeAndDecode(items)
         }
 
         // /api/plex/findByGuid
@@ -175,7 +173,7 @@ class APIClient: ObservableObject {
             let type = params["type"].flatMap { Int($0) }
             let items = try await plexServer.findByGuid(guid: guid, type: type)
             let response = PlexSearchResponse(MediaContainer: PlexSearchContainer(Metadata: items))
-            return try encodeAndDecode(response)
+            return try await encodeAndDecode(response)
         }
 
         // /api/plex/tmdb-match - Get TMDB backdrop for a Plex item
@@ -214,13 +212,13 @@ class APIClient: ObservableObject {
                 backdropUrl: backdropUrl,
                 posterUrl: posterUrl
             )
-            return try encodeAndDecode(response)
+            return try await encodeAndDecode(response)
         }
 
         // /api/plex/libraries
         if subpath == "libraries" {
             let libs = try await plexServer.getLibraries()
-            return try encodeAndDecode(libs)
+            return try await encodeAndDecode(libs)
         }
 
         // /api/plex/library/{key}/genre
@@ -230,7 +228,7 @@ class APIClient: ObservableObject {
             // Map to DirectoryEntry format expected by LibraryViewModel
             let entries = genres.map { DirectoryEntry(key: $0.key, title: $0.title) }
             let response = DirectoryResponseWrapper(Directory: entries)
-            return try encodeAndDecode(response)
+            return try await encodeAndDecode(response)
         }
 
         // /api/plex/library/{key}/year
@@ -240,7 +238,7 @@ class APIClient: ObservableObject {
             // Map to DirectoryEntry format expected by LibraryViewModel
             let entries = years.map { DirectoryEntry(key: $0.key, title: $0.title) }
             let response = DirectoryResponseWrapper(Directory: entries)
-            return try encodeAndDecode(response)
+            return try await encodeAndDecode(response)
         }
 
         // /api/plex/library/{key}/all
@@ -259,7 +257,7 @@ class APIClient: ObservableObject {
                 offset: result.offset,
                 Metadata: result.items
             )
-            return try encodeAndDecode(response)
+            return try await encodeAndDecode(response)
         }
 
         // /api/plex/library/{key}/collections
@@ -269,20 +267,20 @@ class APIClient: ObservableObject {
             let key = String(subpath.dropFirst("library/".count).prefix(while: { $0 != "/" }))
             let collections = try await plexServer.getCollections(libraryKey: key)
             let response = CollectionsResponse(Metadata: collections)
-            return try encodeAndDecode(response)
+            return try await encodeAndDecode(response)
         }
 
         // /api/plex/ratings/{ratingKey}
         if subpath.hasPrefix("ratings/") {
             // Ratings not directly available - return empty
             let emptyRatings = EmptyRatings()
-            return try encodeAndDecode(emptyRatings)
+            return try await encodeAndDecode(emptyRatings)
         }
 
         // /api/plex/recent
         if subpath == "recent" {
             let items = try await plexServer.getRecentlyAdded()
-            return try encodeAndDecode(items)
+            return try await encodeAndDecode(items)
         }
 
         // /api/plex/servers
@@ -311,7 +309,7 @@ class APIClient: ObservableObject {
                     presence: server.presence
                 )
             }
-            return try encodeAndDecode(mappedServers)
+            return try await encodeAndDecode(mappedServers)
         }
 
         print("❌ [APIClient] Unhandled Plex route: \(subpath)")
@@ -339,7 +337,7 @@ class APIClient: ObservableObject {
                 } else {
                     result = try await tmdb.getTrendingAll(timeWindow: window, page: page)
                 }
-                return try encodeAndDecode(result)
+                return try await encodeAndDecode(result)
             }
         }
 
@@ -348,26 +346,26 @@ class APIClient: ObservableObject {
             let page = params["page"].flatMap { Int($0) } ?? 1
             let region = params["region"]
             let result = try await tmdb.getUpcomingMovies(region: region, page: page)
-            return try encodeAndDecode(result)
+            return try await encodeAndDecode(result)
         }
 
         // Named list endpoints must be matched before the /{id} branch below, which
         // would otherwise try to parse "popular" as a TMDB id and throw.
         if subpath == "movie/popular" {
             let page = params["page"].flatMap { Int($0) } ?? 1
-            return try encodeAndDecode(try await tmdb.getPopularMovies(page: page))
+            return try await encodeAndDecode(try await tmdb.getPopularMovies(page: page))
         }
         if subpath == "tv/popular" {
             let page = params["page"].flatMap { Int($0) } ?? 1
-            return try encodeAndDecode(try await tmdb.getPopularTV(page: page))
+            return try await encodeAndDecode(try await tmdb.getPopularTV(page: page))
         }
         if subpath == "movie/top_rated" {
             let page = params["page"].flatMap { Int($0) } ?? 1
-            return try encodeAndDecode(try await tmdb.getTopRatedMovies(page: page))
+            return try await encodeAndDecode(try await tmdb.getTopRatedMovies(page: page))
         }
         if subpath == "tv/top_rated" {
             let page = params["page"].flatMap { Int($0) } ?? 1
-            return try encodeAndDecode(try await tmdb.getTopRatedTV(page: page))
+            return try await encodeAndDecode(try await tmdb.getTopRatedTV(page: page))
         }
 
         // /api/tmdb/movie/{id} or /api/tmdb/tv/{id}
@@ -388,39 +386,39 @@ class APIClient: ObservableObject {
                 // /images
                 if endpoint == "images" || endpoint.hasPrefix("images") {
                     let result = isMovie ? try await tmdb.getMovieImages(id: tmdbId) : try await tmdb.getTVImages(id: tmdbId)
-                    return try encodeAndDecode(result)
+                    return try await encodeAndDecode(result)
                 }
 
                 // /credits
                 if endpoint == "credits" {
                     let result = isMovie ? try await tmdb.getMovieCredits(id: tmdbId) : try await tmdb.getTVCredits(id: tmdbId)
-                    return try encodeAndDecode(result)
+                    return try await encodeAndDecode(result)
                 }
 
                 // /recommendations
                 if endpoint == "recommendations" {
                     let page = params["page"].flatMap { Int($0) } ?? 1
                     let result = isMovie ? try await tmdb.getMovieRecommendations(id: tmdbId, page: page) : try await tmdb.getTVRecommendations(id: tmdbId, page: page)
-                    return try encodeAndDecode(result)
+                    return try await encodeAndDecode(result)
                 }
 
                 // /similar
                 if endpoint == "similar" {
                     let page = params["page"].flatMap { Int($0) } ?? 1
                     let result = isMovie ? try await tmdb.getSimilarMovies(id: tmdbId, page: page) : try await tmdb.getSimilarTV(id: tmdbId, page: page)
-                    return try encodeAndDecode(result)
+                    return try await encodeAndDecode(result)
                 }
 
                 // /external_ids
                 if endpoint == "external_ids" {
                     let result = isMovie ? try await tmdb.getMovieExternalIds(id: tmdbId) : try await tmdb.getTVExternalIds(id: tmdbId)
-                    return try encodeAndDecode(result)
+                    return try await encodeAndDecode(result)
                 }
 
                 // /videos - get videos/trailers
                 if endpoint == "videos" {
                     let result = isMovie ? try await tmdb.getMovieVideos(id: tmdbId) : try await tmdb.getTVVideos(id: tmdbId)
-                    return try encodeAndDecode(result)
+                    return try await encodeAndDecode(result)
                 }
 
                 // /season/{num} or /season/{num}/episode/{num}
@@ -432,11 +430,11 @@ class APIClient: ObservableObject {
                         let seasonNum = Int(parts[0]) ?? 1
                         let episodeNum = Int(parts.count > 1 ? parts[1] : "1") ?? 1
                         let result = try await tmdb.getEpisodeDetails(tvId: tmdbId, seasonNumber: seasonNum, episodeNumber: episodeNum)
-                        return try encodeAndDecode(result)
+                        return try await encodeAndDecode(result)
                     } else {
                         let seasonNum = Int(seasonPart) ?? 1
                         let result = try await tmdb.getSeasonDetails(tvId: tmdbId, seasonNumber: seasonNum)
-                        return try encodeAndDecode(result)
+                        return try await encodeAndDecode(result)
                     }
                 }
             } else {
@@ -446,10 +444,10 @@ class APIClient: ObservableObject {
                 }
                 if isMovie {
                     let result = try await tmdb.getMovieDetails(id: tmdbId)
-                    return try encodeAndDecode(result)
+                    return try await encodeAndDecode(result)
                 } else {
                     let result = try await tmdb.getTVDetails(id: tmdbId)
-                    return try encodeAndDecode(result)
+                    return try await encodeAndDecode(result)
                 }
             }
         }
@@ -458,14 +456,14 @@ class APIClient: ObservableObject {
         if subpath.hasPrefix("search/multi") {
             let query = params["query"] ?? ""
             let result = try await tmdb.searchMulti(query: query)
-            return try encodeAndDecode(result)
+            return try await encodeAndDecode(result)
         }
 
         // /api/tmdb/search/person - use searchMulti and filter
         if subpath.hasPrefix("search/person") {
             let query = params["query"] ?? ""
             let result = try await tmdb.searchMulti(query: query)
-            return try encodeAndDecode(result)
+            return try await encodeAndDecode(result)
         }
 
         // /api/tmdb/person/{id}/combined_credits
@@ -473,7 +471,7 @@ class APIClient: ObservableObject {
             let id = String(subpath.dropFirst("person/".count).prefix(while: { $0 != "/" }))
             if let personId = Int(id) {
                 let result = try await tmdb.getPersonCredits(id: personId)
-                return try encodeAndDecode(result)
+                return try await encodeAndDecode(result)
             }
         }
 
@@ -483,7 +481,7 @@ class APIClient: ObservableObject {
             let sortBy = params["sort_by"] ?? "popularity.desc"
             let page = params["page"].flatMap { Int($0) } ?? 1
             let result = try await tmdb.discoverMovies(withGenres: genres, sortBy: sortBy, page: page)
-            return try encodeAndDecode(result)
+            return try await encodeAndDecode(result)
         }
 
         // /api/tmdb/discover/tv
@@ -492,7 +490,7 @@ class APIClient: ObservableObject {
             let sortBy = params["sort_by"] ?? "popularity.desc"
             let page = params["page"].flatMap { Int($0) } ?? 1
             let result = try await tmdb.discoverTV(withGenres: genres, sortBy: sortBy, page: page)
-            return try encodeAndDecode(result)
+            return try await encodeAndDecode(result)
         }
 
         print("❌ [APIClient] Unhandled TMDB route: \(subpath)")
@@ -510,10 +508,10 @@ class APIClient: ObservableObject {
             let media = String(subpath.dropFirst("trending/".count))
             if media == "movies" {
                 let result = try await trakt.getTrendingMovies()
-                return try encodeAndDecode(result)
+                return try await encodeAndDecode(result)
             } else if media == "shows" {
                 let result = try await trakt.getTrendingShows()
-                return try encodeAndDecode(result)
+                return try await encodeAndDecode(result)
             }
         }
 
@@ -522,17 +520,17 @@ class APIClient: ObservableObject {
             let media = String(subpath.dropFirst("popular/".count))
             if media == "movies" {
                 let result = try await trakt.getPopularMovies()
-                return try encodeAndDecode(result)
+                return try await encodeAndDecode(result)
             } else if media == "shows" {
                 let result = try await trakt.getPopularShows()
-                return try encodeAndDecode(result)
+                return try await encodeAndDecode(result)
             }
         }
 
         // /api/trakt/recommendations/movies
         if subpath == "recommendations/movies" {
             let result = try await trakt.getRecommendedMovies()
-            return try encodeAndDecode(result)
+            return try await encodeAndDecode(result)
         }
 
         // /api/trakt/users/me (profile)
@@ -541,13 +539,13 @@ class APIClient: ObservableObject {
                 throw APIError.serverError(String(localized: "Not authenticated with Trakt"))
             }
             let result = try await trakt.getUserProfile()
-            return try encodeAndDecode(result)
+            return try await encodeAndDecode(result)
         }
 
         // /api/trakt/users/me/watchlist
         if subpath == "users/me/watchlist" {
             let result = try await trakt.getWatchlist()
-            return try encodeAndDecode(result)
+            return try await encodeAndDecode(result)
         }
 
         // /api/trakt/users/me/watchlist/movies
@@ -556,7 +554,7 @@ class APIClient: ObservableObject {
             // Return empty if not authenticated
             guard trakt.isAuthenticated else {
                 let empty: [TraktWatchlistEntryWrapper] = []
-                return try encodeAndDecode(empty)
+                return try await encodeAndDecode(empty)
             }
             do {
                 let result = try await trakt.getWatchlist(type: "movies")
@@ -576,11 +574,11 @@ class APIClient: ObservableObject {
                     }
                     return TraktWatchlistEntryWrapper(listed_at: item.listedAt, movie: movieWrapper, show: nil)
                 }
-                return try encodeAndDecode(mapped)
+                return try await encodeAndDecode(mapped)
             } catch {
                 print("⚠️ [APIClient] Trakt watchlist/movies error: \(error)")
                 let empty: [TraktWatchlistEntryWrapper] = []
-                return try encodeAndDecode(empty)
+                return try await encodeAndDecode(empty)
             }
         }
 
@@ -590,7 +588,7 @@ class APIClient: ObservableObject {
             // Return empty if not authenticated
             guard trakt.isAuthenticated else {
                 let empty: [TraktWatchlistEntryWrapper] = []
-                return try encodeAndDecode(empty)
+                return try await encodeAndDecode(empty)
             }
             do {
                 let result = try await trakt.getWatchlist(type: "shows")
@@ -610,11 +608,11 @@ class APIClient: ObservableObject {
                     }
                     return TraktWatchlistEntryWrapper(listed_at: item.listedAt, movie: nil, show: showWrapper)
                 }
-                return try encodeAndDecode(mapped)
+                return try await encodeAndDecode(mapped)
             } catch {
                 print("⚠️ [APIClient] Trakt watchlist/shows error: \(error)")
                 let empty: [TraktWatchlistEntryWrapper] = []
-                return try encodeAndDecode(empty)
+                return try await encodeAndDecode(empty)
             }
         }
 
@@ -629,11 +627,11 @@ class APIClient: ObservableObject {
                 // users/me/history/{type}
                 let type = parts[3]  // "movies", "shows", or "episodes"
                 let result = try await trakt.getHistory(type: type, page: page, limit: limit)
-                return try encodeAndDecode(result)
+                return try await encodeAndDecode(result)
             } else {
                 // users/me/history (no type)
                 let result = try await trakt.getHistory(page: page, limit: limit)
-                return try encodeAndDecode(result)
+                return try await encodeAndDecode(result)
             }
         }
 
@@ -665,7 +663,7 @@ class APIClient: ObservableObject {
                             )
                         )
                     }
-                    return try encodeAndDecode(mapped)
+                    return try await encodeAndDecode(mapped)
                 } else if media == "shows" {
                     let result = try await trakt.getMostWatchedShows(period: period, limit: limit)
                     // Map to wrapper types
@@ -685,7 +683,7 @@ class APIClient: ObservableObject {
                             )
                         )
                     }
-                    return try encodeAndDecode(mapped)
+                    return try await encodeAndDecode(mapped)
                 }
             }
         }
@@ -715,7 +713,7 @@ class APIClient: ObservableObject {
                             )
                         )
                     }
-                    return try encodeAndDecode(mapped)
+                    return try await encodeAndDecode(mapped)
                 } else if media == "shows" {
                     let result = try await trakt.getAnticipatedShows(limit: limit)
                     // Map to wrapper types
@@ -733,7 +731,7 @@ class APIClient: ObservableObject {
                             )
                         )
                     }
-                    return try encodeAndDecode(mapped)
+                    return try await encodeAndDecode(mapped)
                 }
             }
         }
@@ -753,29 +751,40 @@ class APIClient: ObservableObject {
                 print("❌ [Watchlist] Not authenticated with Plex.tv")
                 // Return empty watchlist instead of throwing
                 let container = PlexWatchlistContainer(MediaContainer: PlexWatchlistMC(Metadata: []))
-                return try encodeAndDecode(container)
+                return try await encodeAndDecode(container)
             }
             print("✅ [Watchlist] Fetching Plex.tv watchlist...")
             do {
-                let items = try await plexTv.getWatchlist()
+                let items = try await plexTv.getWatchlist(includeGuids: true)
                 print("✅ [Watchlist] Got \(items.count) items from Plex.tv")
 
-                // Enrich items with TMDB IDs by fetching full metadata for each
-                var wrappedItems: [WatchlistItemWrapper] = []
-                for item in items {
-                    // Try to get TMDB ID from full metadata
-                    let tmdbGuid = await plexTv.getTMDBIdForWatchlistItem(item)
-                    if let tmdbGuid = tmdbGuid {
-                        print("✅ [Watchlist] Enriched \(item.title) with TMDB: \(tmdbGuid)")
-                    } else {
-                        print("⚠️ [Watchlist] No TMDB ID for \(item.title)")
+                // Enrich items with TMDB IDs: read from the list's GUIDs, otherwise
+                // fetch full metadata, a few at a time, keeping list order.
+                var tmdbGuids = [String?](repeating: nil, count: items.count)
+                await withTaskGroup(of: (Int, String?).self) { group in
+                    var next = 0
+                    func addNext() {
+                        let index = next
+                        let item = items[index]
+                        next += 1
+                        group.addTask { (index, await plexTv.getTMDBIdForWatchlistItem(item)) }
                     }
+                    while next < min(8, items.count) { addNext() }
+                    while let (index, tmdbGuid) = await group.next() {
+                        tmdbGuids[index] = tmdbGuid
+                        if next < items.count { addNext() }
+                    }
+                }
 
-                    let guid = item.guids.first // Use first guid as primary
-
+                var wrappedItems: [WatchlistItemWrapper] = []
+                wrappedItems.reserveCapacity(items.count)
+                for (item, tmdbGuid) in zip(items, tmdbGuids) {
+                    // The list now comes with GUIDs, but `guid` stays nil as before:
+                    // MyListViewModel removes by `guid ?? ratingKey`, and an imdb:// or
+                    // tmdb:// guid there would break watchlist removal.
                     wrappedItems.append(WatchlistItemWrapper(
                         ratingKey: item.ratingKey,
-                        guid: guid,
+                        guid: nil,
                         title: item.title,
                         type: item.type,
                         thumb: item.thumb,
@@ -790,11 +799,11 @@ class APIClient: ObservableObject {
                 }
 
                 let container = PlexWatchlistContainer(MediaContainer: PlexWatchlistMC(Metadata: wrappedItems))
-                return try encodeAndDecode(container)
+                return try await encodeAndDecode(container)
             } catch {
                 print("⚠️ [Watchlist] Plex.tv watchlist error: \(error)")
                 let container = PlexWatchlistContainer(MediaContainer: PlexWatchlistMC(Metadata: []))
-                return try encodeAndDecode(container)
+                return try await encodeAndDecode(container)
             }
         }
 
@@ -804,11 +813,9 @@ class APIClient: ObservableObject {
 
     // MARK: - Helpers
 
-    private func encodeAndDecode<T: Decodable, U: Encodable>(_ value: U) throws -> T {
-        let encoder = JSONEncoder()
-        let data = try encoder.encode(value)
-        let decoder = JSONDecoder()
-        return try decoder.decode(T.self, from: data)
+    /// Converts a FlixorKit value into the app's model type. Runs off the main actor.
+    private func encodeAndDecode<T: Decodable, U: Encodable>(_ value: U) async throws -> T {
+        try await APIClientCoding.convert(value)
     }
 
     func post<T: Decodable>(_ path: String, body: Encodable? = nil) async throws -> T {
@@ -836,7 +843,7 @@ class APIClient: ObservableObject {
 
             // Return empty response
             let empty = EmptyResponse()
-            return try encodeAndDecode(empty)
+            return try await encodeAndDecode(empty)
         }
 
         // POST /api/plex/scrobble, /api/plex/unscrobble - body {"ratingKey": "..."}
@@ -862,7 +869,7 @@ class APIClient: ObservableObject {
                 try await plexServer.markUnwatched(ratingKey: ratingKey)
             }
             await plexServer.invalidateWatchStateCache(ratingKeys: [ratingKey])
-            return try encodeAndDecode(EmptyResponse())
+            return try await encodeAndDecode(EmptyResponse())
         }
 
         // POST /api/trakt/watchlist - Add to Trakt watchlist
@@ -919,7 +926,7 @@ class APIClient: ObservableObject {
                 print("⚠️ [APIClient] No body in Trakt watchlist request")
             }
             let response = SimpleOkResponse(ok: true, message: "Added to watchlist")
-            return try encodeAndDecode(response)
+            return try await encodeAndDecode(response)
         }
 
         // POST /api/trakt/watchlist/remove - Remove from Trakt watchlist
@@ -952,7 +959,7 @@ class APIClient: ObservableObject {
             }
 
             let response = SimpleOkResponse(ok: true, message: "Removed from watchlist")
-            return try encodeAndDecode(response)
+            return try await encodeAndDecode(response)
         }
 
         print("⚠️ [APIClient] POST not supported: \(path)")
@@ -979,7 +986,7 @@ class APIClient: ObservableObject {
             try await plexTv.addToWatchlist(ratingKey: decodedId)
 
             let response = SimpleOkResponse(ok: true, message: "Added to Plex.tv watchlist")
-            return try encodeAndDecode(response)
+            return try await encodeAndDecode(response)
         }
 
         // PUT /api/trakt/watchlist - Alternative method for Trakt
@@ -1001,7 +1008,7 @@ class APIClient: ObservableObject {
                 }
             }
             let response = SimpleOkResponse(ok: true, message: "Added to watchlist")
-            return try encodeAndDecode(response)
+            return try await encodeAndDecode(response)
         }
 
         print("⚠️ [APIClient] PUT not supported: \(path)")
@@ -1024,7 +1031,7 @@ class APIClient: ObservableObject {
             try await plexTv.removeFromWatchlist(ratingKey: decodedId)
 
             let response = SimpleOkResponse(ok: true, message: "Removed from Plex.tv watchlist")
-            return try encodeAndDecode(response)
+            return try await encodeAndDecode(response)
         }
 
         // DELETE /api/trakt/watchlist - Remove from Trakt watchlist
@@ -1032,7 +1039,7 @@ class APIClient: ObservableObject {
             // Trakt watchlist removal needs body with item details
             // For now just return success
             let response = SimpleOkResponse(ok: true, message: "Removed from watchlist")
-            return try encodeAndDecode(response)
+            return try await encodeAndDecode(response)
         }
 
         print("⚠️ [APIClient] DELETE not supported: \(path)")
@@ -1222,6 +1229,22 @@ class APIClient: ObservableObject {
                 preferredUri: uri
             )
         )
+    }
+}
+
+// MARK: - Response Conversion
+
+/// Re-encodes FlixorKit values into the app's model types on a background thread,
+/// with shared coders.
+private enum APIClientCoding {
+    static let encoder = JSONEncoder()
+    static let decoder = JSONDecoder()
+
+    static func convert<T: Decodable, U: Encodable>(_ value: U) async throws -> T {
+        try await Task.detached(priority: Task.currentPriority) {
+            let data = try encoder.encode(value)
+            return try decoder.decode(T.self, from: data)
+        }.value
     }
 }
 

@@ -31,7 +31,8 @@ class ThumbnailCache {
     func get(at time: Double) -> NSImage? {
         let key = makeKey(from: time)
 
-        return queue.sync {
+        // Barrier: a hit reorders `accessOrder`.
+        return queue.sync(flags: .barrier) {
             if let image = cache[key] {
                 // Update access order (move to end = most recently used)
                 updateAccessOrder(key)

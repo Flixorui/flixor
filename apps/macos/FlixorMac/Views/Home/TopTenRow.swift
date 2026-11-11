@@ -2,12 +2,11 @@
 //  TopTenRow.swift
 //  FlixorMac
 //
-//  A Streaming Availability Top 10 row: each poster with its rank as a large
-//  outlined number beside it. Right-click a poster to open it on the service.
+//  A Top 10 row (FlixPatrol or Streaming Availability): each poster with its
+//  rank as a large outlined number beside it.
 //
 
 import SwiftUI
-import AppKit
 
 struct TopTenRow: View {
     let section: LibrarySection
@@ -19,7 +18,13 @@ struct TopTenRow: View {
     private var posterWidth: CGFloat {
         metrics.posterWidth(designWidth: 150, storedSize: profileSettings.posterSize)
     }
-    private var numberWidth: CGFloat { posterWidth * 0.62 }
+    private var numberWidth: CGFloat { posterWidth * 0.70 }
+    /// "10" gets a wider column so it stands as tall as the single digits.
+    private var wideNumberWidth: CGFloat { posterWidth * 1.10 }
+
+    private func numberWidth(for rank: Int) -> CGFloat {
+        rank >= 10 ? wideNumberWidth : numberWidth
+    }
 
     private struct Ranked: Identifiable {
         let rank: Int
@@ -34,17 +39,17 @@ struct TopTenRow: View {
             items: ranked,
             itemWidth: numberWidth + posterWidth,
             spacing: DS.Space.s8,
-            rowHeight: posterWidth * 1.5 + 20
+            rowHeight: posterWidth * 1.5 + 20,
+            widthForItem: { numberWidth(for: $0.rank) + posterWidth }
         ) { entry in
             HStack(alignment: .bottom, spacing: -numberWidth * 0.12) {
-                TopTenNumber(rank: entry.rank, height: posterWidth * 1.5, width: numberWidth)
+                TopTenNumber(rank: entry.rank, height: posterWidth * 1.5, width: numberWidth(for: entry.rank))
                     .zIndex(0)
                 PosterCard(
                     item: entry.item,
                     width: posterWidth,
                     showTitle: false,
                     customImageURL: entry.item.thumb.flatMap(URL.init(string:)),
-                    extraMenuActions: menuActions(for: entry.item),
                     onTap: { onTap(entry.item) }
                 )
                 .zIndex(1)
@@ -52,44 +57,50 @@ struct TopTenRow: View {
         }
     }
 
-    private func menuActions(for item: MediaItem) -> [CardMenuAction] {
-        guard let link = StreamingAvailabilityStore.shared.links[item.id] else { return [] }
-        return [CardMenuAction(title: String(localized: "Open in \(link.service.displayName)")) {
-            NSWorkspace.shared.open(link.url)
-        }]
-    }
 }
 
 /// The rank as a tall outlined numeral (white outline, dark fill), sized so
-/// it always fits its column: single digits by height, "10" by width.
+/// it fits its column. "10" is drawn as two overlapping digits in a wider
+/// column, so it stands about as tall as the single digits.
 private struct TopTenNumber: View {
     let rank: Int
     let height: CGFloat
     let width: CGFloat
 
-    /// Rounded black digits are about 0.62 of the font size wide.
+    /// How far each digit overlaps the one before it, as a share of the font size.
+    private let digitOverlap: CGFloat = 0.16
+
+    /// Space for the outline beyond the glyph's ink.
+    private let outlineMargin: CGFloat = 3
+
+    /// Measured on rounded black digits: from the right edge of the advance
+    /// box to the left edge of the ink is at most 0.68 of the font size for
+    /// one digit, and 1.05 for "1" + "0" with the overlap. Sizing by that
+    /// keeps the left side of every digit inside the column.
     private var fontSize: CGFloat {
-        let digits = CGFloat(String(rank).count)
-        let byWidth = width / (0.62 * digits - (digits > 1 ? 0.12 : 0))
-        return min(height * 0.8, byWidth)
+        let inkWidth: CGFloat = String(rank).count > 1 ? 1.05 : 0.68
+        return min(height * 0.8, (width - outlineMargin) / inkWidth)
     }
 
     var body: some View {
         let font = Font.system(size: fontSize, weight: .black, design: .rounded)
+        let digits = String(rank).map(String.init)
+        let glyphs = HStack(spacing: -fontSize * digitOverlap) {
+            ForEach(digits.indices, id: \.self) { Text(digits[$0]) }
+        }
         ZStack {
             // Outline: the numeral drawn slightly offset in eight directions.
+            // All outlines go under all fills, so overlapping digits merge.
             ForEach(0..<8, id: \.self) { index in
                 let angle = Double(index) * .pi / 4
-                Text("\(rank)")
-                    .font(font)
+                glyphs
                     .foregroundStyle(Color.white.opacity(0.75))
                     .offset(x: cos(angle) * 1.5, y: sin(angle) * 1.5)
             }
-            Text("\(rank)")
-                .font(font)
+            glyphs
                 .foregroundStyle(Color(white: 0.05))
         }
-        .kerning(rank >= 10 ? -fontSize * 0.12 : 0)
+        .font(font)
         .lineLimit(1)
         .fixedSize()
         .frame(width: width, height: height, alignment: .bottomTrailing)

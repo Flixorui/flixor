@@ -46,8 +46,17 @@ class DetailsViewModel: ObservableObject {
     var castMoreCount: Int { max(0, cast.count - 4) }
 
     // Rows
-    @Published var related: [MediaItem] = []
-    @Published var similar: [MediaItem] = []
+    @Published var related: [MediaItem] = [] { didSet { moreLikeThisCache = nil } }
+    @Published var similar: [MediaItem] = [] { didSet { moreLikeThisCache = nil } }
+    private var moreLikeThisCache: [MediaItem]?
+    /// Related first, then Similar titles not already in it (deduped once, not per render).
+    var moreLikeThis: [MediaItem] {
+        if let moreLikeThisCache { return moreLikeThisCache }
+        var seen = Set<String>()
+        let items = (related + similar).filter { seen.insert($0.id).inserted }
+        moreLikeThisCache = items
+        return items
+    }
     @Published var relatedBrowseContext: BrowseContext?
     @Published var similarBrowseContext: BrowseContext?
     // Episodes & Seasons
@@ -135,6 +144,93 @@ class DetailsViewModel: ObservableObject {
 
     var lastFetchedRatingsKey: String?
     var lastLoadedItemId: String?
+
+    // MARK: Load progress
+    // The page reacts to these instead of waiting for the whole load to end.
+
+    /// Bumped when a load starts and again once the title's kind and TMDB id
+    /// are known (hero trailer, initial tab).
+    @Published private(set) var identityGeneration = 0
+    private(set) var identityReady = false
+    /// Bumped when a load starts and again once the ids that make up
+    /// `titleWatchTarget` have settled (watch state, rating, comments).
+    @Published private(set) var titleIdsGeneration = 0
+    private(set) var titleIdsReady = false
+    /// `titleWatchTarget` as it was when the ids settled, so the comments don't
+    /// reload while later steps fill in more fields.
+    @Published private(set) var commentsTarget: WatchStateTarget?
+
+    /// Item whose full load finished; returning to it only refreshes watch state.
+    var loadedContentItemId: String?
+    var isRefreshingContent = false
+    /// The Plex match supplied the cast, so TMDB credits must not replace it.
+    var castFromPlexMatch = false
+    /// TMDB episode stills by "tmdbId:season".
+    var tmdbStillsCache: [String: [Int: String]] = [:]
+
+    struct PlexSeasonInfo { let thumb: String?; let leafCount: Int?; let viewedLeafCount: Int? }
+    struct TMDBSeasonInfo { let number: Int; let posterPath: String?; let episodeCount: Int? }
+    /// Season summaries from the load, so the season picker needn't refetch them.
+    var plexSeasonInfo: [String: PlexSeasonInfo]?
+    var tmdbSeasonInfo: [TMDBSeasonInfo]?
+
+    /// Bumped by every full load; async work started for one load checks it
+    /// before writing, so it can't land on a title opened in place since.
+    private(set) var loadToken = 0
+    /// Something the page relies on failed (Plex lookup error, seasons, part
+    /// of the TMDB details); the next appearance does a full load again.
+    var loadHadPartialFailure = false
+    /// Holds the title-ids signal until a pending IMDb id lookup finishes.
+    private var titleIdsHeld = false
+    private var titleIdsRequested = false
+
+    func beginLoadProgress() {
+        loadToken += 1
+        loadHadPartialFailure = false
+        titleIdsHeld = false
+        titleIdsRequested = false
+        identityReady = false
+        titleIdsReady = false
+        commentsTarget = nil
+        identityGeneration += 1
+        titleIdsGeneration += 1
+    }
+
+    func markIdentityReady() {
+        guard !identityReady else { return }
+        identityReady = true
+        identityGeneration += 1
+    }
+
+    func holdTitleIds() {
+        titleIdsHeld = true
+    }
+
+    func releaseTitleIds() {
+        guard titleIdsHeld else { return }
+        titleIdsHeld = false
+        if titleIdsRequested { markTitleIdsReady() }
+    }
+
+    func markTitleIdsReady() {
+        guard !titleIdsReady else { return }
+        if titleIdsHeld {
+            titleIdsRequested = true
+            return
+        }
+        titleIdsReady = true
+        commentsTarget = titleWatchTarget
+        titleIdsGeneration += 1
+    }
+
+    /// Assigns only real changes, so the same artwork isn't reloaded.
+    func setBackdrop(_ url: URL?) {
+        if backdropURL != url { backdropURL = url }
+    }
+
+    func hasLoadedContent(for item: MediaItem) -> Bool {
+        !isLoading && !loadHadPartialFailure && loadedContentItemId == item.id && lastLoadedItemId == item.id
+    }
 
     struct ExternalRatings {
         struct IMDb { let score: Double?; let votes: Int? }
