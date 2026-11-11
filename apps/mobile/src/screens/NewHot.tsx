@@ -7,7 +7,7 @@
  * - Frosted header: the title row hides on a scroll down (pills rise into its place, 430 ms)
  *   and returns on a deliberate scroll up (200 ms).
  * - Bordered cards; one is active at a time (the one crossing 40% of the screen). The others
- *   dim to 45%. With inline trailers on (Settings > Details) the active card plays its
+ *   dim to 45%. With trailers on (Settings > Trailers) the active card plays its
  *   trailer, muted.
  * - Coming Soon cards have no buttons (no "Remind Me" in Flixor).
  */

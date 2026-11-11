@@ -14,7 +14,7 @@ import type { ContinueWatchingMenuAction } from './continueWatchingMenu';
 import { fetchCatalogRowItems, type HomeDisplayRow } from './homeRowModels';
 import type { HomeViewport } from './homeViewport';
 import { preheatArtwork } from './preheat';
-import StreamingTop10Rows from './StreamingTop10Rows';
+import { FallbackTop10Row, StreamingTop10Section, useStreamingTop10Sections } from './StreamingTop10Rows';
 import type { ContentItem } from '../../core/NewHotData';
 
 const getPoster = (item: RowItem) => item.image;
@@ -166,9 +166,12 @@ interface HomeRowsProps {
   onContinueBrowse: () => void;
   onItemPress: (item: RowItem) => void;
   onBrowseRow: (rowId: string) => void;
-  /** Top 10 row, placed right after Continue Watching. */
+  /** Top 10 rows: the first right after Continue Watching, the rest spread out below. */
   onTop10Press?: (item: ContentItem) => void;
 }
+
+/** Other rows between two Top 10 rows, so they don't come back to back. */
+const TOP10_SPACING = 2;
 
 /**
  * The row list. Rows are memoized on their own data, so Home re-rendering (the hero
@@ -190,55 +193,83 @@ function HomeRows({
   onBrowseRow,
   onTop10Press,
 }: HomeRowsProps) {
+  const top10 = useStreamingTop10Sections();
+
+  const renderRow = ({ model, title, caption }: HomeDisplayRow): React.ReactNode => {
+    const shared = { rowId: model.id, title, caption, layout, onItemPress, onBrowseRow };
+    switch (model.type) {
+      case 'continueWatching': {
+        if (!showContinueWatching || continueEntries.length === 0) return null;
+        const ContinueRow = continueLayout === 'landscape' ? ContinueWatchingLandscapeRow : ContinueWatchingPosterRow;
+        return (
+          <ContinueRow
+            key={model.id}
+            title={title}
+            entries={continueEntries}
+            blurNextUp={blurNextUp}
+            onItemPress={onContinuePress}
+            onAction={onContinueAction}
+            onBrowsePress={onContinueBrowse}
+          />
+        );
+      }
+      case 'items':
+        return (
+          <ItemsRow
+            key={model.id}
+            {...shared}
+            items={model.items}
+            titleIcon={model.titleIcon}
+            badge={model.badge}
+            eager={model.eager}
+          />
+        );
+      case 'catalog':
+        return <CatalogRow key={`${model.id}-${reloadToken}`} {...shared} catalog={model.catalog} viewport={viewport} />;
+      case 'userCollection':
+        return (
+          <UserCollectionRow
+            key={`${model.id}-${reloadToken}-${userCollectionContentKey(model.collection)}`}
+            {...shared}
+            collection={model.collection}
+            viewport={viewport}
+          />
+        );
+    }
+  };
+
+  // Top 10 rows start right after Continue Watching (where the single Top 10 row always
+  // was), then one comes after every TOP10_SPACING other rows; any left over go at the end.
+  const queue: React.ReactNode[] = !onTop10Press
+    ? []
+    : top10.active
+      ? (top10.sections ?? []).map((section) => (
+          <StreamingTop10Section key={`top10-${section.id}`} section={section} onItemPress={onTop10Press as any} />
+        ))
+      : [<FallbackTop10Row key="top10-tmdb" onItemPress={onTop10Press as any} />];
+  const output: React.ReactNode[] = [];
+  let placing = false;
+  let sinceTop10 = 0;
+  for (const row of rows) {
+    const node = renderRow(row);
+    if (node) output.push(node);
+    if (row.model.type === 'continueWatching') {
+      if (queue.length) output.push(queue.shift());
+      placing = true;
+      sinceTop10 = 0;
+    } else if (placing && node) {
+      sinceTop10 += 1;
+      if (sinceTop10 >= TOP10_SPACING && queue.length) {
+        output.push(queue.shift());
+        sinceTop10 = 0;
+      }
+    }
+  }
+  if (placing) output.push(...queue);
+
   return (
     <View style={{ marginTop: 16 }} onLayout={(event) => viewport.setContentY(event.nativeEvent.layout.y)}>
-      {rows.map(({ model, title, caption }) => {
-        const shared = { rowId: model.id, title, caption, layout, onItemPress, onBrowseRow };
-        switch (model.type) {
-          case 'continueWatching': {
-            // Top 10 rows per service when a FlixPatrol / Streaming Availability source is set up,
-            // else TMDB's weekly Top 10
-            const top10 = onTop10Press ? <StreamingTop10Rows key={`${model.id}-top10`} onItemPress={onTop10Press} /> : null;
-            if (!showContinueWatching || continueEntries.length === 0) return top10;
-            const ContinueRow = continueLayout === 'landscape' ? ContinueWatchingLandscapeRow : ContinueWatchingPosterRow;
-            return (
-              <React.Fragment key={model.id}>
-              <ContinueRow
-                title={title}
-                entries={continueEntries}
-                blurNextUp={blurNextUp}
-                onItemPress={onContinuePress}
-                onAction={onContinueAction}
-                onBrowsePress={onContinueBrowse}
-              />
-              {top10}
-              </React.Fragment>
-            );
-          }
-          case 'items':
-            return (
-              <ItemsRow
-                key={model.id}
-                {...shared}
-                items={model.items}
-                titleIcon={model.titleIcon}
-                badge={model.badge}
-                eager={model.eager}
-              />
-            );
-          case 'catalog':
-            return <CatalogRow key={`${model.id}-${reloadToken}`} {...shared} catalog={model.catalog} viewport={viewport} />;
-          case 'userCollection':
-            return (
-              <UserCollectionRow
-                key={`${model.id}-${reloadToken}-${userCollectionContentKey(model.collection)}`}
-                {...shared}
-                collection={model.collection}
-                viewport={viewport}
-              />
-            );
-        }
-      })}
+      {output}
     </View>
   );
 }

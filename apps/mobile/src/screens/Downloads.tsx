@@ -1,33 +1,23 @@
 /**
- * Downloads Screen - Shows downloaded movies and TV shows
- *
- * Features:
- * - Tab selector for Movies / TV Shows
- * - List of downloaded items with poster, title, and status
- * - Play downloaded content offline
- * - Delete downloads
+ * Downloads, in the style of My List: a big title over a Liquid Glass band that fades in on
+ * scroll, Movies / TV Shows as Home's glass pills (with counts), a storage line, then the
+ * downloaded titles. The title row hides on a scroll down and returns on a scroll up, and
+ * pull to refresh uses the round glass button.
  */
 
-import React, { useEffect, useCallback, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Pressable,
-  ActivityIndicator,
-  Platform,
-  RefreshControl,
-  ScrollView,
-  Alert,
-  Image,
-} from 'react-native';
-import { FlashList, ListRenderItemInfo } from '@shopify/flash-list';
+import React, { useEffect, useCallback, useMemo, useRef, useState } from 'react';
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, Animated, Alert, Image } from 'react-native';
+import { FlashList } from '@shopify/flash-list';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { DownloadListItem } from '../components/downloads';
 import DownloadProgressBar from '../components/downloads/DownloadProgressBar';
+import HeaderGlass, { HEADER_GLASS_MIN_OPACITY } from '../components/HeaderGlass';
+import { GlassPill, RoundGlassButton, glassPillStyles } from '../components/GlassPill';
+import PullToRefresh, { usePullToRefresh } from '../components/PullToRefresh';
+import { useScrollLinkedHeader } from '../components/useScrollLinkedHeader';
 import { useTheme } from '../hooks/useTheme';
 import { useAppSettings } from '../hooks/useAppSettings';
 import {
@@ -38,21 +28,8 @@ import {
 } from '../services/downloads';
 import { DownloadedMetadata, DownloadedShow, DownloadStatus } from '../types/downloads';
 
-// Conditionally import GlassView for iOS 26+ liquid glass effect
-let GlassViewComp: any = null;
-let liquidGlassAvailable = false;
-if (Platform.OS === 'ios') {
-  try {
-    const glass = require('expo-glass-effect');
-    GlassViewComp = glass.GlassView;
-    liquidGlassAvailable =
-      typeof glass.isLiquidGlassAvailable === 'function'
-        ? glass.isLiquidGlassAvailable()
-        : false;
-  } catch {
-    liquidGlassAvailable = false;
-  }
-}
+const TITLE_ROW = 52;
+const PILL_ROW = 52;
 
 type Tab = 'movies' | 'shows';
 
@@ -88,18 +65,39 @@ export default function Downloads() {
     }, [refresh])
   );
 
-  // Pull-to-refresh handler
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    await refresh();
-    setRefreshing(false);
+    try {
+      await refresh();
+    } finally {
+      setRefreshing(false);
+    }
   }, [refresh]);
 
-  // Handle tab change
+  // Header: the title row slides away on a scroll down and returns on a scroll up (as on My
+  // List); the glass band fades in once content scrolls under it
+  const headerH = insets.top + TITLE_ROW + PILL_ROW;
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const { value: collapse, onScrollY, show } = useScrollLinkedHeader(TITLE_ROW);
+  const headerShift = collapse.interpolate({ inputRange: [0, TITLE_ROW], outputRange: [0, -TITLE_ROW] });
+  const titleOpacity = collapse.interpolate({ inputRange: [0, TITLE_ROW * 0.7], outputRange: [1, 0], extrapolate: 'clamp' });
+  const glassOpacity = useMemo(
+    () => scrollY.interpolate({ inputRange: [0, 8, 60], outputRange: [HEADER_GLASS_MIN_OPACITY, HEADER_GLASS_MIN_OPACITY, 1], extrapolate: 'clamp' }),
+    [scrollY]
+  );
+  const onScroll = useMemo(
+    () => Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
+      useNativeDriver: false,
+      listener: (e: any) => onScrollY(e.nativeEvent.contentOffset.y),
+    }),
+    [scrollY, onScrollY]
+  );
+  const pull = usePullToRefresh(scrollY, refreshing, handleRefresh);
+
   const handleTabChange = useCallback((tab: Tab) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setActiveTab(tab);
-  }, []);
+    show();
+  }, [show]);
 
   // Render movie item - gets media from store directly
   const renderMovieItem = useCallback(
@@ -180,7 +178,7 @@ export default function Downloads() {
               setExpandedShow(isExpanded ? null : showKey);
             }}
           >
-            <View style={styles.showPoster}>
+            <View style={[styles.showPoster, { borderRadius: Math.min(settings.posterBorderRadius, 8) }]}>
               {item.localThumbPath ? (
                 <Image
                   source={{ uri: item.localThumbPath.startsWith('file://') ? item.localThumbPath : `file://${item.localThumbPath}` }}
@@ -206,13 +204,15 @@ export default function Downloads() {
               onPress={() => handleDeleteShow(item)}
               style={styles.showDeleteButton}
               hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={`Delete all episodes of ${item.title}`}
             >
-              <Ionicons name="trash-outline" size={20} color="#f44336" />
+              <Ionicons name="trash-outline" size={20} color="rgba(255,255,255,0.7)" />
             </Pressable>
             <Ionicons
               name={isExpanded ? 'chevron-down' : 'chevron-forward'}
-              size={20}
-              color="#666"
+              size={18}
+              color="#8e8e93"
               style={styles.showChevron}
             />
           </Pressable>
@@ -275,15 +275,17 @@ export default function Downloads() {
                         </Text>
                       </View>
                       {isCompleted && (
-                        <Ionicons name="play-circle" size={28} color={theme.accent} />
+                        <Ionicons name="play-circle" size={28} color="#fff" />
                       )}
                     </Pressable>
                     <Pressable
                       onPress={() => handleDeleteEpisode(epGlobalKey, ep.title)}
                       style={styles.episodeDeleteButton}
                       hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Delete ${ep.title}`}
                     >
-                      <Ionicons name="trash-outline" size={18} color="#f44336" />
+                      <Ionicons name="trash-outline" size={18} color="rgba(255,255,255,0.7)" />
                     </Pressable>
                   </View>
                 );
@@ -293,7 +295,7 @@ export default function Downloads() {
         </View>
       );
     },
-    [nav, expandedShow, handleDeleteEpisode, handleDeleteShow, formatBytes]
+    [nav, expandedShow, handleDeleteEpisode, handleDeleteShow, formatBytes, settings.posterBorderRadius]
   );
 
   // Get key extractor
@@ -307,324 +309,151 @@ export default function Downloads() {
     []
   );
 
-  // Empty state
-  const renderEmptyState = () => (
+  const firstLoad = isLoading && downloadedMovies.length === 0 && downloadedShows.length === 0;
+  const failed = !!error && downloadedMovies.length === 0 && downloadedShows.length === 0;
+
+  // Storage line, scrolling with the list under the pills
+  const summary = (
+    <View style={styles.summary}>
+      <Text style={styles.summaryText}>
+        {formatBytes(downloadSummary.totalDownloadedBytes)} downloaded
+      </Text>
+      {downloadSummary.activeCount > 0 ? (
+        <View style={styles.summaryActive}>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Downloading {downloadSummary.activeCount}</Text>
+            <Text style={styles.summaryLabel}>
+              {downloadSummary.activeTotalBytes > 0
+                ? `${formatBytes(downloadSummary.activeDownloadedBytes)} of ${formatBytes(downloadSummary.activeTotalBytes)}`
+                : 'Starting'}
+            </Text>
+          </View>
+          <DownloadProgressBar
+            progress={downloadSummary.activeTotalBytes > 0
+              ? (downloadSummary.activeDownloadedBytes / downloadSummary.activeTotalBytes) * 100
+              : 0}
+            height={4}
+            backgroundColor="rgba(255,255,255,0.12)"
+            progressColor={theme.accent}
+          />
+        </View>
+      ) : null}
+    </View>
+  );
+
+  const emptyState = firstLoad ? (
     <View style={styles.emptyContainer}>
-      <Ionicons
-        name={activeTab === 'movies' ? 'film-outline' : 'tv-outline'}
-        size={64}
-        color="#444"
-      />
+      <ActivityIndicator color="#fff" />
+    </View>
+  ) : failed ? (
+    <View style={styles.emptyContainer}>
+      <Ionicons name="alert-circle-outline" size={44} color="#48484a" />
+      <Text style={styles.emptyTitle}>Couldn't load downloads</Text>
+      <Text style={styles.emptySubtitle}>{error}</Text>
+      <Pressable style={styles.retryButton} onPress={refresh} accessibilityRole="button">
+        <Text style={styles.retryText}>Try Again</Text>
+      </Pressable>
+    </View>
+  ) : (
+    <View style={styles.emptyContainer}>
+      <Ionicons name="arrow-down-circle-outline" size={44} color="#48484a" />
       <Text style={styles.emptyTitle}>
-        No {activeTab === 'movies' ? 'Movies' : 'TV Shows'} Downloaded
+        No {activeTab === 'movies' ? 'movies' : 'TV shows'} downloaded
       </Text>
       <Text style={styles.emptySubtitle}>
-        Download movies and shows to watch offline
+        Download movies and episodes from their details page to watch offline.
       </Text>
     </View>
   );
 
-  // Header component
-  const renderHeader = () => (
-    <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-      <View style={styles.headerTopRow}>
-        {!settings.showDownloadsTab && (
-          <Pressable
-            onPress={() => nav.goBack()}
-            hitSlop={8}
-            style={({ pressed }) => [styles.backButton, pressed && styles.backButtonPressed]}
-            accessibilityRole="button"
-            accessibilityLabel="Go back"
-          >
-            <Ionicons name="chevron-back" size={26} color="#fff" />
-          </Pressable>
-        )}
-        <Text style={[styles.headerTitle, !settings.showDownloadsTab && styles.headerTitleWithBack]}>Downloads</Text>
-      </View>
-
-      {/* Tab selector */}
-      <View style={styles.tabContainer}>
-        <Pressable
-          style={[
-            styles.tab,
-            activeTab === 'movies' && styles.tabActive,
-          ]}
-          onPress={() => handleTabChange('movies')}
-        >
-          <Text
-            style={[
-              styles.tabText,
-              activeTab === 'movies' && styles.tabTextActive,
-            ]}
-          >
-            Movies
-          </Text>
-        </Pressable>
-        <Pressable
-          style={[
-            styles.tab,
-            activeTab === 'shows' && styles.tabActive,
-          ]}
-          onPress={() => handleTabChange('shows')}
-        >
-          <Text
-            style={[
-              styles.tabText,
-              activeTab === 'shows' && styles.tabTextActive,
-            ]}
-          >
-            TV Shows
-          </Text>
-        </Pressable>
-      </View>
-
-      <View style={styles.summaryCard}>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Total downloaded</Text>
-          <Text style={styles.summaryValue}>{formatBytes(downloadSummary.totalDownloadedBytes)}</Text>
-        </View>
-        {downloadSummary.activeCount > 0 && (
-          <>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>
-                Downloading ({downloadSummary.activeCount})
-              </Text>
-              <Text style={styles.summaryValue}>
-                {downloadSummary.activeTotalBytes > 0
-                  ? `${formatBytes(downloadSummary.activeDownloadedBytes)} / ${formatBytes(downloadSummary.activeTotalBytes)}`
-                  : 'In progress'}
-              </Text>
-            </View>
-            <DownloadProgressBar
-              progress={downloadSummary.activeTotalBytes > 0
-                ? (downloadSummary.activeDownloadedBytes / downloadSummary.activeTotalBytes) * 100
-                : 0}
-              height={6}
-              backgroundColor="#2a2a2a"
-              progressColor={theme.accent}
-            />
-          </>
-        )}
-      </View>
-    </View>
-  );
-
-  // Loading state
-  if (isLoading && downloadedMovies.length === 0 && downloadedShows.length === 0) {
-    return (
-      <View style={[styles.container, styles.centered]}>
-        {renderHeader()}
-        <ActivityIndicator size="large" color={theme.accent} />
-      </View>
-    );
-  }
-
-  // Error state
-  if (error && downloadedMovies.length === 0 && downloadedShows.length === 0) {
-    return (
-      <View style={[styles.container, styles.centered]}>
-        {renderHeader()}
-        <Text style={styles.errorText}>{error}</Text>
-        <Pressable style={[styles.retryButton, { backgroundColor: theme.accent }]} onPress={refresh}>
-          <Text style={styles.retryText}>Retry</Text>
-        </Pressable>
-      </View>
-    );
-  }
-
-  const currentData = activeTab === 'movies' ? downloadedMovies : downloadedShows;
-  const isEmpty = currentData.length === 0;
+  const listProps = {
+    // Only once something is stored or downloading ("0 B downloaded" says nothing)
+    ListHeaderComponent: firstLoad || failed || (!downloadSummary.totalDownloadedBytes && !downloadSummary.activeCount) ? null : summary,
+    ListEmptyComponent: emptyState,
+    contentContainerStyle: { paddingTop: headerH + 4, paddingBottom: insets.bottom + 110 },
+    onScroll,
+    scrollEventThrottle: 16,
+    ...pull.dragHandlers,
+  };
 
   return (
     <View style={styles.container}>
-      {renderHeader()}
-
-      {isEmpty ? (
-        <ScrollView
-          contentContainerStyle={styles.emptyScrollContent}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              tintColor={theme.accent}
-            />
-          }
-        >
-          {renderEmptyState()}
-        </ScrollView>
-      ) : activeTab === 'movies' ? (
+      {activeTab === 'movies' ? (
         <FlashList
-          data={downloadedMovies}
+          key="movies"
+          data={firstLoad || failed ? [] : downloadedMovies}
           renderItem={renderMovieItem}
           keyExtractor={movieKeyExtractor}
-          estimatedItemSize={114}
-          contentContainerStyle={{
-            paddingBottom: insets.bottom + 80,
-          }}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              tintColor={theme.accent}
-            />
-          }
+          {...listProps}
         />
       ) : (
         <FlashList
-          data={downloadedShows}
+          key="shows"
+          data={firstLoad || failed ? [] : downloadedShows}
           renderItem={renderShowItem}
           keyExtractor={showKeyExtractor}
-          estimatedItemSize={80}
-          contentContainerStyle={{
-            paddingBottom: insets.bottom + 80,
-          }}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              tintColor={theme.accent}
-            />
-          }
+          extraData={expandedShow}
+          {...listProps}
         />
       )}
+
+      {/* Header: title (with a back button when Downloads isn't a tab), then the pills */}
+      <Animated.View style={[styles.header, { height: headerH, transform: [{ translateY: headerShift }] }]} pointerEvents="box-none">
+        {/* Reaches one title row above, so the status bar stays covered as the header slides up */}
+        <View pointerEvents="none" style={[styles.band, { top: -TITLE_ROW, height: headerH + TITLE_ROW }]}>
+          <Animated.View style={[StyleSheet.absoluteFill, { opacity: glassOpacity }]}>
+            <HeaderGlass />
+          </Animated.View>
+        </View>
+        <Animated.View style={[styles.titleRow, { marginTop: insets.top, opacity: titleOpacity }]} pointerEvents="box-none">
+          {!settings.showDownloadsTab ? (
+            <View style={styles.backButton}>
+              <RoundGlassButton icon="chevron-back" label="Back" size={36} iconSize={22} onPress={() => nav.goBack()} />
+            </View>
+          ) : null}
+          <Text style={styles.headerTitle} accessibilityRole="header">Downloads</Text>
+        </Animated.View>
+        <View style={{ height: PILL_ROW }}>
+          <View style={[glassPillStyles.row, styles.pills]}>
+            <GlassPill label="Movies" count={downloadedMovies.length} selected={activeTab === 'movies'} onPress={() => handleTabChange('movies')} />
+            <GlassPill label="TV Shows" count={downloadedShows.length} selected={activeTab === 'shows'} onPress={() => handleTabChange('shows')} />
+          </View>
+        </View>
+      </Animated.View>
+
+      <PullToRefresh {...pull.indicatorProps} top={headerH + 6} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0a0a0a',
-  },
-  centered: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyScrollContent: {
-    flexGrow: 1,
-  },
-  header: {
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    backgroundColor: '#0a0a0a',
-  },
-  headerTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  backButton: {
-    marginRight: 6,
-    padding: 4,
-    borderRadius: 18,
-  },
-  backButtonPressed: {
-    opacity: 0.6,
-  },
-  headerTitle: {
-    color: '#fff',
-    fontSize: 28,
-    fontWeight: 'bold',
-  },
-  headerTitleWithBack: {
-    marginTop: 1,
-  },
-  tabContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#1a1a1a',
-    borderRadius: 10,
-    padding: 4,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 10,
-    alignItems: 'center',
-    borderRadius: 8,
-  },
-  tabActive: {
-    backgroundColor: '#333',
-  },
-  tabText: {
-    color: '#888',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  tabTextActive: {
-    color: '#fff',
-  },
-  summaryCard: {
-    marginTop: 12,
-    backgroundColor: '#121212',
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  summaryLabel: {
-    color: '#bdbdbd',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  summaryValue: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  emptyContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingTop: 100,
-  },
-  emptyTitle: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
-    marginTop: 16,
-  },
-  emptySubtitle: {
-    color: '#666',
-    fontSize: 14,
-    marginTop: 8,
-    textAlign: 'center',
-    paddingHorizontal: 40,
-  },
-  errorText: {
-    color: '#f44336',
-    fontSize: 14,
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  retryButton: {
-    paddingHorizontal: 24,
-    paddingVertical: 10,
-    borderRadius: 6,
-  },
-  retryText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
+  container: { flex: 1, backgroundColor: '#0e0e10' },
+  header: { position: 'absolute', top: 0, left: 0, right: 0 },
+  band: { position: 'absolute', left: 0, right: 0, overflow: 'hidden' },
+  titleRow: { height: TITLE_ROW, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20 },
+  backButton: { marginRight: 10 },
+  headerTitle: { flex: 1, color: '#fff', fontSize: 25, fontWeight: '600' },
+  pills: { flexDirection: 'row' },
+  summary: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 10 },
+  summaryText: { color: '#8e8e93', fontSize: 13, fontWeight: '500' },
+  summaryActive: { marginTop: 10, gap: 6 },
+  summaryRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  summaryLabel: { color: '#fff', fontSize: 13, fontWeight: '600' },
+  emptyContainer: { alignItems: 'center', justifyContent: 'center', paddingTop: 120, paddingHorizontal: 32 },
+  emptyTitle: { color: '#fff', fontSize: 18, fontWeight: '700', marginTop: 12, textAlign: 'center' },
+  emptySubtitle: { color: '#8e8e93', fontSize: 14, marginTop: 6, textAlign: 'center', lineHeight: 20 },
+  retryButton: { marginTop: 16, paddingHorizontal: 18, height: 40, borderRadius: 10, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
+  retryText: { color: '#000', fontSize: 15, fontWeight: '700' },
   showItem: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#111',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#333',
+    paddingVertical: 8,
   },
   showPoster: {
-    width: 50,
-    height: 50,
-    borderRadius: 8,
-    backgroundColor: '#222',
+    width: 64,
+    height: 96,
+    backgroundColor: '#1a1a1c',
     overflow: 'hidden',
   },
   showPosterImage: {
@@ -645,7 +474,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   showSubtitle: {
-    color: '#888',
+    color: '#8e8e93',
     fontSize: 13,
     marginTop: 2,
   },
@@ -657,15 +486,18 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   episodeList: {
-    backgroundColor: '#0d0d0d',
-    paddingLeft: 32,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    overflow: 'hidden',
   },
   episodeItem: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingRight: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#222',
+    borderBottomColor: 'rgba(255,255,255,0.08)',
   },
   episodeContent: {
     flex: 1,
@@ -683,7 +515,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   episodeStatus: {
-    color: '#666',
+    color: '#8e8e93',
     fontSize: 12,
     marginTop: 2,
   },

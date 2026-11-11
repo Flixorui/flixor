@@ -67,7 +67,7 @@ export default function MediaGrid<T extends MediaGridItem>({
         onLongPress={onLongPress ? () => onLongPress(item) : undefined}
         style={{ width: itemSize, margin: 4 }}
       >
-        <View style={[styles.poster, { width: itemSize, height: Math.round(itemSize * 1.5), backgroundColor: theme.surface }]}>
+        <View style={[styles.poster, { width: itemSize, height: Math.round(itemSize * 1.5), backgroundColor: theme.surface, borderRadius: settings.posterBorderRadius }]}>
           {item.image ? (
             <FastImage
               source={{ uri: item.image, priority: FastImage.priority.normal, cache: FastImage.cacheControl.immutable }}
@@ -93,7 +93,7 @@ export default function MediaGrid<T extends MediaGridItem>({
         ) : null}
       </Pressable>
     ),
-    [itemSize, onLongPress, onPress, settings.showPosterTitles, theme]
+    [itemSize, onLongPress, onPress, settings.showPosterTitles, settings.posterBorderRadius, theme]
   );
 
   return (

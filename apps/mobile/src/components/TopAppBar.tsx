@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import Pills from './Pills';
+import FlixorMark from './FlixorMark';
 import HeaderGlass, { HEADER_GLASS_MIN_OPACITY } from './HeaderGlass';
 import type { CategoryPick } from './CategoriesMenu';
 import { TopBarStore } from './TopBarStore';
@@ -149,17 +150,35 @@ function TopAppBar({ visible, username, showFilters, selected, onChange, onOpenC
         <View style={{ paddingHorizontal: 16, paddingTop: 0 }} pointerEvents="box-none">
           {/* Header row – always visible */}
           <View style={{ height: TOP_BAR_BASE_HEIGHT, flexDirection: 'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal: 4 }}>
-            <Animated.Text
-              style={{
-                color: '#fff',
-                fontSize: compact ? 20 : 25,
-                fontWeight: compact ? '700' : '600',
-                transformOrigin: 'left center',
-                transform: [{ translateX: titleShift }, { translateY: titleShift }, { scale: titleScale }],
-              }}
-            >
-              {compact ? username : `For ${username || 'You'}`}
-            </Animated.Text>
+            {compact ? (
+              <Animated.Text
+                style={{
+                  color: '#fff',
+                  fontSize: 20,
+                  fontWeight: '700',
+                  transformOrigin: 'left center',
+                  transform: [{ translateX: titleShift }, { translateY: titleShift }, { scale: titleScale }],
+                }}
+              >
+                {username}
+              </Animated.Text>
+            ) : (
+              // Home: the F mark and the page name, as Netflix shows its N with "Home"
+              <Animated.View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 10,
+                  transformOrigin: 'left center',
+                  transform: [{ translateX: titleShift }, { translateY: titleShift }, { scale: titleScale }],
+                }}
+                accessibilityRole="header"
+                accessibilityLabel="Home"
+              >
+                <FlixorMark height={30} />
+                <Text style={{ color: '#fff', fontSize: 27, fontWeight: '700' }}>Home</Text>
+              </Animated.View>
+            )}
             <Animated.View style={{ transformOrigin: 'right center', transform: [{ translateY: titleShift }, { scale: iconsScale }] }}>
             <Pressable
               onPress={handleOpenDownloads}

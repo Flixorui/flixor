@@ -151,6 +151,8 @@ function DownloadListItem({ globalKey, metadata, media }: DownloadListItemProps)
         style={styles.content}
         onPress={isDownloaded ? handlePlay : undefined}
         disabled={!isDownloaded}
+        accessibilityRole="button"
+        accessibilityLabel={isDownloaded ? `Play ${metadata.title}` : metadata.title}
       >
         {/* Poster */}
         <View style={styles.posterContainer}>
@@ -163,7 +165,9 @@ function DownloadListItem({ globalKey, metadata, media }: DownloadListItemProps)
           )}
           {isDownloaded && (
             <View style={styles.playOverlay}>
-              <Ionicons name="play" size={20} color="#fff" />
+              <View style={styles.playBadge}>
+                <Ionicons name="play" size={16} color="#fff" style={{ marginLeft: 2 }} />
+              </View>
             </View>
           )}
         </View>
@@ -187,7 +191,8 @@ function DownloadListItem({ globalKey, metadata, media }: DownloadListItemProps)
             <View style={styles.progressContainer}>
               <DownloadProgressBar
                 progress={progress.progress}
-                progressColor={isPaused ? '#FFA500' : theme.accent}
+                backgroundColor="rgba(255,255,255,0.12)"
+                progressColor={isPaused ? '#8e8e93' : theme.accent}
               />
             </View>
           )}
@@ -197,22 +202,22 @@ function DownloadListItem({ globalKey, metadata, media }: DownloadListItemProps)
       {/* Actions */}
       <View style={styles.actions}>
         {isDownloading && (
-          <Pressable onPress={handlePause} style={styles.actionButton} hitSlop={8}>
+          <Pressable onPress={handlePause} style={styles.actionButton} hitSlop={8} accessibilityRole="button" accessibilityLabel="Pause download">
             <Ionicons name="pause" size={20} color="#fff" />
           </Pressable>
         )}
         {isPaused && (
-          <Pressable onPress={handleResume} style={styles.actionButton} hitSlop={8}>
+          <Pressable onPress={handleResume} style={styles.actionButton} hitSlop={8} accessibilityRole="button" accessibilityLabel="Resume download">
             <Ionicons name="play" size={20} color="#fff" />
           </Pressable>
         )}
         {isFailed && (
-          <Pressable onPress={handleRetry} style={styles.actionButton} hitSlop={8}>
-            <Ionicons name="refresh" size={20} color="#f44336" />
+          <Pressable onPress={handleRetry} style={styles.actionButton} hitSlop={8} accessibilityRole="button" accessibilityLabel="Retry download">
+            <Ionicons name="refresh" size={20} color="#fff" />
           </Pressable>
         )}
-        <Pressable onPress={handleDelete} style={styles.actionButton} hitSlop={8}>
-          <Ionicons name="trash-outline" size={20} color="#f44336" />
+        <Pressable onPress={handleDelete} style={styles.actionButton} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Delete ${metadata.title}`}>
+          <Ionicons name="trash-outline" size={20} color="rgba(255,255,255,0.7)" />
         </Pressable>
       </View>
     </View>
@@ -224,10 +229,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#111',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#333',
+    paddingVertical: 8,
   },
   content: {
     flex: 1,
@@ -238,10 +240,10 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   poster: {
-    width: 60,
-    height: 90,
-    borderRadius: 6,
-    backgroundColor: '#222',
+    width: 64,
+    height: 96,
+    borderRadius: 8,
+    backgroundColor: '#1a1a1c',
   },
   posterPlaceholder: {
     alignItems: 'center',
@@ -255,8 +257,18 @@ const styles = StyleSheet.create({
     bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    borderRadius: 6,
+    backgroundColor: 'rgba(0,0,0,0.25)',
+    borderRadius: 8,
+  },
+  playBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#fff',
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   info: {
     flex: 1,
@@ -268,12 +280,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   subtitle: {
-    color: '#999',
+    color: '#8e8e93',
     fontSize: 13,
     marginTop: 2,
   },
   status: {
-    color: '#666',
+    color: '#8e8e93',
     fontSize: 12,
     marginTop: 4,
   },

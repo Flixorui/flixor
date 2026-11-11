@@ -1,7 +1,9 @@
 /**
  * Person page, pushed on the current tab from Cast & Crew and Search.
  * Identity (avatar, links, facts, biography), Known for, then the Filmography with its
- * filter bar pinned under the navigation bar while scrolling.
+ * filter pills pinned under the navigation bar while scrolling.
+ * Header: round Liquid Glass buttons over a glass band that fades in as the page scrolls
+ * under it; the pills are Home's glass pills.
  * macOS reference: Views/Person/PersonDetailView.swift, PersonIdentityViews.swift
  */
 
@@ -22,10 +24,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import FastImage from '@d11/react-native-fast-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import ContextMenu from 'react-native-context-menu-view';
-import * as Haptics from 'expo-haptics';
 import { TopBarStore } from '../components/TopBarStore';
-import ConditionalBlurView from '../components/ConditionalBlurView';
+import HeaderGlass, { HEADER_GLASS_MIN_OPACITY } from '../components/HeaderGlass';
+import GlassMenu from '../components/GlassMenu';
+import { GlassDropdownPill, GlassPill, RoundGlassButton, RoundGlassIcon, glassPillStyles } from '../components/GlassPill';
 import { useTheme } from '../hooks/useTheme';
 import { useAppSettings } from '../hooks/useAppSettings';
 import UserCollectionEditor from './UserCollectionEditor';
@@ -55,6 +57,7 @@ const GRID_GAP = 10;
 const AVATAR = 120;
 const BIO_LINES = 4;
 const SORT_LABELS: Record<PersonCreditOrder, string> = { popularity: 'Popular', newest: 'Newest', oldest: 'Oldest' };
+const NAV_ROW = 52;
 const SORT_ORDER: PersonCreditOrder[] = ['popularity', 'newest', 'oldest'];
 
 function initials(name: string): string {
@@ -126,10 +129,15 @@ export default function Person() {
 
   const name = profile?.name ?? params.name ?? '';
   const backdrop = knownFor?.credits.find((c) => c.backdropUrl)?.backdropUrl;
-  const navBarHeight = insets.top + 52;
+  const navBarHeight = insets.top + NAV_ROW;
   const titleOpacity = scrollY.interpolate({ inputRange: [AVATAR + 40, AVATAR + 90], outputRange: [0, 1], extrapolate: 'clamp' });
-  // Transparent over the backdrop at the top, frosted glass once content scrolls under it (as on macOS)
-  const headerBlurOpacity = scrollY.interpolate({ inputRange: [0, 60], outputRange: [0, 1], extrapolate: 'clamp' });
+  // Clear over the backdrop at the top, Liquid Glass once content scrolls under it. Never
+  // fully 0: iOS stops drawing Liquid Glass once a parent has been at zero alpha.
+  const headerGlassOpacity = useMemo(
+    () => scrollY.interpolate({ inputRange: [0, 8, 60], outputRange: [HEADER_GLASS_MIN_OPACITY, HEADER_GLASS_MIN_OPACITY, 1], extrapolate: 'clamp' }),
+    [scrollY]
+  );
+  const hairlineOpacity = useMemo(() => scrollY.interpolate({ inputRange: [0, 120], outputRange: [0, 1], extrapolate: 'clamp' }), [scrollY]);
   const onScroll = Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
     useNativeDriver: true,
     listener: (e: any) => {
@@ -146,8 +154,7 @@ export default function Person() {
     nav.push('Details', { type: 'tmdb', mediaType: credit.mediaType, id: String(credit.id) });
   };
 
-  const menuActions = [{ title: 'Create Collection', systemIcon: 'rectangle.stack.badge.plus' }];
-  const onMenu = () => {
+  const onCreateCollection = () => {
     if (!profile) return;
     setCollectionSources([
       {
@@ -188,67 +195,46 @@ export default function Person() {
   const hasBoth = (profile?.cast.length ?? 0) > 0 && (profile?.crew.length ?? 0) > 0;
   const emptyLabel = mediaFilter === 'tv' ? 'No TV credits' : mediaFilter === 'movies' ? 'No movie credits' : 'No credits yet';
 
+  const DEPARTMENT_LABELS: Record<PersonDepartment, string> = { acting: 'Acting', crew: 'Crew' };
+  const MEDIA_LABELS: Record<PersonMediaFilter, string> = { all: 'All', movies: 'Movies', tv: 'TV' };
+  const departmentCount = (dep: PersonDepartment) => (dep === 'acting' ? profile?.cast.length : profile?.crew.length) ?? 0;
+
+  // Department and type as two dropdown pills on one row, then sort
   const renderFilterBar = () => (
     <View style={styles.filterBar}>
-      {hasBoth ? (
-        <View style={styles.segmented}>
-          {(['acting', 'crew'] as PersonDepartment[]).map((dep) => {
-            const active = dep === department;
-            const count = (dep === 'acting' ? profile?.cast.length : profile?.crew.length) ?? 0;
-            return (
-              <Pressable
-                key={dep}
-                onPress={() => {
-                  Haptics.selectionAsync();
-                  setDepartment(dep);
-                  setMediaFilter('all');
-                }}
-                style={[styles.segment, active && styles.segmentActive]}
-                accessibilityRole="button"
-                accessibilityState={{ selected: active }}
-              >
-                <Text style={styles.segmentText}>
-                  {dep === 'acting' ? 'Acting' : 'Crew'} <Text style={styles.segmentCount}>{count}</Text>
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      ) : null}
-      <View style={styles.filterRow}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips} style={{ flex: 1 }}>
-          {(['all', 'movies', 'tv'] as PersonMediaFilter[]).map((filter) => {
-            const active = filter === mediaFilter;
-            const label = filter === 'all' ? 'All' : filter === 'movies' ? 'Movies' : 'TV';
-            return (
-              <Pressable
-                key={filter}
-                onPress={() => {
-                  Haptics.selectionAsync();
-                  setMediaFilter(filter);
-                }}
-                hitSlop={6}
-                style={[styles.chip, active && styles.chipActive]}
-                accessibilityRole="button"
-                accessibilityState={{ selected: active }}
-              >
-                <Text style={[styles.chipText, active && styles.chipTextActive]}>
-                  {label} <Text style={active ? styles.chipCountActive : styles.chipCount}>{counts[filter]}</Text>
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-        <ContextMenu
-          actions={SORT_ORDER.map((order) => ({ title: SORT_LABELS[order], selected: order === sort }))}
-          onPress={(e) => setSort(SORT_ORDER[e.nativeEvent.index] ?? 'popularity')}
-          dropdownMenuMode
+      <View style={[glassPillStyles.row, styles.filterRow]}>
+        {hasBoth ? (
+          <GlassMenu
+            accessibilityLabel={`Credits: ${DEPARTMENT_LABELS[department]}`}
+            items={(['acting', 'crew'] as PersonDepartment[]).map((dep) => ({
+              title: `${DEPARTMENT_LABELS[dep]}  ${departmentCount(dep)}`,
+              checked: dep === department,
+              onPress: () => {
+                setDepartment(dep);
+                setMediaFilter('all');
+              },
+            }))}
+          >
+            <GlassDropdownPill label={DEPARTMENT_LABELS[department]} count={departmentCount(department)} />
+          </GlassMenu>
+        ) : null}
+        <GlassMenu
+          accessibilityLabel={`Show: ${MEDIA_LABELS[mediaFilter]}`}
+          items={(['all', 'movies', 'tv'] as PersonMediaFilter[]).map((filter) => ({
+            title: `${MEDIA_LABELS[filter]}  ${counts[filter]}`,
+            checked: filter === mediaFilter,
+            onPress: () => setMediaFilter(filter),
+          }))}
         >
-          <View style={styles.sortButton} accessibilityRole="button" accessibilityLabel={`Sort: ${SORT_LABELS[sort]}`}>
-            <Text style={styles.sortText}>{SORT_LABELS[sort]}</Text>
-            <Ionicons name="chevron-down" size={14} color="#fff" />
-          </View>
-        </ContextMenu>
+          <GlassDropdownPill label={MEDIA_LABELS[mediaFilter]} count={counts[mediaFilter]} />
+        </GlassMenu>
+        <View style={{ flex: 1 }} />
+        <GlassMenu
+          accessibilityLabel={`Sort by ${SORT_LABELS[sort]}`}
+          items={SORT_ORDER.map((order) => ({ title: SORT_LABELS[order], checked: order === sort, onPress: () => setSort(order) }))}
+        >
+          <RoundGlassIcon icon="swap-vertical" />
+        </GlassMenu>
       </View>
     </View>
   );
@@ -257,24 +243,19 @@ export default function Person() {
     <View style={[styles.container, { backgroundColor: theme.background }]}>
       {/* Floating header: blurs the page scrolling under it; the filters join it once pinned */}
       <View style={[styles.header, { paddingTop: insets.top }]} pointerEvents="box-none">
-        <Animated.View style={[StyleSheet.absoluteFill, { opacity: filtersPinned ? 1 : headerBlurOpacity }]} pointerEvents="none">
-          <ConditionalBlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
-          <View style={[StyleSheet.absoluteFill, styles.headerTint]} />
-          <View style={styles.headerHairline} />
+        <Animated.View style={[StyleSheet.absoluteFill, { opacity: filtersPinned ? 1 : headerGlassOpacity }]} pointerEvents="none">
+          <HeaderGlass fallbackIntensity={80} />
+          <Animated.View style={[styles.headerHairline, { opacity: filtersPinned ? 1 : hairlineOpacity }]} />
         </Animated.View>
         <View style={styles.navRow}>
-          <Pressable onPress={() => nav.goBack()} style={styles.navButton} accessibilityRole="button" accessibilityLabel="Back" hitSlop={6}>
-            <Ionicons name="chevron-back" size={22} color="#fff" />
-          </Pressable>
+          <RoundGlassButton icon="chevron-back" label="Back" size={36} iconSize={22} onPress={() => nav.goBack()} />
           <Animated.Text numberOfLines={1} style={[styles.navTitle, { opacity: titleOpacity }]}>
             {name}
           </Animated.Text>
           {profile ? (
-            <ContextMenu actions={menuActions} onPress={onMenu} dropdownMenuMode>
-              <View style={styles.navButton} accessibilityRole="button" accessibilityLabel="More">
-                <Ionicons name="ellipsis-horizontal" size={20} color="#fff" />
-              </View>
-            </ContextMenu>
+            <GlassMenu accessibilityLabel="More" items={[{ title: 'Create Collection', icon: 'albums-outline', onPress: onCreateCollection }]}>
+              <RoundGlassIcon icon="ellipsis-horizontal" size={36} iconSize={20} />
+            </GlassMenu>
           ) : (
             <View style={styles.navButtonSpacer} />
           )}
@@ -327,15 +308,13 @@ export default function Person() {
               {links.length ? (
                 <View style={styles.links}>
                   {links.map((link) => (
-                    <Pressable
+                    <GlassPill
                       key={link.key}
-                      onPress={() => Linking.openURL(link.url).catch(() => undefined)}
-                      style={styles.linkPill}
+                      label={link.label}
+                      icon={link.icon}
                       accessibilityRole="link"
-                    >
-                      <Ionicons name={link.icon} size={15} color="#fff" />
-                      <Text style={styles.linkText}>{link.label}</Text>
-                    </Pressable>
+                      onPress={() => Linking.openURL(link.url).catch(() => undefined)}
+                    />
                   ))}
                 </View>
               ) : null}
@@ -478,18 +457,9 @@ function PersonSkeleton() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 2 },
-  headerTint: { backgroundColor: 'rgba(10,10,10,0.55)' },
   headerHairline: { position: 'absolute', left: 0, right: 0, bottom: 0, height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(255,255,255,0.12)' },
-  navRow: { height: 52, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, gap: 8 },
-  navButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  navButtonSpacer: { width: 40 },
+  navRow: { height: NAV_ROW, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, gap: 8 },
+  navButtonSpacer: { width: 36 },
   navTitle: { flex: 1, color: '#fff', fontSize: 17, fontWeight: '600', textAlign: 'center' },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, gap: 8 },
   errorTitle: { color: '#fff', fontSize: 18, fontWeight: '600', textAlign: 'center' },
@@ -518,16 +488,6 @@ const styles = StyleSheet.create({
   avatarInitials: { color: 'rgba(255,255,255,0.6)', fontSize: 40, fontWeight: '500' },
   name: { color: '#fff', fontSize: 28, fontWeight: '700', marginTop: 14, textAlign: 'center' },
   links: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginTop: 12 },
-  linkPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    height: 34,
-    paddingHorizontal: 14,
-    borderRadius: 17,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-  },
-  linkText: { color: '#fff', fontSize: 14, fontWeight: '600' },
   facts: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: INSET, marginTop: 22, rowGap: 14 },
   fact: { width: '50%', paddingRight: 12 },
   factLabel: { color: 'rgba(255,255,255,0.5)', fontSize: 12, fontWeight: '500', marginBottom: 2 },
@@ -540,44 +500,8 @@ const styles = StyleSheet.create({
   readMore: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: INSET, marginTop: 8, alignSelf: 'flex-start' },
   readMoreText: { color: '#fff', fontSize: 15, fontWeight: '600' },
   knownForRow: { paddingHorizontal: INSET, gap: 12 },
-  filterBar: { paddingTop: 8, paddingBottom: 12 },
-  segmented: {
-    flexDirection: 'row',
-    marginHorizontal: INSET,
-    padding: 2,
-    borderRadius: 9,
-    backgroundColor: 'rgba(118,118,128,0.24)',
-  },
-  segment: { flex: 1, height: 32, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
-  segmentActive: { backgroundColor: 'rgba(255,255,255,0.28)' },
-  segmentText: { color: '#fff', fontSize: 14, fontWeight: '600' },
-  segmentCount: { color: 'rgba(255,255,255,0.6)', fontWeight: '500' },
-  // Explicit margin: `gap` is not applied inside the sticky header on iOS
-  filterRow: { flexDirection: 'row', alignItems: 'center', paddingRight: INSET, marginTop: 12 },
-  chips: { paddingLeft: INSET, paddingRight: 8, gap: 8 },
-  chip: {
-    height: 32,
-    paddingHorizontal: 14,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.28)',
-    justifyContent: 'center',
-  },
-  chipActive: { backgroundColor: '#fff', borderColor: '#fff' },
-  chipText: { color: '#fff', fontSize: 14, fontWeight: '600' },
-  chipTextActive: { color: '#000' },
-  chipCount: { color: 'rgba(255,255,255,0.55)', fontWeight: '500' },
-  chipCountActive: { color: 'rgba(0,0,0,0.5)', fontWeight: '500' },
-  sortButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    height: 32,
-    paddingHorizontal: 12,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-  },
-  sortText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  filterBar: { paddingTop: 2, paddingBottom: 6 },
+  filterRow: { flexDirection: 'row', alignItems: 'center' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: INSET, columnGap: GRID_GAP, rowGap: 16, paddingTop: 6 },
   emptyText: { color: 'rgba(255,255,255,0.5)', fontSize: 15, paddingVertical: 40, width: '100%', textAlign: 'center' },
   poster: { overflow: 'hidden', backgroundColor: '#1c1c1e', justifyContent: 'center' },

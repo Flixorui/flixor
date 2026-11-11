@@ -59,6 +59,7 @@ import OverseerrSettings from './src/screens/settings/OverseerrSettings';
 import PlexSettings from './src/screens/settings/PlexSettings';
 import UpdateSettings from './src/screens/settings/UpdateSettings';
 import PlayerSettings from './src/screens/settings/PlayerSettings';
+import TrailerSettings from './src/screens/settings/TrailerSettings';
 import LogsScreen from './src/screens/settings/LogsScreen';
 import CollectionRowsSettings from './src/screens/settings/CollectionRowsSettings';
 import LibraryMappingSettings from './src/screens/settings/LibraryMappingSettings';
@@ -411,6 +412,7 @@ const SettingsTabScreen = React.memo(() => (
     </SettingsStack.Screen>
     <SettingsStack.Screen name="UpdateSettings" component={UpdateSettings} />
     <SettingsStack.Screen name="PlayerSettings" component={PlayerSettings} />
+    <SettingsStack.Screen name="TrailerSettings" component={TrailerSettings} />
     <SettingsStack.Screen name="LogsScreen" component={LogsScreen} />
     <SettingsStack.Screen name="CollectionRowsSettings" component={CollectionRowsSettings} />
     <SettingsStack.Screen name="LibraryMappingSettings" component={LibraryMappingSettings} />

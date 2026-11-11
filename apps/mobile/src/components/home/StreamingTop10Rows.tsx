@@ -3,6 +3,9 @@
  * optional "New on" rows. Saved lists show straight away; due lists refresh in the
  * background within the call budget. With no source set up, the TMDB "Top 10 This Week" row
  * stands in.
+ *
+ * Home spreads these rows out (see HomeRows), so this file gives the sections as data
+ * (useStreamingTop10Sections) and renders one section at a time (StreamingTop10Section).
  */
 
 import React, { useEffect, useRef, useState } from 'react';
@@ -12,7 +15,13 @@ import {
   cachedSections, initTop10, isActive, onTop10Update, top10Sections, useTop10Version, type Top10Section,
 } from '../../core/top10/Top10Store';
 
-export default function StreamingTop10Rows({ onItemPress }: { onItemPress: (item: RankedItem) => void }) {
+export type { Top10Section };
+
+/**
+ * The sections to show. `active` is false when no Top 10 source is set up (Home then shows
+ * TMDB's weekly Top 10 instead); `sections` is null until the saved lists are read.
+ */
+export function useStreamingTop10Sections(): { active: boolean; sections: Top10Section[] | null } {
   const version = useTop10Version();
   const [sections, setSections] = useState<Top10Section[] | null>(null);
   const [active, setActive] = useState(false);
@@ -44,27 +53,34 @@ export default function StreamingTop10Rows({ onItemPress }: { onItemPress: (item
     if (version > 0) setActive(isActive());
   }, [version]);
 
-  if (!active) return <Top10Row onItemPress={onItemPress} />;
-  if (!sections) return null;
+  return { active, sections };
+}
 
+/** One Top 10 (ranked) or "New on" row. */
+export const StreamingTop10Section = React.memo(function StreamingTop10Section({
+  section,
+  onItemPress,
+}: {
+  section: Top10Section;
+  onItemPress: (item: RankedItem) => void;
+}) {
+  if (section.kind === 'top') {
+    return <Top10Row title={section.title} items={section.items} onItemPress={onItemPress} />;
+  }
   return (
-    <>
-      {sections.map((section) =>
-        section.kind === 'top' ? (
-          <Top10Row key={section.id} title={section.title} items={section.items} onItemPress={onItemPress} />
-        ) : (
-          <Row
-            key={section.id}
-            title={section.title}
-            items={section.items}
-            layout="poster"
-            getImageUri={(item: RankedItem) => item.image}
-            getTitle={(item: RankedItem) => item.title}
-            onItemPress={onItemPress}
-            keyPrefix={`${section.id}-`}
-          />
-        )
-      )}
-    </>
+    <Row
+      title={section.title}
+      items={section.items}
+      layout="poster"
+      getImageUri={(item: RankedItem) => item.image}
+      getTitle={(item: RankedItem) => item.title}
+      onItemPress={onItemPress}
+      keyPrefix={`${section.id}-`}
+    />
   );
+});
+
+/** TMDB's weekly Top 10, when no FlixPatrol / Streaming Availability source is set up. */
+export function FallbackTop10Row({ onItemPress }: { onItemPress: (item: RankedItem) => void }) {
+  return <Top10Row onItemPress={onItemPress} />;
 }

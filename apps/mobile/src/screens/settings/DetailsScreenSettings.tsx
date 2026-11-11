@@ -211,33 +211,21 @@ export default function DetailsScreenSettings() {
           />
         </SettingsCard>
 
+        {/* Trailers moved to their own page (Settings › Trailers): they also play in New & Hot */}
         <SettingsCard title="HERO">
           <SettingItem
-            title="Inline Trailer"
-            description="Play the trailer over the artwork. Uses data."
+            title="Trailers"
+            description="Autoplay on Details and New & Hot"
             icon="film-outline"
+            onPress={() => nav.navigate('TrailerSettings')}
             renderRight={() => (
-              <SettingsSwitch
-                value={settings.detailsHeroInlineTrailerEnabled}
-                onValueChange={(value) => updateSetting('detailsHeroInlineTrailerEnabled', value)}
-              />
+              <View style={styles.linkRight}>
+                <Text style={styles.linkValue}>{settings.detailsHeroInlineTrailerEnabled ? 'On' : 'Off'}</Text>
+                <Ionicons name="chevron-forward" size={16} color="#8e8e93" />
+              </View>
             )}
-            isLast={!settings.detailsHeroInlineTrailerEnabled}
+            isLast={true}
           />
-          {settings.detailsHeroInlineTrailerEnabled ? (
-            <SettingItem
-              title="Start Muted"
-              description="Use the speaker button to unmute"
-              icon="volume-mute-outline"
-              renderRight={() => (
-                <SettingsSwitch
-                  value={settings.detailsHeroTrailerStartsMuted}
-                  onValueChange={(value) => updateSetting('detailsHeroTrailerStartsMuted', value)}
-                />
-              )}
-              isLast={true}
-            />
-          ) : null}
         </SettingsCard>
 
         <Pressable onPress={resetSections} style={styles.reset} accessibilityRole="button">
@@ -288,6 +276,8 @@ export default function DetailsScreenSettings() {
 }
 
 const styles = StyleSheet.create({
+  linkRight: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  linkValue: { color: '#8e8e93', fontSize: 15 },
   sectionControls: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -1,23 +1,21 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
-import {
-  View,
-  Text,
-  FlatList,
-  Pressable,
-  ActivityIndicator,
-  StyleSheet,
-  useWindowDimensions,
-} from 'react-native';
+/**
+ * Browse: the full list behind a row's "See All" (Home rows, Stremio catalogs, Trakt and
+ * TMDB lists). Same look as the studio and collection pages: a big title with a round glass
+ * back button over a Liquid Glass band that fades in on scroll, then the shared poster grid.
+ */
+
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import FastImage from '@d11/react-native-fast-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp, useFocusEffect } from '@react-navigation/native';
-import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import type { BrowseItem } from '@flixor/core';
 import { createStremioCatalogPager, fetchBrowseItems, type AnyBrowseContext } from '../core/BrowseData';
 import { TopBarStore } from '../components/TopBarStore';
-import { useAppSettings } from '../hooks/useAppSettings';
+import SettingsHeader from '../components/settings/SettingsHeader';
+import MediaGrid from '../components/collections/MediaGrid';
 
 // Preload cap for pagination
 const IMAGE_PRELOAD_CAP = 12;
@@ -30,23 +28,31 @@ type BrowseParams = {
 
 type BrowseRouteProp = RouteProp<{ Browse: BrowseParams }, 'Browse'>;
 
+type GridItem = { id: string; title: string; image?: string; year?: string | number; source: BrowseItem };
+
+/** Keeps the first copy of each id: later pages can repeat a title, and the grid keys by id. */
+function appendUnique(prev: BrowseItem[], next: BrowseItem[]): BrowseItem[] {
+  const seen = new Set(prev.map((i) => i.id));
+  return [...prev, ...next.filter((i) => i.id && !seen.has(i.id) && seen.add(i.id))];
+}
+
 export default function Browse() {
   const nav = useNavigation<any>();
   const route = useRoute<BrowseRouteProp>();
   const insets = useSafeAreaInsets();
-  const { width: screenWidth } = useWindowDimensions();
-  const { settings } = useAppSettings();
   const isMounted = useRef(true);
+  const scrollY = useRef(new Animated.Value(0)).current;
 
   const { context, title, initialItems = [] } = route.params || {};
 
-  const [items, setItems] = useState<BrowseItem[]>(initialItems);
+  const [items, setItems] = useState<BrowseItem[]>(() => appendUnique([], initialItems));
   const [loading, setLoading] = useState(initialItems.length === 0);
   const [loadingMore, setLoadingMore] = useState(false);
   // Static context with initial items has no more pages to load
   const [hasMore, setHasMore] = useState(!(context?.type === 'static' && initialItems.length > 0));
   const [page, setPage] = useState(1);
   const [loadError, setLoadError] = useState(false);
+  const [pagingError, setPagingError] = useState(false);
 
   const stremioPagerRef = useRef<ReturnType<typeof createStremioCatalogPager> | null>(null);
   const fetchPage = useCallback((page: number) => {
@@ -55,63 +61,37 @@ export default function Browse() {
     return stremioPagerRef.current(page);
   }, [context]);
 
-  // Preload images for better UX
   const preloadImages = useCallback((itemsToPreload: BrowseItem[]) => {
     const images = itemsToPreload
       .slice(0, IMAGE_PRELOAD_CAP)
-      .filter(item => item.image)
-      .map(item => ({ uri: item.image! }));
-    if (images.length > 0) {
-      FastImage.preload(images);
-    }
+      .filter((item) => item.image)
+      .map((item) => ({ uri: item.image! }));
+    if (images.length > 0) FastImage.preload(images);
   }, []);
 
-  // Calculate grid item size (3 columns with gap)
-  const horizontalPadding = 16;
-  const gap = 12;
-  const numColumns = 3;
-  const itemWidth = (screenWidth - horizontalPadding * 2 - gap * (numColumns - 1)) / numColumns;
-  const itemHeight = itemWidth * 1.5; // 2:3 aspect ratio
-
-  // Hide top bar when this screen is focused
-  // Using useFocusEffect so TopBar stays hidden when returning from Details
+  // The top bar stays hidden here, including when coming back from Details
   useFocusEffect(
     useCallback(() => {
       isMounted.current = true;
       TopBarStore.setVisible(false);
       TopBarStore.setTabBarVisible(false);
-
-      // Preload initial items if provided
-      if (initialItems.length > 0) {
-        preloadImages(initialItems);
-      }
-
-      // No cleanup that restores visibility - let Home manage its own state
-      // This prevents flash when navigating to Details
+      if (initialItems.length > 0) preloadImages(initialItems);
       return () => {
         isMounted.current = false;
       };
     }, [initialItems, preloadImages])
   );
 
-  // Load initial data if none provided
-  useEffect(() => {
-    if (initialItems.length === 0 && context) {
-      loadInitial();
-    }
-  }, []);
-
-  const loadInitial = async () => {
+  const loadInitial = useCallback(async () => {
     if (!context) return;
     setLoading(true);
     setLoadError(false);
     try {
       const result = await fetchPage(1);
       if (!isMounted.current) return;
-      setItems(result.items);
+      setItems(appendUnique([], result.items));
       setHasMore(result.hasMore);
       setPage(1);
-      // Preload images for initial load
       preloadImages(result.items);
     } catch (e) {
       console.log('[Browse] Error loading items:', e);
@@ -122,238 +102,101 @@ export default function Browse() {
     } finally {
       if (isMounted.current) setLoading(false);
     }
-  };
+  }, [context, fetchPage, preloadImages]);
 
-  const loadMore = async () => {
-    if (!context || loadingMore || !hasMore) return;
+  useEffect(() => {
+    if (initialItems.length === 0 && context) loadInitial();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const loadMore = useCallback(async () => {
+    if (!context || loading || loadingMore || !hasMore) return;
     setLoadingMore(true);
+    setPagingError(false);
     try {
       const nextPage = page + 1;
       const result = await fetchPage(nextPage);
       if (!isMounted.current) return;
-      setItems(prev => [...prev, ...result.items]);
+      setItems((prev) => appendUnique(prev, result.items));
       setHasMore(result.hasMore);
       setPage(nextPage);
-      // Preload new page images
       preloadImages(result.items);
     } catch (e) {
       console.log('[Browse] Error loading more:', e);
-      if (isMounted.current) setHasMore(false);
+      if (isMounted.current) setPagingError(true);
     } finally {
       if (isMounted.current) setLoadingMore(false);
     }
-  };
+  }, [context, fetchPage, hasMore, loading, loadingMore, page, preloadImages]);
 
-  const handleItemPress = useCallback((item: BrowseItem) => {
+  const handleItemPress = useCallback((grid: GridItem) => {
+    const item = grid.source;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (!item?.id) return;
     if (item.id.startsWith('plex:')) {
-      const rk = item.id.split(':')[1];
-      nav.navigate('Details', { type: 'plex', ratingKey: rk });
+      nav.navigate('Details', { type: 'plex', ratingKey: item.id.split(':')[1] });
     } else if (item.id.startsWith('tmdb:')) {
       const [, media, id] = item.id.split(':');
       nav.navigate('Details', { type: 'tmdb', mediaType: media === 'movie' ? 'movie' : 'tv', id });
     }
   }, [nav]);
 
-  const handleBack = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    nav.goBack();
-  };
+  const gridItems: GridItem[] = items.map((item) => ({
+    id: item.id,
+    title: item.title,
+    image: item.image,
+    year: item.subtitle || item.year,
+    source: item,
+  }));
 
-  const renderItem = ({ item }: { item: BrowseItem }) => (
-    <Pressable
-      onPress={() => handleItemPress(item)}
-      style={({ pressed }) => [styles.gridItem, { width: itemWidth, opacity: pressed ? 0.7 : 1 }]}
-    >
-      <View style={[styles.posterContainer, { width: itemWidth, height: itemHeight }]}>
-        {item.image ? (
-          <FastImage
-            source={{
-              uri: item.image,
-              priority: FastImage.priority.normal,
-              cache: FastImage.cacheControl.immutable,
-            }}
-            style={styles.poster}
-            resizeMode={FastImage.resizeMode.cover}
-          />
-        ) : (
-          <View style={styles.noImage}>
-            <Ionicons name="image-outline" size={24} color="#555" />
-          </View>
-        )}
-      </View>
-      {settings.showPosterTitles && (
-        <>
-          <Text style={styles.itemTitle} numberOfLines={2}>{item.title}</Text>
-          {item.subtitle ? (
-            <Text style={styles.itemYear}>{item.subtitle}</Text>
-          ) : item.year ? (
-            <Text style={styles.itemYear}>{item.year}</Text>
-          ) : null}
-        </>
-      )}
-    </Pressable>
+  const headerHeight = insets.top + 52;
+
+  const empty = loading ? (
+    <View style={styles.center}>
+      <ActivityIndicator color="#fff" />
+    </View>
+  ) : (
+    <View style={styles.center}>
+      <Ionicons name={loadError ? 'cloud-offline-outline' : 'film-outline'} size={36} color="#48484a" />
+      <Text style={styles.message}>{loadError ? "Couldn't load this list." : 'No titles here yet.'}</Text>
+      {loadError ? (
+        <Pressable onPress={loadInitial} style={styles.retry} accessibilityRole="button">
+          <Text style={styles.retryText}>Try Again</Text>
+        </Pressable>
+      ) : null}
+    </View>
   );
-
-  const renderFooter = () => {
-    if (!hasMore) return <View style={{ height: 40 }} />;
-
-    return (
-      <View style={styles.footer}>
-        {loadingMore ? (
-          <ActivityIndicator color="#fff" size="small" />
-        ) : (
-          <Pressable onPress={loadMore} style={styles.loadMoreButton}>
-            <Text style={styles.loadMoreText}>Load More</Text>
-          </Pressable>
-        )}
-      </View>
-    );
-  };
 
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={['#0a0a0a', '#0f0f10', '#0b0c0d']}
-        start={{ x: 0.5, y: 0 }}
-        end={{ x: 0.5, y: 1 }}
-        style={StyleSheet.absoluteFillObject}
-      />
-
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        <Pressable onPress={handleBack} style={styles.backButton}>
-          <Ionicons name="chevron-back" size={24} color="#fff" />
-        </Pressable>
-        <Text style={styles.headerTitle} numberOfLines={1}>{title}</Text>
-        <View style={{ width: 44 }} />
-      </View>
-
-      {/* Content */}
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator color="#fff" size="large" />
-        </View>
-      ) : items.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Ionicons name="film-outline" size={48} color="#444" />
-          <Text style={styles.emptyText}>{loadError ? "Couldn't load this list" : 'No items found'}</Text>
-          {loadError ? (
-            <Pressable onPress={loadInitial} style={styles.loadMoreButton}>
-              <Text style={styles.loadMoreText}>Try Again</Text>
+      <MediaGrid
+        items={loading ? [] : gridItems}
+        onPress={handleItemPress}
+        empty={empty}
+        onEndReached={loadMore}
+        loadingMore={loadingMore}
+        footer={
+          pagingError ? (
+            <Pressable onPress={loadMore} style={styles.pagingRetry} accessibilityRole="button">
+              <Text style={styles.pagingRetryText}>Couldn't load more. Tap to retry.</Text>
             </Pressable>
-          ) : null}
-        </View>
-      ) : (
-        <FlatList
-          data={items}
-          renderItem={renderItem}
-          keyExtractor={(item, idx) => `${item.id}-${idx}`}
-          numColumns={numColumns}
-          columnWrapperStyle={styles.row}
-          contentContainerStyle={[styles.gridContent, { paddingBottom: insets.bottom + 20 }]}
-          showsVerticalScrollIndicator={false}
-          onEndReached={loadMore}
-          onEndReachedThreshold={0.5}
-          ListFooterComponent={renderFooter}
-        />
-      )}
+          ) : null
+        }
+        paddingTop={headerHeight + 8}
+        paddingBottom={insets.bottom + 40}
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false })}
+      />
+      <SettingsHeader scrollY={scrollY} title={title} onBack={() => nav.goBack()} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0a0a0a',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 8,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.1)',
-  },
-  backButton: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    flex: 1,
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#fff',
-    textAlign: 'center',
-  },
-  loadingContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-  },
-  emptyText: {
-    color: '#666',
-    fontSize: 16,
-  },
-  gridContent: {
-    padding: 16,
-  },
-  row: {
-    gap: 12,
-    marginBottom: 16,
-  },
-  gridItem: {
-    // width set dynamically
-  },
-  posterContainer: {
-    backgroundColor: '#1a1a1a',
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  poster: {
-    width: '100%',
-    height: '100%',
-  },
-  noImage: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#1a1a1a',
-  },
-  itemTitle: {
-    color: '#ddd',
-    fontSize: 12,
-    fontWeight: '500',
-    marginTop: 6,
-  },
-  itemYear: {
-    color: '#666',
-    fontSize: 11,
-    marginTop: 2,
-  },
-  footer: {
-    paddingVertical: 20,
-    alignItems: 'center',
-  },
-  loadMoreButton: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-  },
-  loadMoreText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 14,
-  },
+  container: { flex: 1, backgroundColor: '#0e0e10' },
+  center: { alignItems: 'center', justifyContent: 'center', paddingTop: 140, paddingHorizontal: 32, gap: 12 },
+  message: { color: '#8e8e93', fontSize: 15, textAlign: 'center' },
+  retry: { marginTop: 4, paddingHorizontal: 18, height: 40, borderRadius: 10, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
+  retryText: { color: '#000', fontSize: 15, fontWeight: '700' },
+  pagingRetry: { paddingVertical: 20, alignItems: 'center' },
+  pagingRetryText: { color: '#8e8e93', fontSize: 14, fontWeight: '600' },
 });

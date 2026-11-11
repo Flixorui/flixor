@@ -24,6 +24,7 @@ import { useScrollLinkedHeader } from '../components/useScrollLinkedHeader';
 import HeaderGlass, { HEADER_GLASS_MIN_OPACITY } from '../components/HeaderGlass';
 import LiquidGlass from '../components/LiquidGlass';
 import GlassMenu from '../components/GlassMenu';
+import { GlassPill, RoundGlassButton } from '../components/GlassPill';
 import { useFlixor } from '../core/FlixorContext';
 import { useAppMode } from '../core/AppMode';
 import { useAppSettings } from '../hooks/useAppSettings';
@@ -55,34 +56,6 @@ const MONTH = 30 * 86400000;
 const store = { items: null as MyListItem[] | null, sort: 'added' as SortOption, at: 0 };
 
 // ---------------------------------------------------------------- pieces
-
-/** Home's glass pill: white when selected. */
-function GlassPill({ label, count, selected, onPress }: { label: string; count?: number; selected?: boolean; onPress: () => void }) {
-  return (
-    <Pressable
-      onPress={() => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        onPress();
-      }}
-      accessibilityRole="button"
-      accessibilityState={{ selected: !!selected }}
-      style={({ pressed }) => [styles.pill, selected && styles.pillSelected, pressed && { opacity: 0.75 }]}
-    >
-      {selected ? null : <LiquidGlass radius={12} />}
-      <Text style={[styles.pillText, selected && { color: '#000' }]} numberOfLines={1}>{label}</Text>
-      {count !== undefined ? <Text style={[styles.pillCount, selected && { color: 'rgba(0,0,0,0.55)' }]}>{count}</Text> : null}
-    </Pressable>
-  );
-}
-
-function RoundGlassButton({ icon, label, onPress }: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress?: () => void }) {
-  return (
-    <Pressable onPress={onPress} disabled={!onPress} hitSlop={6} accessibilityRole="button" accessibilityLabel={label} style={({ pressed }) => [styles.roundButton, pressed && { opacity: 0.7 }]}>
-      <LiquidGlass radius={20} />
-      <Ionicons name={icon} size={19} color="#fff" />
-    </Pressable>
-  );
-}
 
 const PosterCell = React.memo(function PosterCell({
   item, width, radius, showTitle, onPress, onAddToList, onRemove,
@@ -496,10 +469,6 @@ const styles = StyleSheet.create({
   titleButtons: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   roundButton: { width: 40, height: 40, borderRadius: 20, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
   pillRow: { paddingHorizontal: 16, gap: 8, alignItems: 'center', paddingVertical: 6 },
-  pill: { height: 40, paddingHorizontal: 15, borderRadius: 12, overflow: 'hidden', flexDirection: 'row', alignItems: 'center', gap: 6 },
-  pillSelected: { backgroundColor: '#fff' },
-  pillText: { color: '#fff', fontSize: 15, fontWeight: '600' },
-  pillCount: { color: 'rgba(255,255,255,0.6)', fontSize: 14, fontWeight: '600' },
   poster: { overflow: 'hidden', backgroundColor: '#1a1a1c' },
   posterFallback: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 8 },
   posterFallbackText: { color: '#8e8e93', fontSize: 12, textAlign: 'center' },

@@ -139,6 +139,15 @@ export default function Settings({ onBack }: SettingsProps) {
             onPress: go('PlayerSettings'),
           },
           {
+            id: 'trailers',
+            title: 'Trailers',
+            value: onOff(settings.detailsHeroInlineTrailerEnabled),
+            keywords: 'trailer trailers autoplay inline video preview new & hot details hero muted sound data',
+            tile: '#FF9F0A',
+            icon: 'film',
+            onPress: go('TrailerSettings'),
+          },
+          {
             id: 'content',
             title: 'Content',
             value: settings.discoveryDisabled ? 'Library Only' : undefined,
@@ -163,7 +172,7 @@ export default function Settings({ onBack }: SettingsProps) {
           {
             id: 'details',
             title: 'Details',
-            keywords: 'details screen sections episodes layout season picker spoilers ratings trailer',
+            keywords: 'details screen sections episodes layout season picker spoilers ratings',
             tile: '#2AA3BD',
             icon: 'information-circle',
             onPress: go('DetailsScreenSettings'),
@@ -288,6 +297,7 @@ export default function Settings({ onBack }: SettingsProps) {
     activeProfile,
     settings.stremioPlaybackEnabled,
     settings.discoveryDisabled,
+    settings.detailsHeroInlineTrailerEnabled,
     settings.mdblistEnabled,
     settings.overseerrEnabled,
     traktProfile,

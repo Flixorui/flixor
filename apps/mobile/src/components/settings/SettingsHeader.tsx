@@ -51,7 +51,7 @@ export default function SettingsHeader({ title, onBack, scrollY }: SettingsHeade
             <Ionicons name="chevron-back" size={22} color="#fff" />
           </Pressable>
         ) : null}
-        <Text style={styles.title}>{title}</Text>
+        <Text style={styles.title} numberOfLines={1}>{title}</Text>
       </View>
     </View>
   );
@@ -90,6 +90,7 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   title: {
+    flexShrink: 1,
     color: '#fff',
     fontSize: 25,
     fontWeight: '600',
