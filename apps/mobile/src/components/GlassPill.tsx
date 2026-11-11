@@ -14,6 +14,7 @@ export function GlassPill({
   count,
   icon,
   selected,
+  caret,
   onPress,
   accessibilityRole = 'button',
 }: {
@@ -21,6 +22,8 @@ export function GlassPill({
   count?: number;
   icon?: keyof typeof Ionicons.glyphMap;
   selected?: boolean;
+  /** A chevron after the label, for a pill that opens a picker. */
+  caret?: boolean;
   onPress: () => void;
   accessibilityRole?: 'button' | 'link';
 }) {
@@ -38,6 +41,7 @@ export function GlassPill({
       {icon ? <Ionicons name={icon} size={15} color={selected ? '#000' : '#fff'} /> : null}
       <Text style={[styles.pillText, selected && { color: '#000' }]} numberOfLines={1}>{label}</Text>
       {count !== undefined ? <Text style={[styles.pillCount, selected && { color: 'rgba(0,0,0,0.55)' }]}>{count}</Text> : null}
+      {caret ? <Ionicons name="chevron-down" size={14} color={selected ? '#000' : 'rgba(255,255,255,0.8)'} style={{ marginLeft: -1 }} /> : null}
     </Pressable>
   );
 }
@@ -46,13 +50,17 @@ export function GlassPill({
  * A glass pill showing the current choice with a chevron, for use as a GlassMenu anchor
  * (the menu handles the press).
  */
-export function GlassDropdownPill({ label, count }: { label: string; count?: number }) {
+export function GlassDropdownPill({ label, count, selected }: { label: string; count?: number; /** White, like a chosen filter. */ selected?: boolean }) {
   return (
-    <View style={styles.pill} accessibilityRole="button" accessibilityLabel={count !== undefined ? `${label}, ${count}` : label}>
-      <LiquidGlass radius={12} />
-      <Text style={styles.pillText} numberOfLines={1}>{label}</Text>
-      {count !== undefined ? <Text style={styles.pillCount}>{count}</Text> : null}
-      <Ionicons name="chevron-down" size={14} color="rgba(255,255,255,0.8)" style={{ marginLeft: -1 }} />
+    <View
+      style={[styles.pill, selected && styles.pillSelected]}
+      accessibilityRole="button"
+      accessibilityLabel={count !== undefined ? `${label}, ${count}` : label}
+    >
+      {selected ? null : <LiquidGlass radius={12} />}
+      <Text style={[styles.pillText, selected && { color: '#000' }]} numberOfLines={1}>{label}</Text>
+      {count !== undefined ? <Text style={[styles.pillCount, selected && { color: 'rgba(0,0,0,0.55)' }]}>{count}</Text> : null}
+      <Ionicons name="chevron-down" size={14} color={selected ? '#000' : 'rgba(255,255,255,0.8)'} style={{ marginLeft: -1 }} />
     </View>
   );
 }

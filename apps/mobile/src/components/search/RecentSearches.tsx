@@ -2,6 +2,7 @@ import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../hooks/useTheme';
+import LiquidGlass from '../LiquidGlass';
 
 /** Recent searches shown above the recommendations while the field is empty. */
 export default function RecentSearches({
@@ -33,15 +34,17 @@ export default function RecentSearches({
         contentContainerStyle={styles.chips}
       >
         {searches.map((query) => (
-          <View key={query} style={[styles.chip, { backgroundColor: theme.surfaceOverlay, borderColor: theme.separator }]}>
+          // Home's glass pill, with a remove button at the end
+          <View key={query} style={styles.chip}>
+            <LiquidGlass radius={12} />
             <Pressable onPress={() => onSelect(query)} style={styles.chipBody}>
-              <Ionicons name="time-outline" size={14} color={theme.textTertiary} />
-              <Text numberOfLines={1} style={[styles.chipText, { color: theme.textPrimary }]}>
+              <Ionicons name="time-outline" size={15} color="rgba(255,255,255,0.6)" />
+              <Text numberOfLines={1} style={styles.chipText}>
                 {query}
               </Text>
             </Pressable>
             <Pressable onPress={() => onRemove(query)} hitSlop={8} accessibilityLabel={`Remove ${query}`} style={styles.remove}>
-              <Ionicons name="close" size={14} color={theme.textTertiary} />
+              <Ionicons name="close" size={15} color="rgba(255,255,255,0.6)" />
             </Pressable>
           </View>
         ))}
@@ -55,9 +58,9 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: 16, marginBottom: 10 },
   title: { fontSize: 18, fontWeight: '700' },
   clear: { fontSize: 14, fontWeight: '600' },
-  chips: { paddingHorizontal: 16 },
-  chip: { flexDirection: 'row', alignItems: 'center', borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, marginRight: 8, maxWidth: 240 },
-  chipBody: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 12, paddingVertical: 8, flexShrink: 1 },
-  chipText: { fontSize: 14, fontWeight: '500', flexShrink: 1 },
-  remove: { paddingHorizontal: 10, paddingVertical: 8 },
+  chips: { paddingHorizontal: 16, gap: 8 },
+  chip: { height: 40, flexDirection: 'row', alignItems: 'center', borderRadius: 12, overflow: 'hidden', maxWidth: 260 },
+  chipBody: { height: 40, flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 14, flexShrink: 1 },
+  chipText: { color: '#fff', fontSize: 15, fontWeight: '600', flexShrink: 1 },
+  remove: { height: 40, justifyContent: 'center', paddingLeft: 8, paddingRight: 12 },
 });

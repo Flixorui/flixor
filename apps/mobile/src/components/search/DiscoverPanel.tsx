@@ -3,8 +3,9 @@ import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, Text
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import MediaGrid from '../collections/MediaGrid';
-import OptionSheet, { type SheetOption } from '../collections/OptionSheet';
-import Chip from '../collections/Chip';
+import { type SheetOption } from '../collections/OptionSheet';
+import GlassMenu from '../GlassMenu';
+import { GlassDropdownPill, GlassPill, glassPillStyles } from '../GlassPill';
 import { useTheme } from '../../hooks/useTheme';
 import { useAppSettings } from '../../hooks/useAppSettings';
 import type { DiscoverSortOption, SearchDiscoverFilters } from '../../core/SettingsData';
@@ -34,7 +35,7 @@ const RATING_OPTIONS: Array<SheetOption<number | undefined>> = [
   { value: 9, label: '9 and up' },
 ];
 
-type Picker = 'genre' | 'sort' | 'rating' | 'year' | null;
+type Picker = 'year' | null;
 
 function yearLabel(filters: SearchDiscoverFilters): string {
   const { yearFrom: from, yearTo: to } = filters;
@@ -127,25 +128,126 @@ function YearSheet({
   );
 }
 
-/** TMDB discover with type, genre, sort, year and rating filters that persist per profile. */
+/**
+ * The filter pills for Discover (type, genre, sort, year, rating, reset). They read and save
+ * the filters in settings, so they can sit anywhere (Search pins them in its header) and the
+ * panel reloads whenever they change.
+ */
+export function DiscoverFilters() {
+  const { settings, updateSetting } = useAppSettings();
+  const filters = settings.searchDiscoverFilters ?? DEFAULT_DISCOVER_FILTERS;
+  const [genres, setGenres] = useState<Array<{ id: number; name: string }>>([]);
+  const [picker, setPicker] = useState<Picker>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getDiscoverGenres(filters.mediaType).then((list) => {
+      if (!cancelled) setGenres(list);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [filters.mediaType]);
+
+  const update = useCallback(
+    (changes: Partial<SearchDiscoverFilters>) => {
+      updateSetting('searchDiscoverFilters', normalizeDiscoverFilters({ ...filters, ...changes }));
+    },
+    [filters, updateSetting]
+  );
+
+  const genreOptions: Array<SheetOption<number | undefined>> = [
+    { value: undefined, label: 'All genres' },
+    ...genres.map((genre) => ({ value: genre.id as number | undefined, label: genre.name })),
+  ];
+  const sortLabel = SORT_OPTIONS.find((o) => o.value === filters.sort)?.label ?? 'Popular';
+
+  // Glass pills like Home: type pills, then dropdowns (white once a filter is set)
+  return (
+    <View>
+      <View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={glassPillStyles.row}>
+          <GlassPill
+            label="Movies"
+            selected={filters.mediaType === 'movie'}
+            // Genre ids differ between movies and TV, so a switch clears the selection
+            onPress={() => filters.mediaType !== 'movie' && update({ mediaType: 'movie', genreId: undefined, genreName: undefined })}
+          />
+          <GlassPill
+            label="TV Shows"
+            selected={filters.mediaType === 'tv'}
+            onPress={() => filters.mediaType !== 'tv' && update({ mediaType: 'tv', genreId: undefined, genreName: undefined })}
+          />
+          <GlassMenu
+            accessibilityLabel={`Genre: ${filters.genreName ?? 'All genres'}`}
+            items={genreOptions.map((o) => ({
+              title: o.label,
+              checked: o.value === filters.genreId,
+              onPress: () => update({ genreId: o.value, genreName: genres.find((g) => g.id === o.value)?.name }),
+            }))}
+          >
+            <GlassDropdownPill label={filters.genreName ?? 'Genre'} selected={filters.genreId != null} />
+          </GlassMenu>
+          <GlassMenu
+            accessibilityLabel={`Sort by ${sortLabel}`}
+            items={SORT_OPTIONS.map((o) => ({ title: o.label, checked: o.value === filters.sort, onPress: () => update({ sort: o.value }) }))}
+          >
+            <GlassDropdownPill label={sortLabel} selected={filters.sort !== 'popular'} />
+          </GlassMenu>
+          <GlassPill
+            label={yearLabel(filters)}
+            caret
+            selected={filters.yearFrom != null || filters.yearTo != null}
+            onPress={() => setPicker('year')}
+          />
+          <GlassMenu
+            accessibilityLabel={`Minimum rating: ${filters.minimumRating != null ? `${filters.minimumRating}+` : 'any'}`}
+            items={RATING_OPTIONS.map((o) => ({ title: o.label, checked: o.value === filters.minimumRating, onPress: () => update({ minimumRating: o.value }) }))}
+          >
+            <GlassDropdownPill label={filters.minimumRating != null ? `${filters.minimumRating}+` : 'Rating'} selected={filters.minimumRating != null} />
+          </GlassMenu>
+          {hasActiveDiscoverFilters(filters) ? (
+            <GlassPill
+              label="Reset"
+              icon="close"
+              onPress={() => updateSetting('searchDiscoverFilters', { ...DEFAULT_DISCOVER_FILTERS, mediaType: filters.mediaType })}
+            />
+          ) : null}
+        </ScrollView>
+      </View>
+      <YearSheet
+        visible={picker === 'year'}
+        filters={filters}
+        onApply={(yearFrom, yearTo) => update({ yearFrom, yearTo })}
+        onClose={() => setPicker(null)}
+      />
+    </View>
+  );
+}
+
+
+/** TMDB discover results for the filters saved in settings (set with DiscoverFilters). */
 export default function DiscoverPanel({
   onPressItem,
   headerAccessory,
+  paddingTop,
+  onScroll,
 }: {
   onPressItem: (item: SearchResult) => void;
-  /** Rendered above the filters, inside the scrolling list. */
+  /** Rendered above the grid, inside the scrolling list. */
   headerAccessory?: React.ReactElement | null;
+  /** Space for a header drawn over the grid (the grid then ignores the native header inset). */
+  paddingTop?: number;
+  onScroll?: (event: any) => void;
 }) {
   const theme = useTheme();
-  const { settings, isLoaded, updateSetting } = useAppSettings();
+  const { settings, isLoaded } = useAppSettings();
   const filters = settings.searchDiscoverFilters ?? DEFAULT_DISCOVER_FILTERS;
 
   const [items, setItems] = useState<SearchResult[]>([]);
   const [phase, setPhase] = useState<'loading' | 'loaded' | 'error'>('loading');
   const [loadingMore, setLoadingMore] = useState(false);
   const [pagingError, setPagingError] = useState(false);
-  const [genres, setGenres] = useState<Array<{ id: number; name: string }>>([]);
-  const [picker, setPicker] = useState<Picker>(null);
 
   const pageRef = useRef(0);
   const hasMoreRef = useRef(false);
@@ -198,23 +300,6 @@ export default function DiscoverPanel({
     if (isLoaded) reload();
   }, [isLoaded, reload]);
 
-  useEffect(() => {
-    let cancelled = false;
-    getDiscoverGenres(filters.mediaType).then((list) => {
-      if (!cancelled) setGenres(list);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [filters.mediaType]);
-
-  const update = useCallback(
-    (changes: Partial<SearchDiscoverFilters>) => {
-      updateSetting('searchDiscoverFilters', normalizeDiscoverFilters({ ...filters, ...changes }));
-    },
-    [filters, updateSetting]
-  );
-
   const loadMore = useCallback(() => {
     if (busyRef.current || !hasMoreRef.current) return;
     setLoadingMore(true);
@@ -222,44 +307,7 @@ export default function DiscoverPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtersKey, loadPage]);
 
-  const genreOptions: Array<SheetOption<number | undefined>> = [
-    { value: undefined, label: 'All genres' },
-    ...genres.map((genre) => ({ value: genre.id as number | undefined, label: genre.name })),
-  ];
-  const sortLabel = SORT_OPTIONS.find((o) => o.value === filters.sort)?.label ?? 'Popular';
-
-  const header = (
-    <View>
-      {headerAccessory}
-      <View style={styles.filters}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-        <Chip
-          label="Movies"
-          active={filters.mediaType === 'movie'}
-          // Genre ids differ between movies and TV, so a switch clears the selection
-          onPress={() => filters.mediaType !== 'movie' && update({ mediaType: 'movie', genreId: undefined, genreName: undefined })}
-        />
-        <Chip
-          label="TV Shows"
-          active={filters.mediaType === 'tv'}
-          onPress={() => filters.mediaType !== 'tv' && update({ mediaType: 'tv', genreId: undefined, genreName: undefined })}
-        />
-        <Chip label={filters.genreName ?? 'Genre'} caret active={filters.genreId != null} onPress={() => setPicker('genre')} />
-        <Chip label={sortLabel} caret active={filters.sort !== 'popular'} onPress={() => setPicker('sort')} />
-        <Chip label={yearLabel(filters)} caret active={filters.yearFrom != null || filters.yearTo != null} onPress={() => setPicker('year')} />
-        <Chip
-          label={filters.minimumRating != null ? `${filters.minimumRating}+` : 'Rating'}
-          caret
-          active={filters.minimumRating != null}
-          onPress={() => setPicker('rating')}
-        />
-        {hasActiveDiscoverFilters(filters) ? (
-          <Chip label="Reset" onPress={() => updateSetting('searchDiscoverFilters', { ...DEFAULT_DISCOVER_FILTERS, mediaType: filters.mediaType })} />
-        ) : null}
-      </ScrollView>
-      </View>
-    </View>
-  );
+  const header = headerAccessory ?? null;
 
   const message =
     phase === 'loading' ? (
@@ -286,7 +334,9 @@ export default function DiscoverPanel({
       <MediaGrid
         items={items}
         onPress={onPressItem}
-        contentInsetAdjustmentBehavior="automatic"
+        contentInsetAdjustmentBehavior={paddingTop != null ? 'never' : 'automatic'}
+        paddingTop={paddingTop}
+        onScroll={onScroll}
         header={header}
         empty={message}
         onEndReached={loadMore}
@@ -300,42 +350,11 @@ export default function DiscoverPanel({
         }
       />
 
-      <OptionSheet
-        visible={picker === 'genre'}
-        title="Genre"
-        options={genreOptions}
-        selected={filters.genreId}
-        onSelect={(id) => update({ genreId: id, genreName: genres.find((g) => g.id === id)?.name })}
-        onClose={() => setPicker(null)}
-      />
-      <OptionSheet
-        visible={picker === 'sort'}
-        title="Sort By"
-        options={SORT_OPTIONS}
-        selected={filters.sort}
-        onSelect={(sort) => update({ sort })}
-        onClose={() => setPicker(null)}
-      />
-      <OptionSheet
-        visible={picker === 'rating'}
-        title="Minimum Rating"
-        options={RATING_OPTIONS}
-        selected={filters.minimumRating}
-        onSelect={(minimumRating) => update({ minimumRating })}
-        onClose={() => setPicker(null)}
-      />
-      <YearSheet
-        visible={picker === 'year'}
-        filters={filters}
-        onApply={(yearFrom, yearTo) => update({ yearFrom, yearTo })}
-        onClose={() => setPicker(null)}
-      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  filters: { paddingHorizontal: 8, paddingTop: 8, paddingBottom: 4 },
   center: { alignItems: 'center', paddingTop: 60, paddingHorizontal: 32 },
   message: { fontSize: 15, marginTop: 10, textAlign: 'center' },
   retry: { marginTop: 14, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 10 },

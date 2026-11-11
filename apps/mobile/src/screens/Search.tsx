@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { View, Text, TextInput, Pressable, ActivityIndicator, ScrollView, StyleSheet, Animated, Keyboard, InteractionManager } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { View, Text, TextInput, Pressable, ActivityIndicator, StyleSheet, Animated, Keyboard, InteractionManager } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import FastImage from '@d11/react-native-fast-image';
 import Row from '../components/Row';
 import { useNavigation } from '@react-navigation/native';
@@ -27,8 +26,10 @@ import { useAppMode } from '../core/AppMode';
 import { RECENT_SEARCHES_LIMIT } from '../core/SettingsData';
 import RecentSearches from '../components/search/RecentSearches';
 import PeopleRow from '../components/search/PeopleRow';
-import DiscoverPanel from '../components/search/DiscoverPanel';
-import Chip from '../components/collections/Chip';
+import DiscoverPanel, { DiscoverFilters } from '../components/search/DiscoverPanel';
+import { HIDDEN_PILL_OPACITY, useHeaderCollapse } from '../components/useHeaderCollapse';
+import HeaderGlass, { HEADER_GLASS_MIN_OPACITY } from '../components/HeaderGlass';
+import { GlassPill, glassPillStyles } from '../components/GlassPill';
 
 type GenreRow = {
   title: string;
@@ -47,6 +48,12 @@ const IMAGE_PRELOAD_CAP = 6;
 
 // A query still in the field this long is worth remembering
 const RECENT_SAVE_DELAY_MS = 2500;
+
+// Header rows: the title, the app's own search field (where iOS doesn't put one in the tab
+// bar), then the Recommended / Discover pills while nothing is searched
+const TITLE_ROW = 52;
+const SEARCH_ROW = 60;
+const PILL_ROW = 52;
 
 interface SearchProps {
   isTab?: boolean;
@@ -333,75 +340,58 @@ export default function Search({ isTab = false, nativeSearchText, hideCustomSear
     nav.push('Person', { id: person.id, name: person.name });
   };
 
-  const idleModePicker = settings.includeTmdbInSearch ? (
-    <View style={styles.idleModes}>
-      <Chip label="Recommended" active={idleMode === 'recommended'} onPress={() => setIdleMode('recommended')} />
-      <Chip label="Discover" active={idleMode === 'discover'} onPress={() => setIdleMode('discover')} />
-    </View>
-  ) : null;
-
-  // Auth headers no longer needed - image URLs include token
+  const showModePills = searchMode === 'idle' && settings.includeTmdbInSearch;
+  // Discover's filters live in the header, under the mode pills, so they stay on screen
+  const showFilters = showModePills && idleMode === 'discover';
+  const rowsTop = insets.top + TITLE_ROW + (hideCustomSearchBar ? 0 : SEARCH_ROW);
+  const headerH = rowsTop + (showModePills ? PILL_ROW : 0) + (showFilters ? PILL_ROW : 0);
+  // Collapsed (after a scroll down, as on Home): the mode pills hide, the title becomes
+  // "Search · Discover", and Discover's filters slide up into the pills' place
+  const collapsedH = rowsTop + (showFilters ? PILL_ROW : 0);
+  // Liquid Glass band, fading in once content scrolls under the header (never fully 0: iOS
+  // stops drawing Liquid Glass once a parent has been at zero alpha)
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const glassOpacity = useMemo(
+    () => scrollY.interpolate({ inputRange: [0, 8, 60], outputRange: [HEADER_GLASS_MIN_OPACITY, HEADER_GLASS_MIN_OPACITY, 1], extrapolate: 'clamp' }),
+    [scrollY]
+  );
+  const onScroll = useMemo(
+    () => Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false }),
+    [scrollY]
+  );
+  // A mode switch starts at the top, with the band clear again
+  useEffect(() => {
+    scrollY.setValue(0);
+  }, [idleMode, searchMode, scrollY]);
+  const { pillsP, titleP, bandP, pillsHidden } = useHeaderCollapse({ scrollY, enabled: showModePills });
+  const bandHeight = bandP.interpolate({ inputRange: [0, 1], outputRange: [headerH, collapsedH] });
+  const modePillsStyle = {
+    opacity: pillsP.interpolate({ inputRange: [0, 1], outputRange: [1, HIDDEN_PILL_OPACITY] }),
+    transform: [
+      { translateY: pillsP.interpolate({ inputRange: [0, 1], outputRange: [0, -6] }) },
+      { scale: pillsP.interpolate({ inputRange: [0, 1], outputRange: [1, 0.9] }) },
+    ],
+  };
+  const filtersShift = pillsP.interpolate({ inputRange: [0, 1], outputRange: [0, -PILL_ROW] });
+  const suffixOpacity = titleP.interpolate({ inputRange: [0, 0.4, 1], outputRange: [0, 0, 1] });
+  const suffixShift = titleP.interpolate({ inputRange: [0, 1], outputRange: [-8, 0] });
+  const titleScale = titleP.interpolate({ inputRange: [0, 1], outputRange: [1, 0.935] });
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.background }}>
-      {/* Full screen gradients */}
-      <LinearGradient
-        colors={[ '#0a0a0a', '#0f0f10', '#0b0c0d' ]}
-        start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }}
-        style={StyleSheet.absoluteFillObject}
-      />
-      <LinearGradient
-        colors={[ 'rgba(122,22,18,0.20)', 'rgba(122,22,18,0.08)', 'rgba(122,22,18,0.0)' ]}
-        start={{ x: 0.0, y: 1.0 }} end={{ x: 0.45, y: 0.35 }}
-        style={StyleSheet.absoluteFillObject}
-      />
-      <LinearGradient
-        colors={[ 'rgba(20,76,84,0.18)', 'rgba(20,76,84,0.08)', 'rgba(20,76,84,0.0)' ]}
-        start={{ x: 1.0, y: 0.0 }} end={{ x: 0.55, y: 0.45 }}
-        style={StyleSheet.absoluteFillObject}
-      />
-
-      <SafeAreaView style={{ flex: 1 }} edges={hideCustomSearchBar ? [] : ['top']}>
-        <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
-          {/* Custom Search Bar - hidden on iOS with native tabs */}
-          {!hideCustomSearchBar && (
-            <View style={styles.searchBar}>
-              <Ionicons name="search" size={20} color="#888" style={{ marginRight: 12 }} />
-              <TextInput
-                ref={inputRef}
-                value={query}
-                onChangeText={handleQueryChange}
-                placeholder="Search for movies, shows..."
-                placeholderTextColor="#666"
-                style={styles.input}
-                returnKeyType="search"
-                autoCapitalize="none"
-                autoCorrect={false}
-                onSubmitEditing={() => rememberSearch(query)}
-              />
-              {query ? (
-                <Pressable onPress={() => handleQueryChange('')} style={{ padding: 4 }}>
-                  <Ionicons name="close-circle" size={20} color="#888" />
-                </Pressable>
-              ) : null}
-              {!isTab && (
-                <Pressable onPress={() => nav.goBack()} style={{ marginLeft: 12 }}>
-                  <Text style={{ color: '#fff', fontWeight: '600' }}>Cancel</Text>
-                </Pressable>
-              )}
-            </View>
-          )}
-
+      <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
           {/* Discover has its own paged grid, so it replaces the scroll view */}
           {searchMode === 'idle' && idleMode === 'discover' && settings.includeTmdbInSearch ? (
-            <DiscoverPanel onPressItem={handleResultPress} headerAccessory={idleModePicker} />
+            <DiscoverPanel onPressItem={handleResultPress} paddingTop={headerH + 4} onScroll={onScroll} />
           ) : (
-          <ScrollView
+          <Animated.ScrollView
             style={{ flex: 1 }}
-            contentContainerStyle={{ paddingBottom: 80 }}
-            contentInsetAdjustmentBehavior="automatic"
+            contentContainerStyle={{ paddingTop: headerH + 4, paddingBottom: 110 }}
+            contentInsetAdjustmentBehavior="never"
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
+            scrollEventThrottle={16}
+            onScroll={onScroll}
           >
             {searchMode === 'idle' ? (
               <RecentSearches
@@ -411,8 +401,6 @@ export default function Search({ isTab = false, nativeSearchText, hideCustomSear
                 onClear={clearRecentSearches}
               />
             ) : null}
-
-            {searchMode === 'idle' ? idleModePicker : null}
 
             {searchMode === 'idle' && settings.includeTmdbInSearch ? (
               <View style={{ paddingTop: 8 }}>
@@ -575,21 +563,91 @@ export default function Search({ isTab = false, nativeSearchText, hideCustomSear
                 </View>
               )
             ) : null}
-          </ScrollView>
+          </Animated.ScrollView>
           )}
-        </Animated.View>
-      </SafeAreaView>
+      </Animated.View>
 
+      {/* Header: title, search field, mode pills, over a glass band that fades in on scroll */}
+      <View style={[styles.header, { height: headerH }]} pointerEvents="box-none">
+        <Animated.View pointerEvents="none" style={[styles.band, { height: bandHeight, opacity: glassOpacity }]}>
+          <HeaderGlass />
+        </Animated.View>
+        <View style={[styles.titleRow, { marginTop: insets.top }]} pointerEvents="box-none">
+          <Animated.View
+            style={[styles.titleWrap, { transform: [{ scale: titleScale }] }]}
+            accessibilityRole="header"
+            accessibilityLabel={pillsHidden ? `Search, ${idleMode === 'discover' ? 'Discover' : 'Recommended'}` : 'Search'}
+          >
+            <Text style={styles.title}>Search</Text>
+            {showModePills ? (
+              <Animated.Text style={[styles.titleSuffix, { opacity: suffixOpacity, transform: [{ translateX: suffixShift }] }]} numberOfLines={1}>
+                {' · '}{idleMode === 'discover' ? 'Discover' : 'Recommended'}
+              </Animated.Text>
+            ) : null}
+          </Animated.View>
+          {!isTab && hideCustomSearchBar ? (
+            <Pressable onPress={() => nav.goBack()} hitSlop={8} accessibilityRole="button">
+              <Text style={styles.cancel}>Cancel</Text>
+            </Pressable>
+          ) : null}
+        </View>
+        {/* The app's own search field - iOS 26 puts the search field in the tab bar instead */}
+        {!hideCustomSearchBar ? (
+          <View style={{ height: SEARCH_ROW, justifyContent: 'center' }}>
+            <View style={styles.searchBar}>
+              <Ionicons name="search" size={19} color="rgba(255,255,255,0.6)" style={{ marginRight: 10 }} />
+              <TextInput
+                ref={inputRef}
+                value={query}
+                onChangeText={handleQueryChange}
+                placeholder="Search for movies, shows..."
+                placeholderTextColor="rgba(255,255,255,0.45)"
+                style={styles.input}
+                returnKeyType="search"
+                autoCapitalize="none"
+                autoCorrect={false}
+                onSubmitEditing={() => rememberSearch(query)}
+              />
+              {query ? (
+                <Pressable onPress={() => handleQueryChange('')} style={{ padding: 4 }} accessibilityLabel="Clear search">
+                  <Ionicons name="close-circle" size={19} color="rgba(255,255,255,0.6)" />
+                </Pressable>
+              ) : null}
+              {!isTab ? (
+                <Pressable onPress={() => nav.goBack()} style={{ marginLeft: 12 }} accessibilityRole="button">
+                  <Text style={styles.cancel}>Cancel</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          </View>
+        ) : null}
+        {showModePills ? (
+          <Animated.View style={[{ height: PILL_ROW }, modePillsStyle]} pointerEvents={pillsHidden ? 'none' : 'box-none'}>
+            <View style={[glassPillStyles.row, { flexDirection: 'row' }]}>
+              <GlassPill label="Recommended" selected={idleMode === 'recommended'} onPress={() => setIdleMode('recommended')} />
+              <GlassPill label="Discover" selected={idleMode === 'discover'} onPress={() => setIdleMode('discover')} />
+            </View>
+          </Animated.View>
+        ) : null}
+        {/* Stays on screen: slides up into the mode pills' place when they hide */}
+        {showFilters ? (
+          <Animated.View style={{ height: PILL_ROW, transform: [{ translateY: filtersShift }] }} pointerEvents="box-none">
+            <DiscoverFilters />
+          </Animated.View>
+        ) : null}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  idleModes: {
-    flexDirection: 'row',
-    marginHorizontal: 16,
-    marginTop: 16,
-  },
+  header: { position: 'absolute', top: 0, left: 0, right: 0, overflow: 'hidden' },
+  band: { position: 'absolute', top: 0, left: 0, right: 0, overflow: 'hidden' },
+  titleRow: { height: TITLE_ROW, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20 },
+  titleWrap: { flex: 1, flexDirection: 'row', alignItems: 'baseline', transformOrigin: 'left center' },
+  title: { color: '#fff', fontSize: 25, fontWeight: '600' },
+  titleSuffix: { color: 'rgba(255,255,255,0.6)', fontSize: 25, fontWeight: '600', flexShrink: 1 },
+  cancel: { color: '#fff', fontSize: 16, fontWeight: '600' },
   clearResults: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -600,13 +658,11 @@ const styles = StyleSheet.create({
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(48,48,50,0.98)',
+    backgroundColor: 'rgba(118,118,128,0.24)',
     marginHorizontal: 16,
-    marginTop: 12,
-    marginBottom: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 10,
+    paddingHorizontal: 14,
+    height: 44,
+    borderRadius: 12,
   },
   input: {
     flex: 1,
