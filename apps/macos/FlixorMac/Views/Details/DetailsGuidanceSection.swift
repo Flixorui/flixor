@@ -60,8 +60,9 @@ struct DetailsGuidanceSection: View {
     @ObservedObject private var settings = MyBluraySettingsStore.shared
     @State private var width: CGFloat = 0
 
-    /// From this width the three cards share one row.
-    private static let oneRowWidth: CGFloat = 1240
+    /// From this width the cards share one row, in equal widths. Below it,
+    /// age rating and Common Sense share a row above the IMDb guide.
+    private static let oneRowWidth: CGFloat = 1320
 
     var body: some View {
         VStack(alignment: .leading, spacing: DetailsSectionStyle.headingGap) {
@@ -75,17 +76,18 @@ struct DetailsGuidanceSection: View {
         .readContentWidth(into: $width)
     }
 
-    /// Wide windows: age rating, Common Sense and the IMDb guide side by side.
+    /// Wide windows: age rating, Common Sense and the IMDb guide side by
+    /// side, each taking an equal share of the row and the same height.
     private var oneRow: some View {
         HStack(alignment: .top, spacing: DS.Space.s16) {
             if let certificate = content.certificate {
-                certificateCard(certificate).frame(width: 300)
+                certificateCard(certificate).frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             if let commonSense = content.commonSense {
-                commonSenseCard(commonSense).frame(width: 400)
+                commonSenseCard(commonSense).frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             if let imdb = content.imdb {
-                imdbCard(imdb)
+                imdbCard(imdb).frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .fixedSize(horizontal: false, vertical: true)
@@ -213,6 +215,8 @@ private struct IMDbGuideCard: View {
     let showsDescriptions: Bool
 
     @Environment(\.flixorTheme) private var theme
+    /// Width of the longest category name, so the pills line up.
+    @State private var labelWidth: CGFloat = 0
 
     var body: some View {
         GuidanceCard(title: "IMDb Parents Guide") {
@@ -223,9 +227,9 @@ private struct IMDbGuideCard: View {
                     }
                     categoryRow(category, index: index)
                 }
-                footer
-                    .padding(.top, DS.Space.s12)
             }
+            .onPreferenceChange(GuideLabelWidthKey.self) { labelWidth = $0 }
+            .id(guide.titleId)
         }
     }
 
@@ -241,15 +245,21 @@ private struct IMDbGuideCard: View {
                     .font(.flixor(.callout, weight: .semibold))
                     .foregroundStyle(theme.textPrimary)
                     .lineLimit(1)
-                    .frame(width: 200, alignment: .leading)
+                    .fixedSize()
+                    .background(GeometryReader { proxy in
+                        Color.clear.preference(key: GuideLabelWidthKey.self, value: proxy.size.width)
+                    })
+                    .frame(width: labelWidth > 0 ? labelWidth : nil, alignment: .leading)
                 SeverityPill(severity: category.severity, label: category.severityLabel)
-                if let agreement = VoteSummary(category).agreement {
-                    Text(agreement)
-                        .font(.flixor(.caption))
-                        .foregroundStyle(theme.textTertiary)
-                        .lineLimit(1)
+                // Takes what's left: "64% of 100 voters", or just "64%" in a narrow card.
+                let summary = VoteSummary(category)
+                ViewThatFits(in: .horizontal) {
+                    if let agreement = summary.agreement { agreementText(agreement) }
+                    if let short = summary.shortAgreement { agreementText(short) }
+                    Color.clear.frame(width: 0, height: 0)
                 }
-                Spacer(minLength: DS.Space.s8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .help(summary.agreement ?? "")
                 if canOpen {
                     Text("\(category.descriptions.count)")
                         .font(.flixor(.caption, weight: .medium))
@@ -266,17 +276,18 @@ private struct IMDbGuideCard: View {
         .help(canOpen ? "Show what happens" : "")
     }
 
-    private var footer: some View {
-        HStack(spacing: DS.Space.s6) {
-            Spacer(minLength: DS.Space.s8)
-            if let link = guide.websiteUrl.flatMap(URL.init(string:)) {
-                Link(destination: link) {
-                    Text("View on IMDb ↗")
-                        .font(.flixor(.caption, weight: .semibold))
-                }
-            }
-        }
+    private func agreementText(_ text: String) -> some View {
+        Text(text)
+            .font(.flixor(.caption))
+            .foregroundStyle(theme.textTertiary)
+            .lineLimit(1)
+            .fixedSize()
     }
+}
+
+private struct GuideLabelWidthKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }
 
 // MARK: - Category panel (like a Trakt comment)
@@ -513,6 +524,12 @@ private struct VoteSummary {
             return total > 0 ? String(localized: "\(total.formatted()) voters") : nil
         }
         return String(localized: "\(share.percent)% of \(total.formatted()) voters")
+    }
+
+    /// "64%", for narrow cards.
+    var shortAgreement: String? {
+        guard let share = shares.first(where: { $0.key == winner }) else { return nil }
+        return "\(share.percent)%"
     }
 
     var breakdown: String? {

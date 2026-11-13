@@ -84,6 +84,11 @@ struct DetailsSectionsContainer: View {
             .joined(separator: "|")
     }
 
+    /// The Parents Guide section is visible and has its Age Rating card.
+    private var guidanceShowsRating: Bool {
+        store.isEnabled(.guidance) && guidanceContent.certificate != nil
+    }
+
     /// Age rating, Common Sense and IMDb parents guide, as far as Settings allows.
     private var guidanceContent: DetailsGuidanceContent {
         DetailsGuidanceContent(title: vm.myblurayTitle, guide: vm.parentsGuide, settings: myblurayStore)
@@ -166,7 +171,10 @@ struct DetailsSectionsContainer: View {
             // steps and would restart the Trakt request each time.
             DetailsCommentsSection(model: commentsModel, target: vm.commentsTarget)
         case .about:
-            DetailsTabContent(vm: vm, layout: layout, onEntityTap: openEntity)
+            // Parents Guide's Age Rating card replaces About's rating box when
+            // both would show.
+            DetailsTabContent(vm: vm, layout: layout, onEntityTap: openEntity,
+                              hidesContentRating: guidanceShowsRating)
         }
     }
 

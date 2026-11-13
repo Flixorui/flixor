@@ -12,6 +12,8 @@ struct DetailsTabContent: View {
     @ObservedObject var vm: DetailsViewModel
     let layout: DetailsLayoutMetrics
     var onEntityTap: (EntityBrowseRoute) -> Void = { _ in }
+    /// The Parents Guide already shows the age rating (with its reason).
+    var hidesContentRating = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Space.s40) {
@@ -58,7 +60,7 @@ struct DetailsTabContent: View {
                     )
 
                     // Content rating card - height matches description card
-                    if let rating = vm.rating {
+                    if let rating = vm.rating, !hidesContentRating {
                         VStack(alignment: .leading, spacing: DS.Space.s8) {
                             HStack(spacing: DS.Space.s8) {
                                 Image(systemName: "checkmark.seal.fill")
@@ -396,10 +398,6 @@ struct DetailsExternalLink: Identifiable {
         add("rt", "Rotten Tomatoes", .asset("tomato-fresh", template: false, color: nil), rt)
         add("appletv", "Apple TV", .symbol("appletv.fill", .white), sources["apple-tv"])
         add("justwatch", "JustWatch", .symbol("play.rectangle.fill", Color(hex: "FFD400")), sources["justwatch"])
-        if let imdb = vm.imdbId, title != nil || vm.parentsGuide != nil {
-            add("guide", String(localized: "Parents Guide"), .symbol("shield.lefthalf.filled", Color(hex: "F5C518")),
-                "https://www.imdb.com/title/\(imdb)/parentalguide/")
-        }
         return links
     }
 }
