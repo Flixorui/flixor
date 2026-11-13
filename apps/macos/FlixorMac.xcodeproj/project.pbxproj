@@ -344,6 +344,22 @@
 		EA4B55068A4AE81930069778 /* DownloadManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD4094A02547D6FD1255D54C /* DownloadManager.swift */; };
 		EC00FE5B69F216F3A15A9FCE /* DownloadsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5ACF60CF7141B291B519FA5 /* DownloadsView.swift */; };
 		FKBF0001 /* FlixorKit in Frameworks */ = {isa = PBXBuildFile; productRef = FKPD0001 /* FlixorKit */; };
+		6047CF63A7C4317A032D0FF5 /* YouTubeStreamExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDC617C6B075DCD8E2688DBC /* YouTubeStreamExtractor.swift */; };
+		AD34E71D58B33D76C05934D6 /* TrailerPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF4CD4002C46AB527F6C5294 /* TrailerPlayer.swift */; };
+		B9422A5E77225B955EED917D /* MyBlurayClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D4A3F0145EDF6DCA591914A /* MyBlurayClient.swift */; };
+		FED3AA4BB942B8DA5D42F71B /* MyBlurayModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A6DEBF700DEC5F7B72AE98C /* MyBlurayModels.swift */; };
+		F13C5D479780006E973BDB6D /* MyBlurayCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 241CC877D73B67360D6CAA37 /* MyBlurayCache.swift */; };
+		206CCA9A71FF3957BC8EF6C1 /* MyBlurayService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C237315C868323320D7D707F /* MyBlurayService.swift */; };
+		E2D69B19F49A3206AAE413B5 /* UserDefaults+MyBluray.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38AC37BECAB00AE7766B30E0 /* UserDefaults+MyBluray.swift */; };
+		DE04CF583802CC4C31C493A0 /* MyBluraySettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11E9F67A733CE67567135151 /* MyBluraySettingsStore.swift */; };
+		E750BF3B8C49724FFFA006F0 /* MyBluraySettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDCC73769FE8DB6825238709 /* MyBluraySettingsView.swift */; };
+		D92C87CBBF29EA65144FF95E /* MergedRatings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83B9DF31C16BD2E53E05EE9E /* MergedRatings.swift */; };
+		36DB6ABE1BA84E533579270E /* RatingPreferencesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 878060D0F065C42E31753B55 /* RatingPreferencesStore.swift */; };
+		85B9C63D234AF99A1E7DEA89 /* DetailsGuidanceSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B46535ABB929A4C11609549 /* DetailsGuidanceSection.swift */; };
+		C07735C7329EDB4DBE062409 /* EditionDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 650EEFDFB696F8C9BEF43572 /* EditionDetailView.swift */; };
+		2FED0A16CDC976055CB9DF29 /* DetailsPhysicalSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = D487CF8B7EC79FDDD2B515F4 /* DetailsPhysicalSection.swift */; };
+		7416B01C23B7288103E97D3F /* PhysicalCollectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 668147F82DA1744573694CA5 /* PhysicalCollectionView.swift */; };
+		0FEABA8ED54F1C180E3AD571 /* ImageViewer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3175DF7CF3233A3A12B9512 /* ImageViewer.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -681,6 +697,22 @@
 		F156FB11282DDE8678B19A78 /* EndpointSelectView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EndpointSelectView.swift; sourceTree = "<group>"; };
 		F5602C0E02D02A79ABE8837A /* TrackPreferenceService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TrackPreferenceService.swift; path = TrackPreferenceService.swift; sourceTree = "<group>"; };
 		F85A04CB3691DE34BF4E4666 /* ServerEndpointFlowView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ServerEndpointFlowView.swift; sourceTree = "<group>"; };
+		DDC617C6B075DCD8E2688DBC /* YouTubeStreamExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubeStreamExtractor.swift; sourceTree = "<group>"; };
+		FF4CD4002C46AB527F6C5294 /* TrailerPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrailerPlayer.swift; sourceTree = "<group>"; };
+		7D4A3F0145EDF6DCA591914A /* MyBlurayClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyBlurayClient.swift; sourceTree = "<group>"; };
+		2A6DEBF700DEC5F7B72AE98C /* MyBlurayModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyBlurayModels.swift; sourceTree = "<group>"; };
+		241CC877D73B67360D6CAA37 /* MyBlurayCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyBlurayCache.swift; sourceTree = "<group>"; };
+		C237315C868323320D7D707F /* MyBlurayService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyBlurayService.swift; sourceTree = "<group>"; };
+		38AC37BECAB00AE7766B30E0 /* UserDefaults+MyBluray.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UserDefaults+MyBluray.swift"; sourceTree = "<group>"; };
+		11E9F67A733CE67567135151 /* MyBluraySettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyBluraySettingsStore.swift; sourceTree = "<group>"; };
+		CDCC73769FE8DB6825238709 /* MyBluraySettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyBluraySettingsView.swift; sourceTree = "<group>"; };
+		83B9DF31C16BD2E53E05EE9E /* MergedRatings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MergedRatings.swift; sourceTree = "<group>"; };
+		878060D0F065C42E31753B55 /* RatingPreferencesStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RatingPreferencesStore.swift; sourceTree = "<group>"; };
+		4B46535ABB929A4C11609549 /* DetailsGuidanceSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailsGuidanceSection.swift; sourceTree = "<group>"; };
+		650EEFDFB696F8C9BEF43572 /* EditionDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditionDetailView.swift; sourceTree = "<group>"; };
+		D487CF8B7EC79FDDD2B515F4 /* DetailsPhysicalSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailsPhysicalSection.swift; sourceTree = "<group>"; };
+		668147F82DA1744573694CA5 /* PhysicalCollectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhysicalCollectionView.swift; sourceTree = "<group>"; };
+		F3175DF7CF3233A3A12B9512 /* ImageViewer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageViewer.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -746,6 +778,15 @@
 				D5ACF60CF7141B291B519FA5 /* DownloadsView.swift */,
 			);
 			name = Downloads;
+			sourceTree = "<group>";
+		};
+		4C3627C8FE94953F1B808530 /* Trailers */ = {
+			isa = PBXGroup;
+			children = (
+				DDC617C6B075DCD8E2688DBC /* YouTubeStreamExtractor.swift */,
+				FF4CD4002C46AB527F6C5294 /* TrailerPlayer.swift */,
+			);
+			path = Trailers;
 			sourceTree = "<group>";
 		};
 		C8D602AA2E990749002C9348 /* Thumbnail */ = {
@@ -944,6 +985,9 @@
 				8C81BB01AADD0DC0D52BA7C4 /* MediaIdentityResolver.swift */,
 				B6C32F36B4233DDB43C9AFC3 /* EpisodeRatingsService.swift */,
 				0BE27F24158D02E703C6562D /* AppearanceStore.swift */,
+				4C3627C8FE94953F1B808530 /* Trailers */,
+				83C6503B1279DBC2EC50392E /* MyBluray */,
+				63689C5506925A6BFB6D4FEE /* Ratings */,
 				C8D602AA2E990749002C9348 /* Thumbnail */,
 				D016 /* API */,
 				D017 /* Auth */,
@@ -971,6 +1015,7 @@
 				D9C937A927B8FBD09A6143DB /* UserDefaults+HomeRows.swift */,
 				52C2BDF2027BE69EEB804C07 /* UserDefaults+Cards.swift */,
 				C6797534B5967731053F353A /* UserDefaults+DetailsHero.swift */,
+				38AC37BECAB00AE7766B30E0 /* UserDefaults+MyBluray.swift */,
 				6F7D8653ED5A3B68CD2C56DD /* UserDefaults+SkipSegments.swift */,
 				B3464E9C06ED9B84B08B8725 /* UserDefaults+PlaybackEngine.swift */,
 				CFC9C771249A58B6D741F2E2 /* UserDefaults+DetailsSections.swift */,
@@ -1017,6 +1062,7 @@
 				B014 /* NewPopularView.swift */,
 				B017 /* CachedAsyncImage.swift */,
 				B019 /* PosterCard.swift */,
+				F3175DF7CF3233A3A12B9512 /* ImageViewer.swift */,
 				B020 /* LandscapeCard.swift */,
 				B022 /* CarouselView.swift */,
 				B082 /* BrowseModalView.swift */,
@@ -1057,6 +1103,7 @@
 			children = (
 				B012 /* LibraryView.swift */,
 				B045 /* CollectionsView.swift */,
+				668147F82DA1744573694CA5 /* PhysicalCollectionView.swift */,
 			);
 			path = Library;
 			sourceTree = "<group>";
@@ -1091,6 +1138,7 @@
 				B164 /* ServerConnectionView.swift */,
 				B165 /* TMDBSettingsView.swift */,
 				B166 /* MDBListSettingsView.swift */,
+				CDCC73769FE8DB6825238709 /* MyBluraySettingsView.swift */,
 				B167 /* OverseerrSettingsView.swift */,
 				B168 /* RowsSettingsView.swift */,
 				B250 /* HomeScreenAppearanceView.swift */,
@@ -1140,6 +1188,9 @@
 				A27E2E074B63717F4C054AE0 /* DetailsSectionsContainer.swift */,
 				4A4E839819B0CD7C80D5B8A9 /* DetailsEpisodeExtras.swift */,
 				658EE84651C4D18A035EF199 /* DetailsCommentsSection.swift */,
+				4B46535ABB929A4C11609549 /* DetailsGuidanceSection.swift */,
+				D487CF8B7EC79FDDD2B515F4 /* DetailsPhysicalSection.swift */,
+				650EEFDFB696F8C9BEF43572 /* EditionDetailView.swift */,
 				B11DFBEF3B15D356DEC92F27 /* DetailsCollectionSection.swift */,
 				B104519B98773D3F7BFA0752 /* DetailsView+Layout.swift */,
 				A4E2631E53C0AC98A4785AB2 /* DetailsVersionPicker.swift */,
@@ -1300,6 +1351,27 @@
 			);
 			name = Profile;
 			path = Profile;
+			sourceTree = "<group>";
+		};
+		83C6503B1279DBC2EC50392E /* MyBluray */ = {
+			isa = PBXGroup;
+			children = (
+				7D4A3F0145EDF6DCA591914A /* MyBlurayClient.swift */,
+				2A6DEBF700DEC5F7B72AE98C /* MyBlurayModels.swift */,
+				241CC877D73B67360D6CAA37 /* MyBlurayCache.swift */,
+				C237315C868323320D7D707F /* MyBlurayService.swift */,
+				11E9F67A733CE67567135151 /* MyBluraySettingsStore.swift */,
+			);
+			path = MyBluray;
+			sourceTree = "<group>";
+		};
+		63689C5506925A6BFB6D4FEE /* Ratings */ = {
+			isa = PBXGroup;
+			children = (
+				83B9DF31C16BD2E53E05EE9E /* MergedRatings.swift */,
+				878060D0F065C42E31753B55 /* RatingPreferencesStore.swift */,
+			);
+			path = Ratings;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -1490,6 +1562,14 @@
 				289DA56C5AADD259DD791471 /* DetailsFloatingHeader.swift in Sources */,
 				A0146ADF673308D46B5CF5EE /* DetailsTitleActionsModel.swift in Sources */,
 				6FDA4818005B4CCAC6474301 /* UserDefaults+DetailsHero.swift in Sources */,
+				B9422A5E77225B955EED917D /* MyBlurayClient.swift in Sources */,
+				FED3AA4BB942B8DA5D42F71B /* MyBlurayModels.swift in Sources */,
+				F13C5D479780006E973BDB6D /* MyBlurayCache.swift in Sources */,
+				206CCA9A71FF3957BC8EF6C1 /* MyBlurayService.swift in Sources */,
+				D92C87CBBF29EA65144FF95E /* MergedRatings.swift in Sources */,
+				36DB6ABE1BA84E533579270E /* RatingPreferencesStore.swift in Sources */,
+				DE04CF583802CC4C31C493A0 /* MyBluraySettingsStore.swift in Sources */,
+				E2D69B19F49A3206AAE413B5 /* UserDefaults+MyBluray.swift in Sources */,
 				32BEEEE26D8D50B962E4328B /* PlayerViewModel+StreamRecovery.swift in Sources */,
 				602CED39222F3E8A5B36CE40 /* PlayerViewModel+StreamNextEpisode.swift in Sources */,
 				46EF7715A84AC5311FC004F7 /* PlayerViewModel+SkipSegments.swift in Sources */,
@@ -1522,6 +1602,9 @@
 				F38A1523C4D4C73E5F04D3A2 /* DetailsSectionsContainer.swift in Sources */,
 				2E97531ADB5A666525DF34ED /* DetailsEpisodeExtras.swift in Sources */,
 				7AE0F7CB55AF41D6973489D7 /* DetailsCommentsSection.swift in Sources */,
+				85B9C63D234AF99A1E7DEA89 /* DetailsGuidanceSection.swift in Sources */,
+				2FED0A16CDC976055CB9DF29 /* DetailsPhysicalSection.swift in Sources */,
+				C07735C7329EDB4DBE062409 /* EditionDetailView.swift in Sources */,
 				FB6F3EC145A47A8253494A09 /* DetailsCollectionSection.swift in Sources */,
 				A281155AB45FAD5EE0903A32 /* DetailsEpisodeStateModel.swift in Sources */,
 				78938AA38D7460FEAF20FA56 /* DetailsSectionsStore.swift in Sources */,
@@ -1548,6 +1631,8 @@
 				63AA8F5C8099B3513A6C3852 /* TraktListsService.swift in Sources */,
 				3FC7D91559AFA7117387D2C8 /* TraktCommentsService.swift in Sources */,
 				BDD48623B7C96FD52F129B0D /* TrailerService.swift in Sources */,
+				6047CF63A7C4317A032D0FF5 /* YouTubeStreamExtractor.swift in Sources */,
+				AD34E71D58B33D76C05934D6 /* TrailerPlayer.swift in Sources */,
 				9FEB88E7D8DD30143DA051F3 /* MediaIdentityResolver.swift in Sources */,
 				3277AE9F26D0CB9478F1F698 /* EpisodeRatingsService.swift in Sources */,
 				DA70075928BABE40702E4DD0 /* WatchStateTarget.swift in Sources */,
@@ -1616,6 +1701,7 @@
 				A017 /* CachedAsyncImage.swift in Sources */,
 				A018 /* ImageService.swift in Sources */,
 				A019 /* PosterCard.swift in Sources */,
+				0FEABA8ED54F1C180E3AD571 /* ImageViewer.swift in Sources */,
 				A020 /* LandscapeCard.swift in Sources */,
 				A022 /* CarouselView.swift in Sources */,
 				A202 /* BrowseModalView.swift in Sources */,
@@ -1644,6 +1730,7 @@
 				A043 /* LibraryViewModel.swift in Sources */,
 				A044 /* LibraryFilterBarView.swift in Sources */,
 				A045 /* CollectionsView.swift in Sources */,
+				7416B01C23B7288103E97D3F /* PhysicalCollectionView.swift in Sources */,
 				A046 /* WatchlistController.swift in Sources */,
 				A047 /* MyListViewModel.swift in Sources */,
 				A048 /* MyListView.swift in Sources */,
@@ -1659,6 +1746,7 @@
 				A085 /* TraktScrobbler.swift in Sources */,
 				A205 /* TMDBSettingsView.swift in Sources */,
 				A206 /* MDBListSettingsView.swift in Sources */,
+				E750BF3B8C49724FFFA006F0 /* MyBluraySettingsView.swift in Sources */,
 				A207 /* OverseerrSettingsView.swift in Sources */,
 				A208 /* RowsSettingsView.swift in Sources */,
 				A250 /* HomeScreenAppearanceView.swift in Sources */,

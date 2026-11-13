@@ -17,13 +17,17 @@ struct LibraryFilterBarView: View {
 
     @Environment(\.flixorTheme) private var theme
     @ObservedObject private var librarySettings = LibraryScreenSettings.shared
+    @ObservedObject private var myblurayStore = MyBluraySettingsStore.shared
+    @ObservedObject private var physicalStore = PhysicalCollectionStore.shared
     @FocusState private var searchFocused: Bool
     @State private var searchOpen = false
     @State private var chipRowWidth: CGFloat = 900
+    @State private var physicalSearchOpen = false
 
     private enum Destination: Hashable {
         case section(String)
         case collections
+        case physical
     }
 
     var body: some View {
@@ -43,12 +47,16 @@ struct LibraryFilterBarView: View {
                         ],
                         selection: $viewModel.viewMode
                     )
+                } else if viewModel.contentTab == .physical && physicalStore.isConnected {
+                    physicalControls
                 }
             }
             .frame(minHeight: 36)
 
             if viewModel.contentTab == .library && librarySettings.showGenreChips && !viewModel.genres.isEmpty {
                 genreChips
+            } else if viewModel.contentTab == .physical && physicalStore.isConnected {
+                physicalListChips
             }
         }
         .padding(.horizontal, DS.Space.s64)
@@ -67,6 +75,10 @@ struct LibraryFilterBarView: View {
         }
         .animation(DS.Motion.standard, value: searchOpen)
         .onChange(of: viewModel.contentTab) { _ in closeSearchIfEmpty() }
+        // Learn early whether the Physical tab has anything to show.
+        .task(id: myblurayStore.isOn(.librarySection)) {
+            if myblurayStore.isOn(.librarySection) { await physicalStore.load() }
+        }
     }
 
     // MARK: Tabs as the title
@@ -76,11 +88,17 @@ struct LibraryFilterBarView: View {
         let sections = librarySettings.ordered(viewModel.sections) { $0.id }
             .map { (Destination.section($0.id), $0.title) }
         let showCollections = librarySettings.showCollectionsTab || viewModel.contentTab == .collections
-        return sections + (showCollections ? [(.collections, String(localized: "Collections"))] : [])
+        // Hidden once the key turns out to have no Blu-ray.com login, unless it's the open tab.
+        let showPhysical = myblurayStore.isOn(.librarySection)
+            && (physicalStore.phase != .notConnected || viewModel.contentTab == .physical)
+        return sections
+            + (showCollections ? [(.collections, String(localized: "Collections"))] : [])
+            + (showPhysical ? [(.physical, String(localized: "Physical"))] : [])
     }
 
     private var currentDestination: Destination {
         if viewModel.contentTab == .collections { return .collections }
+        if viewModel.contentTab == .physical { return .physical }
         return .section(viewModel.activeSection?.id ?? viewModel.sections.first?.id ?? "")
     }
 
@@ -109,6 +127,9 @@ struct LibraryFilterBarView: View {
         if viewModel.contentTab == .collections {
             return viewModel.collections.isEmpty ? nil : "\(viewModel.collections.count)"
         }
+        if viewModel.contentTab == .physical {
+            return physicalStore.entries.isEmpty ? nil : physicalStore.shown.count.formatted()
+        }
         return viewModel.activeTotal.map { $0.formatted() }
     }
 
@@ -116,10 +137,60 @@ struct LibraryFilterBarView: View {
         switch destination {
         case .collections:
             viewModel.contentTab = .collections
+        case .physical:
+            viewModel.contentTab = .physical
         case .section(let id):
             viewModel.contentTab = .library
             if let section = viewModel.sections.first(where: { $0.id == id }) { onSelectSection(section) }
         }
+    }
+
+    // MARK: Physical (MyBluray collection)
+
+    private var physicalControls: some View {
+        HStack(spacing: DS.Space.s10) {
+            BrowseSearchField(text: $physicalStore.query, placeholder: String(localized: "Search your discs"),
+                              isOpen: $physicalSearchOpen)
+            LibraryPillMenu(label: nil, value: physicalStore.format.title, isActive: physicalStore.format != .all) {
+                ForEach(PhysicalCollectionStore.FormatFilter.allCases) { option in
+                    Button { physicalStore.format = option } label: {
+                        checkLabel(option.title, checked: physicalStore.format == option)
+                    }
+                }
+            }
+            LibraryPillMenu(label: nil, value: physicalStore.sort.shortTitle, systemImage: "arrow.up.arrow.down", isActive: false) {
+                Section("Sort by") {
+                    ForEach(PhysicalCollectionStore.Sort.allCases) { option in
+                        Button { physicalStore.sort = option } label: {
+                            checkLabel(option.title, checked: physicalStore.sort == option)
+                        }
+                    }
+                }
+                Divider()
+                Button {
+                    Task { await physicalStore.load(force: true) }
+                } label: {
+                    Label("Refresh from Blu-ray.com", systemImage: "arrow.clockwise")
+                }
+            }
+        }
+    }
+
+    private var physicalListChips: some View {
+        HStack(spacing: DS.Space.s8) {
+            ForEach(physicalStore.listsInUse, id: \.list.id) { item in
+                LibraryCountChip(title: item.list.name ?? item.list.id, count: item.count,
+                                 selected: physicalStore.listFilter == item.list.id) {
+                    physicalStore.listFilter = item.list.id
+                }
+            }
+            LibraryCountChip(title: String(localized: "All"), count: physicalStore.entries.count,
+                             selected: physicalStore.listFilter == nil) {
+                physicalStore.listFilter = nil
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(height: 28)
     }
 
     // MARK: Search
@@ -570,6 +641,38 @@ struct LibraryGenreChip: View {
         Button(action: action) { LibraryGenreChipLabel(title: title, selected: selected, showsChevron: false) }
             .buttonStyle(.plain)
             .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+    }
+}
+
+/// A genre-style chip with a count: "Owned 876".
+struct LibraryCountChip: View {
+    let title: String
+    let count: Int
+    let selected: Bool
+    let action: () -> Void
+    @State private var hovering = false
+    @Environment(\.flixorTheme) private var theme
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: DS.Space.s6) {
+                Text(title).flixorFont(.footnote, weight: .semibold).lineLimit(1)
+                Text(count.formatted())
+                    .flixorFont(.caption, weight: .medium)
+                    .monospacedDigit()
+                    .foregroundStyle(selected ? Color.black.opacity(0.55) : theme.textTertiary)
+            }
+            .foregroundStyle(selected ? Color.black : theme.textSecondary)
+            .padding(.horizontal, DS.Space.s12)
+            .frame(height: 28)
+            .background(Capsule().fill(selected ? Color.white : (hovering ? theme.pressedFill : theme.surfaceOverlay)))
+            .overlay(Capsule().strokeBorder(selected ? Color.clear : theme.separator, lineWidth: DS.Border.thin))
+            .contentShape(Capsule())
+            .fixedSize()
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
     }
 }
 

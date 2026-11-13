@@ -57,7 +57,10 @@ struct LibraryView: View {
     @ViewBuilder
     private var content: some View {
         // My Collections need no Plex, so a Plex error only fills the Plex section there.
-        if viewModel.contentTab == .collections {
+        if viewModel.contentTab == .physical {
+            // Covers sized like the Library's own poster grid.
+            PhysicalCollectionView(horizontalPadding: horizontalPadding, minItemWidth: minGridItemWidth, spacing: gridSpacing)
+        } else if viewModel.contentTab == .collections {
             CollectionsView(
                 collections: viewModel.collections,
                 isLoading: viewModel.isLoadingCollections,

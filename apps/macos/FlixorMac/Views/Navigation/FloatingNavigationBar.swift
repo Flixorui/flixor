@@ -275,15 +275,14 @@ struct FloatingNavigationTrack: View {
         }
         .padding(DS.Space.s4)
         .frame(height: FloatingNavMetrics.barHeight)
-        .background(surface)
-        .clipShape(Capsule(style: .continuous))
-        .overlay(Capsule(style: .continuous).strokeBorder(Color.white.opacity(0.08), lineWidth: DS.Border.thin))
+        .modifier(FloatingNavSurface(fallback: surface))
         .contentShape(Capsule(style: .continuous))
         .animation(labelAnimation, value: showsLabels)
         .animation(labelAnimation, value: isFrosted)
         .animation(selectionAnimation, value: selectedTab)
     }
 
+    /// The pre-macOS 26 look: a frosted material that fades in on hover or scroll.
     private var surface: some View {
         ZStack {
             Rectangle()
@@ -296,6 +295,23 @@ struct FloatingNavigationTrack: View {
                 endPoint: .bottom
             )
             .opacity(isFrosted ? 1 : 0)
+        }
+    }
+}
+
+/// Real Liquid Glass on macOS 26 and later; the frosted material before that.
+private struct FloatingNavSurface<Fallback: View>: ViewModifier {
+    let fallback: Fallback
+
+    func body(content: Content) -> some View {
+        if #available(macOS 26.0, *) {
+            content
+                .glassEffect(.regular, in: Capsule(style: .continuous))
+        } else {
+            content
+                .background(fallback)
+                .clipShape(Capsule(style: .continuous))
+                .overlay(Capsule(style: .continuous).strokeBorder(Color.white.opacity(0.08), lineWidth: DS.Border.thin))
         }
     }
 }

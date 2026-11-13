@@ -348,3 +348,66 @@ extension DetailsHeroSection {
         return DetailsAvailabilityBadge(isInPlexLibrary: inPlex, showsNotInLibraryNote: showNote)
     }
 }
+
+// MARK: - Merged ratings
+
+/// One rating in the Details meta row: the source's mark and its score, with
+/// a tooltip naming where the score came from.
+struct MergedRatingView: View {
+    let rating: MergedRating
+
+    var body: some View {
+        HStack(spacing: DS.Space.s4) {
+            mark
+            Text(rating.text)
+                .font(.flixor(.footnote, weight: .semibold))
+        }
+        .fixedSize()
+        .help(rating.help)
+    }
+
+    @ViewBuilder private var mark: some View {
+        let score = Int(rating.value.rounded())
+        switch rating.kind {
+        case .imdb:
+            IMDbMark()
+        case .rtCritics:
+            TomatoIcon(score: score)
+        case .rtAudience:
+            PopcornIcon(score: score)
+        case .letterboxd:
+            Image("letterboxd")
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(height: 9)
+        case .metacritic:
+            Image("metacritic")
+                .renderingMode(.template)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 15, height: 15)
+                .foregroundStyle(Self.metacriticColor(score))
+        case .tmdb:
+            Image("tmdb")
+                .renderingMode(.template)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(height: 11)
+                .foregroundStyle(Color(hex: "01B4E4"))
+        case .trakt:
+            Image("trakt")
+                .renderingMode(.template)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 15, height: 15)
+                .foregroundStyle(Color(hex: "ED1C24"))
+        }
+    }
+
+    /// Metacritic's own bands: green from 61, yellow from 40, red below.
+    private static func metacriticColor(_ score: Int) -> Color {
+        if score >= 61 { return Color(hex: "66CC33") }
+        if score >= 40 { return Color(hex: "FFCC33") }
+        return Color(hex: "FF0000")
+    }
+}

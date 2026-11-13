@@ -10,6 +10,7 @@ import SwiftUI
 struct DetailsScreenSettingsView: View {
     @ObservedObject private var profileSettings = ProfileSettings.shared
     @ObservedObject private var sectionsStore = DetailsSectionsStore.shared
+    @ObservedObject private var ratingPrefs = RatingPreferencesStore.shared
 
     @State private var showEpisodePreview: Bool = false
     @State private var showSuggestedPreview: Bool = false
@@ -122,23 +123,54 @@ struct DetailsScreenSettingsView: View {
             }
 
             // Ratings Display
-            SettingsSectionHeader(title: "Ratings Display")
+            SettingsSectionHeader(title: "Ratings")
             SettingsGroupCard {
-                SettingsRow(icon: "star.fill", iconColor: .yellow, title: "IMDb Rating", subtitle: "Show IMDb score") {
-                    Toggle("", isOn: $profileSettings.showIMDbRating).labelsHidden()
-                }
-                SettingsRow(icon: "leaf.fill", iconColor: .red, title: "Rotten Tomatoes (Critics)", subtitle: "Tomatometer score") {
-                    Toggle("", isOn: $profileSettings.showRottenTomatoesCritic).labelsHidden()
-                }
-                SettingsRow(icon: "popcorn.fill", iconColor: .orange, title: "Rotten Tomatoes (Audience)", subtitle: "Audience score", showDivider: false) {
-                    Toggle("", isOn: $profileSettings.showRottenTomatoesAudience).labelsHidden()
+                ForEach(Array(RatingKind.allCases.enumerated()), id: \.element) { index, kind in
+                    ratingRow(kind, showDivider: index < RatingKind.allCases.count - 1)
                 }
             }
+            SettingsFootnote("Automatic uses MyBluray first, then Plex, then MDBList, then TMDB. A source with nothing for a title falls back to Automatic. MyBluray and MDBList need their keys in Settings.")
 
             Text("These settings apply to movie and TV show detail pages.")
                 .font(.flixor(.caption))
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, DS.Space.s4)
+        }
+    }
+
+    // MARK: - Ratings
+
+    /// Ratings only MDBList has say where they come from, and that they need
+    /// a key when MDBList isn't set up.
+    private func ratingSubtitle(_ kind: RatingKind) -> String {
+        guard kind.sources == [.mdblist] else { return kind.subtitle }
+        if MDBListService.shared.isReady() {
+            return kind.subtitle + " · " + String(localized: "from MDBList")
+        }
+        return kind.subtitle + " · " + String(localized: "needs an MDBList key")
+    }
+
+    private func ratingRow(_ kind: RatingKind, showDivider: Bool) -> some View {
+        SettingsRow(
+            title: LocalizedStringKey(kind.title),
+            subtitle: LocalizedStringKey(ratingSubtitle(kind)),
+            showDivider: showDivider
+        ) {
+            HStack(spacing: DS.Space.s10) {
+                if kind.sources.count > 1 {
+                    Picker("", selection: ratingPrefs.sourceBinding(kind)) {
+                        Text(RatingSource.automatic.title).tag(RatingSource.automatic)
+                        Divider()
+                        ForEach(kind.sources) { source in
+                            Text(source.title).tag(source)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(width: 130)
+                    .disabled(!ratingPrefs.isShown(kind))
+                }
+                Toggle("", isOn: ratingPrefs.shownBinding(kind)).labelsHidden()
+            }
         }
     }
 

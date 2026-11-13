@@ -29,7 +29,7 @@ struct DetailsHeroSection: View {
     @State private var selectedTrailer: Trailer?
 
     // Profile-scoped rating visibility settings
-    @ObservedObject private var profileSettings = ProfileSettings.shared
+    @ObservedObject private var ratingPrefs = RatingPreferencesStore.shared
     @Environment(\.flixorTheme) var theme
     @Environment(\.detailsTitleActions) var titleActions
     @Environment(\.detailsHeroTrailer) var heroTrailer
@@ -270,7 +270,23 @@ struct DetailsHeroSection: View {
     }
 
     // MARK: - Technical Metadata Row
+    /// The year, runtime, ratings and badges on one line. With several
+    /// ratings turned on the line can outgrow the column, so it drops the
+    /// technical badges first, then all but the first three ratings, rather
+    /// than truncating the year and runtime.
     @ViewBuilder private var technicalMetadataRow: some View {
+        let ratings = ratingPrefs.merged(vm.ratingInputs)
+        ViewThatFits(in: .horizontal) {
+            technicalMetadataContent(ratings: ratings, showBadges: true)
+            technicalMetadataContent(ratings: ratings, showBadges: false)
+            technicalMetadataContent(ratings: Array(ratings.prefix(3)), showBadges: false)
+        }
+        .font(.flixor(.footnote, weight: .medium))
+        .foregroundStyle(.white.opacity(0.7))
+        .lineLimit(1)
+    }
+
+    @ViewBuilder private func technicalMetadataContent(ratings: [MergedRating], showBadges: Bool) -> some View {
         HStack(spacing: DS.Space.s10) {
             // Year and Edition
             if let year = vm.year, !year.isEmpty {
@@ -289,97 +305,47 @@ struct DetailsHeroSection: View {
                 Text(runtime)
             }
 
-            // Ratings right after year and length (Apple TV order), then badges
-            // Fallback chain: Plex parsed -> Plex direct -> MDBList -> TMDB
-            let plexRatings = vm.externalRatings
-            let mdbRatings = vm.mdblistRatings
-
-            // IMDb: prefer Plex parsed, then Plex direct, then MDBList, then TMDB
-            if profileSettings.showIMDbRating {
-                let imdbScore: Double? = {
-                    if let score = plexRatings?.imdb?.score, score > 0 { return score }
-                    if let score = vm.plexImdbRating, score > 0 { return score }
-                    if let score = mdbRatings?.imdb, score > 0 { return score }
-                    if let score = vm.tmdbRating, score > 0 { return score }
-                    return nil
-                }()
-                if let score = imdbScore {
-                    HStack(spacing: DS.Space.s4) {
-                        IMDbMark()
-                        Text(String(format: "%.1f", score))
-                            .font(.flixor(.footnote, weight: .semibold))
-                    }
-                    .fixedSize()
-                }
+            // Ratings right after year and length (Apple TV order), then
+            // badges. Which ratings, and the source of each, are chosen in
+            // Settings → Details (RatingPreferencesStore / RatingsMerger).
+            ForEach(ratings) { rating in
+                MergedRatingView(rating: rating)
             }
 
-            // RT Critic: prefer Plex, then MDBList
-            if profileSettings.showRottenTomatoesCritic {
-                let criticScore: Int? = {
-                    if let score = plexRatings?.rottenTomatoes?.critic, score > 0 { return score }
-                    if let score = mdbRatings?.tomatoes, score > 0 { return Int(score) }
-                    return nil
-                }()
-                if let score = criticScore {
-                    HStack(spacing: DS.Space.s4) {
-                        TomatoIcon(score: score)
-                        Text("\(score)%")
-                            .font(.flixor(.footnote, weight: .semibold))
-                    }
-                    .fixedSize()
-                }
+            if showBadges {
+                technicalBadges
             }
-
-            // RT Audience: prefer Plex parsed, then Plex direct, then MDBList
-            if profileSettings.showRottenTomatoesAudience {
-                let audienceScore: Int? = {
-                    if let score = plexRatings?.rottenTomatoes?.audience, score > 0 { return score }
-                    if let score = vm.plexAudienceRating, score > 0 { return score }
-                    if let score = mdbRatings?.audience, score > 0 { return Int(score) }
-                    return nil
-                }()
-                if let score = audienceScore {
-                    HStack(spacing: DS.Space.s4) {
-                        PopcornIcon(score: score)
-                        Text("\(score)%")
-                            .font(.flixor(.footnote, weight: .semibold))
-                    }
-                    .fixedSize()
-                }
-            }
-
-            // Resolution badge from technical details (4K, HD, 720p)
-            if let resBadge = resolutionBadge {
-                TechnicalBadge(text: resBadge, isHighlighted: false)
-            }
-
-            // HDR/DV badge from technical details
-            if let hdr = hdrBadge {
-                TechnicalBadge(text: hdr, isHighlighted: true)
-            }
-
-            // Technical badges from vm.badges (Atmos, etc.)
-            // Filter out resolution, HDR, Plex, and "No local source" - those are shown separately
-            ForEach(vm.badges.filter { badge in
-                let lower = badge.lowercased()
-                return lower != "plex" &&
-                       !lower.contains("no local") &&
-                       !lower.contains("4k") &&
-                       !lower.contains("hd") &&
-                       !lower.contains("1080") &&
-                       !lower.contains("720") &&
-                       !lower.contains("hdr") &&
-                       !lower.contains("dolby vision") &&
-                       lower != "dv"
-            }, id: \.self) { badge in
-                TechnicalBadge(text: badge, isHighlighted: false)
-            }
-
-
         }
-        .font(.flixor(.footnote, weight: .medium))
-        .foregroundStyle(.white.opacity(0.7))
-        .lineLimit(1)
+        .fixedSize(horizontal: true, vertical: false)
+    }
+
+    @ViewBuilder private var technicalBadges: some View {
+        // Resolution badge from technical details (4K, HD, 720p)
+        if let resBadge = resolutionBadge {
+            TechnicalBadge(text: resBadge, isHighlighted: false)
+        }
+
+        // HDR/DV badge from technical details
+        if let hdr = hdrBadge {
+            TechnicalBadge(text: hdr, isHighlighted: true)
+        }
+
+        // Technical badges from vm.badges (Atmos, etc.)
+        // Filter out resolution, HDR, Plex, and "No local source" - those are shown separately
+        ForEach(vm.badges.filter { badge in
+            let lower = badge.lowercased()
+            return lower != "plex" &&
+                   !lower.contains("no local") &&
+                   !lower.contains("4k") &&
+                   !lower.contains("hd") &&
+                   !lower.contains("1080") &&
+                   !lower.contains("720") &&
+                   !lower.contains("hdr") &&
+                   !lower.contains("dolby vision") &&
+                   lower != "dv"
+        }, id: \.self) { badge in
+            TechnicalBadge(text: badge, isHighlighted: false)
+        }
     }
 
     // MARK: - Ratings Row
@@ -576,14 +542,9 @@ private struct HeroTrailerCard: View {
                 VStack(alignment: .leading, spacing: DS.Space.s4) {
                     Spacer()
 
-                    // Type badge
-                    Text(trailer.type.uppercased())
-                        .font(.flixor(.nano, weight: .bold))
-                        .padding(.horizontal, DS.Space.s6)
-                        .padding(.vertical, DS.Space.s2)
-                        .background(trailerBadgeColor)
-                        .clipShape(RoundedRectangle(cornerRadius: 3))
-                        .foregroundStyle(.white)
+                    if let label = trailer.typeLabel {
+                        TrailerTypeLabel(text: label, compact: true)
+                    }
 
                     // Title
                     Text(trailer.name)
@@ -608,13 +569,4 @@ private struct HeroTrailerCard: View {
         }
     }
 
-    private var trailerBadgeColor: Color {
-        switch trailer.type.lowercased() {
-        case "trailer": return Color.red.opacity(0.85)
-        case "teaser": return Color.orange.opacity(0.85)
-        case "featurette": return Color.purple.opacity(0.85)
-        case "clip": return Color.green.opacity(0.85)
-        default: return Color.gray.opacity(0.85)
-        }
-    }
 }

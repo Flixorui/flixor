@@ -133,6 +133,7 @@ struct DetailsView: View {
             }
         }
         .overlay { DetailsCommentPopup(model: commentsModel) }
+        .overlay { ParentsGuidePopup() }
         .overlay { StreamAutoPlayOverlay(controller: streamAutoPlay) }
         .animation(reduceMotion ? DS.Motion.quick : DS.Motion.standard, value: showsFloatingHeader)
         .environment(\.detailsTitleActions, titleActions)

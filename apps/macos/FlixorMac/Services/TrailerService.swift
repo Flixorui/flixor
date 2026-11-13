@@ -2,9 +2,14 @@
 //  TrailerService.swift
 //  FlixorMac
 //
-//  Finds YouTube trailers for a movie or show from TMDB videos, the same source
-//  DetailsViewModel.loadTMDBTrailers uses, and returns the existing `Trailer`
-//  model so TrailersRow / TrailerModal can show them directly.
+//  Finds trailers for a movie or show and returns the existing `Trailer`
+//  model so TrailersRow / TrailerModal can show them directly:
+//  - Apple TV trailers from MyBluray first, when a key is set up and "Apple TV
+//    trailers first" is on. They are direct HLS streams that AVPlayer plays in
+//    up to 4K HDR, with no YouTube involved.
+//  - YouTube trailers from TMDB videos after them, the same source
+//    DetailsViewModel.loadTMDBTrailers uses. They are also each Apple
+//    trailer's fallback if its stream fails.
 //
 //  Results are cached in memory for the session and concurrent requests for the
 //  same title share one fetch.
@@ -17,48 +22,164 @@ actor TrailerService {
     static let shared = TrailerService()
 
     private var cache: [String: [Trailer]] = [:]
-    private var inFlight: [String: Task<[Trailer]?, Never>] = [:]
+    private var inFlight: [String: Task<(trailers: [Trailer], cacheable: Bool)?, Never>] = [:]
     private let maxResults = 20
+
+    /// How long hover and hero playback wait for MyBluray before going ahead
+    /// with YouTube. A title the server hasn't stored can take 9 s; the lookup
+    /// keeps running and is saved, so the next time it is instant.
+    private static let appleWaitSeconds: Double = 4
 
     // MARK: - Public API
 
-    /// Ranked YouTube videos for an item (best first). Episodes and seasons use
+    /// Ranked trailers for an item (best first). Episodes and seasons use
     /// their show. Empty when nothing is found or the id can't be resolved.
     func trailers(for item: MediaItem) async -> [Trailer] {
         guard let identity = await MediaIdentityResolver.shared.tmdbIdentity(for: item) else { return [] }
         return await trailers(tmdbId: identity.id, mediaType: identity.mediaType)
     }
 
-    /// Ranked YouTube videos for a TMDB movie or show (best first).
+    /// Ranked trailers for a TMDB movie or show (best first): Apple TV, then YouTube.
     func trailers(tmdbId: Int, mediaType: TMDBMediaType) async -> [Trailer] {
-        let key = "\(mediaType.rawValue):\(tmdbId)"
+        let defaults = UserDefaults.standard
+        let useApple = defaults.myblurayOptionActive(.appleTrailers)
+        let bonus = useApple && defaults.myblurayOptionActive(.bonusVideos)
+        let key = "\(mediaType.rawValue):\(tmdbId):\(useApple ? (bonus ? "apple+bonus" : "apple") : "youtube")"
         if let cached = cache[key] { return cached }
 
-        let task: Task<[Trailer]?, Never>
+        let task: Task<(trailers: [Trailer], cacheable: Bool)?, Never>
+        let ownsTask: Bool
         if let existing = inFlight[key] {
             task = existing
+            ownsTask = false
         } else {
             let limit = maxResults
-            task = Task { await Self.fetch(tmdbId: tmdbId, mediaType: mediaType, limit: limit) }
+            task = Task {
+                async let youtube = Self.fetch(tmdbId: tmdbId, mediaType: mediaType, limit: limit)
+                async let apple: [Trailer]? = useApple
+                    ? Self.withTimeout(Self.appleWaitSeconds) {
+                        await Self.appleTrailers(tmdbId: tmdbId, mediaType: mediaType, includeBonus: bonus)
+                    }
+                    : []
+                let (youtubeResult, appleResult) = await (youtube, apple)
+                // nil = TMDB failed and Apple had nothing: don't pin that for the session.
+                let direct = appleResult ?? []
+                if youtubeResult == nil && direct.isEmpty { return nil }
+                let merged = Self.merge(apple: direct, youtube: youtubeResult ?? [])
+                // Keep a result that waited out MyBluray uncached, so the
+                // next call picks up the saved Apple trailers.
+                let complete = youtubeResult != nil && appleResult != nil
+                return (Array(merged.prefix(limit)), complete)
+            }
             inFlight[key] = task
+            ownsTask = true
         }
 
         let result = await task.value
-        inFlight[key] = nil
-        // nil = the request failed: don't pin that for the session, let a later call retry.
+        if ownsTask { inFlight[key] = nil }
         guard let result else { return [] }
-        cache[key] = result
-        return result
+        if result.cacheable { cache[key] = result.trailers }
+        return result.trailers
     }
 
-    /// YouTube key of the best trailer for an item, if any.
+    /// The best trailer for an item, if any.
+    func bestTrailer(for item: MediaItem) async -> Trailer? {
+        await trailers(for: item).first
+    }
+
+    /// The best trailer for a TMDB movie or show, if any.
+    func bestTrailer(tmdbId: Int, mediaType: TMDBMediaType) async -> Trailer? {
+        await trailers(tmdbId: tmdbId, mediaType: mediaType).first
+    }
+
+    /// YouTube key of the best YouTube trailer for an item, if any.
     func bestTrailerKey(for item: MediaItem) async -> String? {
-        await trailers(for: item).first?.key
+        await trailers(for: item).first(where: { !$0.isDirect })?.key
     }
 
-    /// YouTube key of the best trailer for a TMDB movie or show, if any.
+    /// YouTube key of the best YouTube trailer for a TMDB movie or show, if any.
     func bestTrailerKey(tmdbId: Int, mediaType: TMDBMediaType) async -> String? {
-        await trailers(tmdbId: tmdbId, mediaType: mediaType).first?.key
+        await trailers(tmdbId: tmdbId, mediaType: mediaType).first(where: { !$0.isDirect })?.key
+    }
+
+    // MARK: - Apple TV (MyBluray)
+
+    /// Apple TV trailers for a title when MyBluray is set up for them, without
+    /// a time limit. Empty when it's off or Apple has none.
+    func appleTrailers(tmdbId: Int, mediaType: TMDBMediaType) async -> [Trailer] {
+        let defaults = UserDefaults.standard
+        guard defaults.myblurayOptionActive(.appleTrailers) else { return [] }
+        return await Self.appleTrailers(tmdbId: tmdbId, mediaType: mediaType,
+                                        includeBonus: defaults.myblurayOptionActive(.bonusVideos))
+    }
+
+    /// Puts Apple trailers ahead of YouTube ones and gives each Apple trailer
+    /// the best YouTube trailer as its fallback.
+    static func merge(apple: [Trailer], youtube: [Trailer]) -> [Trailer] {
+        let fallback = youtube.first?.key
+        return apple.map { trailer in
+            var copy = trailer
+            copy.fallbackYouTubeKey = fallback
+            return copy
+        } + youtube
+    }
+
+    private static func appleTrailers(tmdbId: Int, mediaType: TMDBMediaType, includeBonus: Bool) async -> [Trailer] {
+        guard let imdbId = await MediaIdentityResolver.shared.imdbId(tmdbId: tmdbId, isShow: mediaType == .tv) else {
+            return []
+        }
+        let title: MBTitle?
+        do {
+            title = try await MyBlurayService.shared.title(imdbId: imdbId, allVideos: includeBonus)
+        } catch {
+            AppLogger.shared.debug("[Trailers] MyBluray unavailable", data: ["imdbId": imdbId, "error": "\(error)"])
+            return []
+        }
+        guard let title else { return [] }
+
+        let trailers = title.directAppleVideos.compactMap { video -> (rank: Int, trailer: Trailer)? in
+            guard let raw = video.playbackUrl, let url = URL(string: raw) else { return nil }
+            let kind = (video.kind ?? "trailer").lowercased()
+            let label = (video.title ?? "").trimmingCharacters(in: .whitespaces)
+            // Apple names some trailers after the film, and labels some teasers as trailers.
+            let type = label.lowercased() == "teaser" ? "Teaser" : kind.capitalized
+            let rank = typeRank(type)
+            guard includeBonus || rank <= 1 else { return nil }
+            let name = label.isEmpty || label.caseInsensitiveCompare(title.title ?? "") == .orderedSame ? type : label
+            let id = video.providerId ?? raw
+            return (rank, Trailer(
+                id: "apple:\(id)",
+                name: name,
+                key: id,
+                site: "Apple TV",
+                type: type,
+                official: true,
+                publishedAt: nil,
+                streamURL: url,
+                imageURL: video.thumbnailUrl.flatMap(URL.init(string:)),
+                durationSeconds: video.durationSeconds
+            ))
+        }
+        // Trailers before teasers before bonus videos; Apple's order within each.
+        return trailers.enumerated()
+            .sorted { ($0.element.rank, $0.offset) < ($1.element.rank, $1.offset) }
+            .map(\.element.trailer)
+    }
+
+    /// Runs `operation` and returns its result, or nil once `seconds` pass. The
+    /// operation isn't cancelled, so work it started (and caches) finishes.
+    private static func withTimeout<T: Sendable>(_ seconds: Double, _ operation: @escaping @Sendable () async -> T) async -> T? {
+        let once = TrailerTimeoutGate()
+        return await withCheckedContinuation { (continuation: CheckedContinuation<T?, Never>) in
+            Task {
+                let value = await operation()
+                if once.claim() { continuation.resume(returning: value) }
+            }
+            Task {
+                try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                if once.claim() { continuation.resume(returning: nil) }
+            }
+        }
     }
 
     /// Drops cached results (e.g. after the TMDB language changes).
@@ -151,5 +272,18 @@ actor TrailerService {
         let pa = a.publishedAt ?? "", pb = b.publishedAt ?? ""
         if pa != pb { return pa > pb }
         return aIndex < bIndex
+    }
+}
+
+/// Lets exactly one of two racing tasks resume a continuation.
+private final class TrailerTimeoutGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var done = false
+
+    func claim() -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        if done { return false }
+        done = true
+        return true
     }
 }

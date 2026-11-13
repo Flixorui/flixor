@@ -4,6 +4,7 @@
 //
 //  Inline hero trailer: once the details page has been idle for a few seconds,
 //  the title's best YouTube trailer (TrailerService) plays muted behind the hero
+//  (natively via TrailerPlayer, or in the YouTube embed when no direct stream is found)
 //  and crossfades over the backdrop. It pauses when the hero is scrolled away,
 //  the window loses focus, the tab is switched or a sheet is up, resumes when
 //  those clear, and is torn down when the page disappears (e.g. playback starts).
@@ -12,7 +13,6 @@
 
 import SwiftUI
 import Combine
-import YouTubePlayerKit
 
 @MainActor
 final class DetailsHeroTrailerController: ObservableObject {
@@ -43,19 +43,19 @@ final class DetailsHeroTrailerController: ObservableObject {
 
     @Published private(set) var phase: Phase = .idle
     @Published private(set) var isMuted = true
-    @Published private(set) var player: YouTubePlayer?
+    @Published private(set) var player: TrailerPlayer?
 
     /// Seconds the page must be idle before the trailer starts.
     static let idleDelay: Double = 2.5
-    /// Stop this many seconds before the end so YouTube end screens never show.
+    /// With the YouTube embed fallback, stop this many seconds before the end so
+    /// its end screens never show.
     private static let endScreenMargin: Double = 8
 
-    private var videoKey: String?
+    private var trailer: Trailer?
     private var conditions = Conditions()
     private var idleTask: Task<Void, Never>?
     private var keyTask: Task<Void, Never>?
     private var playerCancellables = Set<AnyCancellable>()
-    private var duration: Double?
 
     private var isEnabled: Bool { UserDefaults.standard.detailsHeroInlineTrailerEnabled }
 
@@ -77,14 +77,17 @@ final class DetailsHeroTrailerController: ObservableObject {
     func configure(tmdbId: String?, mediaKind: String?) {
         teardown()
         phase = .idle
-        videoKey = nil
+        trailer = nil
         keyTask?.cancel()
         guard isEnabled, let tmdbId, let id = Int(tmdbId) else { return }
         let mediaType: TMDBMediaType = mediaKind == "tv" ? .tv : .movie
         keyTask = Task { [weak self] in
-            let key = await TrailerService.shared.bestTrailerKey(tmdbId: id, mediaType: mediaType)
+            let best = await TrailerService.shared.bestTrailer(tmdbId: id, mediaType: mediaType)
             guard !Task.isCancelled, let self else { return }
-            self.videoKey = key
+            self.trailer = best
+            // Resolve the YouTube stream while the idle timer runs (Apple TV
+            // trailers are direct streams already).
+            if let best, !best.isDirect { YouTubeStreamExtractor.shared.prefetch(best.key) }
             self.evaluate()
         }
     }
@@ -115,10 +118,10 @@ final class DetailsHeroTrailerController: ObservableObject {
         if canPlay {
             switch phase {
             case .idle:
-                if videoKey != nil, idleTask == nil { armIdleTimer() }
+                if trailer != nil, idleTask == nil { armIdleTimer() }
             case .paused:
                 phase = .loading
-                Task { try? await player?.play() }
+                player?.play()
             default:
                 break
             }
@@ -127,7 +130,7 @@ final class DetailsHeroTrailerController: ObservableObject {
             idleTask = nil
             if phase == .playing || phase == .loading {
                 phase = player == nil ? .idle : .paused
-                Task { try? await player?.pause() }
+                player?.pause()
             }
         }
     }
@@ -145,46 +148,34 @@ final class DetailsHeroTrailerController: ObservableObject {
     // MARK: - Player
 
     private func start() {
-        guard let key = videoKey, player == nil else { return }
+        guard let trailer, player == nil else { return }
         isMuted = UserDefaults.standard.detailsHeroTrailerStartsMuted
-        duration = nil
 
-        let newPlayer = YouTubePlayer(
-            source: .video(id: key),
-            parameters: .init(
-                autoPlay: false,
-                loopEnabled: false,
-                showControls: false,
-                showFullscreenButton: false,
-                keyboardControlsDisabled: true,
-                showCaptions: false,
-                restrictRelatedVideosToSameChannel: true
-            ),
-            configuration: .init(fullscreenMode: .web, allowsPictureInPictureMediaPlayback: false)
-        )
+        // 1080p is plenty behind the hero text; 4K is kept for the full-screen
+        // trailer. Buffer a little ahead only, in case the page is left.
+        var options = TrailerPlayer.Options()
+        options.forwardBufferSeconds = 20
+        let newPlayer = TrailerPlayer(trailer: trailer, muted: isMuted, options: options)
         player = newPlayer
         phase = .loading
 
-        newPlayer.statePublisher
+        newPlayer.$status
             .receive(on: RunLoop.main)
-            .sink { [weak self, weak newPlayer] state in
+            .sink { [weak self, weak newPlayer] status in
                 guard let self, let newPlayer, newPlayer === self.player else { return }
-                switch state {
+                switch status {
                 case .ready:
-                    Task {
-                        if self.isMuted { try? await newPlayer.mute() }
-                        if self.canPlay { try? await newPlayer.play() } else { self.phase = .paused }
-                    }
-                case .error:
+                    if self.canPlay { newPlayer.play() } else { self.phase = .paused }
+                case .failed:
                     self.teardown()
                     self.phase = .failed
-                case .idle:
+                case .resolving:
                     break
                 }
             }
             .store(in: &playerCancellables)
 
-        newPlayer.playbackStatePublisher
+        newPlayer.$playback
             .receive(on: RunLoop.main)
             .sink { [weak self, weak newPlayer] state in
                 guard let self, let newPlayer, newPlayer === self.player else { return }
@@ -194,64 +185,54 @@ final class DetailsHeroTrailerController: ObservableObject {
                         self.phase = .playing
                     } else {
                         self.phase = .paused
-                        Task { try? await newPlayer.pause() }
+                        newPlayer.pause()
                     }
                 case .ended:
                     self.phase = .ended
-                default:
+                case .idle, .paused:
                     break
                 }
             }
             .store(in: &playerCancellables)
 
-        newPlayer.durationPublisher
-            .receive(on: RunLoop.main)
-            .sink { [weak self] value in
-                self?.duration = value.converted(to: .seconds).value
-            }
-            .store(in: &playerCancellables)
-
-        newPlayer.currentTimePublisher
+        // Only the YouTube embed shows end screens; the native video plays to
+        // the real end.
+        newPlayer.$currentTime
             .receive(on: RunLoop.main)
             .sink { [weak self, weak newPlayer] time in
                 guard let self, let newPlayer, newPlayer === self.player,
-                      self.phase == .playing,
-                      let duration = self.duration, duration > Self.endScreenMargin * 3 else { return }
-                if time.converted(to: .seconds).value >= duration - Self.endScreenMargin {
+                      newPlayer.usesEmbed, self.phase == .playing,
+                      let duration = newPlayer.duration, duration > Self.endScreenMargin * 3 else { return }
+                if time >= duration - Self.endScreenMargin {
                     self.phase = .ended
-                    Task { try? await newPlayer.pause() }
+                    newPlayer.pause()
                 }
             }
             .store(in: &playerCancellables)
+
+        newPlayer.load()
     }
 
     func toggleMute() {
         guard let player else { return }
         isMuted.toggle()
-        let mute = isMuted
-        Task {
-            if mute { try? await player.mute() } else { try? await player.unmute() }
-        }
+        player.setMuted(isMuted)
     }
 
     /// Plays again from the start (works after it ended, or while it plays).
     func replay() {
         guard let player else { return }
         phase = .loading
-        Task {
-            try? await player.seek(to: .init(value: 0, unit: .seconds))
-            if canPlay { try? await player.play() } else { phase = .paused }
-        }
+        player.restart(play: canPlay)
+        if !canPlay { phase = .paused }
     }
 
-    /// Stops playback and releases the web view.
+    /// Stops playback and releases the player.
     func teardown() {
         idleTask?.cancel()
         idleTask = nil
         playerCancellables.removeAll()
-        if let player {
-            Task { try? await player.stop() }
-        }
+        player?.stop()
         player = nil
         if phase != .failed { phase = .idle }
     }
@@ -280,20 +261,16 @@ struct DetailsHeroTrailerLayer: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    /// Slight zoom so YouTube's title strip and logo fall outside the clip.
-    private static let overscan: CGFloat = 1.18
+    /// Slight zoom so the embed fallback's title strip and logo fall outside the clip.
+    private static let embedOverscan: CGFloat = 1.18
 
     var body: some View {
         ZStack {
             if let player = controller.player {
-                YouTubePlayerView(player)
-                    .frame(width: size.width * Self.overscan, height: size.height * Self.overscan)
+                TrailerVideoSurface(player: player, fill: true, embedOverscan: Self.embedOverscan)
                     .frame(width: size.width, height: size.height)
-                    .clipped()
-                    .allowsHitTesting(false)
                     .opacity(controller.phase == .playing ? 1 : 0)
                     .animation(reduceMotion ? nil : DS.Motion.cinematic, value: controller.phase)
-                    .accessibilityHidden(true)
             }
         }
         .frame(width: size.width, height: size.height)

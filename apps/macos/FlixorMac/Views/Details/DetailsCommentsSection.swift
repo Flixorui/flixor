@@ -505,6 +505,7 @@ struct DetailsCommentPopup: View {
 
                 panel(comment: comment, index: index)
                     .inPageModal(onDismiss: close)
+                    .background(EscapeKeyButton(action: close))
                     .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
             }
         }
@@ -647,8 +648,21 @@ struct DetailsCommentPopup: View {
     }
 }
 
+/// Invisible button that closes a panel with Esc.
+struct EscapeKeyButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button("", action: action)
+            .keyboardShortcut(.cancelAction)
+            .opacity(0)
+            .frame(width: 0, height: 0)
+            .accessibilityHidden(true)
+    }
+}
+
 /// Rounded on top, square at the bottom, where the panel meets the window edge.
-private struct UnevenTopRoundedRectangle: Shape {
+struct UnevenTopRoundedRectangle: Shape {
     let radius: CGFloat
 
     func path(in rect: CGRect) -> Path {

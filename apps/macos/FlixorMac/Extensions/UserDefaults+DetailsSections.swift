@@ -16,6 +16,8 @@ enum DetailsSectionKey: String, CaseIterable, Codable, Identifiable {
     case collection
     case cast
     case trailers
+    case physical
+    case guidance
     case comments
     case about
 
@@ -30,6 +32,8 @@ enum DetailsSectionKey: String, CaseIterable, Codable, Identifiable {
         case .collection: return "COLLECTION"
         case .cast: return "CAST"
         case .trailers: return "TRAILERS"
+        case .physical: return "PHYSICAL"
+        case .guidance: return "GUIDANCE"
         case .comments: return "COMMENTS"
         case .about: return "DETAILS"
         }
@@ -42,6 +46,8 @@ enum DetailsSectionKey: String, CaseIterable, Codable, Identifiable {
         case .collection: return String(localized: "Collection")
         case .cast: return String(localized: "Cast & Crew")
         case .trailers: return String(localized: "Trailers & Videos")
+        case .physical: return String(localized: "Physical Releases")
+        case .guidance: return String(localized: "Parents Guide")
         case .comments: return String(localized: "Comments")
         case .about: return String(localized: "Details")
         }
@@ -52,6 +58,8 @@ enum DetailsSectionKey: String, CaseIterable, Codable, Identifiable {
         switch self {
         case .suggested: return String(localized: "Suggested")
         case .trailers: return String(localized: "Videos")
+        case .physical: return String(localized: "Discs")
+        case .guidance: return String(localized: "Guide")
         default: return title
         }
     }
@@ -63,6 +71,8 @@ enum DetailsSectionKey: String, CaseIterable, Codable, Identifiable {
         case .collection: return String(localized: "Other movies in the franchise")
         case .cast: return String(localized: "Cast, crew and guest stars")
         case .trailers: return String(localized: "Trailers, teasers and featurettes")
+        case .physical: return String(localized: "Blu-ray and 4K editions, with quick add to your collection (MyBluray)")
+        case .guidance: return String(localized: "Age rating, Common Sense and the IMDb parents guide (MyBluray)")
         case .comments: return String(localized: "Trakt comments and reviews")
         case .about: return String(localized: "About, production, information and links")
         }
@@ -75,6 +85,8 @@ enum DetailsSectionKey: String, CaseIterable, Codable, Identifiable {
         case .collection: return "square.stack.3d.up.fill"
         case .cast: return "person.2.fill"
         case .trailers: return "play.rectangle.fill"
+        case .physical: return "opticaldisc"
+        case .guidance: return "shield.lefthalf.filled"
         case .comments: return "text.bubble.fill"
         case .about: return "info.circle.fill"
         }
@@ -82,7 +94,7 @@ enum DetailsSectionKey: String, CaseIterable, Codable, Identifiable {
 
     /// Default order when nothing is saved (or after a reset).
     static let defaultOrder: [DetailsSectionKey] = [
-        .episodes, .collection, .cast, .suggested, .trailers, .comments, .about
+        .episodes, .collection, .cast, .suggested, .trailers, .physical, .guidance, .comments, .about
     ]
 
     /// The default before Collection and Cast moved up. A saved list that is
@@ -108,8 +120,17 @@ struct DetailsSectionPreference: Codable, Hashable, Identifiable {
     static func normalized(_ prefs: [DetailsSectionPreference]) -> [DetailsSectionPreference] {
         var seen = Set<DetailsSectionKey>()
         var result = prefs.filter { seen.insert($0.key).inserted }
-        for key in DetailsSectionKey.defaultOrder where !seen.contains(key) {
-            result.append(DetailsSectionPreference(key: key, enabled: true))
+        // A section added later goes after the one before it in the default
+        // order (Parents Guide after Trailers), not at the very end.
+        let order = DetailsSectionKey.defaultOrder
+        for (index, key) in order.enumerated() where !seen.contains(key) {
+            let preference = DetailsSectionPreference(key: key, enabled: true)
+            if index > 0, let previous = result.firstIndex(where: { $0.key == order[index - 1] }) {
+                result.insert(preference, at: previous + 1)
+            } else {
+                result.append(preference)
+            }
+            seen.insert(key)
         }
         return result
     }
@@ -147,7 +168,10 @@ extension UserDefaults {
                 return DetailsSectionPreference(key: key, enabled: entry.enabled ?? true)
             }
             let normalized = DetailsSectionPreference.normalized(prefs)
-            if normalized.map(\.key) == DetailsSectionKey.previousDefaultOrder && normalized.allSatisfy(\.enabled) {
+            // Physical Releases and Parents Guide are newer than both defaults,
+            // so leave them out of the comparison.
+            if normalized.map(\.key).filter({ $0 != .guidance && $0 != .physical }) == DetailsSectionKey.previousDefaultOrder
+                && normalized.allSatisfy(\.enabled) {
                 return DetailsSectionPreference.defaults
             }
             return normalized

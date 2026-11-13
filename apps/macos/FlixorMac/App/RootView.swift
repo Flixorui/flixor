@@ -411,6 +411,12 @@ struct MainView: View {
                     .ignoresSafeArea(edges: .top)
                     .zIndex(4)
             }
+
+            // Screenshots and artwork, above the back button and the bars.
+            ImageViewerOverlay(presenter: ImageViewerPresenter.shared)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .ignoresSafeArea()
+                .zIndex(10)
         }
         .animation(DS.Motion.standard, value: showsFloatingBar)
         .environmentObject(router)
@@ -538,6 +544,11 @@ extension View {
             }
             .navigationDestination(for: PersonRoute.self) { route in
                 PersonDetailView(route: route)
+                    .backButtonContentInset()
+                    .navigationBarBackButtonHidden(true)
+            }
+            .navigationDestination(for: EditionRoute.self) { route in
+                EditionPage(route: route)
                     .backButtonContentInset()
                     .navigationBarBackButtonHidden(true)
             }

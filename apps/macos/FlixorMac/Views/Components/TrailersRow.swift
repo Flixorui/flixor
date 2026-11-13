@@ -9,18 +9,43 @@ import SwiftUI
 
 // MARK: - Trailer Model
 
-struct Trailer: Identifiable, Codable {
+struct Trailer: Identifiable, Codable, Equatable {
     let id: String
     let name: String
-    let key: String  // YouTube video ID
-    let site: String // Usually "YouTube"
+    let key: String  // YouTube video ID; the provider's own id for direct streams
+    let site: String // "YouTube", or "Apple TV" for direct streams
     let type: String // "Trailer", "Teaser", "Featurette", etc.
     let official: Bool?
     let publishedAt: String?
+    /// Direct HLS or MP4 stream (Apple TV trailers from MyBluray). Played in
+    /// AVPlayer instead of YouTube when set.
+    var streamURL: URL? = nil
+    /// Artwork for direct streams; YouTube trailers use YouTube's thumbnail.
+    var imageURL: URL? = nil
+    var durationSeconds: Double? = nil
+    /// A YouTube trailer for the same title, played if the direct stream fails.
+    var fallbackYouTubeKey: String? = nil
+
+    var isDirect: Bool { streamURL != nil }
+
+    /// The type label, unless the name already says it ("Trailer" / "Trailer").
+    var typeLabel: String? {
+        let name = self.name.trimmingCharacters(in: .whitespaces).lowercased()
+        let kind = type.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !kind.isEmpty, name != kind else { return nil }
+        return type
+    }
 
     var thumbnailURL: URL? {
+        if let imageURL { return imageURL }
         guard site.lowercased() == "youtube" else { return nil }
         return URL(string: "https://img.youtube.com/vi/\(key)/mqdefault.jpg")
+    }
+
+    /// The YouTube video to play: this trailer's own, or the fallback for a
+    /// direct stream.
+    var youtubeKey: String? {
+        site.lowercased() == "youtube" ? key : fallbackYouTubeKey
     }
 
     var youtubeURL: URL? {
@@ -114,14 +139,10 @@ struct TrailerCard: View {
                 VStack(alignment: .leading, spacing: DS.Space.s4) {
                     Spacer()
 
-                    // Type badge
-                    Text(trailer.type)
-                        .font(.flixor(.micro, weight: .bold))
-                        .padding(.horizontal, DS.Space.s8)
-                        .padding(.vertical, 3)
-                        .background(badgeColor(for: trailer.type))
-                        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.r4))
-                        .foregroundStyle(.white)
+                    // Quiet type label (red is kept for "on" and progress).
+                    if let label = trailer.typeLabel {
+                        TrailerTypeLabel(text: label)
+                    }
 
                     // Title
                     Text(trailer.name)
@@ -148,20 +169,21 @@ struct TrailerCard: View {
         }
     }
 
-    private func badgeColor(for type: String) -> Color {
-        switch type.lowercased() {
-        case "trailer":
-            return Color.red.opacity(0.8)
-        case "teaser":
-            return Color.orange.opacity(0.8)
-        case "featurette":
-            return Color.purple.opacity(0.8)
-        case "behind the scenes":
-            return Color.blue.opacity(0.8)
-        case "clip":
-            return Color.green.opacity(0.8)
-        default:
-            return Color.gray.opacity(0.8)
-        }
+}
+
+/// "Teaser", "Featurette"…: a small frosted label on the trailer art.
+struct TrailerTypeLabel: View {
+    let text: String
+    var compact = false
+
+    var body: some View {
+        Text(compact ? text.uppercased() : text)
+            .font(.flixor(compact ? .nano : .micro, weight: .semibold))
+            .foregroundStyle(.white.opacity(0.92))
+            .padding(.horizontal, compact ? DS.Space.s6 : DS.Space.s8)
+            .padding(.vertical, compact ? DS.Space.s2 : 3)
+            .background(Capsule().fill(.ultraThinMaterial))
+            .background(Capsule().fill(Color.black.opacity(0.35)))
+            .overlay(Capsule().strokeBorder(Color.white.opacity(0.18), lineWidth: DS.Border.thin))
     }
 }

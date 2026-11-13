@@ -81,10 +81,8 @@ struct HoverPreviewCard: View {
             .clipped()
             .accessibilityHidden(true)
 
-            if let key = model.trailerKey, model.trailerMode != .off {
-                HoverPreviewTrailer(videoKey: key, isMuted: $isMuted, isPlaying: $isTrailerPlaying)
-                    // YouTube's player is 16:9; overscan slightly to hide its edges.
-                    .frame(width: width * 1.02, height: artworkHeight * 1.02)
+            if let trailer = model.trailer, model.trailerMode != .off {
+                HoverPreviewTrailer(trailer: trailer, isMuted: $isMuted, isPlaying: $isTrailerPlaying)
                     .frame(width: width, height: artworkHeight)
                     .clipped()
                     .opacity(isTrailerPlaying ? 1 : 0)

@@ -24,6 +24,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
     case sidebar
     case tmdb
     case mdblist
+    case mybluray
     case overseerr
     case trakt
     case streamingAvailability
@@ -48,6 +49,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         case .sidebar: return String(localized: "Navigation")
         case .tmdb: return "TMDB"
         case .mdblist: return "MDBList"
+        case .mybluray: return "MyBluray"
         case .overseerr: return "Overseerr"
         case .trakt: return "Trakt"
         case .streamingAvailability: return String(localized: "Top 10 Lists")
@@ -72,6 +74,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         case .sidebar: return String(localized: "Navigation style and tabs")
         case .tmdb: return String(localized: "Artwork, metadata and language from The Movie Database")
         case .mdblist: return String(localized: "Ratings from IMDb, Rotten Tomatoes, Letterboxd and more")
+        case .mybluray: return String(localized: "Apple TV trailers, parents guides, ratings and Blu-ray releases")
         case .overseerr: return String(localized: "Request movies and shows you don't have yet")
         case .trakt: return String(localized: "Watch history, ratings and scrobbling")
         case .streamingAvailability: return String(localized: "Top 10 and new arrivals from FlixPatrol and Streaming Availability")
@@ -90,6 +93,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         case .libraryScreen: return "library screen grid tabs"
         case .detailsScreen: return "details screen episodes"
         case .sidebar: return "navbar navigation tabs new & popular"
+        case .mybluray: return "bluray blu-ray 4k uhd disc physical collection wishlist editions apple tv trailers parents guide common sense imdb letterboxd ratings api key"
         case .streamingAvailability: return "flixpatrol streaming availability movie of the night top 10 netflix prime disney apple max paramount hulu starz hotstar api key"
         default: return ""
         }
@@ -111,6 +115,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         case .sidebar: return "sidebar.left"
         case .tmdb: return "film"
         case .mdblist: return "star"
+        case .mybluray: return "opticaldisc"
         case .overseerr: return "arrow.down.circle"
         case .trakt: return "chart.bar"
         case .streamingAvailability: return "list.number"
@@ -169,6 +174,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         case .sidebar: return Color(hex: "3B9FD6")
         case .tmdb: return Color(hex: "042541")
         case .mdblist: return Color(hex: "4284CA")
+        case .mybluray: return Color(hex: "0077B6")
         case .overseerr: return Color(hex: "0B1223")
         case .trakt: return Color(hex: "ED1C24")
         case .streamingAvailability: return Color(hex: "7C3AED")
@@ -198,7 +204,7 @@ private struct SidebarSection {
             SidebarSection(title: String(localized: "Sources"), categories: sourceCategories),
             SidebarSection(title: String(localized: "Playback & Content"), categories: [.player, .content]),
             SidebarSection(title: String(localized: "Screens"), categories: [.homeScreenAppearance, .libraryScreen, .detailsScreen, .sidebar]),
-            SidebarSection(title: String(localized: "Integrations"), categories: [.tmdb, .mdblist, .overseerr, .trakt, .streamingAvailability]),
+            SidebarSection(title: String(localized: "Integrations"), categories: [.tmdb, .mdblist, .mybluray, .overseerr, .trakt, .streamingAvailability]),
             SidebarSection(title: String(localized: "General"), categories: [.appearance, .advanced, .about])
         ]
     }
@@ -393,6 +399,8 @@ struct SettingsView: View {
             TMDBSettingsView()
         case .mdblist:
             MDBListSettingsView()
+        case .mybluray:
+            MyBluraySettingsView()
         case .overseerr:
             OverseerrSettingsView()
         case .trakt:

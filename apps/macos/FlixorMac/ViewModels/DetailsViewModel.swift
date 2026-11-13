@@ -84,6 +84,13 @@ class DetailsViewModel: ObservableObject {
 
     // MDBList ratings
     @Published var mdblistRatings: MDBListRatings?
+    /// MyBluray's title record: ratings, Common Sense guidance and certificates.
+    @Published var myblurayTitle: MBTitle?
+    /// IMDb's parents guide from MyBluray (spoilers included and marked).
+    @Published var parentsGuide: MBParentsGuide?
+
+    /// Ratings from MyBluray's title record (IMDb, Rotten Tomatoes, Letterboxd, TMDB).
+    var myblurayRatings: [MBRating] { myblurayTitle?.ratings ?? [] }
 
     // TMDB Trailers (videos)
     @Published var trailers: [Trailer] = []

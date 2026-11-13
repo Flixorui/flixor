@@ -53,7 +53,13 @@ extension DetailsViewModel {
                     mediaKind = media
                     tmdbId = tid
                     markIdentityReady()
-                    try await fetchTMDBDetails(media: media, id: tid, skipPlexMapping: false)
+                    // Titles not in Plex have no IMDb guid: look it up from the
+                    // TMDB id, then load MDBList and MyBluray (ratings, parents
+                    // guide, physical releases, links) beside the TMDB details.
+                    async let imdbBacked: Void = loadMDBListRatings()
+                    async let details: Void = fetchTMDBDetails(media: media, id: tid, skipPlexMapping: false)
+                    _ = await imdbBacked
+                    try await details
                 }
             } else if item.id.hasPrefix("plex:") {
                 print("📀 [Details] Loading native Plex item (prefixed)")
@@ -157,7 +163,9 @@ extension DetailsViewModel {
         if tmdbGuidId == nil {
             setBackdrop(plexArt)
             markTitleIdsReady()
-        } else if imdbId == nil && MDBListService.shared.isReady() {
+        } else if imdbId == nil
+                    && (MDBListService.shared.isReady() || Self.wantsMyBlurayTitle || Self.wantsParentsGuide
+                        || UserDefaults.standard.myblurayOptionActive(.physicalReleases)) {
             // loadMDBListRatings looks the IMDb id up; the watch target and the
             // comments wait for it rather than being set up without it.
             holdTitleIds()
@@ -220,6 +228,8 @@ extension DetailsViewModel {
         tmdbId = nil
         imdbId = nil
         mdblistRatings = nil
+        myblurayTitle = nil
+        parentsGuide = nil
         mediaKind = nil
         playableId = nil
         logoURL = nil

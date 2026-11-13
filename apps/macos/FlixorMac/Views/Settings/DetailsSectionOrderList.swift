@@ -144,6 +144,8 @@ struct DetailsSectionOrderList: View {
         case .collection: return .orange
         case .cast: return .purple
         case .trailers: return .red
+        case .physical: return Color(hex: "0077B6")
+        case .guidance: return .indigo
         case .comments: return .green
         case .about: return .gray
         }

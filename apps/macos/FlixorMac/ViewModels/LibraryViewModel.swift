@@ -77,6 +77,8 @@ final class LibraryViewModel: ObservableObject {
     enum ContentTab: Int, CaseIterable, Identifiable {
         case library
         case collections
+        /// The Blu-ray.com collection through MyBluray (PhysicalCollectionView).
+        case physical
 
         var id: Int { rawValue }
 
@@ -84,6 +86,7 @@ final class LibraryViewModel: ObservableObject {
             switch self {
             case .library: return String(localized: "Library")
             case .collections: return String(localized: "Collections")
+            case .physical: return String(localized: "Physical")
             }
         }
     }
@@ -164,6 +167,8 @@ final class LibraryViewModel: ObservableObject {
         didSet {
             if contentTab == .collections {
                 settings.lastTab = LibraryScreenSettings.collectionsTab
+            } else if contentTab == .physical {
+                // Not remembered: the Library opens on a Plex tab next time.
             } else if let id = activeSection?.id {
                 settings.lastTab = LibraryScreenSettings.sectionTab(id)
             }

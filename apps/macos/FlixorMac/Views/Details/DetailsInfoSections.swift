@@ -299,57 +299,18 @@ struct DetailsTabContent: View {
                 }
             }
 
-            // External Links
-            if vm.imdbId != nil || vm.tmdbId != nil {
+            // External Links: IMDb and TMDB, plus the pages MyBluray knows
+            // (Letterboxd, Rotten Tomatoes, Apple TV, JustWatch).
+            let links = DetailsExternalLink.links(for: vm)
+            if !links.isEmpty {
                 VStack(alignment: .leading, spacing: DS.Space.s12) {
                     Text("External Links")
                         .font(.flixor(.title3, weight: .semibold))
                         .foregroundStyle(.white)
 
-                    HStack(spacing: DS.Space.s12) {
-                        if let imdbId = vm.imdbId {
-                            Link(destination: URL(string: "https://www.imdb.com/title/\(imdbId)")!) {
-                                HStack(spacing: DS.Space.s8) {
-                                    Image("imdb")
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fit)
-                                        .frame(height: 18)
-                                    Text("View on IMDb")
-                                        .font(.flixor(.callout, weight: .medium))
-                                }
-                                .foregroundStyle(.black)
-                                .padding(.horizontal, DS.Space.s16)
-                                .padding(.vertical, DS.Space.s10)
-                                .background(
-                                    RoundedRectangle(cornerRadius: DS.Radius.r8, style: .continuous)
-                                        .fill(Color(red: 0.96, green: 0.77, blue: 0.09)) // IMDb yellow
-                                )
-                            }
-                        }
-                        if let tmdbId = vm.tmdbId {
-                            let mediaPath = vm.mediaKind == "tv" ? "tv" : "movie"
-                            Link(destination: URL(string: "https://www.themoviedb.org/\(mediaPath)/\(tmdbId)")!) {
-                                HStack(spacing: DS.Space.s8) {
-                                    // TMDB logo representation
-                                    ZStack {
-                                        Circle()
-                                            .fill(Color(red: 0.02, green: 0.82, blue: 0.61)) // TMDB teal
-                                            .frame(width: 20, height: 20)
-                                        Text("T")
-                                            .font(.flixor(.footnote, weight: .bold))
-                                            .foregroundStyle(.white)
-                                    }
-                                    Text("View on TMDB")
-                                        .font(.flixor(.callout, weight: .medium))
-                                }
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, DS.Space.s16)
-                                .padding(.vertical, DS.Space.s10)
-                                .background(
-                                    RoundedRectangle(cornerRadius: DS.Radius.r8, style: .continuous)
-                                        .fill(Color(red: 0.03, green: 0.21, blue: 0.33)) // TMDB dark blue
-                                )
-                            }
+                    FlowLayout(spacing: DS.Space.controlGap) {
+                        ForEach(links) { link in
+                            DetailsExternalLinkButton(link: link)
                         }
                     }
                 }
@@ -403,6 +364,92 @@ struct DetailsTabContent: View {
             return Self.airDateOutputFormatter.string(from: date)
         }
         return dateString // Return as-is if parsing fails
+    }
+}
+
+// MARK: - External links
+
+struct DetailsExternalLink: Identifiable {
+    enum Mark { case asset(String, template: Bool, color: Color?), symbol(String, Color) }
+    let id: String
+    let title: String
+    let mark: Mark
+    let url: URL
+
+    @MainActor
+    static func links(for vm: DetailsViewModel) -> [DetailsExternalLink] {
+        var links: [DetailsExternalLink] = []
+        func add(_ id: String, _ title: String, _ mark: Mark, _ raw: String?) {
+            guard let raw, let url = URL(string: raw), !links.contains(where: { $0.id == id }) else { return }
+            links.append(DetailsExternalLink(id: id, title: title, mark: mark, url: url))
+        }
+        if let imdb = vm.imdbId { add("imdb", "IMDb", .asset("imdb", template: false, color: nil), "https://www.imdb.com/title/\(imdb)/") }
+        if let tmdb = vm.tmdbId {
+            add("tmdb", "TMDB", .asset("tmdb", template: true, color: Color(hex: "01B4E4")),
+                "https://www.themoviedb.org/\(vm.mediaKind == "tv" ? "tv" : "movie")/\(tmdb)")
+        }
+        let title = vm.myblurayTitle
+        let sources = Dictionary((title?.sources ?? []).compactMap { s in s.sourceUrl.map { (s.provider, $0) } },
+                                 uniquingKeysWith: { a, _ in a })
+        add("letterboxd", "Letterboxd", .asset("letterboxd", template: false, color: nil), sources["letterboxd"])
+        let rt = title?.ratings.first(where: { $0.provider == "rotten-tomatoes" && $0.websiteUrl != nil })?.websiteUrl
+        add("rt", "Rotten Tomatoes", .asset("tomato-fresh", template: false, color: nil), rt)
+        add("appletv", "Apple TV", .symbol("appletv.fill", .white), sources["apple-tv"])
+        add("justwatch", "JustWatch", .symbol("play.rectangle.fill", Color(hex: "FFD400")), sources["justwatch"])
+        if let imdb = vm.imdbId, title != nil || vm.parentsGuide != nil {
+            add("guide", String(localized: "Parents Guide"), .symbol("shield.lefthalf.filled", Color(hex: "F5C518")),
+                "https://www.imdb.com/title/\(imdb)/parentalguide/")
+        }
+        return links
+    }
+}
+
+/// Grey capsule with the service's mark, like the person page's link buttons.
+private struct DetailsExternalLinkButton: View {
+    let link: DetailsExternalLink
+
+    @Environment(\.flixorTheme) private var theme
+    @Environment(\.openURL) private var openURL
+    @State private var hovering = false
+
+    var body: some View {
+        Button { openURL(link.url) } label: {
+            HStack(spacing: DS.Space.s8) {
+                mark
+                Text(link.title)
+                    .flixorFont(.callout, weight: .semibold)
+                    .foregroundStyle(theme.textPrimary)
+                Image(systemName: "arrow.up.right")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(theme.textTertiary)
+            }
+            .padding(.horizontal, DS.Space.s14)
+            .frame(height: 36)
+            .background(Capsule().fill(hovering ? theme.pressedFill : theme.hoverFill))
+            .overlay(Capsule().strokeBorder(theme.separator, lineWidth: DS.Border.thin))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .help(link.url.absoluteString)
+        .accessibilityLabel("Open \(link.title)")
+    }
+
+    @ViewBuilder private var mark: some View {
+        switch link.mark {
+        case .asset(let name, let template, let color):
+            if template {
+                Image(name).renderingMode(.template).resizable().aspectRatio(contentMode: .fit)
+                    .frame(height: 12).foregroundStyle(color ?? theme.textPrimary)
+            } else {
+                Image(name).resizable().aspectRatio(contentMode: .fit)
+                    .frame(height: name == "letterboxd" ? 9 : 16)
+            }
+        case .symbol(let symbol, let color):
+            Image(systemName: symbol)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(color)
+        }
     }
 }
 

@@ -24,8 +24,10 @@ struct DetailsSectionsContainer: View {
     @EnvironmentObject private var mainView: MainViewState
     @ObservedObject private var store = DetailsSectionsStore.shared
     @ObservedObject private var profileSettings = ProfileSettings.shared
+    @ObservedObject private var myblurayStore = MyBluraySettingsStore.shared
 
     @StateObject private var collectionModel = DetailsCollectionModel()
+    @StateObject private var physicalModel = DetailsPhysicalModel()
     @StateObject private var episodeState = DetailsEpisodeStateModel()
     @State private var selectedTrailer: Trailer?
 
@@ -63,6 +65,28 @@ struct DetailsSectionsContainer: View {
         .task(id: collectionMovieId) {
             await collectionModel.load(movieId: collectionMovieId)
         }
+        .task(id: physicalTaskKey) {
+            await physicalModel.load(imdbId: physicalImdbId, settings: myblurayStore)
+        }
+
+    }
+
+    /// IMDb id of the movie being viewed (nil for shows and episodes): drives Physical Releases.
+    private var physicalImdbId: String? {
+        guard vm.mediaKind == "movie", !vm.isEpisode, myblurayStore.isOn(.physicalReleases) else { return nil }
+        return vm.imdbId
+    }
+
+    /// Reloads Physical Releases when the title or its settings change.
+    private var physicalTaskKey: String {
+        [physicalImdbId ?? "-", myblurayStore.discCountry,
+         "\(myblurayStore.isOn(.uhdFormat))\(myblurayStore.isOn(.blurayFormat))\(myblurayStore.isOn(.boxSets))\(myblurayStore.isOn(.quickAdd))"]
+            .joined(separator: "|")
+    }
+
+    /// Age rating, Common Sense and IMDb parents guide, as far as Settings allows.
+    private var guidanceContent: DetailsGuidanceContent {
+        DetailsGuidanceContent(title: vm.myblurayTitle, guide: vm.parentsGuide, settings: myblurayStore)
     }
 
     /// TMDB id of the movie being viewed (nil for shows), drives the collection row.
@@ -90,6 +114,10 @@ struct DetailsSectionsContainer: View {
             return profileSettings.showCastCrew && (!vm.cast.isEmpty || !vm.crew.isEmpty || !vm.guestStars.isEmpty)
         case .trailers:
             return !vm.trailers.isEmpty
+        case .physical:
+            return physicalImdbId != nil && physicalModel.phase == .loaded
+        case .guidance:
+            return !guidanceContent.isEmpty
         case .comments:
             return vm.titleWatchTarget != nil
         case .about:
@@ -127,6 +155,12 @@ struct DetailsSectionsContainer: View {
             .equatable()
         case .trailers:
             DetailsTrailersSection(trailers: vm.trailers, onPlay: { selectedTrailer = $0 })
+        case .physical:
+            DetailsPhysicalSection(model: physicalModel, onSelect: { edition in
+                router.push(EditionRoute(summary: edition), on: mainView.selectedTab)
+            })
+        case .guidance:
+            DetailsGuidanceSection(content: guidanceContent)
         case .comments:
             // The settled target: titleWatchTarget fills in over several load
             // steps and would restart the Trakt request each time.

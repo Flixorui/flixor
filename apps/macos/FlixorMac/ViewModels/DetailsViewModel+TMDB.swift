@@ -274,6 +274,23 @@ extension DetailsViewModel {
             return
         }
 
+        // Apple TV trailers from MyBluray, looked up alongside TMDB and put in
+        // front of the YouTube ones when they arrive (empty when that's off).
+        let appleTask: Task<[Trailer], Never>? = Int(tid).map { id in
+            Task { await TrailerService.shared.appleTrailers(tmdbId: id, mediaType: media == "tv" ? .tv : .movie) }
+        }
+        var youtube: [Trailer] = []
+        defer {
+            if let appleTask {
+                Task { @MainActor [weak self, youtube] in
+                    let apple = await appleTask.value
+                    guard let self, !apple.isEmpty, self.tmdbId == tid else { return }
+                    self.trailers = TrailerService.merge(apple: apple, youtube: youtube)
+                    print("✅ [loadTMDBTrailers] Added \(apple.count) Apple TV trailer(s)")
+                }
+            }
+        }
+
         do {
             struct VideosResponse: Codable {
                 let results: [VideoResult]?
@@ -320,6 +337,7 @@ extension DetailsViewModel {
                 )
             }
 
+            youtube = mapped
             await MainActor.run {
                 self.trailers = mapped
                 print("✅ [loadTMDBTrailers] Loaded \(mapped.count) trailer(s)")

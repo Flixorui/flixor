@@ -108,24 +108,69 @@ extension DetailsViewModel {
         }
     }
 
-    /// Load ratings from MDBList (if enabled and IMDB ID available)
+    /// Everything the merged ratings row reads.
+    var ratingInputs: RatingInputs {
+        RatingInputs(
+            mybluray: UserDefaults.standard.myblurayOptionActive(.ratings) ? myblurayRatings : [],
+            plexImdb: externalRatings?.imdb?.score ?? plexImdbRating,
+            plexCritics: externalRatings?.rottenTomatoes?.critic,
+            plexAudience: externalRatings?.rottenTomatoes?.audience ?? plexAudienceRating,
+            mdblist: mdblistRatings,
+            tmdb: tmdbRating
+        )
+    }
+
+    /// MyBluray's title record feeds ratings, age ratings and Common Sense.
+    static var wantsMyBlurayTitle: Bool {
+        let defaults = UserDefaults.standard
+        return [.ratings, .ageRatings, .commonSense].contains { defaults.myblurayOptionActive($0) }
+    }
+
+    static var wantsParentsGuide: Bool {
+        UserDefaults.standard.myblurayOptionActive(.imdbGuide)
+    }
+
+    /// Loads what needs an IMDb id, side by side: MDBList ratings (if set
+    /// up), MyBluray's title record and IMDb's parents guide (if those are on).
     func loadMDBListRatings() async {
-        guard MDBListService.shared.isReady() else { return }
-        guard let imdb = imdbId, !imdb.isEmpty else {
+        let wantsMDBList = MDBListService.shared.isReady()
+        let wantsTitle = Self.wantsMyBlurayTitle
+        let wantsGuide = Self.wantsParentsGuide
+        // Physical Releases needs the IMDb id too; it loads its own data.
+        let wantsImdbOnly = UserDefaults.standard.myblurayOptionActive(.physicalReleases)
+        guard wantsMDBList || wantsTitle || wantsGuide || wantsImdbOnly else { return }
+        if imdbId?.isEmpty ?? true, let tid = tmdbId, let media = mediaKind {
             // Try to get IMDB ID from TMDB external_ids if we have tmdbId
-            if let tid = tmdbId, let media = mediaKind {
-                let token = loadToken
-                await fetchImdbIdFromTMDB(tmdbId: tid, mediaType: media)
-                if token == loadToken { releaseTitleIds() }
-            }
-            guard let imdb = imdbId, !imdb.isEmpty else {
-                print("⚠️ [Details] No IMDB ID available for MDBList lookup")
-                return
-            }
-            await fetchMDBListRatings(imdbId: imdb)
+            let token = loadToken
+            await fetchImdbIdFromTMDB(tmdbId: tid, mediaType: media)
+            if token == loadToken { releaseTitleIds() }
+        }
+        guard let imdb = imdbId, !imdb.isEmpty else {
+            print("⚠️ [Details] No IMDB ID available for ratings lookup")
             return
         }
-        await fetchMDBListRatings(imdbId: imdb)
+        async let mdblist: Void = wantsMDBList ? fetchMDBListRatings(imdbId: imdb) : ()
+        async let mybluray: Void = wantsTitle ? fetchMyBlurayTitle(imdbId: imdb) : ()
+        async let guide: Void = wantsGuide ? fetchParentsGuide(imdbId: imdb) : ()
+        _ = await (mdblist, mybluray, guide)
+    }
+
+    private func fetchMyBlurayTitle(imdbId: String) async {
+        let title = try? await MyBlurayService.shared.title(imdbId: imdbId)
+        guard self.imdbId == imdbId else { return }
+        myblurayTitle = title
+        if let title {
+            print("✅ [Details] MyBluray: \(title.ratings.count) ratings, \(title.parentalGuidance.count) guidance, \(title.certifications.count) certificates for \(imdbId)")
+        }
+    }
+
+    private func fetchParentsGuide(imdbId: String) async {
+        let guide = try? await MyBlurayService.shared.parentsGuide(imdbId: imdbId)
+        guard self.imdbId == imdbId else { return }
+        parentsGuide = guide
+        if let guide {
+            print("✅ [Details] IMDb parents guide: \(guide.categories.count) categories for \(imdbId)")
+        }
     }
 
     private func fetchImdbIdFromTMDB(tmdbId: String, mediaType: String) async {

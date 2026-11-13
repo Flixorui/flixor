@@ -27,7 +27,7 @@ final class HoverPreviewModel: ObservableObject {
     @Published private(set) var backdropURL: URL?
     @Published private(set) var logoURL: URL?
     @Published private(set) var tmdbId: Int?
-    @Published private(set) var trailerKey: String?
+    @Published private(set) var trailer: Trailer?
     @Published var isWatched = false
 
     /// Delay after the preview appears before a trailer is looked up and started.
@@ -86,9 +86,9 @@ final class HoverPreviewModel: ObservableObject {
         guard trailerMode != .off, !Task.isCancelled else { return }
         try? await Task.sleep(nanoseconds: trailerSettleDelay)
         guard !Task.isCancelled else { return }
-        let key = await TrailerService.shared.bestTrailerKey(tmdbId: identity.id, mediaType: identity.mediaType)
+        let best = await TrailerService.shared.bestTrailer(tmdbId: identity.id, mediaType: identity.mediaType)
         guard !Task.isCancelled else { return }
-        trailerKey = key
+        trailer = best
     }
 
     private func loadDetails(_ id: Int, mediaType: TMDBMediaType) async {
