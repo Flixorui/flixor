@@ -432,7 +432,8 @@ function PlexLibrary() {
         )}
         estimatedItemSize={itemSize + 28}
         numColumns={numColumns}
-        contentContainerStyle={{ padding: 8, paddingTop: barHeight }}
+        // Clears the floating tab bar and the Sort button above it
+        contentContainerStyle={{ padding: 8, paddingTop: barHeight, paddingBottom: insets.bottom + 150 }}
         onEndReached={loadMore}
         onEndReachedThreshold={0.5}
         {...pull.dragHandlers}
