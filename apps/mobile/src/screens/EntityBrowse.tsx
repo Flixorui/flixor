@@ -193,12 +193,12 @@ function EntityGrid({ kind, id, name }: { kind: Kind; id: number; name?: string 
     <View style={styles.header}>
       {info?.backdrop ? (
         <View style={styles.backdrop}>
-          <FastImage source={{ uri: info.backdrop, cache: FastImage.cacheControl.immutable }} style={StyleSheet.absoluteFillObject} resizeMode={FastImage.resizeMode.cover} />
+          <FastImage source={{ uri: info.backdrop, cache: FastImage.cacheControl.immutable }} style={StyleSheet.absoluteFill} resizeMode={FastImage.resizeMode.cover} />
         </View>
       ) : null}
       {info?.logo ? (
         <View style={styles.logoPlate}>
-          <FastImage source={{ uri: info.logo, cache: FastImage.cacheControl.immutable }} style={StyleSheet.absoluteFillObject} resizeMode={FastImage.resizeMode.contain} />
+          <FastImage source={{ uri: info.logo, cache: FastImage.cacheControl.immutable }} style={StyleSheet.absoluteFill} resizeMode={FastImage.resizeMode.contain} />
         </View>
       ) : null}
       {info ? <Text style={[styles.subtitle, { color: theme.textSecondary }]}>{[info.subtitle, kind === 'collection' ? null : countText].filter(Boolean).join(' · ')}</Text> : null}

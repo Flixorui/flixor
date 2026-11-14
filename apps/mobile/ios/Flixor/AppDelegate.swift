@@ -1,9 +1,13 @@
-import Expo
+internal import Expo
 import React
 import ReactAppDependencyProvider
 
-@UIApplicationMain
-public class AppDelegate: ExpoAppDelegate {
+// Apps built with the iOS 27 SDK must use the scene life cycle or they fail to launch.
+// Expo's EXExpoAppSceneDelegate (set in Info.plist under UIApplicationSceneManifest) creates
+// the window and starts React Native with the factory this delegate provides. This is the
+// shape the `ios.enableSceneSupport` option of expo-build-properties generates.
+@main
+class AppDelegate: ExpoAppDelegate, ExpoReactNativeFactoryProvider {
   var window: UIWindow?
 
   var reactNativeDelegate: ExpoReactNativeFactoryDelegate?
@@ -19,15 +23,6 @@ public class AppDelegate: ExpoAppDelegate {
 
     reactNativeDelegate = delegate
     reactNativeFactory = factory
-    bindReactNativeFactory(factory)
-
-#if os(iOS) || os(tvOS)
-    window = UIWindow(frame: UIScreen.main.bounds)
-    factory.startReactNative(
-      withModuleName: "main",
-      in: window,
-      launchOptions: launchOptions)
-#endif
 
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }

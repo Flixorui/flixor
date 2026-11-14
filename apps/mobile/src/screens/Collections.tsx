@@ -210,13 +210,13 @@ export default function Collections() {
         colors={['#0a0a0a', '#0f0f10', '#0b0c0d']}
         start={{ x: 0.5, y: 0 }}
         end={{ x: 0.5, y: 1 }}
-        style={StyleSheet.absoluteFillObject}
+        style={StyleSheet.absoluteFill}
       />
       <LinearGradient
         colors={['rgba(122,22,18,0.18)', 'rgba(122,22,18,0.06)', 'transparent']}
         start={{ x: 0.0, y: 1.0 }}
         end={{ x: 0.45, y: 0.35 }}
-        style={StyleSheet.absoluteFillObject}
+        style={StyleSheet.absoluteFill}
       />
 
       {/* Header */}

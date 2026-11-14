@@ -183,7 +183,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   initials: { color: 'rgba(255,255,255,0.6)', fontSize: 28, fontWeight: '500' },
-  busy: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' },
+  busy: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' },
   name: { color: '#fff', fontSize: 14, fontWeight: '500', marginTop: 8 },
   role: { color: 'rgba(255,255,255,0.5)', fontSize: 12, marginTop: 2 },
 });

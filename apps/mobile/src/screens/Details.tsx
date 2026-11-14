@@ -25,6 +25,14 @@ import { useNavigation, useFocusEffect, useIsFocused } from '@react-navigation/n
 import { TopBarStore } from '../components/TopBarStore';
 import { useFlixor } from '../core/FlixorContext';
 import { useAppSettings } from '../hooks/useAppSettings';
+import { useMyBlurayTitle, useParentsGuide, usePhysicalReleases } from '../core/mybluray/hooks';
+import DetailsPhysicalSection from '../components/details/DetailsPhysicalSection';
+import DetailsGuidanceSection, { guidanceContent, isGuidanceEmpty } from '../components/details/DetailsGuidanceSection';
+import { isMyBlurayOn } from '../core/mybluray/options';
+import { mergeRatings, ratingHelp, ratingText, type MergedRating } from '../core/ratings/merged';
+import { mergeTrailers, type MergedTrailer } from '../core/mybluray/trailers';
+import RatingLogo, { LetterboxdMark, TmdbMark } from '../components/RatingLogo';
+import type { MBTitle } from '../core/mybluray/types';
 import { useMDBListRatings } from '../hooks/useMDBListRatings';
 import {
   fetchPlexMetadata,
@@ -571,6 +579,9 @@ export default function Details({ route }: RouteParams) {
               Genre: genres,
               logoUrl: logo,
             });
+            // The IMDb id drives MDBList and MyBluray: set it as soon as TMDB has it
+            const tmdbImdb = det?.external_ids?.imdb_id || det?.imdb_id;
+            if (tmdbImdb) setImdbId(tmdbImdb);
             setNoLocalSource(true);
             setMatchedPlex(false);
             setMappedRk(null);
@@ -1012,9 +1023,38 @@ export default function Details({ route }: RouteParams) {
     if (seasonKey) await loadSeasonEpisodes(seasonKey);
   }, [seasonKey, loadSeasonEpisodes]);
 
+  // Plex items matched by a TMDB agent may carry no IMDb guid: ask TMDB for it
+  useEffect(() => {
+    const tmdb = watchlistIds?.tmdbId;
+    if (imdbId || !tmdb || !meta || meta.type === 'episode') return;
+    let cancelled = false;
+    fetchTmdbDetails(meta.type === 'movie' ? 'movie' : 'tv', Number(tmdb))
+      .then((d: any) => {
+        const id = d?.external_ids?.imdb_id || d?.imdb_id;
+        if (!cancelled && id) setImdbId(id);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [imdbId, watchlistIds?.tmdbId, meta?.type]);
+
   const titleName: string = meta?.title || meta?.grandparentTitle || 'Title';
   const showTmdbId = meta?.type === 'episode' ? undefined : watchlistIds?.tmdbId;
   const showImdbId = meta?.type === 'episode' ? undefined : imdbId;
+  // MyBluray fills in after the page renders (never blocks it)
+  const { title: mbTitle, settled: mbSettled } = useMyBlurayTitle(showImdbId, settings);
+  // Apple TV trailers (MyBluray) first, then TMDB's YouTube ones
+  const allTrailers = useMemo(() => mergeTrailers(mbTitle, trailers as MergedTrailer[], settings), [mbTitle, trailers, settings]);
+  const parentsGuide = useParentsGuide(showImdbId, settings);
+  const physical = usePhysicalReleases(showImdbId, meta?.type === 'movie', settings);
+  const guidance = useMemo(() => guidanceContent(mbTitle, parentsGuide, settings), [mbTitle, parentsGuide, settings]);
+  const [ratingInfo, setRatingInfo] = useState<string | null>(null);
+  useEffect(() => {
+    if (!ratingInfo) return;
+    const timer = setTimeout(() => setRatingInfo(null), 6000);
+    return () => clearTimeout(timer);
+  }, [ratingInfo]);
 
   // Without Plex the key must be absent so changes go to Trakt and this device
   const plexKey = isStremioOnly ? undefined : mappedRk || (params.type === 'plex' ? params.ratingKey : undefined);
@@ -1112,7 +1152,11 @@ export default function Details({ route }: RouteParams) {
           case 'cast':
             return hasCastOrCrew;
           case 'trailers':
-            return trailers.length > 0;
+            return allTrailers.length > 0;
+          case 'guidance':
+            return meta?.type !== 'episode' && !isGuidanceEmpty(guidance);
+          case 'physical':
+            return meta?.type === 'movie' && physical.editions.length > 0;
           case 'comments':
             return titleTarget !== null;
           case 'suggested':
@@ -1122,14 +1166,31 @@ export default function Details({ route }: RouteParams) {
             return true;
         }
       }),
-    [settings.detailsSectionPreferences, meta?.type, seasons.length, collection, hasCastOrCrew, trailers.length, titleTarget]
+    [settings.detailsSectionPreferences, meta?.type, seasons.length, collection, hasCastOrCrew, allTrailers.length, titleTarget, guidance, physical.editions.length]
   );
 
-  const heroTrailerKey = useMemo(() => {
-    if (!settings.detailsHeroInlineTrailerEnabled || heroTrailerFinished) return undefined;
+  // Hero trailer: Apple TV when MyBluray answers within 4 s, else YouTube (the lookup keeps
+  // running and is cached for next time). Chosen once, so it never swaps mid-play.
+  const youtubeHeroKey = useMemo(() => {
     const youtube = trailers.filter((t) => t.site?.toLowerCase() === 'youtube');
     return (youtube.find((t) => t.type === 'Trailer' && t.official) ?? youtube.find((t) => t.type === 'Trailer') ?? youtube[0])?.key;
-  }, [settings.detailsHeroInlineTrailerEnabled, heroTrailerFinished, trailers]);
+  }, [trailers]);
+  const [heroWaitOver, setHeroWaitOver] = useState(false);
+  const [heroPick, setHeroPick] = useState<{ stream?: string; key?: string } | null>(null);
+  useEffect(() => {
+    const t = setTimeout(() => setHeroWaitOver(true), 4000);
+    return () => clearTimeout(t);
+  }, []);
+  const appleHero = allTrailers.find((t) => t.streamUrl && (t.type === 'Trailer' || t.type === 'Teaser'));
+  const appleHeroOn = isMyBlurayOn('appleTrailers', settings) && !!showImdbId;
+  useEffect(() => {
+    if (heroPick || !settings.detailsHeroInlineTrailerEnabled) return;
+    if (appleHero?.streamUrl) setHeroPick({ stream: appleHero.streamUrl });
+    else if (youtubeHeroKey && (!appleHeroOn || mbSettled || heroWaitOver)) setHeroPick({ key: youtubeHeroKey });
+  }, [heroPick, settings.detailsHeroInlineTrailerEnabled, appleHero?.streamUrl, youtubeHeroKey, appleHeroOn, mbSettled, heroWaitOver]);
+  const heroActive = settings.detailsHeroInlineTrailerEnabled && !heroTrailerFinished;
+  const heroTrailerKey = heroActive ? heroPick?.key : undefined;
+  const heroTrailerStream = heroActive ? heroPick?.stream : undefined;
 
   console.log('[Details] Render - loading:', loading, 'isConnected:', isConnected, 'meta:', !!meta);
 
@@ -1260,29 +1321,36 @@ export default function Details({ route }: RouteParams) {
     String(s?.title || '').toLowerCase().includes('description')
   );
 
-  // Parse ratings for inline display
+  // Ratings: one merged row from MyBluray, Plex, MDBList and TMDB, each from the
+  // source picked in Settings → Details Screen (as on macOS)
   const plexRatings: any[] = Array.isArray(meta?.Rating) ? meta.Rating : [];
-  let imdbRating: number | undefined;
-  let rtCriticRating: number | undefined;
-  let rtAudienceRating: number | undefined;
+  let plexImdb: number | undefined;
+  let plexCritics: number | undefined;
+  let plexAudience: number | undefined;
   try {
     plexRatings.forEach((r: any) => {
       const img = String(r?.image || '').toLowerCase();
       const val = typeof r?.value === 'number' ? r.value : Number(r?.value);
-      if (img.includes('imdb://image.rating')) imdbRating = val;
-      if (img.includes('rottentomatoes://image.rating.ripe') || img.includes('rottentomatoes://image.rating.rotten')) rtCriticRating = val ? Math.round(val * 10) : undefined;
-      if (img.includes('rottentomatoes://image.rating.upright') || img.includes('rottentomatoes://image.rating.spilled')) rtAudienceRating = val ? Math.round(val * 10) : undefined;
+      if (img.includes('imdb://image.rating')) plexImdb = val;
+      if (img.includes('rottentomatoes://image.rating.ripe') || img.includes('rottentomatoes://image.rating.rotten')) plexCritics = val ? Math.round(val * 10) : undefined;
+      if (img.includes('rottentomatoes://image.rating.upright') || img.includes('rottentomatoes://image.rating.spilled')) plexAudience = val ? Math.round(val * 10) : undefined;
     });
   } catch {}
-  // Fallbacks from top-level fields
-  if (!imdbRating && typeof meta?.rating === 'number') imdbRating = meta.rating;
-  if (!rtAudienceRating && typeof meta?.audienceRating === 'number') rtAudienceRating = Math.round(meta.audienceRating * 10);
-  // Then MDBList, then TMDB, as on macOS (the hero is the only place ratings appear)
-  const mdb = mdblistRating.ratings;
-  if (!imdbRating && mdb?.imdb) imdbRating = mdb.imdb;
-  if (!imdbRating && tmdbExtraInfo?.voteAverage) imdbRating = tmdbExtraInfo.voteAverage;
-  if (!rtCriticRating && mdb?.tomatoes) rtCriticRating = Math.round(mdb.tomatoes);
-  if (!rtAudienceRating && mdb?.audience) rtAudienceRating = Math.round(mdb.audience);
+  // Older Plex agents put one score on top-level fields; trust them only when the image says what they are
+  if (!plexImdb && typeof meta?.rating === 'number' && String(meta?.ratingImage || '').includes('imdb')) plexImdb = meta.rating;
+  if (!plexCritics && typeof meta?.rating === 'number' && String(meta?.ratingImage || '').includes('rottentomatoes')) plexCritics = Math.round(meta.rating * 10);
+  if (!plexAudience && typeof meta?.audienceRating === 'number' && String(meta?.audienceRatingImage || '').includes('rottentomatoes')) plexAudience = Math.round(meta.audienceRating * 10);
+  const mergedRatings: MergedRating[] = mergeRatings(
+    {
+      mybluray: isMyBlurayOn('ratings', settings) ? mbTitle?.ratings ?? [] : [],
+      plexImdb,
+      plexCritics,
+      plexAudience,
+      mdblist: mdblistRating.ratings,
+      tmdb: meta?.type === 'episode' ? undefined : tmdbExtraInfo?.voteAverage,
+    },
+    settings
+  );
 
   // Handler for sticky header watchlist toggle
   const handleStickyWatchlistToggle = async () => {
@@ -1358,7 +1426,16 @@ export default function Details({ route }: RouteParams) {
           />
         );
       case 'trailers':
-        return <TrailersRow trailers={trailers} contentTitle={meta?.title} />;
+        return <TrailersRow trailers={allTrailers} contentTitle={meta?.title} />;
+      case 'guidance':
+        return <DetailsGuidanceSection content={guidance} settings={settings} />;
+      case 'physical':
+        return (
+          <DetailsPhysicalSection
+            releases={physical}
+            onSelect={(edition) => nav.push('Edition', { id: edition.id, summary: edition, movieTitle: title })}
+          />
+        );
       case 'comments':
         return <DetailsComments target={titleTarget} />;
       case 'about':
@@ -1370,6 +1447,10 @@ export default function Details({ route }: RouteParams) {
             tmdbCrew={tmdbCrew}
             episodeExtra={episodeExtra}
             firstEpisodeMedia={firstEpisodeMedia}
+            imdbId={showImdbId}
+            tmdbId={showTmdbId}
+            hideContentRating={!!guidance.certificate}
+            mbTitle={mbTitle}
             onOpenEntity={(kind, id, name) => nav.push('EntityBrowse', { kind, id, name })}
           />
         );
@@ -1385,6 +1466,8 @@ export default function Details({ route }: RouteParams) {
         heroHeight={HERO_HEIGHT}
         scrollY={scrollY}
         trailerKey={heroTrailerKey}
+        trailerStream={heroTrailerStream}
+        onTrailerFailed={() => setHeroPick(youtubeHeroKey ? { key: youtubeHeroKey } : null)}
         trailerMuted={heroTrailerMuted}
         trailerAllowed={isFocused}
         onTrailerPlayingChange={setHeroTrailerPlaying}
@@ -1501,9 +1584,24 @@ export default function Details({ route }: RouteParams) {
                 hitSlop={8}
                 accessibilityRole="button"
                 accessibilityLabel={heroTrailerMuted ? 'Unmute trailer' : 'Mute trailer'}
-                style={{ position: 'absolute', right: 12, top: insets.top + 8, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' }}
+                style={{ position: 'absolute', right: 12, top: insets.top + 8, width: 36, height: 36 }}
               >
-                <Ionicons name={heroTrailerMuted ? 'volume-mute' : 'volume-high'} size={18} color="#fff" />
+                {/* Same glass as the back button opposite */}
+                {Platform.OS === 'ios' && GlassViewComp && liquidGlassAvailable ? (
+                  <>
+                    <GlassViewComp key={`mute-glass-${glassKey}`} style={{ position: 'absolute', width: 36, height: 36, borderRadius: 18, overflow: 'hidden' }} isInteractive glassEffectStyle="clear" tintColor="rgba(59, 55, 55, 0.15)" />
+                    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }} pointerEvents="none">
+                      <Ionicons name={heroTrailerMuted ? 'volume-mute' : 'volume-high'} size={18} color="#fff" />
+                    </View>
+                  </>
+                ) : (
+                  <>
+                    <ConditionalBlurView intensity={60} tint="dark" style={{ flex: 1, borderRadius: 18, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
+                      <Ionicons name={heroTrailerMuted ? 'volume-mute' : 'volume-high'} size={18} color="#fff" />
+                    </ConditionalBlurView>
+                    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 18, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' }} pointerEvents="none" />
+                  </>
+                )}
               </Pressable>
             ) : null}
             {/* TMDB logo overlay with parallax */}
@@ -1549,38 +1647,27 @@ export default function Details({ route }: RouteParams) {
           {hasSDH && !hasCC ? <TechBadge type="sdh" size={10} /> : null}
           {hasAD ? <TechBadge type="ad" size={10} /> : null}
           {!matchedPlex && params.type === 'tmdb' && !isStremioOnly ? <BadgePill label="No local source" /> : null}
-          {(() => {
-            const ratings: React.ReactNode[] = [];
-            if (detailsSettings.showIMDbRating && typeof imdbRating === 'number') {
-              ratings.push(
-                <View key="imdb" style={styles.heroRating}>
-                  <Image source={RATING_IMAGES.imdb} style={{ width: 22, height: 11 }} resizeMode="contain" />
-                  <Text style={styles.heroRatingText}>{imdbRating.toFixed(1)}</Text>
-                </View>
-              );
-            }
-            if (detailsSettings.showRottenTomatoesCritic && typeof rtCriticRating === 'number') {
-              ratings.push(
-                <View key="rt" style={styles.heroRating}>
-                  <Image source={rtCriticRating >= 60 ? RATING_IMAGES.tomatoFresh : RATING_IMAGES.tomatoRotten} style={{ width: 11, height: 11 }} resizeMode="contain" />
-                  <Text style={styles.heroRatingText}>{rtCriticRating}%</Text>
-                </View>
-              );
-            }
-            if (detailsSettings.showRottenTomatoesAudience && typeof rtAudienceRating === 'number') {
-              ratings.push(
-                <View key="rta" style={styles.heroRating}>
-                  <Image source={rtAudienceRating >= 60 ? RATING_IMAGES.popcornFull : RATING_IMAGES.popcornFallen} style={{ width: 11, height: 11 }} resizeMode="contain" />
-                  <Text style={styles.heroRatingText}>{rtAudienceRating}%</Text>
-                </View>
-              );
-            }
-            return ratings.flatMap((node, i) => [
-              <Text key={`dot-${i}`} style={styles.heroDot}>·</Text>,
-              node,
-            ]);
-          })()}
+          {mergedRatings.flatMap((r) => [
+            <Text key={`dot-${r.kind}`} style={styles.heroDot}>·</Text>,
+            <Pressable
+              key={r.kind}
+              onLongPress={() => setRatingInfo(ratingHelp(r))}
+              onPress={() => ratingInfo && setRatingInfo(ratingHelp(r))}
+              delayLongPress={300}
+              hitSlop={6}
+              accessibilityLabel={ratingHelp(r).split('\n')[0]}
+              style={styles.heroRating}
+            >
+              <RatingLogo kind={r.kind} value={r.value} size={11} />
+              <Text style={styles.heroRatingText}>{ratingText(r)}</Text>
+            </Pressable>,
+          ])}
         </ScrollView>
+        {ratingInfo ? (
+          <Pressable onPress={() => setRatingInfo(null)} style={styles.ratingInfo} accessibilityRole="button" accessibilityLabel="Close rating details">
+            <Text style={styles.ratingInfoText}>{ratingInfo}</Text>
+          </Pressable>
+        ) : null}
 
         {/* View Show button for episodes */}
         {meta?.type === 'episode' && meta?.grandparentRatingKey && (
@@ -2108,8 +2195,14 @@ function extractEditionTitle(media?: any[]): string | undefined {
   return undefined;
 }
 
-function DetailsTab({ meta, productionInfo, tmdbExtraInfo, tmdbCrew, episodeExtra, firstEpisodeMedia, onOpenEntity }: {
+function DetailsTab({ meta, productionInfo, tmdbExtraInfo, tmdbCrew, episodeExtra, firstEpisodeMedia, onOpenEntity, imdbId: imdbIdProp, tmdbId: tmdbIdProp, hideContentRating, mbTitle }: {
   meta: any;
+  /** MyBluray's title: links to its pages on Letterboxd, Rotten Tomatoes, Apple TV and JustWatch. */
+  mbTitle?: MBTitle | null;
+  /** The Parents Guide's Age Rating card already shows it. */
+  hideContentRating?: boolean;
+  imdbId?: string;
+  tmdbId?: number;
   productionInfo?: Array<{id: number; name: string; logo?: string}>;
   tmdbExtraInfo?: {
     runtime?: number;
@@ -2134,8 +2227,9 @@ function DetailsTab({ meta, productionInfo, tmdbExtraInfo, tmdbCrew, episodeExtr
   onOpenEntity: (kind: 'company' | 'network', id: number, name: string) => void;
 }) {
   const guids: string[] = Array.isArray(meta?.Guid) ? meta.Guid.map((g:any)=> String(g.id||'')) : [];
-  const imdbId = guids.find(x=> x.startsWith('imdb://'))?.split('://')[1];
-  const tmdbId = guids.find(x=> x.includes('tmdb://') || x.includes('themoviedb://'))?.split('://')[1];
+  // The screen's ids also cover TMDB-only titles (no Plex guids)
+  const imdbId = imdbIdProp || guids.find(x=> x.startsWith('imdb://'))?.split('://')[1];
+  const tmdbId = (tmdbIdProp != null ? String(tmdbIdProp) : undefined) || guids.find(x=> x.includes('tmdb://') || x.includes('themoviedb://'))?.split('://')[1];
   const isMovie = meta?.type === 'movie';
   const isShow = meta?.type === 'show';
   const isEpisode = meta?.type === 'episode';
@@ -2158,6 +2252,23 @@ function DetailsTab({ meta, productionInfo, tmdbExtraInfo, tmdbCrew, episodeExtr
   const imdbUrl = imdbId ? `https://www.imdb.com/title/${imdbId}` : undefined;
   const tmdbUrl = tmdbId ? `https://www.themoviedb.org/${isMovie ? 'movie' : 'tv'}/${tmdbId}` : undefined;
   const episodeAirDate = episodeExtra?.air_date || meta?.originallyAvailableAt;
+  // IMDb, TMDB, then the title's pages that MyBluray knows (Letterboxd, Rotten Tomatoes,
+  // Apple TV, JustWatch), as on macOS. No Parents Guide link: the section has it all.
+  const externalLinks: { id: string; title: string; url: string; mark: React.ReactNode }[] = [];
+  const addLink = (id: string, title: string, url: string | null | undefined, mark: React.ReactNode) => {
+    if (url && !externalLinks.some((l) => l.id === id)) externalLinks.push({ id, title, url, mark });
+  };
+  addLink('imdb', 'IMDb', imdbUrl, <Image source={RATING_IMAGES.imdb} style={{ width: 30, height: 15 }} resizeMode="contain" />);
+  addLink('tmdb', 'TMDB', tmdbUrl, <TmdbMark size={12} />);
+  if (!isEpisode) {
+    const sources: Record<string, string> = {};
+    for (const src of mbTitle?.sources ?? []) if (src.sourceUrl && !sources[src.provider]) sources[src.provider] = src.sourceUrl;
+    addLink('letterboxd', 'Letterboxd', sources.letterboxd, <LetterboxdMark size={10} />);
+    const rt = mbTitle?.ratings.find((r) => r.provider === 'rotten-tomatoes' && r.websiteUrl)?.websiteUrl;
+    addLink('rt', 'Rotten Tomatoes', rt, <Image source={RATING_IMAGES.tomatoFresh} style={{ width: 14, height: 14 }} resizeMode="contain" />);
+    addLink('appletv', 'Apple TV', sources['apple-tv'], <Ionicons name="logo-apple" size={16} color="#fff" />);
+    addLink('justwatch', 'JustWatch', sources.justwatch, <View style={styles.justWatchMark}><Ionicons name="play" size={9} color="#000" /></View>);
+  }
 
   return (
     <View>
@@ -2171,7 +2282,7 @@ function DetailsTab({ meta, productionInfo, tmdbExtraInfo, tmdbCrew, episodeExtr
         {genres.length ? <Text style={styles.aboutGenres}>{genres.join(', ').toUpperCase()}</Text> : null}
         {meta?.summary ? <Text style={styles.aboutOverview}>{meta.summary}</Text> : null}
       </View>
-      {meta?.contentRating ? (
+      {meta?.contentRating && !hideContentRating ? (
         <View style={styles.ratingTile}>
           <Ionicons name="checkmark-circle" size={22} color="#30D158" />
           <Text style={styles.ratingTileValue}>{meta.contentRating}</Text>
@@ -2223,22 +2334,23 @@ function DetailsTab({ meta, productionInfo, tmdbExtraInfo, tmdbCrew, episodeExtr
 
       <Collections meta={meta} />
 
-      {imdbUrl || tmdbUrl ? (
+      {externalLinks.length ? (
         <>
           <SectionHeader title="External Links" />
           <View style={styles.linkRow}>
-            {imdbUrl ? (
-              <Pressable onPress={() => Linking.openURL(imdbUrl)} style={styles.linkButton} accessibilityRole="link">
-                <Image source={RATING_IMAGES.imdb} style={{ width: 30, height: 15 }} resizeMode="contain" />
-                <Text style={styles.linkText}>View on IMDb</Text>
+            {externalLinks.map((link) => (
+              <Pressable
+                key={link.id}
+                onPress={() => Linking.openURL(link.url).catch(() => undefined)}
+                style={({ pressed }) => [styles.linkButton, pressed && { opacity: 0.7 }]}
+                accessibilityRole="link"
+                accessibilityLabel={`${link.title}, opens in browser`}
+              >
+                {link.mark}
+                <Text style={styles.linkText}>{link.title}</Text>
+                <Feather name="arrow-up-right" size={13} color="rgba(255,255,255,0.55)" />
               </Pressable>
-            ) : null}
-            {tmdbUrl ? (
-              <Pressable onPress={() => Linking.openURL(tmdbUrl)} style={styles.linkButton} accessibilityRole="link">
-                <Ionicons name="open-outline" size={16} color="#fff" />
-                <Text style={styles.linkText}>View on TMDB</Text>
-              </Pressable>
-            ) : null}
+            ))}
           </View>
         </>
       ) : null}
@@ -2249,6 +2361,19 @@ function DetailsTab({ meta, productionInfo, tmdbExtraInfo, tmdbCrew, episodeExtr
 
 const styles = StyleSheet.create({
   heroRating: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  ratingInfo: {
+    alignSelf: 'center',
+    marginTop: 8,
+    marginHorizontal: 24,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: 'rgba(30,30,32,0.94)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.14)',
+    maxWidth: 420,
+  },
+  ratingInfoText: { color: 'rgba(255,255,255,0.9)', fontSize: 13, lineHeight: 18, textAlign: 'center' },
   aboutTagline: { color: 'rgba(255,255,255,0.7)', fontSize: 16, fontStyle: 'italic', marginHorizontal: 16, marginBottom: 12 },
   aboutCard: { marginHorizontal: 16, padding: 16, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.08)', gap: 10 },
   aboutTitle: { color: '#fff', fontSize: 18, fontWeight: '600' },
@@ -2267,17 +2392,21 @@ const styles = StyleSheet.create({
   },
   ratingTileValue: { color: '#fff', fontSize: 20, fontWeight: '700' },
   ratingTileLabel: { color: 'rgba(255,255,255,0.5)', fontSize: 13, marginLeft: 'auto' },
-  linkRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingHorizontal: 16 },
+  linkRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 16 },
+  // Grey capsules with the service's mark, like the Person page's link buttons
   linkButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    height: 44,
+    gap: 7,
+    height: 38,
     paddingHorizontal: 14,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 19,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.14)',
   },
-  linkText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  linkText: { color: '#fff', fontSize: 14, fontWeight: '600' },
+  justWatchMark: { width: 16, height: 16, borderRadius: 4, backgroundColor: '#FFD400', alignItems: 'center', justifyContent: 'center' },
   heroRatingText: { color: 'rgba(255,255,255,0.86)', fontSize: 12, fontWeight: '600' },
   heroDot: { color: 'rgba(255,255,255,0.4)', fontSize: 12 },
   // One white primary button per screen (macOS rule); secondary buttons are translucent grey

@@ -44,7 +44,7 @@ export default function StremioSources({ route }: RouteParams) {
         <ImageBackground source={{ uri: params.backdrop }} style={styles.backdrop} resizeMode="cover">
           <LinearGradient
             colors={['rgba(8,8,10,0.1)', 'rgba(8,8,10,0.75)', '#08080a']}
-            style={StyleSheet.absoluteFillObject}
+            style={StyleSheet.absoluteFill}
           />
         </ImageBackground>
       ) : null}
@@ -184,7 +184,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#08080a',
   },
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   content: {
     gap: 0,

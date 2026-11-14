@@ -135,7 +135,7 @@ const styles = StyleSheet.create({
     height: STAR_SIZE,
   },
   halves: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     flexDirection: 'row',
   },
   half: {

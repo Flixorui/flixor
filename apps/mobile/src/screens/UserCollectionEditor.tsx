@@ -250,7 +250,7 @@ export default function UserCollectionEditor({
                           { width: isPoster ? 80 : 160, height: isPoster ? 120 : 90, borderColor: active ? theme.accent : 'transparent' },
                         ]}
                       >
-                        <FastImage source={{ uri: url }} style={StyleSheet.absoluteFillObject} resizeMode={FastImage.resizeMode.cover} />
+                        <FastImage source={{ uri: url }} style={StyleSheet.absoluteFill} resizeMode={FastImage.resizeMode.cover} />
                       </Pressable>
                     );
                   })}

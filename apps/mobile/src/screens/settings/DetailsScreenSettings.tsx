@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, ScrollView, Text, Pressable, StyleSheet, Animated } from 'react-native';
+import { View, ScrollView, Text, Pressable, StyleSheet, Animated, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -15,7 +15,18 @@ import {
   moveDetailsSection,
   normalizeDetailsSections,
 } from '../../core/DetailsSectionsStore';
-import { DEFAULT_APP_SETTINGS, type DetailsSectionKey, type DetailsSeasonPickerStyle } from '../../core/SettingsData';
+import { DEFAULT_APP_SETTINGS, type AppSettings, type DetailsSectionKey, type DetailsSeasonPickerStyle } from '../../core/SettingsData';
+import RatingLogo from '../../components/RatingLogo';
+import {
+  RATING_KINDS,
+  RATING_META,
+  SOURCE_TITLES,
+  isRatingShown,
+  ratingShownPatch,
+  ratingSource,
+  type RatingKind,
+  type RatingSource,
+} from '../../core/ratings/merged';
 
 export default function DetailsScreenSettings() {
   const headerScrollY = React.useRef(new Animated.Value(0)).current;
@@ -25,6 +36,12 @@ export default function DetailsScreenSettings() {
   const theme = useTheme();
   const headerHeight = insets.top + 52;
   const sections = normalizeDetailsSections(settings.detailsSectionPreferences);
+  const [picking, setPicking] = React.useState<RatingKind | null>(null);
+  const setAppSettingsPatch = async (patch: Partial<AppSettings>) => {
+    for (const [key, value] of Object.entries(patch)) {
+      await updateSetting(key as keyof AppSettings, value as any);
+    }
+  };
 
   const setSectionEnabled = (key: DetailsSectionKey, enabled: boolean) =>
     updateSetting(
@@ -232,51 +249,85 @@ export default function DetailsScreenSettings() {
           <Text style={styles.resetText}>Reset Sections and Episode Options</Text>
         </Pressable>
 
-        <SettingsCard title="RATINGS DISPLAY">
-          <SettingItem
-            title="IMDb Rating"
-            description="Show IMDb rating on details screen"
-            icon="star-outline"
-            renderRight={() => (
-              <SettingsSwitch
-                value={settings.showIMDbRating ?? true}
-                onValueChange={(value) => updateSetting('showIMDbRating', value)}
+        <SettingsCard title="RATINGS">
+          {RATING_KINDS.map((kind, index) => {
+            const meta = RATING_META[kind];
+            const shown = isRatingShown(kind, settings);
+            const source = ratingSource(kind, settings);
+            const needsMdblist = meta.sources.length === 1 && meta.sources[0] === 'mdblist' && !settings.mdblistApiKey;
+            const canPick = meta.sources.length > 1;
+            return (
+              <SettingItem
+                key={kind}
+                title={meta.title}
+                description={needsMdblist ? 'Needs an MDBList key' : canPick ? `${meta.subtitle} · ${SOURCE_TITLES[source]}` : meta.subtitle}
+                renderIcon={() => <RatingLogo kind={kind} value={kind === 'metacritic' ? 75 : 80} size={kind === 'imdb' || kind === 'letterboxd' ? 9 : 16} />}
+                onPress={canPick ? () => setPicking(kind) : undefined}
+                renderRight={() => (
+                  <SettingsSwitch
+                    value={shown}
+                    onValueChange={(value) => setAppSettingsPatch(ratingShownPatch(kind, value, settings))}
+                  />
+                )}
+                isLast={index === RATING_KINDS.length - 1}
               />
-            )}
-            isLast={false}
-          />
-          <SettingItem
-            title="Rotten Tomatoes (Critics)"
-            description="Show critic score from Rotten Tomatoes"
-            icon="leaf-outline"
-            renderRight={() => (
-              <SettingsSwitch
-                value={settings.showRottenTomatoesCritic ?? true}
-                onValueChange={(value) => updateSetting('showRottenTomatoesCritic', value)}
-              />
-            )}
-            isLast={false}
-          />
-          <SettingItem
-            title="Rotten Tomatoes (Audience)"
-            description="Show audience score from Rotten Tomatoes"
-            icon="people-outline"
-            renderRight={() => (
-              <SettingsSwitch
-                value={settings.showRottenTomatoesAudience ?? true}
-                onValueChange={(value) => updateSetting('showRottenTomatoesAudience', value)}
-              />
-            )}
-            isLast={true}
-          />
+            );
+          })}
         </SettingsCard>
+        <Text style={styles.footnote}>Tap a rating to choose where it comes from. Automatic uses MyBluray, then Plex, then MDBList, then TMDB. Long-press a rating on a Details page to see its votes and source.</Text>
       </Animated.ScrollView>
+
+      <Modal visible={picking !== null} transparent animationType="slide" onRequestClose={() => setPicking(null)}>
+        <Pressable style={styles.sheetScrim} onPress={() => setPicking(null)} />
+        {picking ? (
+          <View style={[styles.sheet, { backgroundColor: theme.surfaceElevated, paddingBottom: insets.bottom + 12 }]}>
+            <View style={styles.grabber} />
+            <Text style={styles.sheetTitle}>{RATING_META[picking].title}</Text>
+            <Text style={styles.sheetSubtitle}>Where this rating comes from. When the chosen source has nothing for a title, the next one is used.</Text>
+            {(['automatic', ...RATING_META[picking].sources] as RatingSource[]).map((option) => {
+              const selected = ratingSource(picking, settings) === option;
+              const note = option === 'mybluray' && !settings.myblurayApiKey
+                ? 'Needs a MyBluray key'
+                : option === 'mdblist' && !settings.mdblistApiKey
+                  ? 'Needs an MDBList key'
+                  : option === 'automatic'
+                    ? RATING_META[picking].sources.map((x) => SOURCE_TITLES[x]).join(' → ')
+                    : undefined;
+              return (
+                <Pressable
+                  key={option}
+                  style={styles.sheetRow}
+                  onPress={() => {
+                    setAppSettingsPatch({ ratingSource: { ...(settings.ratingSource ?? {}), [picking]: option } });
+                    setPicking(null);
+                  }}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.sheetRowText, selected && { fontWeight: '700' }]}>{SOURCE_TITLES[option]}</Text>
+                    {note ? <Text style={styles.sheetRowNote}>{note}</Text> : null}
+                  </View>
+                  {selected ? <Ionicons name="checkmark" size={18} color="#fff" /> : null}
+                </Pressable>
+              );
+            })}
+          </View>
+        ) : null}
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   linkRight: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  footnote: { color: '#8e8e93', fontSize: 12, lineHeight: 17, marginTop: -8, marginBottom: 20, paddingHorizontal: 6 },
+  sheetScrim: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
+  sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 16, paddingTop: 8 },
+  grabber: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.25)', marginBottom: 12 },
+  sheetTitle: { color: '#fff', fontSize: 17, fontWeight: '700', marginBottom: 4 },
+  sheetSubtitle: { color: '#9ca3af', fontSize: 13, lineHeight: 18, marginBottom: 8 },
+  sheetRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 13, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.08)' },
+  sheetRowText: { color: '#fff', fontSize: 15 },
+  sheetRowNote: { color: '#8e8e93', fontSize: 12, marginTop: 2 },
   linkValue: { color: '#8e8e93', fontSize: 15 },
   sectionControls: {
     flexDirection: 'row',

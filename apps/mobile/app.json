@@ -54,7 +54,8 @@
             "ndkVersion": "27.1.12297006"
           },
           "ios": {
-            "deploymentTarget": "15.1"
+            "deploymentTarget": "16.4",
+            "enableSceneSupport": true
           }
         }
       ],
@@ -68,7 +69,11 @@
       ],
       "./plugins/withMPViOS",
       "./plugins/withMPVPlayer",
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-image",
+      "expo-status-bar",
+      "expo-audio",
+      "expo-video"
     ]
   }
 }

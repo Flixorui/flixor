@@ -47,7 +47,7 @@ function HeroCard({ hero, authHeaders, onAdd, onPress, inWatchlist = false, watc
         {/* Bottom gradient overlay for better text/button visibility */}
         <LinearGradient
           colors={[ 'rgba(0,0,0,0)', 'rgba(0,0,0,0.7)', 'rgba(0,0,0,0.95)' ]}
-          style={StyleSheet.absoluteFillObject}
+          style={StyleSheet.absoluteFill}
           start={{ x: 0.5, y: 0.5 }}
           end={{ x: 0.5, y: 1 }}
           pointerEvents="none"

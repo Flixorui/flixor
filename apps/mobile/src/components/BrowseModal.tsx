@@ -131,7 +131,7 @@ export default function BrowseModal({
       onRequestClose={onClose}
     >
       <View style={styles.container}>
-        <ConditionalBlurView intensity={80} tint="dark" style={StyleSheet.absoluteFillObject} />
+        <ConditionalBlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
 
         <View style={styles.content}>
           {/* Header */}

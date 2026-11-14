@@ -208,6 +208,15 @@ export default function Settings({ onBack }: SettingsProps) {
             onPress: go('MDBListSettings'),
           },
           {
+            id: 'mybluray',
+            title: 'MyBluray',
+            value: settings.myblurayApiKey ? onOff(settings.myblurayEnabled !== false) : 'Off',
+            keywords: 'bluray blu-ray 4k uhd disc physical collection wishlist editions apple tv trailers parents guide common sense imdb letterboxd ratings',
+            tile: '#0077B6',
+            icon: 'disc',
+            onPress: go('MyBluraySettings'),
+          },
+          {
             id: 'overseerr',
             title: 'Overseerr',
             value: onOff(settings.overseerrEnabled),

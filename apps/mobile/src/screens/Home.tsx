@@ -454,6 +454,8 @@ function HomeContent({ onLogout }: HomeProps) {
   const selectCategory = useCallback((pick: CategoryPick) => {
     if (pick.kind === 'all') {
       setBrowseModalVisible(true);
+    } else if (pick.kind === 'physical') {
+      nav.navigate('PhysicalCollection');
     } else if (pick.kind === 'genre') {
       nav.navigate('LibraryHome', { type: pick.type === 'movie' ? 'movie' : 'show', genre: pick.genre.title });
     } else {

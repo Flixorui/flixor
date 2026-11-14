@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator, StyleSheet, StatusBar, Dimensions, Platform, NativeModules, Image, Pressable } from 'react-native';
-import { Video, ResizeMode, AVPlaybackStatus, Audio } from 'expo-av';
+import { setAudioModeAsync } from 'expo-audio';
 import FastImage from '@d11/react-native-fast-image';
 import Slider from '@react-native-community/slider';
 import { useNavigation, StackActions } from '@react-navigation/native';
@@ -100,6 +100,11 @@ import { localLibrary } from '../core/LocalLibrary';
 import { stremioService } from '../stremio/StremioService';
 import { identityForStreamParams, streamRouteFor } from '../stremio/StreamRecovery';
 
+/** The status fields the unused expo-av fallback handler reads (expo-av was removed in the SDK 57 upgrade). */
+type LegacyPlaybackStatus =
+  | { isLoaded: false; error?: string }
+  | { isLoaded: true; isPlaying: boolean; isBuffering: boolean; positionMillis: number; durationMillis?: number; didJustFinish: boolean };
+
 type LegacyPlayerParams = {
   type: 'plex' | 'tmdb' | 'offline';
   ratingKey?: string;
@@ -127,7 +132,6 @@ export default function Player({ route }: RouteParams) {
   const params = (route?.params || {}) as Partial<PlayerParams> & Record<string, any>;
   const nav = useNavigation();
   const mpvPlayerRef = useRef<MPVPlayerRef>(null); // Unified MPV player (iOS + Android)
-  const videoRef = useRef<Video>(null); // expo-av fallback (unused with MPV)
   const { isLoading: flixorLoading, isConnected } = useFlixor();
   const { settings } = useAppSettings();
   const theme = useTheme();
@@ -628,10 +632,10 @@ export default function Player({ route }: RouteParams) {
     (async () => {
       // Configure audio session
       try {
-        await Audio.setAudioModeAsync({
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: true,
-          shouldDuckAndroid: true,
+        await setAudioModeAsync({
+          playsInSilentMode: true,
+          shouldPlayInBackground: true,
+          interruptionMode: 'mixWithOthers',
         });
       } catch (e) {
         console.warn('[Player] Failed to set audio mode:', e);
@@ -1128,10 +1132,10 @@ export default function Player({ route }: RouteParams) {
           setIsRotationLocked(true);
 
           try {
-            await Audio.setAudioModeAsync({
-              playsInSilentModeIOS: false,
-              staysActiveInBackground: false,
-              shouldDuckAndroid: false,
+            await setAudioModeAsync({
+              playsInSilentMode: false,
+              shouldPlayInBackground: false,
+              interruptionMode: 'mixWithOthers',
             });
           } catch (e) {}
         }
@@ -1237,7 +1241,7 @@ export default function Player({ route }: RouteParams) {
         } else {
           await ScreenOrientation.unlockAsync();
         }
-        await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, staysActiveInBackground: true, shouldDuckAndroid: true });
+        await setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: true, interruptionMode: 'mixWithOthers' });
         // If we just replaced into this screen, ensure playback starts and orientation is applied
         if (isReplacingRef.current) {
           isReplacingRef.current = false;
@@ -1840,8 +1844,8 @@ export default function Player({ route }: RouteParams) {
     setError(`Playback error: ${errorMessage}`);
   }, [handleStreamFailure, isNearStreamEnd, isStreamPlayback, onPlayerEnd, streamParams]);
 
-  // expo-av playback status handler (Android fallback)
-  const onPlaybackStatusUpdate = useCallback((status: AVPlaybackStatus) => {
+  // Playback status handler from the old expo-av fallback (not wired to a player)
+  const onPlaybackStatusUpdate = useCallback((status: LegacyPlaybackStatus) => {
     if (!status.isLoaded) {
       if (status.error) {
         console.error('[Player] expo-av error:', status.error);
@@ -2661,7 +2665,7 @@ export default function Player({ route }: RouteParams) {
       {/* Background tap area to show/hide controls + pinch gesture detection */}
       <View style={styles.tapArea} pointerEvents="box-none">
         <Pressable
-          style={StyleSheet.absoluteFillObject}
+          style={StyleSheet.absoluteFill}
           onPress={resetControlsTimeout}
           onLongPress={beginSpeedBoost}
           onPressOut={endSpeedBoost}
@@ -3113,7 +3117,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   tapArea: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   topGradient: {
     position: 'absolute',
@@ -3356,7 +3360,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   bufferingContainer: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
     pointerEvents: 'none',

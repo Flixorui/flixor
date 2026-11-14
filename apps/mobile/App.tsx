@@ -54,6 +54,7 @@ import BottomAppBarSettings from './src/screens/settings/BottomAppBarSettings';
 import TMDBSettings from './src/screens/settings/TMDBSettings';
 import TraktSettings from './src/screens/settings/TraktSettings';
 import MDBListSettings from './src/screens/settings/MDBListSettings';
+import MyBluraySettings from './src/screens/settings/MyBluraySettings';
 import { Top10ListsSettings, Top10FlixPatrolSettings, Top10KeysSettings, Top10ServicesSettings, Top10RegionSettings, Top10UsageSettings } from './src/screens/settings/Top10Settings';
 import OverseerrSettings from './src/screens/settings/OverseerrSettings';
 import PlexSettings from './src/screens/settings/PlexSettings';
@@ -69,6 +70,8 @@ import HomeRowsSettings from './src/screens/settings/HomeRowsSettings';
 import AppearanceSettings from './src/screens/settings/AppearanceSettings';
 import EntityBrowse from './src/screens/EntityBrowse';
 import Person from './src/screens/Person';
+import Edition from './src/screens/Edition';
+import PhysicalCollection from './src/screens/PhysicalCollection';
 import UserCollection from './src/screens/UserCollection';
 import ToastHost from './src/components/Toast';
 import { loadAppMode, useAppMode } from './src/core/AppMode';
@@ -149,6 +152,11 @@ const HomeStackNavigator = React.memo(() => {
           options={{ presentation: 'card', animation: 'slide_from_right' }}
         />
         <HomeStack.Screen
+          name="PhysicalCollection"
+          component={PhysicalCollection}
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
+        />
+        <HomeStack.Screen
           name="Collections"
           component={Collections}
           options={{ presentation: 'card', animation: 'fade' }}
@@ -176,6 +184,11 @@ const HomeStackNavigator = React.memo(() => {
         <HomeStack.Screen
           name="Person"
           component={Person}
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
+        />
+        <HomeStack.Screen
+          name="Edition"
+          component={Edition}
           options={{ presentation: 'card', animation: 'slide_from_right' }}
         />
         <HomeStack.Screen
@@ -219,6 +232,11 @@ const NewHotStackNavigator = React.memo(() => {
         <NewHotStack.Screen
           name="Person"
           component={Person}
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
+        />
+        <NewHotStack.Screen
+          name="Edition"
+          component={Edition}
           options={{ presentation: 'card', animation: 'slide_from_right' }}
         />
         <NewHotStack.Screen
@@ -267,6 +285,11 @@ const MyListStackNavigator = React.memo(() => {
         <MyListStack.Screen
           name="Person"
           component={Person}
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
+        />
+        <MyListStack.Screen
+          name="Edition"
+          component={Edition}
           options={{ presentation: 'card', animation: 'slide_from_right' }}
         />
         <MyListStack.Screen
@@ -371,6 +394,11 @@ const SearchStackNavigator = React.memo(() => {
           options={{ presentation: 'card', animation: 'slide_from_right' }}
         />
         <SearchStack.Screen
+          name="Edition"
+          component={Edition}
+          options={{ presentation: 'card', animation: 'slide_from_right' }}
+        />
+        <SearchStack.Screen
           name="UserCollection"
           component={UserCollection}
           options={{ presentation: 'card', animation: 'slide_from_right' }}
@@ -400,6 +428,7 @@ const SettingsTabScreen = React.memo(() => (
     <SettingsStack.Screen name="TMDBSettings" component={TMDBSettings} />
     <SettingsStack.Screen name="TraktSettings" component={TraktSettings} />
     <SettingsStack.Screen name="MDBListSettings" component={MDBListSettings} />
+    <SettingsStack.Screen name="MyBluraySettings" component={MyBluraySettings} />
     <SettingsStack.Screen name="Top10ListsSettings" component={Top10ListsSettings} />
     <SettingsStack.Screen name="Top10FlixPatrolSettings" component={Top10FlixPatrolSettings} />
     <SettingsStack.Screen name="Top10KeysSettings" component={Top10KeysSettings} />
@@ -432,6 +461,7 @@ const SettingsTabScreen = React.memo(() => (
     />
     <SettingsStack.Screen name="EntityBrowse" component={EntityBrowse} />
     <SettingsStack.Screen name="Person" component={Person} options={{ presentation: 'card', animation: 'slide_from_right' }} />
+    <SettingsStack.Screen name="Edition" component={Edition} options={{ presentation: 'card', animation: 'slide_from_right' }} />
     <SettingsStack.Screen name="UserCollection" component={UserCollection} />
   </SettingsStack.Navigator>
 ));
@@ -480,7 +510,7 @@ const Tabs = React.memo(() => {
           <NativeTab.Screen
             name="SearchTab"
             component={SearchStackNavigator}
-            options={nativeOptions('Search', NAV_ICONS.search, { tabBarSystemItem: 'search' })}
+            options={nativeOptions('Search', NAV_ICONS.search, { tabBarRole: 'search', tabBarSearchAutoFocus: true })}
           />
           {settings.showNewHotTab && (
             <NativeTab.Screen

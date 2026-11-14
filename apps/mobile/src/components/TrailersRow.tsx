@@ -6,6 +6,8 @@ import ConditionalBlurView from './ConditionalBlurView';
 import * as Haptics from 'expo-haptics';
 import Animated, { useSharedValue, withTiming, withDelay, useAnimatedStyle } from 'react-native-reanimated';
 import TrailerModal from './TrailerModal';
+import HlsTrailerModal from './HlsTrailerModal';
+import { formatDuration } from '../core/mybluray/trailers';
 import { getYouTubeThumbnailUrl } from '../core/DetailsData';
 import { useTheme } from '../hooks/useTheme';
 
@@ -16,6 +18,11 @@ export interface TrailerVideo {
   type: string;
   official?: boolean;
   publishedAt?: string;
+  /** Apple TV stream (MyBluray); plays in the native player. */
+  streamUrl?: string;
+  thumbnailUrl?: string;
+  durationSeconds?: number;
+  fallbackYouTubeKey?: string;
 }
 
 interface TrailersRowProps {
@@ -79,8 +86,9 @@ function getCategoryIcon(type: string): string {
 }
 
 function TrailerCard({ trailer, width, onPress }: { trailer: TrailerVideo; width: number; onPress: () => void }) {
-  const thumbnailUrl = getYouTubeThumbnailUrl(trailer.key);
-  const year = trailer.publishedAt ? new Date(trailer.publishedAt).getFullYear() : null;
+  const thumbnailUrl = trailer.thumbnailUrl ?? getYouTubeThumbnailUrl(trailer.key);
+  // Apple trailers have a running time and no date; YouTube ones a year. No source name, as on macOS.
+  const year = formatDuration(trailer.durationSeconds) ?? (trailer.publishedAt ? new Date(trailer.publishedAt).getFullYear() : null);
 
   return (
     <View style={[styles.cardContainer, { width }]}>
@@ -150,10 +158,22 @@ export default function TrailersRow({ trailers, title = 'Trailers & Videos', con
     transform: [{ translateY: translateY.value }],
   }));
 
+  const [streamTrailer, setStreamTrailer] = useState<TrailerVideo | null>(null);
   const handleTrailerPress = useCallback((trailer: TrailerVideo) => {
+    if (trailer.streamUrl) {
+      setStreamTrailer(trailer);
+      return;
+    }
     setSelectedTrailer(trailer);
     setModalVisible(true);
   }, []);
+  // The Apple stream failed: play its YouTube fallback instead
+  const handleFallback = useCallback((youtubeKey: string) => {
+    const from = streamTrailer;
+    setStreamTrailer(null);
+    setSelectedTrailer({ key: youtubeKey, name: from?.name ?? 'Trailer', site: 'YouTube', type: from?.type ?? 'Trailer' });
+    setModalVisible(true);
+  }, [streamTrailer]);
 
   const handleCloseModal = useCallback(() => {
     setModalVisible(false);
@@ -270,6 +290,8 @@ export default function TrailersRow({ trailers, title = 'Trailers & Videos', con
           </View>
         )}
       </ScrollView>
+
+      <HlsTrailerModal trailer={streamTrailer as any} onClose={() => setStreamTrailer(null)} onFallback={handleFallback} />
 
       <TrailerModal
         visible={modalVisible}
@@ -399,7 +421,7 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   thumbnailGradient: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0,0,0,0.15)',
   },
   trailerInfo: {

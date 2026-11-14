@@ -7,10 +7,14 @@
 import React, { useEffect, useState } from 'react';
 import GlassMenu, { type GlassMenuItem } from './GlassMenu';
 import { fetchLibraries, fetchMovieGenres, fetchTvGenres, type GenreItem } from '../core/HomeData';
+import { useAppSettings } from '../hooks/useAppSettings';
+import { isMyBlurayOn } from '../core/mybluray/options';
+import { loadCollection, useCollectionStore } from '../core/mybluray/collectionStore';
 
 export type CategoryPick =
   | { kind: 'genre'; type: 'movie' | 'tv'; genre: GenreItem }
   | { kind: 'library'; library: { key: string; title: string; type: string } }
+  | { kind: 'physical' }
   | { kind: 'all' };
 
 type Data = {
@@ -23,6 +27,13 @@ let cache: Data | null = null;
 
 export default function CategoriesMenu({ onPick, children }: { onPick: (pick: CategoryPick) => void; children: React.ReactNode }) {
   const [data, setData] = useState<Data | null>(cache);
+  const { settings } = useAppSettings();
+  const collection = useCollectionStore();
+  const discsOn = isMyBlurayOn('librarySection', settings);
+  // Hidden when the MyBluray key has no Blu-ray.com login (as macOS hides the Physical tab)
+  useEffect(() => {
+    if (discsOn) loadCollection();
+  }, [discsOn, settings.myblurayApiKey]);
 
   useEffect(() => {
     if (cache) return;
@@ -57,6 +68,9 @@ export default function CategoriesMenu({ onPick, children }: { onPick: (pick: Ca
       icon: 'albums-outline',
       children: data.libraries.map((l) => ({ title: l.title, onPress: () => onPick({ kind: 'library', library: l }) })),
     });
+  }
+  if (discsOn && collection.phase !== 'notConnected' && collection.phase !== 'idle') {
+    items.push({ title: 'Your Discs', icon: 'disc-outline', onPress: () => onPick({ kind: 'physical' }) });
   }
   items.push({ title: 'All Categories…', icon: 'grid-outline', onPress: () => onPick({ kind: 'all' }) });
 

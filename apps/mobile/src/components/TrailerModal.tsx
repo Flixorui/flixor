@@ -230,7 +230,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   loadingContainer: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#000',
@@ -242,7 +242,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   errorContainer: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#000',

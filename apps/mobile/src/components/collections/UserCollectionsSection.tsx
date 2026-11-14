@@ -54,7 +54,7 @@ function CollectionCard({
         {image ? (
           <FastImage
             source={{ uri: image, cache: FastImage.cacheControl.immutable }}
-            style={StyleSheet.absoluteFillObject}
+            style={StyleSheet.absoluteFill}
             resizeMode={FastImage.resizeMode.cover}
           />
         ) : (

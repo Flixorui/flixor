@@ -32,14 +32,14 @@ function Glass() {
   // iOS 26: Apple's Liquid Glass, as in the Netflix app; older systems keep the frosted look
   if (liquidGlassAvailable) return <LiquidGlass radius={PILL_RADIUS} />;
   return (
-    <View pointerEvents="none" style={StyleSheet.absoluteFillObject}>
-      <ConditionalBlurView intensity={30} tint="dark" style={StyleSheet.absoluteFillObject} />
-      <View style={[StyleSheet.absoluteFillObject, styles.glassFill]} />
+    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+      <ConditionalBlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
+      <View style={[StyleSheet.absoluteFill, styles.glassFill]} />
       <LinearGradient
         colors={['rgba(255,255,255,0.14)', 'rgba(255,255,255,0)']}
         start={{ x: 0.5, y: 0 }}
         end={{ x: 0.5, y: 0.45 }}
-        style={StyleSheet.absoluteFillObject}
+        style={StyleSheet.absoluteFill}
         pointerEvents="none"
       />
     </View>

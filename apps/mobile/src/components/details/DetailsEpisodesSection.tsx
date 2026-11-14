@@ -478,7 +478,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   cardOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     justifyContent: 'flex-end',
   },
   cardBody: {
@@ -621,7 +621,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   thumbReveal: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
   },

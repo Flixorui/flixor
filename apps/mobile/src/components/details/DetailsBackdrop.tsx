@@ -19,6 +19,7 @@ import Animated, {
 import { LinearGradient } from 'expo-linear-gradient';
 import FastImage from '@d11/react-native-fast-image';
 import DetailsHeroTrailer from './DetailsHeroTrailer';
+import HlsHeroTrailer from './HlsHeroTrailer';
 import { withAlpha } from '../../core/theme';
 
 const FADE_HERO_FRACTION = 0.75;
@@ -32,6 +33,8 @@ export default function DetailsBackdrop({
   heroHeight,
   scrollY,
   trailerKey,
+  trailerStream,
+  onTrailerFailed,
   trailerMuted = true,
   trailerAllowed = false,
   onTrailerPlayingChange,
@@ -44,6 +47,10 @@ export default function DetailsBackdrop({
   scrollY: SharedValue<number>;
   /** YouTube key of the inline hero trailer. Omit for artwork only. */
   trailerKey?: string;
+  /** Apple TV stream for the hero (MyBluray); used instead of YouTube. */
+  trailerStream?: string;
+  /** The Apple stream couldn't play. */
+  onTrailerFailed?: () => void;
   trailerMuted?: boolean;
   /** False pauses the trailer, for example while another screen is on top. */
   trailerAllowed?: boolean;
@@ -90,7 +97,16 @@ export default function DetailsBackdrop({
             <FastImage source={{ uri: imageUrl }} style={StyleSheet.absoluteFill} resizeMode="cover" />
           </Animated.View>
         ) : null}
-        {trailerKey ? (
+        {trailerStream ? (
+          <HlsHeroTrailer
+            streamUrl={trailerStream}
+            muted={trailerMuted}
+            active={trailerAllowed && heroVisible}
+            onPlayingChange={(playing) => onTrailerPlayingChange?.(playing)}
+            onFinished={() => onTrailerFinished?.()}
+            onFailed={() => onTrailerFailed?.()}
+          />
+        ) : trailerKey ? (
           <DetailsHeroTrailer
             videoKey={trailerKey}
             width={width}

@@ -329,6 +329,8 @@ export type DetailsSectionKey =
   | 'collection'
   | 'cast'
   | 'trailers'
+  | 'physical'
+  | 'guidance'
   | 'comments'
   | 'about';
 
@@ -382,6 +384,14 @@ export interface AppSettings {
   // MDBList settings
   mdblistEnabled: boolean; // Enable MDBList integration (disabled by default)
   mdblistApiKey?: string; // MDBList API key (required when enabled)
+  // MyBluray (each person's own key from the MyBluray portal, mbr_…)
+  myblurayApiKey?: string;
+  myblurayEnabled: boolean; // Master switch; on once a key is saved
+  myblurayDiscCountry: string; // 'auto' (device region), 'all', or an ISO code
+  myblurayOptions: Record<string, boolean>; // MyBlurayOption → on/off (missing = default)
+  // Merged ratings on Details: per-rating show switch and source
+  ratingShown: Record<string, boolean>;
+  ratingSource: Record<string, string>;
   // Overseerr settings
   overseerrEnabled: boolean; // Enable Overseerr integration (disabled by default)
   overseerrUrl?: string; // Overseerr server URL (e.g., https://overseerr.example.com)
@@ -532,6 +542,12 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   // MDBList defaults
   mdblistEnabled: false,
   mdblistApiKey: undefined,
+  myblurayApiKey: undefined,
+  myblurayEnabled: true,
+  myblurayDiscCountry: 'auto',
+  myblurayOptions: {},
+  ratingShown: {},
+  ratingSource: {},
   // Overseerr defaults
   overseerrEnabled: false,
   overseerrUrl: undefined,
@@ -647,6 +663,8 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     { key: 'cast', enabled: true },
     { key: 'suggested', enabled: true },
     { key: 'trailers', enabled: true },
+    { key: 'physical', enabled: true },
+    { key: 'guidance', enabled: true },
     { key: 'comments', enabled: true },
     { key: 'about', enabled: true },
   ],

@@ -403,19 +403,19 @@ function PlexLibrary() {
         colors={['#0a0a0a', '#0f0f10', '#0b0c0d']}
         start={{ x: 0.5, y: 0 }}
         end={{ x: 0.5, y: 1 }}
-        style={StyleSheet.absoluteFillObject}
+        style={StyleSheet.absoluteFill}
       />
       <LinearGradient
         colors={['rgba(122,22,18,0.24)', 'rgba(122,22,18,0.10)', 'rgba(122,22,18,0.0)']}
         start={{ x: 0.0, y: 1.0 }}
         end={{ x: 0.45, y: 0.35 }}
-        style={StyleSheet.absoluteFillObject}
+        style={StyleSheet.absoluteFill}
       />
       <LinearGradient
         colors={['rgba(20,76,84,0.22)', 'rgba(20,76,84,0.10)', 'rgba(20,76,84,0.0)']}
         start={{ x: 1.0, y: 0.0 }}
         end={{ x: 0.55, y: 0.45 }}
-        style={StyleSheet.absoluteFillObject}
+        style={StyleSheet.absoluteFill}
       />
 
       <PullToRefresh {...pull.indicatorProps} top={barHeight + 6} />

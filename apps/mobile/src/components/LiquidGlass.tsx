@@ -38,26 +38,26 @@ export default function LiquidGlass({
 }) {
   if (available && GlassViewComp) {
     return (
-      <View pointerEvents={interactive ? 'box-none' : 'none'} style={StyleSheet.absoluteFillObject}>
+      <View pointerEvents={interactive ? 'box-none' : 'none'} style={StyleSheet.absoluteFill}>
         <GlassViewComp
           glassEffectStyle="regular"
           isInteractive={!!interactive}
           tintColor={tint}
-          style={[StyleSheet.absoluteFillObject, { borderRadius: radius }]}
+          style={[StyleSheet.absoluteFill, { borderRadius: radius }]}
         />
       </View>
     );
   }
   return (
-    <View pointerEvents="none" style={[StyleSheet.absoluteFillObject, { borderRadius: radius, overflow: 'hidden' }]}>
-      <ConditionalBlurView intensity={fallbackIntensity} tint="dark" style={StyleSheet.absoluteFillObject} />
+    <View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderRadius: radius, overflow: 'hidden' }]}>
+      <ConditionalBlurView intensity={fallbackIntensity} tint="dark" style={StyleSheet.absoluteFill} />
       <LinearGradient
         colors={['rgba(255,255,255,0.16)', 'rgba(255,255,255,0)']}
         start={{ x: 0.5, y: 0 }}
         end={{ x: 0.5, y: 0.6 }}
-        style={StyleSheet.absoluteFillObject}
+        style={StyleSheet.absoluteFill}
       />
-      <View style={[StyleSheet.absoluteFillObject, styles.fallbackFill, { borderRadius: radius }]} />
+      <View style={[StyleSheet.absoluteFill, styles.fallbackFill, { borderRadius: radius }]} />
     </View>
   );
 }

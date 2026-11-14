@@ -525,7 +525,7 @@ export default function SourceEditor({
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12 }}>
                   {preview.items.map((item) => (
                     <View key={item.id} style={[styles.previewPoster, { backgroundColor: theme.surface }]}>
-                      {item.image ? <FastImage source={{ uri: item.image }} style={StyleSheet.absoluteFillObject} resizeMode={FastImage.resizeMode.cover} /> : null}
+                      {item.image ? <FastImage source={{ uri: item.image }} style={StyleSheet.absoluteFill} resizeMode={FastImage.resizeMode.cover} /> : null}
                     </View>
                   ))}
                 </ScrollView>

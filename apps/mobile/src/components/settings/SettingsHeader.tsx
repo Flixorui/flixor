@@ -31,7 +31,7 @@ export default function SettingsHeader({ title, onBack, scrollY }: SettingsHeade
   return (
     <View style={[styles.header, { height: headerHeight }]}>
       {/* Animated blur background - fades in on scroll */}
-      <Animated.View style={[StyleSheet.absoluteFillObject, { opacity: blurOpacity }]}>
+      <Animated.View style={[StyleSheet.absoluteFill, { opacity: blurOpacity }]}>
         <HeaderGlass fallbackIntensity={90} />
       </Animated.View>
       {/* Hairline separator - fades in on scroll */}

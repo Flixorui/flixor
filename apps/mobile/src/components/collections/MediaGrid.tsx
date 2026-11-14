@@ -71,7 +71,7 @@ export default function MediaGrid<T extends MediaGridItem>({
           {item.image ? (
             <FastImage
               source={{ uri: item.image, priority: FastImage.priority.normal, cache: FastImage.cacheControl.immutable }}
-              style={StyleSheet.absoluteFillObject}
+              style={StyleSheet.absoluteFill}
               resizeMode={FastImage.resizeMode.cover}
             />
           ) : (

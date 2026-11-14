@@ -21,7 +21,7 @@ export default function PeopleRow({ people, onPress }: { people: PersonResult[];
               {person.image ? (
                 <FastImage
                   source={{ uri: person.image, cache: FastImage.cacheControl.immutable }}
-                  style={StyleSheet.absoluteFillObject}
+                  style={StyleSheet.absoluteFill}
                   resizeMode={FastImage.resizeMode.cover}
                 />
               ) : (
