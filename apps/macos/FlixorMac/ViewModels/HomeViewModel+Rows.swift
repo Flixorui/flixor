@@ -195,6 +195,7 @@ extension HomeViewModel {
             return !store.isHidden(row.id)
         }
         visible = HomeRowsStore.ordered(visible, id: \.id, userOrder: store.order)
+        visible = Self.spreadingTop10Rows(visible, userPlaced: Set(store.order))
         visible = Self.removingRepeatedTitles(visible, discoveryRowIds: Set(extraSlots.compactMap {
             if case .section(let section) = $0 { return section.id } else { return nil }
         }))
@@ -204,6 +205,49 @@ extension HomeViewModel {
             visible[index].caption = captions[visible[index].id]
         }
         return visible
+    }
+
+    /// Other rows between two Top 10 rows, so they don't come back to back.
+    static let top10Spacing = 2
+
+    /// Spreads the Top 10 and "New on" rows down the page instead of stacking
+    /// them: the first goes right after Continue Watching (at the top when that
+    /// row isn't shown), then one after every `top10Spacing` other rows; any
+    /// left over go at the end. Rows the user placed in Rows Settings stay put.
+    /// Same rule as the mobile app's Home (HomeRows.tsx).
+    static func spreadingTop10Rows(_ rows: [HomeDisplayRow], userPlaced: Set<String>, spacing: Int = top10Spacing) -> [HomeDisplayRow] {
+        func isMovable(_ row: HomeDisplayRow) -> Bool {
+            guard case .section(let section) = row.content else { return false }
+            return section.id.hasPrefix(StreamingAvailabilityStore.rowIdPrefix) && !userPlaced.contains(row.id)
+        }
+        var queue = rows.filter(isMovable)
+        guard !queue.isEmpty else { return rows }
+        let others = rows.filter { !isMovable($0) }
+
+        var result: [HomeDisplayRow] = []
+        result.reserveCapacity(rows.count)
+        var sinceTop10 = 0
+        // Placing starts at Continue Watching, so rows the user put above it stay clear
+        var placing = !others.contains { $0.id == homeContinueWatchingRowId }
+        if placing {
+            result.append(queue.removeFirst())
+        }
+        for row in others {
+            result.append(row)
+            if row.id == homeContinueWatchingRowId {
+                if !queue.isEmpty { result.append(queue.removeFirst()) }
+                placing = true
+                sinceTop10 = 0
+            } else if placing {
+                sinceTop10 += 1
+                if sinceTop10 >= spacing, !queue.isEmpty {
+                    result.append(queue.removeFirst())
+                    sinceTop10 = 0
+                }
+            }
+        }
+        result.append(contentsOf: queue)
+        return result
     }
 
     /// Discovery rows (trending, popular, Trakt, addon catalogs) skip titles a
