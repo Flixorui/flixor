@@ -12,6 +12,7 @@ export const DETAILS_SECTION_KEYS: DetailsSectionKey[] = [
   'collection',
   'cast',
   'trailers',
+  'digital',
   'physical',
   'guidance',
   'comments',
@@ -31,6 +32,7 @@ export const DETAILS_SECTION_META: Record<DetailsSectionKey, DetailsSectionMeta>
   collection: { title: 'Collection', tabLabel: 'Collection', subtitle: 'Other movies in the franchise', icon: 'layers-outline' },
   cast: { title: 'Cast & Crew', tabLabel: 'Cast & Crew', subtitle: 'Cast, crew and creators', icon: 'people-outline' },
   trailers: { title: 'Trailers & Videos', tabLabel: 'Videos', subtitle: 'Trailers, teasers and featurettes', icon: 'play-circle-outline' },
+  digital: { title: 'Digital Releases', tabLabel: 'Digital', subtitle: 'Where to stream, rent or buy, with prices (MyBluray)', icon: 'cloud-outline' },
   physical: { title: 'Physical Releases', tabLabel: 'Discs', subtitle: 'Blu-ray and 4K editions, with quick add (MyBluray)', icon: 'disc-outline' },
   guidance: { title: 'Parents Guide', tabLabel: 'Guide', subtitle: 'Age rating, Common Sense and IMDb (MyBluray)', icon: 'shield-half-outline' },
   comments: { title: 'Comments', tabLabel: 'Comments', subtitle: 'Trakt comments and reviews', icon: 'chatbubble-outline' },
@@ -76,7 +78,7 @@ export function normalizeDetailsSections(saved?: DetailsSectionPreference[] | nu
     sections.push({ key: entry.key, enabled: entry.enabled !== false });
   }
   // A section added later goes after the one before it in the default order
-  // (Parents Guide after Physical Releases after Trailers), not at the very end
+  // (Digital Releases after Trailers, Physical Releases after Digital), not at the very end
   const defaults = defaultDetailsSections();
   defaults.forEach((section, index) => {
     if (seen.has(section.key)) return;
@@ -85,7 +87,7 @@ export function normalizeDetailsSections(saved?: DetailsSectionPreference[] | nu
     else sections.push(section);
     seen.add(section.key);
   });
-  return isPreviousDefault(sections.filter((s) => s.key !== 'physical' && s.key !== 'guidance')) ? defaultDetailsSections() : sections;
+  return isPreviousDefault(sections.filter((s) => s.key !== 'digital' && s.key !== 'physical' && s.key !== 'guidance')) ? defaultDetailsSections() : sections;
 }
 
 export function orderedEnabledSections(saved?: DetailsSectionPreference[] | null): DetailsSectionKey[] {

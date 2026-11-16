@@ -3,7 +3,7 @@ import { FlixorCore } from '@flixor/core';
 import { MobileStorage } from './MobileStorage';
 import { MobileSecureStorage } from './MobileSecureStorage';
 import { MobileCache } from './MobileCache';
-import { loadAppSettings } from './SettingsData';
+import { getAppSettings, loadAppSettings } from './SettingsData';
 import { runMigrations } from './ProfileMigration';
 import { restoreProfileContext } from './ProfileService';
 
@@ -11,6 +11,11 @@ import { restoreProfileContext } from './ProfileService';
 const DEFAULT_TMDB_API_KEY = 'db55323b8d3e4154498498a75642b381';
 const TRAKT_CLIENT_ID = '4ab0ead6d5510bf39180a5e1dd7b452f5ad700b7794564befdd6bca56e0f7ce4';
 const TRAKT_CLIENT_SECRET = ''; // Add your Trakt client secret
+
+/** The TMDB key in use: the profile's own, or the built-in one. */
+export function currentTmdbApiKey(): string {
+  return getAppSettings().tmdbApiKey || DEFAULT_TMDB_API_KEY;
+}
 
 // Generate or retrieve a persistent client ID
 const CLIENT_ID_KEY = 'flixor_client_id';

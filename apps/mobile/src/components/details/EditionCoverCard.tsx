@@ -6,9 +6,9 @@
  */
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import FastImage from '@d11/react-native-fast-image';
 import { Ionicons } from '@expo/vector-icons';
 import GlassMenu, { type GlassMenuItem } from '../GlassMenu';
+import DiscCover from '../mybluray/DiscCover';
 import { useTheme } from '../../hooks/useTheme';
 import { useAppSettings } from '../../hooks/useAppSettings';
 import { isMyBlurayOn } from '../../core/mybluray/options';
@@ -51,11 +51,7 @@ export default function EditionCoverCard({
             ]}
           >
             {edition.coverImage ? (
-              <FastImage
-                source={{ uri: edition.coverImage, cache: FastImage.cacheControl.immutable }}
-                style={StyleSheet.absoluteFill}
-                resizeMode={FastImage.resizeMode.cover}
-              />
+              <DiscCover uri={edition.coverImage} />
             ) : (
               <Ionicons name="disc-outline" size={32} color="rgba(255,255,255,0.3)" />
             )}

@@ -17,7 +17,7 @@ export function cleanedDiscTitle(title: string): string {
   return text.trim();
 }
 
-function normalized(title: string): string {
+export function normalized(title: string): string {
   let text = title.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
   if (text.startsWith('the ')) text = text.slice(4);
   return text.replace(/[^\p{L}\p{N}]/gu, '');

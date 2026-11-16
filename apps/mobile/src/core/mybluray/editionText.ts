@@ -50,3 +50,13 @@ export function editionCaption(e: MBEditionSummary, showsCountry: boolean): stri
   if (e.bundle) parts.push('Box set');
   return parts.join(' · ');
 }
+
+/**
+ * Blu-ray.com's full front scan (about 1900×2450) for a cover URL: MyBluray
+ * gives `_large.jpg`, only about 195×250. Same host and path, `_front.jpg`.
+ * macOS reference: MBEditionSummary.fullCoverURL in MyBlurayModels.swift
+ */
+export function fullCoverUrl(url?: string | null): string | null {
+  if (!url) return null;
+  return url.replace(/_(large|medium|small)\.jpg(?=$|\?)/i, '_front.jpg');
+}

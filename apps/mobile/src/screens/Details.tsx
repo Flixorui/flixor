@@ -27,6 +27,8 @@ import { useFlixor } from '../core/FlixorContext';
 import { useAppSettings } from '../hooks/useAppSettings';
 import { useMyBlurayTitle, useParentsGuide, usePhysicalReleases } from '../core/mybluray/hooks';
 import DetailsPhysicalSection from '../components/details/DetailsPhysicalSection';
+import DetailsDigitalSection from '../components/details/DetailsDigitalSection';
+import { useDigitalReleases } from '../core/mybluray/digitalReleases';
 import DetailsGuidanceSection, { guidanceContent, isGuidanceEmpty } from '../components/details/DetailsGuidanceSection';
 import { isMyBlurayOn } from '../core/mybluray/options';
 import { mergeRatings, ratingHelp, ratingText, type MergedRating } from '../core/ratings/merged';
@@ -1048,6 +1050,8 @@ export default function Details({ route }: RouteParams) {
   const allTrailers = useMemo(() => mergeTrailers(mbTitle, trailers as MergedTrailer[], settings), [mbTitle, trailers, settings]);
   const parentsGuide = useParentsGuide(showImdbId, settings);
   const physical = usePhysicalReleases(showImdbId, meta?.type === 'movie', settings);
+  // Films and shows only, not seasons or episodes
+  const digital = useDigitalReleases(showImdbId, meta?.type === 'movie', meta?.type === 'movie' || meta?.type === 'show', settings);
   const guidance = useMemo(() => guidanceContent(mbTitle, parentsGuide, settings), [mbTitle, parentsGuide, settings]);
   const [ratingInfo, setRatingInfo] = useState<string | null>(null);
   useEffect(() => {
@@ -1155,6 +1159,8 @@ export default function Details({ route }: RouteParams) {
             return allTrailers.length > 0;
           case 'guidance':
             return meta?.type !== 'episode' && !isGuidanceEmpty(guidance);
+          case 'digital':
+            return digital !== null;
           case 'physical':
             return meta?.type === 'movie' && physical.editions.length > 0;
           case 'comments':
@@ -1166,7 +1172,7 @@ export default function Details({ route }: RouteParams) {
             return true;
         }
       }),
-    [settings.detailsSectionPreferences, meta?.type, seasons.length, collection, hasCastOrCrew, allTrailers.length, titleTarget, guidance, physical.editions.length]
+    [settings.detailsSectionPreferences, meta?.type, seasons.length, collection, hasCastOrCrew, allTrailers.length, titleTarget, guidance, physical.editions.length, digital]
   );
 
   // Hero trailer: Apple TV when MyBluray answers within 4 s, else YouTube (the lookup keeps
@@ -1429,6 +1435,8 @@ export default function Details({ route }: RouteParams) {
         return <TrailersRow trailers={allTrailers} contentTitle={meta?.title} />;
       case 'guidance':
         return <DetailsGuidanceSection content={guidance} settings={settings} />;
+      case 'digital':
+        return digital ? <DetailsDigitalSection releases={digital} /> : null;
       case 'physical':
         return (
           <DetailsPhysicalSection

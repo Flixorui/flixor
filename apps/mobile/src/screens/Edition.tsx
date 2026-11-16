@@ -22,8 +22,10 @@ import { useAppSettings } from '../hooks/useAppSettings';
 import { useEdition } from '../core/mybluray/hooks';
 import { isMyBlurayOn } from '../core/mybluray/options';
 import { isUHD, loadCollection, useCollectionStore } from '../core/mybluray/collectionStore';
-import { baseTitle, editionName, releaseDateText } from '../core/mybluray/editionText';
+import { baseTitle, editionName, fullCoverUrl, releaseDateText } from '../core/mybluray/editionText';
+import DiscCover from '../components/mybluray/DiscCover';
 import { matchPlexMovie } from '../core/mybluray/plexMatch';
+import { findDiscTitle, type DiscTitle } from '../core/mybluray/titleMatch';
 import { myblurayErrorMessage } from '../core/mybluray/client';
 import type { MBEdition, MBEditionSummary, MBScoreSet } from '../core/mybluray/types';
 
@@ -44,6 +46,7 @@ export default function Edition() {
   const { edition, loading, error } = useEdition(params.id);
   const [retry, setRetry] = useState(0);
   const [plexMatch, setPlexMatch] = useState<{ ratingKey: string; title: string } | null>(null);
+  const [discTitle, setDiscTitle] = useState<DiscTitle | null>(null);
   const [viewer, setViewer] = useState<{ items: ImageViewerItem[]; index: number } | null>(null);
   const [synopsisOpen, setSynopsisOpen] = useState(false);
   const [synopsisTruncates, setSynopsisTruncates] = useState(false);
@@ -66,6 +69,24 @@ export default function Edition() {
     };
   }, [params.offersLibraryLink, summary.title, edition?.year]);
 
+  // The TMDB film or show, looked up beside the Plex match; it opens Details when Plex has no copy
+  useEffect(() => {
+    if (!params.offersLibraryLink || !edition) return;
+    let cancelled = false;
+    findDiscTitle(edition).then((t) => !cancelled && setDiscTitle(t));
+    return () => {
+      cancelled = true;
+    };
+  }, [params.offersLibraryLink, edition?.id, edition?.movieId]);
+
+  // "Go to Movie" / "Go to Show": the Plex copy first (it can play), otherwise the TMDB title
+  const goToShow = discTitle?.mediaType === 'tv';
+  const goTo = plexMatch
+    ? () => nav.push('Details', { type: 'plex', ratingKey: plexMatch.ratingKey })
+    : discTitle
+      ? () => nav.push('Details', { type: 'tmdb', mediaType: discTitle.mediaType, id: discTitle.id })
+      : null;
+
   const navBarHeight = insets.top + NAV_ROW;
   const headerGlassOpacity = useMemo(
     () => scrollY.interpolate({ inputRange: [0, 8, 60], outputRange: [HEADER_GLASS_MIN_OPACITY, HEADER_GLASS_MIN_OPACITY, 1], extrapolate: 'clamp' }),
@@ -75,7 +96,7 @@ export default function Edition() {
 
   const title = baseTitle(summary) || edition?.title || '';
   const name = edition?.editionTitle || editionName(summary);
-  const backdrop = edition?.screenshots[0]?.url ?? summary.coverImage ?? undefined;
+  const screenshot = edition?.screenshots[0]?.url;
   const current = collection.listFor[summary.id];
   const canEdit = on('quickAdd') && collection.phase === 'loaded' && collection.lists.length > 0;
 
@@ -94,7 +115,7 @@ export default function Edition() {
   add('Exclusive', edition?.exclusive);
 
   const openCover = () => {
-    if (summary.coverImage) setViewer({ items: [{ url: summary.coverImage, caption: summary.title ?? undefined }], index: 0 });
+    if (summary.coverImage) setViewer({ items: [{ url: fullCoverUrl(summary.coverImage)!, thumbnail: summary.coverImage, caption: summary.title ?? undefined }], index: 0 });
   };
 
   return (
@@ -116,16 +137,20 @@ export default function Edition() {
         contentContainerStyle={{ paddingBottom: insets.bottom + 110 }}
       >
         <View style={[styles.identity, { paddingTop: navBarHeight + 12 }]}>
-          {backdrop ? (
+          {screenshot || summary.coverImage ? (
             <View style={styles.backdrop} pointerEvents="none">
-              <FastImage source={{ uri: backdrop }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+              {screenshot ? (
+                <FastImage source={{ uri: screenshot }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+              ) : (
+                <DiscCover uri={summary.coverImage!} />
+              )}
               <LinearGradient colors={['rgba(0,0,0,0.35)', 'rgba(0,0,0,0.15)', theme.background]} locations={[0, 0.45, 1]} style={StyleSheet.absoluteFill} />
             </View>
           ) : null}
           <Pressable onPress={openCover} accessibilityRole="imagebutton" accessibilityLabel="Show the cover larger">
             <View style={[styles.cover, { width: COVER, height: Math.round(COVER * EDITION_ASPECT) }]}>
               {summary.coverImage ? (
-                <FastImage source={{ uri: summary.coverImage }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+                <DiscCover uri={summary.coverImage} />
               ) : (
                 <Ionicons name="disc-outline" size={40} color="rgba(255,255,255,0.3)" />
               )}
@@ -135,7 +160,7 @@ export default function Edition() {
           <Text style={styles.title} accessibilityRole="header" selectable>{title}</Text>
           <Text style={styles.editionName}>{name}</Text>
 
-          {canEdit || plexMatch ? (
+          {canEdit || goTo ? (
             <View style={styles.actions}>
               {canEdit ? (
                 <GlassMenu
@@ -149,12 +174,8 @@ export default function Edition() {
                   </View>
                 </GlassMenu>
               ) : null}
-              {plexMatch ? (
-                <GlassPill
-                  label="Open in Library"
-                  icon="play"
-                  onPress={() => nav.push('Details', { type: 'plex', ratingKey: plexMatch.ratingKey })}
-                />
+              {goTo ? (
+                <GlassPill label={goToShow ? 'Go to Show' : 'Go to Movie'} icon={goToShow ? 'tv-outline' : 'film-outline'} onPress={goTo} />
               ) : null}
             </View>
           ) : null}

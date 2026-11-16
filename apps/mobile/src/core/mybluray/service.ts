@@ -9,8 +9,8 @@ import { createMMKV, type MMKV } from 'react-native-mmkv';
 import { MyBlurayClient, MyBlurayError, segment } from './client';
 import { myblurayKey } from './options';
 import type {
-  AccessState, MBCollectionEntry, MBCollectionList, MBEdition, MBEditionSummary, MBMovie,
-  MBParentsGuide, MBTitle, MyBlurayAccess,
+  AccessState, MBCollectionEntry, MBCollectionList, MBDigitalEdition, MBEdition, MBEditionSummary, MBMovie,
+  MBOffer, MBParentsGuide, MBTitle, MyBlurayAccess,
 } from './types';
 
 const HOUR = 3600 * 1000;
@@ -20,6 +20,7 @@ export const TTL = {
   movie: 30 * 24 * HOUR,
   editions: 7 * 24 * HOUR,
   edition: 7 * 24 * HOUR,
+  offers: 24 * HOUR,
   collection: 5 * 60 * 1000,
   notFound: 24 * HOUR,
 };
@@ -192,6 +193,11 @@ export async function resolveMovie(imdbId: string): Promise<MBMovie | null> {
   return cached(`movie:${id}`, TTL.movie, async (c) => (await c.get('/v2/movies/resolve', { imdbId: id }))?.data ?? null);
 }
 
+/** The Blu-ray.com film by its id ("movie:1377730"); carries the IMDb id. */
+export async function getMovie(movieId: string): Promise<MBMovie | null> {
+  return cached(`movie-id:${movieId}`, TTL.movie, async (c) => (await c.get(`/v2/movies/${segment(movieId)}`))?.data ?? null);
+}
+
 export async function getEditions(movieId: string, country?: string, formats = ['bluray', '4k']): Promise<MBEditionSummary[]> {
   const formatList = formats.join(',');
   const result = await cached(`editions:${movieId}:${country ?? 'all'}:${formatList}`, TTL.editions, async (c) => {
@@ -214,7 +220,29 @@ export async function getEditions(movieId: string, country?: string, formats = [
 }
 
 export async function getEdition(id: string): Promise<MBEdition | null> {
-  return cached(`edition:${id}`, TTL.edition, async (c) => parseEdition((await c.get(`/v2/editions/${segment(id)}`))?.data));
+  // v2: editions saved before movieId was read are fetched again
+  return cached(`edition-v2:${id}`, TTL.edition, async (c) => parseEdition((await c.get(`/v2/editions/${segment(id)}`))?.data));
+}
+
+// MARK: Digital releases
+
+/** Store offers to stream, rent or buy a film or show (Apple TV and JustWatch, US). */
+export async function getOffers(imdbId: string): Promise<MBOffer[]> {
+  const id = normalizedImdbId(imdbId);
+  if (!id) return [];
+  return (await cached(`offers:${id}`, TTL.offers, async (c) =>
+    arr<MBOffer>((await c.get(`/v2/titles/${segment(`imdb:${id}`)}/offers`, { source: 'all' }))?.data))) ?? [];
+}
+
+/** A film's releases in a digital category: digital, itunes, prime-video or movies-anywhere. */
+export async function getDigitalEditions(movieId: string, category: string): Promise<MBEditionSummary[]> {
+  return (await cached(`digital-list:${category}:${movieId}`, TTL.editions, async (c) =>
+    arr<MBEditionSummary>((await c.get(`/v2/movies/${segment(movieId)}/editions`, { category, pageSize: '100' }))?.data).filter((e: any) => e?.id))) ?? [];
+}
+
+/** One digital release in full: its stores, prices and specs. */
+export async function getDigitalEdition(id: string): Promise<MBDigitalEdition | null> {
+  return cached(`digital-edition:${id}`, TTL.edition, async (c) => (await c.get(`/v2/editions/${segment(id)}`))?.data ?? null);
 }
 
 // MARK: Collection (Blu-ray.com login attached to the key)

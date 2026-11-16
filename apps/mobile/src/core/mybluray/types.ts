@@ -118,6 +118,8 @@ export interface MBScoreSet {
 }
 
 export interface MBEdition extends MBEditionSummary {
+  /** The Blu-ray.com film this disc is of ("movie:1377730"). */
+  movieId?: string | null;
   editionTitle?: string | null;
   websiteUrl?: string | null;
   exclusive?: string | null;
@@ -168,4 +170,24 @@ export interface MyBlurayAccess {
   imdb: AccessState;
   bluray: AccessState;
   collection: AccessState;
+}
+
+/** A store offer from `/v2/titles/{id}/offers` (Apple TV and JustWatch, US). */
+export interface MBOffer {
+  provider?: { id?: string | null; name?: string | null; images?: { kind?: string | null; url?: string | null; urlTemplate?: string | null; originalWidth?: number | null; originalHeight?: number | null }[] | null } | null;
+  type?: string | null; // buy, rent, subscription, free, ad-supported…
+  price?: { amount?: string | null; currency?: string | null } | null;
+  priceText?: string | null;
+  quality?: string | null; // _4K, HD, SD, BLURAY, DVD
+  url?: string | null;
+  provenance?: { provider?: string | null } | null; // apple-tv | justwatch
+}
+
+/** A digital release on Blu-ray.com in full: its stores, prices and specs. */
+export interface MBDigitalEdition {
+  id?: string;
+  stores?: { id?: string | null; name?: string | null; url?: string | null }[] | null;
+  prices?: { storeId?: string | null; storeName?: string | null; offer?: string | null; quality?: string | null; amount?: string | null; text?: string | null; url?: string | null }[] | null;
+  video?: { resolution?: string | null; resolutions?: string[] | null; hdrFormats?: string[] | null } | null;
+  audio?: string[] | null;
 }

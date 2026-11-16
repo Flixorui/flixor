@@ -329,6 +329,7 @@ export type DetailsSectionKey =
   | 'collection'
   | 'cast'
   | 'trailers'
+  | 'digital'
   | 'physical'
   | 'guidance'
   | 'comments'
@@ -663,6 +664,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
     { key: 'cast', enabled: true },
     { key: 'suggested', enabled: true },
     { key: 'trailers', enabled: true },
+    { key: 'digital', enabled: true },
     { key: 'physical', enabled: true },
     { key: 'guidance', enabled: true },
     { key: 'comments', enabled: true },

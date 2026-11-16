@@ -38,7 +38,7 @@ function maskedKey(key: string): string {
 
 type OptionRow = { option: MyBlurayOption; title: string; subtitle?: string };
 
-const OPTION_ICONS: Record<string, string> = {"appleTrailers": "tv-outline", "highQualityTrailers": "sparkles-outline", "bonusVideos": "film-outline", "ratings": "star-outline", "ageRatings": "shield-checkmark-outline", "commonSense": "happy-outline", "imdbGuide": "people-outline", "guideDescriptions": "list-outline", "revealSpoilers": "eye-outline", "editionSpecs": "hardware-chip-outline", "editionScores": "trophy-outline", "editionScreenshots": "images-outline", "editionArtwork": "image-outline", "editionDigitalCopy": "cloud-download-outline", "editionPrice": "pricetag-outline", "editionLinks": "link-outline", "blurayFormat": "disc-outline", "uhdFormat": "diamond-outline", "boxSets": "cube-outline", "quickAdd": "add-circle-outline", "librarySection": "albums-outline"};
+const OPTION_ICONS: Record<string, string> = {"appleTrailers": "tv-outline", "highQualityTrailers": "sparkles-outline", "bonusVideos": "film-outline", "ratings": "star-outline", "ageRatings": "shield-checkmark-outline", "commonSense": "happy-outline", "imdbGuide": "people-outline", "guideDescriptions": "list-outline", "revealSpoilers": "eye-outline", "editionSpecs": "hardware-chip-outline", "editionScores": "trophy-outline", "editionScreenshots": "images-outline", "editionArtwork": "image-outline", "editionDigitalCopy": "cloud-download-outline", "editionPrice": "pricetag-outline", "editionLinks": "link-outline", "blurayFormat": "disc-outline", "uhdFormat": "diamond-outline", "boxSets": "cube-outline", "quickAdd": "add-circle-outline", "librarySection": "albums-outline", "digitalReleases": "cloud-outline"};
 
 // No "Best quality" here (macOS has one): iOS's player picks the stream's quality itself and
 // won't open a rewritten playlist, so the app can't cap it. It already adapts to the screen
@@ -311,6 +311,9 @@ export default function MyBluraySettings() {
           <SettingsCard title="TRAILERS">{optionRows(TRAILER_OPTIONS)}</SettingsCard>
           <SettingsCard title="RATINGS">{optionRows(RATING_OPTIONS)}</SettingsCard>
           <SettingsCard title="PARENTS GUIDE">{optionRows(GUIDE_OPTIONS)}</SettingsCard>
+          <SettingsCard title="DIGITAL RELEASES">
+            {optionRows([{ option: 'digitalReleases', title: 'Digital Releases on Details', subtitle: 'Where to stream, rent or buy in the US, with prices and the digital 4K specs' }])}
+          </SettingsCard>
           <SettingsCard title="PHYSICAL RELEASES">
             <SettingItem
               title="Show on Details"

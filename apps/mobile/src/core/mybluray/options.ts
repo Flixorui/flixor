@@ -9,6 +9,7 @@ export type MyBlurayOption =
   | 'appleTrailers' | 'highQualityTrailers' | 'bonusVideos'
   | 'ratings'
   | 'ageRatings' | 'commonSense' | 'imdbGuide' | 'guideDescriptions' | 'revealSpoilers'
+  | 'digitalReleases'
   | 'physicalReleases' | 'blurayFormat' | 'uhdFormat' | 'boxSets' | 'quickAdd'
   | 'editionSpecs' | 'editionScores' | 'editionScreenshots' | 'editionArtwork'
   | 'editionDigitalCopy' | 'editionPrice' | 'editionLinks'
