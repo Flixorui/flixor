@@ -32,6 +32,8 @@ struct MyBluraySettingsView: View {
 
             Group {
                 trailersSection
+                artworkSection
+                whereToWatchSection
                 ratingsSection
                 guideSection
                 physicalSection
@@ -232,6 +234,20 @@ struct MyBluraySettingsView: View {
             .init(.appleTrailers, "Apple TV trailers first", "YouTube trailers are used when Apple TV has none"),
             .init(.highQualityTrailers, "Best quality", "The full-screen trailer plays in up to 4K HDR. The Details hero stays at 1080p and hover previews at 720p."),
             .init(.bonusVideos, "Bonus videos", "Featurettes and clips on Details. Each title takes a larger request."),
+        ])
+    }
+
+    private var artworkSection: some View {
+        optionSection("Artwork", [
+            .init(.appleArtwork, "Apple TV backdrops first",
+                  "Textless wide backdrops on Details and the Home hero. TMDB and Plex artwork is used when Apple TV has none."),
+        ])
+    }
+
+    private var whereToWatchSection: some View {
+        optionSection("Digital Releases", [
+            .init(.whereToWatch, "Digital Releases on Details",
+                  "Stores to stream, rent or buy the title, with prices. Store links from Apple TV, JustWatch and Blu-ray.com (US)."),
         ])
     }
 

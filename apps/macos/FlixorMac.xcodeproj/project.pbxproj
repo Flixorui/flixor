@@ -244,6 +244,7 @@
 		A030 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B030 /* HomeView.swift */; };
 		5A5A5A5A5A5A5A5A5A5A15B1 /* TopTenRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5A5A5A5A5A5A5A5A5A15A1 /* TopTenRow.swift */; };
 		A031 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B031 /* Assets.xcassets */; };
+		F1C01C0A0000000000000002 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = F1C01C0A0000000000000001 /* AppIcon.icon */; };
 		7A10CA7A1065000000000002 /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 7A10CA7A1065000000000001 /* Localizable.xcstrings */; };
 		A034 /* Color+Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = B034 /* Color+Theme.swift */; };
 		A035 /* DetailsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B035 /* DetailsView.swift */; };
@@ -612,6 +613,7 @@
 		B030 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		5A5A5A5A5A5A5A5A5A5A15A1 /* TopTenRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TopTenRow.swift; sourceTree = "<group>"; };
 		B031 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		F1C01C0A0000000000000001 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 		7A10CA7A1065000000000001 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		B034 /* Color+Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Color+Theme.swift"; sourceTree = "<group>"; };
 		B035 /* DetailsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailsView.swift; sourceTree = "<group>"; };
@@ -819,6 +821,7 @@
 				D008 /* Extensions */,
 				D100 /* Resources */,
 				B031 /* Assets.xcassets */,
+				F1C01C0A0000000000000001 /* AppIcon.icon */,
 				F1A0C0DE0000000000000001 /* Flixor.xcconfig */,
 				F1A0C0DE0000000000000002 /* Info.plist */,
 			);
@@ -1443,6 +1446,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A031 /* Assets.xcassets in Resources */,
+				F1C01C0A0000000000000002 /* AppIcon.icon in Resources */,
 				7A10CA7A1065000000000002 /* Localizable.xcstrings in Resources */,
 				A053 /* replay10.svg in Resources */,
 				A054 /* forward10.svg in Resources */,

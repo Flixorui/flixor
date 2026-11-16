@@ -403,6 +403,18 @@ public class TMDBService {
         )
     }
 
+    // MARK: - Watch Providers
+
+    /// Every streaming service and store TMDB knows in a region, with its
+    /// official logo. Ids match JustWatch's provider ids.
+    public func getWatchProviders(mediaType: String, region: String = "US") async throws -> TMDBWatchProvidersResponse {
+        return try await get(
+            path: "/watch/providers/\(mediaType)",
+            params: ["watch_region": region],
+            ttl: CacheTTL.static
+        )
+    }
+
     // MARK: - Person
 
     /// Get person details
@@ -417,6 +429,22 @@ public class TMDBService {
 }
 
 // MARK: - TMDB Models
+
+/// Response from `/watch/providers/{movie|tv}`.
+public struct TMDBWatchProvidersResponse: Codable {
+    public struct Provider: Codable {
+        public let providerId: Int
+        public let providerName: String?
+        public let logoPath: String?
+
+        private enum CodingKeys: String, CodingKey {
+            case providerId = "provider_id"
+            case providerName = "provider_name"
+            case logoPath = "logo_path"
+        }
+    }
+    public let results: [Provider]
+}
 
 /// Response from `/find/{external_id}`. Only the movie and TV buckets are used.
 public struct TMDBFindResponse: Codable {

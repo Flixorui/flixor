@@ -31,6 +31,8 @@ struct EditionPage: View {
     @State private var edition: MBEdition?
     @State private var failed = false
     @State private var plexMatch: MediaItem?
+    /// The film or show this edition is of, for "View Details".
+    @State private var titleItem: MediaItem?
     @State private var contentWidth: CGFloat = 0
 
     private static let sidebarMinContentWidth: CGFloat = 1080
@@ -54,7 +56,7 @@ struct EditionPage: View {
 
     private var backdropURL: URL? {
         if let shot = edition?.screenshots.first { return URL(string: shot.url) }
-        return summary.coverImage.flatMap(URL.init(string:))
+        return summary.fullCoverURL ?? summary.coverURL
     }
 
     private func load() async {
@@ -66,7 +68,10 @@ struct EditionPage: View {
         edition = await details
         failed = edition == nil
         if route.offersLibraryLink {
-            plexMatch = await PlexDiscMatcher.match(title: summary.title, year: summary.year ?? edition?.year)
+            async let plex = PlexDiscMatcher.match(title: summary.title, year: summary.year ?? edition?.year)
+            async let title = PlexDiscMatcher.titleItem(for: summary, edition: edition)
+            plexMatch = await plex
+            titleItem = await title
         }
     }
 
@@ -76,7 +81,7 @@ struct EditionPage: View {
         HStack(alignment: .top, spacing: 0) {
             ScrollView {
                 EditionIdentity(summary: summary, edition: edition, layout: .sidebar,
-                                plexMatch: plexMatch, onOpenPlex: openPlex, onZoom: zoom)
+                                plexMatch: plexMatch, titleItem: titleItem, onOpenPlex: openPlex, onZoom: zoom)
                     .frame(width: sidebarWidth, alignment: .leading)
                     .padding(.leading, gutter)
                     .padding(.trailing, DS.Space.s32)
@@ -103,7 +108,7 @@ struct EditionPage: View {
         ScrollView {
             VStack(alignment: .leading, spacing: DS.Space.s40) {
                 EditionIdentity(summary: summary, edition: edition, layout: .header,
-                                plexMatch: plexMatch, onOpenPlex: openPlex, onZoom: zoom)
+                                plexMatch: plexMatch, titleItem: titleItem, onOpenPlex: openPlex, onZoom: zoom)
                 contentColumn
             }
             .padding(.horizontal, gutter)
@@ -389,6 +394,7 @@ private struct EditionIdentity: View {
     let edition: MBEdition?
     let layout: Layout
     let plexMatch: MediaItem?
+    let titleItem: MediaItem?
     let onOpenPlex: (MediaItem) -> Void
     let onZoom: (URL?) -> Void
 
@@ -423,8 +429,8 @@ private struct EditionIdentity: View {
     }
 
     private func cover(width: CGFloat) -> some View {
-        Button { onZoom(summary.coverImage.flatMap(URL.init(string:))) } label: {
-            CachedAsyncImage(url: summary.coverImage.flatMap(URL.init(string:)))
+        Button { onZoom(summary.fullCoverURL ?? summary.coverURL) } label: {
+            CachedAsyncImage(url: summary.fullCoverURL ?? summary.coverURL, fallbackURL: summary.coverURL)
                 .aspectRatio(contentMode: .fill)
                 .frame(width: width, height: (width * EditionCoverCard.aspect).rounded())
                 .clipped()
@@ -456,11 +462,19 @@ private struct EditionIdentity: View {
 
     @ViewBuilder private var actions: some View {
         let canEdit = settings.isOn(.quickAdd) && collection.isConnected && !collection.lists.isEmpty
-        if canEdit || plexMatch != nil {
+        // In Plex: open the library copy (it can play). Otherwise the film's
+        // Details page from TMDB.
+        let details = plexMatch ?? titleItem
+        if canEdit || details != nil {
             HStack(spacing: DS.Space.controlGap) {
                 if canEdit { collectionMenu }
-                if let plexMatch {
-                    BrowsePillButton(title: String(localized: "Open in Library"), systemImage: "play.fill") { onOpenPlex(plexMatch) }
+                if let details {
+                    let isShow = details.type == "show"
+                    BrowsePillButton(
+                        title: isShow ? String(localized: "Go to Show") : String(localized: "Go to Movie"),
+                        systemImage: isShow ? "tv" : "film"
+                    ) { onOpenPlex(details) }
+                    .help(isShow ? "Open the show’s page" : "Open the movie’s page")
                 }
             }
             if let message = collection.message {

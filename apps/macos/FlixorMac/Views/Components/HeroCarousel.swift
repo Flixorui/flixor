@@ -190,8 +190,12 @@ struct HeroCarousel: View {
         guard items.count > 1, items.indices.contains(currentIndex) else { return }
         let next = items[(currentIndex + 1) % items.count]
         let metadata = await HeroCarouselMetadataStore.shared.metadata(for: next)
-        if let url = metadata.backdropURL {
-            _ = try? await ImageCache.shared.load(url: url)
+        // Same link and decode size the page will ask for, so it's ready in memory.
+        if let url = MBAppleArtwork.sized(metadata.backdropURL, pixelWidth: Int(metrics.width * 2)) {
+            _ = try? await ImageCache.shared.load(
+                url: url,
+                maxPixelSize: ImageCache.backdropPixelSize(width: metrics.width, height: height)
+            )
         }
     }
 }
@@ -207,11 +211,17 @@ private struct HeroCarouselBackdrop: View {
     @State private var metadata: HeroCarouselMetadata?
 
     private var imageURL: URL? {
-        metadata?.backdropURL ?? ImageService.shared.artURL(
+        MBAppleArtwork.sized(metadata?.backdropURL, pixelWidth: Int(size.width * 2)) ?? ImageService.shared.artURL(
             for: item,
             width: Int(size.width * 2),
             height: Int(size.height * 2)
         )
+    }
+
+    /// Apple TV backdrops are composed around the centre (a 4:3 image meant
+    /// to be cropped from the middle), unlike TMDB art, which keeps faces near the top.
+    private var isAppleArtwork: Bool {
+        imageURL?.host?.hasSuffix("mzstatic.com") == true
     }
 
     private var scale: CGFloat {
@@ -224,7 +234,11 @@ private struct HeroCarouselBackdrop: View {
     var body: some View {
         Group {
             if metadata != nil {
-                CachedAsyncImage(url: imageURL, contentMode: .fill) {
+                CachedAsyncImage(
+                    url: imageURL,
+                    contentMode: .fill,
+                    maxPixelSize: ImageCache.backdropPixelSize(width: size.width, height: size.height)
+                ) {
                     theme.background
                 }
             } else {
@@ -234,7 +248,7 @@ private struct HeroCarouselBackdrop: View {
         .frame(
             width: size.width,
             height: size.height,
-            alignment: Alignment(horizontal: .center, vertical: .heroBackdrop)
+            alignment: Alignment(horizontal: .center, vertical: isAppleArtwork ? .center : .heroBackdrop)
         )
         .clipped()
         .scaleEffect(scale)
@@ -513,6 +527,8 @@ final class HeroCarouselMetadataStore {
         struct TMDBImages: Codable { let backdrops: [TMDBImage]?; let logos: [TMDBImage]? }
         struct TMDBImage: Codable { let file_path: String?; let iso_639_1: String?; let vote_average: Double? }
 
+        // Apple TV's textless backdrop wins when MyBluray has one; the logo stays TMDB's.
+        async let apple = MyBlurayService.appleBackdrop(tmdbId: reference.id, isShow: reference.mediaType == "tv")
         let images: TMDBImages = try await APIClient.shared.get(
             "/api/tmdb/\(reference.mediaType)/\(reference.id)/images",
             queryItems: [URLQueryItem(name: "language", value: "en,hi,null")]
@@ -528,8 +544,9 @@ final class HeroCarouselMetadataStore {
         let logos = images.logos ?? []
         let logo = logos.first { $0.iso_639_1 == "en" } ?? logos.first
 
+        let tmdbBackdrop = backdrop?.file_path.flatMap { URL(string: "https://image.tmdb.org/t/p/original\($0)") }
         return (
-            backdrop?.file_path.flatMap { URL(string: "https://image.tmdb.org/t/p/original\($0)") },
+            await apple ?? tmdbBackdrop,
             logo?.file_path.flatMap { URL(string: "https://image.tmdb.org/t/p/w500\($0)") }
         )
     }

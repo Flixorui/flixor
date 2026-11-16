@@ -23,9 +23,12 @@ extension WindowMetrics {
         heroHeight(for: .fraction(0.64, minimum: 440, maximum: 760))
     }
 
-    /// Home hero carousel height.
+    /// Home hero carousel height: about 16:9 of the width, at least 460 pt.
+    /// It stops at 640 pt on laptop-sized windows (so the first row shows under
+    /// it) and grows with taller windows up to 72% of the window height, so a
+    /// full-screen window isn't left with a thin strip of artwork.
     var homeCarouselHeight: CGFloat {
-        min(max(width * 0.56, 460), 640)
+        min(max(width * 0.56, 460), max(640, height * 0.72))
     }
 
     /// True when the hero is short enough that its text should tighten up

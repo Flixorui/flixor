@@ -445,6 +445,8 @@ extension BillboardView {
     private func fetchTMDBBackdropAndLogo(mediaType: String, id: String) async throws -> (URL?, URL?) {
         struct TMDBImages: Codable { let backdrops: [TMDBImage]?; let logos: [TMDBImage]? }
         struct TMDBImage: Codable { let file_path: String?; let iso_639_1: String?; let vote_average: Double? }
+        // Apple TV's textless backdrop wins when MyBluray has one; the logo stays TMDB's.
+        async let apple = MyBlurayService.appleBackdrop(tmdbId: id, isShow: mediaType == "tv")
         // Don't filter by language - get all images so we can properly prioritize textless
         let imgs: TMDBImages = try await APIClient.shared.get("/api/tmdb/\(mediaType)/\(id)/images")
         // Pick backdrop with priority: textless first (hero has its own title overlay)
@@ -475,7 +477,7 @@ extension BillboardView {
             return ImageService.shared.proxyImageURL(url: full)
         }()
 
-        return (backdropURL, logoURL)
+        return (await apple ?? backdropURL, logoURL)
     }
 }
 #if DEBUG && canImport(PreviewsMacros)

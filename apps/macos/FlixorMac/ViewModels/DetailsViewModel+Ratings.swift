@@ -138,7 +138,10 @@ extension DetailsViewModel {
         let wantsGuide = Self.wantsParentsGuide
         // Physical Releases needs the IMDb id too; it loads its own data.
         let wantsImdbOnly = UserDefaults.standard.myblurayOptionActive(.physicalReleases)
-        guard wantsMDBList || wantsTitle || wantsGuide || wantsImdbOnly else { return }
+        // Apple TV backdrops are for the title's own page, not a season or episode.
+        let wantsArtwork = UserDefaults.standard.myblurayOptionActive(.appleArtwork) && !isSeason && !isEpisode
+        let wantsStores = UserDefaults.standard.myblurayOptionActive(.whereToWatch) && !isSeason && !isEpisode
+        guard wantsMDBList || wantsTitle || wantsGuide || wantsImdbOnly || wantsArtwork || wantsStores else { return }
         if imdbId?.isEmpty ?? true, let tid = tmdbId, let media = mediaKind {
             // Try to get IMDB ID from TMDB external_ids if we have tmdbId
             let token = loadToken
@@ -152,7 +155,25 @@ extension DetailsViewModel {
         async let mdblist: Void = wantsMDBList ? fetchMDBListRatings(imdbId: imdb) : ()
         async let mybluray: Void = wantsTitle ? fetchMyBlurayTitle(imdbId: imdb) : ()
         async let guide: Void = wantsGuide ? fetchParentsGuide(imdbId: imdb) : ()
-        _ = await (mdblist, mybluray, guide)
+        async let artwork: Void = wantsArtwork ? fetchAppleBackdrop(imdbId: imdb) : ()
+        async let stores: Void = wantsStores ? fetchWhereToWatch(imdbId: imdb) : ()
+        _ = await (mdblist, mybluray, guide, artwork, stores)
+    }
+
+    private func fetchWhereToWatch(imdbId: String) async {
+        let result = await MyBlurayService.whereToWatch(imdbId: imdbId, isMovie: mediaKind == "movie")
+        guard self.imdbId == imdbId else { return }
+        whereToWatch = result
+        if let result {
+            print("✅ [Details] Where to Watch: \(result.stream.count) stream, \(result.rent.count) rent, \(result.buy.count) buy for \(imdbId)")
+        }
+    }
+
+    private func fetchAppleBackdrop(imdbId: String) async {
+        let url = await MyBlurayService.appleBackdrop(imdbId: imdbId)
+        guard self.imdbId == imdbId, let url else { return }
+        setAppleBackdrop(url)
+        print("✅ [Details] Apple TV backdrop for \(imdbId)")
     }
 
     private func fetchMyBlurayTitle(imdbId: String) async {

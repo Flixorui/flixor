@@ -52,7 +52,11 @@ struct DetailsPersistentBackdrop: View {
             ZStack {
                 tint
 
-                CachedAsyncImage(url: imageURL, contentMode: .fill) {
+                CachedAsyncImage(
+                    url: MBAppleArtwork.sized(imageURL, pixelWidth: Int(size.width * 2)),
+                    contentMode: .fill,
+                    maxPixelSize: ImageCache.backdropPixelSize(width: size.width, height: size.height)
+                ) {
                     Color.clear
                 }
                 .frame(width: size.width, height: size.height)

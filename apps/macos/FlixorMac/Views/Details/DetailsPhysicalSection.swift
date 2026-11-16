@@ -9,6 +9,9 @@
 //  hover menu adds it to a list when a Blu-ray.com login is on the key.
 //  Clicking a cover opens the edition page.
 //
+//  Digital Releases (DetailsWhereToWatchSection) lives here too, since it sits
+//  next to Physical Releases on the page.
+//
 
 import SwiftUI
 
@@ -226,7 +229,11 @@ struct EditionCoverCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Space.s8) {
             Button(action: onSelect) {
-                CachedAsyncImage(url: edition.coverImage.flatMap(URL.init(string:)))
+                CachedAsyncImage(
+                    url: edition.fullCoverURL ?? edition.coverURL,
+                    maxPixelSize: ImageCache.fillPixelSize(width: width, height: height),
+                    fallbackURL: edition.coverURL
+                )
                     .aspectRatio(contentMode: .fill)
                     .frame(width: width, height: height)
                     .clipped()
@@ -389,4 +396,167 @@ extension MBEditionSummary {
         formatter.timeZone = TimeZone(identifier: "UTC")
         return formatter
     }()
+}
+
+// MARK: - Digital Releases
+
+/// Digital Releases on Details (MyBluray, US): a strip of the digital release's
+/// specs, then one line each for Stream, Rent and Buy, with a pill per store
+/// that opens the store's page. Shown next to Physical Releases.
+struct DetailsWhereToWatchSection: View {
+    let content: WhereToWatch
+
+    @Environment(\.flixorTheme) private var theme
+
+    private static let labelWidth: CGFloat = 64
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DetailsSectionStyle.headingGap) {
+            VStack(alignment: .leading, spacing: DS.Space.s2) {
+                DetailsSectionHeading("Digital Releases")
+                Text("United States")
+                    .flixorFont(.caption)
+                    .foregroundStyle(theme.textTertiary)
+            }
+
+            if !content.specs.isEmpty {
+                SearchChipFlowLayout(spacing: DS.Space.s16, lineSpacing: DS.Space.s6) {
+                    ForEach(content.specs, id: \.self) { spec in
+                        HStack(spacing: DS.Space.s6) {
+                            Text(spec.title)
+                                .flixorFont(.footnote, weight: .semibold)
+                                .foregroundStyle(theme.textPrimary)
+                            if let detail = spec.detail {
+                                Text(detail)
+                                    .flixorFont(.footnote)
+                                    .foregroundStyle(theme.textSecondary)
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, DS.Space.s14)
+                .padding(.vertical, DS.Space.s10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: DS.Radius.r10, style: .continuous).fill(theme.hoverFill))
+            }
+
+            VStack(alignment: .leading, spacing: DS.Space.s12) {
+                group(String(localized: "Stream"), content.stream)
+                group(String(localized: "Rent"), content.rent)
+                group(String(localized: "Buy"), content.buy)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func group(_ label: String, _ stores: [WhereToWatch.Store]) -> some View {
+        if !stores.isEmpty {
+            HStack(alignment: .top, spacing: DS.Space.s16) {
+                Text(label)
+                    .flixorFont(.callout, weight: .semibold)
+                    .foregroundStyle(theme.textSecondary)
+                    .frame(width: Self.labelWidth, alignment: .leading)
+                    .padding(.top, DS.Space.s8)
+                SearchChipFlowLayout(spacing: DS.Space.s8, lineSpacing: DS.Space.s8) {
+                    ForEach(stores) { store in
+                        WhereToWatchPill(store: store)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+}
+
+/// One store: its logo, name, lowest price and quality. Opens the store's page.
+private struct WhereToWatchPill: View {
+    let store: WhereToWatch.Store
+
+    @Environment(\.flixorTheme) private var theme
+    @State private var isHovered = false
+
+    var body: some View {
+        Button {
+            if let url = store.url { NSWorkspace.shared.open(url) }
+        } label: {
+            HStack(spacing: DS.Space.s8) {
+                logo
+                Text(store.name)
+                    .flixorFont(.callout, weight: .semibold)
+                    .foregroundStyle(theme.textPrimary)
+                    .lineLimit(1)
+                if let price = store.price {
+                    Text(WhereToWatch.money(price))
+                        .flixorFont(.callout)
+                        .foregroundStyle(theme.textSecondary)
+                }
+                if let quality = store.quality, quality == "4K" {
+                    Text(quality)
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(theme.textSecondary)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 1)
+                        .overlay(RoundedRectangle(cornerRadius: 3).strokeBorder(theme.separatorStrong, lineWidth: DS.Border.thin))
+                }
+            }
+            .padding(.leading, DS.Space.s6)
+            .padding(.trailing, DS.Space.s14)
+            .frame(height: 36)
+            .background(Capsule().fill(Color.white.opacity(isHovered ? DS.Opacity.hover * 2 : DS.Opacity.hover)))
+            .overlay(Capsule().strokeBorder(isHovered ? theme.separatorStrong : theme.separator, lineWidth: DS.Border.thin))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .disabled(store.url == nil)
+        .onHover { isHovered = $0 }
+        .help(store.url?.host.map { "Open \($0)" } ?? store.name)
+        .accessibilityLabel(Text(accessibilityText))
+    }
+
+    private var accessibilityText: String {
+        var parts = [store.name]
+        if let price = store.price { parts.append(WhereToWatch.money(price)) }
+        if let quality = store.quality { parts.append(quality) }
+        return parts.joined(separator: ", ")
+    }
+
+    @ViewBuilder private var logo: some View {
+        let shape = RoundedRectangle(cornerRadius: 6, style: .continuous)
+        if let url = store.logo, store.logoIsIcon {
+            // Official app icons from TMDB fill the tile.
+            CachedAsyncImage(url: url, contentMode: .fill, maxPixelSize: 96) { monogram }
+                .frame(width: 24, height: 24)
+                .clipShape(shape)
+        } else if let url = store.logo {
+            // Store logos are glyphs of any shape (Apple's is a wide white mark
+            // on transparent), so they fit inside a dark tile.
+            ZStack {
+                Color.white.opacity(0.14)
+                CachedAsyncImage(url: url, contentMode: .fit, maxPixelSize: 96) { Color.clear }
+                    .padding(3)
+            }
+            .frame(width: 24, height: 24)
+            .clipShape(shape)
+        } else {
+            monogram
+                .frame(width: 24, height: 24)
+                .clipShape(shape)
+        }
+    }
+
+    private var monogram: some View {
+        ZStack {
+            Color.white.opacity(0.14)
+            Text(Self.initials(store.name))
+                .font(.system(size: 9, weight: .heavy))
+                .foregroundStyle(.white)
+        }
+    }
+
+    private static func initials(_ name: String) -> String {
+        let words = name.split(whereSeparator: { !$0.isLetter && !$0.isNumber })
+        if words.count == 1, let word = words.first { return String(word.prefix(2)).uppercased() }
+        let letters = words.prefix(2).compactMap(\.first)
+        return String(letters).uppercased()
+    }
 }

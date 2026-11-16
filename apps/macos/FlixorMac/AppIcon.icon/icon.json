@@ -1,0 +1,61 @@
+{
+  "fill": {
+    "solid": "display-p3:0.07059,0.07059,0.07059,1.00000"
+  },
+  "groups": [
+    {
+      "name": "Ink",
+      "layers": [
+        {
+          "image-name": "ink.svg",
+          "name": "Ink",
+          "glass": false,
+          "position": {
+            "scale": 1,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "shadow": {
+        "kind": "none",
+        "opacity": 0
+      },
+      "translucency": {
+        "enabled": false,
+        "value": 0
+      }
+    },
+    {
+      "name": "Ticket",
+      "layers": [
+        {
+          "image-name": "ticket.svg",
+          "name": "Ticket",
+          "position": {
+            "scale": 1,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
+      },
+      "translucency": {
+        "enabled": false,
+        "value": 0
+      }
+    }
+  ],
+  "supported-platforms": {
+    "squares": [
+      "macOS"
+    ]
+  }
+}

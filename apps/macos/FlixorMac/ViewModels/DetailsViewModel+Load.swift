@@ -230,11 +230,13 @@ extension DetailsViewModel {
         mdblistRatings = nil
         myblurayTitle = nil
         parentsGuide = nil
+        whereToWatch = nil
         mediaKind = nil
         playableId = nil
         logoURL = nil
         posterURL = nil
         backdropURL = nil
+        appleBackdropURL = nil
         cast = []
         crew = []
         directors = []

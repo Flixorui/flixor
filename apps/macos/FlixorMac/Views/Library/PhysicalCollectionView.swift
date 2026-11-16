@@ -11,6 +11,7 @@
 //  in, so Details, the edition page and this tab always agree after a change.
 //
 
+import FlixorKit
 import SwiftUI
 
 // MARK: - Store
@@ -310,5 +311,49 @@ enum PlexDiscMatcher {
         var text = title.lowercased().folding(options: .diacriticInsensitive, locale: nil)
         if text.hasPrefix("the ") { text = String(text.dropFirst(4)) }
         return text.filter { $0.isLetter || $0.isNumber }
+    }
+}
+
+// MARK: - The film behind an edition
+
+extension PlexDiscMatcher {
+    /// The film or show an edition is of, as a TMDB item that opens its Details
+    /// page (which finds the Plex copy itself). Uses the edition's Blu-ray.com
+    /// film and its IMDb id; without one, a TMDB search by title and year.
+    static func titleItem(for summary: MBEditionSummary, edition: MBEdition?) async -> MediaItem? {
+        let year = summary.year ?? edition?.year
+        var film: MBMovie?
+        if let movieId = edition?.movieId {
+            film = try? await MyBlurayService.shared.movie(id: movieId)
+        }
+        let title = film?.title ?? cleaned(summary.title ?? edition?.title ?? "")
+
+        if let imdbId = film?.imdbId, !imdbId.isEmpty {
+            let resolver = MediaIdentityResolver.shared
+            if let id = await resolver.tmdbId(imdbId: imdbId, isShow: false) {
+                return item(id: "tmdb:movie:\(id)", title: title, type: "movie", year: film?.year ?? year)
+            }
+            if let id = await resolver.tmdbId(imdbId: imdbId, isShow: true) {
+                return item(id: "tmdb:tv:\(id)", title: title, type: "show", year: film?.year ?? year)
+            }
+        }
+
+        guard !title.isEmpty,
+              let results = try? await FlixorCore.shared.tmdb.searchMovies(query: title).results else { return nil }
+        let wanted = normalized(title)
+        let match = results.first { result in
+            guard normalized(result.title ?? "") == wanted else { return false }
+            guard let year, let released = result.releaseDate.flatMap({ Int($0.prefix(4)) }) else { return true }
+            return abs(released - year) <= 1
+        }
+        guard let match else { return nil }
+        return item(id: "tmdb:movie:\(match.id)", title: match.title ?? title, type: "movie", year: year)
+    }
+
+    private static func item(id: String, title: String, type: String, year: Int?) -> MediaItem {
+        MediaItem(id: id, title: title, type: type, thumb: nil, art: nil,
+                  year: year, rating: nil, duration: nil, viewOffset: nil, summary: nil,
+                  grandparentTitle: nil, grandparentThumb: nil, grandparentArt: nil, grandparentRatingKey: nil,
+                  parentIndex: nil, index: nil, parentRatingKey: nil, parentTitle: nil, leafCount: nil, viewedLeafCount: nil)
     }
 }

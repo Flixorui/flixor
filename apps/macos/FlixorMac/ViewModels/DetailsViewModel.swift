@@ -32,6 +32,8 @@ class DetailsViewModel: ObservableObject {
     // Media and visual
     @Published var logoURL: URL?
     @Published var backdropURL: URL?
+    /// Apple TV's textless wide backdrop (MyBluray), when it has one.
+    var appleBackdropURL: URL?
     @Published var posterURL: URL?
 
     // Cast
@@ -88,6 +90,8 @@ class DetailsViewModel: ObservableObject {
     @Published var myblurayTitle: MBTitle?
     /// IMDb's parents guide from MyBluray (spoilers included and marked).
     @Published var parentsGuide: MBParentsGuide?
+    /// Stores to stream, rent or buy the title (MyBluray), for Where to Watch.
+    @Published var whereToWatch: WhereToWatch?
 
     /// Ratings from MyBluray's title record (IMDb, Rotten Tomatoes, Letterboxd, TMDB).
     var myblurayRatings: [MBRating] { myblurayTitle?.ratings ?? [] }
@@ -231,8 +235,16 @@ class DetailsViewModel: ObservableObject {
     }
 
     /// Assigns only real changes, so the same artwork isn't reloaded.
+    /// Apple TV's backdrop, once found, wins over TMDB and Plex artwork.
     func setBackdrop(_ url: URL?) {
-        if backdropURL != url { backdropURL = url }
+        let chosen = appleBackdropURL ?? url
+        if backdropURL != chosen { backdropURL = chosen }
+    }
+
+    /// Uses Apple TV's textless backdrop from now on for this title.
+    func setAppleBackdrop(_ url: URL?) {
+        appleBackdropURL = url
+        if let url, backdropURL != url { backdropURL = url }
     }
 
     func hasLoadedContent(for item: MediaItem) -> Bool {

@@ -16,6 +16,8 @@ struct CachedAsyncImage<Placeholder: View>: View {
     let contentMode: ContentMode
     /// Longest side, in pixels, the image is decoded to. nil keeps the 2560 px cap.
     let maxPixelSize: Int?
+    /// Tried when `url` fails, e.g. a smaller copy of the same artwork.
+    let fallbackURL: URL?
     let placeholder: () -> Placeholder
 
     @State private var image: NSImage?
@@ -28,12 +30,14 @@ struct CachedAsyncImage<Placeholder: View>: View {
         aspectRatio: CGFloat? = nil,
         contentMode: ContentMode = .fill,
         maxPixelSize: Int? = nil,
+        fallbackURL: URL? = nil,
         @ViewBuilder placeholder: @escaping () -> Placeholder
     ) {
         self.url = url
         self.aspectRatio = aspectRatio
         self.contentMode = contentMode
         self.maxPixelSize = maxPixelSize
+        self.fallbackURL = fallbackURL
         self.placeholder = placeholder
         // A card recreated while scrolling draws its image in its very first frame.
         _image = State(initialValue: url.flatMap { ImageCache.shared.memoryImage(url: $0, maxPixelSize: maxPixelSize) })
@@ -109,6 +113,14 @@ struct CachedAsyncImage<Placeholder: View>: View {
             }
         } catch {
             guard !Task.isCancelled else { return }
+            if let fallbackURL, fallbackURL != url,
+               let result = try? await ImageCache.shared.load(url: fallbackURL, maxPixelSize: maxPixelSize) {
+                guard !Task.isCancelled else { return }
+                self.error = nil
+                isLoading = false
+                image = result.image
+                return
+            }
             self.error = error
             isLoading = false
         }
@@ -177,7 +189,8 @@ final class ImageCache: @unchecked Sendable {
 
     /// Decoded sizes kept in memory. A request rounds up to the next bucket, and a
     /// larger decoded copy serves any smaller request.
-    private static let sizeBuckets = [256, 512, 768, 1024, 1536, 2560]
+    /// 4096 is only used when asked for (full-window backdrops on large displays).
+    private static let sizeBuckets = [256, 512, 768, 1024, 1536, 2560, 4096]
     private static let maxPixelSize = 2560
 
     private let memory = NSCache<NSString, NSImage>()
@@ -237,6 +250,12 @@ final class ImageCache: @unchecked Sendable {
         return Int(max(landscape, portrait).rounded(.up))
     }
 
+    /// Longest side, in pixels, a landscape backdrop needs to fill a
+    /// `width` x `height` point frame at 2x (16:9 or 4:3 art).
+    static func backdropPixelSize(width: CGFloat, height: CGFloat) -> Int {
+        Int((max(width, height * 16 / 9) * 2).rounded(.up))
+    }
+
     /// The decode size a request rounds up to.
     static func sizeBucket(for maxPixelSize: Int?) -> Int {
         bucket(for: maxPixelSize)
@@ -244,7 +263,7 @@ final class ImageCache: @unchecked Sendable {
 
     private static func bucket(for maxPixelSize: Int?) -> Int {
         guard let maxPixelSize, maxPixelSize > 0 else { return Self.maxPixelSize }
-        return sizeBuckets.first { $0 >= maxPixelSize } ?? Self.maxPixelSize
+        return sizeBuckets.first { $0 >= maxPixelSize } ?? sizeBuckets[sizeBuckets.count - 1]
     }
 
     private static func memoryKey(_ url: URL, bucket: Int) -> NSString {
@@ -318,8 +337,16 @@ final class ImageCache: @unchecked Sendable {
         }
     }
 
+    /// TMDB keeps some logos as SVG, which ImageIO can't decode; its image
+    /// server renders the same file as PNG when asked for `.png`.
+    static func decodableURL(_ url: URL) -> URL {
+        guard url.host == "image.tmdb.org", url.pathExtension.lowercased() == "svg" else { return url }
+        return url.deletingPathExtension().appendingPathExtension("png")
+    }
+
     private func download(_ url: URL, priority: Float) async throws -> Data {
-        try await withCheckedThrowingContinuation { continuation in
+        let url = Self.decodableURL(url)
+        return try await withCheckedThrowingContinuation { continuation in
             let task = session.dataTask(with: url) { data, response, error in
                 if let error {
                     continuation.resume(throwing: error)
@@ -711,13 +738,15 @@ extension CachedAsyncImage where Placeholder == Color {
         url: URL?,
         aspectRatio: CGFloat? = nil,
         contentMode: ContentMode = .fill,
-        maxPixelSize: Int? = nil
+        maxPixelSize: Int? = nil,
+        fallbackURL: URL? = nil
     ) {
         self.init(
             url: url,
             aspectRatio: aspectRatio,
             contentMode: contentMode,
             maxPixelSize: maxPixelSize,
+            fallbackURL: fallbackURL,
             placeholder: { Color.white.opacity(0.05) }
         )
     }

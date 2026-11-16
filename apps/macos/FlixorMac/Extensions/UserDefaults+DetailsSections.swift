@@ -16,6 +16,7 @@ enum DetailsSectionKey: String, CaseIterable, Codable, Identifiable {
     case collection
     case cast
     case trailers
+    case whereToWatch
     case physical
     case guidance
     case comments
@@ -32,6 +33,7 @@ enum DetailsSectionKey: String, CaseIterable, Codable, Identifiable {
         case .collection: return "COLLECTION"
         case .cast: return "CAST"
         case .trailers: return "TRAILERS"
+        case .whereToWatch: return "WHERETOWATCH"
         case .physical: return "PHYSICAL"
         case .guidance: return "GUIDANCE"
         case .comments: return "COMMENTS"
@@ -46,6 +48,7 @@ enum DetailsSectionKey: String, CaseIterable, Codable, Identifiable {
         case .collection: return String(localized: "Collection")
         case .cast: return String(localized: "Cast & Crew")
         case .trailers: return String(localized: "Trailers & Videos")
+        case .whereToWatch: return String(localized: "Digital Releases")
         case .physical: return String(localized: "Physical Releases")
         case .guidance: return String(localized: "Parents Guide")
         case .comments: return String(localized: "Comments")
@@ -58,6 +61,7 @@ enum DetailsSectionKey: String, CaseIterable, Codable, Identifiable {
         switch self {
         case .suggested: return String(localized: "Suggested")
         case .trailers: return String(localized: "Videos")
+        case .whereToWatch: return String(localized: "Digital")
         case .physical: return String(localized: "Discs")
         case .guidance: return String(localized: "Guide")
         default: return title
@@ -71,6 +75,7 @@ enum DetailsSectionKey: String, CaseIterable, Codable, Identifiable {
         case .collection: return String(localized: "Other movies in the franchise")
         case .cast: return String(localized: "Cast, crew and guest stars")
         case .trailers: return String(localized: "Trailers, teasers and featurettes")
+        case .whereToWatch: return String(localized: "Stores to stream, rent or buy it digitally, with prices (MyBluray)")
         case .physical: return String(localized: "Blu-ray and 4K editions, with quick add to your collection (MyBluray)")
         case .guidance: return String(localized: "Age rating, Common Sense and the IMDb parents guide (MyBluray)")
         case .comments: return String(localized: "Trakt comments and reviews")
@@ -85,6 +90,7 @@ enum DetailsSectionKey: String, CaseIterable, Codable, Identifiable {
         case .collection: return "square.stack.3d.up.fill"
         case .cast: return "person.2.fill"
         case .trailers: return "play.rectangle.fill"
+        case .whereToWatch: return "cart.fill"
         case .physical: return "opticaldisc"
         case .guidance: return "shield.lefthalf.filled"
         case .comments: return "text.bubble.fill"
@@ -94,7 +100,7 @@ enum DetailsSectionKey: String, CaseIterable, Codable, Identifiable {
 
     /// Default order when nothing is saved (or after a reset).
     static let defaultOrder: [DetailsSectionKey] = [
-        .episodes, .collection, .cast, .suggested, .trailers, .physical, .guidance, .comments, .about
+        .episodes, .collection, .cast, .suggested, .trailers, .whereToWatch, .physical, .guidance, .comments, .about
     ]
 
     /// The default before Collection and Cast moved up. A saved list that is

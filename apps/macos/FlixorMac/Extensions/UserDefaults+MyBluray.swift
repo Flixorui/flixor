@@ -15,6 +15,10 @@ enum MyBlurayOption: String, CaseIterable, Identifiable {
     case appleTrailers
     case highQualityTrailers
     case bonusVideos
+    // Artwork
+    case appleArtwork
+    // Where to watch
+    case whereToWatch
     // Ratings
     case ratings
     // Parents guide

@@ -128,6 +128,11 @@ class HomeViewModel: ObservableObject {
 
     // MARK: - Data
     @Published var billboardItems: [MediaItem] = []
+    /// Which default source fills the hero; nil when a source picked in settings does.
+    private var defaultHeroRank: DefaultHeroRank?
+    enum DefaultHeroRank: Int {
+        case continueWatching, onDeck, recentlyAdded, discovery
+    }
     @Published var continueWatchingItems: [MediaItem] = []
     @Published var continueWatchingVersions: Set<String> = []  // ratingKeys with multiple versions across libraries
     /// Continue Watching item ids with a watch-state action in flight.
@@ -251,7 +256,7 @@ class HomeViewModel: ObservableObject {
                 let data = try await self.fetchOnDeck()
                 self.onDeckItems = data
                 self.onDeckState = data.isEmpty ? .empty : .loaded
-                self.offerDefaultHero(data)
+                self.offerDefaultHero(data, rank: .onDeck)
                 print("✅ [Home] On Deck loaded: \(data.count) items")
             } catch {
                 print("⚠️ [Home] On Deck failed: \(error)")
@@ -265,7 +270,7 @@ class HomeViewModel: ObservableObject {
                 let data = try await self.fetchRecentlyAdded()
                 self.recentlyAddedItems = data
                 self.recentlyAddedState = data.isEmpty ? .empty : .loaded
-                self.offerDefaultHero(data)
+                self.offerDefaultHero(data, rank: .recentlyAdded)
                 print("✅ [Home] Recently Added loaded: \(data.count) items")
             } catch {
                 print("⚠️ [Home] Recently Added failed: \(error)")
@@ -428,7 +433,8 @@ class HomeViewModel: ObservableObject {
             return
         }
 
-        billboardItems = normalizeForHero(Array(items.prefix(5)))
+        billboardItems = normalizeForHero(Self.oneItemPerTitle(items, limit: 5))
+        defaultHeroRank = .discovery
         heroState = .loaded
         startBillboardRotation()
         print("✅ [Home] Hero seeded from '\(candidate?.title ?? "?")': \(billboardItems.count) items")
@@ -483,7 +489,7 @@ class HomeViewModel: ObservableObject {
         if !isUnchanged { continueWatchingItems = visible }
         continueWatchingState = visible.isEmpty ? .empty : .loaded
         registerContinueWatchingRow()
-        offerDefaultHero(visible)
+        offerDefaultHero(visible, rank: .continueWatching)
         resolvePreferredHero()
     }
 
@@ -549,17 +555,45 @@ class HomeViewModel: ObservableObject {
 
     /// Fills the hero from a default source, unless a source picked in settings
     /// is still loading.
-    private func offerDefaultHero(_ items: [MediaItem]) {
-        guard billboardItems.isEmpty, !items.isEmpty, preferredHeroSettled else { return }
-        setHero(items)
+    /// The default hero prefers Continue Watching, then On Deck, then Recently
+    /// Added. They load side by side, so a better source that arrives later
+    /// replaces a weaker one; the same source never replaces itself.
+    private func offerDefaultHero(_ items: [MediaItem], rank: DefaultHeroRank) {
+        guard !items.isEmpty, preferredHeroSettled else { return }
+        if billboardItems.isEmpty {
+            setHero(items, rank: rank)
+        } else if let current = defaultHeroRank, rank.rawValue < current.rawValue {
+            setHero(items, rank: rank)
+        }
     }
 
-    private func setHero(_ items: [MediaItem]) {
+    /// `rank` is nil for a source picked in settings, which defaults never replace.
+    private func setHero(_ items: [MediaItem], rank: DefaultHeroRank? = nil) {
         stopBillboardRotation()
         currentBillboardIndex = 0
-        billboardItems = normalizeForHero(Array(items.prefix(5)))
+        defaultHeroRank = rank
+        billboardItems = normalizeForHero(Self.oneItemPerTitle(items, limit: 5))
         heroState = .loaded
         startBillboardRotation()
+    }
+
+    /// Up to `limit` items, keeping only the first episode or season of each show,
+    /// so five new episodes of one series don't fill every hero page.
+    static func oneItemPerTitle(_ items: [MediaItem], limit: Int) -> [MediaItem] {
+        var seen = Set<String>()
+        var result: [MediaItem] = []
+        for item in items {
+            let key: String
+            switch item.type {
+            case "episode": key = item.grandparentRatingKey.map { "show:\($0)" } ?? item.grandparentTitle.map { "title:\($0)" } ?? item.id
+            case "season": key = item.parentRatingKey.map { "show:\($0)" } ?? item.parentTitle.map { "title:\($0)" } ?? item.id
+            default: key = item.id
+            }
+            guard seen.insert(key).inserted else { continue }
+            result.append(item)
+            if result.count == limit { break }
+        }
+        return result
     }
 
     /// Prefers items with backdrop art so the billboard isn't a flat poster crop.
@@ -602,13 +636,16 @@ class HomeViewModel: ObservableObject {
     }
 
     /// What the hero shows with the default source.
-    private func defaultHeroCandidates() -> [MediaItem]? {
-        for candidate in [continueWatchingItems, onDeckItems, recentlyAddedItems] where !candidate.isEmpty {
-            return candidate
+    private func defaultHeroCandidates() -> (items: [MediaItem], rank: DefaultHeroRank)? {
+        let sources: [([MediaItem], DefaultHeroRank)] = [
+            (continueWatchingItems, .continueWatching), (onDeckItems, .onDeck), (recentlyAddedItems, .recentlyAdded),
+        ]
+        for (candidate, rank) in sources where !candidate.isEmpty {
+            return (candidate, rank)
         }
         let section = extraSections.first { $0.items.contains { $0.art?.isEmpty == false } }
         let items = section?.items.filter { $0.art?.isEmpty == false } ?? []
-        return items.isEmpty ? nil : items
+        return items.isEmpty ? nil : (items, .discovery)
     }
 
     /// Tries the hero source picked in settings; called as row groups finish.
@@ -636,8 +673,8 @@ class HomeViewModel: ObservableObject {
     private func settleHeroWithFallback() {
         preferredHeroSettled = true
         guard billboardItems.isEmpty else { return }
-        if let items = defaultHeroCandidates() {
-            setHero(items)
+        if let candidate = defaultHeroCandidates() {
+            setHero(candidate.items, rank: candidate.rank)
         } else if pendingGroupCount == 0 {
             heroState = .empty
         }
@@ -667,7 +704,7 @@ class HomeViewModel: ObservableObject {
         let watchlistPending = source == .myList && onDemandWatchlistItems == nil
         if isHeroSourceSettled(source) && !watchlistPending {
             preferredHeroSettled = true
-            if let items = defaultHeroCandidates() { setHero(items) }
+            if let candidate = defaultHeroCandidates() { setHero(candidate.items, rank: candidate.rank) }
             return
         }
         resolvePreferredHero()

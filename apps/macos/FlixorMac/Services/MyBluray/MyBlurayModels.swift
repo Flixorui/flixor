@@ -132,6 +132,71 @@ struct MBTitle: Codable, Equatable {
     }
 }
 
+// MARK: - Apple TV artwork
+
+/// One image from `/v2/titles/imdb:{id}/images?source=apple-tv`.
+struct MBImage: Codable, Equatable {
+    let kind: String?           // backdrop, portrait-artwork, logo, poster, ...
+    let scope: String?          // "title" for the film or show itself
+    let url: String?
+    let urlTemplate: String?    // https://is1-ssl.mzstatic.com/.../{w}x{h}sr.{f}
+    let originalWidth: Double?
+    let originalHeight: Double?
+    let sourceField: String?    // Apple's field name, e.g. contentImage
+
+    /// The image at `width` pixels wide (never more than the original), keeping
+    /// its aspect ratio. Falls back to the ready-made `url`.
+    func url(width: Int, format: String = "jpg") -> URL? {
+        if let template = urlTemplate,
+           let originalWidth, let originalHeight, originalWidth > 0, originalHeight > 0 {
+            let w = min(Double(width), originalWidth)
+            let h = (w * originalHeight / originalWidth).rounded()
+            let filled = template
+                .replacingOccurrences(of: "{w}", with: String(Int(w)))
+                .replacingOccurrences(of: "{h}", with: String(Int(h)))
+                .replacingOccurrences(of: "{f}", with: format)
+            if let url = URL(string: filled) { return url }
+        }
+        return url.flatMap(URL.init(string:))
+    }
+}
+
+/// The Apple TV artwork Flixor uses, from a title's images.
+///
+/// Apple's fields, checked against the Apple TV app:
+/// - `contentImage`: the wide backdrop (4:3, 4320×3240), textless.
+/// - `contentImage16X9`: landscape artwork with the title printed on it.
+/// - `contentImageTall`: tall portrait artwork, textless.
+/// - `posterArt`: the poster, with the title printed on it.
+/// Logos still come from TMDB.
+struct MBAppleArtwork: Codable, Equatable {
+    let wideBackdrop: MBImage?
+    let tallArtwork: MBImage?
+
+    init(images: [MBImage]) {
+        let title = images.filter { ($0.scope ?? "title") == "title" }
+        wideBackdrop = title.first { $0.sourceField == "contentImage" }
+        tallArtwork = title.first { $0.sourceField == "contentImageTall" }
+    }
+
+    /// Textless wide backdrop sized for full-window heroes.
+    var backdropURL: URL? { wideBackdrop?.url(width: 2880) }
+
+    /// An Apple artwork link (`…/2880x2160sr.jpg`) re-sized for a frame `pixelWidth`
+    /// wide. Widths snap to 1920, 2880 or 4320 (the original), so resizing the
+    /// window doesn't download a new copy for every size. Other links are unchanged.
+    static func sized(_ url: URL?, pixelWidth: Int) -> URL? {
+        guard let url, url.host?.hasSuffix("mzstatic.com") == true else { return url }
+        let name = url.lastPathComponent
+        guard let match = name.wholeMatch(of: /(\d+)x(\d+)([a-z]{2})\.(jpg|png|webp)/),
+              let w0 = Double(match.1), let h0 = Double(match.2), w0 > 0 else { return url }
+        let width = [1920, 2880, 4320].first { $0 >= pixelWidth } ?? 4320
+        let height = Int((Double(width) * h0 / w0).rounded())
+        return url.deletingLastPathComponent()
+            .appendingPathComponent("\(width)x\(height)\(match.3).\(match.4)")
+    }
+}
+
 struct MBExternalIds: Codable, Equatable {
     let imdb: String?
     let tmdb: String?
@@ -294,6 +359,19 @@ struct MBEditionSummary: Codable, Hashable, Identifiable {
 }
 
 /// Full edition details (`/v2/editions/{id}`).
+extension MBEditionSummary {
+    /// MyBluray's `coverImage` is Blu-ray.com's `_large` file, only about
+    /// 195×250 px. The same cover as `_front` is the full scan (about 1900 px
+    /// wide), which every disc checked has. Use `coverURL` as the fallback.
+    var fullCoverURL: URL? {
+        guard let cover = coverImage,
+              let range = cover.range(of: #"_(large|medium|small)\.jpg"#, options: .regularExpression) else { return nil }
+        return URL(string: cover.replacingCharacters(in: range, with: "_front.jpg"))
+    }
+
+    var coverURL: URL? { coverImage.flatMap(URL.init(string:)) }
+}
+
 struct MBEdition: Codable, Equatable, Identifiable {
     struct VideoSpec: Codable, Equatable {
         let codec: String?
@@ -393,6 +471,8 @@ struct MBEdition: Codable, Equatable, Identifiable {
     @LossyArray var artwork: [Artwork]
     let metadata: Metadata?
     let detailsStatus: String?  // complete | partial | error
+    /// The Blu-ray.com film this edition is of ("movie:18630"), for its IMDb id.
+    let movieId: String?
 }
 
 // MARK: - Collection (needs a Blu-ray.com login attached to the key)
@@ -462,4 +542,94 @@ struct MyBlurayAccess: Equatable {
     var states: [String: State] = [:]
 
     func state(_ id: String) -> State { states[id] ?? .unknown }
+}
+
+// MARK: - Where to watch
+
+/// One store offer from `/v2/titles/imdb:{id}/offers` (Apple TV and JustWatch, US).
+struct MBOffer: Codable, Equatable {
+    struct Provider: Codable, Equatable {
+        let id: String?
+        let name: String?
+        @LossyArray var images: [MBImage]
+    }
+    struct Price: Codable, Equatable {
+        let amount: String?
+        let currency: String?
+    }
+    let provider: Provider?
+    let type: String?           // buy, rent, subscription, free, ad-supported, ...
+    let price: Price?
+    let priceText: String?
+    let quality: String?        // _4K, HD, SD, BLURAY, DVD
+    let url: String?
+    struct Provenance: Codable, Equatable { let provider: String? }  // apple-tv | justwatch
+    let provenance: Provenance?
+}
+
+/// A Blu-ray.com digital release in full (`/v2/editions/digital:{id}`): the
+/// stores selling it, any prices Blu-ray.com lists, and its video and audio.
+struct MBDigitalEdition: Codable, Equatable {
+    struct Store: Codable, Equatable {
+        let id: String?         // amazon, itunes, google-play, vudu, microsoft, movies-anywhere, ...
+        let name: String?
+        let url: String?
+    }
+    struct StorePrice: Codable, Equatable {
+        let storeId: String?
+        let storeName: String?
+        let offer: String?      // buy | rent
+        let quality: String?
+        let amount: String?
+        let text: String?
+        let url: String?
+    }
+    struct Video: Codable, Equatable {
+        let resolution: String?
+        @LossyArray var resolutions: [String]
+        @LossyArray var hdrFormats: [String]
+        @LossyArray var features: [String]
+    }
+    let id: String
+    let title: String?
+    let country: MBCountry?
+    let releaseDate: String?
+    @LossyArray var stores: [Store]
+    @LossyArray var prices: [StorePrice]
+    let video: Video?
+    @LossyArray var audio: [String]
+    let audioNote: String?
+}
+
+/// Where a title can be streamed, rented or bought (US), merged from MyBluray's
+/// store offers (Apple TV, JustWatch) and Blu-ray.com's digital release page.
+struct WhereToWatch: Equatable {
+    struct Store: Identifiable, Equatable {
+        let id: String              // canonical: apple, amazon, vudu, google-play, ...
+        let name: String
+        /// JustWatch's provider id, which TMDB shares (2 = Apple TV, 10 = Amazon...).
+        var providerId: Int?
+        var logo: URL?
+        /// The logo is a square app icon (TMDB) rather than a bare glyph.
+        var logoIsIcon = false
+        var url: URL?
+        var price: Double?          // lowest price, USD
+        var priceText: String?
+        var quality: String?        // 4K, HD or SD
+    }
+    struct Spec: Equatable, Hashable {
+        let title: String
+        let detail: String?
+    }
+
+    var stream: [Store] = []
+    var rent: [Store] = []
+    var buy: [Store] = []
+    var specs: [Spec] = []
+
+    var isEmpty: Bool { stream.isEmpty && rent.isEmpty && buy.isEmpty }
+
+    static func money(_ value: Double) -> String {
+        value.formatted(.currency(code: "USD"))
+    }
 }

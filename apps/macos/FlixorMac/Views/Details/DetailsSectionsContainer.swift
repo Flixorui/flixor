@@ -119,6 +119,8 @@ struct DetailsSectionsContainer: View {
             return profileSettings.showCastCrew && (!vm.cast.isEmpty || !vm.crew.isEmpty || !vm.guestStars.isEmpty)
         case .trailers:
             return !vm.trailers.isEmpty
+        case .whereToWatch:
+            return !vm.isSeason && !vm.isEpisode && vm.whereToWatch != nil
         case .physical:
             return physicalImdbId != nil && physicalModel.phase == .loaded
         case .guidance:
@@ -160,6 +162,10 @@ struct DetailsSectionsContainer: View {
             .equatable()
         case .trailers:
             DetailsTrailersSection(trailers: vm.trailers, onPlay: { selectedTrailer = $0 })
+        case .whereToWatch:
+            if let content = vm.whereToWatch {
+                DetailsWhereToWatchSection(content: content)
+            }
         case .physical:
             DetailsPhysicalSection(model: physicalModel, onSelect: { edition in
                 router.push(EditionRoute(summary: edition), on: mainView.selectedTab)
