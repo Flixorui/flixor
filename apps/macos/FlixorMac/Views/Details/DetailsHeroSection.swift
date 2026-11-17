@@ -30,11 +30,26 @@ struct DetailsHeroSection: View {
 
     // Profile-scoped rating visibility settings
     @ObservedObject private var ratingPrefs = RatingPreferencesStore.shared
+    @ObservedObject private var upcomingStore = UpcomingEpisodesStore.shared
     @Environment(\.flixorTheme) var theme
     @Environment(\.detailsTitleActions) var titleActions
     @Environment(\.detailsHeroTrailer) var heroTrailer
 
     private var hasTrailers: Bool { !trailers.isEmpty }
+
+    /// The show's next episode: the Upcoming list's entry when it has one (it
+    /// knows the air time with Trakt), else TMDB's day.
+    private var nextAiring: DetailsViewModel.NextAiring? {
+        guard !isEpisode, !vm.isSeason, vm.mediaKind == "tv" else { return nil }
+        let tmdb = vm.nextAiring
+        guard let id = vm.tmdbId.flatMap(Int.init), let listed = upcomingStore.nextEpisode(showTmdbId: id) else { return tmdb }
+        let sameEpisode = tmdb.map { $0.season == listed.season && $0.number == listed.number } ?? false
+        return DetailsViewModel.NextAiring(
+            season: listed.season, number: listed.number, title: listed.title ?? tmdb?.title,
+            date: listed.airDate, hasTime: listed.hasTime,
+            isFinale: listed.isFinale || (sameEpisode && tmdb?.isFinale == true)
+        )
+    }
 
     private var metaItems: [String] {
         var parts: [String] = []
@@ -149,6 +164,12 @@ struct DetailsHeroSection: View {
                     actionButtonsRow
                         .fixedSize(horizontal: true, vertical: false)
                         .padding(.top, DS.Space.s6)
+
+                    // Next announced episode of a show
+                    if let next = nextAiring {
+                        DetailsNextEpisodeStrip(next: next)
+                            .padding(.top, DS.Space.s6)
+                    }
                 }
                 .frame(maxWidth: contentColumnMaxWidth, maxHeight: .infinity, alignment: .bottomLeading)
 
@@ -485,6 +506,83 @@ struct DetailsHeroSection: View {
 /// Sizes the logo to its fitted size inside a max box, so a wide, short logo
 /// takes only its own height (a plain max frame keeps the full box height,
 /// leaving a gap above the logo).
+/// "New episode tonight at 9:00 PM · S3 E6 · Signal Fire" under the hero buttons.
+private struct DetailsNextEpisodeStrip: View {
+    let next: DetailsViewModel.NextAiring
+
+    @Environment(\.flixorTheme) private var theme
+
+    private static let weekday: DateFormatter = {
+        let f = DateFormatter()
+        f.setLocalizedDateFormatFromTemplate("EEE")
+        return f
+    }()
+
+    var body: some View {
+        HStack(spacing: DS.Space.s12) {
+            VStack(spacing: 0) {
+                Text(Self.weekday.string(from: next.date).uppercased())
+                    .font(.system(size: 10, weight: .bold))
+                Text("\(Calendar.current.component(.day, from: next.date))")
+                    .font(.system(size: 18, weight: .bold))
+            }
+            .foregroundStyle(theme.onAccent)
+            .frame(width: 44)
+            .padding(.vertical, 3)
+            .background(RoundedRectangle(cornerRadius: DS.Radius.r8, style: .continuous).fill(theme.accent))
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(headline)
+                    .font(.flixor(.callout, weight: .semibold))
+                    .foregroundStyle(theme.textPrimary)
+                Text(detail)
+                    .font(.flixor(.footnote))
+                    .foregroundStyle(theme.textSecondary)
+                    .lineLimit(1)
+            }
+        }
+        .padding(.vertical, DS.Space.s8)
+        .padding(.leading, DS.Space.s8)
+        .padding(.trailing, DS.Space.s16)
+        .background(
+            RoundedRectangle(cornerRadius: DS.Radius.r12, style: .continuous)
+                .fill(.ultraThinMaterial)
+                .environment(\.colorScheme, .dark)
+                .overlay(RoundedRectangle(cornerRadius: DS.Radius.r12, style: .continuous).fill(Color.white.opacity(0.05)))
+                .overlay(RoundedRectangle(cornerRadius: DS.Radius.r12, style: .continuous).strokeBorder(Color.white.opacity(0.12), lineWidth: 1))
+        )
+        .fixedSize()
+        .accessibilityElement(children: .combine)
+    }
+
+    private var headline: String {
+        let calendar = Calendar.current
+        let isToday = calendar.isDateInToday(next.date)
+        let isTomorrow = calendar.isDateInTomorrow(next.date)
+        let time = next.hasTime ? UpcomingLabels.time(next.date) : nil
+        if next.number == 1 {
+            let day = UpcomingLabels.relativeDay(next.date)
+            return next.season == 1
+                ? String(localized: "Premieres \(day)")
+                : String(localized: "Season \(next.season) premieres \(day)")
+        }
+        switch (isToday, isTomorrow, time) {
+        case (true, _, let time?): return String(localized: "New episode today at \(time)")
+        case (true, _, nil): return String(localized: "New episode today")
+        case (_, true, let time?): return String(localized: "New episode tomorrow at \(time)")
+        case (_, true, nil): return String(localized: "New episode tomorrow")
+        default: return String(localized: "Next episode \(UpcomingLabels.day(next.date))")
+        }
+    }
+
+    private var detail: String {
+        var parts = ["S\(next.season) E\(next.number)"]
+        if let title = next.title, !title.isEmpty, !title.lowercased().hasPrefix("episode ") { parts.append(title) }
+        if next.isFinale { parts.append(String(localized: "Finale")) }
+        return parts.joined(separator: " · ")
+    }
+}
+
 private struct FittedLogoLayout: Layout {
     let maxWidth: CGFloat
     let maxHeight: CGFloat

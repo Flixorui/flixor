@@ -9,6 +9,7 @@ import SwiftUI
 
 struct HomeScreenAppearanceView: View {
     @ObservedObject private var profileSettings = ProfileSettings.shared
+    @ObservedObject private var upcomingStore = UpcomingEpisodesStore.shared
 
     @State private var showHeroPreview: Bool = false
     @State private var showContinueWatchingPreview: Bool = false
@@ -60,6 +61,10 @@ struct HomeScreenAppearanceView: View {
                 case .wide: ContinueWatchingWidePreview(blurUpNext: HomeRowsStore.shared.continueWatchingBlurNextUp)
                 }
             }
+
+            // Upcoming row: which new episodes get a card
+            SettingsSectionHeader(title: "Upcoming: New Episodes")
+            UpcomingNewEpisodeSettings(rules: $upcomingStore.newRules)
 
             // Cards in every other row
             SettingsSectionHeader(title: "Catalog Rows")

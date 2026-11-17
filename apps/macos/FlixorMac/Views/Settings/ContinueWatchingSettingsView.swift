@@ -13,6 +13,7 @@ struct ContinueWatchingSettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var profileSettings = ProfileSettings.shared
     @ObservedObject private var rowsStore = HomeRowsStore.shared
+    @ObservedObject private var upcomingStore = UpcomingEpisodesStore.shared
     @State private var showPreview: Bool = false
     @State private var source = UserDefaults.standard.continueWatchingSource
 
@@ -125,6 +126,10 @@ struct ContinueWatchingSettingsView: View {
                                 .accessibilityLabel(Text("Blur thumbnails of next-up episodes"))
                         }
                     }
+
+                    // Upcoming row: which new episodes get a card
+                    SettingsSectionHeader(title: "Upcoming: New Episodes")
+                    UpcomingNewEpisodeSettings(rules: $upcomingStore.newRules)
 
                     // Cache Section
                     SettingsSectionHeader(title: "Playback Source Cache")

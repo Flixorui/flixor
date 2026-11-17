@@ -621,9 +621,15 @@ public struct TMDBTVDetails: Codable {
     public let networks: [TMDBProductionCompany]?
     public let productionCompanies: [TMDBProductionCompany]?
     public let createdBy: [TMDBCreator]?
+    /// The next announced episode, if any.
+    public let nextEpisodeToAir: TMDBAiringEpisode?
+    /// The most recent episode that has aired.
+    public let lastEpisodeToAir: TMDBAiringEpisode?
 
     private enum CodingKeys: String, CodingKey {
         case id, name, overview, genres, seasons, tagline, status
+        case nextEpisodeToAir = "next_episode_to_air"
+        case lastEpisodeToAir = "last_episode_to_air"
         case posterPath = "poster_path"
         case backdropPath = "backdrop_path"
         case firstAirDate = "first_air_date"
@@ -638,6 +644,30 @@ public struct TMDBTVDetails: Codable {
         case networks
         case productionCompanies = "production_companies"
         case createdBy = "created_by"
+    }
+}
+
+/// `next_episode_to_air` / `last_episode_to_air` of a TV show. `airDate` is a
+/// day ("2026-11-20") with no time.
+public struct TMDBAiringEpisode: Codable {
+    public let id: Int?
+    public let name: String?
+    public let overview: String?
+    public let airDate: String?
+    public let seasonNumber: Int?
+    public let episodeNumber: Int?
+    public let stillPath: String?
+    public let runtime: Int?
+    /// "standard", "finale" or "mid_season".
+    public let episodeType: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case id, name, overview, runtime
+        case airDate = "air_date"
+        case seasonNumber = "season_number"
+        case episodeNumber = "episode_number"
+        case stillPath = "still_path"
+        case episodeType = "episode_type"
     }
 }
 

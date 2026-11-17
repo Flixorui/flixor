@@ -16,6 +16,7 @@ struct HomeView: View {
     // Profile-scoped Home Screen Settings
     @ObservedObject private var profileSettings = ProfileSettings.shared
     @ObservedObject private var rowsStore = HomeRowsStore.shared
+    @ObservedObject private var upcomingStore = UpcomingEpisodesStore.shared
     @ObservedObject private var network = NetworkMonitor.shared
     @ObservedObject private var navigationStyle = NavigationStyleStore.shared
     @Environment(\.flixorTheme) private var theme
@@ -75,6 +76,7 @@ struct HomeView: View {
                 await FlixorCore.shared.clearTmdbCache()
                 UserDefaults.standard.set(true, forKey: cacheVersion)
             }
+            upcomingStore.refreshIfStale()
             if viewModel.billboardItems.isEmpty && !viewModel.isLoading {
                 await viewModel.loadHomeScreen()
             }
@@ -299,6 +301,10 @@ struct HomeView: View {
                 isRetrying: viewModel.retryingRowIds.contains(failure.id),
                 onRetry: { viewModel.retry(failure) }
             )
+        case .upcoming(let episodes):
+            UpcomingHomeRow(title: row.title, episodes: episodes) { episode in
+                viewModel.showItemDetails(episode.showItem)
+            }
         case .userCollection(let id):
             UserCollectionHomeRow(collectionId: id, title: row.title) { item in
                 viewModel.showItemDetails(item)

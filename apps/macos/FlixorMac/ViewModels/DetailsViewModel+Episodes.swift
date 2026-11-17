@@ -300,12 +300,12 @@ extension DetailsViewModel {
         let token = loadToken
         do {
             struct SD: Codable { let episodes: [SE]? }
-            struct SE: Codable { let id: Int?; let name: String?; let overview: String?; let still_path: String?; let runtime: Int?; let episode_number: Int? }
+            struct SE: Codable { let id: Int?; let name: String?; let overview: String?; let still_path: String?; let runtime: Int?; let episode_number: Int?; let air_date: String? }
             let data: SD = try await api.get("/api/tmdb/tv/\(tvId)/season/\(seasonNumber)")
             guard token == loadToken, selectedSeasonKey == seasonId else { return }
             let eps: [Episode] = (data.episodes ?? []).map { e in
                 let url = ImageService.shared.proxyImageURL(url: e.still_path.flatMap { "https://image.tmdb.org/t/p/w780\($0)" }, width: 600, height: 338)
-                return Episode(id: "tmdb:tv:\(e.id ?? 0)", title: e.name ?? String(localized: "Episode"), overview: e.overview, image: url, durationMin: e.runtime, progressPct: nil, viewOffset: nil, seasonNumber: seasonNumber, episodeNumber: e.episode_number)
+                return Episode(id: "tmdb:tv:\(e.id ?? 0)", title: e.name ?? String(localized: "Episode"), overview: e.overview, image: url, durationMin: e.runtime, progressPct: nil, viewOffset: nil, seasonNumber: seasonNumber, episodeNumber: e.episode_number, airDate: UpcomingEpisodesLoader.parseDay(e.air_date))
             }
             self.episodes = eps
             self.episodesLoading = false

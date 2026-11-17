@@ -84,6 +84,8 @@ struct HomeDisplayRow: Identifiable {
         case failure(HomeRowFailure)
         /// Loads itself when it scrolls into view.
         case userCollection(id: String)
+        /// New and upcoming episodes of the user's shows (UpcomingEpisodesStore).
+        case upcoming([UpcomingEpisode])
     }
 
     let id: String
@@ -147,6 +149,13 @@ extension HomeViewModel {
             case .empty:
                 break
             }
+        }
+
+        // New and upcoming episodes, shown once there are some.
+        let upcoming = UpcomingEpisodesStore.shared.episodes
+        if !upcoming.isEmpty {
+            let title = store.title(for: homeUpcomingRowId, default: String(localized: "Upcoming"))
+            rows.append(HomeDisplayRow(id: homeUpcomingRowId, title: title, content: .upcoming(upcoming)))
         }
 
         // Recently Added per library (Plex)
@@ -227,14 +236,22 @@ extension HomeViewModel {
         var result: [HomeDisplayRow] = []
         result.reserveCapacity(rows.count)
         var sinceTop10 = 0
+        // Upcoming right below Continue Watching stays with it: the first Top 10 goes after both.
+        let anchorId: String = {
+            guard let cw = others.firstIndex(where: { $0.id == homeContinueWatchingRowId }),
+                  others.indices.contains(cw + 1), others[cw + 1].id == homeUpcomingRowId else {
+                return homeContinueWatchingRowId
+            }
+            return homeUpcomingRowId
+        }()
         // Placing starts at Continue Watching, so rows the user put above it stay clear
-        var placing = !others.contains { $0.id == homeContinueWatchingRowId }
+        var placing = !others.contains { $0.id == anchorId }
         if placing {
             result.append(queue.removeFirst())
         }
         for row in others {
             result.append(row)
-            if row.id == homeContinueWatchingRowId {
+            if row.id == anchorId {
                 if !queue.isEmpty { result.append(queue.removeFirst()) }
                 placing = true
                 sinceTop10 = 0

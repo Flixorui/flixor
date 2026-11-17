@@ -258,6 +258,7 @@ extension DetailsViewModel {
         releaseDate = nil
         firstAirDate = nil
         lastAirDate = nil
+        nextAiring = nil
         budget = nil
         revenue = nil
         originalLanguage = nil

@@ -106,6 +106,10 @@ extension DetailsViewModel {
             // Ratings
             let vote_average: Double?
             let vote_count: Int?
+            let next_episode_to_air: TNextEpisode?
+        }
+        struct TNextEpisode: Codable {
+            let name: String?; let air_date: String?; let season_number: Int?; let episode_number: Int?; let episode_type: String?
         }
         struct TGenre: Codable { let name: String }
         struct TProductionCompany: Codable { let id: Int?; let name: String?; let logo_path: String? }
@@ -129,6 +133,17 @@ extension DetailsViewModel {
         self.releaseDate = d.release_date
         self.firstAirDate = d.first_air_date
         self.lastAirDate = d.last_air_date
+        if media == "tv", let next = d.next_episode_to_air,
+           let season = next.season_number, let number = next.episode_number,
+           let day = UpcomingEpisodesLoader.parseDay(next.air_date),
+           day >= Calendar.current.startOfDay(for: Date()) {
+            self.nextAiring = NextAiring(
+                season: season, number: number, title: next.name, date: day,
+                hasTime: false, isFinale: next.episode_type == "finale"
+            )
+        } else {
+            self.nextAiring = nil
+        }
         self.budget = (d.budget ?? 0) > 0 ? d.budget : nil
         self.revenue = (d.revenue ?? 0) > 0 ? d.revenue : nil
         self.originalLanguage = d.original_language

@@ -540,6 +540,12 @@ class HomeViewModel: ObservableObject {
                 defaultTitle: String(localized: "Continue Watching"),
                 kind: .continueWatching,
                 group: .continueWatching
+            ),
+            HomeRowDescriptor(
+                id: homeUpcomingRowId,
+                defaultTitle: String(localized: "Upcoming"),
+                kind: .upcoming,
+                group: .continueWatching
             )
         ], group: .continueWatching)
     }
@@ -796,6 +802,8 @@ class HomeViewModel: ObservableObject {
     // MARK: - Refresh
 
     func refresh() async {
+        UpcomingEpisodesStore.shared.invalidate()
+        UpcomingEpisodesStore.shared.refreshIfStale()
         await loadHomeScreen()
     }
 

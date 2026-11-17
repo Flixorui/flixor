@@ -565,6 +565,11 @@ extension View {
                 UserCollectionDetailView(route: route)
                     .backButtonContentInset()
             }
+            .navigationDestination(for: UpcomingRoute.self) { _ in
+                UpcomingEpisodesView()
+                    .backButtonContentInset()
+                    .navigationBarBackButtonHidden(true)
+            }
     }
 }
 

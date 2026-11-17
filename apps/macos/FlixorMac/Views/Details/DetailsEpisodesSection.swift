@@ -279,6 +279,7 @@ struct EpisodesTabContent: View {
                                 onToggleWatched: { toggleWatched(episode) }
                             )
                             .contextMenu { episodeMenu(for: episode) }
+                            .modifier(UnairedEpisodeStyle(episode: episode))
                         }
                     }
                 }
@@ -305,6 +306,7 @@ struct EpisodesTabContent: View {
                             onToggleWatched: { toggleWatched(episode) }
                         )
                         .contextMenu { episodeMenu(for: episode) }
+                        .modifier(UnairedEpisodeStyle(episode: episode))
                     }
                 }
             }
@@ -318,6 +320,29 @@ struct EpisodesTabContent: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .watchStateDidChange)) { notification in
             episodeState.handleWatchStateChange(WatchStateChange(notification: notification), vm: vm)
+        }
+    }
+}
+
+// MARK: - Unaired episodes
+
+/// An announced episode that isn't out yet: dimmed, not playable, with its air day.
+private struct UnairedEpisodeStyle: ViewModifier {
+    let episode: DetailsViewModel.Episode
+
+    func body(content: Content) -> some View {
+        if episode.isUnaired, let date = episode.airDate {
+            content
+                .saturation(0)
+                .opacity(0.5)
+                .allowsHitTesting(false)
+                .overlay(alignment: .topTrailing) {
+                    UpcomingChip(text: String(localized: "Airs \(UpcomingLabels.relativeDay(date))"))
+                        .padding(DS.Space.s10)
+                }
+                .accessibilityLabel(String(localized: "\(episode.title), airs \(UpcomingLabels.relativeDay(date))"))
+        } else {
+            content
         }
     }
 }

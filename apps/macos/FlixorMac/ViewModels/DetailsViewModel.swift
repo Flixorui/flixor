@@ -105,6 +105,8 @@ class DetailsViewModel: ObservableObject {
     @Published var releaseDate: String?
     @Published var firstAirDate: String?
     @Published var lastAirDate: String?
+    /// Next announced episode (TMDB `next_episode_to_air`), shows only.
+    @Published var nextAiring: NextAiring?
     @Published var budget: Int?
     @Published var revenue: Int?
     @Published var originalLanguage: String?
@@ -337,7 +339,23 @@ class DetailsViewModel: ObservableObject {
 
     // MARK: - Seasons / Episodes
     struct Season: Identifiable { let id: String; let title: String; let source: String; let number: Int? } // source: plex/tmdb
-    struct Episode: Identifiable { let id: String; let title: String; let overview: String?; let image: URL?; let durationMin: Int?; let progressPct: Int?; let viewOffset: Int?; let seasonNumber: Int?; let episodeNumber: Int? }
+    struct Episode: Identifiable {
+        let id: String; let title: String; let overview: String?; let image: URL?; let durationMin: Int?; let progressPct: Int?; let viewOffset: Int?; let seasonNumber: Int?; let episodeNumber: Int?
+        /// Air day, when known (TMDB seasons).
+        var airDate: Date? = nil
+        /// Announced but not out yet.
+        var isUnaired: Bool { airDate.map { $0 > Calendar.current.startOfDay(for: Date()) } ?? false }
+    }
+
+    /// The next announced episode of a show, for the strip in the hero.
+    struct NextAiring: Equatable {
+        let season: Int
+        let number: Int
+        let title: String?
+        let date: Date
+        let hasTime: Bool
+        let isFinale: Bool
+    }
     struct Extra: Identifiable { let id: String; let title: String; let image: URL?; let durationMin: Int? }
     struct Track: Identifiable { let id: String; let name: String; let language: String? }
     struct VersionDetail: Identifiable {
