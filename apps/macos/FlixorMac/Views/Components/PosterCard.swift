@@ -11,8 +11,8 @@ struct PosterCard: View {
     let item: MediaItem
     let width: CGFloat
     var showTitle: Bool = true
-    /// For carousel rows: under "On hover" the title shows over the artwork while
-    /// hovered, with no caption, as on Home rows. Grids leave this off and keep the caption.
+    /// Under "On hover" the title shows over the artwork while hovered, with no
+    /// caption, as on Home rows. Used by Search rows and Discover; other grids keep the caption.
     var hoverTitles: Bool = false
     /// The year/edition line under the title (Library can show the title alone).
     var showYear: Bool = true
