@@ -210,3 +210,92 @@ export function bestSourceMatch(
   }
   return null;
 }
+
+// MARK: - Release type
+
+/**
+ * A full Blu-ray disc (BDMV folder, ISO, BD25/50) rather than an encode or remux.
+ * A Matroska or MP4 file is never a disc, whatever its name says.
+ */
+export function isDiscReleaseText(raw: string): boolean {
+  // "_" counts as a word character for \b, and release names use it as a separator.
+  const text = raw.replace(/_/g, ' ');
+  const has = (pattern: RegExp) => pattern.test(text);
+  if (has(/\.(mkv|mp4|avi|m4v|webm)\s*$/i)) return false;
+  if (has(/\b(BDMV|BR-?DISK|BD(25|50|66|100))\b|\.(iso|m2ts)\b|\bISO\b/i)) return true;
+  if (has(/\bCOMPLETE[ ._-]+(UHD[ ._-]+)?BLU-?RAY\b|\bBlu-?ray[ ._-]+dis[ck]\b|\bFull[ ._-]+Blu-?ray\b/i)) return true;
+  // "1080p.BluRay.AVC.TrueHD-FGT": the disc's own codec named, no encoder.
+  return (
+    has(/\bBlu-?ray\b/i) &&
+    has(/\b(AVC|VC-?1|MPEG-?2|MVC)\b/i) &&
+    !has(/\b(x26[45]|h\.?26[45]|REMUX|BDRip|BRRip|WEB-?DL|WEBRip)\b/i)
+  );
+}
+
+/** The file name, or name/title/description when there is none. Aggregators write the codec in descriptions. */
+function releaseText(stream: StremioPlayableStream): string {
+  const filename = stream.behaviorHints?.filename;
+  if (filename) return filename;
+  return [stream.name, stream.title, stream.description].filter(Boolean).join('\n');
+}
+
+export function isDiscRelease(stream: StremioPlayableStream): boolean {
+  return isDiscReleaseText(releaseText(stream));
+}
+
+export type ReleaseCategory = 'remux' | 'disc' | 'webDL' | 'encode' | 'preRelease' | 'other';
+
+/** Section order on the sources page. */
+export const RELEASE_CATEGORY_ORDER: ReleaseCategory[] = ['remux', 'disc', 'webDL', 'encode', 'preRelease', 'other'];
+
+export const RELEASE_CATEGORY_LABEL: Record<ReleaseCategory, string> = {
+  remux: 'Remux',
+  disc: 'BluRay Disc',
+  webDL: 'WEB-DL',
+  encode: 'Encode',
+  preRelease: 'Pre-release',
+  other: 'Other',
+};
+
+/**
+ * What kind of release a name is. `sizeBytes` catches discs named only
+ * "Blu-Ray 1080p": a 1080p release over 25 GB with no encoder named is the disc.
+ */
+export function releaseCategoryFromText(raw: string, sizeBytes?: number): ReleaseCategory {
+  const isFile = /\.(mkv|mp4|avi|m4v|webm)\s*$/i.test(raw);
+  // A trailing ".ts" is a container, not TELESYNC.
+  const text = raw.replace(/_/g, ' ').replace(/\.(mkv|mp4|avi|m4v|ts|webm)$/i, '');
+  const has = (pattern: RegExp) => pattern.test(text);
+  if (has(/\b(CAM|CAMRip|HD-?CAM|HD-?TS|TS|TSRip|TELESYNC|TC|HD-?TC|TELECINE|SCR|DVD-?Scr|SCREENER|Pre-?DVD|R5|WORKPRINT)\b/i)) {
+    return 'preRelease';
+  }
+  if (isDiscReleaseText(raw.replace(/_/g, ' '))) return 'disc';
+  if (
+    sizeBytes != null &&
+    sizeBytes > 25_000_000_000 &&
+    !isFile &&
+    has(/\bBlu-?Ray\b/i) &&
+    !has(/2160|\b4K\b|\bUHD\b|x26[45]|\bHEVC\b|h\.?26[45]|REMUX|BDRip|BRRip|WEB/i)
+  ) {
+    return 'disc';
+  }
+  if (has(/REMUX/i)) return 'remux';
+  if (has(/\bWEB(-?DL|-?Rip)?\b|\b(AMZN|NF|DSNP|HMAX|ATVP|iTunes)\b/i)) return 'webDL';
+  if (has(/\b(Blu-?Ray|BDRip|BRRip|BD)\b/i)) return 'encode';
+  return 'other';
+}
+
+export function releaseCategory(stream: StremioPlayableStream): ReleaseCategory {
+  return releaseCategoryFromText(releaseText(stream), stream.behaviorHints?.videoSize ?? stream.size);
+}
+
+export type ResolutionGroup = '4K' | '1080p' | 'Lower';
+
+/** "4K", "1080p" or "Lower" (720p and below, or unknown). A disc that doesn't say is 1080p. */
+export function resolutionGroup(stream: StremioPlayableStream, category: ReleaseCategory = releaseCategory(stream)): ResolutionGroup {
+  const bucket = resolutionBucket(stream);
+  if (bucket === 2160) return '4K';
+  if (bucket === 1080) return '1080p';
+  if (bucket == null && category === 'disc') return '1080p';
+  return 'Lower';
+}

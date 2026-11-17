@@ -56,7 +56,7 @@ export function useStreamRecovery(options: Options) {
     const fetched = await (async () => {
       await removeCachedSourceIfFailed(params.contentKey, params.uri).catch(() => undefined);
       const identity = identityForStreamParams(params);
-      return params.recoverySourcesFetched || !identity ? null : fetchStreamsForRecovery(identity);
+      return params.recoverySourcesFetched || !identity ? null : fetchStreamsForRecovery(identity, params.title);
     })().catch(() => null);
 
     if (!mountedRef.current) {

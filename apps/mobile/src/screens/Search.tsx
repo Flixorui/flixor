@@ -19,8 +19,11 @@ import {
   PersonResult,
   RowItem,
   GENRE_MAP,
+  DEFAULT_DISCOVER_FILTERS,
+  normalizeDiscoverFilters,
 } from '../core/SearchData';
 import { useAppSettings } from '../hooks/useAppSettings';
+import GenreTiles, { type GenreTile } from '../components/search/GenreTiles';
 import { useTheme } from '../hooks/useTheme';
 import { useAppMode } from '../core/AppMode';
 import { RECENT_SEARCHES_LIMIT } from '../core/SettingsData';
@@ -377,6 +380,18 @@ export default function Search({ isTab = false, nativeSearchText, hideCustomSear
   const suffixShift = titleP.interpolate({ inputRange: [0, 1], outputRange: [-8, 0] });
   const titleScale = titleP.interpolate({ inputRange: [0, 1], outputRange: [1, 0.935] });
 
+  /** A genre tile opens Discover with that genre picked (movies, other filters reset). */
+  const openGenre = useCallback(
+    (genre: GenreTile) => {
+      updateSettingRef.current(
+        'searchDiscoverFilters',
+        normalizeDiscoverFilters({ ...DEFAULT_DISCOVER_FILTERS, mediaType: 'movie', genreId: genre.id, genreName: genre.name })
+      );
+      setIdleMode('discover');
+    },
+    []
+  );
+
   return (
     <View style={{ flex: 1, backgroundColor: theme.background }}>
       <Animated.View style={{ flex: 1, opacity: fadeAnim }}>
@@ -439,6 +454,7 @@ export default function Search({ isTab = false, nativeSearchText, hideCustomSear
                     </View>
                   </Pressable>
                 ))}
+                <GenreTiles onSelect={openGenre} />
               </View>
             ) : null}
 

@@ -32,9 +32,16 @@ export function useStreamSourceList(params: GenericStreamParams | null) {
     refreshedOnceRef.current = true;
     setIsRefreshing(true);
     try {
-      const results = await fetchStreamsForRecovery(identity);
+      const results = await fetchStreamsForRecovery(identity, params?.title);
       const streams = (results ?? []).flatMap((result) => result.streams);
       if (mountedRef.current && streams.some((stream) => stream.playable)) {
+        // The addon can leave the playing source out this time (aggregators vary between
+        // fetches). Keep it, first in its addon's group, so it stays listed and ticked.
+        const playing = params?.uri ? sourcesRef.current.find((stream) => stream.url === params.uri) : undefined;
+        if (playing && !streams.some((stream) => stream.url === playing.url)) {
+          const index = streams.findIndex((stream) => stream.addonName === playing.addonName);
+          streams.splice(index < 0 ? 0 : index, 0, playing);
+        }
         setSources(streams);
       }
     } finally {

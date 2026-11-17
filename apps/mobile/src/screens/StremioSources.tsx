@@ -7,6 +7,29 @@ import SettingsHeader from '../components/settings/SettingsHeader';
 import StremioProviderChips from '../components/stremio/StremioProviderChips';
 import StremioStreamCard from '../components/stremio/StremioStreamCard';
 import { useStremioSources, type StremioSourcesRouteParams } from '../hooks/useStremioSources';
+import {
+  rankedPlayable,
+  RELEASE_CATEGORY_LABEL,
+  RELEASE_CATEGORY_ORDER,
+  releaseCategory,
+  resolutionGroup,
+  type ReleaseCategory,
+  type ResolutionGroup,
+} from '../stremio/StremioSourceRanking';
+import type { StremioPlayableStream } from '../stremio/types';
+
+/** Rows per category before "Show all". */
+const ROWS_PER_CATEGORY = 3;
+const RESOLUTION_LABEL: Record<ResolutionGroup, string> = { '4K': '4K', '1080p': '1080p', Lower: '720p & lower' };
+
+type Entry = { stream: StremioPlayableStream; category: ReleaseCategory; resolution: ResolutionGroup };
+
+function entriesFor(streams: StremioPlayableStream[]): Entry[] {
+  return streams.map((stream) => {
+    const category = releaseCategory(stream);
+    return { stream, category, resolution: resolutionGroup(stream, category) };
+  });
+}
 
 type RouteParams = {
   route?: {
@@ -26,6 +49,7 @@ export default function StremioSources({ route }: RouteParams) {
     autoSelectNotice,
     chooseSourceInstead,
     visibleResults,
+    hiddenStreams,
     providers,
     selectedProvider,
     setSelectedProvider,
@@ -37,6 +61,53 @@ export default function StremioSources({ route }: RouteParams) {
   } = useStremioSources(params as StremioSourcesRouteParams);
 
   const title = params?.episodeTitle || params?.title || 'Stremio Sources';
+
+  const [resolutionFilter, setResolutionFilter] = React.useState<'all' | ResolutionGroup>('all');
+  // Categories shown as a header only (Pre-release starts that way), and ones showing every row.
+  const [collapsed, setCollapsed] = React.useState<Set<ReleaseCategory>>(() => new Set(['preRelease']));
+  const [expanded, setExpanded] = React.useState<Set<ReleaseCategory>>(() => new Set());
+  const [showHidden, setShowHidden] = React.useState(false);
+
+  // Playable sources best first, grouped by release type; unsupported ones listed after.
+  const allEntries = React.useMemo(() => entriesFor(rankedPlayable(visibleResults)), [visibleResults]);
+  const unsupported = React.useMemo(
+    () => visibleResults.flatMap((result) => result.streams.filter((stream) => !stream.playable)),
+    [visibleResults]
+  );
+  const hiddenEntries = React.useMemo(() => entriesFor(hiddenStreams), [hiddenStreams]);
+  const filtered = resolutionFilter === 'all' ? allEntries : allEntries.filter((e) => e.resolution === resolutionFilter);
+  const resolutionChips = React.useMemo(() => {
+    const chips = [{ id: 'all', label: `All  ${allEntries.length}` }];
+    for (const group of ['4K', '1080p', 'Lower'] as ResolutionGroup[]) {
+      const count = allEntries.filter((e) => e.resolution === group).length;
+      if (count > 0) chips.push({ id: group, label: `${RESOLUTION_LABEL[group]}  ${count}` });
+    }
+    return chips;
+  }, [allEntries]);
+
+  const toggle = (set: Set<ReleaseCategory>, category: ReleaseCategory) => {
+    const next = new Set(set);
+    if (next.has(category)) next.delete(category);
+    else next.add(category);
+    return next;
+  };
+
+  const renderCard = (stream: StremioPlayableStream, key: string) => {
+    const isCachedMatch =
+      cachedSource?.addonId === stream.addonId && cachedSource?.streamLabel === (stream.name || stream.title);
+    return (
+      <StremioStreamCard
+        key={key}
+        stream={stream}
+        onPress={() => navigateToPlayer(stream)}
+        disabled={!stream.playable}
+        isCached={isCachedMatch}
+        resumePositionLabel={isCachedMatch ? resumePositionLabel : undefined}
+      />
+    );
+  };
+  const streamKey = (stream: StremioPlayableStream, i: number) =>
+    `${stream.addonInstallationId || stream.addonId}-${stream.streamIndex}-${stream.url || i}`;
 
   return (
     <View style={styles.container}>
@@ -136,30 +207,99 @@ export default function StremioSources({ route }: RouteParams) {
           </View>
         ) : null}
 
-        {visibleResults.map((result) => (
-          <View key={result.installationId} style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>{result.addonName}</Text>
-              {result.error ? <Text style={styles.sectionError}>{result.error}</Text> : null}
-            </View>
-            <View style={styles.cards}>
-              {result.streams.map((stream) => {
-                const isCachedMatch =
-                  cachedSource?.addonId === stream.addonId &&
-                  cachedSource?.streamLabel === (stream.name || stream.title);
-                return (
-                  <StremioStreamCard
-                    key={`${result.installationId}-${stream.streamIndex}-${stream.name || stream.title || 'stream'}`}
-                    stream={stream}
-                    onPress={() => navigateToPlayer(stream)}
-                    disabled={!stream.playable}
-                    isCached={isCachedMatch}
-                    resumePositionLabel={isCachedMatch ? resumePositionLabel : undefined}
-                  />
-                );
-              })}
-            </View>
+        {!loading && !autoSelecting && (allEntries.length > 0 || hiddenStreams.length > 0) ? (
+          <>
+            {resolutionChips.length > 2 ? (
+              <StremioProviderChips
+                providers={resolutionChips}
+                selectedProvider={resolutionFilter}
+                onSelect={(id) => setResolutionFilter(id as 'all' | ResolutionGroup)}
+              />
+            ) : null}
+
+            {hiddenStreams.length > 0 ? (
+              <View style={styles.hiddenNote}>
+                <Text style={styles.hiddenText}>
+                  {hiddenStreams.length} hidden · for a different title or year
+                </Text>
+                <Pressable onPress={() => setShowHidden((v) => !v)} accessibilityRole="button" style={styles.hiddenButton}>
+                  <Text style={styles.hiddenButtonText}>{showHidden ? 'Hide' : 'Show'}</Text>
+                </Pressable>
+              </View>
+            ) : null}
+            {showHidden && hiddenEntries.length > 0 ? (
+              <View style={[styles.section, { opacity: 0.55 }]}>
+                <Text style={styles.sectionTitle}>Different title or year</Text>
+                <View style={styles.cards}>{hiddenEntries.map((e, i) => renderCard(e.stream, `hidden-${streamKey(e.stream, i)}`))}</View>
+              </View>
+            ) : null}
+
+            {filtered.length === 0 ? (
+              <View style={styles.stateCard}>
+                <Text style={styles.stateText}>
+                  {allEntries.length === 0 ? 'No source is for this title.' : 'No sources at this quality.'}
+                </Text>
+              </View>
+            ) : null}
+
+            {RELEASE_CATEGORY_ORDER.map((category) => {
+              const rows = filtered.filter((e) => e.category === category);
+              if (rows.length === 0) return null;
+              const all = allEntries.filter((e) => e.category === category);
+              const breakdown = (['4K', '1080p', 'Lower'] as ResolutionGroup[])
+                .map((group) => [group, all.filter((e) => e.resolution === group).length] as const)
+                .filter(([, n]) => n > 0)
+                .map(([group, n]) => `${RESOLUTION_LABEL[group]} ${n}`)
+                .join(' · ');
+              const isCollapsed = collapsed.has(category);
+              const shown = expanded.has(category) ? rows : rows.slice(0, ROWS_PER_CATEGORY);
+              return (
+                <View key={category} style={styles.section}>
+                  <View style={styles.categoryHeader}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.sectionTitle}>
+                        {RELEASE_CATEGORY_LABEL[category]} <Text style={styles.count}>{rows.length}</Text>
+                      </Text>
+                      <Text style={styles.breakdown}>{breakdown}</Text>
+                    </View>
+                    <Pressable onPress={() => setCollapsed((set) => toggle(set, category))} accessibilityRole="button" hitSlop={8}>
+                      <Text style={styles.toggle}>{isCollapsed ? 'Expand' : 'Collapse'}</Text>
+                    </Pressable>
+                  </View>
+                  {category === 'preRelease' ? (
+                    <Text style={styles.warning}>⚠︎ Recorded in a cinema or from a screener. Picture and sound are poor.</Text>
+                  ) : null}
+                  {!isCollapsed ? (
+                    <View style={styles.cards}>
+                      {shown.map((e, i) => renderCard(e.stream, streamKey(e.stream, i)))}
+                      {shown.length < rows.length ? (
+                        <Pressable
+                          onPress={() => setExpanded((set) => toggle(set, category))}
+                          accessibilityRole="button"
+                          style={styles.showAll}
+                        >
+                          <Text style={styles.showAllText}>Show all {rows.length}</Text>
+                        </Pressable>
+                      ) : null}
+                    </View>
+                  ) : null}
+                </View>
+              );
+            })}
+          </>
+        ) : null}
+
+        {unsupported.length > 0 ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Not playable in-app</Text>
+            <View style={styles.cards}>{unsupported.map((stream, i) => renderCard(stream, `unsupported-${streamKey(stream, i)}`))}</View>
           </View>
+        ) : null}
+
+        {visibleResults.filter((result) => result.error && result.streams.length === 0).map((result) => (
+          <Text key={result.installationId} style={[styles.sectionError, { marginHorizontal: 16, marginTop: 16 }]}>
+            {result.addonName}: {result.error}
+          </Text>
         ))}
       </Animated.ScrollView>
     </View>
@@ -236,6 +376,72 @@ const styles = StyleSheet.create({
   },
   cards: {
     gap: 12,
+  },
+  categoryHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 12,
+  },
+  count: {
+    color: '#9ca3af',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  breakdown: {
+    color: '#6b7280',
+    fontSize: 12,
+    marginTop: 2,
+  },
+  toggle: {
+    color: '#9ca3af',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  warning: {
+    color: '#fbbf24',
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  showAll: {
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  showAllText: {
+    color: '#d1d5db',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  hiddenNote: {
+    marginTop: 16,
+    marginHorizontal: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  hiddenText: {
+    flex: 1,
+    color: '#e5e7eb',
+    fontSize: 14,
+  },
+  hiddenButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  hiddenButtonText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '700',
   },
   loadingState: {
     paddingVertical: 32,

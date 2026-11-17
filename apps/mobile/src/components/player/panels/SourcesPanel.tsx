@@ -9,6 +9,8 @@ import PlayerPanel from './PlayerPanel';
 type Props = {
   sources: StremioPlayableStream[];
   currentSourceId: string | null;
+  /** URL playing now; the tick follows it, since ids are positions that shift between fetches. */
+  currentUrl?: string | null;
   isRefreshing: boolean;
   sourceId: (stream: StremioPlayableStream) => string;
   onAppear: () => void;
@@ -37,6 +39,7 @@ function badgesFor(stream: StremioPlayableStream): string[] {
 export default function SourcesPanel({
   sources,
   currentSourceId,
+  currentUrl,
   isRefreshing,
   sourceId,
   onAppear,
@@ -87,11 +90,11 @@ export default function SourcesPanel({
             <Text style={[styles.addon, { color: theme.textTertiary }]}>{addon}</Text>
             {streams.map((stream) => {
               const id = sourceId(stream);
-              const isCurrent = id === currentSourceId;
+              const isCurrent = currentUrl ? stream.url === currentUrl : id === currentSourceId;
               const badges = badgesFor(stream);
               return (
                 <TouchableOpacity
-                  key={id}
+                  key={stream.url || id}
                   style={[styles.row, isCurrent && { backgroundColor: theme.accentSoft }]}
                   onPress={() => onSelect(stream)}
                   accessibilityRole="button"

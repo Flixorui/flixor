@@ -684,6 +684,33 @@ export class TMDBService {
   }
 
   /**
+   * Every name a movie or show goes by (title, original title, alternative titles,
+   * translations) and its release year, for matching release file names.
+   */
+  async getTitleNames(mediaType: 'movie' | 'tv', id: number): Promise<{ names: string[]; year: number | null }> {
+    type Named = { title?: string; name?: string };
+    const raw = await this.get<{
+      title?: string;
+      name?: string;
+      original_title?: string;
+      original_name?: string;
+      release_date?: string;
+      first_air_date?: string;
+      alternative_titles?: { titles?: Named[]; results?: Named[] };
+      translations?: { translations?: Array<{ data?: Named }> };
+    }>(`/${mediaType}/${id}`, { append_to_response: 'alternative_titles,translations' }, CacheTTL.STATIC);
+    const alternative = [...(raw.alternative_titles?.titles ?? []), ...(raw.alternative_titles?.results ?? [])];
+    const translated = (raw.translations?.translations ?? []).flatMap((t) => [t.data?.title, t.data?.name]);
+    const seen = new Set<string>();
+    const names = [raw.title, raw.name, raw.original_title, raw.original_name, ...alternative.map((a) => a.title), ...translated]
+      .map((n) => n?.trim())
+      .filter((n): n is string => !!n && !seen.has(n.toLowerCase()) && !!seen.add(n.toLowerCase()));
+    const date = raw.release_date || raw.first_air_date;
+    const year = date && date.length >= 4 ? Number(date.slice(0, 4)) : null;
+    return { names, year: Number.isFinite(year) ? year : null };
+  }
+
+  /**
    * Find by TVDB ID
    */
   async findByTvdbId(tvdbId: number): Promise<{ tv_results: TMDBMedia[] }> {

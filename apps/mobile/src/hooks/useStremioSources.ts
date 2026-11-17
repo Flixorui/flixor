@@ -19,6 +19,7 @@ import type {
 import { buildStremioContentKey } from '../stremio/StremioContentResolver';
 import { StreamAutoSelector, StreamRuleError } from '../stremio/StreamAutoSelector';
 import { mergeExternalSubtitles, mergedStreamHeaders } from '../stremio/StreamRecovery';
+import { titleMatcherFor, type StremioTitleMatcher } from '../stremio/StremioTitleMatcher';
 
 export type StremioSourcesRouteParams = {
   identity: StremioContentIdentity;
@@ -88,6 +89,8 @@ export function useStremioSources(routeParams?: StremioSourcesRouteParams) {
   const { settings } = useAppSettings();
   const [loading, setLoading] = useState(true);
   const [results, setResults] = useState<StremioAddonStreamResult[]>([]);
+  /** Results left out because their file name is for another title (see StremioTitleMatcher). */
+  const [hiddenStreams, setHiddenStreams] = useState<StremioPlayableStream[]>([]);
   const [selectedProvider, setSelectedProvider] = useState('all');
   const [cachedSource, setCachedSource] = useState<CachedPlaybackSource | null>(null);
   const [resumeState, setResumeState] = useState<ResumeState | null>(null);
@@ -121,17 +124,21 @@ export function useStremioSources(routeParams?: StremioSourcesRouteParams) {
       await stremioService.ensureInitialized({
         installDefaults: settings.stremioPlaybackEnabled,
       });
-      const [streamProvidersAvailable, streamResults, cached, resume, subtitles] = await Promise.all([
+      const [streamProvidersAvailable, allResults, matcher, cached, resume, subtitles] = await Promise.all([
         stremioService.hasStreamProviders(routeParams.identity.requestType),
         stremioService.getStreams(routeParams.identity),
+        titleMatcherFor(routeParams.identity, routeParams.title),
         stremioStreamCache.get(contentKey),
         stremioResumeStore.get(contentKey),
         settings.stremioSubtitleAddonsEnabled
           ? stremioService.getSubtitles(routeParams.identity)
           : Promise.resolve([] as StremioSubtitleCandidate[]),
       ]);
+      const split = matcher ? matcher.split(allResults) : { kept: allResults, hidden: [] };
+      const streamResults = split.kept;
       setHasStreamProviders(streamProvidersAvailable);
       setResults(streamResults);
+      setHiddenStreams(split.hidden);
       setCachedSource(cached);
       setResumeState(resume);
       setExternalSubtitles(subtitles);
@@ -300,20 +307,26 @@ export function useStremioSources(routeParams?: StremioSourcesRouteParams) {
 
         const timeLimitSeconds = current.stremioAutoPickTimeLimit;
         const deadline = Date.now() + timeLimitSeconds * 1000;
+        // Look up the title's names while the addons answer; a source for another title never counts.
+        let matcher: StremioTitleMatcher | null = null;
+        const matcherPromise = titleMatcherFor(routeParams.identity, routeParams.title).then((m) => (matcher = m));
         const fetched = await stremioService.getStreamsWithin(routeParams.identity, {
           timeLimitMs: timeLimitSeconds * 1000,
-          shouldStop: (partial, pending) => selector.shouldStopWaiting(partial, pending),
+          shouldStop: (partial, pending) =>
+            selector.shouldStopWaiting(matcher ? matcher.split(partial).kept : partial, pending),
           signal: controller.signal,
         });
+        await matcherPromise;
         if (!stillWanted()) return true;
+        const matchedResults = matcher ? (matcher as StremioTitleMatcher).split(fetched.results).kept : fetched.results;
 
-        const picked = selector.pick(fetched.results);
+        const picked = selector.pick(matchedResults);
         if (selector.rulesTimedOut) {
           setAutoSelectNotice('Your include pattern took too long to check. Simplify it in Settings, or choose a source here.');
           return false;
         }
         if (!picked) {
-          setAutoSelectNotice(fallbackNotice(fetched.results, fetched.timedOut ? timeLimitSeconds : null));
+          setAutoSelectNotice(fallbackNotice(matchedResults, fetched.timedOut ? timeLimitSeconds : null));
           return false;
         }
 
@@ -434,6 +447,7 @@ export function useStremioSources(routeParams?: StremioSourcesRouteParams) {
     autoSelectNotice,
     chooseSourceInstead,
     visibleResults,
+    hiddenStreams,
     providers,
     selectedProvider,
     setSelectedProvider,

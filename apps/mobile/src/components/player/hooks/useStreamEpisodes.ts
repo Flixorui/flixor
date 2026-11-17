@@ -25,6 +25,7 @@ import type {
   StremioPlayableStream,
   StremioSubtitleCandidate,
 } from '../../../stremio/types';
+import { titleMatcherFor, type StremioTitleMatcher } from '../../../stremio/StremioTitleMatcher';
 
 const NEXT_EPISODE_LOOKUP_LIMIT_MS = 15_000;
 const NEXT_EPISODE_SUBTITLE_WAIT_MS = 2_000;
@@ -76,13 +77,20 @@ async function resolveEpisodeSource(
   const orderSelector = followAddonOrder
     ? new StreamAutoSelector(null, (await stremioService.getInstalledAddons()).map((addon) => addon.installationId))
     : null;
-  const fetched = await stremioService.getStreamsWithin(identity, {
+  // A result for another show or episode never counts (see StremioTitleMatcher).
+  let matcher: StremioTitleMatcher | null = null;
+  const matcherPromise = titleMatcherFor(identity).then((m) => (matcher = m));
+  const raw = await stremioService.getStreamsWithin(identity, {
     timeLimitMs: NEXT_EPISODE_LOOKUP_LIMIT_MS,
-    shouldStop: (results, pending) =>
-      orderSelector
+    shouldStop: (allResults, pending) => {
+      const results = matcher ? matcher.split(allResults).kept : allResults;
+      return orderSelector
         ? orderSelector.shouldStopWaiting(results, pending)
-        : isSameAddonTier(bestSourceMatch(reference, results, { tiers: NEXT_EPISODE_MATCH_TIERS })?.tier),
+        : isSameAddonTier(bestSourceMatch(reference, results, { tiers: NEXT_EPISODE_MATCH_TIERS })?.tier);
+    },
   });
+  await matcherPromise;
+  const fetched = { ...raw, results: matcher ? (matcher as StremioTitleMatcher).split(raw.results).kept : raw.results };
   if (fetched.timedOut) {
     appLogger.warn('[StreamNext] Source lookup hit its time limit', {
       requestId: identity.requestId,

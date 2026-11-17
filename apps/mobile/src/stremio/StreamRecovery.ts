@@ -16,6 +16,7 @@ import type {
   StremioSubtitleCandidate,
 } from './types';
 import { parseStreamSeriesRef, identityForEpisode } from './StreamEpisodeNavigator';
+import { titleMatcherFor } from './StremioTitleMatcher';
 
 /** Replacement sources tried per playback before giving up. */
 export const MAX_STREAM_RECOVERY_ATTEMPTS = 2;
@@ -48,12 +49,20 @@ export function identityForStreamParams(params: GenericStreamParams): StremioCon
   };
 }
 
-/** Streams from all installed stream addons, or null on timeout. */
+/**
+ * Streams from all installed stream addons, or null on timeout. Results whose file
+ * name is for another title are left out (see StremioTitleMatcher).
+ */
 export async function fetchStreamsForRecovery(
-  identity: StremioContentIdentity
+  identity: StremioContentIdentity,
+  title?: string
 ): Promise<StremioAddonStreamResult[] | null> {
-  const fetched = await stremioService.getStreamsWithin(identity, { timeLimitMs: LOOKUP_TIMEOUT_MS });
-  return fetched.timedOut && fetched.results.length === 0 ? null : fetched.results;
+  const [fetched, matcher] = await Promise.all([
+    stremioService.getStreamsWithin(identity, { timeLimitMs: LOOKUP_TIMEOUT_MS }),
+    titleMatcherFor(identity, title),
+  ]);
+  if (fetched.timedOut && fetched.results.length === 0) return null;
+  return matcher ? matcher.split(fetched.results).kept : fetched.results;
 }
 
 /** Drops the cached playback source when it points at the failed URL. */

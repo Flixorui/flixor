@@ -2944,6 +2944,7 @@ export default function Player({ route }: RouteParams) {
         <SourcesPanel
           sources={streamSources}
           currentSourceId={currentStream ? buildStreamSourceId(currentStream) : null}
+          currentUrl={streamParams?.uri ?? null}
           isRefreshing={isRefreshingSources}
           sourceId={buildStreamSourceId}
           onAppear={refreshStreamSourcesIfNeeded}
