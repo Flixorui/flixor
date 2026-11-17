@@ -23,6 +23,7 @@ enum HomeRowKind: String, Codable {
     case userCollection
     case streaming
     case upcoming
+    case aiPicks
 
     var iconName: String {
         switch self {
@@ -37,6 +38,7 @@ enum HomeRowKind: String, Codable {
         case .userCollection: return "rectangle.stack.fill"
         case .streaming: return "list.number"
         case .upcoming: return "calendar"
+        case .aiPicks: return "sparkles"
         }
     }
 
@@ -53,6 +55,7 @@ enum HomeRowKind: String, Codable {
         case .userCollection: return String(localized: "Your collection")
         case .streaming: return String(localized: "Streaming Availability")
         case .upcoming: return String(localized: "Upcoming episodes")
+        case .aiPicks: return String(localized: "AI mood picks")
         }
     }
 }

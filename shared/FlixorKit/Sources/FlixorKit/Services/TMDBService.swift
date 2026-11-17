@@ -550,9 +550,11 @@ public struct TMDBMedia: Codable, Identifiable {
     public let mediaType: String?
     public let adult: Bool?
     public let genreIds: [Int]?
+    /// Crew job, in a person's crew credits ("Director", "Screenplay").
+    public let job: String?
 
     private enum CodingKeys: String, CodingKey {
-        case id, title, name, overview, adult
+        case id, title, name, overview, adult, job
         case posterPath = "poster_path"
         case backdropPath = "backdrop_path"
         case releaseDate = "release_date"

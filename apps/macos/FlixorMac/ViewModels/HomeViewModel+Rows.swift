@@ -86,6 +86,8 @@ struct HomeDisplayRow: Identifiable {
         case userCollection(id: String)
         /// New and upcoming episodes of the user's shows (UpcomingEpisodesStore).
         case upcoming([UpcomingEpisode])
+        /// AI picks by mood from Continue Watching and the watchlist.
+        case moodPicks
     }
 
     let id: String
@@ -156,6 +158,12 @@ extension HomeViewModel {
         if !upcoming.isEmpty {
             let title = store.title(for: homeUpcomingRowId, default: String(localized: "Upcoming"))
             rows.append(HomeDisplayRow(id: homeUpcomingRowId, title: title, content: .upcoming(upcoming)))
+        }
+
+        // AI mood picks (only while AI and the feature are on)
+        if AISettings.shared.isMoodPicksActive {
+            let title = store.title(for: homeMoodPicksRowId, default: String(localized: "Tonight"))
+            rows.append(HomeDisplayRow(id: homeMoodPicksRowId, title: title, content: .moodPicks))
         }
 
         // Recently Added per library (Plex)
@@ -347,5 +355,30 @@ extension HomeViewModel {
             kind = .discovery
         }
         return HomeRowDescriptor(id: id, defaultTitle: slot.title, kind: kind, group: .extras, detail: catalogAddonNames[id])
+    }
+}
+
+
+// MARK: - Mood picks
+
+extension HomeViewModel {
+    /// Titles the mood picks row may choose from: Continue Watching, then the watchlist.
+    func moodPickCandidates() -> [MoodPickCandidate] {
+        var seen = Set<String>()
+        var list: [MoodPickCandidate] = []
+        for item in continueWatchingItems.prefix(15) where seen.insert(item.id).inserted {
+            var note: String?
+            if item.type == "episode", let s = item.parentIndex, let e = item.index {
+                note = (item.viewOffset ?? 0) > 0 ? "S\(s) E\(e) in progress" : "Next: S\(s) E\(e)"
+            } else if let offset = item.viewOffset, let duration = item.duration, duration > 0, offset > 0 {
+                note = "\(Int(Double(offset) / Double(duration) * 100))% watched"
+            }
+            list.append(MoodPickCandidate(item: item, source: .continueWatching, note: note))
+        }
+        let watchlist = extraSlots.compactMap(\.section).first { $0.id == homeWatchlistRowId }?.items ?? []
+        for item in watchlist.prefix(30) where seen.insert(item.id).inserted {
+            list.append(MoodPickCandidate(item: item, source: .watchlist, note: nil))
+        }
+        return list
     }
 }

@@ -139,6 +139,15 @@ private struct DiscoverFilterBar: View {
     private var filters: DiscoverFilters { viewModel.filters }
 
     var body: some View {
+        VStack(alignment: .leading, spacing: DS.Space.s10) {
+            if let described = filters.described {
+                DescribedSearchHeader(prompt: described.prompt) { viewModel.clearDescribed() }
+            }
+            chips
+        }
+    }
+
+    private var chips: some View {
         SearchChipFlowLayout(spacing: DS.Space.controlGap, lineSpacing: DS.Space.controlGap) {
             SearchSegmentedControl(
                 options: DiscoverMediaType.allCases.map { SearchSegmentOption(value: $0, label: $0.label) },
@@ -209,6 +218,39 @@ private struct DiscoverFilterBar: View {
                 }
             }
 
+            if let described = filters.described {
+                ForEach(described.extraGenres, id: \.id) { genre in
+                    DescribedChip(label: genre.name) {
+                        viewModel.updateDescribed { $0.extraGenres.removeAll { $0.id == genre.id } }
+                    }
+                }
+                ForEach(described.keywords, id: \.id) { keyword in
+                    DescribedChip(label: keyword.name.capitalized) {
+                        viewModel.updateDescribed { $0.keywords.removeAll { $0.id == keyword.id } }
+                    }
+                }
+                ForEach(described.excludedGenres, id: \.id) { genre in
+                    DescribedChip(label: String(localized: "Not \(genre.name)")) {
+                        viewModel.updateDescribed { $0.excludedGenres.removeAll { $0.id == genre.id } }
+                    }
+                }
+                if let runtime = described.runtimeLabel {
+                    DescribedChip(label: runtime) {
+                        viewModel.updateDescribed { $0.minRuntime = nil; $0.maxRuntime = nil }
+                    }
+                }
+                if let language = described.languageLabel {
+                    DescribedChip(label: language) {
+                        viewModel.updateDescribed { $0.originalLanguage = nil }
+                    }
+                }
+                if let cert = described.maxCertification, filters.mediaType == .movie {
+                    DescribedChip(label: String(localized: "Rated \(cert) or lower")) {
+                        viewModel.updateDescribed { $0.maxCertification = nil }
+                    }
+                }
+            }
+
             if filters.hasActiveFilters {
                 Button(action: { viewModel.resetFilters() }) {
                     HStack(spacing: DS.Space.s4) {
@@ -226,6 +268,65 @@ private struct DiscoverFilterBar: View {
                 .accessibilityLabel(Text("Reset filters"))
             }
         }
+    }
+}
+
+// MARK: - Search by description
+
+/// "✦ Understood as: “90s heist movies…”" above the filter chips.
+private struct DescribedSearchHeader: View {
+    let prompt: String
+    let onClear: () -> Void
+
+    @Environment(\.flixorTheme) private var theme
+
+    var body: some View {
+        HStack(spacing: DS.Space.s8) {
+            Image(systemName: "sparkles")
+                .font(.flixorIcon(DS.Icon.xs, weight: .semibold))
+                .foregroundStyle(DescribedChip.tint)
+            Text("Understood as")
+                .flixorFont(.footnote, weight: .semibold)
+                .foregroundStyle(theme.textSecondary)
+            Text("“\(prompt)”")
+                .flixorFont(.footnote)
+                .foregroundStyle(theme.textPrimary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+            Button("Clear", action: onClear)
+                .buttonStyle(.link)
+                .flixorFont(.footnote)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// A filter the description added, with a remove button.
+private struct DescribedChip: View {
+    static let tint = Color(hex: 0xA78BFA)
+
+    let label: String
+    let onRemove: () -> Void
+
+    var body: some View {
+        Button(action: onRemove) {
+            HStack(spacing: DS.Space.s6) {
+                Text(label)
+                    .flixorFont(.callout, weight: .medium)
+                Image(systemName: "xmark")
+                    .font(.flixorIcon(DS.Icon.xs, weight: .bold))
+                    .opacity(0.7)
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, DS.Space.s12)
+            .padding(.vertical, DS.Space.s8)
+            .background(Capsule().fill(Self.tint.opacity(0.16)))
+            .overlay(Capsule().strokeBorder(Self.tint.opacity(0.4), lineWidth: 1))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .help("Remove")
+        .accessibilityLabel(Text("Remove \(label)"))
     }
 }
 

@@ -194,6 +194,12 @@ struct MainView: View {
     @ObservedObject private var appMode = AppModeStore.shared
     @ObservedObject private var navigationStyle = NavigationStyleStore.shared
     @ObservedObject private var playback = PlaybackCommandState.shared
+    @ObservedObject private var aiSettings = AISettings.shared
+    @StateObject private var askModel = AskFlixorModel()
+    @State private var showsAsk = false
+
+    /// Ask Flixor can open: AI and the feature on, no player covering the window.
+    private var canAsk: Bool { aiSettings.isAskFlixorActive && !playback.isPlayerActive }
 
     /// Sidebar layout chosen and no player covering the window (the
     /// fullscreen player hides the toolbar and the rail).
@@ -411,6 +417,28 @@ struct MainView: View {
                     .ignoresSafeArea(edges: .top)
                     .zIndex(4)
             }
+
+            // Ask Flixor (AI): the corner button and the chat panel.
+            if canAsk && !showsAsk {
+                AskFlixorLauncher { withAnimation(DS.Motion.standard) { showsAsk = true } }
+                    .padding(DS.Space.s24)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                    .zIndex(5)
+                    .transition(.opacity)
+            }
+            if canAsk && showsAsk {
+                AskFlixorPanel(model: askModel) { withAnimation(DS.Motion.standard) { showsAsk = false } }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
+                    .ignoresSafeArea(edges: .top)
+                    .zIndex(6)
+                    .transition(.move(edge: .trailing))
+            }
+            Button("Ask Flixor") { withAnimation(DS.Motion.standard) { showsAsk.toggle() } }
+                .keyboardShortcut("j", modifiers: .command)
+                .disabled(!canAsk)
+                .frame(width: 0, height: 0)
+                .opacity(0)
+                .accessibilityHidden(true)
 
             // Screenshots and artwork, above the back button and the bars.
             ImageViewerOverlay(presenter: ImageViewerPresenter.shared)

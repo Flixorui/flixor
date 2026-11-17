@@ -17,6 +17,7 @@ struct HomeView: View {
     @ObservedObject private var profileSettings = ProfileSettings.shared
     @ObservedObject private var rowsStore = HomeRowsStore.shared
     @ObservedObject private var upcomingStore = UpcomingEpisodesStore.shared
+    @ObservedObject private var aiSettings = AISettings.shared
     @ObservedObject private var network = NetworkMonitor.shared
     @ObservedObject private var navigationStyle = NavigationStyleStore.shared
     @Environment(\.flixorTheme) private var theme
@@ -304,6 +305,10 @@ struct HomeView: View {
         case .upcoming(let episodes):
             UpcomingHomeRow(title: row.title, episodes: episodes) { episode in
                 viewModel.showItemDetails(episode.showItem)
+            }
+        case .moodPicks:
+            MoodPicksRow(title: row.title, candidates: viewModel.moodPickCandidates()) { item in
+                viewModel.showItemDetails(item)
             }
         case .userCollection(let id):
             UserCollectionHomeRow(collectionId: id, title: row.title) { item in

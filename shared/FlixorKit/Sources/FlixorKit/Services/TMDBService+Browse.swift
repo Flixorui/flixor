@@ -112,6 +112,17 @@ extension TMDBService {
         )
     }
 
+    /// Keywords matching `query` (TMDB `/search/keyword`), most relevant first.
+    public func searchKeywords(_ query: String) async throws -> [TMDBKeyword] {
+        let response: TMDBKeywordSearchResponse = try await get(
+            path: "/search/keyword",
+            params: ["query": query, "page": "1"],
+            ttl: CacheTTL.static,
+            skipLanguage: true
+        )
+        return response.results
+    }
+
     /// Official genre list for movies or TV (localized to the service language).
     public func getGenres(mediaType: TMDBDiscoverMediaType) async throws -> [TMDBGenre] {
         let response: TMDBGenreListResponse = try await get(
@@ -175,6 +186,9 @@ public struct TMDBDiscoverQuery: Hashable, Sendable {
     public var minimumRating: Double?
     /// Raw TMDB `sort_by` value that replaces `sort` (e.g. "title.asc" / "name.asc").
     public var sortByOverride: String? = nil
+    /// Further TMDB discover parameters (e.g. `without_genres`, `with_keywords`,
+    /// `with_runtime.lte`); applied last, so they win over the fields above.
+    public var extraParameters: [String: String] = [:]
 
     public init(
         mediaType: TMDBDiscoverMediaType,
@@ -238,6 +252,7 @@ public struct TMDBDiscoverQuery: Hashable, Sendable {
         if (sort == .newest), yearTo == nil {
             params["\(dateField).lte"] = Self.todayString()
         }
+        for (key, value) in extraParameters { params[key] = value }
         return params
     }
 
@@ -634,4 +649,16 @@ public struct TMDBCompanyParent: Codable, Hashable {
 
 public struct TMDBGenreListResponse: Codable {
     public let genres: [TMDBGenre]
+}
+
+
+// MARK: - Keywords
+
+public struct TMDBKeyword: Codable, Hashable, Sendable {
+    public let id: Int
+    public let name: String
+}
+
+struct TMDBKeywordSearchResponse: Codable {
+    let results: [TMDBKeyword]
 }

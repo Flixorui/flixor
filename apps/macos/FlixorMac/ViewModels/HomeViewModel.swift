@@ -546,6 +546,12 @@ class HomeViewModel: ObservableObject {
                 defaultTitle: String(localized: "Upcoming"),
                 kind: .upcoming,
                 group: .continueWatching
+            ),
+            HomeRowDescriptor(
+                id: homeMoodPicksRowId,
+                defaultTitle: String(localized: "Tonight"),
+                kind: .aiPicks,
+                group: .continueWatching
             )
         ], group: .continueWatching)
     }

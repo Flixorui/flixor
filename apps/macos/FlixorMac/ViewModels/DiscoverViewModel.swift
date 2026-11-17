@@ -68,6 +68,8 @@ struct DiscoverFilters: Codable, Equatable {
     var yearFrom: Int?
     var yearTo: Int?
     var minimumRating: Double?
+    /// Filters from Search by description (AI), on top of the ones above.
+    var described: DescribedFilters?
 
     static let `default` = DiscoverFilters()
 
@@ -83,12 +85,13 @@ struct DiscoverFilters: Codable, Equatable {
         yearFrom = try? container.decodeIfPresent(Int.self, forKey: .yearFrom)
         yearTo = try? container.decodeIfPresent(Int.self, forKey: .yearTo)
         minimumRating = try? container.decodeIfPresent(Double.self, forKey: .minimumRating)
+        described = try? container.decodeIfPresent(DescribedFilters.self, forKey: .described)
         normalize()
     }
 
     /// True when nothing but the media type differs from the defaults.
     var hasActiveFilters: Bool {
-        genreId != nil || sort != .popular || yearFrom != nil || yearTo != nil || minimumRating != nil
+        genreId != nil || sort != .popular || yearFrom != nil || yearTo != nil || minimumRating != nil || described != nil
     }
 
     /// Keeps the year range ordered.
@@ -104,7 +107,7 @@ struct DiscoverFilters: Codable, Equatable {
         var query = TMDBDiscoverQuery(
             mediaType: mediaType.tmdb,
             page: page,
-            genreIds: genreId.map { [$0] } ?? [],
+            genreIds: (genreId.map { [$0] } ?? []) + (described?.extraGenres.map(\.id) ?? []),
             yearFrom: yearFrom,
             yearTo: yearTo,
             minimumRating: minimumRating
@@ -132,6 +135,11 @@ struct DiscoverFilters: Codable, Equatable {
         }
         if let minimumVotes {
             query.minimumVoteCount = max(minimumVotes, sort == .topRated ? 200 : 0)
+        }
+        if let described {
+            query.extraParameters = described.parameters(for: mediaType)
+            // Narrow descriptions shouldn't drown in zero-vote placeholders.
+            if query.minimumVoteCount == nil { query.minimumVoteCount = 20 }
         }
         return query
     }
@@ -248,6 +256,25 @@ final class DiscoverViewModel: ObservableObject {
 
     func setMinimumRating(_ rating: Double?) {
         update { $0.minimumRating = rating }
+    }
+
+    /// Replaces every filter with ones from Search by description.
+    func applyDescribed(_ newFilters: DiscoverFilters) {
+        update { $0 = newFilters }
+        loadGenres(for: newFilters.mediaType)
+    }
+
+    /// Changes the described part; drops it once nothing is left but the prompt.
+    func updateDescribed(_ change: (inout DescribedFilters) -> Void) {
+        update { filters in
+            guard var described = filters.described else { return }
+            change(&described)
+            filters.described = described.isEmpty ? nil : described
+        }
+    }
+
+    func clearDescribed() {
+        update { $0.described = nil }
     }
 
     /// Clears every filter except the media type.

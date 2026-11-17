@@ -14,7 +14,10 @@ struct SearchView: View {
     @EnvironmentObject private var router: NavigationRouter
     @EnvironmentObject private var mainViewState: MainViewState
     @ObservedObject private var profileSettings = ProfileSettings.shared
+    @ObservedObject private var aiSettings = AISettings.shared
     @FocusState private var isSearchFieldFocused: Bool
+    @State private var isDescribing = false
+    @State private var describeError: String?
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -33,6 +36,20 @@ struct SearchView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.horizontal, SearchLayout.gutter)
                     .padding(.top, DS.Space.s20)
+
+                    // Search by description (AI), for text that reads like one
+                    if showsDescribeOffer {
+                        DescribeSearchOffer(
+                            isWorking: isDescribing,
+                            error: describeError,
+                            action: runDescribedSearch
+                        )
+                        .frame(maxWidth: SearchLayout.fieldMaxWidth)
+                        .frame(maxWidth: .infinity)
+                        .padding(.horizontal, SearchLayout.gutter)
+                        .padding(.top, DS.Space.s12)
+                        .transition(.opacity)
+                    }
 
                     // Content based on search mode
                     Group {
@@ -79,6 +96,34 @@ struct SearchView: View {
             // Reload content when setting changes
             Task {
                 await viewModel.loadInitialContent()
+            }
+        }
+    }
+
+    // MARK: Search by description
+
+    /// Discover is TMDB-only, so the offer follows the "include TMDB" setting too.
+    private var showsDescribeOffer: Bool {
+        aiSettings.isDescribeSearchActive
+            && profileSettings.includeTmdbInSearch
+            && viewModel.searchMode != .idle
+            && DescribedSearch.looksLikeDescription(viewModel.query)
+    }
+
+    private func runDescribedSearch() {
+        let text = viewModel.query
+        guard !isDescribing, !text.isEmpty else { return }
+        isDescribing = true
+        describeError = nil
+        Task { @MainActor in
+            defer { isDescribing = false }
+            do {
+                let filters = try await DescribedSearch.filters(for: text)
+                discoverViewModel.applyDescribed(filters)
+                viewModel.query = ""
+                withAnimation(DS.Motion.quick) { viewModel.idleTab = .discover }
+            } catch {
+                describeError = error.localizedDescription
             }
         }
     }
@@ -402,6 +447,66 @@ struct PlexResultsRow: View {
         }
     }
 }
+/// "✦ Find titles that match this description" under the search field.
+private struct DescribeSearchOffer: View {
+    let isWorking: Bool
+    let error: String?
+    let action: () -> Void
+
+    @Environment(\.flixorTheme) private var theme
+    @State private var isHovered = false
+
+    private static let tint = Color(hex: 0xA78BFA)
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DS.Space.s6) {
+            Button(action: action) {
+                HStack(spacing: DS.Space.s10) {
+                    if isWorking {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: "sparkles")
+                            .font(.flixorIcon(DS.Icon.sm, weight: .semibold))
+                            .foregroundStyle(Self.tint)
+                    }
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(isWorking ? "Working out what you're after…" : "Find titles that match this description")
+                            .flixorFont(.callout, weight: .semibold)
+                            .foregroundStyle(theme.textPrimary)
+                        Text("Turns it into Discover filters you can change")
+                            .flixorFont(.footnote)
+                            .foregroundStyle(theme.textSecondary)
+                    }
+                    Spacer(minLength: DS.Space.s8)
+                    Image(systemName: "arrow.right")
+                        .font(.flixorIcon(DS.Icon.xs, weight: .semibold))
+                        .foregroundStyle(theme.textSecondary)
+                }
+                .padding(.horizontal, DS.Space.s14)
+                .padding(.vertical, DS.Space.s10)
+                .background(
+                    RoundedRectangle(cornerRadius: DS.Radius.r12, style: .continuous)
+                        .fill(Self.tint.opacity(isHovered ? 0.16 : 0.10))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: DS.Radius.r12, style: .continuous)
+                        .strokeBorder(Self.tint.opacity(0.35), lineWidth: 1)
+                )
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(isWorking)
+            .onHover { isHovered = $0 }
+
+            if let error {
+                Label(error, systemImage: "exclamationmark.triangle.fill")
+                    .flixorFont(.footnote)
+                    .foregroundStyle(theme.warning)
+            }
+        }
+    }
+}
+
 struct SearchResultsView: View {
     @ObservedObject var viewModel: SearchViewModel
     let onTap: (SearchViewModel.SearchResult) -> Void

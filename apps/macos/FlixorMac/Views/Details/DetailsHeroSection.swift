@@ -31,11 +31,39 @@ struct DetailsHeroSection: View {
     // Profile-scoped rating visibility settings
     @ObservedObject private var ratingPrefs = RatingPreferencesStore.shared
     @ObservedObject private var upcomingStore = UpcomingEpisodesStore.shared
+    @ObservedObject private var aiSettings = AISettings.shared
+    @State private var whyLine: String?
+    @State private var recapProgress: RecapProgress?
+    @State private var showsRecap = false
     @Environment(\.flixorTheme) var theme
     @Environment(\.detailsTitleActions) var titleActions
     @Environment(\.detailsHeroTrailer) var heroTrailer
 
     private var hasTrailers: Bool { !trailers.isEmpty }
+
+    // MARK: AI
+
+    private var isShowPage: Bool { !isEpisode && !vm.isSeason && vm.mediaKind == "tv" }
+
+    private var aiTaskKey: String {
+        [vm.tmdbId ?? "-", vm.mediaKind ?? "-", isShowPage ? "show" : "other",
+         aiSettings.isWhyActive ? "w" : "", aiSettings.isRecapActive ? "r" : "", aiSettings.engine.rawValue].joined(separator: "|")
+    }
+
+    private func loadAI() async {
+        whyLine = nil
+        recapProgress = nil
+        guard let id = vm.tmdbId.flatMap(Int.init), !isEpisode, !vm.isSeason,
+              let kind = vm.mediaKind, kind == "movie" || kind == "tv" else { return }
+        if aiSettings.isRecapActive, kind == "tv" {
+            recapProgress = await AIRecapService.progress(tmdbId: id, imdbId: vm.imdbId)
+        }
+        if aiSettings.isWhyActive {
+            let line = await AIWhyService.line(tmdbId: id, isMovie: kind == "movie", title: vm.title)
+            guard !Task.isCancelled else { return }
+            whyLine = line
+        }
+    }
 
     /// The show's next episode: the Upcoming list's entry when it has one (it
     /// knows the air time with Trakt), else TMDB's day.
@@ -157,6 +185,11 @@ struct DetailsHeroSection: View {
                         descriptionSection
                     }
 
+                    // ✦ Why you'd like it (AI, from your ratings and history)
+                    if let whyLine, aiSettings.isWhyActive {
+                        DetailsWhyLine(text: whyLine)
+                    }
+
                     // Technical metadata row (includes ratings at end)
                     technicalMetadataRow
 
@@ -165,10 +198,18 @@ struct DetailsHeroSection: View {
                         .fixedSize(horizontal: true, vertical: false)
                         .padding(.top, DS.Space.s6)
 
-                    // Next announced episode of a show
-                    if let next = nextAiring {
-                        DetailsNextEpisodeStrip(next: next)
-                            .padding(.top, DS.Space.s6)
+                    // Next announced episode, and ✦ Catch up (AI recap)
+                    let catchUp = aiSettings.isRecapActive ? recapProgress : nil
+                    if nextAiring != nil || catchUp != nil {
+                        HStack(spacing: DS.Space.s10) {
+                            if let next = nextAiring {
+                                DetailsNextEpisodeStrip(next: next)
+                            }
+                            if let progress = catchUp {
+                                DetailsCatchUpButton(progress: progress) { showsRecap = true }
+                            }
+                        }
+                        .padding(.top, DS.Space.s6)
                     }
                 }
                 .frame(maxWidth: contentColumnMaxWidth, maxHeight: .infinity, alignment: .bottomLeading)
@@ -196,6 +237,12 @@ struct DetailsHeroSection: View {
             }
         }
         .reportsDetailsHeroFrame()
+        .task(id: aiTaskKey) { await loadAI() }
+        .sheet(isPresented: $showsRecap) {
+            if let progress = recapProgress, let id = vm.tmdbId.flatMap(Int.init) {
+                DetailsRecapSheet(title: vm.title, tmdbId: id, progress: progress) { showsRecap = false }
+            }
+        }
         .sheet(item: $selectedTrailer) { trailer in
             TrailerModal(
                 trailer: trailer,
@@ -506,6 +553,137 @@ struct DetailsHeroSection: View {
 /// Sizes the logo to its fitted size inside a max box, so a wide, short logo
 /// takes only its own height (a plain max frame keeps the full box height,
 /// leaving a gap above the logo).
+// MARK: - AI pieces
+
+private let aiTint = Color(hex: 0xA78BFA)
+
+/// "✦ Same director as Prisoners, which you rated 9/10"
+private struct DetailsWhyLine: View {
+    let text: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: DS.Space.s6) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(aiTint)
+            Text(text)
+                .font(.flixor(.callout, weight: .medium))
+                .foregroundStyle(.white.opacity(0.92))
+                .lineLimit(2)
+        }
+        .padding(.vertical, DS.Space.s6)
+        .padding(.horizontal, DS.Space.s10)
+        .background(RoundedRectangle(cornerRadius: DS.Radius.r10, style: .continuous).fill(aiTint.opacity(0.12)))
+        .overlay(RoundedRectangle(cornerRadius: DS.Radius.r10, style: .continuous).strokeBorder(aiTint.opacity(0.3), lineWidth: 1))
+        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityLabel(Text(text))
+    }
+}
+
+/// "✦ Catch up · up to S2 E3"
+private struct DetailsCatchUpButton: View {
+    let progress: RecapProgress
+    let action: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: DS.Space.s8) {
+                Image(systemName: "sparkles").foregroundStyle(aiTint)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Catch up").font(.flixor(.callout, weight: .semibold))
+                    Text("Recap up to \(progress.code)").font(.flixor(.footnote)).foregroundStyle(.white.opacity(0.7))
+                }
+            }
+            .foregroundStyle(.white)
+            .padding(.vertical, DS.Space.s8)
+            .padding(.horizontal, DS.Space.s14)
+            .background(
+                RoundedRectangle(cornerRadius: DS.Radius.r12, style: .continuous)
+                    .fill(.ultraThinMaterial)
+                    .environment(\.colorScheme, .dark)
+                    .overlay(RoundedRectangle(cornerRadius: DS.Radius.r12, style: .continuous).fill(aiTint.opacity(isHovered ? 0.18 : 0.10)))
+                    .overlay(RoundedRectangle(cornerRadius: DS.Radius.r12, style: .continuous).strokeBorder(aiTint.opacity(0.35), lineWidth: 1))
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+        .fixedSize()
+    }
+}
+
+/// The recap, spoiler-safe: written from summaries of watched episodes only.
+private struct DetailsRecapSheet: View {
+    let title: String
+    let tmdbId: Int
+    let progress: RecapProgress
+    let onClose: () -> Void
+
+    @State private var recap: AIRecap?
+    @State private var error: String?
+    @Environment(\.flixorTheme) private var theme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DS.Space.s14) {
+            HStack(spacing: DS.Space.s6) {
+                Image(systemName: "sparkles").foregroundStyle(aiTint)
+                Text("RECAP").font(.system(size: 11, weight: .bold)).kerning(0.6).foregroundStyle(aiTint)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(title), up to \(progress.code)").font(.flixor(.title3, weight: .bold))
+                Text("From TMDB episode summaries · nothing after \(progress.code)")
+                    .font(.flixor(.footnote)).foregroundStyle(theme.textSecondary)
+            }
+            Group {
+                if let recap {
+                    VStack(alignment: .leading, spacing: DS.Space.s10) {
+                        ForEach(recap.bullets, id: \.self) { bullet in
+                            HStack(alignment: .firstTextBaseline, spacing: DS.Space.s8) {
+                                Text("•").foregroundStyle(theme.textSecondary)
+                                (Text(bullet.label + ": ").bold() + Text(bullet.text))
+                                    .font(.flixor(.callout))
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                    }
+                } else if let error {
+                    Label(error, systemImage: "exclamationmark.triangle.fill")
+                        .font(.flixor(.callout)).foregroundStyle(theme.warning)
+                } else {
+                    HStack(spacing: DS.Space.s8) {
+                        ProgressView().controlSize(.small)
+                        Text("Writing your recap…").font(.flixor(.callout)).foregroundStyle(theme.textSecondary)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 120)
+                }
+            }
+            HStack(spacing: DS.Space.s8) {
+                Image(systemName: "shield.lefthalf.filled")
+                Text("Spoiler-safe: only uses episodes you've watched.")
+            }
+            .font(.flixor(.footnote))
+            .foregroundStyle(theme.textSecondary)
+            .padding(DS.Space.s8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: DS.Radius.r8).fill(Color.white.opacity(0.05)))
+            HStack {
+                Spacer()
+                Button("Close", action: onClose).keyboardShortcut(.cancelAction)
+            }
+        }
+        .padding(DS.Space.s24)
+        .frame(width: 560)
+        .task {
+            do {
+                recap = try await AIRecapService.recap(tmdbId: tmdbId, title: title, upTo: progress)
+            } catch {
+                self.error = error.localizedDescription
+            }
+        }
+    }
+}
+
 /// "New episode tonight at 9:00 PM · S3 E6 · Signal Fire" under the hero buttons.
 private struct DetailsNextEpisodeStrip: View {
     let next: DetailsViewModel.NextAiring

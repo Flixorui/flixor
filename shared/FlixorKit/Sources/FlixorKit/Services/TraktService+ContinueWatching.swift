@@ -19,6 +19,17 @@ public struct TraktWatchedShowSummary: Decodable {
     }
 }
 
+/// A movie from `/sync/watched/movies`.
+public struct TraktWatchedMovieSummary: Decodable {
+    public let lastWatchedAt: String?
+    public let movie: TraktMovie
+
+    private enum CodingKeys: String, CodingKey {
+        case movie
+        case lastWatchedAt = "last_watched_at"
+    }
+}
+
 /// The parts of `/shows/{id}/progress/watched` needed to find the next episode.
 public struct TraktShowNextUp: Decodable {
     public let aired: Int
@@ -68,6 +79,12 @@ extension TraktService {
             auth: true
         )
         return try JSONDecoder().decode([TraktLossy<TraktWatchedShowSummary>].self, from: data).compactMap(\.value)
+    }
+
+    /// Every movie the user has watched. Requires auth.
+    public func getWatchedMovieSummaries() async throws -> [TraktWatchedMovieSummary] {
+        let (data, _) = try await send(method: "GET", path: "/sync/watched/movies", auth: true)
+        return try JSONDecoder().decode([TraktLossy<TraktWatchedMovieSummary>].self, from: data).compactMap(\.value)
     }
 
     /// The next aired, unwatched episode of a show. `showId` may be a Trakt id,

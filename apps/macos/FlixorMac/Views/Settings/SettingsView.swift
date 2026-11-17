@@ -28,6 +28,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
     case overseerr
     case trakt
     case streamingAvailability
+    case ai
     case appearance
     case advanced
     case about
@@ -53,6 +54,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         case .overseerr: return "Overseerr"
         case .trakt: return "Trakt"
         case .streamingAvailability: return String(localized: "Top 10 Lists")
+        case .ai: return "AI"
         case .appearance: return String(localized: "Appearance")
         case .advanced: return String(localized: "Advanced")
         case .about: return String(localized: "About")
@@ -78,6 +80,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         case .overseerr: return String(localized: "Request movies and shows you don't have yet")
         case .trakt: return String(localized: "Watch history, ratings and scrobbling")
         case .streamingAvailability: return String(localized: "Top 10 and new arrivals from FlixPatrol and Streaming Availability")
+        case .ai: return String(localized: "Apple Intelligence, or your own OpenAI or Anthropic key")
         case .appearance: return String(localized: "Accent colour and background")
         case .advanced: return String(localized: "Debug logging and diagnostics")
         case .about: return String(localized: "App information and credits")
@@ -95,6 +98,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         case .sidebar: return "navbar navigation tabs new & popular"
         case .mybluray: return "bluray blu-ray 4k uhd disc physical collection wishlist editions apple tv trailers parents guide common sense imdb letterboxd ratings api key"
         case .streamingAvailability: return "flixpatrol streaming availability movie of the night top 10 netflix prime disney apple max paramount hulu starz hotstar api key"
+        case .ai: return "ai artificial intelligence apple intelligence openai chatgpt gpt anthropic claude api key describe search"
         default: return ""
         }
     }
@@ -119,6 +123,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         case .overseerr: return "arrow.down.circle"
         case .trakt: return "chart.bar"
         case .streamingAvailability: return "list.number"
+        case .ai: return "sparkles"
         case .appearance: return "paintpalette.fill"
         case .advanced: return "gearshape.fill"
         case .about: return "info"
@@ -178,6 +183,7 @@ private enum SettingsCategory: String, CaseIterable, Identifiable {
         case .overseerr: return Color(hex: "0B1223")
         case .trakt: return Color(hex: "ED1C24")
         case .streamingAvailability: return Color(hex: "7C3AED")
+        case .ai: return Color(hex: "8B5CF6")
         case .appearance: return Color(hex: "E0405F")
         case .advanced: return Color(hex: "6E6E73")
         case .about: return Color(hex: "55555A")
@@ -204,7 +210,7 @@ private struct SidebarSection {
             SidebarSection(title: String(localized: "Sources"), categories: sourceCategories),
             SidebarSection(title: String(localized: "Playback & Content"), categories: [.player, .content]),
             SidebarSection(title: String(localized: "Screens"), categories: [.homeScreenAppearance, .libraryScreen, .detailsScreen, .sidebar]),
-            SidebarSection(title: String(localized: "Integrations"), categories: [.tmdb, .mdblist, .mybluray, .overseerr, .trakt, .streamingAvailability]),
+            SidebarSection(title: String(localized: "Integrations"), categories: [.tmdb, .mdblist, .mybluray, .overseerr, .trakt, .streamingAvailability, .ai]),
             SidebarSection(title: String(localized: "General"), categories: [.appearance, .advanced, .about])
         ]
     }
@@ -407,6 +413,8 @@ struct SettingsView: View {
             TraktSettingsContent()
         case .streamingAvailability:
             StreamingAvailabilitySettingsView()
+        case .ai:
+            AISettingsView()
         case .appearance:
             AppearanceSettingsView()
         case .advanced:
