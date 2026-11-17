@@ -302,29 +302,30 @@ struct IdleStateView: View {
 struct SearchGenreTiles: View {
     let onSelect: (DiscoverGenre) -> Void
 
-    /// TMDB movie genres, each with a colour for its tile.
-    private static let genres: [(DiscoverGenre, Color)] = [
-        (DiscoverGenre(id: 28, name: String(localized: "Action")), Color(hex: "C0392B")),
-        (DiscoverGenre(id: 35, name: String(localized: "Comedy")), Color(hex: "D68910")),
-        (DiscoverGenre(id: 18, name: String(localized: "Drama")), Color(hex: "1F618D")),
-        (DiscoverGenre(id: 878, name: String(localized: "Science Fiction")), Color(hex: "117A65")),
-        (DiscoverGenre(id: 53, name: String(localized: "Thriller")), Color(hex: "4A235A")),
-        (DiscoverGenre(id: 27, name: String(localized: "Horror")), Color(hex: "641E16")),
-        (DiscoverGenre(id: 16, name: String(localized: "Animation")), Color(hex: "1ABC9C")),
-        (DiscoverGenre(id: 10749, name: String(localized: "Romance")), Color(hex: "C2185B")),
-        (DiscoverGenre(id: 80, name: String(localized: "Crime")), Color(hex: "424949")),
-        (DiscoverGenre(id: 14, name: String(localized: "Fantasy")), Color(hex: "6C3483")),
-        (DiscoverGenre(id: 10751, name: String(localized: "Family")), Color(hex: "2E86C1")),
-        (DiscoverGenre(id: 99, name: String(localized: "Documentary")), Color(hex: "7D6608")),
+    /// TMDB movie genres, each with artwork (asset name) where there is some, and a
+    /// colour for tiles without it.
+    private static let genres: [(genre: DiscoverGenre, color: Color, image: String?)] = [
+        (DiscoverGenre(id: 28, name: String(localized: "Action")), Color(hex: "C0392B"), "genre-action"),
+        (DiscoverGenre(id: 35, name: String(localized: "Comedy")), Color(hex: "D68910"), "genre-comedy"),
+        (DiscoverGenre(id: 18, name: String(localized: "Drama")), Color(hex: "1F618D"), "genre-drama"),
+        (DiscoverGenre(id: 878, name: String(localized: "Science Fiction")), Color(hex: "117A65"), "genre-science-fiction"),
+        (DiscoverGenre(id: 53, name: String(localized: "Thriller")), Color(hex: "4A235A"), "genre-thriller"),
+        (DiscoverGenre(id: 27, name: String(localized: "Horror")), Color(hex: "641E16"), "genre-horror"),
+        (DiscoverGenre(id: 16, name: String(localized: "Animation")), Color(hex: "1ABC9C"), "genre-animation"),
+        (DiscoverGenre(id: 10749, name: String(localized: "Romance")), Color(hex: "C2185B"), "genre-romance"),
+        (DiscoverGenre(id: 80, name: String(localized: "Crime")), Color(hex: "424949"), "genre-crime"),
+        (DiscoverGenre(id: 14, name: String(localized: "Fantasy")), Color(hex: "6C3483"), "genre-fantasy"),
+        (DiscoverGenre(id: 10751, name: String(localized: "Family")), Color(hex: "2E86C1"), "genre-family"),
+        (DiscoverGenre(id: 99, name: String(localized: "Documentary")), Color(hex: "7D6608"), "genre-documentary"),
     ]
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Space.s12) {
             Text("Browse by Genre")
                 .flixorFont(.title2, weight: .bold)
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 170), spacing: DS.Space.s12)], spacing: DS.Space.s12) {
-                ForEach(Self.genres, id: \.0.id) { genre, color in
-                    GenreTile(name: genre.name, color: color) { onSelect(genre) }
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 200), spacing: DS.Space.s12)], spacing: DS.Space.s12) {
+                ForEach(Self.genres, id: \.genre.id) { entry in
+                    GenreTile(name: entry.genre.name, color: entry.color, imageName: entry.image) { onSelect(entry.genre) }
                 }
             }
         }
@@ -332,30 +333,50 @@ struct SearchGenreTiles: View {
         .padding(.bottom, DS.Space.s32)
     }
 
+    /// A 16:9 tile: the genre's artwork (or its colour) with the name over a dark gradient.
     private struct GenreTile: View {
         let name: String
         let color: Color
+        let imageName: String?
         let action: () -> Void
         @State private var hovering = false
 
+        private var shape: RoundedRectangle { RoundedRectangle(cornerRadius: DS.Radius.r10, style: .continuous) }
+
         var body: some View {
             Button(action: action) {
-                Text(name)
-                    .flixorFont(.callout, weight: .bold)
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity, minHeight: 64, alignment: .bottomLeading)
-                    .padding(DS.Space.s12)
-                    .background(
-                        LinearGradient(colors: [color.opacity(0.95), color.opacity(0.45)], startPoint: .topLeading, endPoint: .bottomTrailing),
-                        in: RoundedRectangle(cornerRadius: DS.Radius.r10, style: .continuous)
-                    )
-                    .overlay(RoundedRectangle(cornerRadius: DS.Radius.r10, style: .continuous)
-                        .strokeBorder(Color.white.opacity(hovering ? 0.6 : 0.08), lineWidth: hovering ? 1.5 : 1))
-                    .contentShape(RoundedRectangle(cornerRadius: DS.Radius.r10, style: .continuous))
+                Color.clear
+                    .aspectRatio(16 / 9, contentMode: .fit)
+                    .background {
+                        if let imageName {
+                            Image(imageName)
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .scaleEffect(hovering ? 1.04 : 1)
+                        } else {
+                            LinearGradient(colors: [color.opacity(0.95), color.opacity(0.45)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                        }
+                    }
+                    .overlay(alignment: .bottomLeading) {
+                        ZStack(alignment: .bottomLeading) {
+                            LinearGradient(colors: [.black.opacity(0), .black.opacity(imageName == nil ? 0 : 0.7)],
+                                           startPoint: .center, endPoint: .bottom)
+                            Text(name)
+                                .flixorFont(.callout, weight: .bold)
+                                .foregroundStyle(.white)
+                                .shadow(color: .black.opacity(0.4), radius: 3, y: 1)
+                                .padding(DS.Space.s12)
+                        }
+                    }
+                    .clipShape(shape)
+                    .overlay(shape.strokeBorder(Color.white.opacity(hovering ? 0.6 : 0.08), lineWidth: hovering ? 1.5 : 1))
+                    .contentShape(shape)
+                    .animation(.easeOut(duration: 0.2), value: hovering)
             }
             .buttonStyle(.plain)
             .onHover { hovering = $0 }
             .help(String(localized: "Discover \(name)"))
+            .accessibilityLabel(Text(name))
         }
     }
 }
