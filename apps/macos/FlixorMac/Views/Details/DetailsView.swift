@@ -9,6 +9,8 @@ import SwiftUI
 import FlixorKit
 
 struct DetailsView: View {
+    /// Registers this page as what Ask Flixor is "looking at".
+    @State private var askContextToken: UUID?
     let item: MediaItem
     @StateObject var vm = DetailsViewModel()
     @State var activeTab: String = "SUGGESTED"
@@ -160,6 +162,9 @@ struct DetailsView: View {
         }
         .onAppear {
             if ownTab == nil { ownTab = mainView.selectedTab }
+            if askContextToken == nil, let tab = ownTab {
+                askContextToken = AskContext.shared.push(item, tab: tab)
+            }
             heroTrailer.update {
                 $0.isPageVisible = true
                 $0.isWindowFocused = controlActiveState == .key
@@ -168,6 +173,10 @@ struct DetailsView: View {
             }
         }
         .onDisappear {
+            if let token = askContextToken {
+                AskContext.shared.remove(token)
+                askContextToken = nil
+            }
             // Leaving the page (including starting playback) stops the trailer.
             heroTrailer.update { $0.isPageVisible = false }
         }

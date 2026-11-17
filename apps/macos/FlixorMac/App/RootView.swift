@@ -196,7 +196,12 @@ struct MainView: View {
     @ObservedObject private var playback = PlaybackCommandState.shared
     @ObservedObject private var aiSettings = AISettings.shared
     @StateObject private var askModel = AskFlixorModel()
-    @State private var showsAsk = false
+    @StateObject private var askWindow = AskWindowStore()
+    @ObservedObject private var askContext = AskContext.shared
+    @Environment(\.windowMetrics) private var windowMetrics
+
+    /// Width the docked Ask Flixor window takes from the page.
+    private var askDockInset: CGFloat { canAsk ? askWindow.leadingInset + askWindow.trailingInset : 0 }
 
     /// Ask Flixor can open: AI and the feature on, no player covering the window.
     private var canAsk: Bool { aiSettings.isAskFlixorActive && !playback.isPlayerActive }
@@ -386,7 +391,18 @@ struct MainView: View {
                     .zIndex(mainViewState.selectedTab == .downloads ? 1 : 0)
                 }
             }
-            .padding(.leading, contentLeadingInset)
+            // Docked Ask Flixor: pages lay out for the narrower width (they size
+            // from windowMetrics), and nothing draws under the panel.
+            .environment(\.windowMetrics, askDockInset > 0
+                ? WindowMetrics(width: windowMetrics.width - askDockInset, height: windowMetrics.height)
+                : windowMetrics)
+            .frame(width: askDockInset > 0 ? max(0, windowMetrics.width - askDockInset - contentLeadingInset) : nil,
+                   alignment: .topLeading)
+            // Clip the sides only: the mask runs under the title bar so artwork still
+            // reaches the top of the window (a plain .clipped() cut it off there).
+            .mask { Rectangle().ignoresSafeArea() }
+            .padding(.leading, contentLeadingInset + (canAsk ? askWindow.leadingInset : 0))
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             if showsSidebar {
                 SidebarNavigationRail(
@@ -406,34 +422,40 @@ struct MainView: View {
                     profile: sidebarProfileMenu
                 )
                 .ignoresSafeArea(edges: .top)
+                // Centred on the page, not under a docked Ask Flixor window.
+                .padding(.leading, canAsk ? askWindow.leadingInset : 0)
+                .padding(.trailing, canAsk ? askWindow.trailingInset : 0)
                 .zIndex(3)
                 .transition(.move(edge: .top).combined(with: .opacity))
             }
 
             if !playback.isPlayerActive {
                 FloatingBackButton()
-                    .padding(.leading, contentLeadingInset + DetailsSectionStyle.inset)
+                    .padding(.leading, contentLeadingInset + (canAsk ? askWindow.leadingInset : 0) + DetailsSectionStyle.inset)
                     .padding(.top, FloatingBackButton.topPadding)
                     .ignoresSafeArea(edges: .top)
                     .zIndex(4)
             }
 
-            // Ask Flixor (AI): the corner button and the chat panel.
-            if canAsk && !showsAsk {
-                AskFlixorLauncher { withAnimation(DS.Motion.standard) { showsAsk = true } }
-                    .padding(DS.Space.s24)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                    .zIndex(5)
-                    .transition(.opacity)
+            // Ask Flixor (AI): launcher, floating or docked chat window, minimised pill.
+            if canAsk {
+                AskFlixorLayer(
+                    model: askModel,
+                    store: askWindow,
+                    contextItem: askContext.current(for: mainViewState.selectedTab)
+                )
+                .zIndex(6)
             }
-            if canAsk && showsAsk {
-                AskFlixorPanel(model: askModel) { withAnimation(DS.Motion.standard) { showsAsk = false } }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
-                    .ignoresSafeArea(edges: .top)
-                    .zIndex(6)
-                    .transition(.move(edge: .trailing))
+            Button("Ask Flixor") {
+                withAnimation(DS.Motion.standard) {
+                    if askWindow.isOpen && askWindow.isMinimised {
+                        askWindow.isMinimised = false
+                    } else {
+                        askWindow.isOpen.toggle()
+                        askWindow.isMinimised = false
+                    }
+                }
             }
-            Button("Ask Flixor") { withAnimation(DS.Motion.standard) { showsAsk.toggle() } }
                 .keyboardShortcut("j", modifiers: .command)
                 .disabled(!canAsk)
                 .frame(width: 0, height: 0)

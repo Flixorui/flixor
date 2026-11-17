@@ -157,7 +157,10 @@ struct AIChatTurn: Equatable {
 
 extension AIService {
     /// The model's reply to the last user turn in `history`, after any tool calls.
-    static func chat(instructions: String, history: [AIChatTurn], tools: [AITool]) async throws -> String {
+    /// `onText` gets the text of the round in progress as it streams (the whole
+    /// text so far, not a delta); a round that ends in tool calls is reset with "".
+    static func chat(instructions: String, history: [AIChatTurn], tools: [AITool],
+                     onText: @escaping @Sendable (String) async -> Void = { _ in }) async throws -> String {
         let snapshot = await MainActor.run { () -> (Bool, AIEngineKind, String, String, Bool) in
             let s = AISettings.shared
             return (s.isEnabled, s.engine, s.apiKey(for: s.engine), s.model(for: s.engine, quick: false), s.fallbackToApple)
@@ -166,14 +169,14 @@ extension AIService {
         guard enabled else { throw AIError.disabled }
         do {
             switch kind {
-            case .apple: return try await AppleEngine().chat(instructions: instructions, history: history, tools: tools)
-            case .anthropic: return try await AnthropicEngine(key: key, model: model).chat(instructions: instructions, history: history, tools: tools)
-            case .openAI: return try await OpenAIEngine(key: key, model: model).chat(instructions: instructions, history: history, tools: tools)
+            case .apple: return try await AppleEngine().chat(instructions: instructions, history: history, tools: tools, onText: onText)
+            case .anthropic: return try await AnthropicEngine(key: key, model: model).chat(instructions: instructions, history: history, tools: tools, onText: onText)
+            case .openAI: return try await OpenAIEngine(key: key, model: model).chat(instructions: instructions, history: history, tools: tools, onText: onText)
             }
         } catch {
-            guard kind != .apple, fallback, AppleEngine.availability == nil else { throw error }
+            guard !(error is CancellationError), kind != .apple, fallback, AppleEngine.availability == nil else { throw error }
             logWarn("[AI] \(kind.shortLabel) chat failed (\(error.localizedDescription)); using Apple Intelligence")
-            return try await AppleEngine().chat(instructions: instructions, history: history, tools: tools)
+            return try await AppleEngine().chat(instructions: instructions, history: history, tools: tools, onText: onText)
         }
     }
 
@@ -205,6 +208,23 @@ private enum AIHTTP {
         case 402, 429: throw AIError.quota(kind)
         default: throw AIError.http(status, errorMessage(in: data))
         }
+    }
+
+    /// Opens a streaming request; throws on an error status (reading the body for the message).
+    static func stream(_ request: URLRequest, kind: AIEngineKind) async throws -> URLSession.AsyncBytes {
+        let (bytes, response) = try await session.bytes(for: request)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        logInfo("[AI] \(kind.shortLabel) \(request.url?.path ?? "") → \(status) (stream)")
+        guard (200..<300).contains(status) else {
+            var body = Data()
+            for try await byte in bytes { body.append(byte); if body.count > 20_000 { break } }
+            switch status {
+            case 401, 403: throw AIError.badKey(kind)
+            case 402, 429: throw AIError.quota(kind)
+            default: throw AIError.http(status, errorMessage(in: body))
+            }
+        }
+        return bytes
     }
 
     /// `{"error": {"message": ...}}`, shared by both providers.
@@ -258,7 +278,8 @@ private struct AnthropicEngine {
         return out
     }
 
-    func chat(instructions: String, history: [AIChatTurn], tools: [AITool]) async throws -> String {
+    func chat(instructions: String, history: [AIChatTurn], tools: [AITool],
+              onText: @escaping @Sendable (String) async -> Void) async throws -> String {
         var messages: [[String: Any]] = history.map { ["role": $0.role.rawValue, "content": $0.text] }
         let toolDefs: [[String: Any]] = tools.map {
             ["name": $0.name, "description": $0.description, "input_schema": $0.parameters.jsonSchema(), "strict": true]
@@ -270,23 +291,69 @@ private struct AnthropicEngine {
                 "system": instructions,
                 "messages": messages,
                 "tools": toolDefs,
-                "output_config": ["effort": "medium"]
+                "output_config": ["effort": "medium"],
+                "stream": true
             ]
-            let data = try await AIHTTP.send(try request("messages", method: "POST", body: body), kind: .anthropic)
-            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { throw AIError.badResponse("not JSON") }
-            let stop = json["stop_reason"] as? String
+            let bytes = try await AIHTTP.stream(try request("messages", method: "POST", body: body), kind: .anthropic)
+            // Rebuild the content blocks from the stream; they go back unchanged
+            // (thinking blocks with their signatures included).
+            var blocks: [Int: [String: Any]] = [:]
+            var toolJSON: [Int: String] = [:]
+            var stop: String?
+            var text = ""
+            for try await line in bytes.lines {
+                guard line.hasPrefix("data:") else { continue }
+                guard let json = try? JSONSerialization.jsonObject(with: Data(line.dropFirst(5).utf8)) as? [String: Any] else { continue }
+                let index = json["index"] as? Int ?? 0
+                switch json["type"] as? String {
+                case "content_block_start":
+                    guard let block = json["content_block"] as? [String: Any] else { break }
+                    blocks[index] = block
+                    if (block["type"] as? String) == "tool_use" { toolJSON[index] = "" }
+                case "content_block_delta":
+                    guard let delta = json["delta"] as? [String: Any] else { break }
+                    switch delta["type"] as? String {
+                    case "text_delta":
+                        let piece = delta["text"] as? String ?? ""
+                        let soFar = (blocks[index]?["text"] as? String) ?? ""
+                        blocks[index]?["text"] = soFar + piece
+                        text += piece
+                        await onText(text)
+                    case "input_json_delta":
+                        toolJSON[index, default: ""] += delta["partial_json"] as? String ?? ""
+                    case "thinking_delta":
+                        let soFar = (blocks[index]?["thinking"] as? String) ?? ""
+                        blocks[index]?["thinking"] = soFar + (delta["thinking"] as? String ?? "")
+                    case "signature_delta":
+                        let soFar = (blocks[index]?["signature"] as? String) ?? ""
+                        blocks[index]?["signature"] = soFar + (delta["signature"] as? String ?? "")
+                    default: break
+                    }
+                case "content_block_stop":
+                    if let raw = toolJSON[index] {
+                        let input = raw.isEmpty ? [:] : ((try? JSONSerialization.jsonObject(with: Data(raw.utf8))) ?? [:])
+                        blocks[index]?["input"] = input
+                    }
+                case "message_delta":
+                    if let delta = json["delta"] as? [String: Any], let reason = delta["stop_reason"] as? String { stop = reason }
+                case "error":
+                    let message = (json["error"] as? [String: Any])?["message"] as? String
+                    throw AIError.http(0, message)
+                default: break
+                }
+            }
             if stop == "refusal" { throw AIError.refused }
-            let content = json["content"] as? [[String: Any]] ?? []
+            let content = blocks.keys.sorted().compactMap { blocks[$0] }
             let calls = content.filter { ($0["type"] as? String) == "tool_use" }
             guard stop == "tool_use", !calls.isEmpty else {
-                let text = content.compactMap { ($0["type"] as? String) == "text" ? $0["text"] as? String : nil }.joined()
                 guard !text.isEmpty else { throw AIError.badResponse("no text") }
                 return text
             }
-            // The assistant turn goes back unchanged (thinking blocks included).
+            await onText("")
             messages.append(["role": "assistant", "content": content])
             var results: [[String: Any]] = []
             for call in calls {
+                try Task.checkCancellation()
                 let id = call["id"] as? String ?? ""
                 let name = call["name"] as? String ?? ""
                 let input = (try? JSONSerialization.data(withJSONObject: call["input"] ?? [:])) ?? Data("{}".utf8)
@@ -357,8 +424,9 @@ private struct OpenAIEngine {
     }
 
     /// Chat with tools over the Responses API (Chat Completions refuses tools
-    /// with reasoning on newer models). Later rounds chain with `previous_response_id`.
-    func chat(instructions: String, history: [AIChatTurn], tools: [AITool]) async throws -> String {
+    /// with reasoning on newer models), streamed. Later rounds chain with `previous_response_id`.
+    func chat(instructions: String, history: [AIChatTurn], tools: [AITool],
+              onText: @escaping @Sendable (String) async -> Void) async throws -> String {
         guard !model.isEmpty else { throw AIError.unavailable(String(localized: "Pick an OpenAI model in Settings → AI.")) }
         let toolDefs: [[String: Any]] = tools.map {
             ["type": "function", "name": $0.name, "description": $0.description, "parameters": $0.parameters.jsonSchema(), "strict": true]
@@ -366,26 +434,46 @@ private struct OpenAIEngine {
         var input: [[String: Any]] = history.map { ["role": $0.role.rawValue, "content": $0.text] }
         var previousId: String?
         for _ in 0...AIService.maxToolRounds {
-            var body: [String: Any] = ["model": model, "instructions": instructions, "input": input, "tools": toolDefs]
+            var body: [String: Any] = ["model": model, "instructions": instructions, "input": input, "tools": toolDefs, "stream": true]
             if let previousId { body["previous_response_id"] = previousId }
-            let data = try await AIHTTP.send(try request("responses", method: "POST", body: body), kind: .openAI)
-            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { throw AIError.badResponse("not JSON") }
+            let bytes = try await AIHTTP.stream(try request("responses", method: "POST", body: body), kind: .openAI)
+            var text = ""
+            var final: [String: Any]?
+            for try await line in bytes.lines {
+                guard line.hasPrefix("data:") else { continue }
+                guard let json = try? JSONSerialization.jsonObject(with: Data(line.dropFirst(5).utf8)) as? [String: Any] else { continue }
+                switch json["type"] as? String {
+                case "response.output_text.delta":
+                    text += json["delta"] as? String ?? ""
+                    await onText(text)
+                case "response.completed", "response.incomplete":
+                    final = json["response"] as? [String: Any]
+                case "response.failed", "error":
+                    let error = ((json["response"] as? [String: Any])?["error"] as? [String: Any]) ?? (json["error"] as? [String: Any])
+                    throw AIError.http(0, error?["message"] as? String)
+                default: break
+                }
+            }
+            guard let json = final else { throw AIError.badResponse("stream ended early") }
             let output = json["output"] as? [[String: Any]] ?? []
             let calls = output.filter { ($0["type"] as? String) == "function_call" }
             guard !calls.isEmpty else {
-                var text = ""
+                var full = ""
                 for item in output where (item["type"] as? String) == "message" {
                     for part in item["content"] as? [[String: Any]] ?? [] {
                         if (part["type"] as? String) == "refusal" { throw AIError.refused }
-                        if (part["type"] as? String) == "output_text", let t = part["text"] as? String { text += t }
+                        if (part["type"] as? String) == "output_text", let t = part["text"] as? String { full += t }
                     }
                 }
-                guard !text.isEmpty else { throw AIError.badResponse("no text") }
-                return text
+                let answer = full.isEmpty ? text : full
+                guard !answer.isEmpty else { throw AIError.badResponse("no text") }
+                return answer
             }
+            await onText("")
             previousId = json["id"] as? String
             input = []
             for call in calls {
+                try Task.checkCancellation()
                 let callId = call["call_id"] as? String ?? ""
                 let name = call["name"] as? String ?? ""
                 let args = Data(((call["arguments"] as? String) ?? "{}").utf8)
@@ -453,7 +541,8 @@ struct AppleEngine {
         throw AIError.unavailable(String(localized: "Apple Intelligence needs macOS 26 or later."))
     }
 
-    func chat(instructions: String, history: [AIChatTurn], tools: [AITool]) async throws -> String {
+    func chat(instructions: String, history: [AIChatTurn], tools: [AITool],
+              onText: @escaping @Sendable (String) async -> Void = { _ in }) async throws -> String {
         if let why = Self.availability { throw AIError.unavailable(why) }
         #if canImport(FoundationModels)
         if #available(macOS 26.0, *) {
@@ -472,8 +561,13 @@ struct AppleEngine {
                 .joined(separator: "\n")
             let last = history.last?.text ?? ""
             let prompt = earlier.isEmpty ? last : "Conversation so far:\n\(earlier)\n\nViewer: \(last)"
-            let response = try await session.respond(to: prompt)
-            return response.content
+            var latest = ""
+            for try await snapshot in session.streamResponse(to: prompt) {
+                latest = snapshot.content
+                await onText(latest)
+            }
+            guard !latest.isEmpty else { throw AIError.badResponse("no text") }
+            return latest
         }
         #endif
         throw AIError.unavailable(String(localized: "Apple Intelligence needs macOS 26 or later."))

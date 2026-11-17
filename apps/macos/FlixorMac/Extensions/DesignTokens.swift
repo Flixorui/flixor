@@ -10,6 +10,24 @@
 //  Window-size-aware layout helpers live in WindowMetrics.swift.
 //
 //  ---------------------------------------------------------------------------
+//  COLOUR RULES
+//  ---------------------------------------------------------------------------
+//
+//  The accent colour (theme.accent, Flixor Red by default) only marks what is
+//  on, selected or in progress: switches, the selected tab or chip, progress
+//  bars, the primary call to action. Everything else stays neutral:
+//
+//    - Pickers, menus, bordered buttons, links, text carets and spinners:
+//      `.tint(SettingsChrome.neutralTint)` on the window or panel root, so
+//      system controls don't pick up the accent (Settings and Ask Flixor).
+//    - Icon buttons in headers and toolbars: theme.textSecondary, never accent.
+//    - Errors and destructive actions: theme.danger / SettingsChrome.destructive,
+//      not the accent, so red never means both "on" and "wrong".
+//    - AI-written content (Ask Flixor, recaps, "Why you'd like it", mood picks):
+//      the violet AI tint 0xA78BFA (and 0x7C3AED for filled marks), never the
+//      accent, so AI text is always told apart from facts.
+//
+//  ---------------------------------------------------------------------------
 //  MIGRATION TABLE (the token-migration wave follows this mechanically)
 //  ---------------------------------------------------------------------------
 //
