@@ -11,6 +11,9 @@ struct PosterCard: View {
     let item: MediaItem
     let width: CGFloat
     var showTitle: Bool = true
+    /// For carousel rows: under "On hover" the title shows over the artwork while
+    /// hovered, with no caption, as on Home rows. Grids leave this off and keep the caption.
+    var hoverTitles: Bool = false
     /// The year/edition line under the title (Library can show the title alone).
     var showYear: Bool = true
     var showProgress: Bool = false
@@ -55,6 +58,20 @@ struct PosterCard: View {
         return parts.joined(separator: " · ")
     }
 
+    /// Caption under the poster: "Always", or "On hover" outside carousel rows.
+    private var showsCaption: Bool {
+        guard showTitle else { return false }
+        switch cardStyle.titleMode {
+        case .always: return true
+        case .hover: return !hoverTitles
+        case .never: return false
+        }
+    }
+
+    private var showsHoverTitle: Bool {
+        hoverTitles && showTitle && isHovered && cardStyle.titleMode == .hover
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Space.s8) {
             // Poster Image
@@ -96,6 +113,29 @@ struct PosterCard: View {
                             overlay.padding(DS.Space.s10)
                         }
                     }
+                    .overlay(alignment: .bottomLeading) {
+                        if showsHoverTitle {
+                            ZStack(alignment: .bottomLeading) {
+                                LinearGradient(colors: [.black.opacity(0), .black.opacity(0.75)], startPoint: .top, endPoint: .bottom)
+                                VStack(alignment: .leading, spacing: DS.Space.s4) {
+                                    Text(item.title)
+                                        .font(.flixor(.callout, weight: .semibold))
+                                        .foregroundStyle(.white)
+                                        .lineLimit(2)
+                                    if item.year != nil || item.editionTitle != nil {
+                                        Text(yearEditionText)
+                                            .font(.flixor(.caption))
+                                            .foregroundStyle(.white.opacity(0.85))
+                                    }
+                                }
+                                .padding(DS.Space.s10)
+                            }
+                            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                            .allowsHitTesting(false)
+                            .transition(.opacity)
+                            .accessibilityHidden(true) // Part of the card's label
+                        }
+                    }
 
                     // Progress bar
                     if showProgress && progressPercentage > 0 {
@@ -121,7 +161,7 @@ struct PosterCard: View {
             .cardInteractions(item: item, cornerRadius: cornerRadius, isHovered: $isHovered, onOpen: onTap, extraMenuActions: extraMenuActions)
 
             // Title ("Never" hides it; "Always" and "On Hover" keep the caption here)
-            if showTitle && cardStyle.titleMode != .never {
+            if showsCaption {
                 VStack(alignment: .leading, spacing: DS.Space.s2) {
                     Text(item.title)
                         .font(.flixor(.callout, weight: .medium))

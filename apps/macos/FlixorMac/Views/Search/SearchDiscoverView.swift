@@ -81,7 +81,7 @@ struct SearchDiscoverView: View {
         return VStack(spacing: DS.Space.s20) {
             LazyVGrid(columns: gridColumns, alignment: .leading, spacing: DS.Space.s24) {
                 ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                    PosterCard(item: item.asMediaItem(), width: itemWidth) {
+                    PosterCard(item: item.asMediaItem(imageIsPoster: true), width: itemWidth) {
                         onTap(item)
                     }
                     .onAppear {

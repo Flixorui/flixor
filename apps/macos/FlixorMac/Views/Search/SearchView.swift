@@ -475,18 +475,25 @@ struct TrendingResultsRow: View {
 
     static let cardWidth: CGFloat = 340
 
+    @ObservedObject private var cardStyle = CardStyleStore.shared
+
+    /// The caption follows "Titles under posters": only "Always" shows it; otherwise
+    /// the card shows the title on hover, as on Home.
+    private var showsCaption: Bool { cardStyle.titleMode == .always }
+
     var body: some View {
         CarouselRow(
             title: String(localized: "Trending This Week"),
             items: items,
             itemWidth: Self.cardWidth,
             spacing: 14,
-            rowHeight: (Self.cardWidth * 0.5) + 84
+            rowHeight: (Self.cardWidth * 0.5) + (showsCaption ? 84 : 56)
         ) { item in
             VStack(alignment: .leading, spacing: DS.Space.s6) {
                 LandscapeCard(item: item.asMediaItem(), width: Self.cardWidth) {
                     onTap(item)
                 }
+                if showsCaption {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(item.title)
                         .flixorFont(.callout, weight: .medium)
@@ -496,6 +503,8 @@ struct TrendingResultsRow: View {
                         .foregroundStyle(.secondary)
                 }
                 .frame(width: Self.cardWidth, alignment: .leading)
+                .accessibilityHidden(true) // Part of the card's label
+                }
             }
         }
     }
@@ -509,10 +518,16 @@ struct SearchHorizontalRow: View {
     let onTap: (SearchViewModel.SearchResult) -> Void
 
     @ObservedObject private var profileSettings = ProfileSettings.shared
+    @ObservedObject private var cardStyle = CardStyleStore.shared
     @Environment(\.windowMetrics) private var metrics
 
     private var posterWidth: CGFloat {
         metrics.posterWidth(designWidth: 150, storedSize: profileSettings.posterSize)
+    }
+
+    /// Room for the caption only when titles are always shown (as on Home rows).
+    private var rowHeight: CGFloat {
+        posterWidth * 1.5 + (cardStyle.titleMode == .always ? 68 : 0)
     }
 
     var body: some View {
@@ -521,11 +536,12 @@ struct SearchHorizontalRow: View {
             items: items,
             itemWidth: posterWidth,
             spacing: 14,
-            rowHeight: (posterWidth * 1.5) + 68
+            rowHeight: rowHeight
         ) { item in
             PosterCard(
-                item: item.asMediaItem(),
+                item: item.asMediaItem(imageIsPoster: true),
                 width: posterWidth,
+                hoverTitles: true,
                 topTrailingOverlay: item.available ? AnyView(AvailableBadge().padding(DS.Space.s6)) : nil
             ) {
                 onTap(item)
@@ -537,13 +553,15 @@ struct SearchHorizontalRow: View {
 // MARK: - SearchResult Adapter
 
 extension SearchViewModel.SearchResult {
-    func asMediaItem() -> MediaItem {
+    /// - Parameter imageIsPoster: The result's image is a poster (portrait cards), so it
+    ///   isn't passed as backdrop art: the hover preview then loads the TMDB backdrop.
+    func asMediaItem(imageIsPoster: Bool = false) -> MediaItem {
         MediaItem(
             id: id,
             title: title,
             type: type.rawValue,
             thumb: imageURL?.absoluteString,
-            art: imageURL?.absoluteString,
+            art: imageIsPoster ? nil : imageURL?.absoluteString,
             year: year.flatMap { Int($0) },
             rating: nil,
             duration: nil,

@@ -335,10 +335,11 @@ class SearchViewModel: ObservableObject {
 
             // Add popular movies (first 6)
             for item in movieResults.results.prefix(6) {
+                // The poster, which carries the title: the row shows portrait cards.
                 let imageURL = ImageService.shared.proxyImageURL(
-                    url: item.backdrop_path.flatMap { "https://image.tmdb.org/t/p/w780\($0)" }
-                ) ?? ImageService.shared.proxyImageURL(
                     url: item.poster_path.flatMap { "https://image.tmdb.org/t/p/w500\($0)" }
+                ) ?? ImageService.shared.proxyImageURL(
+                    url: item.backdrop_path.flatMap { "https://image.tmdb.org/t/p/w780\($0)" }
                 )
 
                 popular.append(SearchResult(
@@ -356,10 +357,11 @@ class SearchViewModel: ObservableObject {
 
             // Add popular TV shows (first 6)
             for item in showResults.results.prefix(6) {
+                // The poster, which carries the title: the row shows portrait cards.
                 let imageURL = ImageService.shared.proxyImageURL(
-                    url: item.backdrop_path.flatMap { "https://image.tmdb.org/t/p/w780\($0)" }
-                ) ?? ImageService.shared.proxyImageURL(
                     url: item.poster_path.flatMap { "https://image.tmdb.org/t/p/w500\($0)" }
+                ) ?? ImageService.shared.proxyImageURL(
+                    url: item.backdrop_path.flatMap { "https://image.tmdb.org/t/p/w780\($0)" }
                 )
 
                 popular.append(SearchResult(

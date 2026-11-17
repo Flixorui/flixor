@@ -33,6 +33,9 @@ final class HoverPreviewModel: ObservableObject {
     /// Delay after the preview appears before a trailer is looked up and started.
     private let trailerSettleDelay: UInt64 = 900_000_000
     private var task: Task<Void, Never>?
+    /// The image shown is the poster standing in for a missing backdrop (a movie or
+    /// show with no art, e.g. from Search or Discover); TMDB's backdrop replaces it.
+    private var backdropIsPosterStandIn = false
 
     init(item: MediaItem, trailerMode: HoverTrailerMode) {
         self.item = item
@@ -53,6 +56,7 @@ final class HoverPreviewModel: ObservableObject {
         rating = item.rating.flatMap { $0 > 0 ? $0 : nil }
         overview = item.summary.flatMap { $0.isEmpty || item.isGroupedRecentlyAddedShow ? nil : $0 }
         backdropURL = ImageService.shared.continueWatchingURL(for: item, width: 960, height: 540)
+        backdropIsPosterStandIn = item.art == nil && !["episode", "season"].contains(type)
     }
 
     func start() {
@@ -129,8 +133,9 @@ final class HoverPreviewModel: ObservableObject {
         if runtime == nil, let text = Self.formatRuntime(minutes: runtimeMinutes) { runtime = text }
         if self.rating == nil, let rating, rating > 0 { self.rating = rating }
         if year == nil, let date, date.count >= 4 { year = String(date.prefix(4)) }
-        if backdropURL == nil, let backdropPath {
+        if backdropURL == nil || backdropIsPosterStandIn, let backdropPath {
             backdropURL = URL(string: "https://image.tmdb.org/t/p/w1280\(backdropPath)")
+            backdropIsPosterStandIn = false
         }
     }
 
