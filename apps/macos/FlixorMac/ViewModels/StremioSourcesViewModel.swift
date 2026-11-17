@@ -53,6 +53,8 @@ final class StremioSourcesViewModel: ObservableObject {
         didSet { resultsVersion &+= 1 }
     }
     @Published var selectedProviderFilter = "all"
+    /// Results left out because their file name is for another title (see StremioTitleMatcher).
+    @Published private(set) var hiddenStreams: [StremioPlayableStream] = []
     @Published var emptyState: EmptyState = .none
     @Published var cachedSource: CachedPlaybackSource?
     @Published var alertMessage: String?
@@ -68,6 +70,10 @@ final class StremioSourcesViewModel: ObservableObject {
     private(set) var resultsVersion = 0
     private var hasLoaded = false
     private var loadGeneration = 0
+    /// Every result as the addons sent it; `groupedResults` is this minus other titles.
+    private var rawResults: [StremioAddonStreamResult] = []
+    private var titleMatcher: StremioTitleMatcher?
+    private var titleMatcherTask: Task<StremioTitleMatcher?, Never>?
 
     init(destination: StremioSourcesDestination) {
         self.destination = destination
@@ -121,6 +127,30 @@ final class StremioSourcesViewModel: ObservableObject {
         groupedResults.contains { $0.streams.contains(where: \.playable) }
     }
 
+    // MARK: - Title matching
+
+    /// The matcher for this title, looked up once (TMDB names, cached across pages).
+    /// Applied to whatever has arrived as soon as it is ready.
+    private func resolveTitleMatcher() async -> StremioTitleMatcher? {
+        if let titleMatcherTask { return await titleMatcherTask.value }
+        let identity = destination.identity
+        let title = destination.title
+        let task = Task { await StremioTitleMatcherStore.shared.matcher(for: identity, fallbackTitle: title) }
+        titleMatcherTask = task
+        let matcher = await task.value
+        titleMatcher = matcher
+        if matcher != nil, !rawResults.isEmpty { applyResults(rawResults) }
+        return matcher
+    }
+
+    /// Shows `results` minus the ones for another title.
+    private func applyResults(_ results: [StremioAddonStreamResult]) {
+        rawResults = results
+        let split = titleMatcher?.split(results) ?? (kept: results, hidden: [])
+        if groupedResults != split.kept { groupedResults = split.kept }
+        if hiddenStreams != split.hidden { hiddenStreams = split.hidden }
+    }
+
     /// Loads once per page; returning from the player keeps the list.
     func loadIfNeeded() async {
         guard !hasLoaded else { return }
@@ -143,7 +173,7 @@ final class StremioSourcesViewModel: ObservableObject {
         )
         guard hasStreamProviders else {
             emptyState = .noAddons
-            groupedResults = []
+            applyResults([])
             cachedSource = nil
             isLoading = false
             return
@@ -153,16 +183,20 @@ final class StremioSourcesViewModel: ObservableObject {
             ? await streamCache.get(contentKey: contentKey)
             : nil
 
-        let results = await service.getStreamsProgressively(identity: destination.identity) { [weak self] partial in
+        Task { [weak self] in _ = await self?.resolveTitleMatcher() }
+        let fetched = await service.getStreamsProgressively(identity: destination.identity) { [weak self] partial in
             await self?.applyPartialResults(partial, generation: generation)
         }
         guard generation == loadGeneration else { return }
-        if groupedResults != results {
-            groupedResults = results
-        }
+        applyResults(fetched)
         isLoading = false
 
-        let allStreams = results.flatMap(\.streams)
+        // Everything for another title: the list is empty but says what was left out.
+        if !hiddenStreams.isEmpty, !groupedResults.contains(where: { $0.streams.contains(where: \.playable) }) {
+            emptyState = .none
+            return
+        }
+        let allStreams = groupedResults.flatMap(\.streams)
         let playable = allStreams.filter(\.playable)
         let unsupported = allStreams.filter { !$0.playable }
 
@@ -181,7 +215,7 @@ final class StremioSourcesViewModel: ObservableObject {
 
     private func applyPartialResults(_ partial: [StremioAddonStreamResult], generation: Int) {
         guard generation == loadGeneration, isLoading else { return }
-        groupedResults = partial
+        applyResults(partial)
     }
 
     // MARK: - Automatic selection
@@ -217,18 +251,23 @@ final class StremioSourcesViewModel: ObservableObject {
 
         let timeLimit = defaults.stremioAutoPickTimeLimit
         let deadline = Date().addingTimeInterval(TimeInterval(timeLimit))
+        // Look up the title's names while the addons answer; a source for another title never counts.
+        let matcherTask = Task { await self.resolveTitleMatcher() }
         let fetched = await service.getStreams(identity: destination.identity, timeLimit: TimeInterval(timeLimit)) { results, pending in
-            await selector.shouldStopWaiting(in: results, pending: pending)
+            let matcher = await matcherTask.value
+            return await selector.shouldStopWaiting(in: matcher?.split(results).kept ?? results, pending: pending)
         }
-        groupedResults = fetched.results
+        _ = await matcherTask.value
+        applyResults(fetched.results)
+        let matched = groupedResults
 
-        let picked = await selector.pickOffActor(in: fetched.results)
+        let picked = await selector.pickOffActor(in: matched)
         if selector.rulesTimedOut {
             return .showSources(notice: String(localized: "Your include pattern took too long to check. Simplify it in Settings, or choose a source here."))
         }
         guard let stream = picked else {
             return .showSources(notice: fallbackNotice(
-                results: fetched.results,
+                results: matched,
                 waitedSeconds: fetched.timedOut ? timeLimit : nil
             ))
         }

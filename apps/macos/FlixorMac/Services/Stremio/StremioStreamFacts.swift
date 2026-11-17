@@ -21,6 +21,18 @@ struct StremioStreamFacts {
     let filename: String?
     let cached: Bool
     let subtitleCount: Int
+    let category: StremioReleaseCategory
+
+    /// "4K", "1080p" or "Lower" (720p and below, or unknown). A disc that doesn't
+    /// say is 1080p: UHD discs say UHD.
+    var resolutionGroup: String {
+        switch resolution {
+        case "4K": return "4K"
+        case "1080p": return "1080p"
+        case nil where category == .disc: return "1080p"
+        default: return "Lower"
+        }
+    }
 
     var sizeText: String? {
         sizeBytes.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) }
@@ -119,6 +131,7 @@ struct StremioStreamFacts {
 
         cached = stream.behaviorHints?.cached == true
         subtitleCount = stream.subtitles?.count ?? 0
+        category = StremioReleaseCategory(stream)
     }
 
     private static func has(_ text: String, _ patterns: [String]) -> Bool {
@@ -146,5 +159,63 @@ struct StremioStreamFacts {
         default: factor = 1e6
         }
         return number > 0 ? Int64(number * factor) : nil
+    }
+}
+
+/// What kind of release a source is, from its file name (or name and title when
+/// there is none). Descriptions are left out: aggregators write the codec ("AVC")
+/// there for every release.
+enum StremioReleaseCategory: String, CaseIterable, Identifiable {
+    case remux, disc, webDL, encode, preRelease, other
+
+    var id: String { rawValue }
+
+    /// Section order on the sources page.
+    static let displayOrder: [StremioReleaseCategory] = [.remux, .disc, .webDL, .encode, .preRelease, .other]
+
+    var label: String {
+        switch self {
+        case .remux: return String(localized: "Remux")
+        case .disc: return String(localized: "BluRay Disc")
+        case .webDL: return String(localized: "WEB-DL")
+        case .encode: return String(localized: "Encode")
+        case .preRelease: return String(localized: "Pre-release")
+        case .other: return String(localized: "Other")
+        }
+    }
+
+    init(_ stream: StremioPlayableStream) {
+        let parts = stream.behaviorHints?.filename.map { [$0] }
+            ?? [stream.name, stream.title, stream.description].compactMap { $0 }
+        let size = stream.behaviorHints?.videoSize ?? stream.size
+        self.init(text: parts.joined(separator: "\n"), sizeBytes: size.map(Int64.init))
+    }
+
+    /// `sizeBytes` catches discs named only "Blu-Ray 1080p": a 1080p release over
+    /// 25 GB with no encoder named is the disc itself.
+    init(text raw: String, sizeBytes: Int64? = nil) {
+        // "_" counts as a word character for \b; a trailing ".ts" is a container, not TELESYNC.
+        let text = raw.replacingOccurrences(of: "_", with: " ")
+            .replacingOccurrences(of: #"\.(mkv|mp4|avi|m4v|ts|webm)$"#, with: "", options: [.regularExpression, .caseInsensitive])
+        func has(_ pattern: String) -> Bool {
+            text.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil
+        }
+        let isFile = raw.range(of: #"\.(mkv|mp4|avi|m4v|webm)\s*$"#, options: [.regularExpression, .caseInsensitive]) != nil
+        if has(#"\b(CAM|CAMRip|HD-?CAM|HD-?TS|TS|TSRip|TELESYNC|TC|HD-?TC|TELECINE|SCR|DVD-?Scr|SCREENER|Pre-?DVD|R5|WORKPRINT)\b"#) {
+            self = .preRelease
+        } else if StremioSourceRanking.isDiscRelease(text: raw.replacingOccurrences(of: "_", with: " ")) {
+            self = .disc
+        } else if let sizeBytes, sizeBytes > 25_000_000_000, !isFile, has(#"\bBlu-?Ray\b"#),
+                  !has(#"2160|\b4K\b|\bUHD\b|x26[45]|\bHEVC\b|h\.?26[45]|REMUX|BDRip|BRRip|WEB"#) {
+            self = .disc
+        } else if has(#"REMUX"#) {
+            self = .remux
+        } else if has(#"\bWEB(-?DL|-?Rip)?\b|\b(AMZN|NF|DSNP|HMAX|ATVP|iTunes)\b"#) {
+            self = .webDL
+        } else if has(#"\b(Blu-?Ray|BDRip|BRRip|BD)\b"#) {
+            self = .encode
+        } else {
+            self = .other
+        }
     }
 }

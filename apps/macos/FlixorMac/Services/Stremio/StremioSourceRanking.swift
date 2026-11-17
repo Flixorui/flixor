@@ -134,6 +134,33 @@ enum StremioSourceRanking {
         return nil
     }
 
+    /// A full Blu-ray disc (BDMV folder, ISO, BD25/50) rather than an encode or remux.
+    /// The debrid service serves the disc's main .m2ts, tens of GB that often start
+    /// slowly, so the player waits longer before calling it dead. A false positive
+    /// only means a longer wait.
+    static func isDiscRelease(_ stream: StremioPlayableStream) -> Bool {
+        // Not the description when there is a file name: aggregators write "AVC" there for every release.
+        let parts = stream.behaviorHints?.filename.map { [$0] }
+            ?? [stream.name, stream.title, stream.description].compactMap { $0 }
+        return isDiscRelease(text: parts.joined(separator: "\n"))
+    }
+
+    static func isDiscRelease(text: String) -> Bool {
+        // "_" counts as a word character for \b, and release names use it as a separator.
+        let text = text.replacingOccurrences(of: "_", with: " ")
+        func matches(_ pattern: String) -> Bool {
+            text.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil
+        }
+        // A Matroska or MP4 file is an encode or remux, whatever its name says.
+        if matches(#"\.(mkv|mp4|avi|m4v|webm)\s*$"#) { return false }
+        if matches(#"\b(BDMV|BR-?DISK|BD(25|50|66|100))\b|\.(iso|m2ts)\b|\bISO\b"#) { return true }
+        if matches(#"\bCOMPLETE[ ._-]+(UHD[ ._-]+)?BLU-?RAY\b|\bBlu-?ray[ ._-]+dis[ck]\b|\bFull[ ._-]+Blu-?ray\b"#) { return true }
+        // "1080p.BluRay.AVC.TrueHD-FGT": the disc's own codec named, no encoder.
+        return matches(#"\bBlu-?ray\b"#)
+            && matches(#"\b(AVC|VC-?1|MPEG-?2|MVC)\b"#)
+            && !matches(#"\b(x26[45]|h\.?26[45]|REMUX|BDRip|BRRip|WEB-?DL|WEBRip)\b"#)
+    }
+
     static func isSameAddon(_ lhs: StremioPlayableStream, _ rhs: StremioPlayableStream) -> Bool {
         if let l = lhs.addonInstallationId, let r = rhs.addonInstallationId { return l == r }
         if let l = lhs.addonId, let r = rhs.addonId { return l == r }

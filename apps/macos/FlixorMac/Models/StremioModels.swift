@@ -272,7 +272,9 @@ struct StremioArchiveSource: Codable, Hashable {
 }
 
 struct StremioPlayableStream: Codable, Hashable, Identifiable {
-    let id: String
+    /// Addon installation + position in that addon's response, so the same id can
+    /// name a different stream in a later fetch. Match the playing source by URL.
+    var id: String
     let url: String?
     let externalUrl: String?
     let ytId: String?

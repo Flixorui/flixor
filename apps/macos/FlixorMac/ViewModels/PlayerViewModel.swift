@@ -514,9 +514,13 @@ class PlayerViewModel: ObservableObject {
                             )
                         }
                     }
-                    // Notify thumbnail generator
+                    // Notify thumbnail generator (no previews for full discs)
                     if let path = self.mpvController?.currentPath {
-                        self.thumbnailGenerator?.onVideoLoaded(url: path)
+                        if self.sourceKind == .stream, self.isDiscSource(uri: self.streamPlaybackItem?.uri) {
+                            self.thumbnailGenerator?.disableForCurrentFile()
+                        } else {
+                            self.thumbnailGenerator?.onVideoLoaded(url: path)
+                        }
                     }
                 case "playback-restart":
                     print("▶️ [Player] MPV playback started")

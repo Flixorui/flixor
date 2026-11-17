@@ -228,16 +228,19 @@ extension PlayerViewModel {
         let followAddonOrder = UserDefaults.standard.stremioPlayAction == .addonOrder
         let installedOrder = followAddonOrder ? await StremioService.shared.getInstalledAddons().map(\.installationId) : nil
         let orderSelector = installedOrder.flatMap { try? StreamAutoSelector(rules: nil, addonOrder: $0) }
+        // A result for another show or episode never counts (see StremioTitleMatcher).
+        let matcherTask = Task { await StremioTitleMatcherStore.shared.matcher(for: identity, fallbackTitle: nil) }
         let fetched = await StremioService.shared.getStreams(
             identity: identity,
             timeLimit: Self.nextEpisodeLookupLimit
-        ) { results, pending in
+        ) { allResults, pending in
+            let results = await matcherTask.value?.split(allResults).kept ?? allResults
             if let orderSelector {
                 return await orderSelector.shouldStopWaiting(in: results, pending: pending)
             }
             return StremioSourceRanking.bestMatch(for: reference, in: results, tiers: .nextEpisode)?.tier.isSameAddon == true
         }
-        let results = fetched.results
+        let results = await matcherTask.value?.split(fetched.results).kept ?? fetched.results
         if fetched.timedOut {
             AppLogger.shared.warn("[StreamNext] Source lookup hit its time limit", data: [
                 "requestId": identity.requestId,

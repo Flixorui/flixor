@@ -54,10 +54,14 @@ enum StreamRecoveryService {
         )
     }
 
-    /// Streams from all installed stream addons, or nil on timeout.
-    static func fetchStreams(identity: StremioContentIdentity) async -> [StremioAddonStreamResult]? {
+    /// Streams from all installed stream addons, or nil on timeout. Results whose file
+    /// name is for another title are left out (see StremioTitleMatcher).
+    static func fetchStreams(identity: StremioContentIdentity, title: String? = nil) async -> [StremioAddonStreamResult]? {
         await withTimeout(seconds: lookupTimeout) {
-            await StremioService.shared.getStreams(identity: identity)
+            async let matcher = StremioTitleMatcherStore.shared.matcher(for: identity, fallbackTitle: title)
+            let results = await StremioService.shared.getStreams(identity: identity)
+            guard let matcher = await matcher else { return results }
+            return matcher.split(results).kept
         }
     }
 

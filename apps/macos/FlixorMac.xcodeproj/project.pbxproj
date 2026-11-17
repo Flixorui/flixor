@@ -103,6 +103,7 @@
 		46EF7715A84AC5311FC004F7 /* PlayerViewModel+SkipSegments.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36B7B5B1449DA84FDD824E0E /* PlayerViewModel+SkipSegments.swift */; };
 		C76E67887AFFF1AE8FB8E942 /* StremioSourceRanking.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76546EF8FCD6AE96E4C8D40C /* StremioSourceRanking.swift */; };
 		CD34EF56AB12CD34EF56AB04 /* StremioStreamFacts.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD34EF56AB12CD34EF56AB03 /* StremioStreamFacts.swift */; };
+		CD34EF56AB12CD34EF56AC02 /* StremioTitleMatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD34EF56AB12CD34EF56AC01 /* StremioTitleMatcher.swift */; };
 		5A5A5A5A5A5A5A5A5A5A14B1 /* StreamingAvailabilityStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5A5A5A5A5A5A5A5A5A14A1 /* StreamingAvailabilityStore.swift */; };
 		5A5A5A5A5A5A5A5A5A5A13B1 /* StreamingAvailabilityBudget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5A5A5A5A5A5A5A5A5A13A1 /* StreamingAvailabilityBudget.swift */; };
 		5A5A5A5A5A5A5A5A5A5A12B1 /* StreamingAvailabilityCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A5A5A5A5A5A5A5A5A5A12A1 /* StreamingAvailabilityCache.swift */; };
@@ -460,6 +461,7 @@
 		36B7B5B1449DA84FDD824E0E /* PlayerViewModel+SkipSegments.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "PlayerViewModel+SkipSegments.swift"; sourceTree = "<group>"; };
 		76546EF8FCD6AE96E4C8D40C /* StremioSourceRanking.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = StremioSourceRanking.swift; sourceTree = "<group>"; };
 		CD34EF56AB12CD34EF56AB03 /* StremioStreamFacts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StremioStreamFacts.swift; sourceTree = "<group>"; };
+		CD34EF56AB12CD34EF56AC01 /* StremioTitleMatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StremioTitleMatcher.swift; sourceTree = "<group>"; };
 		5A5A5A5A5A5A5A5A5A5A14A1 /* StreamingAvailabilityStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = StreamingAvailabilityStore.swift; path = ../StreamingAvailability/StreamingAvailabilityStore.swift; sourceTree = "<group>"; };
 		5A5A5A5A5A5A5A5A5A5A13A1 /* StreamingAvailabilityBudget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = StreamingAvailabilityBudget.swift; path = ../StreamingAvailability/StreamingAvailabilityBudget.swift; sourceTree = "<group>"; };
 		5A5A5A5A5A5A5A5A5A5A12A1 /* StreamingAvailabilityCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = StreamingAvailabilityCache.swift; path = ../StreamingAvailability/StreamingAvailabilityCache.swift; sourceTree = "<group>"; };
@@ -1292,6 +1294,7 @@
 				0970F53F6F64D3CF154753D3 /* StreamAutoPlayController.swift */,
 				76546EF8FCD6AE96E4C8D40C /* StremioSourceRanking.swift */,
 				CD34EF56AB12CD34EF56AB03 /* StremioStreamFacts.swift */,
+				CD34EF56AB12CD34EF56AC01 /* StremioTitleMatcher.swift */,
 				5A5A5A5A5A5A5A5A5A5A14A1 /* StreamingAvailabilityStore.swift */,
 				5A5A5A5A5A5A5A5A5A5A13A1 /* StreamingAvailabilityBudget.swift */,
 				5A5A5A5A5A5A5A5A5A5A12A1 /* StreamingAvailabilityCache.swift */,
@@ -1579,6 +1582,7 @@
 				46EF7715A84AC5311FC004F7 /* PlayerViewModel+SkipSegments.swift in Sources */,
 				C76E67887AFFF1AE8FB8E942 /* StremioSourceRanking.swift in Sources */,
 				CD34EF56AB12CD34EF56AB04 /* StremioStreamFacts.swift in Sources */,
+				CD34EF56AB12CD34EF56AC02 /* StremioTitleMatcher.swift in Sources */,
 				5A5A5A5A5A5A5A5A5A5A14B1 /* StreamingAvailabilityStore.swift in Sources */,
 				5A5A5A5A5A5A5A5A5A5A13B1 /* StreamingAvailabilityBudget.swift in Sources */,
 				5A5A5A5A5A5A5A5A5A5A12B1 /* StreamingAvailabilityCache.swift in Sources */,

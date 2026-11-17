@@ -403,6 +403,16 @@ public class TMDBService {
         )
     }
 
+    /// Every name a movie or show goes by: title, original title, alternative titles
+    /// and translations, plus its release year. For matching release file names.
+    public func getTitleNames(mediaType: String, id: Int) async throws -> TMDBTitleNames {
+        return try await get(
+            path: "/\(mediaType)/\(id)",
+            params: ["append_to_response": "alternative_titles,translations"],
+            ttl: CacheTTL.static
+        )
+    }
+
     // MARK: - Watch Providers
 
     /// Every streaming service and store TMDB knows in a region, with its
@@ -429,6 +439,62 @@ public class TMDBService {
 }
 
 // MARK: - TMDB Models
+
+/// `/{movie|tv}/{id}` with alternative titles and translations. Movies use
+/// title / original_title / release_date, shows name / original_name / first_air_date.
+public struct TMDBTitleNames: Codable {
+    public struct NamedTitle: Codable {
+        public let title: String?
+    }
+    public struct NamedList: Codable {
+        /// Movies list them under "titles", shows under "results".
+        public let titles: [NamedTitle]?
+        public let results: [NamedTitle]?
+    }
+    public struct Translation: Codable {
+        public struct Data: Codable {
+            public let title: String?
+            public let name: String?
+        }
+        public let data: Data?
+    }
+    public struct Translations: Codable {
+        public let translations: [Translation]?
+    }
+
+    public let title: String?
+    public let name: String?
+    public let originalTitle: String?
+    public let originalName: String?
+    public let releaseDate: String?
+    public let firstAirDate: String?
+    public let alternativeTitles: NamedList?
+    public let translations: Translations?
+
+    private enum CodingKeys: String, CodingKey {
+        case title, name, translations
+        case originalTitle = "original_title"
+        case originalName = "original_name"
+        case releaseDate = "release_date"
+        case firstAirDate = "first_air_date"
+        case alternativeTitles = "alternative_titles"
+    }
+
+    /// Every distinct non-empty name.
+    public var allNames: [String] {
+        let alternative = (alternativeTitles?.titles ?? []) + (alternativeTitles?.results ?? [])
+        let translated = (translations?.translations ?? []).flatMap { [$0.data?.title, $0.data?.name] }
+        let names = [title, name, originalTitle, originalName] + alternative.map(\.title) + translated
+        var seen = Set<String>()
+        return names.compactMap { $0?.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty && seen.insert($0.lowercased()).inserted }
+    }
+
+    /// Release year (movies) or first-air year (shows).
+    public var year: Int? {
+        (releaseDate ?? firstAirDate).flatMap { Int($0.prefix(4)) }
+    }
+}
 
 /// Response from `/watch/providers/{movie|tv}`.
 public struct TMDBWatchProvidersResponse: Codable {

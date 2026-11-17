@@ -80,6 +80,27 @@ class MPVThumbnailGenerator: ObservableObject {
         isAvailable = true
     }
 
+    /// No previews for this file (a full Blu-ray disc): each hover would open the
+    /// 30-90 GB file at a new offset, and a debrid CDN serves first reads of a large
+    /// file slowly, starving the player. The next onVideoLoaded turns previews back on.
+    func disableForCurrentFile() {
+        print("📸 [ThumbnailGenerator] Previews off for this file")
+        debounceTimer?.invalidate()
+        debounceTimer = nil
+        generationLock.lock()
+        fileGeneration += 1
+        latestGeneration += 1
+        cache.clearAll()
+        let running = abortablePlayer
+        generationLock.unlock()
+        running?.abort()
+        currentVideoURL = nil
+        isAvailable = false
+        workQueue.async { [self] in
+            destroyThumbnailPlayer()
+        }
+    }
+
     /// Stops thumbnail work and destroys the thumbnail instance (and its connection)
     /// off the main thread. Called when playback stops or the player closes.
     func shutdown() {

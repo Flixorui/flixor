@@ -104,7 +104,9 @@ struct PlayerSourcesPanel: View {
     }
 
     private func sourceRow(_ source: StremioPlayableStream) -> some View {
-        let isCurrent = source.id == viewModel.currentStremioSourceId
+        // By URL: ids are positions in an addon's response and can shift between fetches.
+        let playingURL = viewModel.streamPlaybackItem?.uri
+        let isCurrent = playingURL.map { source.url == $0 } ?? (source.id == viewModel.currentStremioSourceId)
         return Button(action: {
             onClose()
             viewModel.switchStreamSource(source)

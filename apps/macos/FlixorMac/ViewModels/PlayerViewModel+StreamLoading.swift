@@ -101,13 +101,14 @@ extension PlayerViewModel {
         }
     }
 
-    /// The addon source currently playing (by id, else by URL).
+    /// The addon source currently playing (by URL, else by id). Ids are positions in
+    /// an addon's response, so after a re-fetch an id can point at another stream.
     var currentStremioStream: StremioPlayableStream? {
-        if let id = currentStremioSourceId, let stream = availableStremioSources.first(where: { $0.id == id }) {
+        if let uri = streamPlaybackItem?.uri, let stream = availableStremioSources.first(where: { $0.url == uri }) {
             return stream
         }
-        guard let uri = streamPlaybackItem?.uri else { return nil }
-        return availableStremioSources.first { $0.url == uri }
+        guard let id = currentStremioSourceId else { return nil }
+        return availableStremioSources.first { $0.id == id }
     }
 
     var isStreamPlayback: Bool {
@@ -128,7 +129,7 @@ extension PlayerViewModel {
     private func replaceCurrentStremioSource(with stream: StremioPlayableStream) async {
         guard let current = streamPlaybackItem,
               stream.id != currentStremioSourceId,
-              let uri = stream.url else {
+              let uri = stream.url, uri != current.uri else {
             return
         }
 

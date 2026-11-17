@@ -115,16 +115,26 @@ extension PlayerViewModel {
               let identity = StreamRecoveryService.identity(for: current, source: "player-sources") else { return }
         isLoadingStreamSources = true
         Task { [weak self] in
-            let results = await StreamRecoveryService.fetchStreams(identity: identity)
+            let results = await StreamRecoveryService.fetchStreams(identity: identity, title: current.showTitle ?? current.title)
             guard let self else { return }
             self.isLoadingStreamSources = false
-            let streams = (results ?? []).flatMap(\.streams).filter(\.playable)
+            var streams = (results ?? []).flatMap(\.streams).filter(\.playable)
             guard !streams.isEmpty else { return }
-            self.availableStremioSources = streams
-            if let uri = self.streamPlaybackItem?.uri,
-               let playing = streams.first(where: { $0.url == uri }) {
+            let uri = self.streamPlaybackItem?.uri
+            if let playing = streams.first(where: { $0.url == uri }) {
                 self.currentStremioSourceId = playing.id
+            } else if var playing = self.currentStremioStream {
+                // The addon left the playing source out this time (aggregators vary between
+                // fetches). Keep it, first in its addon's group, so it stays listed and ticked.
+                // A new id: positional ids in the new list may already use its old one.
+                playing.id = "playing-\(playing.id)"
+                let index = streams.firstIndex { $0.addonName == playing.addonName } ?? 0
+                streams.insert(playing, at: index)
+                self.currentStremioSourceId = playing.id
+            } else {
+                self.currentStremioSourceId = nil
             }
+            self.availableStremioSources = streams
         }
     }
 }

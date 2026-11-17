@@ -15,6 +15,14 @@ struct StremioSourcesView: View {
     @State private var qualityFilter: String?
     @State private var sort: SourceSort = .best
     @State private var cache = EntryCache()
+    /// Categories shown as a header only. Pre-release starts that way.
+    @State private var collapsedCategories: Set<StremioReleaseCategory> = [.preRelease]
+    /// Categories showing every row rather than the first few.
+    @State private var expandedCategories: Set<StremioReleaseCategory> = []
+    @State private var showHiddenTitles = false
+
+    /// Rows per category before "Show all".
+    private static let rowsPerCategory = 3
 
     enum SourceSort: CaseIterable, Identifiable {
         case best, size, addonOrder
@@ -59,7 +67,7 @@ struct StremioSourcesView: View {
                         .padding(.vertical, DS.Space.s40)
                 } else if case .none = viewModel.emptyState {
                     if let recommended = recommendedEntry { recommendedCard(recommended) }
-                    playableList
+                    groupedList
                     if viewModel.isLoading {
                         HStack(spacing: DS.Space.s8) {
                             ProgressView().controlSize(.small)
@@ -214,7 +222,7 @@ struct StremioSourcesView: View {
 
     private func buildVisibleEntries() -> [SourceEntry] {
         var entries = allEntries
-        if let qualityFilter { entries = entries.filter { $0.facts.resolution == qualityFilter } }
+        if let qualityFilter { entries = entries.filter { $0.facts.resolutionGroup == qualityFilter } }
         switch sort {
         case .best: entries.sort { $0.rank < $1.rank }
         case .size: entries.sort { ($0.facts.sizeBytes ?? 0) > ($1.facts.sizeBytes ?? 0) }
@@ -248,8 +256,8 @@ struct StremioSourcesView: View {
 
     private var filterBar: some View {
         let entries = allEntries
-        let qualities = ["4K", "1080p", "720p", "480p"].compactMap { q -> (String, Int)? in
-            let count = entries.filter { $0.facts.resolution == q }.count
+        let qualities = ["4K", "1080p", "Lower"].compactMap { q -> (String, Int)? in
+            let count = entries.filter { $0.facts.resolutionGroup == q }.count
             return count > 0 ? (q, count) : nil
         }
         return HStack(spacing: DS.Space.s8) {
@@ -257,7 +265,7 @@ struct StremioSourcesView: View {
                 HStack(spacing: DS.Space.s8) {
                     BrowseCountChip(title: String(localized: "All"), count: entries.count, selected: qualityFilter == nil) { qualityFilter = nil }
                     ForEach(qualities, id: \.0) { quality, count in
-                        BrowseCountChip(title: quality, count: count, selected: qualityFilter == quality) {
+                        BrowseCountChip(title: quality == "Lower" ? String(localized: "720p & lower") : quality, count: count, selected: qualityFilter == quality) {
                             qualityFilter = qualityFilter == quality ? nil : quality
                         }
                     }
@@ -317,30 +325,131 @@ struct StremioSourcesView: View {
         .overlay(RoundedRectangle(cornerRadius: DS.Radius.r12, style: .continuous).strokeBorder(Color.white.opacity(0.12), lineWidth: 1))
     }
 
-    private var playableList: some View {
+    /// Sources in sections by release type (Remux, BluRay Disc, WEB-DL, ...), each
+    /// showing its best few, after a note about results left out for another title.
+    private var groupedList: some View {
         let entries = visibleEntries
-        return VStack(alignment: .leading, spacing: DS.Space.s10) {
-            HStack(alignment: .firstTextBaseline, spacing: DS.Space.s8) {
-                Text("All Sources").font(.flixor(.headline, weight: .bold))
-                Text("\(entries.count)").font(.flixor(.callout)).foregroundStyle(.secondary)
+        let byCategory = Dictionary(grouping: entries, by: \.facts.category)
+        let allByCategory = Dictionary(grouping: allEntries, by: \.facts.category)
+        return VStack(alignment: .leading, spacing: DS.Space.s20) {
+            hiddenTitlesNote
+            if showHiddenTitles, !viewModel.hiddenStreams.isEmpty {
+                VStack(alignment: .leading, spacing: DS.Space.s10) {
+                    Text("Different title or year")
+                        .font(.flixor(.headline, weight: .bold))
+                    rowsContainer(hiddenEntries)
+                        .opacity(0.6)
+                }
             }
             if entries.isEmpty {
-                Text("No sources at this quality.")
+                Text(allEntries.isEmpty
+                     ? String(localized: "No source is for this title.")
+                     : String(localized: "No sources at this quality."))
                     .font(.flixor(.callout))
                     .foregroundStyle(.secondary)
                     .padding(.vertical, DS.Space.s12)
-            } else {
-                LazyVStack(spacing: 0) {
-                    ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
-                        StremioSourceRow(entry: entry, onPlay: play)
-                        if index < entries.count - 1 {
-                            Rectangle().fill(Color.white.opacity(0.06)).frame(height: 1)
-                        }
-                    }
-                }
-                .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: DS.Radius.r12, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: DS.Radius.r12, style: .continuous).strokeBorder(Color.white.opacity(0.06), lineWidth: 1))
             }
+            ForEach(StremioReleaseCategory.displayOrder) { category in
+                if let rows = byCategory[category], !rows.isEmpty {
+                    categorySection(category, rows: rows, all: allByCategory[category] ?? rows)
+                }
+            }
+        }
+    }
+
+    private func categorySection(_ category: StremioReleaseCategory, rows: [SourceEntry], all: [SourceEntry]) -> some View {
+        let collapsed = collapsedCategories.contains(category)
+        let expanded = expandedCategories.contains(category)
+        let shown = expanded ? rows : Array(rows.prefix(Self.rowsPerCategory))
+        // Counts per resolution across the whole category, whatever the quality filter.
+        let breakdown = [("4K", "4K"), ("1080p", "1080p"), ("Lower", String(localized: "720p & lower"))].compactMap { key, label -> String? in
+            let count = all.filter { $0.facts.resolutionGroup == key }.count
+            return count > 0 ? "\(label) \(count)" : nil
+        }.joined(separator: " · ")
+        return VStack(alignment: .leading, spacing: DS.Space.s10) {
+            HStack(alignment: .firstTextBaseline, spacing: DS.Space.s8) {
+                Text(category.label).font(.flixor(.headline, weight: .bold))
+                Text("\(rows.count)").font(.flixor(.callout)).foregroundStyle(.secondary)
+                Text(breakdown).font(.flixor(.caption)).foregroundStyle(.tertiary)
+                Spacer(minLength: DS.Space.s8)
+                Button(collapsed ? String(localized: "Expand") : String(localized: "Collapse")) {
+                    if collapsed { collapsedCategories.remove(category) } else { collapsedCategories.insert(category) }
+                }
+                .buttonStyle(.plain)
+                .font(.flixor(.caption, weight: .semibold))
+                .foregroundStyle(.secondary)
+            }
+            if category == .preRelease {
+                Label("Recorded in a cinema or from a screener. Picture and sound are poor.", systemImage: "exclamationmark.triangle.fill")
+                    .font(.flixor(.caption))
+                    .foregroundStyle(theme.warning)
+            }
+            if !collapsed {
+                rowsContainer(shown, moreCount: expanded ? 0 : rows.count - shown.count) {
+                    expandedCategories.insert(category)
+                }
+            }
+        }
+    }
+
+    private func rowsContainer(_ rows: [SourceEntry], moreCount: Int = 0, showAll: @escaping () -> Void = {}) -> some View {
+        LazyVStack(spacing: 0) {
+            ForEach(Array(rows.enumerated()), id: \.element.id) { index, entry in
+                StremioSourceRow(entry: entry, onPlay: play)
+                if index < rows.count - 1 || moreCount > 0 {
+                    Rectangle().fill(Color.white.opacity(0.06)).frame(height: 1)
+                }
+            }
+            if moreCount > 0 {
+                Button(action: showAll) {
+                    Text("Show all \(rows.count + moreCount)")
+                        .font(.flixor(.caption, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, DS.Space.s14)
+                        .padding(.vertical, DS.Space.s10)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: DS.Radius.r12, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: DS.Radius.r12, style: .continuous).strokeBorder(Color.white.opacity(0.06), lineWidth: 1))
+    }
+
+    /// "2 hidden · for a different title or year", with Show / Hide.
+    @ViewBuilder
+    private var hiddenTitlesNote: some View {
+        let count = viewModel.hiddenStreams.count
+        if count > 0 {
+            HStack(spacing: DS.Space.s10) {
+                Image(systemName: "eye.slash")
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+                Text("\(count) hidden · for a different title or year")
+                    .font(.flixor(.callout))
+                    .foregroundStyle(theme.textPrimary)
+                Spacer(minLength: DS.Space.s8)
+                Button(showHiddenTitles ? String(localized: "Hide") : String(localized: "Show")) {
+                    showHiddenTitles.toggle()
+                }
+                .buttonStyle(.plain)
+                .font(.flixor(.caption, weight: .semibold))
+                .padding(.horizontal, DS.Space.s10)
+                .padding(.vertical, 3)
+                .overlay(Capsule().strokeBorder(Color.white.opacity(0.18), lineWidth: 1))
+            }
+            .padding(.horizontal, DS.Space.s12)
+            .padding(.vertical, DS.Space.s8)
+            .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: DS.Radius.compactCard, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: DS.Radius.compactCard, style: .continuous).strokeBorder(Color.white.opacity(0.06), lineWidth: 1))
+        }
+    }
+
+    private var hiddenEntries: [SourceEntry] {
+        viewModel.hiddenStreams.map { stream in
+            SourceEntry(streams: [stream], facts: StremioStreamFacts(stream, addonName: stream.addonName ?? "Stremio"),
+                        addonOrderIndex: Int.max, rank: Int.max)
         }
     }
 

@@ -14,18 +14,36 @@ import Foundation
 extension PlayerViewModel {
     private static let streamLoadTimeoutSeconds: UInt64 = 25
     private static let streamStallTimeoutSeconds: UInt64 = 30
+    /// Full Blu-ray discs: the debrid CDN can take a minute or more to start a
+    /// 30-90 GB .m2ts, and seeking into it reads from slow, uncached ranges.
+    private static let discStreamLoadTimeoutSeconds: UInt64 = 120
+    private static let discStreamStallTimeoutSeconds: UInt64 = 90
+
+    /// True when the addon source playing (or about to play) `uri` is a full disc.
+    func isDiscSource(uri: String?) -> Bool {
+        guard let uri else { return false }
+        let candidates = [currentStremioStream].compactMap { $0 }
+            + availableStremioSources
+            + (streamPlaybackItem?.availableStreams ?? [])
+        if let stream = candidates.first(where: { $0.url == uri }) {
+            return StremioSourceRanking.isDiscRelease(stream)
+        }
+        return StremioSourceRanking.isDiscRelease(text: streamPlaybackItem?.streamLabel ?? "")
+    }
 
     /// A source that never shows a frame sends mpv no failure event for a long time, which
     /// would leave the player stuck. Treat it as failed so another source gets tried.
     func armStreamLoadWatchdog(uri: String) {
         cancelStreamWatchdogs()
+        let timeout = isDiscSource(uri: uri) ? Self.discStreamLoadTimeoutSeconds : Self.streamLoadTimeoutSeconds
         streamLoadWatchdog = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: Self.streamLoadTimeoutSeconds * 1_000_000_000)
+            try? await Task.sleep(nanoseconds: timeout * 1_000_000_000)
             guard !Task.isCancelled, let self, self.sourceKind == .stream,
                   self.streamPlaybackItem?.uri == uri, self.mpvController?.isShutDown == false else { return }
-            print("⏱️ [Player] Source did not start within \(Self.streamLoadTimeoutSeconds)s")
+            print("⏱️ [Player] Source did not start within \(timeout)s")
             AppLogger.shared.warn("[StreamRecovery] Source did not start in time", data: [
                 "addonName": self.streamPlaybackItem?.addonName ?? "",
+                "timeoutSeconds": timeout,
             ])
             self.handlePlaybackFailure(early: true)
         }
@@ -37,14 +55,16 @@ extension PlayerViewModel {
         streamStallWatchdog?.cancel()
         streamStallWatchdog = nil
         guard buffering, sourceKind == .stream else { return }
+        let timeout = isDiscSource(uri: streamPlaybackItem?.uri) ? Self.discStreamStallTimeoutSeconds : Self.streamStallTimeoutSeconds
         streamStallWatchdog = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: Self.streamStallTimeoutSeconds * 1_000_000_000)
+            try? await Task.sleep(nanoseconds: timeout * 1_000_000_000)
             guard !Task.isCancelled, let self, !self.isLoading,
                   self.streamRecoveryAttempts < self.maxStreamRecoveryAttempts,
                   self.mpvController?.isShutDown == false else { return }
-            print("⏱️ [Player] Source stalled for \(Self.streamStallTimeoutSeconds)s")
+            print("⏱️ [Player] Source stalled for \(timeout)s")
             AppLogger.shared.warn("[StreamRecovery] Source stalled", data: [
                 "addonName": self.streamPlaybackItem?.addonName ?? "",
+                "timeoutSeconds": timeout,
             ])
             self.handlePlaybackFailure(early: false)
         }
@@ -115,7 +135,7 @@ extension PlayerViewModel {
 
         // Re-fetch the title's streams once per playback; later attempts reuse them.
         if streamRecoveryResults == nil {
-            streamRecoveryResults = await StreamRecoveryService.fetchStreams(identity: identity)
+            streamRecoveryResults = await StreamRecoveryService.fetchStreams(identity: identity, title: failed.showTitle ?? failed.title)
         }
 
         // The user may have closed the player or switched source meanwhile.
