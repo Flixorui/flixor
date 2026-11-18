@@ -22,6 +22,9 @@ struct PlayerControlsView: View {
     let onPanelOpenChanged: (Bool) -> Void
     /// Each change closes whichever panel is open.
     let closePanelsRequest: Int
+    /// The X-Ray panel; owned by PlayerView so the X key can open it with the controls hidden.
+    @Binding var isXRayPanelOpen: Bool
+    @Binding var xrayFocusedPerson: Int?
 
     @Environment(\.flixorTheme) private var theme
     @Environment(\.windowMetrics) private var metrics
@@ -90,6 +93,13 @@ struct PlayerControlsView: View {
 
             // Bottom Controls
             VStack(spacing: DS.Space.s12) {
+                // Who's in this scene (X-Ray), above the seek bar
+                if let xray = viewModel.xray, !isXRayPanelOpen {
+                    XRayStrip(xray: xray) { person in openXRay(focus: person) }
+                        .padding(.horizontal, DS.Space.s20)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
                 // Timeline
                 PlayerSeekBar(
                     clock: viewModel.playbackClock,
@@ -98,6 +108,7 @@ struct PlayerControlsView: View {
                     marks: seekBarMarks,
                     accent: theme.accent,
                     segmentColor: theme.warning.opacity(DS.Opacity.strong),
+                    xray: viewModel.xray,
                     onSeek: { viewModel.seek(to: $0) },
                     requestThumbnail: { requestThumbnail(at: $0) }
                 )
@@ -229,6 +240,13 @@ struct PlayerControlsView: View {
                             }
                         }
                         .help("Episodes")
+                    }
+
+                    // X-Ray panel
+                    if viewModel.xray != nil {
+                        XRayButton(isOn: isXRayPanelOpen) {
+                            if isXRayPanelOpen { isXRayPanelOpen = false } else { openXRay(focus: nil) }
+                        }
                     }
 
                     // Audio & Subtitles button (MPV only)
@@ -396,6 +414,14 @@ struct PlayerControlsView: View {
                 .transition(.opacity)
             }
         }
+        .overlay {
+            if isXRayPanelOpen, let xray = viewModel.xray {
+                XRayPanel(xray: xray, viewModel: viewModel, focusedPerson: xrayFocusedPerson) {
+                    isXRayPanelOpen = false
+                }
+                .transition(.opacity.combined(with: .move(edge: .trailing)))
+            }
+        }
         .overlay(alignment: .bottomTrailing) {
             // Next Episode Hover Card - positioned independently
             if showNextEpisodeHover, let nextEp = viewModel.nextEpisode {
@@ -407,7 +433,7 @@ struct PlayerControlsView: View {
         }
         .overlay(alignment: .bottomLeading) {
             // Thumbnail preview - positioned completely independently
-            SeekBarPreviewOverlay(hover: seekHover, label: { seekBarLabel(at: $0) })
+            SeekBarPreviewOverlay(hover: seekHover, lift: viewModel.xray != nil && !isXRayPanelOpen ? 62 : 0, label: { seekBarLabel(at: $0) })
         }
         .onChange(of: isAnyPanelOpen) { onPanelOpenChanged($0) }
         .onChange(of: closePanelsRequest) { _ in closeAllPanels() }
@@ -424,6 +450,14 @@ struct PlayerControlsView: View {
         showChaptersPanel = false
         showAspectPanel = false
         showSourcesPanel = false
+        isXRayPanelOpen = false
+    }
+
+    /// Opens the X-Ray panel (closing any other), optionally on one person.
+    private func openXRay(focus person: Int?) {
+        closeAllPanels()
+        xrayFocusedPerson = person
+        withAnimation(DS.Motion.standard) { isXRayPanelOpen = true }
     }
 
     /// Panels share the same corner, so opening one closes any other.
@@ -540,7 +574,7 @@ struct PlayerControlsView: View {
     }
 
     private var isAnyPanelOpen: Bool {
-        showEpisodesList || showPlaybackSpeed || showAudioSubtitles || showChaptersPanel || showAspectPanel || showSourcesPanel
+        showEpisodesList || showPlaybackSpeed || showAudioSubtitles || showChaptersPanel || showAspectPanel || showSourcesPanel || isXRayPanelOpen
     }
 
     private var seekBarMarks: SeekBarMarksModel {
@@ -554,7 +588,11 @@ struct PlayerControlsView: View {
         let markerName = marker.map { $0.segmentType?.displayName ?? $0.type.capitalized }
         let chapterName = viewModel.chapters.last { $0.time <= time }?.displayName
         let names = [markerName, chapterName].compactMap { $0 }
-        return names.isEmpty ? nil : names.joined(separator: " · ")
+        let place = names.isEmpty ? nil : names.joined(separator: " · ")
+        // Who's there (X-Ray) goes on its own line.
+        let people = viewModel.xray?.names(at: time)
+        let lines = [place, people].compactMap { $0 }
+        return lines.isEmpty ? nil : lines.joined(separator: "\n")
     }
 
     private func requestThumbnail(at time: TimeInterval) {
@@ -595,6 +633,7 @@ private struct PlayerSeekBar: View {
     let marks: SeekBarMarksModel
     let accent: Color
     let segmentColor: Color
+    let xray: XRayController?
     let onSeek: (TimeInterval) -> Void
     let requestThumbnail: (TimeInterval) -> Void
 
@@ -611,6 +650,11 @@ private struct PlayerSeekBar: View {
                     Rectangle()
                         .fill(Color.white.opacity(0.3))
                         .frame(height: 4)
+
+                    // How far X-Ray has analysed
+                    if let xray {
+                        XRayCoverageBand(xray: xray, duration: duration)
+                    }
 
                     // Progress
                     Rectangle()
@@ -719,6 +763,8 @@ private struct PlayerSeekBar: View {
 /// The hover thumbnail above the seek bar. Only this observes the hover model.
 private struct SeekBarPreviewOverlay: View {
     @ObservedObject var hover: SeekBarHoverModel
+    /// Extra height when the X-Ray strip sits above the seek bar.
+    var lift: CGFloat = 0
     let label: (TimeInterval) -> String?
 
     var body: some View {
@@ -730,7 +776,7 @@ private struct SeekBarPreviewOverlay: View {
                 isLoading: hover.isLoading
             )
             .offset(x: hover.position + 20 - 100) // 20px is the horizontal padding, center 200px wide preview
-            .offset(y: -140) // Position above timeline
+            .offset(y: -140 - lift) // Position above timeline (and the X-Ray strip)
             .allowsHitTesting(false)
             .transition(.opacity.combined(with: .scale(scale: 0.95)))
         }
@@ -850,7 +896,8 @@ private struct ThumbnailPreviewView: View {
                     Text(label)
                         .font(.flixor(.footnote, weight: .medium))
                         .foregroundStyle(.white.opacity(DS.Opacity.strong))
-                        .lineLimit(1)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.center)
                         .truncationMode(.tail)
                 }
                 Text(formatTime(time))

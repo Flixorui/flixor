@@ -56,6 +56,16 @@ extension TMDBService {
         )
     }
 
+    /// A person's profile photos (all languages), for X-Ray's face references.
+    public func getPersonImages(id: Int) async throws -> TMDBPersonImages {
+        return try await get(path: "/person/\(id)/images", ttl: CacheTTL.`static`, skipLanguage: true)
+    }
+
+    /// Cast of one episode: the season's regulars plus that episode's guest stars.
+    public func getEpisodeCredits(tvId: Int, season: Int, episode: Int) async throws -> TMDBEpisodeCredits {
+        return try await get(path: "/tv/\(tvId)/season/\(season)/episode/\(episode)/credits", ttl: CacheTTL.trending)
+    }
+
     /// Search people by name.
     public func searchPeople(query: String, page: Int = 1) async throws -> TMDBPeopleSearchResponse {
         return try await get(
@@ -661,4 +671,30 @@ public struct TMDBKeyword: Codable, Hashable, Sendable {
 
 struct TMDBKeywordSearchResponse: Codable {
     let results: [TMDBKeyword]
+}
+
+/// `/person/{id}/images`.
+public struct TMDBPersonImages: Codable {
+    public let profiles: [TMDBProfileImage]
+}
+
+public struct TMDBProfileImage: Codable {
+    public let filePath: String
+    public let voteAverage: Double?
+
+    private enum CodingKeys: String, CodingKey {
+        case filePath = "file_path"
+        case voteAverage = "vote_average"
+    }
+}
+
+/// `/tv/{id}/season/{s}/episode/{e}/credits`.
+public struct TMDBEpisodeCredits: Codable {
+    public let cast: [TMDBCastMember]
+    public let guestStars: [TMDBCastMember]?
+
+    private enum CodingKeys: String, CodingKey {
+        case cast
+        case guestStars = "guest_stars"
+    }
 }

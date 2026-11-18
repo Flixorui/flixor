@@ -186,6 +186,9 @@ extension PlayerView {
             guard !isRepeat else { return true }
             viewModel.cycleAspectMode()
             showKeyboardFeedback(String(localized: "Aspect: \(viewModel.aspectMode.displayName)"))
+        case "x":
+            guard viewModel.xray != nil else { return false }
+            if !isRepeat { toggleXRayPanel() }
         case "?":
             if !isRepeat {
                 withAnimation(DS.Motion.standard) { showShortcutsOverlay.toggle() }
@@ -194,6 +197,19 @@ extension PlayerView {
             return false
         }
         return true
+    }
+
+    // MARK: - X-Ray
+
+    /// X opens the X-Ray panel (showing the controls, which hold it) or closes it.
+    private func toggleXRayPanel() {
+        if isXRayPanelOpen {
+            isXRayPanelOpen = false
+        } else {
+            xrayFocusedPerson = nil
+            showControlsForPanel()
+            withAnimation(DS.Motion.standard) { isXRayPanelOpen = true }
+        }
     }
 
     // MARK: - Hold Space for 2x

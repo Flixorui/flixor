@@ -7,6 +7,15 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		8E443960F93460C78659008E /* XRayPlayerViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 855A9184AC1A4247B54E7DE3 /* XRayPlayerViews.swift */; };
+		04F7EF47654C54ED31598EE9 /* PlayerViewModel+XRay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C5EEDC504C19C843BA783EC /* PlayerViewModel+XRay.swift */; };
+		4317FD81003C7D5480556613 /* SFace.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = 8A91C6BDF3E5599A72AFACDC /* SFace.mlpackage */; };
+		96A3494298AF8A4B5B7344CC /* XRayController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99B9D4489707DECD296E3086 /* XRayController.swift */; };
+		3D13ADB88BE4B7EF782D5E01 /* XRayAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 735178AD3BE9B8A81E7BB86D /* XRayAnalyzer.swift */; };
+		74485A5A4618E61482C40DE3 /* XRayFrameSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0244D2AD5383FCD723C8E714 /* XRayFrameSource.swift */; };
+		DA44C70F8FC9D344FB14B171 /* XRayStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A11797CEB22A3F35A5A437 /* XRayStore.swift */; };
+		25F3CE47A59D1E6098AE3B85 /* XRayCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2247B616185144A7597893B /* XRayCore.swift */; };
+		80798964AAEB9B84567CD347 /* XRayFaceEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10077608DB70CA8CC72E3CB8 /* XRayFaceEngine.swift */; };
 		52F2E3E5C8229F9A00A316CB /* AskFlixorPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB16969942694029116F1514 /* AskFlixorPanel.swift */; };
 		4A37D0A1D71217EBADDAEB33 /* AskFlixor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B83345B62177E4F9EF50CB1 /* AskFlixor.swift */; };
 		F2635A75C672EFCC1144506B /* MoodPicksRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = C77CDACB09D905BB07DF2EC3 /* MoodPicksRow.swift */; };
@@ -377,6 +386,15 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		855A9184AC1A4247B54E7DE3 /* XRayPlayerViews.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = XRayPlayerViews.swift; sourceTree = "<group>"; };
+		6C5EEDC504C19C843BA783EC /* PlayerViewModel+XRay.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "PlayerViewModel+XRay.swift"; sourceTree = "<group>"; };
+		8A91C6BDF3E5599A72AFACDC /* SFace.mlpackage */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = folder.mlpackage; path = XRay/SFace.mlpackage; sourceTree = "<group>"; };
+		99B9D4489707DECD296E3086 /* XRayController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = XRay/XRayController.swift; sourceTree = "<group>"; };
+		735178AD3BE9B8A81E7BB86D /* XRayAnalyzer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = XRay/XRayAnalyzer.swift; sourceTree = "<group>"; };
+		0244D2AD5383FCD723C8E714 /* XRayFrameSource.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = XRay/XRayFrameSource.swift; sourceTree = "<group>"; };
+		F1A11797CEB22A3F35A5A437 /* XRayStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = XRay/XRayStore.swift; sourceTree = "<group>"; };
+		A2247B616185144A7597893B /* XRayCore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = XRay/XRayCore.swift; sourceTree = "<group>"; };
+		10077608DB70CA8CC72E3CB8 /* XRayFaceEngine.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = XRay/XRayFaceEngine.swift; sourceTree = "<group>"; };
 		DB16969942694029116F1514 /* AskFlixorPanel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Upcoming/AskFlixorPanel.swift; sourceTree = "<group>"; };
 		1B83345B62177E4F9EF50CB1 /* AskFlixor.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AI/AskFlixor.swift; sourceTree = "<group>"; };
 		C77CDACB09D905BB07DF2EC3 /* MoodPicksRow.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Upcoming/MoodPicksRow.swift; sourceTree = "<group>"; };
@@ -948,6 +966,7 @@
 				BB2FA3879322AA6534BCE55D /* DetailsTitleActionsModel.swift */,
 				6B4C98C0C45DDE8C1C4DAD86 /* PlayerViewModel+StreamRecovery.swift */,
 				9510C1738D512B3045F18482 /* PlayerViewModel+StreamNextEpisode.swift */,
+				6C5EEDC504C19C843BA783EC /* PlayerViewModel+XRay.swift */,
 				36B7B5B1449DA84FDD824E0E /* PlayerViewModel+SkipSegments.swift */,
 				4C05C37495D022289602E649 /* PlayerViewModel+SubtitleEngine.swift */,
 				AE6BE25187EC9929E89CC580 /* PlayerViewModel+Engine.swift */,
@@ -997,6 +1016,13 @@
 				157E9959FBC4CC9475186B8C /* AIWhy.swift */,
 				24AC70FAEC5B2C9FC88459D2 /* AIMoodPicks.swift */,
 				1B83345B62177E4F9EF50CB1 /* AskFlixor.swift */,
+				10077608DB70CA8CC72E3CB8 /* XRayFaceEngine.swift */,
+				A2247B616185144A7597893B /* XRayCore.swift */,
+				F1A11797CEB22A3F35A5A437 /* XRayStore.swift */,
+				0244D2AD5383FCD723C8E714 /* XRayFrameSource.swift */,
+				735178AD3BE9B8A81E7BB86D /* XRayAnalyzer.swift */,
+				99B9D4489707DECD296E3086 /* XRayController.swift */,
+				8A91C6BDF3E5599A72AFACDC /* SFace.mlpackage */,
 				3CF8A4C3FD1B30C4E66C61C9 /* TraktContinueWatchingService.swift */,
 				80C4FA0B8998589F64D25892 /* UserCollectionsStore.swift */,
 				A7B9E2C10D08997BD1AE18CB /* UserCollectionSourceResolver.swift */,
@@ -1263,6 +1289,7 @@
 				29A73873254FC5C4746BA9E8 /* PlayerOverlays.swift */,
 				EA19CFB3DF8E0B7749E80C01 /* PlayerIcons.swift */,
 				0811979205DC882B5297C3EE /* PlayerEpisodesAndChaptersPanels.swift */,
+				855A9184AC1A4247B54E7DE3 /* XRayPlayerViews.swift */,
 				790415B07D1E084CB1BD080B /* PlayerControlsView.swift */,
 				BF72BB5CA30315002639159D /* MPVVideoViewWrapper.swift */,
 				5ECF262BE85C94F72229B986 /* MPVPiPWindow.swift */,
@@ -1550,6 +1577,13 @@
 				F2635A75C672EFCC1144506B /* MoodPicksRow.swift in Sources */,
 				4A37D0A1D71217EBADDAEB33 /* AskFlixor.swift in Sources */,
 				52F2E3E5C8229F9A00A316CB /* AskFlixorPanel.swift in Sources */,
+				80798964AAEB9B84567CD347 /* XRayFaceEngine.swift in Sources */,
+				25F3CE47A59D1E6098AE3B85 /* XRayCore.swift in Sources */,
+				DA44C70F8FC9D344FB14B171 /* XRayStore.swift in Sources */,
+				74485A5A4618E61482C40DE3 /* XRayFrameSource.swift in Sources */,
+				3D13ADB88BE4B7EF782D5E01 /* XRayAnalyzer.swift in Sources */,
+				96A3494298AF8A4B5B7344CC /* XRayController.swift in Sources */,
+				4317FD81003C7D5480556613 /* SFace.mlpackage in Sources */,
 				9E29D83C905DD2605FD09902 /* TraktContinueWatchingService.swift in Sources */,
 				65D5E09476637D0E2681888E /* UserDefaults+ContinueWatchingSource.swift in Sources */,
 				4416EE19BFFA2B7C8E644BA4 /* Localization.swift in Sources */,
@@ -1627,6 +1661,7 @@
 				E2D69B19F49A3206AAE413B5 /* UserDefaults+MyBluray.swift in Sources */,
 				32BEEEE26D8D50B962E4328B /* PlayerViewModel+StreamRecovery.swift in Sources */,
 				602CED39222F3E8A5B36CE40 /* PlayerViewModel+StreamNextEpisode.swift in Sources */,
+				04F7EF47654C54ED31598EE9 /* PlayerViewModel+XRay.swift in Sources */,
 				46EF7715A84AC5311FC004F7 /* PlayerViewModel+SkipSegments.swift in Sources */,
 				C76E67887AFFF1AE8FB8E942 /* StremioSourceRanking.swift in Sources */,
 				CD34EF56AB12CD34EF56AB04 /* StremioStreamFacts.swift in Sources */,
@@ -1700,6 +1735,7 @@
 				4297592F0124A8580A201037 /* PlayerOverlays.swift in Sources */,
 				F3AD9862E5FE664F79AF1F44 /* PlayerIcons.swift in Sources */,
 				F4DA027961E3CCB32AD82D14 /* PlayerEpisodesAndChaptersPanels.swift in Sources */,
+				8E443960F93460C78659008E /* XRayPlayerViews.swift in Sources */,
 				BED39AD63A6505F9C83B30CB /* PlayerControlsView.swift in Sources */,
 				BE0A543F9C571F2F1B27A8D8 /* MPVVideoViewWrapper.swift in Sources */,
 				E9A20B7F10E10292E08C81F2 /* MPVPiPWindow.swift in Sources */,

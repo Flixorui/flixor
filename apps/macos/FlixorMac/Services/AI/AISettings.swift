@@ -53,6 +53,7 @@ final class AISettings: ObservableObject {
         static let recaps = "aiRecaps"
         static let why = "aiWhy"
         static let moodPicks = "aiMoodPicks"
+        static let xray = "aiXRay"
         // Keychain accounts (profile-scoped).
         static let anthropicKey = "aiAnthropicKey"
         static let openAIKey = "aiOpenAIKey"
@@ -84,6 +85,8 @@ final class AISettings: ObservableObject {
     @Published var whyEnabled: Bool { didSet { save(whyEnabled, Keys.why) } }
     /// Feature: mood picks row on Home.
     @Published var moodPicksEnabled: Bool { didSet { save(moodPicksEnabled, Keys.moodPicks) } }
+    /// Feature: X-Ray in the player (on-device face recognition).
+    @Published var xrayEnabled: Bool { didSet { save(xrayEnabled, Keys.xray) } }
     /// Bumped when a key changes so views re-read `hasKey`.
     @Published private(set) var keyRevision = 0
 
@@ -100,6 +103,7 @@ final class AISettings: ObservableObject {
         recapsEnabled = true
         whyEnabled = true
         moodPicksEnabled = true
+        xrayEnabled = true
         reload()
         profileObserver = ProfileSettings.shared.objectWillChange
             .debounce(for: .milliseconds(50), scheduler: RunLoop.main)
@@ -136,6 +140,8 @@ final class AISettings: ObservableObject {
         if wy != whyEnabled { whyEnabled = wy }
         let mp = bool(Keys.moodPicks, default: true)
         if mp != moodPicksEnabled { moodPicksEnabled = mp }
+        let xr = bool(Keys.xray, default: true)
+        if xr != xrayEnabled { xrayEnabled = xr }
         keyRevision += 1
     }
 
@@ -147,6 +153,7 @@ final class AISettings: ObservableObject {
     var isRecapActive: Bool { isEnabled && recapsEnabled }
     var isWhyActive: Bool { isEnabled && whyEnabled }
     var isMoodPicksActive: Bool { isEnabled && moodPicksEnabled }
+    var isXRayActive: Bool { isEnabled && xrayEnabled }
 
     // MARK: Keys
 

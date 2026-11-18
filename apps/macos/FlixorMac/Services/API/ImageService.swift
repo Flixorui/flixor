@@ -185,6 +185,8 @@ enum TMDBImageSize: String {
     case w342
     case w500
     case w780
+    /// Profile photos, 632 tall (X-Ray face references).
+    case h632
     case original
 }
 

@@ -21,6 +21,8 @@ struct AISettingsView: View {
     @State private var modelsError: String?
     @State private var testState: TestState = .idle
     @State private var showsSentDetails = false
+    @State private var xrayUsage: (titles: Int, bytes: Int64)?
+    @State private var confirmsXRayClear = false
 
     private enum TestState: Equatable {
         case idle, running, passed(String), failed(String)
@@ -63,6 +65,8 @@ struct AISettingsView: View {
                 featureRow("\"Previously on\" recaps", isOn: $settings.recapsEnabled)
                 featureRow("\"Why you'd like it\"", isOn: $settings.whyEnabled)
                 featureRow("Mood picks row", isOn: $settings.moodPicksEnabled)
+                featureRow("X-Ray in the player", subtitle: "Who's in each scene, matched on this Mac · X while playing", isOn: $settings.xrayEnabled)
+                xrayDataRow
                 sentRow
             }
             .disabled(!settings.isEnabled)
@@ -200,6 +204,30 @@ struct AISettingsView: View {
         SettingsRow(title: title, subtitle: subtitle) {
             Toggle("", isOn: isOn).labelsHidden()
         }
+    }
+
+    private var xrayDataRow: some View {
+        SettingsRow(title: "Saved X-Ray data", subtitle: xrayUsageText) {
+            Button("Clear…") { confirmsXRayClear = true }
+                .disabled((xrayUsage?.bytes ?? 0) == 0)
+                .confirmationDialog("Clear saved X-Ray data?", isPresented: $confirmsXRayClear) {
+                    Button("Clear", role: .destructive) {
+                        Task {
+                            await XRayStore.shared.clearAll()
+                            xrayUsage = await XRayStore.shared.usage()
+                        }
+                    }
+                } message: {
+                    Text("Titles you watch again will be analysed again.")
+                }
+        }
+        .task { xrayUsage = await XRayStore.shared.usage() }
+    }
+
+    private var xrayUsageText: LocalizedStringKey {
+        guard let usage = xrayUsage else { return "Scenes and cast faces, kept on this Mac" }
+        let size = ByteCountFormatter.string(fromByteCount: usage.bytes, countStyle: .file)
+        return usage.titles == 1 ? "1 title · \(size)" : "\(usage.titles) titles · \(size)"
     }
 
     private var sentRow: some View {
@@ -361,9 +389,9 @@ struct AISettingsView: View {
     private var sentExplanation: String {
         switch engine {
         case .apple:
-            return String(localized: "With Apple Intelligence everything runs on this Mac and nothing is sent anywhere.")
+            return String(localized: "With Apple Intelligence everything runs on this Mac and nothing is sent anywhere. X-Ray also runs on this Mac with any engine: faces are matched against the cast's TMDB photos and nothing is uploaded.")
         case .openAI, .anthropic:
-            return String(localized: "With \(engine.label), each request sends only what that feature needs: what you typed, and for some features titles, years, genres, episode summaries from TMDB and your ratings. Never account names, server addresses, tokens or file paths. Requests are billed to your \(engine.label) account.")
+            return String(localized: "With \(engine.label), each request sends only what that feature needs: what you typed, and for some features titles, years, genres, episode summaries from TMDB and your ratings. Never account names, server addresses, tokens or file paths. Requests are billed to your \(engine.label) account. X-Ray never uses your key: it matches faces on this Mac.")
         }
     }
 

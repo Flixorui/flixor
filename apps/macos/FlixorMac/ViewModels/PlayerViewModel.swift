@@ -191,6 +191,9 @@ class PlayerViewModel: ObservableObject {
     private(set) var item: MediaItem
     @Published var mpvController: MPVPlayerController?
     @Published var thumbnailGenerator: MPVThumbnailGenerator?
+    /// X-Ray (who's in each scene) for the playing title; nil when off or unavailable.
+    @Published var xray: XRayController?
+    var xrayIdentityTask: Task<Void, Never>?
     let api = APIClient.shared
 
     private var offlineFilePath: String?
@@ -522,6 +525,7 @@ class PlayerViewModel: ObservableObject {
                             self.thumbnailGenerator?.onVideoLoaded(url: path)
                         }
                     }
+                    self.startXRayIfNeeded()
                 case "playback-restart":
                     print("▶️ [Player] MPV playback started")
                     self.streamLoadWatchdog?.cancel()
@@ -612,6 +616,7 @@ class PlayerViewModel: ObservableObject {
         mpvController?.shutdown()
         // And the seek-bar thumbnail instance with its connection
         thumbnailGenerator?.shutdown()
+        stopXRay()
 
         cleanupExternalSubtitleFiles()
     }
@@ -623,6 +628,7 @@ class PlayerViewModel: ObservableObject {
         seekProgressReportTask?.cancel()
         seekProgressReportTask = nil
         thumbnailGenerator?.shutdown()
+        stopXRay()
         // Closed without stopPlayback() (which already did this): drop the remote-command
         // targets, whose handlers would otherwise outlive the player.
         if !remoteCommandTargets.isEmpty { clearNowPlayingInfo() }

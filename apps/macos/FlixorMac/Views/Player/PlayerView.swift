@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Combine
 
 struct PlayerView: View {
     let item: MediaItem
@@ -25,6 +26,9 @@ struct PlayerView: View {
     @State var isControlsPanelOpen = false
     /// Incremented to ask the controls to close their open panel (Esc).
     @State var closePanelsRequest = 0
+    /// X-Ray side panel (X key or the X-Ray button) and the person it opened on.
+    @State var isXRayPanelOpen = false
+    @State var xrayFocusedPerson: Int?
 
     // Hold-Space speed boost (see PlayerView+Keyboard.swift)
     @State var spaceHoldTask: Task<Void, Never>?
@@ -202,7 +206,9 @@ struct PlayerView: View {
                         isControlsPanelOpen = isOpen
                         if !isOpen && !viewModel.isLeavingPlayer { scheduleHideControls() }
                     },
-                    closePanelsRequest: closePanelsRequest
+                    closePanelsRequest: closePanelsRequest,
+                    isXRayPanelOpen: $isXRayPanelOpen,
+                    xrayFocusedPerson: $xrayFocusedPerson
                 )
                 .transition(.opacity)
             }
@@ -325,6 +331,12 @@ struct PlayerView: View {
             // Back in front with the pointer left visible on the way out: resume idle auto-hide.
             scheduleHideControls()
         }
+        .onReceive(AISettings.shared.objectWillChange.debounce(for: .milliseconds(200), scheduler: RunLoop.main)) { _ in
+            viewModel.refreshXRayForSettings()
+        }
+        .onChange(of: viewModel.xray == nil) { gone in
+            if gone { isXRayPanelOpen = false }
+        }
         .onChange(of: viewModel.isPlaying) { isPlaying in
             MPVPiPWindowManager.shared.updatePlaybackState(isPlaying: isPlaying)
         }
@@ -445,6 +457,14 @@ struct PlayerView: View {
         }
         // Restart the hide timer
         scheduleHideControls()
+    }
+
+    /// Shows the controls and keeps them up for a panel opened from the keyboard.
+    func showControlsForPanel() {
+        hideControlsTask?.cancel()
+        isControlsPanelOpen = true
+        showCursor()
+        withAnimation(DS.Motion.standard) { showControls = true }
     }
 
     private func scheduleHideControls() {
