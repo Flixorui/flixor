@@ -1,0 +1,13 @@
+// Friends-and-family edition defaults. Copy to Friends.xcconfig (gitignored) and fill
+// in; scripts/release.sh friends builds with it. Each value is applied once on a new
+// install, and people can change or remove it in Settings.
+//
+// "//" starts a comment in xcconfig files, so write URLs as https:/$()/host/...
+// Anyone with the app can read these values out of it: only share it with people
+// you'd give the keys to.
+
+FLIXOR_BUNDLED_MYBLURAY_KEY =
+FLIXOR_BUNDLED_FLIXPATROL_URL = https:/$()/example.com/v2
+FLIXOR_BUNDLED_FLIXPATROL_KEY =
+// Stremio add-on manifest URLs, separated by spaces.
+FLIXOR_BUNDLED_STREMIO_ADDONS = https:/$()/example.com/manifest.json https:/$()/example.org/manifest.json

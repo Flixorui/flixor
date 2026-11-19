@@ -17,6 +17,7 @@ struct FlixorMacApp: App {
     init() {
         // Initialize AppLogger early to capture all logs
         _ = AppLogger.shared
+        BundledDefaults.registerSensitiveValues()
 
         // Configure FlixorCore
         let clientId = getOrCreateClientId()
@@ -93,6 +94,38 @@ enum APIKeys {
             return ""
         }
         return value
+    }
+}
+
+// MARK: - Bundled defaults (friends-and-family edition)
+/// Settings baked into the friends-and-family edition from Config/Friends.xcconfig
+/// (gitignored, never committed). Empty in the public and personal editions.
+/// Each is applied once, as if the person had entered it, so they can change or
+/// remove it afterwards.
+enum BundledDefaults {
+    static let myblurayApiKey = value("FlixorBundledMyBlurayKey")
+
+    static let flixPatrol: FlixPatrolSource? = {
+        let url = FlixPatrolSource.normalizedURL(value("FlixorBundledFlixPatrolURL"))
+        let key = value("FlixorBundledFlixPatrolKey")
+        guard !url.isEmpty, !key.isEmpty else { return nil }
+        return FlixPatrolSource(url: url, key: key)
+    }()
+
+    /// Manifest URLs, separated by spaces.
+    static let stremioAddons: [String] = value("FlixorBundledStremioAddons")
+        .split(whereSeparator: \.isWhitespace).map(String.init)
+
+    /// Keeps every bundled value out of the app's logs. Call once at launch.
+    static func registerSensitiveValues() {
+        let all = [myblurayApiKey, flixPatrol?.key ?? ""] + stremioAddons
+        all.filter { !$0.isEmpty }.forEach { AppLogger.shared.registerSensitiveValue($0) }
+    }
+
+    private static func value(_ key: String) -> String {
+        let raw = (Bundle.main.object(forInfoDictionaryKey: key) as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return raw.hasPrefix("$(") ? "" : raw
     }
 }
 

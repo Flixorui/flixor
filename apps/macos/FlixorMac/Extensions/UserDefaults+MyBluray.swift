@@ -76,13 +76,26 @@ extension UserDefaults {
         static let apiKey = "myblurayApiKey"
         static let enabled = "myblurayEnabled"
         static let discCountry = "myblurayDiscCountry"
+        /// Set when the person cleared the friends edition's bundled key.
+        static let bundledKeyCleared = "myblurayBundledKeyCleared"
         static func option(_ option: MyBlurayOption) -> String { "mybluray.\(option.rawValue)" }
     }
 
     /// Each person's own key from the MyBluray portal (`mbr_…`).
+    /// The friends edition falls back to its bundled key until the person clears it.
     var myblurayApiKey: String {
-        get { secret(forKey: profileKey(MyBlurayKeys.apiKey)) }
-        set { setSecret(newValue, forKey: profileKey(MyBlurayKeys.apiKey)) }
+        get {
+            let saved = secret(forKey: profileKey(MyBlurayKeys.apiKey))
+            guard saved.isEmpty, !bool(forKey: profileKey(MyBlurayKeys.bundledKeyCleared)) else { return saved }
+            return BundledDefaults.myblurayApiKey
+        }
+        set {
+            setSecret(newValue, forKey: profileKey(MyBlurayKeys.apiKey))
+            if !BundledDefaults.myblurayApiKey.isEmpty {
+                let cleared = newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                set(cleared, forKey: profileKey(MyBlurayKeys.bundledKeyCleared))
+            }
+        }
     }
 
     /// Master switch. On by default, so adding a key is enough.

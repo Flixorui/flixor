@@ -101,8 +101,8 @@ final class AISettings: ObservableObject {
         describeSearchEnabled = true
         askFlixorEnabled = true
         recapsEnabled = true
-        whyEnabled = true
-        moodPicksEnabled = true
+        whyEnabled = false
+        moodPicksEnabled = false
         xrayEnabled = true
         reload()
         profileObserver = ProfileSettings.shared.objectWillChange
@@ -136,9 +136,9 @@ final class AISettings: ObservableObject {
         if ask != askFlixorEnabled { askFlixorEnabled = ask }
         let rc = bool(Keys.recaps, default: true)
         if rc != recapsEnabled { recapsEnabled = rc }
-        let wy = bool(Keys.why, default: true)
+        let wy = bool(Keys.why, default: false)
         if wy != whyEnabled { whyEnabled = wy }
-        let mp = bool(Keys.moodPicks, default: true)
+        let mp = bool(Keys.moodPicks, default: false)
         if mp != moodPicksEnabled { moodPicksEnabled = mp }
         let xr = bool(Keys.xray, default: true)
         if xr != xrayEnabled { xrayEnabled = xr }

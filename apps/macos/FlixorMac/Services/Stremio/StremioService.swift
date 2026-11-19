@@ -20,6 +20,7 @@ actor StremioService {
     private let storage = StremioStorage.shared
     private let logger = AppLogger.shared
     private var initialized = false
+    private var bundledAddonsChecked = false
     private var addons: [String: StremioAddonManifest] = [:]
     private var order: [String] = []
 
@@ -64,6 +65,11 @@ actor StremioService {
             if order != persistedOrder {
                 await persist()
             }
+        }
+
+        if !bundledAddonsChecked {
+            bundledAddonsChecked = true
+            await installBundledAddons()
         }
 
         if installDefaults {
@@ -554,6 +560,27 @@ actor StremioService {
                 "error": error.localizedDescription,
             ])
         }
+    }
+
+    /// The friends edition's add-ons, installed once per profile. One that fails (no
+    /// network) is tried again next launch; one the person removed stays removed.
+    private func installBundledAddons() async {
+        let urls = BundledDefaults.stremioAddons
+        guard !urls.isEmpty else { return }
+        let defaults = UserDefaults.standard
+        let key = defaults.profileKey("stremioBundledAddonsInstalled")
+        var done = Set(defaults.stringArray(forKey: key) ?? [])
+        let installedURLs = Set(addons.values.compactMap(\.originalURL).map(normalizeStremioManifestURL))
+        for url in urls where !done.contains(url) {
+            if installedURLs.contains(normalizeStremioManifestURL(url)) { done.insert(url); continue }
+            do {
+                _ = try await installAddon(from: url, suppressRemovedDefaultCleanup: true)
+                done.insert(url)
+            } catch {
+                logger.warn("[Stremio] Bundled addon not installed yet", data: ["error": error.localizedDescription])
+            }
+        }
+        defaults.set(Array(done), forKey: key)
     }
 
     private func persist() async {

@@ -336,7 +336,7 @@ extension UserDefaults {
     }
 
     var heroLayout: String {
-        get { string(forKey: profileKey(HomeKeys.heroLayout)) ?? "billboard" }
+        get { string(forKey: profileKey(HomeKeys.heroLayout)) ?? "carousel" }
         set { set(newValue, forKey: profileKey(HomeKeys.heroLayout)) }
     }
 
@@ -361,7 +361,7 @@ extension UserDefaults {
     }
 
     var rowLayout: String {
-        get { string(forKey: profileKey(HomeKeys.rowLayout)) ?? "landscape" }
+        get { string(forKey: profileKey(HomeKeys.rowLayout)) ?? "poster" }
         set { set(newValue, forKey: profileKey(HomeKeys.rowLayout)) }
     }
 
@@ -401,12 +401,12 @@ extension UserDefaults {
     }
 
     var showPosterTitles: Bool {
-        get { object(forKey: profileKey(HomeKeys.showPosterTitles)) as? Bool ?? true }
+        get { object(forKey: profileKey(HomeKeys.showPosterTitles)) as? Bool ?? false }
         set { set(newValue, forKey: profileKey(HomeKeys.showPosterTitles)) }
     }
 
     var showLibraryTitles: Bool {
-        get { object(forKey: profileKey(HomeKeys.showLibraryTitles)) as? Bool ?? true }
+        get { object(forKey: profileKey(HomeKeys.showLibraryTitles)) as? Bool ?? false }
         set { set(newValue, forKey: profileKey(HomeKeys.showLibraryTitles)) }
     }
 
@@ -444,7 +444,7 @@ extension UserDefaults {
     }
 
     var showNewPopularTab: Bool {
-        get { object(forKey: profileKey(SidebarKeys.showNewPopularTab)) as? Bool ?? true }
+        get { object(forKey: profileKey(SidebarKeys.showNewPopularTab)) as? Bool ?? false }
         set { set(newValue, forKey: profileKey(SidebarKeys.showNewPopularTab)) }
     }
 }
@@ -565,7 +565,8 @@ extension UserDefaults {
     }
 
     var stremioPlaybackEnabled: Bool {
-        get { bool(forKey: profileKey(StremioKeys.playbackEnabled)) }
+        // On by default in the friends edition, which comes with stream add-ons.
+        get { object(forKey: profileKey(StremioKeys.playbackEnabled)) as? Bool ?? !BundledDefaults.stremioAddons.isEmpty }
         set { set(newValue, forKey: profileKey(StremioKeys.playbackEnabled)) }
     }
 
@@ -764,20 +765,20 @@ extension UserDefaults {
         showTrendingRows = true
         showTraktRows = true
         showPlexPopular = true
-        showNewPopularTab = true
+        showNewPopularTab = false
         includeTmdbInSearch = true
 
         // Reset onboarding
         hasCompletedOnboarding = false
 
         // Reset home screen settings
-        heroLayout = "billboard"
+        heroLayout = "carousel"
         showHeroSection = true
         showContinueWatching = true
         showCollectionRows = true
         hiddenCollectionKeys = []
         posterSize = "medium"
-        showPosterTitles = true
+        showPosterTitles = false
 
         // Reset player settings
         resetPlayerSettings()

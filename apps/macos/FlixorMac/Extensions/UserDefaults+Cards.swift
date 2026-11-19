@@ -97,7 +97,7 @@ enum CardTitleMode: String, CaseIterable, Identifiable {
     /// No visible titles (VoiceOver still reads them).
     case never
 
-    static let `default`: CardTitleMode = .hover
+    static let `default`: CardTitleMode = .never
 
     var id: String { rawValue }
 

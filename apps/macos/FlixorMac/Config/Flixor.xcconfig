@@ -10,6 +10,14 @@ FLIXOR_TRAKT_CLIENT_SECRET =
 
 #include? "Secrets.xcconfig"
 
+// Friends-and-family defaults (MyBluray key, FlixPatrol API, Stremio add-ons).
+// Empty here; release.sh friends sets them from Config/Friends.xcconfig, which is
+// gitignored. See Friends.example.xcconfig.
+FLIXOR_BUNDLED_MYBLURAY_KEY =
+FLIXOR_BUNDLED_FLIXPATROL_URL =
+FLIXOR_BUNDLED_FLIXPATROL_KEY =
+FLIXOR_BUNDLED_STREMIO_ADDONS =
+
 // Info.plist merged into the generated one. Personal.xcconfig may point it at
 // Personal-Info.plist (same keys plus the personal build's additions).
 FLIXOR_INFOPLIST_FILE = FlixorMac/Info.plist

@@ -3,6 +3,7 @@
 #
 #   apps/macos/scripts/release.sh public   [options]   # for everyone: no Live TV
 #   apps/macos/scripts/release.sh personal [options]   # for the owner: with Live TV
+#   apps/macos/scripts/release.sh friends  [options]   # friends and family: public + bundled keys
 #
 # Options
 #   --version X.Y.Z  Marketing version (default: MARKETING_VERSION in the project).
@@ -12,14 +13,18 @@
 #   --install        personal only: replace /Applications/FlixorMac.app (quits Flixor).
 #
 # Output: apps/macos/dist/<edition>/  (gitignored)
-#   Flixor-<version>.dmg (public) or Flixor-<version>-personal.dmg, the stapled .app,
-#   a zip of it, SHA-256 sums and the notary log.
+#   Flixor-<version>.dmg (public), Flixor-<version>-personal.dmg or
+#   Flixor-<version>-friends.dmg, the stapled .app, a zip of it, SHA-256 sums and the
+#   notary log.
 #
 # Editions
 #   The personal edition compiles in FLIXOR_LIVE_TV through Config/Personal.xcconfig
 #   (gitignored, owner's Mac only). The public edition overrides it away, whether or
 #   not that file exists, and the script refuses to package a public build that still
 #   contains Live TV code or the personal Info.plist's App Transport Security exception.
+#   The friends edition is the public one plus the defaults in Config/Friends.xcconfig
+#   (gitignored): a MyBluray key, a FlixPatrol API and Stremio add-ons. It is never
+#   uploaded, because anyone with the app can read those values out of it.
 #
 # One-time setup (see the steps printed by --help)
 #   1. A "Developer ID Application" certificate in the login keychain.
@@ -38,7 +43,7 @@ setopt null_glob
 
 SCRIPT=${0:A}
 # In a zsh function $0 is the function's name, hence SCRIPT.
-usage() { sed -n '2,33p' "$SCRIPT" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,39p' "$SCRIPT" | sed 's/^# \{0,1\}//'; }
 
 MACOS_DIR=${SCRIPT:h:h}
 REPO_DIR=${MACOS_DIR:h:h}
@@ -56,7 +61,7 @@ INSTALL=0
 
 while (( $# )); do
   case $1 in
-    public|personal) EDITION=$1 ;;
+    public|personal|friends) EDITION=$1 ;;
     --version) VERSION=$2; shift ;;
     --build) BUILD=$2; shift ;;
     --no-notarize) NOTARIZE=0 ;;
@@ -73,8 +78,8 @@ fail() { print -P "%F{red}error:%f $1" >&2; exit 1; }
 warn() { print -P "%F{yellow}warning:%f $1" >&2; }
 
 [[ -n $EDITION ]] || { usage >&2; exit 2; }
-[[ $EDITION == personal && $UPLOAD == 1 ]] && fail "--upload is for the public edition only. The personal edition never leaves your Mac."
-[[ $EDITION == public && $INSTALL == 1 ]] && fail "--install is for the personal edition only."
+[[ $EDITION != public && $UPLOAD == 1 ]] && fail "--upload is for the public edition only. The $EDITION edition carries keys and never goes on GitHub."
+[[ $EDITION != personal && $INSTALL == 1 ]] && fail "--install is for the personal edition only."
 [[ $UPLOAD == 1 && $NOTARIZE == 0 ]] && fail "--upload needs a notarized build (drop --no-notarize)."
 
 # ---------------------------------------------------------------- checks
@@ -106,6 +111,9 @@ fi
 if [[ $EDITION == personal ]]; then
   [[ -f $CONFIG_DIR/Personal.xcconfig ]] || fail "Config/Personal.xcconfig is missing: copy Personal.example.xcconfig to build the personal edition."
 fi
+if [[ $EDITION == friends ]]; then
+  [[ -f $CONFIG_DIR/Friends.xcconfig ]] || fail "Config/Friends.xcconfig is missing: copy Friends.example.xcconfig and fill it in."
+fi
 [[ -f $CONFIG_DIR/Secrets.xcconfig ]] || warn "Config/Secrets.xcconfig is missing: the build will have no TMDB/Trakt keys."
 
 if [[ -n $(git -C "$REPO_DIR" status --porcelain -- apps/macos shared) ]]; then
@@ -122,7 +130,7 @@ VERSION_RE='^[0-9]+(\.[0-9]+){1,2}$'
 COMMIT=$(git -C "$REPO_DIR" rev-parse --short HEAD)
 echo "Edition: $EDITION   Version: $VERSION ($BUILD)   Commit: $COMMIT"
 
-SUFFIX=""; [[ $EDITION == personal ]] && SUFFIX="-personal"
+SUFFIX=""; [[ $EDITION != public ]] && SUFFIX="-$EDITION"
 NAME="Flixor-$VERSION$SUFFIX"
 DIST=$MACOS_DIR/dist/$EDITION
 WORK=$(mktemp -d "${TMPDIR:-/tmp}/flixor-release.XXXXXX")
@@ -135,12 +143,15 @@ step "Building the $EDITION edition (Release, Apple Silicon)"
 
 # Settings passed with -xcconfig override the project and Flixor.xcconfig.
 OVERRIDES=$WORK/edition.xcconfig
-if [[ $EDITION == public ]]; then
+if [[ $EDITION != personal ]]; then
   cat > "$OVERRIDES" <<'EOF'
-// Public edition: no Live TV, the plain Info.plist (no App Transport Security exception).
+// Public and friends editions: no Live TV, the plain Info.plist (no App Transport Security exception).
 SWIFT_ACTIVE_COMPILATION_CONDITIONS =
 FLIXOR_INFOPLIST_FILE = FlixorMac/Info.plist
 EOF
+  if [[ $EDITION == friends ]]; then
+    print "#include \"$CONFIG_DIR/Friends.xcconfig\"" >> "$OVERRIDES"
+  fi
 else
   print "// Personal edition: Config/Personal.xcconfig (included by Flixor.xcconfig) applies." > "$OVERRIDES"
 fi
@@ -166,11 +177,32 @@ BIN=$BUILT/Contents/MacOS/FlixorMac
 LIVETV_COUNT=$(strings -a "$BIN" | grep -c "LiveTV" || true)
 HAS_LIVETV=0; (( LIVETV_COUNT > 0 )) && HAS_LIVETV=1
 HAS_ATS=0; /usr/libexec/PlistBuddy -c "Print :NSAppTransportSecurity:NSAllowsArbitraryLoads" "$BUILT/Contents/Info.plist" >/dev/null 2>&1 && HAS_ATS=1
-if [[ $EDITION == public ]]; then
-  (( HAS_LIVETV == 0 )) || fail "The public build contains Live TV code. Not packaging it."
-  (( HAS_ATS == 0 )) || fail "The public build has the personal App Transport Security exception. Not packaging it."
+PLIST=$BUILT/Contents/Info.plist
+bundled() { /usr/libexec/PlistBuddy -c "Print :$1" "$PLIST" 2>/dev/null || true; }
+BUNDLED_KEYS=(FlixorBundledMyBlurayKey FlixorBundledFlixPatrolURL FlixorBundledFlixPatrolKey FlixorBundledStremioAddons)
+if [[ $EDITION != personal ]]; then
+  (( HAS_LIVETV == 0 )) || fail "The $EDITION build contains Live TV code. Not packaging it."
+  (( HAS_ATS == 0 )) || fail "The $EDITION build has the personal App Transport Security exception. Not packaging it."
   echo "No Live TV code, no ATS exception."
-else
+fi
+if [[ $EDITION == friends ]]; then
+  # Values are checked, never printed.
+  for k in $BUNDLED_KEYS; do
+    v=$(bundled $k)
+    [[ -n $v && $v != *'$('* ]] || fail "$k is empty in the friends build: check Config/Friends.xcconfig."
+  done
+  [[ $(bundled FlixorBundledFlixPatrolURL) == https://* ]] || fail "The FlixPatrol URL lost its https:// (write it as https:/\$()/host in the xcconfig)."
+  ADDONS=(${=$(bundled FlixorBundledStremioAddons)})
+  for a in $ADDONS; do
+    [[ $a == https://*manifest.json ]] || fail "A Stremio add-on URL is malformed (write https:/\$()/host in the xcconfig)."
+  done
+  echo "Bundled: MyBluray key, FlixPatrol API, ${#ADDONS} Stremio add-ons."
+elif [[ $EDITION == public ]]; then
+  for k in $BUNDLED_KEYS; do
+    [[ -z $(bundled $k) ]] || fail "The public build carries $k. Not packaging it."
+  done
+fi
+if [[ $EDITION == personal ]]; then
   (( HAS_LIVETV == 1 )) || fail "The personal build has no Live TV code: is FLIXOR_LIVE_TV set in Personal.xcconfig?"
   echo "Live TV included."
 fi

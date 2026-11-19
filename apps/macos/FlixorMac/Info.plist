@@ -9,5 +9,13 @@
 	<string>$(FLIXOR_TRAKT_CLIENT_ID)</string>
 	<key>FlixorTraktClientSecret</key>
 	<string>$(FLIXOR_TRAKT_CLIENT_SECRET)</string>
+	<key>FlixorBundledMyBlurayKey</key>
+	<string>$(FLIXOR_BUNDLED_MYBLURAY_KEY)</string>
+	<key>FlixorBundledFlixPatrolURL</key>
+	<string>$(FLIXOR_BUNDLED_FLIXPATROL_URL)</string>
+	<key>FlixorBundledFlixPatrolKey</key>
+	<string>$(FLIXOR_BUNDLED_FLIXPATROL_KEY)</string>
+	<key>FlixorBundledStremioAddons</key>
+	<string>$(FLIXOR_BUNDLED_STREMIO_ADDONS)</string>
 </dict>
 </plist>

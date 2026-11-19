@@ -36,6 +36,8 @@ final class StreamingAvailabilityStore: ObservableObject {
         static let refreshHours = "streamingAvailability.refreshHours"
         /// JSON array of FlixPatrolSource (URL + key), in the Keychain.
         static let flixPatrolSources = "flixPatrol.sources"
+        /// Set once the friends edition's bundled FlixPatrol API has been added.
+        static let flixPatrolBundledSeeded = "flixPatrol.bundledSeeded"
     }
 
     /// FlixPatrol charts update about once a day and calls are free: check every 6 hours.
@@ -93,6 +95,7 @@ final class StreamingAvailabilityStore: ObservableObject {
         loadingSettings = true
         defer { loadingSettings = false }
         migrateSingleKey()
+        seedBundledFlixPatrolIfNeeded()
         let newHasKey = !storedKeys.isEmpty
         if hasKey != newHasKey { hasKey = newHasKey }
         let sources = storedFlixPatrolSources
@@ -216,6 +219,15 @@ final class StreamingAvailabilityStore: ObservableObject {
               let sources = try? JSONDecoder().decode([FlixPatrolSource].self, from: data) else { return [] }
         sources.forEach { AppLogger.shared.registerSensitiveValue($0.key) }
         return sources
+    }
+
+    /// Adds the friends edition's FlixPatrol API once; after that it's the person's to keep or remove.
+    private func seedBundledFlixPatrolIfNeeded() {
+        guard let bundled = BundledDefaults.flixPatrol, !defaults.bool(forKey: Keys.flixPatrolBundledSeeded) else { return }
+        defaults.set(true, forKey: Keys.flixPatrolBundledSeeded)
+        let current = storedFlixPatrolSources
+        guard !current.contains(where: { $0.id == bundled.id }) else { return }
+        saveFlixPatrolSources(current + [bundled])
     }
 
     private func saveFlixPatrolSources(_ sources: [FlixPatrolSource]) {

@@ -34,7 +34,7 @@ enum NavigationBarStyle: String, CaseIterable, Identifiable {
     case expanded
     case compact
 
-    static let `default`: NavigationBarStyle = .adaptive
+    static let `default`: NavigationBarStyle = .compact
 
     var id: String { rawValue }
 
